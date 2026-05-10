@@ -11,6 +11,7 @@ import { AnthropicProvider } from "../providers/anthropic.js";
 import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
+import { CopilotProvider } from "../providers/copilot.js";
 import {
   resolveAnthropicAuthFromEnv,
   resolveAnthropicBaseURLFromEnv,
@@ -49,7 +50,7 @@ export interface LLMProvider {
   embed(text: string): Promise<number[]>;
 }
 
-const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "openai", "ollama", "minimax"]);
+const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "openai", "ollama", "minimax", "copilot"]);
 
 /**
  * Factory that returns the appropriate LLMProvider based on env vars.
@@ -78,6 +79,8 @@ export function getProvider(): LLMProvider {
       });
     case "minimax":
       return getMiniMaxProvider();
+    case "copilot":
+      return getCopilotProvider();
     default:
       throw new Error(`Unhandled provider: ${providerName}`);
   }
@@ -88,7 +91,7 @@ function readOptionalEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
-function getModelForProvider(providerName: "openai" | "ollama" | "minimax"): string {
+function getModelForProvider(providerName: "openai" | "ollama" | "minimax" | "copilot"): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
 
@@ -101,6 +104,18 @@ function getMiniMaxProvider(): MiniMaxProvider {
     );
   }
   return new MiniMaxProvider(getModelForProvider("minimax"), apiKey);
+}
+
+function getCopilotProvider(): CopilotProvider {
+  const apiKey = process.env.GITHUB_TOKEN;
+  if (!apiKey) {
+    throw new Error(
+      "GitHub Copilot provider requires GITHUB_TOKEN environment variable.\n" +
+      "  Set it with: export GITHUB_TOKEN=ghp_...\n" +
+      "  The token must belong to a GitHub account with an active Copilot subscription.",
+    );
+  }
+  return new CopilotProvider(getModelForProvider("copilot"), apiKey);
 }
 
 function getAnthropicProvider(): AnthropicProvider {

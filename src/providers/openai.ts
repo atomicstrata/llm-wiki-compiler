@@ -131,6 +131,7 @@ export class OpenAIProvider implements LLMProvider {
       max_tokens: maxTokens,
       messages: [{ role: "system", content: system }, ...messages],
       tools: openaiTools,
+      tool_choice: "required",
     });
 
     const toolCalls = response.choices[0]?.message?.tool_calls;

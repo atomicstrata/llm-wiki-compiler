@@ -48,10 +48,14 @@ export const PROVIDER_MODELS: Record<string, string> = {
   openai: "gpt-4o",
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",
+  copilot: "gpt-4o",
 };
 
 /** Default Ollama API base URL. */
 export const OLLAMA_DEFAULT_HOST = "http://localhost:11434/v1";
+
+/** GitHub Copilot API base URL (OpenAI-compatible, requires OAuth token). */
+export const COPILOT_BASE_URL = "https://api.githubcopilot.com";
 
 /**
  * Default request timeout for cloud OpenAI-compatible providers (10 minutes).

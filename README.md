@@ -103,6 +103,35 @@ export OLLAMA_HOST=http://ollama_host:11434/v1
 export OLLAMA_EMBEDDINGS_HOST=http://ollama_host:11435/v1
 ```
 
+### GitHub Copilot
+
+Uses the GitHub Copilot API (`https://api.githubcopilot.com`), an
+OpenAI-compatible endpoint available to Copilot subscribers. Requires a GitHub
+OAuth token with the `copilot` scope — **classic PATs are not supported**.
+
+First, ensure your `gh` CLI token has the required scope:
+
+```bash
+gh auth refresh --scopes copilot
+```
+
+Then run:
+
+```bash
+export LLMWIKI_PROVIDER=copilot
+export GITHUB_TOKEN=$(gh auth token)  # OAuth token required; PATs will not work
+export LLMWIKI_MODEL=gpt-4o           # optional; gpt-4o is the default
+```
+
+Available models (names use dots, not dashes): `gpt-4o`, `gpt-4o-mini`,
+`claude-sonnet-4.5`, `claude-sonnet-4.6`, `claude-opus-4.5`, `gemini-2.5-pro`,
+and others — availability depends on your Copilot plan.
+
+**Embeddings:** The GitHub Copilot API does not expose an embeddings endpoint.
+Semantic search (used by `llmwiki query` with chunked retrieval) will fall back
+to full-index selection without embeddings. For embedding-dependent workflows,
+switch to the `openai` provider and provide `OPENAI_API_KEY`.
+
 ### Request timeouts
 
 The OpenAI SDK defaults to a 10-minute per-request timeout, which can cut off long compile-time completions on slower local models. Override per provider:
