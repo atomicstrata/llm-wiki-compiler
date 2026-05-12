@@ -76,10 +76,9 @@ describe("security headers", () => {
     ["/api/pages", 200],
     ["/api/health", 200],
     ["/api/page/concepts/x", 200],
-    // Unregistered routes (no Slice 5 search yet, and a literal nope path)
-    // still carry the mandatory headers — the spec requires every response
-    // to be hardened, not just successful API hits.
-    ["/api/search?q=x", 404],
+    ["/api/search?q=x", 200],
+    // Unregistered route — still carries the mandatory headers — the
+    // spec requires every response to be hardened, not just registered API hits.
     ["/nope", 404],
   ])("emits CSP / CORP / nosniff / Referrer-Policy on %s", async (pathname, expectedStatus) => {
     const handle = await startViewer();

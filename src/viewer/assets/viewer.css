@@ -32,6 +32,24 @@ body { margin: 0; background: var(--bg); color: var(--fg); }
 a { color: var(--accent); text-decoration: none; }
 a:hover, a:focus-visible { text-decoration: underline; }
 
+/* Universal visible-focus ring so keyboard navigation is always
+ * obvious. Spec §Slice 5 acceptance: "keyboard focus states are
+ * visible." */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .skip-link {
   position: absolute; top: -100px; left: 0;
   padding: 0.5rem 1rem; background: var(--accent); color: #fff; z-index: 100;
@@ -68,6 +86,60 @@ a:hover, a:focus-visible { text-decoration: underline; }
 .sidebar li a:hover, .sidebar li a:focus-visible { background: var(--bg); }
 .sidebar li a[aria-current="page"] { background: var(--accent); color: #fff; }
 
+.sidebar-search {
+  margin-bottom: 0.75rem;
+}
+.sidebar-search input[type="search"] {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.search-results {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.search-results[hidden] { display: none; }
+.search-results .empty {
+  font-style: italic;
+  color: var(--fg-muted);
+  padding: 0.4rem 0.5rem;
+}
+.search-results a {
+  display: block;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  color: var(--fg);
+}
+.search-results a:hover,
+.search-results a:focus-visible {
+  background: var(--bg);
+}
+.search-results .result-title {
+  display: block;
+  font-weight: 600;
+}
+.search-results .result-snippet {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  margin-top: 0.1rem;
+}
+.search-results .result-kind {
+  font-size: 0.75rem;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 0.4rem;
+}
+
 .main-pane {
   padding: 1.5rem 2rem;
   max-width: var(--max-content-width);
@@ -97,10 +169,36 @@ a:hover, a:focus-visible { text-decoration: underline; }
   padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 1rem;
 }
 
+.health-dashboard {
+  display: grid;
+  gap: 1rem;
+}
+.health-dashboard dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1rem;
+  row-gap: 0.25rem;
+  margin: 0;
+}
+.health-dashboard dt { color: var(--fg-muted); }
+.health-dashboard dd { margin: 0; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 800px) {
   .app-layout {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto auto auto auto;
   }
-  .sidebar, .support-rail { border-right: none; border-left: none; border-bottom: 1px solid var(--border); }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-y: visible;
+    max-height: 16rem;
+  }
+  .support-rail {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .main-pane {
+    padding: 1rem;
+  }
 }

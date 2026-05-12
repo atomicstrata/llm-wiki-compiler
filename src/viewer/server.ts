@@ -21,6 +21,7 @@ import { buildHealthResponse } from "./health.js";
 import { loadShellTemplate, substitutePageIndex } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { renderPageHtml } from "./render.js";
+import { searchPages } from "./search.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ViewerSnapshot, ViewerPage } from "./types.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
@@ -147,6 +148,7 @@ async function routeRegistered(
   if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
+  if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
@@ -162,6 +164,7 @@ function isRouteRegistered(method: string | undefined, pathname: string): boolea
   if (pathname === "/api/pages") return true;
   if (pathname === "/api/index") return true;
   if (pathname === "/api/health") return true;
+  if (pathname === "/api/search") return true;
   if (pathname.startsWith("/api/page/")) return true;
   return false;
 }
@@ -290,6 +293,22 @@ function handleApiIndex(
 async function handleApiHealth(res: ServerResponse, snapshot: ViewerSnapshot): Promise<void> {
   const health = await buildHealthResponse(snapshot);
   writeJson(res, 200, health);
+}
+
+/**
+ * `/api/search?q=...` — substring search over the startup snapshot. The
+ * query string is read directly from the parsed URL (Node's URL parser
+ * has already percent-decoded it); `searchPages` does its own length
+ * cap and tokenization. An empty or missing `q` returns an empty
+ * results array, consistent with the no-tokens case.
+ */
+function handleApiSearch(
+  res: ServerResponse,
+  parsedUrl: URL,
+  snapshot: ViewerSnapshot,
+): void {
+  const query = parsedUrl.searchParams.get("q") ?? "";
+  writeJson(res, 200, searchPages(snapshot, query));
 }
 
 /**

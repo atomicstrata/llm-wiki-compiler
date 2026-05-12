@@ -19,6 +19,7 @@ const REQUIRED_ASSETS = [
   "dist/viewer/assets/index.html",
   "dist/viewer/assets/viewer.css",
   "dist/viewer/assets/viewer.js",
+  "dist/viewer/assets/viewer-search.js",
 ];
 
 interface PackEntry {

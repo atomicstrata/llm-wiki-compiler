@@ -123,6 +123,32 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect((body as { error: { code: string } }).error.code).toBe("asset_not_found");
   });
 
+  it("/api/search?q=… returns matching pages from the startup snapshot", async () => {
+    const root = await makeTempRoot("viewer-server-search");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "attention",
+      { title: "Attention Mechanism" },
+      "Body text.",
+    );
+    await writePage(path.join(root, "wiki/queries"), "other", { title: "Unrelated" }, "Body.");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/search?q=attention");
+    expect(status).toBe(200);
+    const results = (body as { results: Array<{ id: string; matchedIn: string }> }).results;
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe("concepts/attention");
+    expect(results[0].matchedIn).toBe("title");
+  });
+
+  it("/api/search with empty q returns an empty result list (not 400)", async () => {
+    const root = await makeTempRoot("viewer-server-search-empty");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/search?q=");
+    expect(status).toBe(200);
+    expect((body as { results: unknown[] }).results).toEqual([]);
+  });
+
   it("rejects encoded traversal in the asset path with 400 bad_asset_path", async () => {
     const root = await makeTempRoot("viewer-server-asset-traversal");
     const handle = await startViewer(root);

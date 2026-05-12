@@ -12,8 +12,28 @@
       <strong class="app-title" data-app-title>llmwiki</strong>
     </header>
     <div class="app-layout">
-      <nav class="sidebar" aria-label="Wiki navigation" data-sidebar>
-        <div class="sidebar-loading">Loading…</div>
+      <nav class="sidebar" aria-label="Wiki navigation">
+        <form class="sidebar-search" role="search" data-search-form autocomplete="off">
+          <label for="search-input" class="visually-hidden">Search wiki</label>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Search…"
+            aria-controls="search-results"
+            data-search-input
+          />
+        </form>
+        <ul
+          id="search-results"
+          class="search-results"
+          role="listbox"
+          aria-label="Search results"
+          data-search-results
+          hidden
+        ></ul>
+        <div data-sidebar>
+          <p class="placeholder">Loading…</p>
+        </div>
       </nav>
       <main id="main-pane" class="main-pane" tabindex="-1" data-main-pane>
         <p class="placeholder">Select a page from the sidebar.</p>
