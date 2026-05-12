@@ -20,9 +20,12 @@ import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
 import { loadShellTemplate, substitutePageIndex } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
+import { renderPageHtml } from "./render.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ViewerSnapshot, ViewerPage } from "./types.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 
 /** Exact CSP string the spec mandates. Pinned here to keep the test contract obvious. */
 const CONTENT_SECURITY_POLICY =
@@ -63,7 +66,14 @@ export async function startViewerServer(
   const boundConfig: ViewerServerConfig = { ...config };
   const server = http.createServer((req, res) => {
     handleRequest(req, res, snapshot, boundConfig).catch((err) => {
-      writeJsonError(res, 500, "internal_error", err instanceof Error ? err.message : "unknown");
+      // Per spec: never return raw thrown error text to the client.
+      // The per-route handlers catch render/sanitize failures locally
+      // and emit `render_failed`; reaching here means a genuinely
+      // unexpected bug, so surface a generic envelope.
+      void err;
+      if (!res.headersSent) {
+        writeJsonError(res, 500, "internal_error", "Unexpected server error.");
+      }
     });
   });
   await new Promise<void>((resolve, reject) => {
@@ -116,27 +126,29 @@ async function handleRequest(
     writeJsonError(res, 404, "not_found", `${req.method ?? "?"} ${url.pathname}`);
     return;
   }
-  await routeRegistered(req, res, url, snapshot);
+  await routeRegistered(req, res, url, snapshot, LOOPBACK_HOSTS.has(config.host));
 }
 
 /**
  * Dispatch the request to whichever registered handler owns this path.
- * Caller has already confirmed the route is registered and the security
- * headers are set.
+ * `isLoopback` controls whether the rendered citation chips include
+ * `absolutePath` / editor-link payloads — non-loopback binds suppress
+ * both per spec §Support Rail.
  */
 async function routeRegistered(
   req: IncomingMessage,
   res: ServerResponse,
   parsedUrl: URL,
   snapshot: ViewerSnapshot,
+  isLoopback: boolean,
 ): Promise<void> {
   if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
   if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
-  if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot);
+  if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
   if (parsedUrl.pathname.startsWith("/api/page/")) {
-    return handleApiPage(res, parsedUrl.pathname, snapshot);
+    return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
   res.statusCode = 404;
   res.end();
@@ -252,14 +264,23 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
   };
 }
 
-/** `/api/index` — index.md state. `html` is empty in Slice 2; Slice 4 fills it. */
-function handleApiIndex(res: ServerResponse, snapshot: ViewerSnapshot): void {
+/** `/api/index` — rendered `wiki/index.md` with resolved outgoing links. */
+function handleApiIndex(
+  res: ServerResponse,
+  snapshot: ViewerSnapshot,
+  isLoopback: boolean,
+): void {
   if (!snapshot.index.available) {
     writeJsonError(res, 404, "index_unavailable", "wiki/index.md is not present.");
     return;
   }
+  const rendered = tryRenderBody(snapshot.index.body, snapshot, isLoopback);
+  if (rendered === null) {
+    writeRenderFailed(res);
+    return;
+  }
   writeJson(res, 200, {
-    html: "",
+    html: rendered.html,
     outgoingLinks: snapshot.index.outgoingLinks,
     generatedAt: snapshot.generatedAt,
   });
@@ -272,11 +293,17 @@ async function handleApiHealth(res: ServerResponse, snapshot: ViewerSnapshot): P
 }
 
 /**
- * `/api/page/:directory/:slug` — single page payload in Slice 2's safe
- * placeholder shape (`html: ""`, `warnings` includes `render_pending`).
- * Slice 4 will swap in real rendered HTML and drop the render warning.
+ * `/api/page/:directory/:slug` — single page payload with server-rendered
+ * sanitized HTML. The `render_pending` Slice-2 placeholder is gone; any
+ * remaining warnings come from the collector (missing/malformed
+ * frontmatter, missing title).
  */
-function handleApiPage(res: ServerResponse, pathname: string, snapshot: ViewerSnapshot): void {
+function handleApiPage(
+  res: ServerResponse,
+  pathname: string,
+  snapshot: ViewerSnapshot,
+  isLoopback: boolean,
+): void {
   const segments = pathname.replace(/^\/api\/page\//, "").split("/");
   if (segments.length !== 2) {
     writeJsonError(res, 400, "bad_request", "Expected /api/page/:directory/:slug");
@@ -295,7 +322,12 @@ function handleApiPage(res: ServerResponse, pathname: string, snapshot: ViewerSn
     writeJsonError(res, 404, "page_not_found", `${decodedSlug.directory}/${decodedSlug.slug}`);
     return;
   }
-  writeJson(res, 200, pagePayload(page, snapshot));
+  const rendered = tryRenderBody(page.body, snapshot, isLoopback);
+  if (rendered === null) {
+    writeRenderFailed(res);
+    return;
+  }
+  writeJson(res, 200, pagePayload(page, snapshot, rendered.html));
 }
 
 /**
@@ -324,29 +356,49 @@ function safeDecodeSlug(
 }
 
 /** Build the JSON payload for `/api/page/:dir/:slug`. */
-function pagePayload(page: ViewerPage, snapshot: ViewerSnapshot): Record<string, unknown> {
+function pagePayload(
+  page: ViewerPage,
+  snapshot: ViewerSnapshot,
+  renderedHtml: string,
+): Record<string, unknown> {
   return {
     id: page.id,
     title: page.title,
     pageDirectory: page.pageDirectory,
     slug: page.slug,
-    html: "",
+    html: renderedHtml,
     citations: page.citations,
     outgoingLinks: page.outgoingLinks,
     frontmatter: page.frontmatter,
-    warnings: [
-      ...page.warnings,
-      {
-        code: "render_pending",
-        message: "Markdown rendering ships in Slice 4.",
-      },
-    ],
+    warnings: page.warnings,
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
     createdAt:
       typeof page.frontmatter.createdAt === "string" ? (page.frontmatter.createdAt as string) : "",
     generatedAt: snapshot.generatedAt,
   };
+}
+
+/**
+ * Wrap the renderer in a catch and return null on any thrown error.
+ * Render or sanitize failures must emit the spec's `render_failed`
+ * envelope rather than leak the raw thrown text — see `writeRenderFailed`.
+ */
+function tryRenderBody(
+  body: string,
+  snapshot: ViewerSnapshot,
+  isLoopback: boolean,
+): { html: string } | null {
+  try {
+    return renderPageHtml(body, snapshot, { isLoopback });
+  } catch {
+    return null;
+  }
+}
+
+/** Write the spec's exact `render_failed` 500 envelope. */
+function writeRenderFailed(res: ServerResponse): void {
+  writeJsonError(res, 500, "render_failed", "Could not render page.");
 }
 
 /** Write a JSON response body with the given status. */

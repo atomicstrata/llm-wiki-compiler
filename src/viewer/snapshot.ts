@@ -42,11 +42,11 @@ const INDEX_HREF = "/#/index";
  * `readLintCache` in `src/viewer/health.ts` is the sole exception.
  */
 export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot> {
-  const [pages, state, pendingReviews, sourceFiles, index] = await Promise.all([
+  const [pages, state, pendingReviews, sourceFilenames, index] = await Promise.all([
     collectViewerPages(root),
     readState(root),
     countCandidates(root),
-    countSourceFiles(root),
+    listSourceFiles(root),
     readIndexFile(root),
   ]);
   const project = buildProject(root);
@@ -57,7 +57,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   const counts: ViewerCounts = {
     concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
     queries: pages.filter((p) => p.pageDirectory === "queries").length,
-    sourceFiles,
+    sourceFiles: sourceFilenames.length,
     pendingReviews,
     compiledSources: Object.keys(state.sources).length,
   };
@@ -75,6 +75,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     index: fullIndex,
     recentPages: buildRecentPages(pages),
     pages,
+    sourceFilenames,
   };
 }
 
@@ -85,16 +86,39 @@ function buildProject(root: string): ViewerProject {
 }
 
 /**
- * Cheap count of files directly under `sources/`. Returns 0 when the
- * directory is missing; the dashboard shows the literal count, not a
- * compiled-source comparison (that lives in `counts.compiledSources`).
+ * List filenames directly under `sources/`. Returns an empty array when
+ * the directory is missing. The Slice 4 citation renderer uses this list
+ * to mark each chip `data-resolved` without per-request directory scans;
+ * `counts.sourceFiles` is the cheap `.length` of the same list.
+ *
+ * Stricter than "stays under project root": `realpath(<root>/sources)`
+ * must equal the literal canonical path `<canonicalRoot>/sources`. A
+ * symlinked `sources/` directory — even pointing in-root — returns an
+ * empty list, matching the same containment posture the wiki collector
+ * uses for `wiki/concepts/` and `wiki/queries/`. Symlinked entries
+ * inside the directory are excluded by `Dirent.isFile()` (which returns
+ * false for symlinks since `withFileTypes` does not follow them).
  */
-async function countSourceFiles(root: string): Promise<number> {
+async function listSourceFiles(root: string): Promise<string[]> {
+  let canonicalRoot: string;
   try {
-    const entries = await readdir(path.join(root, SOURCES_DIR), { withFileTypes: true });
-    return entries.filter((e) => e.isFile()).length;
+    canonicalRoot = await realpath(root);
   } catch {
-    return 0;
+    return [];
+  }
+  const expectedDir = path.join(canonicalRoot, SOURCES_DIR);
+  let realDir: string;
+  try {
+    realDir = await realpath(expectedDir);
+  } catch {
+    return [];
+  }
+  if (realDir !== expectedDir) return [];
+  try {
+    const entries = await readdir(realDir, { withFileTypes: true });
+    return entries.filter((e) => e.isFile()).map((e) => e.name);
+  } catch {
+    return [];
   }
 }
 

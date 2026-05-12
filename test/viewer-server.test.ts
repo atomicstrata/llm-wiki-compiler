@@ -69,16 +69,17 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect(counts.queries).toBe(1);
   });
 
-  it("/api/page placeholder returns html='' and render_pending warning", async () => {
-    const root = await makeTempRoot("viewer-server-placeholder");
-    await writePage(path.join(root, "wiki/concepts"), "x", { title: "X" }, "Body.");
+  it("/api/page returns rendered html and no render_pending warning", async () => {
+    const root = await makeTempRoot("viewer-server-render");
+    await writePage(path.join(root, "wiki/concepts"), "x", { title: "X" }, "Body **bold**.");
     const handle = await startViewer(root);
     const { status, body } = await fetchJson(handle, "/api/page/concepts/x");
     expect(status).toBe(200);
     const page = body as Record<string, unknown>;
-    expect(page.html).toBe("");
+    expect(typeof page.html).toBe("string");
+    expect(page.html as string).toContain("<strong>bold</strong>");
     const warnings = page.warnings as Array<{ code: string }>;
-    expect(warnings.some((w) => w.code === "render_pending")).toBe(true);
+    expect(warnings.some((w) => w.code === "render_pending")).toBe(false);
   });
 
   it("freezes counts at startup — post-startup file additions are invisible", async () => {

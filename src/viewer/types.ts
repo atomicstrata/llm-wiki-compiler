@@ -130,4 +130,11 @@ export interface ViewerSnapshot {
   recentPages: ViewerRecentPage[];
   /** All readable pages, in collector order (concepts then queries). */
   pages: ViewerPage[];
+  /**
+   * Filenames present under `sources/` at startup, captured as a flat
+   * list. The Slice 4 citation renderer uses these to set the `data-
+   * resolved` flag on each chip without doing per-request directory
+   * scans.
+   */
+  sourceFilenames: string[];
 }

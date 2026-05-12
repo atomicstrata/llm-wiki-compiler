@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { symlink, writeFile } from "fs/promises";
+import { mkdir, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
@@ -57,5 +57,46 @@ describe("buildViewerSnapshot — wiki/index.md handling", () => {
     );
     await symlink(path.join(root, "README.md"), path.join(root, "wiki/index.md"));
     await expectIndexUnavailable(root);
+  });
+});
+
+describe("buildViewerSnapshot — sources/ confinement", () => {
+  it("lists regular files under sources/ when sources/ is not a symlink", async () => {
+    const root = await makeTempRoot("snapshot-sources-regular");
+    await mkdir(path.join(root, "sources"), { recursive: true });
+    await writeFile(path.join(root, "sources", "a.md"), "# a");
+    await writeFile(path.join(root, "sources", "b.md"), "# b");
+
+    const snapshot = await buildViewerSnapshot(root);
+    expect(snapshot.sourceFilenames.sort()).toEqual(["a.md", "b.md"]);
+    expect(snapshot.counts.sourceFiles).toBe(2);
+  });
+
+  it("returns an empty source list when sources/ itself is a symlink", async () => {
+    const root = await makeTempRoot("snapshot-sources-symlink");
+    const outside = await makeOutsideDir();
+    await writeFile(path.join(outside, "leaked.md"), "# leaked");
+    // sources/ itself is a symlink — even to a directory containing
+    // regular files, the snapshot must NOT learn about those filenames
+    // (citation chips would mark them as `data-resolved="true"`).
+    await symlink(outside, path.join(root, "sources"));
+
+    const snapshot = await buildViewerSnapshot(root);
+    expect(snapshot.sourceFilenames).toEqual([]);
+    expect(snapshot.counts.sourceFiles).toBe(0);
+  });
+
+  it("excludes symlinked entries inside a non-symlinked sources/", async () => {
+    const root = await makeTempRoot("snapshot-sources-inner-symlink");
+    const outside = await makeOutsideDir();
+    await mkdir(path.join(root, "sources"), { recursive: true });
+    await writeFile(path.join(root, "sources", "ok.md"), "# ok");
+    await writeFile(path.join(outside, "secret.md"), "# secret");
+    await symlink(path.join(outside, "secret.md"), path.join(root, "sources", "leak.md"));
+
+    const snapshot = await buildViewerSnapshot(root);
+    // `Dirent.isFile()` returns false for symlinks (the entry-type
+    // check does not follow the link), so `leak.md` is excluded.
+    expect(snapshot.sourceFilenames).toEqual(["ok.md"]);
   });
 });
