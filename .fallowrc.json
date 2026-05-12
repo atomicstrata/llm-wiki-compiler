@@ -1,5 +1,13 @@
 {
   "$schema": "https://fallow.tools/schema.json",
+  "entry": [
+    "src/viewer/assets/viewer.js",
+    "scripts/copy-viewer-assets.mjs"
+  ],
+  "ignorePatterns": [
+    "src/viewer/assets/index.html",
+    "src/viewer/assets/viewer.css"
+  ],
   "overrides": [
     {
       "files": ["src/providers/*.ts"],

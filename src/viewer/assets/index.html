@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>llmwiki viewer</title>
+    <link rel="stylesheet" href="/assets/viewer.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-pane">Skip to main content</a>
+    <header class="app-header">
+      <strong class="app-title" data-app-title>llmwiki</strong>
+    </header>
+    <div class="app-layout">
+      <nav class="sidebar" aria-label="Wiki navigation" data-sidebar>
+        <div class="sidebar-loading">Loading…</div>
+      </nav>
+      <main id="main-pane" class="main-pane" tabindex="-1" data-main-pane>
+        <p class="placeholder">Select a page from the sidebar.</p>
+      </main>
+      <aside class="support-rail" aria-label="Page metadata" data-support-rail></aside>
+    </div>
+    <!--PAGE_INDEX-->
+    <script type="module" src="/assets/viewer.js"></script>
+  </body>
+</html>

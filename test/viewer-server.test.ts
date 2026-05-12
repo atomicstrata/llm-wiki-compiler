@@ -8,12 +8,13 @@
  * here so the test fixture proves the signal handlers actually fire.
  */
 
-import { describe, it, expect } from "vitest";
-import { mkdir, symlink, writeFile } from "fs/promises";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdir, rm, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../src/linter/cache.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
+import { makeOutsideDir } from "./fixtures/outside-dir.js";
 import {
   startViewerCLI,
   useViewerProcessLifecycle,
@@ -31,6 +32,19 @@ async function fetchJson(handle: ViewerProcessHandle, pathname: string): Promise
     ? await res.json()
     : await res.text();
   return { status: res.status, body };
+}
+
+async function fetchText(handle: ViewerProcessHandle, pathname: string): Promise<{
+  status: number;
+  contentType: string | null;
+  body: string;
+}> {
+  const res = await fetch(`http://${handle.host}:${handle.port}${pathname}`);
+  return {
+    status: res.status,
+    contentType: res.headers.get("Content-Type"),
+    body: await res.text(),
+  };
 }
 
 describe("llmwiki view — readiness and snapshot", () => {
@@ -77,20 +91,70 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect(counts.concepts).toBe(1);
   });
 
-  it("/ placeholder returns 503 shell_pending in Slice 2", async () => {
-    const root = await makeTempRoot("viewer-server-shell-placeholder");
+  it("/ serves the templated viewer shell with an embedded page-index blob", async () => {
+    const root = await makeTempRoot("viewer-server-shell");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "B.");
     const handle = await startViewer(root);
-    const { status, body } = await fetchJson(handle, "/");
-    expect(status).toBe(503);
-    expect((body as { error: { code: string } }).error.code).toBe("shell_pending");
+    const out = await fetchText(handle, "/");
+    expect(out.status).toBe(200);
+    expect(out.contentType).toMatch(/^text\/html/);
+    expect(out.body).toContain('<script type="application/json" id="page-index">');
+    expect(out.body).toContain('"concepts/alpha"');
+    expect(out.body).toContain("Alpha");
+    // The marker should have been replaced; no raw HTML comment left behind.
+    expect(out.body).not.toContain("<!--PAGE_INDEX-->");
   });
 
-  it("/assets/foo placeholder returns 404 assets_pending in Slice 2", async () => {
-    const root = await makeTempRoot("viewer-server-assets-placeholder");
+  it("/assets/viewer.js serves the bundled client script", async () => {
+    const root = await makeTempRoot("viewer-server-asset-js");
     const handle = await startViewer(root);
-    const { status, body } = await fetchJson(handle, "/assets/anything.js");
+    const out = await fetchText(handle, "/assets/viewer.js");
+    expect(out.status).toBe(200);
+    expect(out.contentType).toMatch(/javascript/);
+    expect(out.body.length).toBeGreaterThan(0);
+  });
+
+  it("/assets/<missing> returns 404 asset_not_found", async () => {
+    const root = await makeTempRoot("viewer-server-asset-missing");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/assets/nope.js");
     expect(status).toBe(404);
-    expect((body as { error: { code: string } }).error.code).toBe("assets_pending");
+    expect((body as { error: { code: string } }).error.code).toBe("asset_not_found");
+  });
+
+  it("rejects encoded traversal in the asset path with 400 bad_asset_path", async () => {
+    const root = await makeTempRoot("viewer-server-asset-traversal");
+    const handle = await startViewer(root);
+    // `%2e%2e%2f` decodes to `../` — the spec's encoded-traversal case.
+    const { status, body } = await fetchJson(handle, "/assets/%2e%2e%2f%2e%2e%2fREADME.md");
+    expect(status).toBe(400);
+    expect((body as { error: { code: string } }).error.code).toBe("bad_asset_path");
+  });
+
+  describe("/assets/* path-confinement", () => {
+    let symlinkPath: string | null = null;
+    afterEach(async () => {
+      if (symlinkPath) {
+        await rm(symlinkPath, { force: true });
+        symlinkPath = null;
+      }
+    });
+
+    it("returns 404 for a symlink under dist/viewer/assets that points outside", async () => {
+      const outside = await makeOutsideDir();
+      const outsideFile = path.join(outside, "leaked.js");
+      await writeFile(outsideFile, "// outside content");
+      const distAssets = path.join(process.cwd(), "dist/viewer/assets");
+      symlinkPath = path.join(distAssets, "leak.js");
+      await rm(symlinkPath, { force: true });
+      await symlink(outsideFile, symlinkPath);
+
+      const root = await makeTempRoot("viewer-server-asset-symlink");
+      const handle = await startViewer(root);
+      const { status, body } = await fetchJson(handle, "/assets/leak.js");
+      expect(status).toBe(404);
+      expect((body as { error: { code: string } }).error.code).toBe("asset_not_found");
+    });
   });
 
   it("counts do not include a symlinked concept that the collector dropped", async () => {

@@ -70,7 +70,8 @@ function rawHttpRequestStatus(
 
 describe("security headers", () => {
   it.each([
-    ["/", 503],
+    ["/", 200],
+    ["/assets/viewer.js", 200],
     ["/assets/anything.js", 404],
     ["/api/pages", 200],
     ["/api/health", 200],

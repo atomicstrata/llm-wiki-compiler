@@ -18,6 +18,8 @@ import http from "http";
 import type { IncomingMessage, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
+import { loadShellTemplate, substitutePageIndex } from "./shell.js";
+import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ViewerSnapshot, ViewerPage } from "./types.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
@@ -125,16 +127,16 @@ async function handleRequest(
 async function routeRegistered(
   req: IncomingMessage,
   res: ServerResponse,
-  url: URL,
+  parsedUrl: URL,
   snapshot: ViewerSnapshot,
 ): Promise<void> {
-  if (url.pathname === "/") return handleShellPlaceholder(res);
-  if (url.pathname.startsWith("/assets/")) return handleAssetsPlaceholder(res);
-  if (url.pathname === "/api/pages") return handleApiPages(res, snapshot);
-  if (url.pathname === "/api/index") return handleApiIndex(res, snapshot);
-  if (url.pathname === "/api/health") return handleApiHealth(res, snapshot);
-  if (url.pathname.startsWith("/api/page/")) {
-    return handleApiPage(res, url.pathname, snapshot);
+  if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
+  if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
+  if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
+  if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot);
+  if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
+  if (parsedUrl.pathname.startsWith("/api/page/")) {
+    return handleApiPage(res, parsedUrl.pathname, snapshot);
   }
   res.statusCode = 404;
   res.end();
@@ -199,19 +201,23 @@ function isSameOrigin(origin: string, config: ViewerServerConfig): boolean {
   }
 }
 
-/** Placeholder shell handler — replaced by the templated shell in Slice 3. */
-function handleShellPlaceholder(res: ServerResponse): void {
-  writeJsonError(
-    res,
-    503,
-    "shell_pending",
-    "Viewer shell ships in Slice 3. API endpoints under /api/* are available.",
-  );
-}
-
-/** Placeholder assets handler — replaced by the static file server in Slice 3. */
-function handleAssetsPlaceholder(res: ServerResponse): void {
-  writeJsonError(res, 404, "assets_pending", "Viewer assets ship in Slice 3.");
+/**
+ * Serve the templated viewer shell. Reads `index.html` lazily through
+ * `loadShellTemplate` (process-cached), substitutes the page-index JSON
+ * blob, and returns the result with `Content-Type: text/html`. A missing
+ * template surfaces as a 500 `shell_missing` so the rest of the routes
+ * stay usable when the asset bundle is incomplete.
+ */
+async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot): Promise<void> {
+  const template = await loadShellTemplate(ASSETS_DIR);
+  if (template === null) {
+    writeJsonError(res, 500, "shell_missing", "Viewer shell template not found on disk.");
+    return;
+  }
+  const body = substitutePageIndex(template, snapshot.pages);
+  res.statusCode = 200;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.end(body);
 }
 
 /** `/api/pages` — full envelope with counts, recent pages, and page list. */

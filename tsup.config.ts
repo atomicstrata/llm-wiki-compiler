@@ -11,4 +11,9 @@ export default defineConfig({
   banner: {
     js: "#!/usr/bin/env node",
   },
+  // Mirror the viewer's static assets (shell template, stylesheet, client
+  // script) into dist/viewer/assets/ so they ship with the published
+  // npm package. The Slice 3 viewer server reads the template at runtime
+  // and serves /assets/* from this directory.
+  onSuccess: "node scripts/copy-viewer-assets.mjs",
 });
