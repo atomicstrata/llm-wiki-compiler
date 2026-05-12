@@ -463,6 +463,7 @@ Later / open to discussion:
 
 - Recurring source refresh jobs — re-ingest URLs on a schedule, diff against the prior snapshot, re-compile only what changed
 - MCP prompt resources — curated agent prompts such as "review the wiki", "propose new sources", and "draft a comparison page"
+- Codex OAuth provider — ChatGPT subscription auth as a dedicated provider, with clear token refresh and embedding-limit behavior
 - Team-chat connectors for Slack/Discord/Teams-style institutional memory
 
 If you like ambitious problems: **local web UI**, **graph/context packs**, and **eval harness** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.

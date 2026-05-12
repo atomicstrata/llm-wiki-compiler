@@ -111,7 +111,8 @@ function getCopilotProvider(): CopilotProvider {
   if (!apiKey) {
     throw new Error(
       "GitHub Copilot provider requires GITHUB_TOKEN environment variable.\n" +
-      "  Set it with: export GITHUB_TOKEN=ghp_...\n" +
+      "  Run: gh auth refresh --scopes copilot\n" +
+      "  Then set it with: export GITHUB_TOKEN=$(gh auth token)\n" +
       "  The token must belong to a GitHub account with an active Copilot subscription.",
     );
   }
