@@ -1,60 +1,31 @@
 /**
  * Wiki page collector for the export subsystem.
  *
- * Reads all non-orphaned concept and query pages, parses their frontmatter and
- * body, extracts [[wikilink]] edges, and returns a normalised list of
- * ExportPage objects consumed by every format writer.
+ * Thin wrapper over `src/wiki/collect.ts::collectRawWikiPages()` that
+ * applies export-specific filters (drop orphaned and untitled pages) and
+ * decorates each surviving record with the export-facing fields (summary,
+ * sources, tags, timestamps, link slugs). The wikilink extraction regex
+ * and slug-normalization helper live in `src/wiki/collect.ts` so both
+ * export and viewer callers share one source.
  */
 
-import { readdir, readFile } from "fs/promises";
-import path from "path";
-import { parseFrontmatter } from "../utils/markdown.js";
-import { slugify } from "../utils/markdown.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
-import type { ExportPage, PageDirectory } from "./types.js";
+import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
+import type { RawWikiPage } from "../wiki/collect.js";
+import type { ExportPage } from "./types.js";
 
-/** Regex that matches [[wikilink]] or [[wikilink|alias]] patterns. */
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+export { extractWikilinkSlugs };
 
 /**
- * Extract the slugs of all pages linked via [[wikilinks]] in the body.
- * @param body - The markdown body text.
- * @returns Deduplicated array of target slugs.
+ * Normalize a kept page into the shape every export writer consumes.
+ * Caller is responsible for filtering out records that fail the export
+ * gate (orphaned, untitled, unreadable).
  */
-export function extractWikilinkSlugs(body: string): string[] {
-  const slugs = new Set<string>();
-  let match;
-  while ((match = WIKILINK_RE.exec(body)) !== null) {
-    slugs.add(slugify(match[1].trim()));
-  }
-  return [...slugs];
-}
-
-/**
- * Parse a single markdown file into an ExportPage.
- * Returns null when the page is orphaned or missing a title.
- */
-async function parsePageFile(
-  filePath: string,
-  slug: string,
-  pageDirectory: PageDirectory,
-): Promise<ExportPage | null> {
-  let raw: string;
-  try {
-    raw = await readFile(filePath, "utf-8");
-  } catch {
-    return null;
-  }
-
-  const { meta, body } = parseFrontmatter(raw);
-
-  if (!meta.title || typeof meta.title !== "string") return null;
-  if (meta.orphaned === true) return null;
-
+function toExportPage(raw: RawWikiPage): ExportPage {
+  const meta = raw.frontmatter;
   return {
-    title: meta.title,
-    slug,
-    pageDirectory,
+    title: raw.title as string,
+    slug: raw.slug,
+    pageDirectory: raw.pageDirectory,
     summary: typeof meta.summary === "string" ? meta.summary : "",
     sources: Array.isArray(meta.sources)
       ? (meta.sources as unknown[]).filter((s): s is string => typeof s === "string")
@@ -64,51 +35,20 @@ async function parsePageFile(
       : [],
     createdAt: typeof meta.createdAt === "string" ? meta.createdAt : new Date().toISOString(),
     updatedAt: typeof meta.updatedAt === "string" ? meta.updatedAt : new Date().toISOString(),
-    links: extractWikilinkSlugs(body),
-    body,
+    links: extractWikilinkSlugs(raw.body),
+    body: raw.body,
   };
 }
 
 /**
- * Collect all valid ExportPage entries from a single wiki directory.
- * @param dirPath - Absolute path to a wiki page directory.
- * @param pageDirectory - Which wiki/ subdirectory the pages live in.
- */
-async function collectFromDir(
-  dirPath: string,
-  pageDirectory: PageDirectory,
-): Promise<ExportPage[]> {
-  let files: string[];
-  try {
-    files = await readdir(dirPath);
-  } catch {
-    return [];
-  }
-
-  const pages: ExportPage[] = [];
-  for (const file of files.filter((f) => f.endsWith(".md"))) {
-    const slug = file.replace(/\.md$/, "");
-    const page = await parsePageFile(path.join(dirPath, file), slug, pageDirectory);
-    if (page) pages.push(page);
-  }
-  return pages;
-}
-
-/**
- * Collect all exportable wiki pages from wiki/concepts/ and wiki/queries/.
- * @param root - Absolute path to the project root.
- * @returns Sorted array of ExportPage objects.
+ * Collect all exportable wiki pages from `wiki/concepts/` and `wiki/queries/`.
+ * Drops orphaned and untitled records — those are diagnosed by the viewer,
+ * not exported. Returns the surviving pages sorted by title.
  */
 export async function collectExportPages(root: string): Promise<ExportPage[]> {
-  const conceptsPath = path.join(root, CONCEPTS_DIR);
-  const queriesPath = path.join(root, QUERIES_DIR);
-
-  const [concepts, queries] = await Promise.all([
-    collectFromDir(conceptsPath, "concepts"),
-    collectFromDir(queriesPath, "queries"),
-  ]);
-
-  const all = [...concepts, ...queries];
-  all.sort((a, b) => a.title.localeCompare(b.title));
-  return all;
+  const raw = await collectRawWikiPages(root);
+  const kept = raw.filter((page) => page.parseStatus.hasTitle && !page.parseStatus.orphaned);
+  const pages = kept.map(toExportPage);
+  pages.sort((a, b) => a.title.localeCompare(b.title));
+  return pages;
 }

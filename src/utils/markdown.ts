@@ -66,21 +66,43 @@ export function parseFrontmatter(content: string): {
   meta: Record<string, unknown>;
   body: string;
 } {
+  const { meta, body } = parseFrontmatterStatus(content);
+  return { meta, body };
+}
+
+/**
+ * Like `parseFrontmatter` but also reports whether a frontmatter block was
+ * present and whether the YAML inside it parsed cleanly. Callers that need
+ * to distinguish "no frontmatter block" from "malformed YAML" (e.g. the
+ * viewer collector, which surfaces these as different warnings) use this
+ * variant; the plain `parseFrontmatter` stays a thin wrapper so existing
+ * callers are unaffected.
+ */
+export function parseFrontmatterStatus(content: string): {
+  meta: Record<string, unknown>;
+  body: string;
+  hasFrontmatterBlock: boolean;
+  malformedFrontmatter: boolean;
+} {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) {
-    return { meta: {}, body: content };
+    return { meta: {}, body: content, hasFrontmatterBlock: false, malformedFrontmatter: false };
   }
 
   let meta: Record<string, unknown> = {};
+  let malformedFrontmatter = false;
   try {
     const parsed = yaml.load(match[1]);
     if (parsed && typeof parsed === "object") {
       meta = parsed as Record<string, unknown>;
+    } else if (parsed !== null && parsed !== undefined) {
+      // YAML parsed to a scalar/array — frontmatter must be a mapping.
+      malformedFrontmatter = true;
     }
   } catch {
-    // Malformed YAML — return empty meta so callers degrade gracefully.
+    malformedFrontmatter = true;
   }
-  return { meta, body: match[2] };
+  return { meta, body: match[2], hasFrontmatterBlock: true, malformedFrontmatter };
 }
 
 /** Atomically write a file (write to .tmp, then rename). */

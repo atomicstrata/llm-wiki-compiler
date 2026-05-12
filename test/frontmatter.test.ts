@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildFrontmatter, parseFrontmatter, extractCitations } from "../src/utils/markdown.js";
+import {
+  buildFrontmatter,
+  parseFrontmatter,
+  parseFrontmatterStatus,
+  extractCitations,
+} from "../src/utils/markdown.js";
 
 describe("buildFrontmatter", () => {
   it("wraps fields in YAML delimiters", () => {
@@ -98,6 +103,38 @@ describe("extractCitations", () => {
     expect(result).toContain("b.md");
     expect(result).toContain("c.md");
     expect(result).toHaveLength(3);
+  });
+});
+
+describe("parseFrontmatterStatus", () => {
+  it("flags well-formed frontmatter", () => {
+    const status = parseFrontmatterStatus("---\ntitle: Test\n---\nBody.");
+    expect(status.hasFrontmatterBlock).toBe(true);
+    expect(status.malformedFrontmatter).toBe(false);
+    expect(status.meta.title).toBe("Test");
+    expect(status.body).toBe("Body.");
+  });
+
+  it("flags content without a frontmatter block", () => {
+    const status = parseFrontmatterStatus("Just some text.");
+    expect(status.hasFrontmatterBlock).toBe(false);
+    expect(status.malformedFrontmatter).toBe(false);
+    expect(status.meta).toEqual({});
+    expect(status.body).toBe("Just some text.");
+  });
+
+  it("flags malformed YAML inside a frontmatter block", () => {
+    const status = parseFrontmatterStatus("---\n: invalid: yaml: [broken\n---\nBody.");
+    expect(status.hasFrontmatterBlock).toBe(true);
+    expect(status.malformedFrontmatter).toBe(true);
+    expect(status.meta).toEqual({});
+    expect(status.body).toBe("Body.");
+  });
+
+  it("flags YAML that parses to a non-object as malformed", () => {
+    const status = parseFrontmatterStatus("---\njust-a-scalar\n---\nBody.");
+    expect(status.hasFrontmatterBlock).toBe(true);
+    expect(status.malformedFrontmatter).toBe(true);
   });
 });
 
