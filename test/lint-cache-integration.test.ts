@@ -13,8 +13,7 @@ import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";
 import { makeLintTempRoot } from "./fixtures/lint-temp-root.js";
 import type { LintTempRoot } from "./fixtures/lint-temp-root.js";
 import { LAST_LINT_FILE } from "../src/utils/constants.js";
-
-const ISO_8601_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+import { LINT_CACHE_TIMESTAMP_PATTERN } from "../src/linter/cache.js";
 
 let fx: LintTempRoot;
 
@@ -51,7 +50,7 @@ describe("`llmwiki lint` cache side effect", () => {
     const cached = await readCache();
     expect(cached.errors).toBe(0);
     expect(cached.warnings).toBe(0);
-    expect(cached.at).toMatch(ISO_8601_PATTERN);
+    expect(cached.at).toMatch(LINT_CACHE_TIMESTAMP_PATTERN);
   }, 30_000);
 
   it("writes the cache before exiting non-zero when lint finds errors", async () => {
@@ -66,7 +65,7 @@ describe("`llmwiki lint` cache side effect", () => {
     expect(await cacheExists()).toBe(true);
     const cached = await readCache();
     expect((cached.errors as number) >= 1).toBe(true);
-    expect(cached.at).toMatch(ISO_8601_PATTERN);
+    expect(cached.at).toMatch(LINT_CACHE_TIMESTAMP_PATTERN);
   }, 30_000);
 
   it("creates .llmwiki/ recursively even when it did not exist", async () => {

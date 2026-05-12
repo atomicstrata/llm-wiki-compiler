@@ -25,6 +25,13 @@ export interface LintCacheEntry {
 }
 
 /**
+ * The exact ISO-8601 shape `writeLintCache` produces and `readLintCache` accepts.
+ * Exported so tests can assert against the same regex the validator enforces and
+ * never drift from the documented contract.
+ */
+export const LINT_CACHE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+/**
  * Persist a lint summary to `.llmwiki/last-lint.json` after a completed run.
  * Creates the `.llmwiki/` directory if missing. Overwrites any prior entry so
  * the cache reflects the most recent run, including zero-issue runs.
@@ -61,13 +68,27 @@ export async function readLintCache(root: string): Promise<LintCacheEntry | null
   return { warnings: parsed.warnings, errors: parsed.errors, at: parsed.at };
 }
 
-/** Type guard for the cache entry shape — rejects partial or wrongly-typed JSON. */
+/** True for finite non-negative integers, including zero. NaN and Infinity fail Number.isInteger. */
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/**
+ * Strict type guard for the persisted cache entry.
+ *
+ * Counts must be finite non-negative integers (the writer only ever persists
+ * `LintSummary` severity counts, which originate from a length on an array, so
+ * anything else means the file was hand-edited or corrupted). The timestamp
+ * must match the exact ISO-8601 shape the writer produces, otherwise downstream
+ * consumers risk surfacing values like "2026-01-01" as full timestamps.
+ */
 function isValidEntry(value: unknown): value is LintCacheEntry {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.warnings === "number" &&
-    typeof candidate.errors === "number" &&
-    typeof candidate.at === "string"
+    isNonNegativeInteger(candidate.warnings) &&
+    isNonNegativeInteger(candidate.errors) &&
+    typeof candidate.at === "string" &&
+    LINT_CACHE_TIMESTAMP_PATTERN.test(candidate.at)
   );
 }
