@@ -7,6 +7,7 @@
  */
 
 import { lint } from "../linter/index.js";
+import { writeLintCache } from "../linter/cache.js";
 import * as output from "../utils/output.js";
 import type { LintResult } from "../linter/types.js";
 import { loadSchema } from "../schema/index.js";
@@ -57,6 +58,8 @@ export default async function lintCommand(): Promise<void> {
     output.info(`${summary.info} info`),
   ].join(", ");
   output.status("*", summaryLine);
+
+  await writeLintCache(process.cwd(), summary);
 
   if (summary.errors > 0) {
     process.exit(1);
