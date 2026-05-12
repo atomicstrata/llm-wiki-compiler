@@ -19,34 +19,33 @@ describe("collectViewerPages — IDs and metadata", () => {
     const root = await makeTempRoot("viewer-collect-ids");
     await writePage(path.join(root, "wiki/concepts"), "attention", { title: "Attention" }, "B.");
     await writePage(path.join(root, "wiki/queries"), "q", { title: "Q" }, "B.");
-    const snapshot = await collectViewerPages(root);
-    const ids = snapshot.pages.map((p) => p.id).sort();
+    const pages = await collectViewerPages(root);
+    const ids = pages.map((p) => p.id).sort();
     expect(ids).toEqual(["concepts/attention", "queries/q"]);
   });
 
   it("supports Unicode slugs end-to-end", async () => {
     const root = await makeTempRoot("viewer-collect-unicode");
     await writePage(path.join(root, "wiki/concepts"), "注意力", { title: "注意力" }, "B.");
-    const snapshot = await collectViewerPages(root);
-    expect(snapshot.pages[0].slug).toBe("注意力");
-    expect(snapshot.pages[0].id).toBe("concepts/注意力");
+    const pages = await collectViewerPages(root);
+    expect(pages[0].slug).toBe("注意力");
+    expect(pages[0].id).toBe("concepts/注意力");
   });
 
   it("does not include wiki/index.md in the page list", async () => {
     const root = await makeTempRoot("viewer-collect-no-index");
     await writePage(path.join(root, "wiki/concepts"), "a", { title: "A" }, "B.");
     await writeFile(path.join(root, "wiki", "index.md"), "# Index\n[[a]]");
-    const snapshot = await collectViewerPages(root);
-    const slugs = snapshot.pages.map((p) => p.slug);
-    expect(slugs).toEqual(["a"]);
+    const pages = await collectViewerPages(root);
+    expect(pages.map((p) => p.slug)).toEqual(["a"]);
   });
 
   it("retains a duplicate slug across concepts and queries with distinct IDs", async () => {
     const root = await makeTempRoot("viewer-collect-dup");
     await writePage(path.join(root, "wiki/concepts"), "shared", { title: "Shared C" }, "B.");
     await writePage(path.join(root, "wiki/queries"), "shared", { title: "Shared Q" }, "B.");
-    const snapshot = await collectViewerPages(root);
-    expect(snapshot.pages.map((p) => p.id).sort()).toEqual([
+    const pages = await collectViewerPages(root);
+    expect(pages.map((p) => p.id).sort()).toEqual([
       "concepts/shared",
       "queries/shared",
     ]);
@@ -60,26 +59,26 @@ describe("collectViewerPages — warnings and fallback titles", () => {
       path.join(root, "wiki/concepts/bad.md"),
       "---\n: invalid: yaml: [broken\n---\nBody.\n",
     );
-    const snapshot = await collectViewerPages(root);
-    expect(snapshot.pages).toHaveLength(1);
-    const codes = snapshot.pages[0].warnings.map((w) => w.code);
+    const pages = await collectViewerPages(root);
+    expect(pages).toHaveLength(1);
+    const codes = pages[0].warnings.map((w) => w.code);
     expect(codes).toContain("malformed_frontmatter");
   });
 
   it("emits missing_frontmatter when no block is present", async () => {
     const root = await makeTempRoot("viewer-collect-no-fm");
     await writeFile(path.join(root, "wiki/concepts/no-fm.md"), "Just body.\n");
-    const snapshot = await collectViewerPages(root);
-    const codes = snapshot.pages[0].warnings.map((w) => w.code);
+    const pages = await collectViewerPages(root);
+    const codes = pages[0].warnings.map((w) => w.code);
     expect(codes).toContain("missing_frontmatter");
   });
 
   it("emits missing_title and falls back to the slug when title is absent", async () => {
     const root = await makeTempRoot("viewer-collect-no-title");
     await writePage(path.join(root, "wiki/concepts"), "no-title", { summary: "x" }, "B.");
-    const snapshot = await collectViewerPages(root);
-    expect(snapshot.pages[0].title).toBe("no-title");
-    expect(snapshot.pages[0].warnings.map((w) => w.code)).toContain("missing_title");
+    const pages = await collectViewerPages(root);
+    expect(pages[0].title).toBe("no-title");
+    expect(pages[0].warnings.map((w) => w.code)).toContain("missing_title");
   });
 });
 
@@ -94,8 +93,8 @@ describe("collectViewerPages — outgoing links and bare-slug resolution", () =>
       { title: "Linker" },
       "See [[shared]] for more.",
     );
-    const snapshot = await collectViewerPages(root);
-    const linker = snapshot.pages.find((p) => p.slug === "linker");
+    const pages = await collectViewerPages(root);
+    const linker = pages.find((p) => p.slug === "linker");
     expect(linker?.outgoingLinks).toEqual(["concepts/shared"]);
   });
 
@@ -107,16 +106,16 @@ describe("collectViewerPages — outgoing links and bare-slug resolution", () =>
       { title: "Linker" },
       "See [[ghost]] for more.",
     );
-    const snapshot = await collectViewerPages(root);
-    expect(snapshot.pages[0].outgoingLinks).toEqual([]);
+    const pages = await collectViewerPages(root);
+    expect(pages[0].outgoingLinks).toEqual([]);
   });
 
   it("resolveBareSlug returns null for an empty or unknown slug", async () => {
     const root = await makeTempRoot("viewer-collect-null");
     await writePage(path.join(root, "wiki/concepts"), "a", { title: "A" }, "B.");
-    const snapshot = await collectViewerPages(root);
-    expect(resolveBareSlug("", snapshot)).toBeNull();
-    expect(resolveBareSlug("ghost", snapshot)).toBeNull();
-    expect(resolveBareSlug("a", snapshot)).toBe("concepts/a");
+    const pages = await collectViewerPages(root);
+    expect(resolveBareSlug("", pages)).toBeNull();
+    expect(resolveBareSlug("ghost", pages)).toBeNull();
+    expect(resolveBareSlug("a", pages)).toBe("concepts/a");
   });
 });

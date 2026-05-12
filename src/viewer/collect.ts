@@ -17,17 +17,20 @@
 import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
 import { extractClaimCitations } from "../utils/markdown.js";
-import type { PageId, ViewerPage, ViewerSnapshot, ViewerWarning } from "./types.js";
+import type { PageId, ViewerPage, ViewerWarning } from "./types.js";
+
+/** Minimal page shape `resolveBareSlug` needs to find a target. */
+type PageIndexEntry = { id: PageId; pageDirectory: ViewerPage["pageDirectory"]; slug: string };
 
 /**
- * Build the page list portion of a `ViewerSnapshot` from a project root.
- * Slice 2 will wrap this with project metadata, counts, and recent-pages
- * derivation; Slice 1 returns just the pages array and the root/timestamp.
+ * Build the decorated page list for a project root. Each `ViewerPage`
+ * carries its namespaced id, resolved outgoing links, citations, and any
+ * `ViewerWarning` objects derived from the underlying `parseStatus` flags.
+ * Returns pages in collector order (concepts then queries).
  */
-export async function collectViewerPages(root: string): Promise<ViewerSnapshot> {
+export async function collectViewerPages(root: string): Promise<ViewerPage[]> {
   const raw = await collectRawWikiPages(root);
-  const pages = decoratePages(raw);
-  return { root, generatedAt: new Date().toISOString(), pages };
+  return decoratePages(raw);
 }
 
 /**
@@ -39,14 +42,35 @@ export async function collectViewerPages(root: string): Promise<ViewerSnapshot> 
  */
 export function resolveBareSlug(
   slug: string,
-  snapshot: { pages: ReadonlyArray<{ id: PageId; pageDirectory: ViewerPage["pageDirectory"]; slug: string }> },
+  pages: ReadonlyArray<PageIndexEntry>,
 ): PageId | null {
   if (slug.length === 0) return null;
-  const concept = snapshot.pages.find((p) => p.pageDirectory === "concepts" && p.slug === slug);
+  const concept = pages.find((p) => p.pageDirectory === "concepts" && p.slug === slug);
   if (concept) return concept.id;
-  const query = snapshot.pages.find((p) => p.pageDirectory === "queries" && p.slug === slug);
+  const query = pages.find((p) => p.pageDirectory === "queries" && p.slug === slug);
   if (query) return query.id;
   return null;
+}
+
+/**
+ * Resolve a list of bare-slug wikilink targets against an in-memory page
+ * index and deduplicate the resulting `PageId`s while preserving first-
+ * occurrence order. Unresolved targets are dropped.
+ */
+export function resolveBareSlugList(
+  targets: string[],
+  pages: ReadonlyArray<PageIndexEntry>,
+): PageId[] {
+  const seen = new Set<PageId>();
+  const ordered: PageId[] = [];
+  for (const target of targets) {
+    const resolved = resolveBareSlug(target, pages);
+    if (resolved && !seen.has(resolved)) {
+      seen.add(resolved);
+      ordered.push(resolved);
+    }
+  }
+  return ordered;
 }
 
 /**
@@ -57,10 +81,9 @@ export function resolveBareSlug(
  */
 function decoratePages(raw: RawWikiPage[]): ViewerPage[] {
   const shells = raw.map(buildPageShell);
-  const indexForResolver = { pages: shells };
   for (const page of shells) {
     const targets = extractWikilinkSlugs(page.body);
-    page.outgoingLinks = collectResolvedLinks(targets, indexForResolver);
+    page.outgoingLinks = resolveBareSlugList(targets, shells);
   }
   return shells;
 }
@@ -114,25 +137,3 @@ function warningsFromParseStatus(page: RawWikiPage): ViewerWarning[] {
   return warnings;
 }
 
-/**
- * Resolve a list of bare-slug wikilink targets and deduplicate the
- * resulting `PageId`s while preserving first-occurrence order. Unresolved
- * targets are dropped here; the renderer is responsible for marking
- * unresolved wikilinks as `data-missing="true"` from the original body
- * text, not from this array.
- */
-function collectResolvedLinks(
-  targets: string[],
-  index: { pages: ReadonlyArray<ViewerPage> },
-): PageId[] {
-  const seen = new Set<PageId>();
-  const ordered: PageId[] = [];
-  for (const target of targets) {
-    const resolved = resolveBareSlug(target, index);
-    if (resolved && !seen.has(resolved)) {
-      seen.add(resolved);
-      ordered.push(resolved);
-    }
-  }
-  return ordered;
-}

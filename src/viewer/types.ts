@@ -64,16 +64,70 @@ export interface ViewerPage {
 }
 
 /**
- * Snapshot of the entire viewable wiki captured once at startup. Subsequent
- * slices add fields (`counts`, `index`, `recentPages`, project metadata)
- * matching the spec's `/api/pages` envelope; Slice 1 captures the minimum
- * needed by the collector and the bare-slug resolver.
+ * Lightweight project metadata for the dashboard.
+ */
+export interface ViewerProject {
+  /** Display title — preferred from package.json or directory name. */
+  title: string;
+  /** Bare directory name of the project root. */
+  rootName: string;
+}
+
+/**
+ * Frozen-at-startup counts surfaced by `/api/pages.counts` and re-used by
+ * `/api/health`. `sourceFiles` is the cheap filesystem count under
+ * `sources/`; `compiledSources` matches MCP `wiki_status.sources` and
+ * counts entries in `.llmwiki/state.json`.
+ */
+export interface ViewerCounts {
+  concepts: number;
+  queries: number;
+  sourceFiles: number;
+  pendingReviews: number;
+  compiledSources: number;
+}
+
+/**
+ * Captured state of `wiki/index.md`, the optional compile-time index page.
+ * `body` is the raw markdown captured at startup; Slice 4 renders it.
+ */
+export interface ViewerIndex {
+  available: boolean;
+  href: string;
+  body: string;
+  outgoingLinks: PageId[];
+}
+
+/**
+ * Lightweight summary row for the dashboard's "recent pages" panel.
+ */
+export interface ViewerRecentPage {
+  id: PageId;
+  pageDirectory: PageDirectory;
+  slug: string;
+  title: string;
+  updatedAt: string;
+}
+
+/**
+ * Snapshot of the entire viewable wiki captured once at startup. Every
+ * HTTP endpoint serves from this object — the viewer deliberately does
+ * not live-watch the filesystem in v1, so post-startup file changes are
+ * not reflected until `llmwiki view` restarts.
  */
 export interface ViewerSnapshot {
   /** Absolute project root the snapshot was captured against. */
   root: string;
   /** ISO-8601 timestamp the snapshot was built at. */
   generatedAt: string;
+  /** Project metadata for the dashboard header. */
+  project: ViewerProject;
+  /** Frozen counts for `/api/pages` and `/api/health`. */
+  counts: ViewerCounts;
+  /** State of `wiki/index.md` at startup. */
+  index: ViewerIndex;
+  /** Top-N most recently updated pages for the dashboard. */
+  recentPages: ViewerRecentPage[];
   /** All readable pages, in collector order (concepts then queries). */
   pages: ViewerPage[];
 }

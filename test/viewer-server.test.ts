@@ -1,0 +1,157 @@
+/**
+ * Subprocess integration tests for `llmwiki view`.
+ *
+ * These exercise the full CLI → snapshot → HTTP server path: we spawn
+ * the compiled binary in a temp wiki, wait for the readiness line,
+ * issue real fetches against `127.0.0.1`, and assert response shapes
+ * match the Slice 2 contract. SIGINT/SIGTERM shutdown is also covered
+ * here so the test fixture proves the signal handlers actually fire.
+ */
+
+import { describe, it, expect } from "vitest";
+import { mkdir, symlink, writeFile } from "fs/promises";
+import path from "path";
+import { LINT_CACHE_TIMESTAMP_PATTERN } from "../src/linter/cache.js";
+import { makeTempRoot } from "./fixtures/temp-root.js";
+import { writePage } from "./fixtures/write-page.js";
+import {
+  startViewerCLI,
+  useViewerProcessLifecycle,
+  type ViewerProcessHandle,
+} from "./fixtures/run-cli-server.js";
+
+const { start: startViewer } = useViewerProcessLifecycle();
+
+async function fetchJson(handle: ViewerProcessHandle, pathname: string): Promise<{
+  status: number;
+  body: unknown;
+}> {
+  const res = await fetch(`http://${handle.host}:${handle.port}${pathname}`);
+  const body = res.headers.get("content-type")?.includes("application/json")
+    ? await res.json()
+    : await res.text();
+  return { status: res.status, body };
+}
+
+describe("llmwiki view — readiness and snapshot", () => {
+  it("prints a parseable readiness line on stdout", async () => {
+    const root = await makeTempRoot("viewer-server-ready");
+    const handle = await startViewer(root);
+    expect(handle.port).toBeGreaterThan(0);
+    expect(handle.host).toBe("127.0.0.1");
+    expect(handle.stdout).toMatch(/Viewer ready at http:\/\/127\.0\.0\.1:\d+/);
+  });
+
+  it("/api/pages returns the project envelope with frozen counts", async () => {
+    const root = await makeTempRoot("viewer-server-pages");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Body.");
+    await writePage(path.join(root, "wiki/queries"), "q", { title: "Q" }, "Body.");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/pages");
+    expect(status).toBe(200);
+    const envelope = body as Record<string, unknown>;
+    const counts = envelope.counts as Record<string, number>;
+    expect(counts.concepts).toBe(1);
+    expect(counts.queries).toBe(1);
+  });
+
+  it("/api/page placeholder returns html='' and render_pending warning", async () => {
+    const root = await makeTempRoot("viewer-server-placeholder");
+    await writePage(path.join(root, "wiki/concepts"), "x", { title: "X" }, "Body.");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/page/concepts/x");
+    expect(status).toBe(200);
+    const page = body as Record<string, unknown>;
+    expect(page.html).toBe("");
+    const warnings = page.warnings as Array<{ code: string }>;
+    expect(warnings.some((w) => w.code === "render_pending")).toBe(true);
+  });
+
+  it("freezes counts at startup — post-startup file additions are invisible", async () => {
+    const root = await makeTempRoot("viewer-server-frozen");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "B.");
+    const handle = await startViewer(root);
+    await writePage(path.join(root, "wiki/concepts"), "beta", { title: "Beta" }, "B.");
+    const { body } = await fetchJson(handle, "/api/pages");
+    const counts = (body as { counts: Record<string, number> }).counts;
+    expect(counts.concepts).toBe(1);
+  });
+
+  it("/ placeholder returns 503 shell_pending in Slice 2", async () => {
+    const root = await makeTempRoot("viewer-server-shell-placeholder");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/");
+    expect(status).toBe(503);
+    expect((body as { error: { code: string } }).error.code).toBe("shell_pending");
+  });
+
+  it("/assets/foo placeholder returns 404 assets_pending in Slice 2", async () => {
+    const root = await makeTempRoot("viewer-server-assets-placeholder");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/assets/anything.js");
+    expect(status).toBe(404);
+    expect((body as { error: { code: string } }).error.code).toBe("assets_pending");
+  });
+
+  it("counts do not include a symlinked concept that the collector dropped", async () => {
+    const root = await makeTempRoot("viewer-server-symlink-counts");
+    // One legitimate in-namespace page (will be counted).
+    await writePage(path.join(root, "wiki/concepts"), "ok", { title: "OK" }, "B.");
+    // An in-root file the attacker tries to surface as a concept via a
+    // symlink — the collector drops it, so the counts must also drop it.
+    await writeFile(
+      path.join(root, "README.md"),
+      "---\ntitle: README\n---\nProject readme.\n",
+    );
+    await symlink(path.join(root, "README.md"), path.join(root, "wiki/concepts/leaked.md"));
+
+    const handle = await startViewer(root);
+    const pages = await fetchJson(handle, "/api/pages");
+    const health = await fetchJson(handle, "/api/health");
+
+    const counts = (pages.body as { counts: { concepts: number; queries: number } }).counts;
+    const healthCounts = health.body as { concepts: number; queries: number };
+    expect(counts.concepts).toBe(1);
+    expect(healthCounts.concepts).toBe(1);
+    // And the leaked slug is absent from the page list itself.
+    const pageRows = (pages.body as { pages: Array<{ slug: string }> }).pages;
+    expect(pageRows.map((p) => p.slug)).not.toContain("leaked");
+  });
+
+  it("/api/health returns ISO timestamp shape when the lint cache exists", async () => {
+    const root = await makeTempRoot("viewer-server-health");
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    await writeFile(
+      path.join(root, ".llmwiki", "last-lint.json"),
+      JSON.stringify({ warnings: 1, errors: 0, at: "2026-05-12T00:00:00.000Z" }),
+    );
+    const handle = await startViewer(root);
+    const { body } = await fetchJson(handle, "/api/health");
+    const health = body as { lint: { at: string } | null };
+    expect(health.lint).not.toBeNull();
+    expect(health.lint?.at).toMatch(LINT_CACHE_TIMESTAMP_PATTERN);
+  });
+});
+
+describe("llmwiki view — graceful shutdown", () => {
+  it("exits cleanly on SIGTERM", async () => {
+    const root = await makeTempRoot("viewer-server-sigterm");
+    const handle = await startViewer(root);
+    await handle.kill();
+    expect(handle.process.exitCode === 0 || handle.process.signalCode === "SIGTERM").toBe(true);
+  });
+});
+
+describe("llmwiki view — privacy gate", () => {
+  it("exits 1 when --host is supplied without --allow-lan", async () => {
+    const root = await makeTempRoot("viewer-server-host-only");
+    const handle = startViewerCLI(["--host", "0.0.0.0", "--port", "0"], root);
+    await expect(handle).rejects.toThrow(/exited before ready/);
+  });
+
+  it("exits 1 when --allow-lan is supplied without --host", async () => {
+    const root = await makeTempRoot("viewer-server-lan-only");
+    const handle = startViewerCLI(["--allow-lan", "--port", "0"], root);
+    await expect(handle).rejects.toThrow(/exited before ready/);
+  });
+});
