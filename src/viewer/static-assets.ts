@@ -52,23 +52,23 @@ const ASSET_CONTENT_TYPES: Record<string, string> = {
 export async function handleAsset(res: ServerResponse, pathname: string): Promise<void> {
   const segments = decodeAssetSegments(pathname);
   if (!segments) {
-    writeAssetError(res, 400, "bad_asset_path", pathname);
+    writeAssetError(res, 400, "bad_asset_path", "Bad asset path.");
     return;
   }
   if (segments.length === 0) {
-    writeAssetError(res, 404, "asset_not_found", pathname);
+    writeAssetError(res, 404, "asset_not_found", "Asset not found.");
     return;
   }
   const contentType = ASSET_CONTENT_TYPES[
     path.extname(segments[segments.length - 1]).toLowerCase()
   ];
   if (!contentType) {
-    writeAssetError(res, 404, "asset_not_found", pathname);
+    writeAssetError(res, 404, "asset_not_found", "Asset not found.");
     return;
   }
   const resolved = await resolveAssetPath(segments);
   if (!resolved) {
-    writeAssetError(res, 404, "asset_not_found", pathname);
+    writeAssetError(res, 404, "asset_not_found", "Asset not found.");
     return;
   }
   try {
@@ -77,7 +77,7 @@ export async function handleAsset(res: ServerResponse, pathname: string): Promis
     res.setHeader("Content-Type", contentType);
     res.end(body);
   } catch {
-    writeAssetError(res, 404, "asset_not_found", pathname);
+    writeAssetError(res, 404, "asset_not_found", "Asset not found.");
   }
 }
 
@@ -129,14 +129,20 @@ async function resolveAssetPath(segments: string[]): Promise<string | null> {
   return resolved.startsWith(prefix) ? resolved : null;
 }
 
-/** Write a `{ error: { code, message } }` JSON envelope for asset failures. */
+/**
+ * Write a `{ error: { code, message } }` JSON envelope for asset
+ * failures. `message` is a hardcoded human string, never the request
+ * pathname — reflecting untrusted input into the response body is
+ * uneven with the rest of the server's error contract and would let
+ * a noisy client write garbage into downstream response logs.
+ */
 function writeAssetError(
   res: ServerResponse,
   status: number,
   code: string,
-  pathname: string,
+  message: string,
 ): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify({ error: { code, message: pathname } }));
+  res.end(JSON.stringify({ error: { code, message } }));
 }

@@ -30,6 +30,8 @@ interface EmbeddedPage {
   pageDirectory: ViewerPage["pageDirectory"];
   slug: string;
   title: string;
+  /** Frontmatter `kind`, used by the sidebar to group concepts on first paint. */
+  kind: string;
 }
 
 /**
@@ -76,6 +78,10 @@ export function substitutePageIndex(template: string, pages: ViewerPage[]): stri
     pageDirectory: page.pageDirectory,
     slug: page.slug,
     title: page.title,
+    kind:
+      typeof page.frontmatter.kind === "string" && page.frontmatter.kind.length > 0
+        ? (page.frontmatter.kind as string)
+        : "concept",
   }));
   const json = JSON.stringify({ pages: embedded }).replace(/</g, "\\u003c");
   const block = `<script type="application/json" id="page-index">${json}</script>`;

@@ -110,7 +110,7 @@ export function buildSanitizerPolicy(options: RenderOptions): IOptions {
     },
     allowedSchemes,
     allowedSchemesByTag: {
-      a: buildAnchorSchemes(options),
+      a: buildAnchorSchemes(),
       img: ["http", "https", "data"],
     },
     allowedSchemesAppliedToAttributes,
@@ -121,36 +121,68 @@ export function buildSanitizerPolicy(options: RenderOptions): IOptions {
     allowedStyles: {},
     allowedIframeHostnames: [],
     transformTags: {
-      a: filterAnchorHref(options),
+      a: filterAnchorHref(),
       img: filterImgSrc,
+      span: filterSpanForLanBind(options),
     },
     // sanitize-html's URL filter does not enforce hash-only links by
     // default; the anchor transform above whitelists `#/…` explicitly.
   };
 }
 
-/** Anchor protocols allowed in the rendered output. */
-function buildAnchorSchemes(options: RenderOptions): string[] {
-  const base = ["http", "https", "mailto"];
-  if (options.isLoopback) base.push("vscode");
-  return base;
+/**
+ * On non-loopback binds, strip `data-absolute-path` and
+ * `data-editor-href` from any `<span>` regardless of who produced them.
+ * The citation rule already gates these at the producer; this transform
+ * is defense-in-depth so a future markdown-it plugin or hand-crafted
+ * raw HTML can't smuggle the user's filesystem layout onto a LAN
+ * surface. On loopback binds the attributes pass through untouched
+ * (citation chips need them to render the editor link).
+ */
+function filterSpanForLanBind(options: RenderOptions) {
+  return function transformSpan(tagName: string, attribs: Record<string, string>): {
+    tagName: string;
+    attribs: Record<string, string>;
+  } {
+    if (options.isLoopback) return { tagName, attribs };
+    if (!("data-absolute-path" in attribs) && !("data-editor-href" in attribs)) {
+      return { tagName, attribs };
+    }
+    const stripped: Record<string, string> = {};
+    for (const [key, value] of Object.entries(attribs)) {
+      if (key === "data-absolute-path" || key === "data-editor-href") continue;
+      stripped[key] = value;
+    }
+    return { tagName, attribs: stripped };
+  };
+}
+
+/**
+ * Anchor protocols allowed in the rendered output. Intentionally does
+ * NOT include `vscode://` even on loopback: citation chips emit the
+ * editor link on a `<span data-editor-href>`, not on an `<a href>`, so
+ * markdown-authored anchors like `[click](vscode://file//etc/passwd)`
+ * get their href stripped and cannot trick the user into opening
+ * arbitrary local files in their editor.
+ */
+function buildAnchorSchemes(): string[] {
+  return ["http", "https", "mailto"];
 }
 
 /**
  * Filter anchor `href` values. Allows http/https/mailto, the viewer's
- * `#/…` hash links, and bare-fragment anchors. On loopback binds the
- * allowance is narrowed to `vscode://file/…` editor links only — broad
- * `vscode://` URIs can invoke arbitrary editor commands and are stripped
- * even on loopback. Anything else loses the `href` attribute entirely.
+ * `#/…` hash links, and bare-fragment anchors. Anything else
+ * (including any `vscode://` URI — see `buildAnchorSchemes`) loses the
+ * `href` attribute entirely.
  */
-function filterAnchorHref(options: RenderOptions) {
+function filterAnchorHref() {
   return function transformAnchor(tagName: string, attribs: Record<string, string>): {
     tagName: string;
     attribs: Record<string, string>;
   } {
     const href = attribs.href;
     if (typeof href !== "string" || href.length === 0) return { tagName, attribs };
-    if (isAllowedAnchorHref(href, options)) return { tagName, attribs };
+    if (isAllowedAnchorHref(href)) return { tagName, attribs };
     const stripped = { ...attribs };
     delete stripped.href;
     return { tagName, attribs: stripped };
@@ -179,11 +211,10 @@ function filterImgSrc(tagName: string, attribs: Record<string, string>): {
  * keeps a hostile markdown source from smuggling command invocations
  * through user-authored anchors.
  */
-function isAllowedAnchorHref(href: string, options: RenderOptions): boolean {
+function isAllowedAnchorHref(href: string): boolean {
   if (href.startsWith("#")) return true;
   if (href.startsWith("http://") || href.startsWith("https://")) return true;
   if (href.startsWith("mailto:")) return true;
-  if (options.isLoopback && href.startsWith("vscode://file/")) return true;
   return false;
 }
 

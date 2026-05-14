@@ -150,7 +150,36 @@ describe("searchPages — snippet shape", () => {
     expect(results[0].snippet.startsWith("…")).toBe(false);
     expect(results[0].snippet.endsWith("…")).toBe(true);
   });
+
+  it("strips bold/italic/code markers from body snippets", () => {
+    const snippet = snippetForBody(
+      "Some prose with **bold** keyword and `inline code` plus _italic_ text.",
+    );
+    expect(snippet).toContain("bold");
+    expect(snippet).toContain("keyword");
+    expect(snippet).toContain("inline code");
+    expect(snippet).toContain("italic");
+    expect(snippet).not.toContain("**");
+    expect(snippet).not.toContain("`");
+    // Italic underscores are stripped (the regex avoids `snake_case`).
+    expect(snippet).not.toContain("_italic_");
+  });
+
+  it("strips markdown link syntax in snippets, keeping only the visible label", () => {
+    const snippet = snippetForBody(
+      "See [the keyword paper](https://example.com/long-url) for context.",
+    );
+    expect(snippet).toContain("the keyword paper");
+    expect(snippet).not.toContain("https://example.com/long-url");
+    expect(snippet).not.toContain("](");
+  });
 });
+
+/** Convenience for snippet-cleanup tests: search "keyword" against one body. */
+function snippetForBody(body: string): string {
+  const snapshot = buildSnapshot([buildPage("p", "Unrelated", body)]);
+  return searchPages(snapshot, "keyword").results[0].snippet;
+}
 
 describe("searchPages — caps", () => {
   it("caps the query at 200 characters", () => {

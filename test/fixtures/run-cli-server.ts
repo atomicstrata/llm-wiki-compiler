@@ -14,7 +14,9 @@ import path from "path";
 import { afterEach } from "vitest";
 
 const CLI = path.resolve("dist/cli.js");
-const READINESS_RE = /Viewer ready at http:\/\/([^\s:]+):(\d+)/;
+// Parses either `http://127.0.0.1:PORT` or the bracketed-IPv6 form
+// `http://[::1]:PORT` — group 1 captures the host without the brackets.
+const READINESS_RE = /Viewer ready at http:\/\/(?:\[([^\]]+)\]|([^\s:]+)):(\d+)/;
 const DEFAULT_READY_TIMEOUT_MS = 5000;
 
 /** Handle returned by {@link startViewerCLI}. */
@@ -69,7 +71,8 @@ export async function startViewerCLI(
       if (match && !settled) {
         settled = true;
         clearTimeout(timer);
-        resolve(buildHandle(child, match[1], Number(match[2]), stdoutBuffer));
+        const host = match[1] ?? match[2];
+        resolve(buildHandle(child, host, Number(match[3]), stdoutBuffer));
       }
     });
 

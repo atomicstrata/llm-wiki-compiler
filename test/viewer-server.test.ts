@@ -115,12 +115,25 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect(out.body.length).toBeGreaterThan(0);
   });
 
-  it("/assets/<missing> returns 404 asset_not_found", async () => {
+  it("/assets/<missing> returns 404 asset_not_found with a static message (does not echo request path)", async () => {
     const root = await makeTempRoot("viewer-server-asset-missing");
     const handle = await startViewer(root);
-    const { status, body } = await fetchJson(handle, "/assets/nope.js");
+    const { status, body } = await fetchJson(handle, "/assets/nope-with-unique-marker-xyz.js");
     expect(status).toBe(404);
-    expect((body as { error: { code: string } }).error.code).toBe("asset_not_found");
+    const error = (body as { error: { code: string; message: string } }).error;
+    expect(error.code).toBe("asset_not_found");
+    expect(error.message).toBe("Asset not found.");
+    expect(error.message).not.toContain("nope-with-unique-marker-xyz");
+  });
+
+  it("/assets/<bad-path> returns 400 bad_asset_path with a static message", async () => {
+    const root = await makeTempRoot("viewer-server-asset-bad-path");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/assets/%2e%2e%2f%2e%2e%2fREADME.md");
+    expect(status).toBe(400);
+    const error = (body as { error: { code: string; message: string } }).error;
+    expect(error.code).toBe("bad_asset_path");
+    expect(error.message).toBe("Bad asset path.");
   });
 
   it("/api/search?q=… returns matching pages from the startup snapshot", async () => {

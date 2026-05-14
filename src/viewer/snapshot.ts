@@ -22,6 +22,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readState } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
+import { isMalformedCitationEntry } from "../utils/markdown.js";
 import type {
   ViewerCounts,
   ViewerIndex,
@@ -29,6 +30,7 @@ import type {
   ViewerProject,
   ViewerRecentPage,
   ViewerSnapshot,
+  ViewerWarning,
 } from "./types.js";
 
 const RECENT_PAGES_LIMIT = 8;
@@ -67,17 +69,70 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     body: index.body,
     outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), pages),
   };
+  const sourceFileSet = new Set(sourceFilenames);
+  const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
   return {
     root,
     generatedAt: new Date().toISOString(),
     project,
     counts,
     index: fullIndex,
-    recentPages: buildRecentPages(pages),
-    pages,
+    recentPages: buildRecentPages(annotatedPages),
+    pages: annotatedPages,
     sourceFilenames,
   };
 }
+
+/**
+ * Append `unresolved_citation` and `malformed_citation` warnings to a
+ * page based on its parsed citations and the project's source-file
+ * list. Slice 1 only produced parser-level warnings; citation
+ * resolvability needs the snapshot's source-file list, so this is the
+ * earliest layer that can decide.
+ *
+ * The body is re-scanned for raw `^[…]` markers (rather than iterating
+ * `page.citations`) because `extractClaimCitations` drops citations
+ * whose ONLY entry has an invalid line range — but those still need a
+ * `malformed_citation` warning. Scanning the body gives every marker a
+ * chance to be classified.
+ */
+function annotateCitationWarnings(page: ViewerPage, sourceFiles: ReadonlySet<string>): ViewerPage {
+  const extra: ViewerWarning[] = [];
+  const markerPattern = /\^\[([^\]\n]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = markerPattern.exec(page.body)) !== null) {
+    appendCitationWarningsForMarker(match[1], sourceFiles, extra);
+  }
+  if (extra.length === 0) return page;
+  return { ...page, warnings: [...page.warnings, ...extra] };
+}
+
+/** Classify every comma-separated entry inside one `^[…]` marker. */
+function appendCitationWarningsForMarker(
+  raw: string,
+  sourceFiles: ReadonlySet<string>,
+  into: ViewerWarning[],
+): void {
+  for (const entry of raw.split(",")) {
+    const trimmed = entry.trim();
+    if (trimmed.length === 0) continue;
+    if (isMalformedCitationEntry(trimmed)) {
+      into.push({
+        code: "malformed_citation",
+        message: `Malformed citation entry: ${trimmed}`,
+      });
+      continue;
+    }
+    const file = trimmed.split(/[:#]/)[0];
+    if (file.length > 0 && !sourceFiles.has(file)) {
+      into.push({
+        code: "unresolved_citation",
+        message: `Source not found: ${file}`,
+      });
+    }
+  }
+}
+
 
 /** Project title and bare directory name for the dashboard header. */
 function buildProject(root: string): ViewerProject {

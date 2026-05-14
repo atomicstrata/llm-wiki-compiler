@@ -122,7 +122,7 @@ async function handleRequest(
     writeJsonError(res, 403, "forbidden", "rejected by origin policy");
     return;
   }
-  const url = new URL(req.url ?? "/", `http://${config.host}:${config.port}`);
+  const url = new URL(req.url ?? "/", buildOriginBase(config));
   if (!isRouteRegistered(req.method, url.pathname)) {
     writeJsonError(res, 404, "not_found", `${req.method ?? "?"} ${url.pathname}`);
     return;
@@ -152,8 +152,10 @@ async function routeRegistered(
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
-  res.statusCode = 404;
-  res.end();
+  // Unreachable: `isRouteRegistered` is the gate, and every branch
+  // there has a matching dispatch above. If it ever fires, the two
+  // functions have drifted — fail loudly rather than silently 404.
+  throw new Error(`route registration drift: no handler for ${parsedUrl.pathname}`);
 }
 
 /** True when (method, path) is one of the v1 registered routes. */
@@ -198,22 +200,74 @@ function validateOriginHeaders(req: IncomingMessage, config: ViewerServerConfig)
   return true;
 }
 
-/** True when the incoming `Host` header matches the configured bind. */
+/**
+ * True when the incoming `Host` header matches the configured bind.
+ * Handles IPv4 (`127.0.0.1:PORT`), IPv6 (`[::1]:PORT` — clients always
+ * bracket the host portion when the Host header carries a literal IPv6
+ * address per RFC 3986/7230), and the `localhost` alias on both
+ * loopback families.
+ */
 function isAcceptableHost(hostHeader: string, config: ViewerServerConfig): boolean {
-  const expected = `${config.host}:${config.port}`;
-  if (hostHeader === expected) return true;
-  if (config.host === "127.0.0.1" && hostHeader === `localhost:${config.port}`) return true;
+  for (const acceptable of buildAcceptableHostHeaders(config)) {
+    if (hostHeader === acceptable) return true;
+  }
   return false;
+}
+
+/** Every Host header value we accept for the current bind. */
+function buildAcceptableHostHeaders(config: ViewerServerConfig): string[] {
+  const formattedBind = formatHostHeader(config.host, config.port);
+  const accepted = [formattedBind];
+  if (config.host === "127.0.0.1" || config.host === "::1") {
+    accepted.push(`localhost:${config.port}`);
+  }
+  return accepted;
 }
 
 /** True when the incoming `Origin` resolves to our own host:port. */
 function isSameOrigin(origin: string, config: ViewerServerConfig): boolean {
   try {
     const parsed = new URL(origin);
-    return parsed.hostname === config.host && Number(parsed.port) === config.port;
+    const expectedHostname = normalizeHostnameForOrigin(config.host);
+    const originHostname = normalizeHostnameForOrigin(parsed.hostname);
+    return originHostname === expectedHostname && Number(parsed.port) === config.port;
   } catch {
     return false;
   }
+}
+
+/**
+ * Format a Host header value for the given bind. IPv6 addresses must
+ * be bracketed (`[::1]:54391`); IPv4 and named hosts go in bare. The
+ * heuristic for "literal IPv6" is a colon in the host portion — domain
+ * names and IPv4 dotted-quads never contain `:`.
+ */
+function formatHostHeader(host: string, port: number): string {
+  if (host.includes(":")) return `[${host}]:${port}`;
+  return `${host}:${port}`;
+}
+
+/**
+ * Build a URL base suitable for the `new URL(req.url, base)` resolver.
+ * IPv6 literal hosts must be bracketed inside a URL — `http://::1:PORT/`
+ * is malformed and `new URL` throws. The bracketed form is the only
+ * legal way to express a literal IPv6 host in a URL.
+ */
+function buildOriginBase(config: ViewerServerConfig): string {
+  if (config.host.includes(":")) return `http://[${config.host}]:${config.port}`;
+  return `http://${config.host}:${config.port}`;
+}
+
+/**
+ * `URL.hostname` strips the brackets from a parsed IPv6 origin
+ * (`new URL("http://[::1]/").hostname === "::1"`), so compare against
+ * the bare form. Lowercased for case-insensitive equality (RFC 3986
+ * says the host is case-insensitive).
+ */
+function normalizeHostnameForOrigin(host: string): string {
+  let h = host.toLowerCase();
+  if (h.startsWith("[") && h.endsWith("]")) h = h.slice(1, -1);
+  return h;
 }
 
 /**

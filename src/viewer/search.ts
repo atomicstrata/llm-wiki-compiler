@@ -116,10 +116,32 @@ function buildBodySnippet(body: string, bodyLower: string, tokens: string[]): st
   const matchPos = earliestTokenPosition(bodyLower, tokens);
   const start = Math.max(0, matchPos - SNIPPET_RADIUS);
   const end = Math.min(body.length, matchPos + SNIPPET_RADIUS);
-  const slice = body.slice(start, end).replace(/\s+/g, " ").trim();
+  const cleaned = stripInlineMarkdownNoise(body.slice(start, end))
+    .replace(/\s+/g, " ")
+    .trim();
   const prefix = start > 0 ? SNIPPET_ELLIPSIS : "";
   const suffix = end < body.length ? SNIPPET_ELLIPSIS : "";
-  return `${prefix}${slice}${suffix}`;
+  return `${prefix}${cleaned}${suffix}`;
+}
+
+/**
+ * Strip common inline-markdown markers from a snippet so the search
+ * results panel shows readable prose rather than `**keyword**` and
+ * `[label](url)` noise. Intentionally narrow: only handles the
+ * inline-marker forms a reader would mistake for typos. Block-level
+ * markers (`#` headings, `>` blockquotes) are left alone — they sit at
+ * the start of a line and rarely land inside a ±60-char window.
+ */
+function stripInlineMarkdownNoise(text: string): string {
+  return text
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(?<!\w)\*([^*\n]+)\*(?!\w)/g, "$1")
+    .replace(/(?<!\w)_([^_\n]+)_(?!\w)/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/~~([^~\n]+)~~/g, "$1");
 }
 
 /** Earliest index where any token first appears in the body. */

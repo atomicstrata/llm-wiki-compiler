@@ -17,6 +17,22 @@ import { buildViewerSnapshot } from "../viewer/snapshot.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
+/**
+ * Bind hosts that listen on every interface. We reject these in v1
+ * because the Host / Origin / Sec-Fetch-Site checks in the server are
+ * built around a single canonical bind address; a wildcard bind would
+ * mean any reachable interface's IP serves as a valid Host, which
+ * defeats the DNS-rebind protection. A future PR can add a real
+ * allowed-host model; for now, fail closed with a clear CLI error.
+ */
+const WILDCARD_HOSTS = new Set([
+  "0.0.0.0",
+  "::",
+  "0:0:0:0:0:0:0:0",
+  "0000:0000:0000:0000:0000:0000:0000:0000",
+  "*",
+]);
+
 /** Parsed CLI options. */
 interface ViewCommandOptions {
   port?: string | number;
@@ -36,7 +52,7 @@ export default async function viewCommand(options: ViewCommandOptions): Promise<
   const root = process.cwd();
   const snapshot = await buildViewerSnapshot(root);
   const handle = await startViewerServer(snapshot, { host, port });
-  const url = `http://${handle.host}:${handle.port}`;
+  const url = buildReadyUrl(handle.host, handle.port);
   process.stdout.write(`Viewer ready at ${url}\n`);
   if (options.open) openInBrowser(url);
   registerShutdown(handle.close);
@@ -72,8 +88,26 @@ function resolveBindConfig(options: ViewCommandOptions): { host: string; port: n
     );
   }
   const host = hostFlag ? (options.host as string) : LOOPBACK_HOST;
+  if (WILDCARD_HOSTS.has(host)) {
+    throw new Error(
+      `--host ${host} is not supported: wildcard binds defeat the viewer's DNS-rebind protection. ` +
+        "Use a specific interface IP (e.g. 192.168.1.10) instead.",
+    );
+  }
   const port = parsePort(options.port);
   return { host, port };
+}
+
+/**
+ * Build the readiness-line URL. IPv6 literal hosts must be bracketed
+ * (`http://[::1]:PORT/`) per RFC 3986 — bare `http://::1:PORT/` is a
+ * malformed URL and won't open in a browser. Heuristic for "literal
+ * IPv6": a colon in the host portion (domain names + IPv4 dotted
+ * quads never contain `:`).
+ */
+function buildReadyUrl(host: string, port: number): string {
+  if (host.includes(":")) return `http://[${host}]:${port}`;
+  return `http://${host}:${port}`;
 }
 
 /** Coerce the optional --port string into a non-negative integer. */

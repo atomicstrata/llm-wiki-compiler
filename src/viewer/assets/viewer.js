@@ -20,14 +20,12 @@
  */
 
 import { wireSearch } from "./viewer-search.js";
+import { renderSidebar, markActive } from "./viewer-sidebar.js";
+import { renderSupportRail, clearSupportRail } from "./viewer-rail.js";
 
 const PAGE_INDEX_SELECTOR = "#page-index";
-const SIDEBAR_SELECTOR = "[data-sidebar]";
 const MAIN_SELECTOR = "[data-main-pane]";
-const SUPPORT_SELECTOR = "[data-support-rail]";
 const TITLE_SELECTOR = "[data-app-title]";
-
-const SUPPORT_FIELDS = ["kind", "summary", "createdAt", "updatedAt"];
 
 /** Parse the server-embedded page-index JSON. Empty list if absent or malformed. */
 function readEmbeddedIndex() {
@@ -41,77 +39,6 @@ function readEmbeddedIndex() {
   }
 }
 
-/** Render the sidebar from a list of page summaries (no fetch). */
-function renderSidebar(pages) {
-  const sidebar = document.querySelector(SIDEBAR_SELECTOR);
-  if (!sidebar) return;
-  sidebar.innerHTML = "";
-  const concepts = pages.filter((p) => p.pageDirectory === "concepts");
-  const queries = pages.filter((p) => p.pageDirectory === "queries");
-  if (concepts.length > 0) sidebar.appendChild(buildGroup("Concepts", concepts));
-  if (queries.length > 0) sidebar.appendChild(buildGroup("Saved Queries", queries));
-  if (concepts.length === 0 && queries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "placeholder";
-    empty.textContent = "No pages yet — run `llmwiki compile`.";
-    sidebar.appendChild(empty);
-  }
-  sidebar.appendChild(buildHealthEntry());
-  markActive();
-}
-
-/** Build the standing "Health" sidebar entry that routes to #/health. */
-function buildHealthEntry() {
-  const wrap = document.createElement("section");
-  const heading = document.createElement("h2");
-  heading.textContent = "Project";
-  wrap.appendChild(heading);
-  const list = document.createElement("ul");
-  const item = document.createElement("li");
-  const link = document.createElement("a");
-  link.href = "#/health";
-  link.dataset.healthLink = "true";
-  link.textContent = "Health";
-  item.appendChild(link);
-  list.appendChild(item);
-  wrap.appendChild(list);
-  return wrap;
-}
-
-/** Build a sidebar group (heading + flat list of links). */
-function buildGroup(label, pages) {
-  const wrap = document.createElement("section");
-  const heading = document.createElement("h2");
-  heading.textContent = label;
-  wrap.appendChild(heading);
-  const list = document.createElement("ul");
-  for (const page of pages) {
-    const item = document.createElement("li");
-    const a = document.createElement("a");
-    a.href = `#/${encodeURIComponent(page.pageDirectory)}/${encodeURIComponent(page.slug)}`;
-    a.dataset.pageId = page.id;
-    a.textContent = page.title || page.slug;
-    item.appendChild(a);
-    list.appendChild(item);
-  }
-  wrap.appendChild(list);
-  return wrap;
-}
-
-/** Mark the sidebar entry matching the current hash route as `aria-current`. */
-function markActive() {
-  const current = parseRoute(location.hash);
-  const links = document.querySelectorAll(`${SIDEBAR_SELECTOR} a`);
-  for (const link of links) link.removeAttribute("aria-current");
-  if (current.kind !== "page") return;
-  const expectedId = `${current.directory}/${current.slug}`;
-  for (const link of links) {
-    if (link.dataset.pageId === expectedId) {
-      link.setAttribute("aria-current", "page");
-      return;
-    }
-  }
-}
 
 /**
  * Parse `location.hash` into a route descriptor. Malformed percent-
@@ -137,7 +64,6 @@ function parseRoute(hash) {
 /** Render the home dashboard from the `/api/pages` envelope. */
 function renderHome(envelope) {
   const main = document.querySelector(MAIN_SELECTOR);
-  const support = document.querySelector(SUPPORT_SELECTOR);
   if (!main) return;
   main.innerHTML = "";
   const title = document.createElement("h1");
@@ -148,7 +74,7 @@ function renderHome(envelope) {
   if (Array.isArray(envelope.recentPages) && envelope.recentPages.length > 0) {
     main.appendChild(buildRecentBlock(envelope.recentPages));
   }
-  if (support) support.innerHTML = "";
+  clearSupportRail();
 }
 
 /** Render a `<dl>` of project counts on the home dashboard. */
@@ -267,12 +193,6 @@ function buildLintBlock(lint) {
   return wrap;
 }
 
-/** Reset the support rail when the current view has no page metadata. */
-function clearSupportRail() {
-  const support = document.querySelector(SUPPORT_SELECTOR);
-  if (support) support.innerHTML = "";
-}
-
 /** Fetch /api/pages and render the dashboard. */
 async function loadAndRenderHome() {
   try {
@@ -285,8 +205,9 @@ async function loadAndRenderHome() {
   }
 }
 
-/** Fetch /api/index and render. In Slice 3 the html is still empty; show the placeholder. */
+/** Fetch /api/index and render the rendered HTML coming back from the server. */
 async function renderIndexPane(main) {
+  clearSupportRail();
   try {
     const payload = await fetchJson("/api/index");
     main.innerHTML = "";
@@ -333,6 +254,7 @@ async function renderPagePane(main, directory, slug) {
       note.className = "placeholder";
       note.textContent = `Page not found: ${directory}/${slug}`;
       main.appendChild(note);
+      clearSupportRail();
     } else {
       renderError(`Could not load page: ${err.message}`);
     }
@@ -375,21 +297,6 @@ function emptyBodyNote() {
   return note;
 }
 
-/** Populate the right-hand support rail with page metadata. */
-function renderSupportRail(payload) {
-  const support = document.querySelector(SUPPORT_SELECTOR);
-  if (!support) return;
-  support.innerHTML = "";
-  const meta = payload.frontmatter || {};
-  const rows = [];
-  for (const key of SUPPORT_FIELDS) {
-    const value = meta[key];
-    if (value === undefined || value === null || value === "") continue;
-    rows.push([key, value]);
-  }
-  support.appendChild(buildDefinitionList(rows));
-}
-
 /** Render a top-of-main error banner without crashing the rest of the UI. */
 function renderError(message) {
   const main = document.querySelector(MAIN_SELECTOR);
@@ -399,6 +306,7 @@ function renderError(message) {
   banner.className = "warning-banner";
   banner.textContent = message;
   main.appendChild(banner);
+  clearSupportRail();
 }
 
 /** Promise-returning fetch helper that surfaces non-2xx statuses as errors. */
@@ -416,7 +324,7 @@ async function fetchJson(pathname) {
 function main() {
   const embedded = readEmbeddedIndex();
   renderSidebar(embedded.pages);
-  wireSearch({ fetchJson, renderError });
+  wireSearch({ fetchJson });
   window.addEventListener("hashchange", () => {
     void renderRoute();
   });

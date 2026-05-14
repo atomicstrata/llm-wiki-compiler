@@ -128,16 +128,32 @@ describe("sanitizer — allowed surfaces", () => {
     expect(html).toContain('href="#section-2"');
   });
 
-  it("allows vscode://file/ hrefs on loopback binds (citation editor links)", () => {
-    const html = render("[edit](vscode://file/tmp/x.md:42)");
-    expect(html).toMatch(/href=["']?vscode:\/\/file\//i);
+  it("strips ALL vscode:// anchor hrefs even on loopback (editor links live on chip spans, not anchors)", () => {
+    // After the review pass the anchor allowlist no longer permits
+    // `vscode://`. Citation chips expose `vscode://file/...` only via
+    // a `<span data-editor-href>` (a data attribute, not an `<a href>`),
+    // so this gate blocks markdown-authored anchors regardless of
+    // whether they look like an editor link or a command URI.
+    expect(render("[edit](vscode://file/tmp/x.md:42)")).not.toMatch(/href=["']?vscode:/i);
+    expect(render("[evil](vscode://evil/command/some.thing)")).not.toMatch(/href=["']?vscode:/i);
+    expect(render("[a](vscode://file//Users/anyone/.ssh/id_rsa)")).not.toMatch(/href=["']?vscode:/i);
+  });
+});
+
+describe("sanitizer — LAN-mode defense-in-depth", () => {
+  it("strips `data-absolute-path` and `data-editor-href` from spans on non-loopback binds", () => {
+    const raw = '<span class="citation-chip" data-absolute-path="/tmp/x.md" data-editor-href="vscode://file//tmp/x.md:1">label</span>';
+    const sanitized = sanitize(raw, false);
+    expect(sanitized).not.toMatch(/data-absolute-path/i);
+    expect(sanitized).not.toMatch(/data-editor-href/i);
+    // The span itself + its class/label survive — only the LAN-sensitive attributes are stripped.
+    expect(sanitized).toMatch(/<span[^>]*class="citation-chip"[^>]*>label<\/span>/);
   });
 
-  it("strips non-file vscode: hrefs even on loopback (no command invocations)", () => {
-    // `vscode://evil` and other non-`file/` URIs can invoke commands or
-    // open arbitrary handlers; the spec's allowance is for editor file
-    // links only. The transformTag prefix gate narrows it to that.
-    const html = render("[evil](vscode://evil/command/some.thing)");
-    expect(html).not.toMatch(/href=["']?vscode:/i);
+  it("keeps `data-absolute-path` and `data-editor-href` on spans when bound to loopback", () => {
+    const raw = '<span class="citation-chip" data-absolute-path="/tmp/x.md" data-editor-href="vscode://file//tmp/x.md:1">label</span>';
+    const sanitized = sanitize(raw, true);
+    expect(sanitized).toMatch(/data-absolute-path="\/tmp\/x\.md"/);
+    expect(sanitized).toMatch(/data-editor-href="vscode:\/\/file\/\/tmp\/x\.md:1"/);
   });
 });

@@ -32,7 +32,7 @@ const SEARCH_DEBOUNCE_MS = 200;
  * silently — the results panel only ever reflects the most recent
  * input-vs-render decision.
  */
-export function wireSearch({ fetchJson, renderError }) {
+export function wireSearch({ fetchJson }) {
   const input = document.querySelector(SEARCH_INPUT_SELECTOR);
   const results = document.querySelector(SEARCH_RESULTS_SELECTOR);
   if (!input || !results) return;
@@ -55,7 +55,7 @@ export function wireSearch({ fetchJson, renderError }) {
     const generation = currentGeneration;
     pendingTimer = setTimeout(() => {
       pendingTimer = 0;
-      void runSearchAndRender(value, results, fetchJson, renderError, () => generation === currentGeneration);
+      void runSearchAndRender(value, results, fetchJson, () => generation === currentGeneration);
     }, SEARCH_DEBOUNCE_MS);
   });
   input.addEventListener("keydown", (event) => onSearchInputKeydown(event, results));
@@ -75,14 +75,17 @@ export function wireSearch({ fetchJson, renderError }) {
  * when `stillCurrent()` returns true at the moment the response
  * resolves. A later-typed query supersedes an earlier one regardless
  * of which network response arrives first.
+ *
+ * Search-failure UX intentionally stays inline in the results panel
+ * (rather than blowing away the main pane) so an ephemeral network
+ * blip doesn't drop the user out of the page they're reading.
  */
-async function runSearchAndRender(query, results, fetchJson, renderError, stillCurrent) {
+async function runSearchAndRender(query, results, fetchJson, stillCurrent) {
   try {
     const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}`);
     if (!stillCurrent()) return;
     renderSearchResults(data.results ?? [], results);
   } catch (err) {
-    void renderError;
     if (!stillCurrent()) return;
     results.innerHTML = "";
     const li = document.createElement("li");

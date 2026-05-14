@@ -19,6 +19,8 @@ import { vi } from "vitest";
 const SHELL_PATH = path.resolve("src/viewer/assets/index.html");
 const VIEWER_SCRIPT = path.resolve("src/viewer/assets/viewer.js");
 const SEARCH_SCRIPT = path.resolve("src/viewer/assets/viewer-search.js");
+const SIDEBAR_SCRIPT = path.resolve("src/viewer/assets/viewer-sidebar.js");
+const RAIL_SCRIPT = path.resolve("src/viewer/assets/viewer-rail.js");
 
 /** Page row shape the shell's `<script id="page-index">` blob carries. */
 export interface EmbeddedPage {
@@ -26,6 +28,8 @@ export interface EmbeddedPage {
   pageDirectory: "concepts" | "queries";
   slug: string;
   title: string;
+  /** Frontmatter `kind` — used by the sidebar to group concepts on first paint. */
+  kind?: string;
 }
 
 /** Fetch responder: returns a Response or `null` to fall through to 404. */
@@ -46,10 +50,12 @@ export async function mountViewerDom(
   pages: EmbeddedPage[],
   responder: FetchResponder,
 ): Promise<MountResult> {
-  const [shell, viewerSrc, searchSrc] = await Promise.all([
+  const [shell, viewerSrc, searchSrc, sidebarSrc, railSrc] = await Promise.all([
     readFile(SHELL_PATH, "utf-8"),
     readFile(VIEWER_SCRIPT, "utf-8"),
     readFile(SEARCH_SCRIPT, "utf-8"),
+    readFile(SIDEBAR_SCRIPT, "utf-8"),
+    readFile(RAIL_SCRIPT, "utf-8"),
   ]);
   const html = embedPageIndex(shell, pages);
   const fetchMock = vi.fn(async (input: string | URL) => {
@@ -63,8 +69,14 @@ export async function mountViewerDom(
     virtualConsole: new VirtualConsole(),
   });
   (dom.window as unknown as { fetch: typeof fetchMock }).fetch = fetchMock;
-  dom.window.eval(rewriteSearchModuleToGlobal(searchSrc));
-  dom.window.eval(rewriteViewerImport(viewerSrc));
+  dom.window.eval(rewriteModuleToGlobal(searchSrc, "__viewerSearchModule", ["wireSearch"]));
+  dom.window.eval(
+    rewriteModuleToGlobal(sidebarSrc, "__viewerSidebarModule", ["renderSidebar", "markActive"]),
+  );
+  dom.window.eval(
+    rewriteModuleToGlobal(railSrc, "__viewerRailModule", ["renderSupportRail", "clearSupportRail"]),
+  );
+  dom.window.eval(rewriteViewerImports(viewerSrc));
   await flushMicrotasks();
   return { dom, fetchMock, flush: flushMicrotasks };
 }
@@ -79,23 +91,34 @@ function embedPageIndex(shell: string, pages: EmbeddedPage[]): string {
 }
 
 /**
- * Replace the search module's `export function …` lines with plain
- * declarations and attach `wireSearch` to `window.__viewerSearchModule`
- * so the rewritten viewer.js can pick it up via the global.
+ * Replace `export function …` lines with plain declarations and attach
+ * the named exports to a window-scoped global so a rewritten viewer.js
+ * can pick them up. JSDOM's `eval` doesn't drive ES-module loading, so
+ * this is the cheapest workaround.
  */
-function rewriteSearchModuleToGlobal(source: string): string {
+function rewriteModuleToGlobal(source: string, globalName: string, exports: string[]): string {
+  const objectLiteral = exports.map((name) => `${name}: ${name}`).join(", ");
   return (
     source.replace(/export function /g, "function ") +
-    "\nwindow.__viewerSearchModule = { wireSearch };\n"
+    `\nwindow.${globalName} = { ${objectLiteral} };\n`
   );
 }
 
-/** Replace the viewer's static `import` line with a destructuring read of the global. */
-function rewriteViewerImport(source: string): string {
-  return source.replace(
-    /import\s*\{\s*wireSearch\s*\}\s*from\s*['"]\.\/viewer-search\.js['"]\s*;/,
-    "const wireSearch = window.__viewerSearchModule.wireSearch;",
-  );
+/** Replace the viewer's static `import` lines with destructuring reads of the globals. */
+function rewriteViewerImports(source: string): string {
+  return source
+    .replace(
+      /import\s*\{\s*wireSearch\s*\}\s*from\s*['"]\.\/viewer-search\.js['"]\s*;/,
+      "const { wireSearch } = window.__viewerSearchModule;",
+    )
+    .replace(
+      /import\s*\{\s*renderSidebar\s*,\s*markActive\s*\}\s*from\s*['"]\.\/viewer-sidebar\.js['"]\s*;/,
+      "const { renderSidebar, markActive } = window.__viewerSidebarModule;",
+    )
+    .replace(
+      /import\s*\{\s*renderSupportRail\s*,\s*clearSupportRail\s*\}\s*from\s*['"]\.\/viewer-rail\.js['"]\s*;/,
+      "const { renderSupportRail, clearSupportRail } = window.__viewerRailModule;",
+    );
 }
 
 /** Standard JSON 200 helper for fetch responders. */
