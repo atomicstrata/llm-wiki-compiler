@@ -4,12 +4,37 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>llmwiki viewer</title>
+    <link rel="icon" type="image/png" href="/assets/llmwiki-logo-64.png" />
     <link rel="stylesheet" href="/assets/viewer.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-pane">Skip to main content</a>
     <header class="app-header">
-      <strong class="app-title" data-app-title>llmwiki</strong>
+      <div class="app-brand">
+        <img
+          class="app-logo"
+          src="/assets/llmwiki-logo-64.png"
+          width="32"
+          height="32"
+          alt=""
+          aria-hidden="true"
+        />
+        <strong class="app-title" data-app-title>llmwiki</strong>
+      </div>
+      <a
+        class="github-link"
+        href="https://github.com/atomicmemory/llm-wiki-compiler"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open llm-wiki-compiler on GitHub"
+      >
+        <svg class="github-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path
+            d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.63 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.83-.01-1.5-2.01.37-2.53-.5-2.69-.96-.09-.24-.48-.96-.82-1.15-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.9-3.64-4 0-.88.31-1.61.82-2.18-.08-.2-.36-1.03.08-2.15 0 0 .67-.22 2.2.83A7.47 7.47 0 0 1 8 3.96c.68 0 1.36.09 2 .27 1.53-1.05 2.2-.83 2.2-.83.44 1.12.16 1.95.08 2.15.51.57.82 1.29.82 2.18 0 3.11-1.87 3.79-3.65 4 .29.25.54.74.54 1.5 0 1.08-.01 1.95-.01 2.22 0 .21.15.47.55.39A8.05 8.05 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"
+          />
+        </svg>
+        <span>GitHub</span>
+      </a>
     </header>
     <div class="app-layout">
       <nav class="sidebar" aria-label="Wiki navigation">

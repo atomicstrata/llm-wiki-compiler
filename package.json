@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "dev:view": "node scripts/dev-viewer.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "fallow:ci": "bash scripts/fallow-ci.sh",

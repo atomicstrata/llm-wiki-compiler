@@ -136,6 +136,8 @@ function stripInlineMarkdownNoise(text: string): string {
   return text
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\[\[([^\]|\n]+)\|([^\]\n]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]\n]+)\]\]/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/__([^_]+)__/g, "$1")
     .replace(/(?<!\w)\*([^*\n]+)\*(?!\w)/g, "$1")

@@ -27,6 +27,20 @@ const RAIL_FIELDS = [
   { key: "updatedAt", label: "Updated", type: "string" },
 ];
 
+/** Render project-level metadata for the dashboard route. */
+export function renderProjectRail(envelope) {
+  const support = document.querySelector(SUPPORT_SELECTOR);
+  if (!support) return;
+  support.innerHTML = "";
+  const dl = document.createElement("dl");
+  appendPlainRailField(dl, "Project", envelope.project?.title || "llmwiki");
+  appendPlainRailField(dl, "Root", envelope.project?.rootName || "");
+  appendPlainRailField(dl, "Generated", envelope.generatedAt || "");
+  appendPlainRailField(dl, "Pages", String((envelope.pages || []).length));
+  if (envelope.index?.available) appendPlainRailField(dl, "Index", "Available");
+  support.appendChild(dl);
+}
+
 /**
  * Render the page metadata into the support rail. Replaces whatever
  * was there before — callers don't need to clear separately.
@@ -53,8 +67,19 @@ export function clearSupportRail() {
 function appendRailField(dl, field, value) {
   const dd = renderRailValue(field.type, value);
   if (!dd) return;
+  appendDtDd(dl, field.label, dd);
+}
+
+/** Append a plain text rail field when `value` is non-empty. */
+function appendPlainRailField(dl, label, value) {
+  if (typeof value !== "string" || value.length === 0) return;
+  appendDtDd(dl, label, buildPlainDd(value));
+}
+
+/** Append a complete rail definition row. */
+function appendDtDd(dl, label, dd) {
   const dt = document.createElement("dt");
-  dt.textContent = field.label;
+  dt.textContent = label;
   dl.appendChild(dt);
   dl.appendChild(dd);
 }

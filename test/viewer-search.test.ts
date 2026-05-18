@@ -173,6 +173,16 @@ describe("searchPages — snippet shape", () => {
     expect(snippet).not.toContain("https://example.com/long-url");
     expect(snippet).not.toContain("](");
   });
+
+  it("strips wiki-link brackets in snippets, keeping aliases when present", () => {
+    const snippet = snippetForBody(
+      "Related to [[Keyword Topic|the keyword topic]] and [[OpenAI]].",
+    );
+    expect(snippet).toContain("the keyword topic");
+    expect(snippet).toContain("OpenAI");
+    expect(snippet).not.toContain("[[");
+    expect(snippet).not.toContain("]]");
+  });
 });
 
 /** Convenience for snippet-cleanup tests: search "keyword" against one body. */

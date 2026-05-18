@@ -109,4 +109,3 @@ function encodeUriSegment(id: PageId): string {
   const [directory, slug] = id.split("/");
   return `${encodeURIComponent(directory)}/${encodeURIComponent(slug)}`;
 }
-

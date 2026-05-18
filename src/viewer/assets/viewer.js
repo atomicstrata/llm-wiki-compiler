@@ -21,7 +21,7 @@
 
 import { wireSearch } from "./viewer-search.js";
 import { renderSidebar, markActive } from "./viewer-sidebar.js";
-import { renderSupportRail, clearSupportRail } from "./viewer-rail.js";
+import { renderProjectRail, renderSupportRail, clearSupportRail } from "./viewer-rail.js";
 
 const PAGE_INDEX_SELECTOR = "#page-index";
 const MAIN_SELECTOR = "[data-main-pane]";
@@ -66,6 +66,7 @@ function renderHome(envelope) {
   const main = document.querySelector(MAIN_SELECTOR);
   if (!main) return;
   main.innerHTML = "";
+  main.className = "main-pane home-dashboard";
   const title = document.createElement("h1");
   title.textContent = envelope.project?.title || "llmwiki";
   main.appendChild(title);
@@ -74,29 +75,34 @@ function renderHome(envelope) {
   if (Array.isArray(envelope.recentPages) && envelope.recentPages.length > 0) {
     main.appendChild(buildRecentBlock(envelope.recentPages));
   }
-  clearSupportRail();
+  renderProjectRail(envelope);
 }
 
 /** Render a `<dl>` of project counts on the home dashboard. */
 function buildCountsBlock(counts) {
-  return buildDefinitionList([
+  const dl = buildDefinitionList([
     ["Concepts", counts.concepts ?? 0],
     ["Saved queries", counts.queries ?? 0],
     ["Source files", counts.sourceFiles ?? 0],
     ["Pending reviews", counts.pendingReviews ?? 0],
   ]);
+  dl.className = "metric-grid";
+  return dl;
 }
 
 /** Build a `<dl>` from a list of `[label, value]` rows. */
 function buildDefinitionList(rows) {
   const dl = document.createElement("dl");
   for (const [label, value] of rows) {
+    const row = document.createElement("div");
+    row.className = "metric";
     const dt = document.createElement("dt");
     dt.textContent = label;
     const dd = document.createElement("dd");
     dd.textContent = String(value);
-    dl.appendChild(dt);
-    dl.appendChild(dd);
+    row.appendChild(dt);
+    row.appendChild(dd);
+    dl.appendChild(row);
   }
   return dl;
 }
@@ -104,6 +110,7 @@ function buildDefinitionList(rows) {
 /** Build the link that takes the user to the compiled wiki/index.md page. */
 function buildIndexLink(href) {
   const p = document.createElement("p");
+  p.className = "home-action";
   const a = document.createElement("a");
   a.href = href;
   a.textContent = "Browse the compiled index →";
@@ -116,6 +123,7 @@ function buildRecentBlock(recent) {
   const h2 = document.createElement("h2");
   h2.textContent = "Recently updated";
   const ul = document.createElement("ul");
+  ul.className = "recent-list";
   for (const page of recent) {
     const li = document.createElement("li");
     const a = document.createElement("a");
@@ -125,6 +133,7 @@ function buildRecentBlock(recent) {
     ul.appendChild(li);
   }
   const wrap = document.createElement("section");
+  wrap.className = "recent-section";
   wrap.appendChild(h2);
   wrap.appendChild(ul);
   return wrap;
@@ -136,6 +145,7 @@ async function renderRoute() {
   markActive();
   const main = document.querySelector(MAIN_SELECTOR);
   if (!main) return;
+  main.className = "main-pane";
   if (route.kind === "home") return loadAndRenderHome();
   if (route.kind === "index") return renderIndexPane(main);
   if (route.kind === "health") return renderHealthPane(main);
@@ -161,13 +171,15 @@ async function renderHealthPane(main) {
 function buildHealthDashboard(health) {
   const wrap = document.createElement("section");
   wrap.className = "health-dashboard";
-  wrap.appendChild(buildDefinitionList([
+  const metrics = buildDefinitionList([
     ["Concepts", health.concepts ?? 0],
     ["Saved queries", health.queries ?? 0],
     ["Compiled sources", health.sources ?? 0],
     ["Source files", health.sourceFiles ?? 0],
     ["Pending reviews", health.pendingReviews ?? 0],
-  ]));
+  ]);
+  metrics.className = "metric-list";
+  wrap.appendChild(metrics);
   wrap.appendChild(buildLintBlock(health.lint));
   return wrap;
 }
@@ -245,7 +257,8 @@ async function renderPagePane(main, directory, slug) {
       main.appendChild(question);
     }
     appendWarnings(main, payload.warnings || []);
-    appendRenderedBody(main, payload.html);
+    const body = appendRenderedBody(main, payload.html);
+    removeDuplicateLeadingHeading(body, payload.title || slug);
     renderSupportRail(payload);
   } catch (err) {
     if (err.status === 404) {
@@ -272,11 +285,23 @@ async function renderPagePane(main, directory, slug) {
 function appendRenderedBody(main, html) {
   if (typeof html === "string" && html.length > 0) {
     const body = document.createElement("div");
+    body.className = "rendered-body";
     body.innerHTML = html;
     main.appendChild(body);
-    return;
+    return body;
   }
-  main.appendChild(emptyBodyNote());
+  const note = emptyBodyNote();
+  main.appendChild(note);
+  return note;
+}
+
+/** Drop a duplicated first Markdown H1 when it matches the viewer page title. */
+function removeDuplicateLeadingHeading(body, title) {
+  if (!body || !title) return;
+  const first = body.firstElementChild;
+  if (!first || first.tagName !== "H1") return;
+  if (first.textContent?.trim() !== title.trim()) return;
+  first.remove();
 }
 
 /** Render every payload warning as a banner above the page body. */

@@ -67,12 +67,21 @@ describe("shell template — accessibility landmarks + skip link", () => {
     const { dom } = await mountViewerDom([], makeResponder([]));
     const doc = dom.window.document;
     expect(doc.querySelector("header.app-header")).not.toBeNull();
+    const logo = doc.querySelector(".app-logo") as HTMLImageElement | null;
+    expect(logo).not.toBeNull();
+    expect(logo!.getAttribute("src")).toBe("/assets/llmwiki-logo-64.png");
     expect(doc.querySelector("nav.sidebar")).not.toBeNull();
     expect(doc.querySelector("main#main-pane")).not.toBeNull();
     expect(doc.querySelector("aside.support-rail")).not.toBeNull();
     const skip = doc.querySelector(".skip-link") as HTMLAnchorElement | null;
     expect(skip).not.toBeNull();
     expect(skip!.getAttribute("href")).toBe("#main-pane");
+    const github = doc.querySelector(".github-link") as HTMLAnchorElement | null;
+    expect(github).not.toBeNull();
+    expect(github!.getAttribute("href")).toBe("https://github.com/atomicmemory/llm-wiki-compiler");
+    expect(github!.getAttribute("aria-label")).toBe("Open llm-wiki-compiler on GitHub");
+    expect(github!.textContent).toContain("GitHub");
+    expect(github!.textContent).not.toContain("1.1k");
   });
 
   it("stylesheet declares a universal `:focus-visible` outline so keyboard focus is visible", async () => {

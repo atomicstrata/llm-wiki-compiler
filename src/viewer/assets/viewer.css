@@ -4,10 +4,13 @@
   color-scheme: light dark;
   --bg: #ffffff;
   --bg-muted: #f7f7f8;
+  --surface: #ffffff;
+  --surface-raised: #fbfbfc;
   --fg: #16181d;
   --fg-muted: #5f6470;
   --border: #e1e2e6;
   --accent: #2a6df4;
+  --accent-soft: rgba(42, 109, 244, 0.1);
   --missing: #b00020;
   --max-content-width: 72ch;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
@@ -19,10 +22,13 @@
   :root {
     --bg: #16181d;
     --bg-muted: #1e2026;
+    --surface: #14161b;
+    --surface-raised: #20232a;
     --fg: #e7e8ec;
     --fg-muted: #9ea3ad;
     --border: #2c2f36;
     --accent: #7eb1ff;
+    --accent-soft: rgba(126, 177, 255, 0.14);
     --missing: #ff8a8a;
   }
 }
@@ -58,9 +64,49 @@ a:hover, a:focus-visible { text-decoration: underline; }
 
 .app-header {
   padding: 0.75rem 1rem; border-bottom: 1px solid var(--border);
-  display: flex; align-items: baseline; gap: 1rem;
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 0.6rem;
+}
+.app-logo {
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  object-fit: contain;
 }
 .app-title { font-size: 1.05rem; }
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  background: var(--surface-raised);
+  font-weight: 700;
+  line-height: 1;
+}
+.github-link:hover,
+.github-link:focus-visible {
+  background: var(--accent-soft);
+  text-decoration: none;
+}
+.github-mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  fill: currentColor;
+}
+.github-stars {
+  font-size: 1.05em;
+  font-variant-numeric: tabular-nums;
+}
 
 .app-layout {
   display: grid;
@@ -75,15 +121,27 @@ a:hover, a:focus-visible { text-decoration: underline; }
   padding: 1rem;
   overflow-y: auto;
 }
+.sidebar.search-active [data-sidebar] { display: none; }
 .sidebar h2 {
   font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
   color: var(--fg-muted); margin: 1rem 0 0.5rem;
 }
+.sidebar details { margin: 0.65rem 0; }
+.sidebar summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 0.35rem;
+}
 .sidebar ul { list-style: none; padding: 0; margin: 0; }
 .sidebar li a {
-  display: block; padding: 0.25rem 0.5rem; border-radius: 4px; color: var(--fg);
+  display: block;
+  padding: 0.28rem 0.5rem;
+  border-radius: 6px;
+  color: var(--fg);
+  line-height: 1.35;
 }
-.sidebar li a:hover, .sidebar li a:focus-visible { background: var(--bg); }
+.sidebar li a:hover, .sidebar li a:focus-visible { background: var(--surface); }
 .sidebar li a[aria-current="page"] { background: var(--accent); color: #fff; }
 
 .sidebar-search {
@@ -94,7 +152,7 @@ a:hover, a:focus-visible { text-decoration: underline; }
   padding: 0.4rem 0.6rem;
   background: var(--bg); color: var(--fg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 0.95rem;
 }
 
@@ -114,13 +172,13 @@ a:hover, a:focus-visible { text-decoration: underline; }
 }
 .search-results a {
   display: block;
-  padding: 0.4rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.55rem 0.6rem;
+  border-radius: 6px;
   color: var(--fg);
 }
 .search-results a:hover,
 .search-results a:focus-visible {
-  background: var(--bg);
+  background: var(--surface);
 }
 .search-results .result-title {
   display: block;
@@ -141,12 +199,13 @@ a:hover, a:focus-visible { text-decoration: underline; }
 }
 
 .main-pane {
-  padding: 1.5rem 2rem;
-  max-width: var(--max-content-width);
+  padding: 2rem;
+  width: min(100%, var(--max-content-width));
   overflow-x: auto;
 }
 .main-pane:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .main-pane h1, .main-pane h2, .main-pane h3 { line-height: 1.25; }
+.main-pane h1 { margin-top: 0; }
 .main-pane pre {
   background: var(--bg-muted); padding: 0.75rem 1rem; border-radius: 6px;
   overflow-x: auto;
@@ -158,11 +217,15 @@ a:hover, a:focus-visible { text-decoration: underline; }
   border-left: 1px solid var(--border);
   padding: 1rem; background: var(--bg-muted); font-size: 0.875rem;
 }
-.support-rail dt { font-weight: 600; color: var(--fg-muted); margin-top: 0.5rem; }
+.support-rail dt { font-weight: 700; color: var(--fg-muted); margin-top: 0.7rem; }
 .support-rail dd { margin: 0.25rem 0; }
 
 .placeholder { color: var(--fg-muted); font-style: italic; }
-[data-missing="true"] { color: var(--missing); text-decoration: underline dotted; }
+[data-missing="true"] {
+  color: var(--missing);
+  text-decoration: underline dotted;
+  text-underline-offset: 0.18em;
+}
 
 .warning-banner {
   background: rgba(176, 0, 32, 0.08); color: var(--missing);
@@ -173,15 +236,62 @@ a:hover, a:focus-visible { text-decoration: underline; }
   display: grid;
   gap: 1rem;
 }
-.health-dashboard dl {
+.metric-list {
   display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 1rem;
   row-gap: 0.25rem;
   margin: 0;
 }
+.metric-list .metric { display: contents; }
 .health-dashboard dt { color: var(--fg-muted); }
 .health-dashboard dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+.home-dashboard {
+  width: min(100%, 58rem);
+}
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+.metric-grid .metric {
+  padding: 0.85rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.metric-grid dt {
+  color: var(--fg-muted);
+  font-size: 0.82rem;
+}
+.metric-grid dd {
+  margin: 0.15rem 0 0;
+  font-size: 1.65rem;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.home-action a {
+  display: inline-flex;
+  padding: 0.5rem 0.7rem;
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+.recent-section { margin-top: 1.5rem; }
+.recent-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.recent-list a {
+  display: block;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
 
 @media (max-width: 800px) {
   .app-layout {
@@ -191,7 +301,7 @@ a:hover, a:focus-visible { text-decoration: underline; }
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    overflow-y: visible;
+    overflow-y: auto;
     max-height: 16rem;
   }
   .support-rail {

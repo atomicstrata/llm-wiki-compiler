@@ -74,7 +74,11 @@ export async function mountViewerDom(
     rewriteModuleToGlobal(sidebarSrc, "__viewerSidebarModule", ["renderSidebar", "markActive"]),
   );
   dom.window.eval(
-    rewriteModuleToGlobal(railSrc, "__viewerRailModule", ["renderSupportRail", "clearSupportRail"]),
+    rewriteModuleToGlobal(
+      railSrc,
+      "__viewerRailModule",
+      ["renderProjectRail", "renderSupportRail", "clearSupportRail"],
+    ),
   );
   dom.window.eval(rewriteViewerImports(viewerSrc));
   await flushMicrotasks();
@@ -116,8 +120,8 @@ function rewriteViewerImports(source: string): string {
       "const { renderSidebar, markActive } = window.__viewerSidebarModule;",
     )
     .replace(
-      /import\s*\{\s*renderSupportRail\s*,\s*clearSupportRail\s*\}\s*from\s*['"]\.\/viewer-rail\.js['"]\s*;/,
-      "const { renderSupportRail, clearSupportRail } = window.__viewerRailModule;",
+      /import\s*\{\s*renderProjectRail\s*,\s*renderSupportRail\s*,\s*clearSupportRail\s*\}\s*from\s*['"]\.\/viewer-rail\.js['"]\s*;/,
+      "const { renderProjectRail, renderSupportRail, clearSupportRail } = window.__viewerRailModule;",
     );
 }
 

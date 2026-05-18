@@ -36,6 +36,7 @@ export function wireSearch({ fetchJson }) {
   const input = document.querySelector(SEARCH_INPUT_SELECTOR);
   const results = document.querySelector(SEARCH_RESULTS_SELECTOR);
   if (!input || !results) return;
+  const sidebar = input.closest(".sidebar");
   let currentGeneration = 0;
   let pendingTimer = 0;
   const cancelPending = () => {
@@ -49,7 +50,7 @@ export function wireSearch({ fetchJson }) {
     cancelPending();
     const value = input.value.trim();
     if (value.length === 0) {
-      hideSearchResults(results);
+      hideSearchResults(results, sidebar);
       return;
     }
     const generation = currentGeneration;
@@ -64,7 +65,7 @@ export function wireSearch({ fetchJson }) {
     if (event.target instanceof HTMLElement && event.target.closest("a")) {
       currentGeneration += 1;
       cancelPending();
-      hideSearchResults(results);
+      hideSearchResults(results, sidebar);
       input.value = "";
     }
   });
@@ -100,6 +101,7 @@ async function runSearchAndRender(query, results, fetchJson, stillCurrent) {
 function renderSearchResults(rows, results) {
   results.innerHTML = "";
   results.hidden = false;
+  results.closest(".sidebar")?.classList.add("search-active");
   if (rows.length === 0) {
     const li = document.createElement("li");
     li.className = "empty";
@@ -126,12 +128,19 @@ function buildSearchResultRow(row) {
   title.textContent = row.title || row.id;
   const snippet = document.createElement("span");
   snippet.className = "result-snippet";
-  snippet.textContent = row.snippet || "";
+  snippet.textContent = cleanSnippet(row.snippet || "");
   link.appendChild(kind);
   link.appendChild(title);
   link.appendChild(snippet);
   li.appendChild(link);
   return li;
+}
+
+/** Mirror server-side snippet cleanup so existing viewer processes improve after asset reload. */
+function cleanSnippet(value) {
+  return value
+    .replace(/\[\[([^\]|\n]+)\|([^\]\n]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]\n]+)\]\]/g, "$1");
 }
 
 /** Extract the slug from a PageId of the form `concepts/<slug>`. */
@@ -141,9 +150,10 @@ function deriveSlug(id) {
 }
 
 /** Hide the results panel and restore the standing sidebar contents. */
-function hideSearchResults(results) {
+function hideSearchResults(results, sidebar) {
   results.innerHTML = "";
   results.hidden = true;
+  sidebar?.classList.remove("search-active");
 }
 
 /** ArrowDown from the search input moves focus to the first result anchor. */
