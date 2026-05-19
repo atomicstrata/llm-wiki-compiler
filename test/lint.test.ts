@@ -69,6 +69,23 @@ describe("checkBrokenWikilinks", () => {
     expect(results).toHaveLength(1);
     expect(results[0].line).toBe(6);
   });
+
+  it("resolves wikilinks using pipe alias syntax [[slug|Display Text]]", async () => {
+    await writeConcept("target-page", "---\ntitle: Target Page\n---\nTarget content.");
+    await writeConcept("source-page", "---\ntitle: Source Page\n---\nSee [[target-page|Custom Label]] for details.");
+
+    const results = await checkBrokenWikilinks(tmpDir);
+    expect(results).toHaveLength(0);
+  });
+
+  it("reports broken wikilink when pipe alias target does not exist", async () => {
+    await writeConcept("source-page", "---\ntitle: Source Page\n---\nSee [[missing-page|Custom Label]] for details.");
+
+    const results = await checkBrokenWikilinks(tmpDir);
+    expect(results).toHaveLength(1);
+    expect(results[0].rule).toBe("broken-wikilink");
+    expect(results[0].message).toContain("missing-page|Custom Label");
+  });
 });
 
 describe("checkOrphanedPages", () => {
