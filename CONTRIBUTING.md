@@ -57,7 +57,7 @@ npm run fallow:ci   # Run fallow scoped to changes since origin/main (matches CI
 
 ```bash
 # One-time setup on your fork
-git remote add upstream https://github.com/atomicmemory/llm-wiki-compiler.git
+git remote add upstream https://github.com/atomicstrata/llm-wiki-compiler.git
 ```
 
 Without an `upstream` remote on a fork checkout, the script compares against your fork's `origin/main`, which can drift from the canonical main and miss findings CI will catch.
