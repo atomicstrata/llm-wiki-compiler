@@ -80,6 +80,8 @@ export async function mountViewerDom(
       ["renderProjectRail", "renderSupportRail", "clearSupportRail"],
     ),
   );
+  // Stub loadGraph so JSDOM tests don't need to execute the D3 graph module.
+  dom.window.eval("window.__viewerGraphModule = { loadGraph: async function() {} };");
   dom.window.eval(rewriteViewerImports(viewerSrc));
   await flushMicrotasks();
   return { dom, fetchMock, flush: flushMicrotasks };
@@ -122,6 +124,10 @@ function rewriteViewerImports(source: string): string {
     .replace(
       /import\s*\{\s*renderProjectRail\s*,\s*renderSupportRail\s*,\s*clearSupportRail\s*\}\s*from\s*['"]\.\/viewer-rail\.js['"]\s*;/,
       "const { renderProjectRail, renderSupportRail, clearSupportRail } = window.__viewerRailModule;",
+    )
+    .replace(
+      /import\s*\{\s*loadGraph\s*\}\s*from\s*['"]\.\/viewer-graph\.js['"]\s*;/,
+      "const { loadGraph } = window.__viewerGraphModule;",
     );
 }
 

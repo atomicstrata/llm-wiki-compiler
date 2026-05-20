@@ -14,7 +14,7 @@
  * can navigate to them and see what is wrong.
  */
 
-import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
+import { collectRawWikiPages, extractWikilinkSlugs, extractWikilinkTargets } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
 import { extractClaimCitations } from "../utils/markdown.js";
 import type { PageId, ViewerPage, ViewerWarning } from "./types.js";
@@ -82,10 +82,31 @@ export function resolveBareSlugList(
 function decoratePages(raw: RawWikiPage[]): ViewerPage[] {
   const shells = raw.map(buildPageShell);
   for (const page of shells) {
-    const targets = extractWikilinkSlugs(page.body);
-    page.outgoingLinks = resolveBareSlugList(targets, shells);
+    const slugTargets = extractWikilinkSlugs(page.body);
+    const richTargets = extractWikilinkTargets(page.body);
+    page.outgoingLinks = resolveBareSlugList(slugTargets, shells);
+    page.danglingLinks = collectDanglingLinks(richTargets, shells);
   }
   return shells;
+}
+
+/**
+ * Return targets from `targets` that `resolveBareSlug` could not find,
+ * deduplicated by slug and in first-occurrence order.
+ */
+function collectDanglingLinks(
+  targets: { slug: string; display: string }[],
+  pages: ReadonlyArray<PageIndexEntry>,
+): { slug: string; display: string }[] {
+  const seen = new Set<string>();
+  const dangling: { slug: string; display: string }[] = [];
+  for (const t of targets) {
+    if (resolveBareSlug(t.slug, pages) === null && !seen.has(t.slug)) {
+      seen.add(t.slug);
+      dangling.push(t);
+    }
+  }
+  return dangling;
 }
 
 /**

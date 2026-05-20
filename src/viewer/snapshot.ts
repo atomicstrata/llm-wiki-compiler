@@ -23,6 +23,7 @@ import { readState } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
+import { buildGraphData } from "./graph.js";
 import type {
   ViewerCounts,
   ViewerIndex,
@@ -71,6 +72,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   };
   const sourceFileSet = new Set(sourceFilenames);
   const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
+  const graph = buildGraphData(annotatedPages);
   return {
     root,
     generatedAt: new Date().toISOString(),
@@ -80,6 +82,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     recentPages: buildRecentPages(annotatedPages),
     pages: annotatedPages,
     sourceFilenames,
+    graph,
   };
 }
 

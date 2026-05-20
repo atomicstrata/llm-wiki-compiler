@@ -22,6 +22,7 @@
 import { wireSearch } from "./viewer-search.js";
 import { renderSidebar, markActive } from "./viewer-sidebar.js";
 import { renderProjectRail, renderSupportRail, clearSupportRail } from "./viewer-rail.js";
+import { loadGraph } from "./viewer-graph.js";
 
 const PAGE_INDEX_SELECTOR = "#page-index";
 const MAIN_SELECTOR = "[data-main-pane]";
@@ -50,6 +51,7 @@ function parseRoute(hash) {
   if (!hash || hash === "#" || hash === "#/" || hash === "") return { kind: "home" };
   if (hash === "#/index") return { kind: "index" };
   if (hash === "#/health") return { kind: "health" };
+  if (hash === "#/graph") return { kind: "graph" };
   const match = hash.match(/^#\/(concepts|queries)\/(.+)$/);
   if (!match) return { kind: "home" };
   let slug;
@@ -149,6 +151,7 @@ async function renderRoute() {
   if (route.kind === "home") return loadAndRenderHome();
   if (route.kind === "index") return renderIndexPane(main);
   if (route.kind === "health") return renderHealthPane(main);
+  if (route.kind === "graph") return renderGraphPane(main);
   return renderPagePane(main, route.directory, route.slug);
 }
 
@@ -332,6 +335,14 @@ function renderError(message) {
   banner.textContent = message;
   main.appendChild(banner);
   clearSupportRail();
+}
+
+/** Fetch /api/graph and render the force-directed graph view. */
+async function renderGraphPane(main) {
+  clearSupportRail();
+  main.innerHTML = "";
+  main.className = "main-pane graph-pane";
+  await loadGraph(main);
 }
 
 /** Promise-returning fetch helper that surfaces non-2xx statuses as errors. */

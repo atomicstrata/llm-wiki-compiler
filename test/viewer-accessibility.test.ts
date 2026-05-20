@@ -292,7 +292,7 @@ describe("sidebar — Health entry routes to #/health", () => {
   it("renders a Health link with href=#/health in the sidebar", async () => {
     const { dom } = await mountViewerDom([], makeResponder([]));
     const link = dom.window.document.querySelector(
-      "[data-health-link]",
+      "[data-route='health']",
     ) as HTMLAnchorElement | null;
     expect(link).not.toBeNull();
     expect(link!.getAttribute("href")).toBe("#/health");

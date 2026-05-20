@@ -98,7 +98,7 @@ describe("collectViewerPages — outgoing links and bare-slug resolution", () =>
     expect(linker?.outgoingLinks).toEqual(["concepts/shared"]);
   });
 
-  it("drops unresolved bare-slug wikilinks from outgoingLinks", async () => {
+  it("drops unresolved bare-slug wikilinks from outgoingLinks and captures them in danglingLinks", async () => {
     const root = await makeTempRoot("viewer-collect-unresolved");
     await writePage(
       path.join(root, "wiki/concepts"),
@@ -108,6 +108,7 @@ describe("collectViewerPages — outgoing links and bare-slug resolution", () =>
     );
     const pages = await collectViewerPages(root);
     expect(pages[0].outgoingLinks).toEqual([]);
+    expect(pages[0].danglingLinks).toEqual([{ slug: "ghost", display: "ghost" }]);
   });
 
   it("resolveBareSlug returns null for an empty or unknown slug", async () => {

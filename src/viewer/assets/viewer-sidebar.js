@@ -36,7 +36,7 @@ export function renderSidebar(pages) {
     empty.textContent = "No pages yet — run `llmwiki compile`.";
     sidebar.appendChild(empty);
   }
-  sidebar.appendChild(buildHealthEntry());
+  sidebar.appendChild(buildProjectSection());
   markActive();
 }
 
@@ -52,6 +52,14 @@ export function markActive() {
   const expectedId = parseExpectedPageId(hash);
   const links = document.querySelectorAll(`${SIDEBAR_SELECTOR} a`);
   for (const link of links) link.removeAttribute("aria-current");
+  if (hash === "#/graph") {
+    document.querySelector('a[data-route="graph"]')?.setAttribute("aria-current", "page");
+    return;
+  }
+  if (hash === "#/health") {
+    document.querySelector('a[data-route="health"]')?.setAttribute("aria-current", "page");
+    return;
+  }
   if (!expectedId) return;
   for (const link of links) {
     if (link.dataset.pageId === expectedId) {
@@ -113,21 +121,28 @@ function buildPageListItem(page) {
   return li;
 }
 
-/** Build the standing "Health" sidebar entry that routes to #/health. */
-function buildHealthEntry() {
+/** Build the standing "Project" sidebar section with Health and Graph links. */
+function buildProjectSection() {
   const wrap = document.createElement("section");
   wrap.className = "sidebar-health";
   const heading = document.createElement("h2");
   heading.textContent = "Project";
   wrap.appendChild(heading);
   const list = document.createElement("ul");
-  const item = document.createElement("li");
-  const link = document.createElement("a");
-  link.href = "#/health";
-  link.dataset.healthLink = "true";
-  link.textContent = "Health";
-  item.appendChild(link);
-  list.appendChild(item);
+  const healthItem = document.createElement("li");
+  const healthLink = document.createElement("a");
+  healthLink.href = "#/health";
+  healthLink.dataset.route = "health";
+  healthLink.textContent = "Health";
+  healthItem.appendChild(healthLink);
+  list.appendChild(healthItem);
+  const graphItem = document.createElement("li");
+  const graphLink = document.createElement("a");
+  graphLink.href = "#/graph";
+  graphLink.dataset.route = "graph";
+  graphLink.textContent = "Graph";
+  graphItem.appendChild(graphLink);
+  list.appendChild(graphItem);
   wrap.appendChild(list);
   return wrap;
 }

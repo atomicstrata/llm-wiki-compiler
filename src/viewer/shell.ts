@@ -17,6 +17,7 @@
 
 import { readFile } from "fs/promises";
 import path from "path";
+import { resolvePageKind } from "./graph.js";
 import type { ViewerPage } from "./types.js";
 
 const PAGE_INDEX_MARKER = "<!--PAGE_INDEX-->";
@@ -78,10 +79,7 @@ export function substitutePageIndex(template: string, pages: ViewerPage[]): stri
     pageDirectory: page.pageDirectory,
     slug: page.slug,
     title: page.title,
-    kind:
-      typeof page.frontmatter.kind === "string" && page.frontmatter.kind.length > 0
-        ? (page.frontmatter.kind as string)
-        : "concept",
+    kind: resolvePageKind(page.frontmatter),
   }));
   const json = JSON.stringify({ pages: embedded }).replace(/</g, "\\u003c");
   const block = `<script type="application/json" id="page-index">${json}</script>`;

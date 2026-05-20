@@ -88,6 +88,27 @@ export function extractWikilinkSlugs(body: string): string[] {
 }
 
 /**
+ * Like `extractWikilinkSlugs` but also preserves the original human-typed
+ * text for each target. Used to give dangling-link ghost nodes a readable
+ * title instead of a slugified identifier.
+ */
+export function extractWikilinkTargets(body: string): { slug: string; display: string }[] {
+  const seen = new Set<string>();
+  const targets: { slug: string; display: string }[] = [];
+  WIKILINK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = WIKILINK_RE.exec(body)) !== null) {
+    const display = match[1].trim();
+    const slug = slugify(display);
+    if (!seen.has(slug)) {
+      seen.add(slug);
+      targets.push({ slug, display });
+    }
+  }
+  return targets;
+}
+
+/**
  * `realpath` wrapper that returns null instead of throwing on missing
  * files. Used everywhere we resolve a possibly-absent or possibly-broken
  * symlink and want to fall through to "skip this entry."

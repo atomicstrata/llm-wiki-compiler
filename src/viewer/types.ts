@@ -57,6 +57,10 @@ export interface ViewerPage {
   body: string;
   /** Outgoing wikilink targets resolved to namespaced IDs. */
   outgoingLinks: PageId[];
+  /** Wikilink targets from this page's body that could not be resolved to any existing page.
+   *  `slug` is the slugified form used to build the ghost node ID; `display` is the original
+   *  human-typed text used as the node label. */
+  danglingLinks?: { slug: string; display: string }[];
   /** Claim-level citations extracted from the body via `extractClaimCitations`. */
   citations: ClaimCitation[];
   /** Diagnostics surfaced for this page (parser issues, unresolved citations…). */
@@ -110,6 +114,38 @@ export interface ViewerRecentPage {
 }
 
 /**
+ * A single node in the wiki link graph. Real pages and ghost (dangling-target)
+ * placeholders are both represented here; check `isDangling` to distinguish.
+ */
+export interface GraphNode {
+  /** Namespaced canonical ID matching `ViewerPage.id`, or the raw link target for ghosts. */
+  id: PageId;
+  title: string;
+  slug: string;
+  /** Directory prefix from the PageId string. Widened to `string` so ghost nodes
+   *  (whose directory may not match the `PageDirectory` union) can be represented. */
+  directory: string;
+  /** frontmatter.kind for real pages; "dangling" for ghost nodes. */
+  kind: string;
+  /** For real nodes: valid out-degree + in-degree. For ghost nodes: in-degree only. */
+  degree: number;
+  /** True when the node has no backing page — it represents a broken wikilink target. */
+  isDangling?: boolean;
+}
+
+/** A directed edge between two wiki pages. */
+export interface GraphEdge {
+  source: PageId;
+  target: PageId;
+}
+
+/** Adjacency data for the graph view. Built once at snapshot time. */
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+/**
  * Snapshot of the entire viewable wiki captured once at startup. Every
  * HTTP endpoint serves from this object — the viewer deliberately does
  * not live-watch the filesystem in v1, so post-startup file changes are
@@ -137,4 +173,6 @@ export interface ViewerSnapshot {
    * scans.
    */
   sourceFilenames: string[];
+  /** Adjacency data for the `#/graph` route. Built once at snapshot time. */
+  graph: GraphData;
 }

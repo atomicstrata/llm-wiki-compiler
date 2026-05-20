@@ -18,6 +18,7 @@ import http from "http";
 import type { IncomingMessage, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
+import { resolvePageKind } from "./graph.js";
 import { loadShellTemplate, substitutePageIndex } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { renderPageHtml } from "./render.js";
@@ -149,6 +150,7 @@ async function routeRegistered(
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
   if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
+  if (parsedUrl.pathname === "/api/graph") return handleApiGraph(res, snapshot);
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
@@ -167,6 +169,7 @@ function isRouteRegistered(method: string | undefined, pathname: string): boolea
   if (pathname === "/api/index") return true;
   if (pathname === "/api/health") return true;
   if (pathname === "/api/search") return true;
+  if (pathname === "/api/graph") return true;
   if (pathname.startsWith("/api/page/")) return true;
   return false;
 }
@@ -313,7 +316,7 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
     pageDirectory: page.pageDirectory,
     slug: page.slug,
     title: page.title,
-    kind: typeof page.frontmatter.kind === "string" ? page.frontmatter.kind : "concept",
+    kind: resolvePageKind(page.frontmatter),
     summary: typeof page.frontmatter.summary === "string" ? page.frontmatter.summary : "",
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
@@ -341,6 +344,11 @@ function handleApiIndex(
     outgoingLinks: snapshot.index.outgoingLinks,
     generatedAt: snapshot.generatedAt,
   });
+}
+
+/** Serve the frozen graph adjacency data for the `#/graph` route. */
+function handleApiGraph(res: ServerResponse, snapshot: ViewerSnapshot): void {
+  writeJson(res, 200, snapshot.graph);
 }
 
 /** `/api/health` — cheap status summary. */
