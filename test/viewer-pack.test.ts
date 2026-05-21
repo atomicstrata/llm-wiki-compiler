@@ -22,6 +22,8 @@ const REQUIRED_ASSETS = [
   "dist/viewer/assets/viewer-search.js",
   "dist/viewer/assets/viewer-sidebar.js",
   "dist/viewer/assets/viewer-rail.js",
+  "dist/viewer/assets/viewer-graph.js",
+  "dist/viewer/assets/d3.min.js",
   "dist/viewer/assets/llmwiki-logo-64.png",
 ];
 
