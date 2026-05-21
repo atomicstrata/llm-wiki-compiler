@@ -222,6 +222,36 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect(pageRows.map((p) => p.slug)).not.toContain("leaked");
   });
 
+  it("/api/graph returns nodes and edges arrays", async () => {
+    const root = await makeTempRoot("viewer-server-graph-basic");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "See [[beta]].");
+    await writePage(path.join(root, "wiki/concepts"), "beta", { title: "Beta" }, "Body.");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/graph");
+    expect(status).toBe(200);
+    const graph = body as { nodes: unknown[]; edges: unknown[] };
+    expect(Array.isArray(graph.nodes)).toBe(true);
+    expect(Array.isArray(graph.edges)).toBe(true);
+    expect(graph.nodes.length).toBeGreaterThanOrEqual(2);
+    expect(graph.edges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("/api/graph includes a ghost node for a dangling wikilink", async () => {
+    const root = await makeTempRoot("viewer-server-graph-dangling");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha" },
+      "See [[missing-page|Custom Label]].",
+    );
+    const handle = await startViewer(root);
+    const { body } = await fetchJson(handle, "/api/graph");
+    const graph = body as { nodes: Array<{ isDangling?: boolean; title?: string }>; edges: unknown[] };
+    const ghost = graph.nodes.find((n) => n.isDangling);
+    expect(ghost).toBeDefined();
+    expect(ghost?.title).toBe("Custom Label");
+  });
+
   it("/api/health returns ISO timestamp shape when the lint cache exists", async () => {
     const root = await makeTempRoot("viewer-server-health");
     await mkdir(path.join(root, ".llmwiki"), { recursive: true });
