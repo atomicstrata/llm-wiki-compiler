@@ -13,7 +13,7 @@ import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import { makeOutsideDir } from "./fixtures/outside-dir.js";
-import { collectRawWikiPages, extractWikilinkSlugs } from "../src/wiki/collect.js";
+import { collectRawWikiPages, extractWikilinkSlugs, extractWikilinkTargets } from "../src/wiki/collect.js";
 
 describe("collectRawWikiPages", () => {
   it("collects pages from concepts and queries directories", async () => {
@@ -175,5 +175,17 @@ describe("extractWikilinkSlugs", () => {
 
   it("returns an empty array when no wikilinks are present", () => {
     expect(extractWikilinkSlugs("No links here.")).toEqual([]);
+  });
+});
+
+describe("extractWikilinkTargets", () => {
+  it("uses alias as display text when pipe syntax is present", () => {
+    const targets = extractWikilinkTargets("See [[missing-page|Custom Label]] here.");
+    expect(targets).toEqual([{ slug: "missing-page", display: "Custom Label" }]);
+  });
+
+  it("falls back to target as display text when no alias is present", () => {
+    const targets = extractWikilinkTargets("See [[some-page]] here.");
+    expect(targets).toEqual([{ slug: "some-page", display: "some-page" }]);
   });
 });

@@ -33,7 +33,7 @@ import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import type { PageDirectory } from "../export/types.js";
 
 /** Regex that matches `[[wikilink]]` or `[[wikilink|alias]]` patterns. */
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 /**
  * Structural status of a single page's frontmatter, surfaced to callers so
@@ -98,8 +98,10 @@ export function extractWikilinkTargets(body: string): { slug: string; display: s
   WIKILINK_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = WIKILINK_RE.exec(body)) !== null) {
-    const display = match[1].trim();
-    const slug = slugify(display);
+    const target = match[1].trim();
+    const alias = match[2]?.trim();
+    const slug = slugify(target);
+    const display = alias ?? target;
     if (!seen.has(slug)) {
       seen.add(slug);
       targets.push({ slug, display });
