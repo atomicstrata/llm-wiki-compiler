@@ -119,7 +119,8 @@ export async function checkBrokenWikilinks(root: string): Promise<LintResult[]> 
 
   for (const page of pages) {
     for (const { captured, line } of findMatchesInContent(page.content, WIKILINK_PATTERN)) {
-      const linkSlug = slugify(captured);
+      const linkTarget = captured.split("|")[0].trim();
+      const linkSlug = slugify(linkTarget);
       if (!existingSlugs.has(linkSlug)) {
         results.push({
           rule: "broken-wikilink",
