@@ -76,10 +76,14 @@ async function rebuildAndRestart(reason) {
   const ok = await runBuild();
   buildRunning = false;
   if (ok) restartViewer();
-  if (rebuildQueued && !shuttingDown) {
-    rebuildQueued = false;
-    await rebuildAndRestart("queued changes");
-  }
+  await drainQueuedRebuild();
+}
+
+/** Re-run a rebuild that was queued while a previous one was in flight. */
+async function drainQueuedRebuild() {
+  if (!rebuildQueued || shuttingDown) return;
+  rebuildQueued = false;
+  await rebuildAndRestart("queued changes");
 }
 
 /** Execute the standard project build so dist/ and viewer assets stay in sync. */
@@ -100,11 +104,21 @@ function restartViewer() {
   viewer = spawn(process.execPath, ["dist/cli.js", "view", ...viewerArgs], {
     stdio: "inherit",
   });
-  viewer.on("exit", (code, signal) => {
-    if (!shuttingDown && code !== 0 && signal !== "SIGTERM") {
-      process.stderr.write(`[dev] viewer exited with ${signal ?? code}\n`);
-    }
-  });
+  viewer.on("exit", reportViewerExit);
+}
+
+/** Log unexpected viewer exits; stay quiet on shutdown, clean exits, and SIGTERM. */
+function reportViewerExit(code, signal) {
+  if (shouldSuppressViewerExit(code, signal)) return;
+  process.stderr.write(`[dev] viewer exited with ${signal ?? code}\n`);
+}
+
+/** True when a viewer exit is expected and should not produce stderr noise. */
+function shouldSuppressViewerExit(code, signal) {
+  if (shuttingDown) return true;
+  if (code === 0) return true;
+  if (signal === "SIGTERM") return true;
+  return false;
 }
 
 /** Terminate the active viewer process, if any. */

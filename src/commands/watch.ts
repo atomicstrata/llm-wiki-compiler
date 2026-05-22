@@ -39,23 +39,23 @@ export default async function watchCommand(): Promise<void> {
   let pendingRecompile = false;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const triggerCompile = async () => {
-    if (compiling) {
-      pendingRecompile = true;
-      return;
-    }
-
-    compiling = true;
+  const runCompileOnce = async (): Promise<void> => {
     try {
       await compile(process.cwd());
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       output.status("!", output.error(`Compile failed: ${msg}`));
     }
+  };
 
+  const triggerCompile = async (): Promise<void> => {
+    if (compiling) {
+      pendingRecompile = true;
+      return;
+    }
+    compiling = true;
+    await runCompileOnce();
     compiling = false;
-
-    // If changes arrived during compilation, recompile
     if (pendingRecompile) {
       pendingRecompile = false;
       await triggerCompile();

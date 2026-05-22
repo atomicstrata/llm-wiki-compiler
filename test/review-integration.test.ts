@@ -38,24 +38,45 @@ async function writeCandidateFixture(
   cwd: string,
   overrides: Partial<ReviewCandidate> = {},
 ): Promise<ReviewCandidate> {
-  const candidate: ReviewCandidate = {
-    id: overrides.id ?? "test-slug-aabbccdd",
-    title: overrides.title ?? "Test Concept",
-    slug: overrides.slug ?? "test-slug",
-    summary: overrides.summary ?? "A test concept summary.",
-    sources: overrides.sources ?? ["source-a.md"],
-    body: overrides.body ?? buildValidPageBody(
-      overrides.title ?? "Test Concept",
-      overrides.summary ?? "A test concept summary.",
-    ),
-    generatedAt: overrides.generatedAt ?? new Date().toISOString(),
-  };
-
+  const candidate = mergeCandidateDefaults(overrides);
   const candidatesDir = path.join(cwd, ".llmwiki", "candidates");
   await mkdir(candidatesDir, { recursive: true });
   const filePath = path.join(candidatesDir, `${candidate.id}.json`);
   await writeFile(filePath, JSON.stringify(candidate, null, 2), "utf-8");
   return candidate;
+}
+
+/** Build a ReviewCandidate by overlaying the defaults with the caller's fields. */
+function mergeCandidateDefaults(overrides: Partial<ReviewCandidate>): ReviewCandidate {
+  const text = resolveCandidateText(overrides);
+  const ids = resolveCandidateIds(overrides);
+  return {
+    ...ids,
+    ...text,
+    sources: overrides.sources ?? ["source-a.md"],
+    body: overrides.body ?? buildValidPageBody(text.title, text.summary),
+    generatedAt: overrides.generatedAt ?? new Date().toISOString(),
+  };
+}
+
+/** Default title/summary, threaded into the body builder. */
+function resolveCandidateText(
+  overrides: Partial<ReviewCandidate>,
+): { title: string; summary: string } {
+  return {
+    title: overrides.title ?? "Test Concept",
+    summary: overrides.summary ?? "A test concept summary.",
+  };
+}
+
+/** Default id/slug for the candidate fixture. */
+function resolveCandidateIds(
+  overrides: Partial<ReviewCandidate>,
+): { id: string; slug: string } {
+  return {
+    id: overrides.id ?? "test-slug-aabbccdd",
+    slug: overrides.slug ?? "test-slug",
+  };
 }
 
 /** Build minimal YAML-frontmatter page body that passes validateWikiPage. */

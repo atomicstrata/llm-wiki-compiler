@@ -58,28 +58,45 @@ function unixToIso(ts: number): string {
 /** Extract conversation turns from the mapping, sorted by create_time. */
 function extractTurns(mapping: Record<string, CodexNode>): SessionTurn[] {
   const turns: SessionTurn[] = [];
-
   for (const node of Object.values(mapping)) {
-    const msg = node.message;
-    if (!msg) continue;
-    const role = msg.author?.role;
-    if (role !== "user" && role !== "assistant") continue;
-    const content = (msg.content?.parts ?? []).join("\n").trim();
-    if (content.length === 0) continue;
-    turns.push({
-      role,
-      content,
-      timestamp: msg.create_time != null ? unixToIso(msg.create_time) : undefined,
-    });
+    const turn = nodeToTurn(node);
+    if (turn) turns.push(turn);
   }
-
-  // Sort by timestamp when available so turns appear in chronological order.
-  turns.sort((a, b) => {
-    if (!a.timestamp || !b.timestamp) return 0;
-    return a.timestamp.localeCompare(b.timestamp);
-  });
-
+  turns.sort(compareTurnsByTimestamp);
   return turns;
+}
+
+/** Convert a single Codex mapping node into a normalized turn, or null to skip. */
+function nodeToTurn(node: CodexNode): SessionTurn | null {
+  const msg = node.message;
+  if (!msg) return null;
+  const role = normalizeRole(msg.author?.role);
+  if (!role) return null;
+  const content = joinTrimmedParts(msg.content?.parts);
+  if (content.length === 0) return null;
+  return { role, content, timestamp: timestampFromUnix(msg.create_time) };
+}
+
+/** Narrow an arbitrary author role string to the supported user/assistant roles. */
+function normalizeRole(role: string | undefined): "user" | "assistant" | null {
+  if (role === "user" || role === "assistant") return role;
+  return null;
+}
+
+/** Join Codex content parts into a single trimmed string. */
+function joinTrimmedParts(parts: string[] | undefined): string {
+  return (parts ?? []).join("\n").trim();
+}
+
+/** Convert an optional Unix timestamp to ISO-8601 or undefined. */
+function timestampFromUnix(ts: number | undefined): string | undefined {
+  return ts != null ? unixToIso(ts) : undefined;
+}
+
+/** Sort comparator: chronological when both timestamps exist, otherwise stable. */
+function compareTurnsByTimestamp(a: SessionTurn, b: SessionTurn): number {
+  if (!a.timestamp || !b.timestamp) return 0;
+  return a.timestamp.localeCompare(b.timestamp);
 }
 
 /** Return true if `value` looks like a Codex conversation export array. */

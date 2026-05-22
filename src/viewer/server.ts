@@ -160,18 +160,27 @@ async function routeRegistered(
   throw new Error(`route registration drift: no handler for ${parsedUrl.pathname}`);
 }
 
+/**
+ * Exact-path registered routes for v1. Kept as a Set so additions are
+ * just a string in one place and the membership test stays O(1).
+ */
+const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
+  "/",
+  "/api/pages",
+  "/api/index",
+  "/api/health",
+  "/api/search",
+  "/api/graph",
+]);
+
+/** Prefix-based registered routes (assets and per-page API). */
+const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/"];
+
 /** True when (method, path) is one of the v1 registered routes. */
 function isRouteRegistered(method: string | undefined, pathname: string): boolean {
   if (method !== "GET") return false;
-  if (pathname === "/") return true;
-  if (pathname.startsWith("/assets/")) return true;
-  if (pathname === "/api/pages") return true;
-  if (pathname === "/api/index") return true;
-  if (pathname === "/api/health") return true;
-  if (pathname === "/api/search") return true;
-  if (pathname === "/api/graph") return true;
-  if (pathname.startsWith("/api/page/")) return true;
-  return false;
+  if (REGISTERED_EXACT_PATHS.has(pathname)) return true;
+  return REGISTERED_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
 /**

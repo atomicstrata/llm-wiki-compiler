@@ -81,21 +81,28 @@ function openInBrowser(url: string): void {
 function resolveBindConfig(options: ViewCommandOptions): { host: string; port: number } {
   const hostFlag = typeof options.host === "string" && options.host.length > 0;
   const allowLan = options.allowLan === true;
-  if (hostFlag !== allowLan) {
-    throw new Error(
-      "Privacy gate: --host and --allow-lan must be supplied together. " +
-        "Use both to bind beyond loopback, or neither to keep the viewer on 127.0.0.1.",
-    );
-  }
+  assertHostAllowLanSymmetry(hostFlag, allowLan);
   const host = hostFlag ? (options.host as string) : LOOPBACK_HOST;
-  if (WILDCARD_HOSTS.has(host)) {
-    throw new Error(
-      `--host ${host} is not supported: wildcard binds defeat the viewer's DNS-rebind protection. ` +
-        "Use a specific interface IP (e.g. 192.168.1.10) instead.",
-    );
-  }
-  const port = parsePort(options.port);
-  return { host, port };
+  assertHostNotWildcard(host);
+  return { host, port: parsePort(options.port) };
+}
+
+/** Reject `--host` and `--allow-lan` being supplied independently. */
+function assertHostAllowLanSymmetry(hostFlag: boolean, allowLan: boolean): void {
+  if (hostFlag === allowLan) return;
+  throw new Error(
+    "Privacy gate: --host and --allow-lan must be supplied together. " +
+      "Use both to bind beyond loopback, or neither to keep the viewer on 127.0.0.1.",
+  );
+}
+
+/** Reject wildcard binds that would defeat DNS-rebind protection. */
+function assertHostNotWildcard(host: string): void {
+  if (!WILDCARD_HOSTS.has(host)) return;
+  throw new Error(
+    `--host ${host} is not supported: wildcard binds defeat the viewer's DNS-rebind protection. ` +
+      "Use a specific interface IP (e.g. 192.168.1.10) instead.",
+  );
 }
 
 /**
@@ -114,10 +121,15 @@ function buildReadyUrl(host: string, port: number): string {
 function parsePort(raw: string | number | undefined): number {
   if (raw === undefined) return 0;
   const value = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isInteger(value) || value < 0 || value > 65535) {
+  if (!isValidPort(value)) {
     throw new Error(`Invalid --port value: ${raw}`);
   }
   return value;
+}
+
+/** True when `value` is an integer in the legal TCP port range [0, 65535]. */
+function isValidPort(value: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value <= 65535;
 }
 
 /** Install SIGINT/SIGTERM handlers that close the server gracefully. */
