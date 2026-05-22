@@ -15,6 +15,17 @@
 
 const SIDEBAR_SELECTOR = "[data-sidebar]";
 const DEFAULT_KIND = "concept";
+const EMPTY_PLACEHOLDER_TEXT = "No pages yet — run `llmwiki compile`.";
+
+/**
+ * Static (non-page) hash routes that have a dedicated sidebar link.
+ * `markActive` highlights the entry via `a[data-route="<route>"]`
+ * without needing to parse the route descriptor.
+ */
+const STATIC_ROUTE_LINK_SELECTORS = new Map([
+  ["#/graph", 'a[data-route="graph"]'],
+  ["#/health", 'a[data-route="health"]'],
+]);
 
 /** Render the sidebar groups + standing Health entry, then mark active. */
 export function renderSidebar(pages) {
@@ -22,22 +33,39 @@ export function renderSidebar(pages) {
   if (!sidebar) return;
   sidebar.innerHTML = "";
   sidebar.appendChild(buildProjectSection());
-  const concepts = pages.filter((p) => p.pageDirectory === "concepts");
-  const queries = pages.filter((p) => p.pageDirectory === "queries");
-  const conceptGroups = groupConceptsByKind(concepts);
-  for (const [kind, groupPages] of conceptGroups) {
+  const concepts = filterByDirectory(pages, "concepts");
+  const queries = filterByDirectory(pages, "queries");
+  appendConceptGroups(sidebar, concepts);
+  appendQueryGroup(sidebar, queries);
+  appendEmptyPlaceholderIfNeeded(sidebar, concepts, queries);
+  markActive();
+}
+
+/** Filter pages to those whose `pageDirectory` matches the given bucket. */
+function filterByDirectory(pages, directory) {
+  return pages.filter((p) => p.pageDirectory === directory);
+}
+
+/** Append one collapsible `<details>` group per concept kind. */
+function appendConceptGroups(sidebar, concepts) {
+  for (const [kind, groupPages] of groupConceptsByKind(concepts)) {
     sidebar.appendChild(buildCollapsibleGroup(formatKindLabel(kind), groupPages, "kind", kind));
   }
-  if (queries.length > 0) {
-    sidebar.appendChild(buildCollapsibleGroup("Saved Queries", queries, "kind", "query"));
-  }
-  if (concepts.length === 0 && queries.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "placeholder";
-    empty.textContent = "No pages yet — run `llmwiki compile`.";
-    sidebar.appendChild(empty);
-  }
-  markActive();
+}
+
+/** Append the Saved Queries group when at least one query page exists. */
+function appendQueryGroup(sidebar, queries) {
+  if (queries.length === 0) return;
+  sidebar.appendChild(buildCollapsibleGroup("Saved Queries", queries, "kind", "query"));
+}
+
+/** Render the "No pages yet" placeholder when both buckets are empty. */
+function appendEmptyPlaceholderIfNeeded(sidebar, concepts, queries) {
+  if (concepts.length > 0 || queries.length > 0) return;
+  const empty = document.createElement("p");
+  empty.className = "placeholder";
+  empty.textContent = EMPTY_PLACEHOLDER_TEXT;
+  sidebar.appendChild(empty);
 }
 
 /**
@@ -49,17 +77,31 @@ export function renderSidebar(pages) {
  */
 export function markActive() {
   const hash = location.hash;
-  const expectedId = parseExpectedPageId(hash);
   const links = document.querySelectorAll(`${SIDEBAR_SELECTOR} a`);
+  clearCurrentAttribute(links);
+  if (markStaticRoute(hash)) return;
+  markPageRoute(links, parseExpectedPageId(hash));
+}
+
+/** Remove `aria-current` from every sidebar link in `links`. */
+function clearCurrentAttribute(links) {
   for (const link of links) link.removeAttribute("aria-current");
-  if (hash === "#/graph") {
-    document.querySelector('a[data-route="graph"]')?.setAttribute("aria-current", "page");
-    return;
-  }
-  if (hash === "#/health") {
-    document.querySelector('a[data-route="health"]')?.setAttribute("aria-current", "page");
-    return;
-  }
+}
+
+/**
+ * Apply `aria-current="page"` to the static-route link for `hash`,
+ * if the hash names a known static route. Returns true when handled
+ * so the page-route fallback can be skipped.
+ */
+function markStaticRoute(hash) {
+  const selector = STATIC_ROUTE_LINK_SELECTORS.get(hash);
+  if (!selector) return false;
+  document.querySelector(selector)?.setAttribute("aria-current", "page");
+  return true;
+}
+
+/** Apply `aria-current="page"` to the link whose pageId matches `expectedId`. */
+function markPageRoute(links, expectedId) {
   if (!expectedId) return;
   for (const link of links) {
     if (link.dataset.pageId === expectedId) {
@@ -78,16 +120,30 @@ export function markActive() {
 function groupConceptsByKind(concepts) {
   const byKind = new Map();
   for (const page of concepts) {
-    const kind = (typeof page.kind === "string" && page.kind.length > 0) ? page.kind : DEFAULT_KIND;
-    if (!byKind.has(kind)) byKind.set(kind, []);
-    byKind.get(kind).push(page);
+    addPageToKindBucket(byKind, page);
   }
-  const kinds = Array.from(byKind.keys()).sort((a, b) => {
-    if (a === DEFAULT_KIND) return -1;
-    if (b === DEFAULT_KIND) return 1;
-    return a.localeCompare(b);
-  });
+  const kinds = Array.from(byKind.keys()).sort(compareKinds);
   return kinds.map((kind) => /** @type {[string, Array]} */ ([kind, byKind.get(kind)]));
+}
+
+/** Push `page` onto the bucket for its resolved kind, creating it if needed. */
+function addPageToKindBucket(byKind, page) {
+  const kind = resolveKind(page);
+  if (!byKind.has(kind)) byKind.set(kind, []);
+  byKind.get(kind).push(page);
+}
+
+/** Read `page.kind` defensively, falling back to DEFAULT_KIND when absent. */
+function resolveKind(page) {
+  if (typeof page.kind === "string" && page.kind.length > 0) return page.kind;
+  return DEFAULT_KIND;
+}
+
+/** Sort comparator that floats DEFAULT_KIND first, then locale-orders the rest. */
+function compareKinds(a, b) {
+  if (a === DEFAULT_KIND) return -1;
+  if (b === DEFAULT_KIND) return 1;
+  return a.localeCompare(b);
 }
 
 /** Title-case a kind for the group heading. */
@@ -129,22 +185,21 @@ function buildProjectSection() {
   heading.textContent = "Project";
   wrap.appendChild(heading);
   const list = document.createElement("ul");
-  const healthItem = document.createElement("li");
-  const healthLink = document.createElement("a");
-  healthLink.href = "#/health";
-  healthLink.dataset.route = "health";
-  healthLink.textContent = "Health";
-  healthItem.appendChild(healthLink);
-  list.appendChild(healthItem);
-  const graphItem = document.createElement("li");
-  const graphLink = document.createElement("a");
-  graphLink.href = "#/graph";
-  graphLink.dataset.route = "graph";
-  graphLink.textContent = "Graph";
-  graphItem.appendChild(graphLink);
-  list.appendChild(graphItem);
+  list.appendChild(buildProjectRouteItem("#/health", "health", "Health"));
+  list.appendChild(buildProjectRouteItem("#/graph", "graph", "Graph"));
   wrap.appendChild(list);
   return wrap;
+}
+
+/** Build one `<li><a>` entry for the standing Project section. */
+function buildProjectRouteItem(href, route, label) {
+  const item = document.createElement("li");
+  const link = document.createElement("a");
+  link.href = href;
+  link.dataset.route = route;
+  link.textContent = label;
+  item.appendChild(link);
+  return item;
 }
 
 /**
