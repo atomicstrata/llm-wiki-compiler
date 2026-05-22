@@ -283,36 +283,45 @@ const PROVIDER_KEY_VARS: Record<string, string | null> = {
 /** Exit with a helpful message if the selected provider's API key is missing. */
 function requireProvider(): void {
   const provider = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
-
   if (provider === "anthropic") {
-    const auth = resolveAnthropicAuthFromEnv();
-    if (!auth.apiKey && !auth.authToken) {
-      console.error(
-        `\x1b[31mError:\x1b[0m Anthropic credentials are required for the "anthropic" provider.\n` +
-          `  Set one of: export ANTHROPIC_API_KEY=<your-key> OR export ANTHROPIC_AUTH_TOKEN=<your-token>`,
-      );
-      process.exit(1);
-    }
+    assertAnthropicCredentials();
     return;
   }
-
   const keyVar = PROVIDER_KEY_VARS[provider];
+  assertKnownProvider(provider, keyVar);
+  assertProviderApiKey(provider, keyVar);
+}
 
-  if (keyVar === undefined) {
-    console.error(
-      `\x1b[31mError:\x1b[0m Unknown provider "${provider}".\n` +
-        `  Supported: ${Object.keys(PROVIDER_KEY_VARS).join(", ")}`,
-    );
-    process.exit(1);
-  }
+/** Fail with a credential-help message when neither Anthropic env var is set. */
+function assertAnthropicCredentials(): void {
+  const auth = resolveAnthropicAuthFromEnv();
+  if (auth.apiKey || auth.authToken) return;
+  console.error(
+    `\x1b[31mError:\x1b[0m Anthropic credentials are required for the "anthropic" provider.\n` +
+      `  Set one of: export ANTHROPIC_API_KEY=<your-key> OR export ANTHROPIC_AUTH_TOKEN=<your-token>`,
+  );
+  process.exit(1);
+}
 
-  if (keyVar && !process.env[keyVar]) {
-    console.error(
-      `\x1b[31mError:\x1b[0m ${keyVar} environment variable is required for the "${provider}" provider.\n` +
-        `  Set it with: export ${keyVar}=<your-key>`,
-    );
-    process.exit(1);
-  }
+/** Fail when `provider` is not in `PROVIDER_KEY_VARS`. */
+function assertKnownProvider(provider: string, keyVar: string | null | undefined): void {
+  if (keyVar !== undefined) return;
+  console.error(
+    `\x1b[31mError:\x1b[0m Unknown provider "${provider}".\n` +
+      `  Supported: ${Object.keys(PROVIDER_KEY_VARS).join(", ")}`,
+  );
+  process.exit(1);
+}
+
+/** Fail when the provider requires an API key env var and that var is unset. */
+function assertProviderApiKey(provider: string, keyVar: string | null | undefined): void {
+  if (!keyVar) return;
+  if (process.env[keyVar]) return;
+  console.error(
+    `\x1b[31mError:\x1b[0m ${keyVar} environment variable is required for the "${provider}" provider.\n` +
+      `  Set it with: export ${keyVar}=<your-key>`,
+  );
+  process.exit(1);
 }
 
 program.parse();
