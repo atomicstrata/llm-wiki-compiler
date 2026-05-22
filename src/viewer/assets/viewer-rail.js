@@ -27,17 +27,26 @@ const RAIL_FIELDS = [
   { key: "updatedAt", label: "Updated", type: "string" },
 ];
 
+/**
+ * Dispatch table for field-value rendering. Function declarations below
+ * are hoisted, so referencing them here at module-init time is safe.
+ */
+const RAIL_VALUE_RENDERERS = {
+  string: renderStringValue,
+  stringArray: renderStringArrayValue,
+  confidence: renderConfidenceValue,
+  contradictedBy: renderContradictionList,
+};
+
 /** Render project-level metadata for the dashboard route. */
 export function renderProjectRail(envelope) {
   const support = document.querySelector(SUPPORT_SELECTOR);
   if (!support) return;
   support.innerHTML = "";
   const dl = document.createElement("dl");
-  appendPlainRailField(dl, "Project", envelope.project?.title || "llmwiki");
-  appendPlainRailField(dl, "Root", envelope.project?.rootName || "");
-  appendPlainRailField(dl, "Generated", envelope.generatedAt || "");
-  appendPlainRailField(dl, "Pages", String((envelope.pages || []).length));
-  if (envelope.index?.available) appendPlainRailField(dl, "Index", "Available");
+  for (const { label, value } of buildProjectRailFields(envelope)) {
+    appendPlainRailField(dl, label, value);
+  }
   support.appendChild(dl);
 }
 
@@ -49,11 +58,8 @@ export function renderSupportRail(payload) {
   const support = document.querySelector(SUPPORT_SELECTOR);
   if (!support) return;
   support.innerHTML = "";
-  const fm = (payload && payload.frontmatter) || {};
-  const dl = document.createElement("dl");
-  for (const field of RAIL_FIELDS) appendRailField(dl, field, fm[field.key]);
-  if (dl.children.length > 0) support.appendChild(dl);
-  const warnings = (payload && Array.isArray(payload.warnings)) ? payload.warnings : [];
+  appendFrontmatterDl(support, extractFrontmatter(payload));
+  const warnings = extractWarnings(payload);
   if (warnings.length > 0) support.appendChild(buildRailWarnings(warnings));
 }
 
@@ -61,6 +67,55 @@ export function renderSupportRail(payload) {
 export function clearSupportRail() {
   const support = document.querySelector(SUPPORT_SELECTOR);
   if (support) support.innerHTML = "";
+}
+
+/** Assemble the project-rail field list, appending the optional Index row. */
+function buildProjectRailFields(envelope) {
+  const fields = baseProjectFields(envelope);
+  if (envelope.index && envelope.index.available) {
+    fields.push({ label: "Index", value: "Available" });
+  }
+  return fields;
+}
+
+/** Always-present project-rail rows (project title, root, generated, pages). */
+function baseProjectFields(envelope) {
+  const project = projectInfo(envelope.project);
+  const pages = envelope.pages || [];
+  return [
+    { label: "Project", value: project.title },
+    { label: "Root", value: project.rootName },
+    { label: "Generated", value: envelope.generatedAt || "" },
+    { label: "Pages", value: String(pages.length) },
+  ];
+}
+
+/** Normalize the envelope's `project` object with display-ready defaults. */
+function projectInfo(project) {
+  const safe = project || {};
+  return {
+    title: safe.title || "llmwiki",
+    rootName: safe.rootName || "",
+  };
+}
+
+/** Pull the frontmatter object out of a page payload, defaulting to `{}`. */
+function extractFrontmatter(payload) {
+  if (!payload || !payload.frontmatter) return {};
+  return payload.frontmatter;
+}
+
+/** Pull the warnings array out of a page payload, defaulting to `[]`. */
+function extractWarnings(payload) {
+  if (!payload || !Array.isArray(payload.warnings)) return [];
+  return payload.warnings;
+}
+
+/** Build and attach the frontmatter <dl> when at least one field rendered. */
+function appendFrontmatterDl(support, fm) {
+  const dl = document.createElement("dl");
+  for (const field of RAIL_FIELDS) appendRailField(dl, field, fm[field.key]);
+  if (dl.children.length > 0) support.appendChild(dl);
 }
 
 /** Append one (dt, dd) pair to the rail's <dl> when the value renders. */
@@ -86,11 +141,8 @@ function appendDtDd(dl, label, dd) {
 
 /** Dispatch on field type and produce a <dd>, or null to skip the row. */
 function renderRailValue(type, value) {
-  if (type === "string") return renderStringValue(value);
-  if (type === "stringArray") return renderStringArrayValue(value);
-  if (type === "confidence") return renderConfidenceValue(value);
-  if (type === "contradictedBy") return renderContradictionList(value);
-  return null;
+  const renderer = RAIL_VALUE_RENDERERS[type];
+  return renderer ? renderer(value) : null;
 }
 
 /** String field — empty/non-string values omit the row. */
@@ -116,38 +168,53 @@ function renderConfidenceValue(value) {
 
 /** `contradictedBy` is an array of `{ slug, reason? }` references. */
 function renderContradictionList(value) {
-  if (!Array.isArray(value) || value.length === 0) return null;
+  if (!Array.isArray(value)) return null;
+  const items = value.map(buildContradictionItem).filter(Boolean);
+  if (items.length === 0) return null;
+  return buildContradictionDd(items);
+}
+
+/** Wrap a non-empty list of contradiction <li>s in their <dd><ul> container. */
+function buildContradictionDd(items) {
   const dd = document.createElement("dd");
   const ul = document.createElement("ul");
-  let any = false;
-  for (const ref of value) {
-    const li = buildContradictionItem(ref);
-    if (!li) continue;
-    any = true;
-    ul.appendChild(li);
-  }
-  if (!any) return null;
+  for (const li of items) ul.appendChild(li);
   dd.appendChild(ul);
   return dd;
 }
 
 /** One contradiction <li> — slug link plus optional reason. */
 function buildContradictionItem(ref) {
-  const slug = ref && typeof ref.slug === "string" ? ref.slug : "";
+  const slug = extractSlug(ref);
   if (!slug) return null;
   const li = document.createElement("li");
   li.dataset.contradictionSlug = slug;
+  li.appendChild(buildContradictionLink(slug));
+  appendContradictionReason(li, ref);
+  return li;
+}
+
+/** Pull the slug string off a contradiction ref, or `""` when missing/malformed. */
+function extractSlug(ref) {
+  if (!ref || typeof ref.slug !== "string") return "";
+  return ref.slug;
+}
+
+/** Build the `<a>` element that links a contradiction <li> to its concept page. */
+function buildContradictionLink(slug) {
   const a = document.createElement("a");
   a.href = `#/concepts/${encodeURIComponent(slug)}`;
   a.textContent = slug;
-  li.appendChild(a);
-  if (ref && typeof ref.reason === "string" && ref.reason.length > 0) {
-    const reason = document.createElement("span");
-    reason.className = "support-rail-reason";
-    reason.textContent = ` — ${ref.reason}`;
-    li.appendChild(reason);
-  }
-  return li;
+  return a;
+}
+
+/** Append the optional `— reason` span when the ref carries a non-empty reason. */
+function appendContradictionReason(li, ref) {
+  if (!ref || typeof ref.reason !== "string" || ref.reason.length === 0) return;
+  const reason = document.createElement("span");
+  reason.className = "support-rail-reason";
+  reason.textContent = ` — ${ref.reason}`;
+  li.appendChild(reason);
 }
 
 /** Build a plain `<dd>` with a single text node — used by the simpler field types. */
@@ -170,12 +237,21 @@ function buildRailWarnings(warnings) {
   h.textContent = "Warnings";
   wrap.appendChild(h);
   const ul = document.createElement("ul");
-  for (const w of warnings) {
-    const li = document.createElement("li");
-    if (w && typeof w.code === "string") li.dataset.code = w.code;
-    li.textContent = (w && w.message) || (w && w.code) || "";
-    ul.appendChild(li);
-  }
+  for (const w of warnings) ul.appendChild(buildWarningItem(w));
   wrap.appendChild(ul);
   return wrap;
+}
+
+/** Build one warning `<li>` with `data-code` set when the warning carries one. */
+function buildWarningItem(warning) {
+  const safe = warning || {};
+  const li = document.createElement("li");
+  if (typeof safe.code === "string") li.dataset.code = safe.code;
+  li.textContent = warningText(safe);
+  return li;
+}
+
+/** Pick the best human-readable label for a warning: message → code → "". */
+function warningText(safe) {
+  return safe.message || safe.code || "";
 }
