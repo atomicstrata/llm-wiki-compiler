@@ -19,6 +19,13 @@ import { useIngestWorkspaces } from "./fixtures/ingest-workspace.js";
 
 const workspaces = useIngestWorkspaces("collision");
 
+// Each case spawns 1–3 `node dist/cli.js ingest` subprocesses. Isolated they
+// finish in 0.5–3.5s, but under full-suite parallel worker load the cold
+// Node startup contention can push a case past vitest's 5s default and turn
+// the file flaky. Give every case the same generous ceiling so failures
+// stay diagnostic (assertion-shaped), not timeout-shaped.
+const CLI_INTEGRATION_TIMEOUT_MS = 30_000;
+
 /** Make a workspace and write two same-basename files in distinct sub-dirs. */
 async function makeCollidingWorkspace(): Promise<{
   cwd: string;
@@ -49,7 +56,7 @@ async function expectBareAndHashedNotes(cwd: string): Promise<string[]> {
 }
 
 describe("ingest — basename collision (#36)", () => {
-  it("two distinct sources with the same basename produce two distinct files", async () => {
+  it("two distinct sources with the same basename produce two distinct files", { timeout: CLI_INTEGRATION_TIMEOUT_MS }, async () => {
     const { cwd, pathA, pathB } = await makeCollidingWorkspace();
 
     const r1 = await runCLI(["ingest", pathA], cwd);
@@ -68,7 +75,7 @@ describe("ingest — basename collision (#36)", () => {
     expect(joined).toContain("Content from b/notes.md.");
   });
 
-  it("re-ingesting the same source overwrites in place (idempotent, no duplicates)", async () => {
+  it("re-ingesting the same source overwrites in place (idempotent, no duplicates)", { timeout: CLI_INTEGRATION_TIMEOUT_MS }, async () => {
     const { cwd, pathA } = await makeCollidingWorkspace();
 
     expectCLIExit(await runCLI(["ingest", pathA], cwd), 0);
@@ -80,7 +87,7 @@ describe("ingest — basename collision (#36)", () => {
     expect(files).toEqual(["notes.md"]);
   });
 
-  it("disambiguation hash is stable across runs (same source → same suffix)", async () => {
+  it("disambiguation hash is stable across runs (same source → same suffix)", { timeout: CLI_INTEGRATION_TIMEOUT_MS }, async () => {
     const { cwd, pathA, pathB } = await makeCollidingWorkspace();
 
     expectCLIExit(await runCLI(["ingest", pathA], cwd), 0);
@@ -97,7 +104,7 @@ describe("ingest — basename collision (#36)", () => {
   // Edge case: an existing sources/X.md without llmwiki frontmatter (or with
   // missing `source` field) should never be silently overwritten — the
   // resolver must fall through to the hash suffix path.
-  it("falls through cleanly when an existing same-basename file is malformed", async () => {
+  it("falls through cleanly when an existing same-basename file is malformed", { timeout: CLI_INTEGRATION_TIMEOUT_MS }, async () => {
     const { cwd, pathA } = await makeCollidingWorkspace();
 
     // Pre-seed sources/notes.md with a file that has no llmwiki frontmatter
