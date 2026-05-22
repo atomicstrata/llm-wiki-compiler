@@ -73,19 +73,32 @@ function buildTooltip(container) {
 /** Position the tooltip near the cursor, keeping it within the SVG bounds. */
 function positionTooltip(tooltip, event, svgEl) {
   const rect = svgEl.getBoundingClientRect();
-  const tipW = tooltip.offsetWidth || 220;
-  const tipH = tooltip.offsetHeight || 60;
-
-  let left = event.clientX - rect.left + 14;
-  let top  = event.clientY - rect.top  - 50;
-
-  if (left + tipW > rect.width)  left = rect.width  - tipW - 8;
-  if (top  < 0)                  top  = 4;
-  if (top  + tipH > rect.height) top  = rect.height - tipH - 8;
-
+  const size = tooltipSize(tooltip);
+  const desired = {
+    left: event.clientX - rect.left + 14,
+    top:  event.clientY - rect.top  - 50,
+  };
+  const { left, top } = clampTooltipPosition(desired, size, rect);
   tooltip.style.left    = left + 'px';
   tooltip.style.top     = top  + 'px';
   tooltip.style.display = 'block';
+}
+
+/** Tooltip box dimensions with the same fallback defaults the previous inline `||` used. */
+function tooltipSize(tooltip) {
+  return {
+    width:  tooltip.offsetWidth  || 220,
+    height: tooltip.offsetHeight || 60,
+  };
+}
+
+/** Clamp a tooltip's top-left so it stays within the SVG bounds with the existing margins. */
+function clampTooltipPosition(pos, size, rect) {
+  let { left, top } = pos;
+  if (left + size.width  > rect.width)  left = rect.width  - size.width  - 8;
+  if (top  < 0)                         top  = 4;
+  if (top  + size.height > rect.height) top  = rect.height - size.height - 8;
+  return { left, top };
 }
 
 /** Create the SVG element, a zoom-aware inner group, and the tooltip. */
@@ -324,25 +337,33 @@ function renderEmptyState(container) {
  * @param {HTMLElement} container - The `.graph-pane` element to render into.
  */
 export async function loadGraph(container) {
-  let data;
-  try {
-    const res = await fetch('/api/graph', { credentials: 'same-origin' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    data = await res.json();
-  } catch (err) {
-    const p = document.createElement('p');
-    p.className = 'warning-banner';
-    p.textContent = 'Could not load graph: ' + err.message;
-    container.appendChild(p);
-    return;
-  }
-
+  const data = await fetchGraphData(container);
+  if (!data) return;
   if (!data.nodes || data.nodes.length === 0) {
     renderEmptyState(container);
     return;
   }
-
   const { svg, g, width, height, tooltip } = initGraph(container);
   renderGraph(svg, g, data, tooltip, width, height);
   buildLegend(container);
+}
+
+/** Fetch /api/graph and parse JSON; render an inline error banner and return null on failure. */
+async function fetchGraphData(container) {
+  try {
+    const res = await fetch('/api/graph', { credentials: 'same-origin' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } catch (err) {
+    showGraphLoadError(container, err);
+    return null;
+  }
+}
+
+/** Append the "Could not load graph" warning banner with the error message. */
+function showGraphLoadError(container, err) {
+  const p = document.createElement('p');
+  p.className = 'warning-banner';
+  p.textContent = 'Could not load graph: ' + err.message;
+  container.appendChild(p);
 }

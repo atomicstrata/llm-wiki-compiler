@@ -84,17 +84,27 @@ export function wireSearch({ fetchJson }) {
 async function runSearchAndRender(query, results, fetchJson, stillCurrent) {
   try {
     const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}`);
-    if (!stillCurrent()) return;
-    renderSearchResults(data.results ?? [], results);
+    handleSearchSuccess(data, results, stillCurrent);
   } catch (err) {
-    if (!stillCurrent()) return;
-    results.innerHTML = "";
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = `Search failed: ${err.message}`;
-    results.appendChild(li);
-    results.hidden = false;
+    handleSearchFailure(err, results, stillCurrent);
   }
+}
+
+/** Render the response rows when the user hasn't moved past this query yet. */
+function handleSearchSuccess(data, results, stillCurrent) {
+  if (!stillCurrent()) return;
+  renderSearchResults(data.results ?? [], results);
+}
+
+/** Show an inline error in the results panel when the search fetch threw. */
+function handleSearchFailure(err, results, stillCurrent) {
+  if (!stillCurrent()) return;
+  results.innerHTML = "";
+  const li = document.createElement("li");
+  li.className = "empty";
+  li.textContent = `Search failed: ${err.message}`;
+  results.appendChild(li);
+  results.hidden = false;
 }
 
 /** Render rows into the results <ul>; show an "empty" message for zero hits. */
@@ -168,18 +178,40 @@ function onSearchInputKeydown(event, results) {
 /** ArrowUp/Down within results cycle focus; Escape returns focus to input. */
 function onSearchResultsKeydown(event, input) {
   if (event.key === "Escape") {
-    event.preventDefault();
-    input.focus();
+    handleSearchEscape(event, input);
     return;
   }
-  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-  const target = event.target instanceof HTMLAnchorElement ? event.target : null;
+  const direction = arrowDirection(event.key);
+  if (!direction) return;
+  const target = anchorTarget(event.target);
   if (!target) return;
   event.preventDefault();
+  focusNeighborAnchor(target, direction);
+}
+
+/** Bounce focus back to the search input on Escape. */
+function handleSearchEscape(event, input) {
+  event.preventDefault();
+  input.focus();
+}
+
+/** Map ArrowDown/ArrowUp to +1/-1; return 0 for any other key. */
+function arrowDirection(key) {
+  if (key === "ArrowDown") return 1;
+  if (key === "ArrowUp") return -1;
+  return 0;
+}
+
+/** Narrow an EventTarget to an HTMLAnchorElement, or null when it isn't one. */
+function anchorTarget(target) {
+  return target instanceof HTMLAnchorElement ? target : null;
+}
+
+/** Wrap focus across the result anchors by `direction` (+1 or -1). */
+function focusNeighborAnchor(target, direction) {
   const all = Array.from(target.closest("ul").querySelectorAll("a[data-search-result]"));
+  if (all.length === 0) return;
   const idx = all.indexOf(target);
-  const next = event.key === "ArrowDown"
-    ? all[(idx + 1) % all.length]
-    : all[(idx - 1 + all.length) % all.length];
+  const next = all[(idx + direction + all.length) % all.length];
   if (next) next.focus();
 }
