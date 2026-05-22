@@ -191,7 +191,8 @@ describe("sidebar — concept grouping by kind", () => {
     expect(kinds).toContain("concept");
     expect(kinds).toContain("entity");
     expect(kinds).toContain("query");
-    // The fallback "concept" kind appears first.
+    expect(dom.window.document.querySelector("[data-sidebar] section h2")?.textContent).toBe("Project");
+    // The fallback "concept" kind appears first among page groups.
     expect(kinds[0]).toBe("concept");
     // Two pages classified as concept (a + c with missing kind).
     const conceptGroup = Array.from(groups).find((d) => d.dataset.kind === "concept");

@@ -1,9 +1,9 @@
 /**
  * llmwiki viewer — sidebar renderer.
  *
- * Renders concept pages grouped by frontmatter `kind` (defaulting to
- * "concept" when absent — spec line 347), then a "Saved Queries"
- * group, then the standing "Health" entry. Groups use native
+ * Renders the standing project links first, then concept pages grouped
+ * by frontmatter `kind` (defaulting to "concept" when absent — spec
+ * line 347), then a "Saved Queries" group. Groups use native
  * `<details><summary>` so keyboard users get Enter/Space collapse for
  * free without bespoke ARIA wiring.
  *
@@ -21,6 +21,7 @@ export function renderSidebar(pages) {
   const sidebar = document.querySelector(SIDEBAR_SELECTOR);
   if (!sidebar) return;
   sidebar.innerHTML = "";
+  sidebar.appendChild(buildProjectSection());
   const concepts = pages.filter((p) => p.pageDirectory === "concepts");
   const queries = pages.filter((p) => p.pageDirectory === "queries");
   const conceptGroups = groupConceptsByKind(concepts);
@@ -36,7 +37,6 @@ export function renderSidebar(pages) {
     empty.textContent = "No pages yet — run `llmwiki compile`.";
     sidebar.appendChild(empty);
   }
-  sidebar.appendChild(buildProjectSection());
   markActive();
 }
 

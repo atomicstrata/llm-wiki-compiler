@@ -78,10 +78,10 @@ describe("shell template — accessibility landmarks + skip link", () => {
     expect(skip!.getAttribute("href")).toBe("#main-pane");
     const github = doc.querySelector(".github-link") as HTMLAnchorElement | null;
     expect(github).not.toBeNull();
-    expect(github!.getAttribute("href")).toBe("https://github.com/atomicmemory/llm-wiki-compiler");
-    expect(github!.getAttribute("aria-label")).toBe("Open llm-wiki-compiler on GitHub");
+    expect(github!.getAttribute("href")).toBe("https://github.com/atomicstrata/llm-wiki-compiler");
+    expect(github!.getAttribute("aria-label")).toBe("Open llm-wiki-compiler on GitHub, 1.3k stars");
     expect(github!.textContent).toContain("GitHub");
-    expect(github!.textContent).not.toContain("1.1k");
+    expect(github!.textContent).toContain("1.3k");
   });
 
   it("stylesheet declares a universal `:focus-visible` outline so keyboard focus is visible", async () => {
