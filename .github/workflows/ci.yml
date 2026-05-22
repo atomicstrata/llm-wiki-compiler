@@ -28,7 +28,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: fallow-rs/fallow@v2
+      # Pin because fallow@2.42.0 predates the binary signatures required by newer v2 action commits.
+      - uses: fallow-rs/fallow@4f2b533c0ae6bb3445e7e8a34b93d337562f2a0c
         with:
           version: 2.42.0
           format: sarif
