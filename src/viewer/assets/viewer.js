@@ -302,7 +302,7 @@ async function loadAndRenderHome() {
 /** Apply a successfully fetched /api/pages envelope to the chrome + main pane. */
 function applyHomeEnvelope(envelope) {
   const titleEl = document.querySelector(TITLE_SELECTOR);
-  if (titleEl) titleEl.textContent = projectTitle(envelope);
+  titleEl.textContent = projectTitle(envelope);
   renderSidebar(envelope?.pages || []);
   renderHome(envelope);
 }

@@ -28,7 +28,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - uses: fallow-rs/fallow@v2
+      # Pin the action wrapper while using the signed 2.77.0 binary release.
+      - uses: fallow-rs/fallow@fed4b483dd1cbba8c1f55dcfe5b9599c389f95a8
         with:
           version: 2.77.0
           format: sarif
