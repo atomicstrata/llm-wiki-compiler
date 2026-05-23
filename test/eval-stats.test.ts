@@ -7,6 +7,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { collectStats, appendHistory, loadHistory } from "../src/eval/stats.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
+import { makeEvalReport } from "./fixtures/eval-report.js";
 import type { EvalReport } from "../src/eval/types.js";
 
 describe("collectStats", () => {
@@ -49,35 +50,8 @@ describe("collectStats", () => {
 describe("appendHistory", () => {
   const env = useLintTempRoot("eval-history");
 
-  function makeReport(suite: "fast" | "full" = "fast"): EvalReport {
-    return {
-      suite,
-      timestamp: new Date().toISOString(),
-      health: { score: 90, maxScore: 100, rules: [] },
-      citationCoverage: {
-        totalProseParagraphs: 10,
-        citedParagraphs: 8,
-        coveragePercent: 80,
-        totalCitations: 8,
-        validCitations: 8,
-        precisionPercent: 100,
-        perPage: [],
-      },
-      stats: {
-        timestamp: new Date().toISOString(),
-        sourceCount: 3,
-        pageCount: 5,
-        totalWikiChars: 1000,
-        embeddingCount: 5,
-        chunkEmbeddingCount: 20,
-        avgPageLengthChars: 200,
-      },
-      thresholdViolations: [],
-    };
-  }
-
   it("creates history.jsonl on first run", async () => {
-    const report = makeReport();
+    const report = makeEvalReport();
     await appendHistory(env.dir, report);
 
     const historyPath = path.join(env.dir, ".llmwiki", "eval", "history.jsonl");
@@ -90,8 +64,8 @@ describe("appendHistory", () => {
   });
 
   it("appends a new line on subsequent runs", async () => {
-    await appendHistory(env.dir, makeReport());
-    await appendHistory(env.dir, makeReport());
+    await appendHistory(env.dir, makeEvalReport());
+    await appendHistory(env.dir, makeEvalReport());
 
     const historyPath = path.join(env.dir, ".llmwiki", "eval", "history.jsonl");
     const content = await readFile(historyPath, "utf-8");

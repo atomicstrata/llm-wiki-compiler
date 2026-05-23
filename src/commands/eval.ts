@@ -36,27 +36,34 @@ interface EvalOptions {
 
 const DEFAULT_SAMPLE_SIZE = 20;
 
-/**
- * Run the eval harness against the current project.
- * @param options - Parsed CLI options.
- */
-export default async function evalCommand(options: EvalOptions = {}): Promise<void> {
-  const root = process.cwd();
-  const suite = options.suite === "full" ? "full" : "fast";
-  const sampleSize = parseInt(options.sample ?? String(DEFAULT_SAMPLE_SIZE), 10);
-  const outFormat = options.out === "json" ? "json" : "terminal";
+interface ResolvedEvalOptions {
+  suite: "fast" | "full";
+  sampleSize: number;
+  outFormat: "terminal" | "json";
+}
 
+function resolveEvalOptions(options: EvalOptions): ResolvedEvalOptions {
+  return {
+    suite: options.suite === "full" ? "full" : "fast",
+    sampleSize: parseInt(options.sample ?? String(DEFAULT_SAMPLE_SIZE), 10),
+    outFormat: options.out === "json" ? "json" : "terminal",
+  };
+}
+
+async function runEvalComponents(root: string, suite: "fast" | "full", sampleSize: number) {
   const [health, citationCoverage, stats, previousReport] = await Promise.all([
     evaluateHealth(root),
     evaluateCitationCoverage(root),
     collectStats(root),
     loadPreviousReport(root),
   ]);
+  const citationSupport = suite === "full" ? await evaluateCitationSupport(root, sampleSize) : undefined;
+  return { health, citationCoverage, stats, previousReport, citationSupport };
+}
 
-  const citationSupport =
-    suite === "full" ? await evaluateCitationSupport(root, sampleSize) : undefined;
-
-  const partialReport: Omit<EvalReport, "delta" | "thresholdViolations"> = {
+async function buildReport(root: string, components: Awaited<ReturnType<typeof runEvalComponents>>, suite: "fast" | "full"): Promise<EvalReport> {
+  const { health, citationCoverage, stats, previousReport, citationSupport } = components;
+  const partial = {
     suite,
     timestamp: new Date().toISOString(),
     health,
@@ -64,23 +71,27 @@ export default async function evalCommand(options: EvalOptions = {}): Promise<vo
     stats,
     ...(citationSupport ? { citationSupport } : {}),
   };
+  const delta = previousReport ? computeDelta(partial as EvalReport, previousReport) : undefined;
+  const thresholdViolations = await checkThresholds(partial as EvalReport, root);
+  return { ...partial, ...(delta ? { delta } : {}), thresholdViolations };
+}
 
-  const delta = previousReport ? computeDelta(partialReport as EvalReport, previousReport) : undefined;
-  const thresholdViolations = await checkThresholds(partialReport as EvalReport, root);
+/**
+ * Run the eval harness against the current project.
+ * @param options - Parsed CLI options.
+ */
+export default async function evalCommand(options: EvalOptions = {}): Promise<void> {
+  const root = process.cwd();
+  const { suite, sampleSize, outFormat } = resolveEvalOptions(options);
 
-  const report: EvalReport = {
-    ...partialReport,
-    ...(delta ? { delta } : {}),
-    thresholdViolations,
-  };
-
+  const components = await runEvalComponents(root, suite, sampleSize);
+  const report = await buildReport(root, components, suite);
   await appendHistory(root, report);
 
-  const output =
-    outFormat === "json" ? formatJsonReport(report) : formatTerminalReport(report);
+  const output = outFormat === "json" ? formatJsonReport(report) : formatTerminalReport(report);
   console.log(output);
 
-  if (thresholdViolations.length > 0) {
+  if (report.thresholdViolations.length > 0) {
     process.exit(1);
   }
 }
@@ -126,21 +137,17 @@ export async function evalHistoryCommand(options: HistoryOptions = {}): Promise<
 
 interface JudgementsOptions { score?: string; page?: string; n?: string; out?: string }
 
+function filterJudgements(judgements: Awaited<ReturnType<typeof loadCitationCache>>, options: JudgementsOptions) {
+  let result = judgements;
+  if (options.score !== undefined) result = result.filter((j) => j.score === parseInt(options.score!, 10));
+  if (options.page) result = result.filter((j) => j.pageSlug === options.page);
+  if (options.n !== undefined) result = result.slice(0, parseInt(options.n, 10));
+  return result;
+}
+
 /** Browse cached citation judgements with optional filters by score, page, and count. */
 export async function evalJudgementsCommand(options: JudgementsOptions = {}): Promise<void> {
-  let judgements = await loadCitationCache(process.cwd());
-
-  if (options.score !== undefined) {
-    const scoreFilter = parseInt(options.score, 10);
-    judgements = judgements.filter((j) => j.score === scoreFilter);
-  }
-  if (options.page) {
-    judgements = judgements.filter((j) => j.pageSlug === options.page);
-  }
-  if (options.n !== undefined) {
-    judgements = judgements.slice(0, parseInt(options.n, 10));
-  }
-
+  const judgements = filterJudgements(await loadCitationCache(process.cwd()), options);
   if (options.out === "json") {
     console.log(JSON.stringify(judgements, null, 2));
     return;

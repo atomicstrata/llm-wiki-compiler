@@ -7,35 +7,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { checkThresholds } from "../src/eval/thresholds.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
-import type { EvalReport } from "../src/eval/types.js";
-
-function makeReport(overrides: Partial<EvalReport> = {}): EvalReport {
-  return {
-    suite: "fast",
-    timestamp: new Date().toISOString(),
-    health: { score: 90, maxScore: 100, rules: [] },
-    citationCoverage: {
-      totalProseParagraphs: 10,
-      citedParagraphs: 8,
-      coveragePercent: 80,
-      totalCitations: 8,
-      validCitations: 8,
-      precisionPercent: 100,
-      perPage: [],
-    },
-    stats: {
-      timestamp: new Date().toISOString(),
-      sourceCount: 3,
-      pageCount: 5,
-      totalWikiChars: 1000,
-      embeddingCount: 5,
-      chunkEmbeddingCount: 20,
-      avgPageLengthChars: 200,
-    },
-    thresholdViolations: [],
-    ...overrides,
-  };
-}
+import { makeEvalReport as makeReport } from "./fixtures/eval-report.js";
 
 async function writeThresholds(root: string, config: object): Promise<void> {
   const dir = path.join(root, ".llmwiki", "eval");
