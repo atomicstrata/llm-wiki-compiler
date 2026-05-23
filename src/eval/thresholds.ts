@@ -1,0 +1,86 @@
+/**
+ * CI threshold gating for the llmwiki eval harness.
+ *
+ * Reads an optional .llmwiki/eval/thresholds.yaml config and checks whether
+ * the current report meets each configured threshold. Returns a list of
+ * human-readable violation messages; an empty list means all thresholds pass.
+ *
+ * Supported threshold keys:
+ *   health_score              — minimum health score (0–100)
+ *   citation_coverage_percent — minimum citation coverage (0–100)
+ *   citation_precision_percent — minimum citation precision (0–100)
+ *   citation_support_mean     — minimum mean judge score (0.0–2.0)
+ */
+
+import { readFile } from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
+import yaml from "js-yaml";
+import type { EvalReport } from "./types.js";
+
+const THRESHOLDS_FILE = path.join(".llmwiki", "eval", "thresholds.yaml");
+
+interface ThresholdConfig {
+  health_score?: number;
+  citation_coverage_percent?: number;
+  citation_precision_percent?: number;
+  citation_support_mean?: number;
+}
+
+/** Load the threshold config from disk, or return an empty config if absent. */
+async function loadThresholds(root: string): Promise<ThresholdConfig> {
+  const configPath = path.join(root, THRESHOLDS_FILE);
+  if (!existsSync(configPath)) return {};
+  const raw = await readFile(configPath, "utf-8");
+  return (yaml.load(raw) as ThresholdConfig) ?? {};
+}
+
+/**
+ * Check the report against configured thresholds.
+ * @param report - The completed eval report.
+ * @param root - Absolute path to the project root.
+ * @returns List of violation messages (empty = all pass).
+ */
+export async function checkThresholds(
+  report: EvalReport,
+  root: string,
+): Promise<string[]> {
+  const config = await loadThresholds(root);
+  const violations: string[] = [];
+
+  if (config.health_score !== undefined && report.health.score < config.health_score) {
+    violations.push(
+      `health_score ${report.health.score} is below threshold ${config.health_score}`,
+    );
+  }
+
+  if (
+    config.citation_coverage_percent !== undefined &&
+    report.citationCoverage.coveragePercent < config.citation_coverage_percent
+  ) {
+    violations.push(
+      `citation_coverage_percent ${report.citationCoverage.coveragePercent.toFixed(1)}% is below threshold ${config.citation_coverage_percent}%`,
+    );
+  }
+
+  if (
+    config.citation_precision_percent !== undefined &&
+    report.citationCoverage.precisionPercent < config.citation_precision_percent
+  ) {
+    violations.push(
+      `citation_precision_percent ${report.citationCoverage.precisionPercent.toFixed(1)}% is below threshold ${config.citation_precision_percent}%`,
+    );
+  }
+
+  if (
+    config.citation_support_mean !== undefined &&
+    report.citationSupport !== undefined &&
+    report.citationSupport.meanScore < config.citation_support_mean
+  ) {
+    violations.push(
+      `citation_support_mean ${report.citationSupport.meanScore.toFixed(2)} is below threshold ${config.citation_support_mean}`,
+    );
+  }
+
+  return violations;
+}
