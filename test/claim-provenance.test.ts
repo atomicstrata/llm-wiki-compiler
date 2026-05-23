@@ -136,6 +136,11 @@ describe("isMalformedCitationEntry", () => {
   it("rejects line 0 in hash form", () => {
     expect(isMalformedCitationEntry("file.md#L0-L3")).toBe(true);
   });
+
+  it("accepts comma-separated line numbers as a valid span form", () => {
+    expect(isMalformedCitationEntry("file.md:8,12")).toBe(false);
+    expect(isMalformedCitationEntry("file.md:1, 5")).toBe(false);
+  });
 });
 
 describe("extractClaimCitations with invalid line ranges", () => {

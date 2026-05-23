@@ -19,7 +19,7 @@ import type {
 const CITATION_MARKER_PATTERN = /\^\[([^\]]+)\]/g;
 
 /** Regex matching the optional `:start-end` or `#Lstart-Lend` span suffix on a citation entry. */
-const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:-(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
+const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:[,-]\s*(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
 
 /** The minimum valid line number in a source span (lines are 1-indexed). */
 const MIN_LINE_NUMBER = 1;

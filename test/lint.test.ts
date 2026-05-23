@@ -241,6 +241,15 @@ describe("checkBrokenCitations", () => {
     // Neither "a.md" nor "b.md" is missing, so there should be no findings.
     expect(results.some((r) => r.message.includes("a.md, b.md"))).toBe(false);
   });
+
+  it("treats comma-separated line numbers as part of the same source entry, not a new source", async () => {
+    await writeSource("source.md", "Line one.\nLine two.\nLine three.\n");
+    // ^[source.md:1, 12] means "lines 1 and 12 from source.md" — the ,12 is a line ref, not a new file
+    await writeConcept("line-list", "---\ntitle: Line List\n---\nContent here. ^[source.md:1, 12]");
+
+    const results = await checkBrokenCitations(tmpDir);
+    expect(results.some((r) => r.message.includes("^[12]"))).toBe(false);
+  });
 });
 
 describe("lint orchestrator", () => {
