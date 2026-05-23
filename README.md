@@ -265,6 +265,12 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki next [--json]` | Show the recommended next action for this project (read-only); `--json` emits a stable envelope for agents |
 | `llmwiki context "<prompt>" [--json]` | Build an agent-ready evidence pack (primary pages, citations, neighbors, suggested actions) — same v1 envelope as MCP `get_context_pack` |
 | `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
+| `llmwiki eval [--suite fast\|full]` | Measure wiki quality: health score (0–100), citation coverage, corpus stats. `--suite full` adds LLM-as-judge citation support scoring |
+| `llmwiki eval cache show` | Print score distribution and top-cited pages from the citation judgement cache |
+| `llmwiki eval cache clear` | Remove the citation judgement cache |
+| `llmwiki eval report` | Print the most recent eval report |
+| `llmwiki eval history [--n N]` | Show a trend table of past eval runs from `history.jsonl` |
+| `llmwiki eval judgements [--score 0\|1\|2] [--page slug]` | Inspect individual citation judgements with optional score or page filters |
 | `llmwiki watch` | Auto-recompile when `sources/` changes |
 | `llmwiki serve [--root <dir>]` | Start an MCP server exposing wiki tools to AI agents |
 
@@ -374,6 +380,51 @@ The schema supports four page kinds:
 - `overview` — map page that connects several concepts in a domain
 
 Schema rules can set per-kind `minWikilinks` and optional `seedPages`. Compile can materialize seed pages such as overviews, lint enforces page-kind-specific cross-link minimums, and review candidates surface schema violations before approval.
+
+## Eval / quality measurement
+
+`llmwiki eval` gives the wiki a quantitative health score and tracks citation quality over time, making it possible to detect regressions after a recompile.
+
+```bash
+llmwiki eval                   # fast suite: health score, citation coverage, corpus stats
+llmwiki eval --suite full      # + LLM-as-judge citation support scoring (requires API)
+llmwiki eval report            # re-print the most recent report
+llmwiki eval history           # trend table across past runs
+llmwiki eval history --n 10    # limit to last 10 entries
+llmwiki eval judgements        # all cached citation judgements
+llmwiki eval judgements --score 0          # only unsupported citations
+llmwiki eval judgements --page some-slug   # filter to one page
+llmwiki eval cache show        # score distribution + top-cited pages
+llmwiki eval cache clear       # wipe the citation judgement cache
+```
+
+**What it measures:**
+
+- **Health score (0–100)** aggregates all lint rules. Errors (broken citations, broken wikilinks, duplicate concepts) cost more than warnings.
+- **Citation coverage** — fraction of prose paragraphs that carry a `^[...]` marker, plus citation precision (fraction of citations pointing to existing source files).
+- **Citation support (full suite)** — samples up to N `(claim, source span)` pairs, asks a judge model to score each 0–2 (unsupported → fully supported), and caches results so subsequent runs only re-judge new pairs.
+- **Corpus stats** — page count, source count, total wiki characters, embedding counts, appended to `history.jsonl` for trend tracking.
+- **Regression deltas** — current report is diffed against the previous entry in history.
+
+**CI thresholds:** add `.llmwiki/eval/thresholds.yaml` to configure minimum acceptable scores:
+
+```yaml
+health_score: 85
+citation_coverage_percent: 70
+citation_precision_percent: 90
+citation_support_mean: 1.4   # only checked when --suite full
+```
+
+Threshold violations are listed in the report. Exit code is non-zero when any threshold is breached, suitable for CI gating.
+
+**Artifacts** written under `.llmwiki/eval/`:
+
+```
+.llmwiki/eval/
+  history.jsonl          one JSON line per eval run
+  citation-cache.jsonl   one JSON line per citation judgement
+  thresholds.yaml        optional CI threshold config
+```
 
 </details>
 
