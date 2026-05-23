@@ -60,6 +60,19 @@ describe("evaluateHealth", () => {
     expect(result.score).toBe(99);
   });
 
+  it("deducts 4 points per broken-wikilink (error rule)", async () => {
+    await env.writeConcept(
+      "linker",
+      `---\ntitle: Linker\nsources: []\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis page references [[Nonexistent Page]] which does not exist.\n`,
+    );
+
+    const result = await evaluateHealth(env.dir);
+    const wikilinkRule = result.rules.find((r) => r.rule === "broken-wikilink");
+    expect(wikilinkRule?.count).toBe(1);
+    expect(wikilinkRule?.deduction).toBe(4);
+    expect(result.score).toBe(96);
+  });
+
   it("clamps score to 0 with many violations", async () => {
     // Create 30 broken citation pages → 30 × -4 = -120, clamps to 0
     await Promise.all(

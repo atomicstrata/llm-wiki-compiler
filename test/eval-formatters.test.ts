@@ -4,6 +4,7 @@
  */
 
 import {
+  formatTerminalReport,
   formatHistoryTable,
   formatCacheShow,
   formatJudgementsDisplay,
@@ -141,5 +142,58 @@ describe("formatJudgementsDisplay", () => {
     expect(output).toContain("The algorithm is efficient.");
     expect(output).toContain("It runs in O(n) time.");
     expect(output).toContain("Source is unrelated.");
+  });
+});
+
+describe("formatTerminalReport", () => {
+  it("shows health score", () => {
+    const output = formatTerminalReport(makeReport());
+    expect(output).toContain("87");
+    expect(output).toContain("100");
+  });
+
+  it("shows citation coverage percent", () => {
+    const output = formatTerminalReport(makeReport());
+    expect(output).toContain("75%");
+    expect(output).toContain("15");
+    expect(output).toContain("20");
+  });
+
+  it("shows threshold violations when present", () => {
+    const report = makeReport({ thresholdViolations: ["health_score 87 is below threshold 90"] });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("health_score 87 is below threshold 90");
+  });
+
+  it("omits citation support section on fast suite", () => {
+    const output = formatTerminalReport(makeReport({ suite: "fast" }));
+    expect(output).not.toContain("Citation Support");
+  });
+
+  it("shows citation support section on full suite", () => {
+    const report = makeReport({
+      suite: "full",
+      citationSupport: {
+        sampledCount: 10,
+        totalCitations: 20,
+        meanScore: 1.65,
+        fullySupported: 7,
+        partiallySupported: 2,
+        unsupported: 1,
+        judgements: [],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("Citation Support");
+    expect(output).toContain("1.65");
+  });
+
+  it("shows delta arrows when delta is present", () => {
+    const report = makeReport({
+      delta: { healthScore: 5, citationCoveragePercent: -2 },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("↑5");
+    expect(output).toContain("↓2");
   });
 });
