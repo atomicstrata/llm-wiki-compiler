@@ -78,10 +78,22 @@ export function buildBudgetedCombinedContent(
   return formatSlices(trimmed);
 }
 
+/**
+ * Prepend right-aligned 1-indexed line numbers to each line of source content.
+ * Gives the LLM explicit anchors so its ^[file.md:N-M] citations are accurate.
+ */
+function numberLines(content: string): string {
+  const lines = content.split("\n");
+  const width = String(lines.length).length;
+  return lines
+    .map((line, i) => `${String(i + 1).padStart(width)} | ${line}`)
+    .join("\n");
+}
+
 /** Render the slice list using the same `--- SOURCE: ---` headers the LLM is taught to read. */
 function formatSlices(slices: SourceSlice[]): string {
   return slices
-    .map((s) => `--- SOURCE: ${s.file} ---\n\n${s.content}`)
+    .map((s) => `--- SOURCE: ${s.file} ---\n\n${numberLines(s.content)}`)
     .join("\n\n");
 }
 

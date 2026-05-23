@@ -120,6 +120,7 @@ export class AnthropicProvider implements LLMProvider {
       system,
       messages,
       tools: anthropicTools,
+      tool_choice: { type: "any" },
     });
 
     const toolBlock = response.content.find((block) => block.type === "tool_use");

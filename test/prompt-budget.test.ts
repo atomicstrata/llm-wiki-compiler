@@ -44,16 +44,24 @@ describe("resolvePromptBudgetChars", () => {
 });
 
 describe("buildBudgetedCombinedContent", () => {
-  it("default case: total under budget produces unbudgeted concatenation", () => {
+  it("default case: total under budget produces numbered-line concatenation", () => {
     const slices: SourceSlice[] = [
       { file: "a.md", content: "alpha content" },
       { file: "b.md", content: "beta content" },
     ];
     const out = buildBudgetedCombinedContent("Concept", slices);
     expect(out).toBe(
-      "--- SOURCE: a.md ---\n\nalpha content\n\n--- SOURCE: b.md ---\n\nbeta content",
+      "--- SOURCE: a.md ---\n\n1 | alpha content\n\n--- SOURCE: b.md ---\n\n1 | beta content",
     );
     expect(out).not.toContain("truncated");
+  });
+
+  it("line numbers are right-aligned based on total line count", () => {
+    const content = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n");
+    const slices: SourceSlice[] = [{ file: "multi.md", content }];
+    const out = buildBudgetedCombinedContent("Concept", slices);
+    expect(out).toContain(" 1 | line 1");
+    expect(out).toContain("10 | line 10");
   });
 
   it("over-budget: each source is truncated to a fair share", () => {
@@ -80,7 +88,7 @@ describe("buildBudgetedCombinedContent", () => {
     ];
     const out = buildBudgetedCombinedContent("Concept", slices);
     // perSource = floor(60 / 2) = 30. Small source survives intact.
-    expect(out).toContain("--- SOURCE: small.md ---\n\ntiny");
+    expect(out).toContain("--- SOURCE: small.md ---\n\n1 | tiny");
     // Big source is truncated to 30 chars + marker.
     expect(out).toContain("Y".repeat(30));
     expect(out).not.toContain("Y".repeat(31));
