@@ -38,6 +38,24 @@ import type {
 /** Closed v1 neighbor edge label. */
 const NEIGHBOR_REASON_WIKILINK = "wikilink";
 
+/**
+ * Delimiter joining the two PageIds in a canonical pair key. Visible
+ * ASCII (not a control byte) so the source file stays free of NUL
+ * bytes that confuse grep/fallow/git tooling, and the substring
+ * " <-> " cannot collide with any directory/slug character allowed in
+ * a `PageId` (`concepts/<slug>` / `queries/<slug>`).
+ */
+const CANONICAL_PAIR_SEPARATOR = " <-> ";
+
+/**
+ * Hard cap on the total number of emitted neighbor entries (depth-1 +
+ * depth-2 combined). Applied BEFORE depth-2 expansion so a high-degree
+ * primary page cannot blow the context pack open by way of fan-out
+ * through trimmed depth-1 bridges. Re-applied at the end so the
+ * sorted, merged output never exceeds the bound either.
+ */
+const MAX_GRAPH_NEIGHBORS = 20;
+
 /** Base score for a direct (depth-1) neighbor edge. */
 const WEIGHT_NEIGHBOR_DIRECT = 0.5;
 
@@ -110,11 +128,16 @@ export function expandGraphNeighborhood(
   }
   const adjacency = buildAdjacency(input.graph);
   const ghostIds = collectGhostIds(input.graph.nodes);
-  const depth1 = expandDepthOne({
+  // Sort + cap depth-1 BEFORE depth-2 expansion so a trimmed-out
+  // bridge can never contribute second-hop emissions. Without this
+  // gate, a primary page with high fan-out could fan out further at
+  // depth 2 and balloon `neighbors[]` past the documented cap.
+  const depth1Raw = expandDepthOne({
     primaryIds: input.primaryIds,
     adjacency,
     ghostIds,
   });
+  const depth1 = depth1Raw.sort(compareNeighbors).slice(0, MAX_GRAPH_NEIGHBORS);
   const depth2 = input.depth >= 2
     ? expandDepthTwo({
         primaryIds: input.primaryIds,
@@ -123,7 +146,12 @@ export function expandGraphNeighborhood(
         depthOneTargets: collectDepthOneTargets(depth1),
       })
     : [];
-  const neighbors = [...depth1, ...depth2].sort(compareNeighbors);
+  // Re-cap after merging so depth-2 entries cannot push the total
+  // above the bound either. Direct (distance 1) entries outrank
+  // second-hop in the comparator so the trim drops second-hop first.
+  const neighbors = [...depth1, ...depth2]
+    .sort(compareNeighbors)
+    .slice(0, MAX_GRAPH_NEIGHBORS);
   return { neighbors, gaps: emitGapsFromPrimary(input) };
 }
 
@@ -390,7 +418,9 @@ function collectDepthOneTargets(neighbors: GraphNeighbor[]): Set<PageId> {
  * ordering platform-stable for any unicode-bearing PageId.
  */
 function canonicalPairKey(a: PageId, b: PageId): string {
-  return a < b ? `${a} ${b}` : `${b} ${a}`;
+  return a < b
+    ? `${a}${CANONICAL_PAIR_SEPARATOR}${b}`
+    : `${b}${CANONICAL_PAIR_SEPARATOR}${a}`;
 }
 
 /** Squash a score into [0, 1] without inventing precision. */

@@ -16,6 +16,7 @@
  * tried to re-emit it from B).
  */
 
+import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 import { expandGraphNeighborhood } from "../src/context/graph.js";
 import type {
@@ -370,5 +371,87 @@ describe("expandGraphNeighborhood — scoring + ordering", () => {
     expect(shared).toBeDefined();
     expect(lonely).toBeDefined();
     expect(shared!.score).toBeGreaterThan(lonely!.score);
+  });
+});
+
+/**
+ * Build a star graph: one primary page A linked outgoing to `degree`
+ * real neighbors `b0..b(degree-1)`. Each neighbor B_i additionally has
+ * its own outgoing edge to a unique depth-2 target `c<i>`. Used to
+ * verify that the cap fires before depth-2 expansion runs.
+ */
+function buildStarGraph(degree: number): {
+  realIds: PageId[];
+  edges: [PageId, PageId][];
+} {
+  const realIds: PageId[] = ["concepts/a"];
+  const edges: [PageId, PageId][] = [];
+  for (let i = 0; i < degree; i++) {
+    const b: PageId = `concepts/b${String(i).padStart(3, "0")}`;
+    const c: PageId = `concepts/c${String(i).padStart(3, "0")}`;
+    realIds.push(b, c);
+    edges.push(["concepts/a", b]);
+    edges.push([b, c]);
+  }
+  return { realIds, edges };
+}
+
+describe("expandGraphNeighborhood — Slice 3 follow-up: numeric cap on neighbors", () => {
+  it("never emits more than MAX_GRAPH_NEIGHBORS entries total", async () => {
+    // 40 depth-1 candidates + 40 depth-2 candidates = 80 potential
+    // neighbors; the cap must bound the final output regardless.
+    const { realIds, edges } = buildStarGraph(40);
+    const out = expand({
+      realIds,
+      edges,
+      primaryIds: ["concepts/a"],
+      depth: 2,
+    });
+    expect(out.neighbors.length).toBeLessThanOrEqual(20);
+  });
+
+  it("trims depth-1 BEFORE depth-2 expansion: trimmed bridges produce no second-hop neighbors", async () => {
+    // Each B_i with index >= 20 should be trimmed at depth 1, so its
+    // corresponding C_i never reaches the output even though the
+    // structural filters would otherwise admit it.
+    const { realIds, edges } = buildStarGraph(40);
+    const out = expand({
+      realIds,
+      edges,
+      primaryIds: ["concepts/a"],
+      depth: 2,
+    });
+    const emittedC = out.neighbors
+      .map((n) => n.to)
+      .filter((id) => id.startsWith("concepts/c"));
+    // Depth-1 cap = 20, all from concepts/a -> concepts/bNNN. None
+    // of those B nodes have a depth-2 emission because the bridge
+    // set was already at cap by the time depth-2 ran.
+    expect(emittedC.length).toBe(0);
+  });
+
+  it("respects the cap on depth-1-only expansions too (final slice trims any overflow)", async () => {
+    const { realIds, edges } = buildStarGraph(40);
+    const out = expand({
+      realIds,
+      edges,
+      primaryIds: ["concepts/a"],
+      depth: 1,
+    });
+    expect(out.neighbors.length).toBe(20);
+    // All entries are direct neighbors of the primary at distance 1.
+    for (const n of out.neighbors) expect(n.distance).toBe(1);
+  });
+});
+
+describe("src/context/graph.ts — NUL-byte regression", () => {
+  it("contains zero NUL bytes (canonical pair key uses a visible ASCII delimiter)", () => {
+    // Repro of the Slice 3 finding: the canonical-pair key once
+    // joined PageIds with a literal `\x00` byte, which made grep /
+    // fallow treat the source as binary and silently broke text
+    // tooling. This test reads the file as bytes so any future
+    // regression that smuggles a NUL back in fails loudly.
+    const raw = readFileSync("src/context/graph.ts");
+    expect(raw.includes(0)).toBe(false);
   });
 });
