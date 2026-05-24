@@ -59,6 +59,19 @@ describe("buildContextPack — v1 JSON contract stability", () => {
     expect(pack.version).toBe(1);
   });
 
+  it("gaps[].pageId is a required string in v1 (no project-wide gaps yet)", async () => {
+    // Slice 1 produces no gaps, but the type system must already
+    // forbid `null` so a future emitter doesn't accidentally ship a
+    // null pageId before we bump `version`. This guard ensures the
+    // type stays non-nullable; runtime gaps will start flowing in
+    // Slice 3 (dangling links) and Slice 4 (page warnings).
+    const pack = await buildContextPack({ root: tmpDir, prompt: "anything" });
+    for (const gap of pack.gaps) {
+      expect(typeof gap.pageId).toBe("string");
+      expect(gap.pageId.length).toBeGreaterThan(0);
+    }
+  });
+
   it("populates later-slice fields as empty arrays so consumers don't see field-presence drift", async () => {
     const pack = await buildContextPack({ root: tmpDir, prompt: "anything" });
     expect(pack.primary).toEqual([]);
@@ -150,6 +163,29 @@ describe("buildContextPack — prompt truncation", () => {
     const pack = await buildContextPack({ root: tmpDir, prompt: exact });
     expect(pack.prompt.length).toBe(PROMPT_ECHO_MAX_LENGTH);
     expect(pack.warnings.some((w) => w.code === "truncated-prompt")).toBe(false);
+  });
+
+  it("ranks against the original prompt — title token still matches when the prompt overflows the echo cap", async () => {
+    // Pin the contract that truncation is display-only: a prompt whose
+    // tokens all match a page title but whose total length exceeds the
+    // echo cap must still surface the page in `primary[]`. If the
+    // orchestrator handed the truncated form to `rankPages` (the bug),
+    // ranking would still see the same tokens here because
+    // `searchPages` caps at 200 chars internally; the regression
+    // surface for that bug is Slice 2's semantic retrieval. This test
+    // proves the lexical pipeline keeps working in the presence of
+    // echo-cap truncation, and the test comment documents that the
+    // truncated-vs-original distinction is unobservable through
+    // Slice 1's signals (`searchPages` 200-char cap + whole-prompt
+    // exact-match) — Slice 2 will start producing different scores.
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha", "body");
+    const overflowingPrompt = "alpha ".repeat(200);
+    expect(overflowingPrompt.length).toBeGreaterThan(PROMPT_ECHO_MAX_LENGTH);
+    const pack = await buildContextPack({ root: tmpDir, prompt: overflowingPrompt });
+    expect(pack.prompt.length).toBe(PROMPT_ECHO_MAX_LENGTH);
+    expect(pack.warnings.map((w) => w.code)).toContain("truncated-prompt");
+    expect(pack.primary.map((p) => p.id)).toContain("concepts/alpha");
+    expect(pack.primary[0].reasons).toContain("title-match");
   });
 });
 

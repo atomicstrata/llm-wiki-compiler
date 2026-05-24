@@ -74,9 +74,28 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   return finalizeBudget(draft, normalized.budget);
 }
 
-/** Frozen, validated copy of the user-supplied options. */
+/**
+ * Frozen, validated copy of the user-supplied options.
+ *
+ * The prompt is intentionally split into two fields:
+ *   - `displayPrompt` is the echo-safe form that lands in
+ *     `ContextPack.prompt` (truncated at PROMPT_ECHO_MAX_LENGTH so the
+ *     envelope cannot balloon on a 10KB agent input).
+ *   - `rankingPrompt` is the original, untruncated prompt that flows
+ *     into every retrieval signal — lexical, semantic (Slice 2+), and
+ *     exact match. Truncating before ranking would silently drop
+ *     content the agent expected to drive selection.
+ *
+ * In Slice 1 the two values are observationally equivalent at the
+ * lexical layer because `searchPages` caps queries at its own internal
+ * MAX_QUERY_LENGTH (200 chars) and exact-match requires whole-prompt
+ * equality. Slice 2's semantic retrieval will see the full
+ * `rankingPrompt` and produce different scores than it would against
+ * `displayPrompt`.
+ */
 interface NormalizedOptions {
-  prompt: string;
+  displayPrompt: string;
+  rankingPrompt: string;
   budget: number;
   depth: number;
   topPages: number;
@@ -87,9 +106,11 @@ interface NormalizedOptions {
 
 /** Apply defaults and clamps so downstream code can trust the field types. */
 function normalizeOptions(options: BuildContextPackOptions): NormalizedOptions {
-  const { display, truncated } = truncatePrompt(options.prompt ?? "");
+  const rankingPrompt = options.prompt ?? "";
+  const { display, truncated } = truncatePrompt(rankingPrompt);
   return {
-    prompt: display,
+    displayPrompt: display,
+    rankingPrompt,
     budget: clampPositive(options.budget, DEFAULT_BUDGET_TOKENS),
     depth: clampDepth(options.depth),
     topPages: clampPositive(options.topPages, DEFAULT_TOP_PAGES),
@@ -131,10 +152,12 @@ function assembleDraft(input: AssembleInput): ContextPack {
   const project = buildProject(snapshot, state, options.omitRoot);
   return {
     version: 1,
-    prompt: options.prompt,
+    prompt: options.displayPrompt,
     budget: buildBudget(options.budget, 0),
     project,
-    primary: rankPages(snapshot, options.prompt, options.topPages),
+    // Rank against the ORIGINAL prompt — the truncated echo is a
+    // display-only courtesy and must not silently drop ranking signal.
+    primary: rankPages(snapshot, options.rankingPrompt, options.topPages),
     neighbors: [],
     warnings: buildTopLevelWarnings(options.promptTruncated),
     gaps: [],

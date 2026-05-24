@@ -129,11 +129,17 @@ export interface ContextWarning {
   message: string;
 }
 
-/** Missing-knowledge gap. `pageId` is null for project-wide gaps in future slices. */
+/**
+ * Missing-knowledge gap. `pageId` is required in v1; every documented
+ * gap code (`dangling-link`, `page-warning`) is tied to a specific
+ * page. A future project-wide gap would either bump `version` or
+ * introduce a new sibling field rather than retrofitting nullability
+ * onto this one.
+ */
 interface ContextGap {
   code: ContextGapCode;
   message: string;
-  pageId: PageId | null;
+  pageId: PageId;
 }
 
 /** Top-level v1 envelope. */
