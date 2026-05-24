@@ -154,6 +154,17 @@ describe("`llmwiki context --json --include-sources`", () => {
     });
   });
 
+  it("rejects safe-looking parent traversal (`nested/../paper.md`) even though it normalizes back inside", async () => {
+    // The path normalizes to `paper.md`, which IS inside sources/, but
+    // the raw citation still carries a `..` segment that a reviewer
+    // must see. Hard-fail; emit no source window.
+    await seedCitedConcept("epsilon", "Epsilon", "nested/../paper.md:1-1");
+    await seedSource("paper.md", ["one", "two"]);
+    const payload = await runJsonContext("epsilon", ["--include-sources"]);
+    const primary = payload.primary as Array<Record<string, unknown>>;
+    expect(primary[0].sourceWindows).toEqual([]);
+  });
+
   it("rejects symlinks that escape sources/ even when the rel path looks safe", async () => {
     await seedCitedConcept("delta", "Delta", "link.md:1-1");
     await withSecretRoot("context-escape", async (secretRoot) => {

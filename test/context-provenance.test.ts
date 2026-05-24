@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, mkdir, rm, writeFile, symlink } from "fs/promises";
+import { mkdtemp, mkdir, rm, readFile, writeFile, symlink } from "fs/promises";
 import os from "os";
 import path from "path";
 import { flattenCitations } from "../src/context/provenance.js";
@@ -219,5 +219,29 @@ describe("materializeSourceWindows — path confinement", () => {
     } finally {
       await rm(noSources, { recursive: true, force: true });
     }
+  });
+
+  it("rejects parent-segment traversal even when it normalizes back inside sources/", async () => {
+    // `nested/../paper.md` would normalize to `paper.md` and pass an
+    // `isInside` check, but it carries a `..` segment a reviewer must
+    // see in the raw citation. Hard-fail the whole path.
+    await writeSource("paper.md", ["one", "two"]);
+    const windows = await materializeSourceWindows(
+      root,
+      [{ file: "nested/../paper.md", start: 1, end: 1 }],
+      createSourceWindowBudget(),
+    );
+    expect(windows).toEqual([]);
+  });
+});
+
+describe("src/context/provenance.ts — file hygiene", () => {
+  it("contains zero NUL bytes (regression guard for the citationKey separator)", async () => {
+    // graph.ts shipped NUL delimiters in an earlier commit; the same
+    // class of bug landed here on first commit (`${citation.file}\x00${start}\x00${end}`).
+    // Pin it byte-for-byte so any future delimiter regression is loud.
+    const raw = await readFile("src/context/provenance.ts");
+    const nulCount = raw.filter((byte) => byte === 0).length;
+    expect(nulCount).toBe(0);
   });
 });
