@@ -27,6 +27,8 @@ import {
   type MockClaudeHandle,
 } from "./fixtures/aimock-helper.js";
 import { runCLI, expectCLIExit, expectCLIFailure, type CLIResult } from "./fixtures/run-cli.js";
+import { useQuickstartProcessLifecycle } from "./fixtures/run-cli-server.js";
+import { LLMWIKI_DIR, LAST_LINT_FILE } from "../src/utils/constants.js";
 
 const aimock = useAimockLifecycle("quickstart");
 
@@ -133,7 +135,9 @@ describe("`llmwiki quickstart --json --no-open` — happy path envelope", () => 
     expect(compile.compiled).toBeGreaterThanOrEqual(1);
   });
 
-  it("always reports viewer.opened=false, viewer.url=null in Slice 2 envelope", async () => {
+  it("always reports viewer.opened=false, viewer.url=null in --json mode", async () => {
+    // --json implies --no-open, so the viewer is never started; the static
+    // envelope shape is the permanent contract for agent consumers.
     const { envelope } = await runJsonHappy();
     expect(envelope.viewer).toEqual({ opened: false, url: null });
   });
@@ -385,5 +389,59 @@ describe("`llmwiki quickstart --lang`", () => {
         .map((m) => m.content as string);
     });
     expect(allSystem.some((p) => p.includes("Write the output in Spanish."))).toBe(true);
+  });
+});
+
+describe("`llmwiki quickstart` — viewer handoff (Slice 3)", () => {
+  const lifecycle = useQuickstartProcessLifecycle();
+
+  it("prints the lifecycle line and hands off to the foreground viewer when pages exist", async () => {
+    const { handle, cwd, fixturePath } = await bootQuickstart(
+      "# Src\n\nViewer-handoff happy path.\n",
+    );
+    // Spawn without --no-open / --json / --review so the start condition
+    // fires. The lifecycle helper sends SIGTERM after the readiness line
+    // so the test never hangs on the foreground viewer.
+    const proc = await lifecycle.start(cwd, [fixturePath], mockClaudeEnv(handle));
+    expect(proc.stdout).toContain("Starting viewer. Press Ctrl+C to stop.");
+    expect(proc.stdout).toMatch(/Viewer ready at http:\/\/127\.0\.0\.1:\d+/);
+    expect(proc.host).toBe("127.0.0.1");
+    expect(proc.port).toBeGreaterThan(0);
+  });
+
+  it("suppresses the `Next:` line when handing off (viewer is the action)", async () => {
+    const { handle, cwd, fixturePath } = await bootQuickstart(
+      "# Src\n\nNext-line suppression test.\n",
+    );
+    const proc = await lifecycle.start(cwd, [fixturePath], mockClaudeEnv(handle));
+    // The human summary still includes the ingest/compile lines, but
+    // the `Next:` block must be absent: the viewer that's about to open
+    // is itself the next action.
+    expect(proc.stdout).toContain("Ingested source");
+    expect(proc.stdout).toContain("Compiled wiki");
+    expect(proc.stdout).not.toMatch(/^Next:$/m);
+  });
+
+  it("preserves a non-view `Next:` recommendation during handoff (lint errors)", async () => {
+    // Seed a populated lint cache with errors BEFORE quickstart runs.
+    // After compile the project state hits lint-attention (errors > 0
+    // outranks wiki-ready), so recommendNextAction returns `llmwiki
+    // lint` — NOT `llmwiki view --open`. The suppression must let that
+    // through even though shouldStartViewer is still true (pages exist,
+    // no --no-open / --json / --review). Regression for the bug where
+    // suppressRedundantViewerNext dropped every Next line, not just the
+    // redundant view-open one.
+    const { handle, cwd, fixturePath } = await bootQuickstart(
+      "# Src\n\nLint-attention-with-handoff test.\n",
+    );
+    await mkdir(path.join(cwd, LLMWIKI_DIR), { recursive: true });
+    const lintCache = { warnings: 1, errors: 3, at: new Date().toISOString() };
+    await writeFile(path.join(cwd, LAST_LINT_FILE), JSON.stringify(lintCache), "utf-8");
+    const proc = await lifecycle.start(cwd, [fixturePath], mockClaudeEnv(handle));
+    expect(proc.stdout).toMatch(/Viewer ready at http:\/\/127\.0\.0\.1:\d+/);
+    expect(proc.stdout).toMatch(/^Next:$/m);
+    expect(proc.stdout).toContain("llmwiki lint");
+    // Sanity: we did NOT echo the redundant view-open recommendation.
+    expect(proc.stdout).not.toContain("llmwiki view --open");
   });
 });

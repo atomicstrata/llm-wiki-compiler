@@ -4,9 +4,9 @@
  *
  * Honours the JSON contract from the next-quickstart implementation plan:
  *   - `version: 1` envelope, incremented independently from `next`.
- *   - `--json` implies `--no-open` and the foreground viewer is never
- *     started. Slice 2 always reports `viewer.opened:false,url:null`;
- *     Slice 3 will replace this with a real foreground handoff.
+ *   - `--json` implies `--no-open` and never starts the foreground viewer.
+ *     `viewer.opened` stays `false` and `viewer.url` stays `null` in JSON
+ *     output, regardless of project state.
  *   - `--review` skips the viewer regardless of `--open` / `--no-open`.
  *   - `compile.ok` is true only when `compileAndReport()` returned and
  *     `CompileResult.errors` is empty. Returned errors land on
@@ -16,6 +16,13 @@
  *     even on compile failure paths. Ingest failures deliberately skip
  *     project inspection and report `pendingCandidates: 0`.
  *
+ * Viewer handoff (Slice 3): in human mode only, when wiki pages exist and
+ * none of `--no-open`, `--json`, or `--review` is set, the human summary
+ * is emitted first, then `Starting viewer. Press Ctrl+C to stop.`, then
+ * `viewCommand({ open: true })` takes over the foreground exactly like
+ * `llmwiki view --open`. The viewer's own `Viewer ready at <url>` line
+ * follows. Ctrl+C / SIGTERM are owned by viewCommand's shutdown handler.
+ *
  * Provider credentials are validated AFTER ingest so a credential-free
  * ingest still preserves the source on disk before quickstart reports
  * the compile failure.
@@ -23,9 +30,11 @@
 
 import path from "path";
 import { ingestSource } from "./ingest.js";
+import viewCommand from "./view.js";
 import { compileAndReport } from "../compiler/index.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { collectProjectState } from "../project/state.js";
+import type { ProjectState } from "../project/state.js";
 import { recommendNextAction } from "../project/recommendations.js";
 import type { RecommendedAction } from "../project/recommendations.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
@@ -77,7 +86,12 @@ interface ErrorEnvelope {
   recoverable: boolean;
 }
 
-/** Viewer sub-envelope. Slice 2 always reports `opened:false,url:null`. */
+/**
+ * Viewer sub-envelope. Stays `{opened:false,url:null}` for the JSON path
+ * because `--json` implies `--no-open`. The human-mode handoff prints
+ * the viewer URL via viewCommand's own readiness line, after the
+ * envelope has already been rendered to stdout.
+ */
 interface ViewerEnvelope {
   opened: boolean;
   url: string | null;
@@ -309,9 +323,9 @@ async function safeCountCandidates(root: string): Promise<number> {
 }
 
 /**
- * Slice 2 never starts the foreground viewer. Slice 3 will swap this for
- * a real handoff guarded by the `viewer start condition`:
- *   wikiPagesExist && !noOpen && !json && !review.
+ * Build the static JSON-side viewer envelope. The handoff path prints
+ * the live viewer URL via viewCommand's own readiness line; the JSON
+ * field stays static because `--json` never starts the viewer.
  */
 function buildViewerEnvelope(): ViewerEnvelope {
   return { opened: false, url: null };
@@ -354,11 +368,12 @@ function finalizeFailure(ctx: FailureContext): number {
 
 /**
  * Print or emit an envelope for a completed (or post-ingest failed)
- * quickstart and return the appropriate exit code. Non-zero only when
- * the failure isn't already covered by the documented partial-success
- * envelope (Slice 2 keeps exit 0 for resumable compile failures so
- * agents reading the JSON envelope drive the recovery; ingest failures
- * are the one exit-1 path and finalize separately).
+ * quickstart, optionally hand off to the foreground viewer, and return
+ * the appropriate exit code. Non-zero only when the failure isn't
+ * already covered by the documented partial-success envelope (resumable
+ * compile failures keep exit 0 so agents reading the JSON envelope
+ * drive the recovery; ingest failures are the one exit-1 path and
+ * finalize separately).
  */
 async function finalizeSuccess(
   run: QuickstartRun,
@@ -366,8 +381,18 @@ async function finalizeSuccess(
   jsonMode: boolean,
   root: string,
 ): Promise<number> {
-  const next = await deriveNextAction(run, options, root);
-  const envelope: QuickstartEnvelope = {
+  const projectState = await safeCollectState(root);
+  const next = deriveNextAction(run, options, projectState);
+  const handoff = shouldStartViewer({ options, jsonMode, compile: run.compile, projectState });
+  const envelope = buildSuccessEnvelope(run, suppressRedundantViewerNext(next, handoff));
+  emitEnvelope(envelope, jsonMode);
+  if (handoff) await handoffToViewer();
+  return 0;
+}
+
+/** Assemble the top-level success envelope from the per-section state. */
+function buildSuccessEnvelope(run: QuickstartRun, next: NextEnvelope): QuickstartEnvelope {
+  return {
     version: QUICKSTART_JSON_VERSION,
     source: run.source,
     ingest: run.ingest,
@@ -375,19 +400,30 @@ async function finalizeSuccess(
     viewer: run.viewer,
     next,
   };
-  emitEnvelope(envelope, jsonMode);
-  return 0;
 }
 
-/** Pick the per-scenario next-action recommendation. */
-async function deriveNextAction(
+/**
+ * Collect the post-compile project state cheaply, returning null on
+ * inspection failure so handoff and recommendation fall back to their
+ * conservative defaults rather than throwing the whole quickstart.
+ */
+async function safeCollectState(root: string): Promise<ProjectState | null> {
+  try {
+    return await collectProjectState(root);
+  } catch {
+    return null;
+  }
+}
+
+/** Pick the per-scenario next-action recommendation using already-collected state. */
+function deriveNextAction(
   run: QuickstartRun,
   options: QuickstartOptions,
-  root: string,
-): Promise<NextEnvelope> {
+  projectState: ProjectState | null,
+): NextEnvelope {
   if (options.review === true && run.compile.ok) return reviewListAction();
   if (!run.compile.ok) return resumeCompileAction(run.compile);
-  return await postCompileRecommendation(root);
+  return postCompileRecommendation(projectState);
 }
 
 /** Fixed recommendation for a successful `--review` run. */
@@ -418,24 +454,87 @@ function resumeCompileAction(compile: CompileEnvelope): NextEnvelope {
  * Use Slice 1's recommendation engine for the happy path so the trailing
  * `next` field stays consistent with what `llmwiki next` would report
  * from the same project state. Falls back to a static view-open hint
- * when the post-compile state inspection itself fails.
+ * when the post-compile state inspection itself failed earlier.
  */
-async function postCompileRecommendation(root: string): Promise<NextEnvelope> {
-  try {
-    const state = await collectProjectState(root);
-    const { recommended } = recommendNextAction(state);
-    return {
-      command: recommended.command,
-      reason: recommended.reason,
-      executable: recommended.executable,
-    };
-  } catch {
+function postCompileRecommendation(projectState: ProjectState | null): NextEnvelope {
+  if (!projectState) {
     return {
       command: "llmwiki view --open",
       reason: "Wiki pages are ready to browse.",
       executable: { binary: "llmwiki", args: ["view", "--open"] },
     };
   }
+  const { recommended } = recommendNextAction(projectState);
+  return {
+    command: recommended.command,
+    reason: recommended.reason,
+    executable: recommended.executable,
+  };
+}
+
+/** Inputs for the viewer-handoff gate; grouped so the predicate stays one screen. */
+interface HandoffGate {
+  options: QuickstartOptions;
+  jsonMode: boolean;
+  compile: CompileEnvelope;
+  projectState: ProjectState | null;
+}
+
+/**
+ * Viewer Lifecycle start condition (plan §Viewer Lifecycle): wiki pages
+ * exist, `--no-open` is false, `--json` is false, and `--review` is
+ * false. Compile must also have completed cleanly — opening the viewer
+ * on a compile-failure path would surface stale or partial wiki state
+ * to the user.
+ */
+function shouldStartViewer(gate: HandoffGate): boolean {
+  if (gate.jsonMode) return false;
+  if (gate.options.open === false) return false;
+  if (gate.options.review === true) return false;
+  if (!gate.compile.ok) return false;
+  if (!gate.projectState) return false;
+  return gate.projectState.conceptCount + gate.projectState.queryCount > 0;
+}
+
+/**
+ * Drop the `Next:` line ONLY when the recommendation is the redundant
+ * `llmwiki view --open` action and the viewer is about to start —
+ * printing it right above the handoff line would just echo the action
+ * that's about to take over the foreground. Other recommendations
+ * (e.g. `llmwiki lint` when a populated lint cache has errors,
+ * `llmwiki review list` when candidates are pending) must survive
+ * handoff so the user still sees the follow-up to run after Ctrl+C.
+ * The JSON envelope is unaffected because handoff only happens in
+ * human mode and `--json` always implies `--no-open`.
+ */
+function suppressRedundantViewerNext(next: NextEnvelope, handoff: boolean): NextEnvelope {
+  if (!handoff) return next;
+  if (!isViewOpenAction(next)) return next;
+  return { command: null, reason: next.reason, executable: null };
+}
+
+/**
+ * True when `next` is the literal `llmwiki view --open` action. Matches
+ * on the executable arg shape rather than the display string so a
+ * future cosmetic tweak to `command` doesn't silently break the
+ * suppression invariant.
+ */
+function isViewOpenAction(next: NextEnvelope): boolean {
+  const args = next.executable?.args;
+  if (!Array.isArray(args) || args.length !== 2) return false;
+  return args[0] === "view" && args[1] === "--open";
+}
+
+/**
+ * Announce the foreground transition, then hand control to viewCommand.
+ * viewCommand resolves once the HTTP server is bound; the listening
+ * socket keeps the event loop alive until SIGINT/SIGTERM lands on
+ * viewCommand's shutdown handler. Quickstart's own promise chain
+ * unwinds normally — we never block past the await here in practice.
+ */
+async function handoffToViewer(): Promise<void> {
+  process.stdout.write("\nStarting viewer. Press Ctrl+C to stop.\n");
+  await viewCommand({ open: true });
 }
 
 /** Emit the envelope as JSON or render a human summary depending on mode. */
