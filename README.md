@@ -22,13 +22,12 @@ export ANTHROPIC_API_KEY=sk-...
 # export LLMWIKI_PROVIDER=openai
 # export OPENAI_API_KEY=sk-...
 
-llmwiki ingest https://some-article.com
-llmwiki compile
+llmwiki quickstart ./notes.md
 llmwiki query "what is X?"
 llmwiki view --open
 ```
 
-In a hurry? `llmwiki quickstart ./notes.md` ingests the source, compiles the wiki, and prints the recommended next step in one go. If you're inside an existing project and unsure what to do next, run `llmwiki next`.
+`llmwiki quickstart ./notes.md` ingests one supported source, compiles the wiki, and opens the local viewer when pages are ready. Use `--no-open` to stop after compile, `--review` to queue candidates instead of writing pages, or `--json` for an agent-friendly envelope. If you're inside an existing project and unsure what to do next, run `llmwiki next`.
 
 
 <br>
@@ -389,10 +388,8 @@ Try it on any article or document:
 
 ```bash
 mkdir my-wiki && cd my-wiki
-llmwiki ingest https://en.wikipedia.org/wiki/Andrej_Karpathy
-llmwiki compile
+llmwiki quickstart https://en.wikipedia.org/wiki/Andrej_Karpathy
 llmwiki query "What terms did Andrej coin?"
-llmwiki view --open
 ```
 
 See `examples/basic/` in the repo for pre-generated output you can browse without an API key.
