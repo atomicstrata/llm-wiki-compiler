@@ -11,14 +11,32 @@
  * builder consumes the same viewer snapshot path that production uses.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { buildContextPack } from "../src/context/build.js";
 import { estimateTokens } from "../src/context/budget.js";
 import { PROMPT_ECHO_MAX_LENGTH } from "../src/context/types.js";
+import { retrieveSemanticChunks } from "../src/context/retrieval.js";
+import type { SemanticChunkHit } from "../src/context/retrieval.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../src/utils/constants.js";
+
+// Stub semantic retrieval at the module boundary so each test can drive
+// build.ts deterministically without touching disk-resident embedding
+// stores. The default `{ hits: [], warning: null }` keeps the legacy
+// Slice 1 lexical-only behaviour byte-for-byte — every existing test
+// runs as if the embedding store does not exist (which is true in the
+// fresh temp roots these tests build).
+vi.mock("../src/context/retrieval.js", () => ({
+  retrieveSemanticChunks: vi.fn(async () => ({ hits: [], warning: null })),
+}));
+const mockedRetrieve = vi.mocked(retrieveSemanticChunks);
+
+beforeEach(() => {
+  mockedRetrieve.mockReset();
+  mockedRetrieve.mockResolvedValue({ hits: [], warning: null });
+});
 
 let tmpDir: string;
 
@@ -219,5 +237,132 @@ describe("buildContextPack — budget envelope", () => {
     expect(estimateTokens("a".repeat(8))).toBe(2);
     expect(estimateTokens("")).toBe(0);
     expect(estimateTokens(null)).toBe(0);
+  });
+});
+
+/**
+ * Build one SemanticChunkHit for `slug` with deterministic text/score.
+ * Used by Slice 2 ranker tests to drive the mocked retrieval without
+ * hand-spelling every field per assertion.
+ */
+function hitFor(slug: string, score: number, suffix = ""): SemanticChunkHit {
+  return {
+    slug,
+    text: `chunk text for ${slug}${suffix}`,
+    score,
+    contentHash: `hash-${slug}${suffix}`,
+  };
+}
+
+describe("buildContextPack — Slice 2 semantic retrieval integration", () => {
+  it("forwards the configured topChunks (default 8) into retrieveSemanticChunks", async () => {
+    await buildContextPack({ root: tmpDir, prompt: "anything" });
+    expect(mockedRetrieve).toHaveBeenCalledTimes(1);
+    const [, , topChunks] = mockedRetrieve.mock.calls[0];
+    expect(topChunks).toBe(8);
+  });
+
+  it("forwards an explicit --top-chunks override into retrieveSemanticChunks", async () => {
+    await buildContextPack({ root: tmpDir, prompt: "x", topChunks: 3 });
+    const [, , topChunks] = mockedRetrieve.mock.calls[0];
+    expect(topChunks).toBe(3);
+  });
+
+  it("passes the FULL ranking prompt (not the truncated echo) to retrieval", async () => {
+    const longPrompt = "a".repeat(PROMPT_ECHO_MAX_LENGTH + 100);
+    await buildContextPack({ root: tmpDir, prompt: longPrompt });
+    const [, promptArg] = mockedRetrieve.mock.calls[0];
+    expect(promptArg).toBe(longPrompt);
+    expect((promptArg as string).length).toBeGreaterThan(PROMPT_ECHO_MAX_LENGTH);
+  });
+
+  it("merges semantic-chunk reason and chunks[] when retrieval returns hits", async () => {
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "retrieval", "Retrieval");
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [hitFor("retrieval", 0.92)],
+      warning: null,
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "unrelated query" });
+    expect(pack.primary.length).toBe(1);
+    expect(pack.primary[0].id).toBe("concepts/retrieval");
+    expect(pack.primary[0].reasons).toContain("semantic-chunk");
+    expect(pack.primary[0].chunks).toHaveLength(1);
+    expect(pack.primary[0].chunks[0]).toEqual({
+      text: "chunk text for retrieval",
+      score: 0.92,
+      contentHash: "hash-retrieval",
+    });
+  });
+
+  it("de-dupes a page that matched both lexically and semantically and unions reasons", async () => {
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "shared", "Shared", "lexical body");
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [hitFor("shared", 0.8)],
+      warning: null,
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "shared" });
+    expect(pack.primary.length).toBe(1);
+    expect(pack.primary[0].reasons).toEqual(
+      expect.arrayContaining(["semantic-chunk", "title-match", "exact-slug", "exact-title"]),
+    );
+    expect(pack.primary[0].chunks).toHaveLength(1);
+  });
+
+  it("attaches multiple chunks for the same page in retrieval order", async () => {
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha");
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [
+        hitFor("alpha", 0.9, "-1"),
+        hitFor("alpha", 0.8, "-2"),
+        hitFor("alpha", 0.7, "-3"),
+      ],
+      warning: null,
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "unrelated" });
+    expect(pack.primary[0].chunks.map((c) => c.contentHash)).toEqual([
+      "hash-alpha-1",
+      "hash-alpha-2",
+      "hash-alpha-3",
+    ]);
+  });
+
+  it("silently drops chunks whose slug is missing from the snapshot", async () => {
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [hitFor("ghost-slug", 0.9)],
+      warning: null,
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "anything" });
+    expect(pack.primary).toEqual([]);
+  });
+
+  it("emits embedding-store-missing warning when retrieval reports the store is unusable", async () => {
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [],
+      warning: "embedding-store-missing",
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "anything" });
+    expect(pack.warnings.map((w) => w.code)).toContain("embedding-store-missing");
+  });
+
+  it("emits query-embedding-unavailable warning when retrieval reports the provider failed", async () => {
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [],
+      warning: "query-embedding-unavailable",
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "anything" });
+    expect(pack.warnings.map((w) => w.code)).toContain("query-embedding-unavailable");
+  });
+
+  it("still ranks lexically when the warning fires (no crash, primary populated by other signals)", async () => {
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha");
+    mockedRetrieve.mockResolvedValueOnce({
+      hits: [],
+      warning: "query-embedding-unavailable",
+    });
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha" });
+    expect(pack.primary.length).toBe(1);
+    expect(pack.primary[0].reasons).toContain("title-match");
+    expect(pack.primary[0].reasons).not.toContain("semantic-chunk");
+    expect(pack.warnings.map((w) => w.code)).toContain("query-embedding-unavailable");
   });
 });

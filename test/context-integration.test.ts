@@ -12,7 +12,14 @@ import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
-import { CONCEPTS_DIR } from "../src/utils/constants.js";
+import {
+  mockOpenAIEnv,
+  useAimockLifecycle,
+  type MockClaudeHandle,
+} from "./fixtures/aimock-helper.js";
+import { CONCEPTS_DIR, EMBEDDINGS_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
+
+const aimock = useAimockLifecycle("context-cli");
 
 let tmpDir: string;
 
@@ -41,6 +48,19 @@ async function runJsonContext(
   return JSON.parse(result.stdout) as Record<string, unknown>;
 }
 
+/** Extract the stable list of `warnings[].code` values from a JSON payload. */
+function warningCodesOf(payload: Record<string, unknown>): string[] {
+  const warnings = payload.warnings as Array<Record<string, unknown>>;
+  return warnings.map((w) => w.code as string);
+}
+
+/** Assert primary[] is non-empty and return the first entry for further assertions. */
+function firstPrimary(payload: Record<string, unknown>): Record<string, unknown> {
+  const primary = payload.primary as Array<Record<string, unknown>>;
+  expect(primary.length).toBeGreaterThanOrEqual(1);
+  return primary[0];
+}
+
 describe("`llmwiki context --json` — JSON envelope", () => {
   it("returns version 1 and stable top-level field set on an empty wiki", async () => {
     const payload = await runJsonContext("anything");
@@ -61,11 +81,11 @@ describe("`llmwiki context --json` — JSON envelope", () => {
   it("classifies a seeded page lexically and surfaces matchedIn-derived reasons", async () => {
     await seedConcept("retrieval", "Retrieval");
     const payload = await runJsonContext("retrieval");
-    const primary = payload.primary as Array<Record<string, unknown>>;
-    expect(primary.length).toBe(1);
-    expect(primary[0].id).toBe("concepts/retrieval");
-    const reasons = primary[0].reasons as string[];
-    expect(reasons).toEqual(expect.arrayContaining(["title-match", "exact-slug", "exact-title"]));
+    const top = firstPrimary(payload);
+    expect(top.id).toBe("concepts/retrieval");
+    expect(top.reasons as string[]).toEqual(
+      expect.arrayContaining(["title-match", "exact-slug", "exact-title"]),
+    );
   });
 
   it("emits no ANSI escape sequences in --json output", async () => {
@@ -140,5 +160,150 @@ describe("`llmwiki context` — defaults", () => {
     const payload = await runJsonContext("anything", ["--budget", "1234"]);
     const budget = payload.budget as Record<string, unknown>;
     expect(budget.requestedTokens).toBe(1234);
+  });
+});
+
+/**
+ * Seed a v2 embedding store with one chunk that has a known vector and
+ * model. The model defaults to what `mockOpenAIEnv` configures
+ * (`text-embedding-3-small`) so the active-model check inside
+ * `loadActiveStore` passes for aimock-driven runs. Pass an override
+ * (e.g. `voyage-3-lite`) for tests that drive the anthropic fallback.
+ */
+async function seedEmbeddingStore(
+  root: string,
+  options: { model?: string; vector?: number[] } = {},
+): Promise<void> {
+  const vector = options.vector ?? [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+  const store = {
+    version: 2,
+    model: options.model ?? "text-embedding-3-small",
+    dimensions: vector.length,
+    entries: [
+      {
+        slug: "retrieval",
+        title: "Retrieval",
+        summary: "Page-level embedding for retrieval.",
+        vector,
+        updatedAt: "2026-05-24T00:00:00.000Z",
+      },
+    ],
+    chunks: [
+      {
+        slug: "retrieval",
+        title: "Retrieval",
+        chunkIndex: 0,
+        contentHash: "seeded-hash",
+        text: "Seeded chunk body about retrieval.",
+        vector,
+        updatedAt: "2026-05-24T00:00:00.000Z",
+      },
+    ],
+  };
+  await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+  await writeFile(
+    path.join(root, EMBEDDINGS_FILE),
+    JSON.stringify(store, null, 2),
+    "utf-8",
+  );
+}
+
+/** Strip any inherited provider creds so the test sees a clean fallback. */
+function noCredentialsEnv(): NodeJS.ProcessEnv {
+  return {
+    LLMWIKI_PROVIDER: "anthropic",
+    ANTHROPIC_API_KEY: "",
+    ANTHROPIC_AUTH_TOKEN: "",
+    VOYAGE_API_KEY: "",
+    LLMWIKI_CLAUDE_SETTINGS_PATH: "/path/that/does/not/exist.json",
+  };
+}
+
+describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
+  it("emits embedding-store-missing when no .llmwiki/embeddings.json exists", async () => {
+    await seedConcept("alpha", "Alpha");
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    // Lexical signals still rank the page even without semantic input.
+    firstPrimary(payload);
+  });
+
+  it("emits embedding-store-missing when the store has no chunks (v1 / empty v2)", async () => {
+    await seedConcept("alpha", "Alpha");
+    // Seed an empty v2 store — the wrapper's pre-check treats it as unusable.
+    await mkdir(path.join(tmpDir, LLMWIKI_DIR), { recursive: true });
+    await writeFile(
+      path.join(tmpDir, EMBEDDINGS_FILE),
+      JSON.stringify({
+        version: 2,
+        model: "text-embedding-3-small",
+        dimensions: 4,
+        entries: [],
+        chunks: [],
+      }),
+      "utf-8",
+    );
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+  });
+
+  it("emits query-embedding-unavailable when the provider has no credentials", async () => {
+    await seedConcept("alpha", "Alpha");
+    // Seed a valid v2 store with the anthropic embedding model so the
+    // active-model check passes; embed() then throws when VOYAGE_API_KEY
+    // is missing and the wrapper translates the throw into a stable warning.
+    await seedEmbeddingStore(tmpDir, { model: "voyage-3-lite" });
+    const result = await runCLI(
+      ["context", "alpha", "--json"],
+      tmpDir,
+      noCredentialsEnv(),
+    );
+    expectCLIExit(result, 0);
+    const payload = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(warningCodesOf(payload)).toContain("query-embedding-unavailable");
+    // Lexical fallback still places the page.
+    firstPrimary(payload);
+  });
+});
+
+describe("`llmwiki context` — Slice 2 semantic success via aimock", () => {
+  /** Register a canned embedding response on the aimock server. */
+  function registerEmbedding(handle: MockClaudeHandle, vector: number[]): void {
+    handle.mock.onEmbedding(/.*/, { embedding: vector });
+  }
+
+  it("attaches semantic-chunk reason and populated chunks[] when retrieval succeeds", async () => {
+    // Use the per-aimock workspace so the fixture lifecycle owns cleanup
+    // (independent of the file-level beforeEach/afterEach tmpDir).
+    const handle = await aimock.start();
+    const vector = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+    registerEmbedding(handle, vector);
+    const cwd = await aimock.makeWorkspace("# placeholder\n", "placeholder.md");
+    await mkdir(path.join(cwd, CONCEPTS_DIR), { recursive: true });
+    await writeFile(
+      path.join(cwd, CONCEPTS_DIR, "retrieval.md"),
+      "---\ntitle: Retrieval\n---\n\nbody\n",
+      "utf-8",
+    );
+    await seedEmbeddingStore(cwd, { vector });
+    const result = await runCLI(
+      ["context", "totally unrelated question", "--json", "--top-chunks", "2"],
+      cwd,
+      mockOpenAIEnv(handle),
+    );
+    expectCLIExit(result, 0);
+    const payload = JSON.parse(result.stdout) as Record<string, unknown>;
+    const top = firstPrimary(payload);
+    expect(top.id).toBe("concepts/retrieval");
+    expect(top.reasons as string[]).toContain("semantic-chunk");
+    const chunks = top.chunks as Array<Record<string, unknown>>;
+    expect(chunks.length).toBe(1);
+    expect(chunks[0].text).toBe("Seeded chunk body about retrieval.");
+    expect(chunks[0].contentHash).toBe("seeded-hash");
+    expect(typeof chunks[0].score).toBe("number");
+    // No fallback warnings should fire when retrieval succeeded.
+    const codes = warningCodesOf(payload);
+    expect(codes).not.toContain("embedding-store-missing");
+    expect(codes).not.toContain("query-embedding-unavailable");
   });
 });

@@ -27,6 +27,8 @@ import type { Recommendation, RecommendedAction } from "../project/recommendatio
 import type { ProjectState } from "../project/state.js";
 import type { ViewerSnapshot } from "../viewer/types.js";
 import { rankPages } from "./ranking.js";
+import { retrieveSemanticChunks } from "./retrieval.js";
+import type { SemanticRetrievalOutcome, SemanticRetrievalWarning } from "./retrieval.js";
 import { buildBudget, estimatePackTokens } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
@@ -70,7 +72,22 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   const snapshot = await buildViewerSnapshot(options.root);
   const state = await collectProjectState(options.root);
   const recommendation = recommendNextAction(state);
-  const draft = assembleDraft({ snapshot, state, recommendation, options: normalized });
+  // Semantic retrieval is opportunistic — failures surface as stable
+  // warning codes on the returned outcome rather than thrown errors so
+  // lexical-only flows stay the default behaviour for credential-free
+  // users.
+  const semantic = await retrieveSemanticChunks(
+    options.root,
+    normalized.rankingPrompt,
+    normalized.topChunks,
+  );
+  const draft = assembleDraft({
+    snapshot,
+    state,
+    recommendation,
+    options: normalized,
+    semantic,
+  });
   return finalizeBudget(draft, normalized.budget);
 }
 
@@ -144,11 +161,12 @@ interface AssembleInput {
   state: ProjectState;
   recommendation: Recommendation;
   options: NormalizedOptions;
+  semantic: SemanticRetrievalOutcome;
 }
 
 /** Build the unbudgeted draft pack before token-budget finalization. */
 function assembleDraft(input: AssembleInput): ContextPack {
-  const { snapshot, state, recommendation, options } = input;
+  const { snapshot, state, recommendation, options, semantic } = input;
   const project = buildProject(snapshot, state, options.omitRoot);
   return {
     version: 1,
@@ -157,9 +175,9 @@ function assembleDraft(input: AssembleInput): ContextPack {
     project,
     // Rank against the ORIGINAL prompt — the truncated echo is a
     // display-only courtesy and must not silently drop ranking signal.
-    primary: rankPages(snapshot, options.rankingPrompt, options.topPages),
+    primary: rankPages(snapshot, options.rankingPrompt, options.topPages, semantic.hits),
     neighbors: [],
-    warnings: buildTopLevelWarnings(options.promptTruncated),
+    warnings: buildTopLevelWarnings(options.promptTruncated, semantic.warning),
     gaps: [],
     suggestedActions: collectSuggestedActions(recommendation),
   };
@@ -179,13 +197,36 @@ function buildProject(
   };
 }
 
-/** Top-level state warnings emitted in Slice 1. Only prompt truncation lands here today. */
-function buildTopLevelWarnings(promptTruncated: boolean): ContextWarning[] {
+/**
+ * Top-level state warnings. Slice 1 wired `truncated-prompt`; Slice 2
+ * adds the two semantic-retrieval fallback codes so consumers can tell
+ * "lexical-only because no embeddings on disk" apart from "lexical-only
+ * because the provider rejected our embed call."
+ */
+function buildTopLevelWarnings(
+  promptTruncated: boolean,
+  retrievalWarning: SemanticRetrievalWarning | null,
+): ContextWarning[] {
   const warnings: ContextWarning[] = [];
   if (promptTruncated) {
     warnings.push({
       code: "truncated-prompt",
       message: `Prompt exceeded ${PROMPT_ECHO_MAX_LENGTH} characters; the echoed copy was truncated.`,
+    });
+  }
+  if (retrievalWarning === "embedding-store-missing") {
+    warnings.push({
+      code: "embedding-store-missing",
+      message:
+        "No usable embedding store found; semantic retrieval skipped. " +
+        "Run `llmwiki compile` to populate embeddings.",
+    });
+  } else if (retrievalWarning === "query-embedding-unavailable") {
+    warnings.push({
+      code: "query-embedding-unavailable",
+      message:
+        "Could not embed the prompt with the active provider; " +
+        "semantic retrieval skipped, lexical signals still applied.",
     });
   }
   return warnings;
