@@ -26,6 +26,7 @@
 import { searchPages } from "../viewer/search.js";
 import type { ViewerPage, ViewerSnapshot } from "../viewer/types.js";
 import type { SemanticChunkHit } from "./retrieval.js";
+import { flattenCitations } from "./provenance.js";
 import type { ContextPrimary, PrimaryReason } from "./types.js";
 
 /** Per-signal weight (sums normalize so an exact-title hit lands near 1.0). */
@@ -222,7 +223,24 @@ function compareRows(a: RankingRow, b: RankingRow): number {
   return a.page.id.localeCompare(b.page.id);
 }
 
-/** Convert a ranking row into a ContextPrimary; later-slice fields still placeholder. */
+/**
+ * Convert a ranking row into a ContextPrimary.
+ *
+ * Slice 4 fills `citations` from the viewer collector's already-parsed
+ * `ClaimCitation[]` (one object per source span, paragraph-only spans
+ * keep no line range, multi-source markers split, deduped by
+ * `(file,start,end)`, document-order preserved).
+ *
+ * Page-local `warnings` was wired in Slice 1; it forwards the same
+ * `ViewerWarning` objects the viewer surfaces, so any malformed-frontmatter
+ * or unresolved-citation diagnostic the viewer already knows about
+ * lands in the context pack automatically.
+ *
+ * `sourceWindows` stays empty here — the orchestrator owns the
+ * per-pack budget and writes windows back into the primary entries
+ * after ranking, so the ranker remains a pure function over the
+ * snapshot.
+ */
 function rowToPrimary(row: RankingRow): ContextPrimary {
   return {
     id: row.page.id,
@@ -232,7 +250,7 @@ function rowToPrimary(row: RankingRow): ContextPrimary {
     reasons: Array.from(row.reasons).sort(),
     summary: row.snippet,
     chunks: row.chunks,
-    citations: [],
+    citations: flattenCitations(row.page.citations),
     sourceWindows: [],
     warnings: row.page.warnings.map((w) => ({ code: w.code, message: w.message })),
   };

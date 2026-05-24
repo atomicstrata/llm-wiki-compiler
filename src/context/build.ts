@@ -31,6 +31,10 @@ import { retrieveSemanticChunks } from "./retrieval.js";
 import type { SemanticRetrievalOutcome, SemanticRetrievalWarning } from "./retrieval.js";
 import { expandGraphNeighborhood } from "./graph.js";
 import type { GraphExpansionOutput } from "./graph.js";
+import {
+  createSourceWindowBudget,
+  materializeSourceWindows,
+} from "./provenance.js";
 import type { PageId } from "../viewer/types.js";
 import { buildBudget, estimatePackTokens } from "./budget.js";
 import {
@@ -65,6 +69,8 @@ interface BuildContextPackOptions {
   omitRoot?: boolean;
   /** When false, graph expansion is suppressed (neighbors + gaps stay empty). */
   neighbors?: boolean;
+  /** When true, populate `primary[].sourceWindows` from claim-level citation spans. */
+  includeSources?: boolean;
 }
 
 /**
@@ -93,7 +99,34 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
     options: normalized,
     semantic,
   });
-  return finalizeBudget(draft, normalized.budget);
+  // Source windows are materialized AFTER ranking so the per-pack
+  // budget sees the final primary list, not every candidate.
+  // Skipped entirely when `--include-sources` is off.
+  const withSources = normalized.includeSources
+    ? await attachSourceWindows(draft, options.root)
+    : draft;
+  return finalizeBudget(withSources, normalized.budget);
+}
+
+/**
+ * Walk the ranked primary list once with a shared
+ * {@link createSourceWindowBudget}, filling in each entry's
+ * `sourceWindows` from its (already-flattened) claim-level citations.
+ * Pages without claim-level spans (paragraph-only or no citations)
+ * return empty windows; the global 20-window cap is enforced as the
+ * walk progresses.
+ */
+async function attachSourceWindows(pack: ContextPack, root: string): Promise<ContextPack> {
+  const budget = createSourceWindowBudget();
+  // Serial loop — `budget.remaining` is mutated between awaits inside
+  // `materializeSourceWindows`, so running pages in parallel would
+  // race on the shared counter and overshoot the 20-window cap.
+  const primary: ContextPack["primary"] = [];
+  for (const entry of pack.primary) {
+    const windows = await materializeSourceWindows(root, entry.citations, budget);
+    primary.push({ ...entry, sourceWindows: windows });
+  }
+  return { ...pack, primary };
 }
 
 /**
@@ -124,6 +157,7 @@ interface NormalizedOptions {
   topChunks: number;
   omitRoot: boolean;
   neighborsEnabled: boolean;
+  includeSources: boolean;
   promptTruncated: boolean;
 }
 
@@ -142,6 +176,7 @@ function normalizeOptions(options: BuildContextPackOptions): NormalizedOptions {
     // `--no-neighbors` is a Commander negated flag: absence means
     // expansion is ON; only `options.neighbors === false` disables it.
     neighborsEnabled: options.neighbors !== false,
+    includeSources: options.includeSources === true,
     promptTruncated: truncated,
   };
 }

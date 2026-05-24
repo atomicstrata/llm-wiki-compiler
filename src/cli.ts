@@ -269,6 +269,10 @@ program
   .option("--top-chunks <n>", "Max semantic chunks (default 8, Slice 2+)")
   .option("--omit-root", "Emit project.root as null for privacy")
   .option("--no-neighbors", "Suppress graph expansion (keeps neighbors/gaps as empty arrays)")
+  .option(
+    "--include-sources",
+    "Populate primary[].sourceWindows from claim-level citation spans (max 20 windows, 30 lines each)",
+  )
   .action(async (prompt: string, options: ContextCommandOptions) =>
     runExitCodeCommand(() => contextCommand(prompt, options)),
   );

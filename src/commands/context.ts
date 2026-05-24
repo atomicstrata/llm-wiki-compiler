@@ -50,6 +50,14 @@ export interface ContextCommandOptions {
    * and both `neighbors[]` and `gaps[]` stay empty arrays.
    */
   neighbors?: boolean;
+  /**
+   * When true (`--include-sources`), populate
+   * `primary[].sourceWindows` from claim-level citation spans, capped
+   * at 20 windows per pack and 30 lines per window. Path-confined to
+   * `sources/`; absolute paths, parent traversal, and symlink escapes
+   * are rejected. Off by default to keep the JSON small.
+   */
+  includeSources?: boolean;
 }
 
 /**
@@ -70,6 +78,7 @@ export default async function contextCommand(
     topChunks: coerceNumber(options.topChunks, DEFAULT_TOP_CHUNKS),
     omitRoot: options.omitRoot === true,
     neighbors: options.neighbors,
+    includeSources: options.includeSources === true,
   });
   emit(pack, resolveFormat(options));
   return 0;
@@ -138,7 +147,36 @@ function appendPrimaryPage(lines: string[], page: ContextPrimary): void {
     lines.push("");
     lines.push(page.summary);
   }
+  appendCitations(lines, page);
+  appendSourceWindows(lines, page);
   lines.push("");
+}
+
+/** `Sources: a.md:1-3, b.md` line — omitted when no citations exist. */
+function appendCitations(lines: string[], page: ContextPrimary): void {
+  if (page.citations.length === 0) return;
+  const refs = page.citations.map(renderCitation).join(", ");
+  lines.push("");
+  lines.push(`Sources: ${refs}`);
+}
+
+/** Single citation reference string for the human renderer. */
+function renderCitation(citation: ContextPrimary["citations"][number]): string {
+  if (citation.start !== undefined && citation.end !== undefined) {
+    return `\`${citation.file}:${citation.start}-${citation.end}\``;
+  }
+  return `\`${citation.file}\``;
+}
+
+/** `> source.md:1-3` quoted blocks for each materialized source window. */
+function appendSourceWindows(lines: string[], page: ContextPrimary): void {
+  if (page.sourceWindows.length === 0) return;
+  for (const window of page.sourceWindows) {
+    lines.push("");
+    lines.push(`From \`${window.file}:${window.start}-${window.end}\`:`);
+    lines.push("");
+    for (const line of window.text.split(/\r?\n/)) lines.push(`> ${line}`);
+  }
 }
 
 /** Page ID is `<directory>/<slug>`; pull the slug out for the filename hint. */

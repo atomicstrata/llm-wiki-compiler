@@ -12,6 +12,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
+import { runContextJson } from "./fixtures/context-cli-helpers.js";
 import {
   mockOpenAIEnv,
   useAimockLifecycle,
@@ -38,14 +39,12 @@ async function seedConcept(slug: string, title: string, body: string = ""): Prom
   await writeFile(path.join(tmpDir, CONCEPTS_DIR, `${slug}.md`), content, "utf-8");
 }
 
-/** Run `llmwiki context <prompt> [args...] --json`, assert exit 0, return parsed payload. */
+/** Local wrapper that forwards to the shared helper with this file's tmpDir. */
 async function runJsonContext(
   prompt: string,
   extra: string[] = [],
 ): Promise<Record<string, unknown>> {
-  const result = await runCLI(["context", prompt, ...extra, "--json"], tmpDir);
-  expectCLIExit(result, 0);
-  return JSON.parse(result.stdout) as Record<string, unknown>;
+  return runContextJson(tmpDir, prompt, extra);
 }
 
 /** Extract the stable list of `warnings[].code` values from a JSON payload. */
