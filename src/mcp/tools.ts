@@ -266,64 +266,108 @@ function registerStatusTool(server: McpServer, root: string): void {
  * inside `buildContextPack` and falls back to lexical with a stable
  * warning when credentials are missing. The pack is read-only and
  * never mutates the workspace, so the MCP layer needs no extra checks.
+ *
+ * The body is split into `contextPackToolConfig` (static metadata) and
+ * `buildContextPackFromArgs` (the per-call adapter) so this function
+ * stays inside the project's 40-line function ceiling.
  */
 function registerContextPackTool(server: McpServer, root: string): void {
   server.registerTool(
     "get_context_pack",
-    {
-      title: "Get Context Pack",
-      description:
-        "Build an agent-ready evidence pack for `prompt` over the compiled " +
-        "wiki: primary pages, semantic chunks, graph neighbors, citations, " +
-        "warnings, and suggested next actions. Returns the same v1 JSON " +
-        "envelope as `llmwiki context --json`. Read-only; no provider " +
-        "credentials required. Use this to PREPARE evidence; use " +
-        "`query_wiki` to GENERATE a grounded natural-language answer.",
-      inputSchema: {
-        prompt: z.string().describe("Free-text task or topic to assemble context for."),
-        budget: z
-          .number()
-          .optional()
-          .describe("Approximate output token budget (default 8000)."),
-        depth: z
-          .number()
-          .optional()
-          .describe("Graph neighborhood depth, 0..2 (default 1, 0 disables expansion)."),
-        topPages: z
-          .number()
-          .optional()
-          .describe("Max primary pages (default 5)."),
-        topChunks: z
-          .number()
-          .optional()
-          .describe("Max semantic chunks to surface (default 8)."),
-        omitRoot: z
-          .boolean()
-          .optional()
-          .describe("Emit `project.root` as null instead of the absolute path."),
-        includeSources: z
-          .boolean()
-          .optional()
-          .describe(
-            "Materialize `primary[].sourceWindows` from claim-level citations " +
-              "(reads files under `sources/` only; path-confined).",
-          ),
-      },
-    },
-    async (args) => {
-      const pack = await buildContextPack({
-        root,
-        prompt: args.prompt,
-        budget: args.budget,
-        depth: args.depth,
-        topPages: args.topPages,
-        topChunks: args.topChunks,
-        omitRoot: args.omitRoot,
-        includeSources: args.includeSources,
-      });
-      return jsonResult(pack);
-    },
+    contextPackToolConfig(),
+    async (args) => jsonResult(await buildContextPackFromArgs(root, args)),
   );
+}
+
+/** Inline arg shape for {@link buildContextPackFromArgs}; matches `contextPackInputSchema`. */
+interface ContextPackToolArgs {
+  prompt: string;
+  budget?: number;
+  depth?: number;
+  topPages?: number;
+  topChunks?: number;
+  omitRoot?: boolean;
+  includeSources?: boolean;
+}
+
+/** Static `registerTool` metadata for `get_context_pack`. */
+function contextPackToolConfig(): {
+  title: string;
+  description: string;
+  inputSchema: ReturnType<typeof contextPackInputSchema>;
+} {
+  return {
+    title: "Get Context Pack",
+    description:
+      "Build an agent-ready evidence pack for `prompt` over the compiled " +
+      "wiki: primary pages, semantic chunks, graph neighbors, citations, " +
+      "warnings, and suggested next actions. Returns the same v1 JSON " +
+      "envelope as `llmwiki context --json`. Read-only; no provider " +
+      "credentials required. Use this to PREPARE evidence; use " +
+      "`query_wiki` to GENERATE a grounded natural-language answer.",
+    inputSchema: contextPackInputSchema(),
+  };
+}
+
+/**
+ * Zod schema for the `get_context_pack` tool arguments. Extracted so
+ * the registration function stays under the project's per-function
+ * line ceiling and so the schema can be unit-tested in isolation if
+ * we ever need to.
+ */
+function contextPackInputSchema(): {
+  prompt: z.ZodString;
+  budget: z.ZodOptional<z.ZodNumber>;
+  depth: z.ZodOptional<z.ZodNumber>;
+  topPages: z.ZodOptional<z.ZodNumber>;
+  topChunks: z.ZodOptional<z.ZodNumber>;
+  omitRoot: z.ZodOptional<z.ZodBoolean>;
+  includeSources: z.ZodOptional<z.ZodBoolean>;
+} {
+  return {
+    prompt: z.string().describe("Free-text task or topic to assemble context for."),
+    budget: z
+      .number()
+      .optional()
+      .describe("Approximate output token budget (default 8000)."),
+    depth: z
+      .number()
+      .optional()
+      .describe("Graph neighborhood depth, 0..2 (default 1, 0 disables expansion)."),
+    topPages: z.number().optional().describe("Max primary pages (default 5)."),
+    topChunks: z
+      .number()
+      .optional()
+      .describe("Max semantic chunks to surface (default 8)."),
+    omitRoot: z
+      .boolean()
+      .optional()
+      .describe("Emit `project.root` as null instead of the absolute path."),
+    includeSources: z
+      .boolean()
+      .optional()
+      .describe(
+        "Materialize `primary[].sourceWindows` from claim-level citations " +
+          "(reads files under `sources/` only; path-confined).",
+      ),
+  };
+}
+
+/** Per-call adapter that fans the tool args into `buildContextPack`. */
+async function buildContextPackFromArgs(
+  root: string,
+  args: ContextPackToolArgs,
+): Promise<Awaited<ReturnType<typeof buildContextPack>>> {
+  return buildContextPack({
+    root,
+    prompt: args.prompt,
+    budget: args.budget,
+    depth: args.depth,
+    topPages: args.topPages,
+    topChunks: args.topChunks,
+    omitRoot: args.omitRoot,
+    includeSources: args.includeSources,
+  });
 }
 
 /** Read-only status snapshot used by the wiki_status tool. */

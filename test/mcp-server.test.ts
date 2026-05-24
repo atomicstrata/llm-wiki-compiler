@@ -5,36 +5,46 @@
  * mirroring what an MCP client would invoke over the wire.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { describe, it, expect, beforeEach } from "vitest";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import os from "os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerWikiTools, readPage } from "../src/mcp/tools.js";
-import { registerWikiResources } from "../src/mcp/resources.js";
-import { buildContextPack } from "../src/context/build.js";
+import { readPage } from "../src/mcp/tools.js";
 import { writePage } from "./fixtures/write-page.js";
+import {
+  buildServer as buildSharedServer,
+  callTool as callSharedTool,
+  snapshotWorkspace,
+  useMcpRoot,
+} from "./fixtures/mcp-test-env.js";
 
+const rootHandle = useMcpRoot("llmwiki-mcp");
+/**
+ * Mirror the shared fixture's temp-root path into a file-local
+ * binding so the existing per-test bodies keep their `root` ergonomics.
+ * This beforeEach runs AFTER `useMcpRoot`'s, which is the one that
+ * creates the temp directory and assigns `rootHandle.value`.
+ */
 let root: string;
-
-beforeEach(async () => {
-  root = path.join(os.tmpdir(), `llmwiki-mcp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  await mkdir(path.join(root, "wiki/concepts"), { recursive: true });
-  await mkdir(path.join(root, "wiki/queries"), { recursive: true });
-  await mkdir(path.join(root, "sources"), { recursive: true });
-  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+beforeEach(() => {
+  root = rootHandle.value;
 });
 
-afterEach(async () => {
-  await rm(root, { recursive: true, force: true });
-});
-
-/** Build a fresh McpServer with all wiki tools and resources registered. */
+/** Local thin wrapper so the per-test bodies keep their `buildServer()` ergonomics. */
 function buildServer(): McpServer {
-  const server = new McpServer({ name: "llmwiki-test", version: "0.0.0" });
-  registerWikiTools(server, root);
-  registerWikiResources(server, root);
-  return server;
+  return buildSharedServer(root);
+}
+
+/** Local thin wrapper around the shared MCP tool caller. */
+async function callTool(
+  server: McpServer,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{
+  content: Array<{ type: string; text: string }>;
+  structuredContent?: { result: unknown };
+}> {
+  return callSharedTool(server, name, args);
 }
 
 /** Internal helper: read the server's registered-tool map. */
@@ -50,17 +60,6 @@ function getRegisteredResources(server: McpServer): Record<string, unknown> {
 /** Internal helper: read the server's registered resource-template map. */
 function getRegisteredResourceTemplates(server: McpServer): Record<string, unknown> {
   return (server as unknown as { _registeredResourceTemplates: Record<string, unknown> })._registeredResourceTemplates;
-}
-
-/** Invoke a registered tool's handler and return its raw result. */
-async function callTool(
-  server: McpServer,
-  name: string,
-  args: Record<string, unknown>,
-): Promise<{ content: Array<{ type: string; text: string }>; structuredContent?: { result: unknown } }> {
-  const tools = getRegisteredTools(server);
-  const tool = tools[name] as { handler: (args: Record<string, unknown>) => Promise<unknown> };
-  return tool.handler(args) as Promise<{ content: Array<{ type: string; text: string }>; structuredContent?: { result: unknown } }>;
 }
 
 describe("MCP server tool registration", () => {
@@ -224,153 +223,6 @@ describe("wiki_status tool", () => {
   });
 });
 
-describe("get_context_pack tool", () => {
-  /**
-   * Suppress every Anthropic/OpenAI credential the host shell might
-   * have set so the tool exercises the documented credential-free
-   * path. Returns a restorer for `afterEach`-style cleanup.
-   */
-  function stripProviderEnv(): () => void {
-    const previous: Record<string, string | undefined> = {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      VOYAGE_API_KEY: process.env.VOYAGE_API_KEY,
-      LLMWIKI_CLAUDE_SETTINGS_PATH: process.env.LLMWIKI_CLAUDE_SETTINGS_PATH,
-    };
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_AUTH_TOKEN;
-    delete process.env.OPENAI_API_KEY;
-    delete process.env.VOYAGE_API_KEY;
-    process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-settings.json");
-    return () => {
-      for (const [key, value] of Object.entries(previous)) {
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-      }
-    };
-  }
-
-  /**
-   * Seed one concept page and call `get_context_pack` against it.
-   * Centralised so the per-test bodies stay focused on the assertion
-   * that differentiates them, and so fallow does not flag the
-   * seed+call pair as duplication across sibling tests.
-   */
-  async function seedRetrievalAndCall(): Promise<{
-    pack: Record<string, unknown>;
-    result: Awaited<ReturnType<typeof callTool>>;
-  }> {
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "retrieval",
-      { title: "Retrieval", summary: "How retrieval works" },
-      "Body content.",
-    );
-    const server = buildServer();
-    const result = await callTool(server, "get_context_pack", { prompt: "retrieval" });
-    return { pack: result.structuredContent?.result as Record<string, unknown>, result };
-  }
-
-  it("returns v1 envelope with the stable top-level field set over a seeded wiki page", async () => {
-    const { pack, result } = await seedRetrievalAndCall();
-    expect(pack.version).toBe(1);
-    expect(Object.keys(pack)).toEqual([
-      "version",
-      "prompt",
-      "budget",
-      "project",
-      "primary",
-      "neighbors",
-      "warnings",
-      "gaps",
-      "suggestedActions",
-    ]);
-    // structuredContent and the text content block must agree byte-for-byte.
-    expect(JSON.parse(result.content[0].text)).toEqual(pack);
-  });
-
-  it("matches buildContextPack() output byte-for-byte for the same inputs", async () => {
-    const { pack } = await seedRetrievalAndCall();
-    const fromCli = await buildContextPack({ root, prompt: "retrieval" });
-    expect(pack).toEqual(fromCli);
-  });
-
-  it("omitRoot=true keeps project.root present and sets it to null", async () => {
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "alpha",
-      { title: "Alpha", summary: "" },
-      "body",
-    );
-    const server = buildServer();
-    const result = await callTool(server, "get_context_pack", {
-      prompt: "alpha",
-      omitRoot: true,
-    });
-    const pack = result.structuredContent?.result as { project: Record<string, unknown> };
-    expect(Object.keys(pack.project)).toContain("root");
-    expect(pack.project.root).toBeNull();
-  });
-
-  it("includeSources=true materializes sourceWindows for a claim-level citation", async () => {
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "alpha",
-      { title: "Alpha", summary: "" },
-      "Cited prose. ^[paper.md:2-4]",
-    );
-    await writeFile(
-      path.join(root, "sources", "paper.md"),
-      ["one", "two", "three", "four", "five"].join("\n"),
-      "utf-8",
-    );
-    const server = buildServer();
-    const result = await callTool(server, "get_context_pack", {
-      prompt: "alpha",
-      includeSources: true,
-    });
-    const pack = result.structuredContent?.result as {
-      primary: Array<{ sourceWindows: Array<Record<string, unknown>> }>;
-    };
-    expect(pack.primary[0].sourceWindows).toEqual([
-      { file: "paper.md", start: 2, end: 4, text: "two\nthree\nfour" },
-    ]);
-  });
-
-  it("works without provider credentials (semantic retrieval falls back silently)", async () => {
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "alpha",
-      { title: "Alpha", summary: "" },
-      "body",
-    );
-    const restore = stripProviderEnv();
-    try {
-      const server = buildServer();
-      const result = await callTool(server, "get_context_pack", { prompt: "alpha" });
-      const pack = result.structuredContent?.result as { version: number };
-      expect(pack.version).toBe(1);
-    } finally {
-      restore();
-    }
-  });
-
-  it("does not mutate project files", async () => {
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "alpha",
-      { title: "Alpha", summary: "" },
-      "body",
-    );
-    const beforeFiles = await snapshotWorkspace(root);
-    const server = buildServer();
-    await callTool(server, "get_context_pack", { prompt: "alpha" });
-    const afterFiles = await snapshotWorkspace(root);
-    expect(afterFiles).toEqual(beforeFiles);
-  });
-});
-
 describe("error handling", () => {
   it("query_wiki throws when wiki state is missing", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
@@ -462,23 +314,4 @@ describe("MCP resources", () => {
     expect(parsed).toMatchObject({ slug: "what-is-x", body: "Saved query body." });
   });
 });
-
-/** Snapshot every file under root by relative path so we can detect mutations. */
-async function snapshotWorkspace(rootDir: string): Promise<string[]> {
-  const { readdir } = await import("fs/promises");
-  const entries: string[] = [];
-  async function walk(dir: string): Promise<void> {
-    const items = await readdir(dir, { withFileTypes: true });
-    for (const item of items) {
-      const full = path.join(dir, item.name);
-      if (item.isDirectory()) {
-        await walk(full);
-      } else {
-        entries.push(path.relative(rootDir, full));
-      }
-    }
-  }
-  await walk(rootDir);
-  return entries.sort();
-}
 
