@@ -421,6 +421,48 @@ describe("`llmwiki context` — Slice 3 graph neighborhood expansion (CLI)", () 
     expect(result.stdout).toContain("`concepts/beta`");
     expect(result.stdout).toContain("(wikilink, distance 1)");
   });
+
+  it("annotates connected primary pages with `graph-neighbor` as an additive reason", async () => {
+    // Seed two pages that BOTH match the prompt "alpha beta" lexically
+    // (so both land in primary[]) and are wired together by a
+    // wikilink. The graph-neighbor reason is the only thing that
+    // distinguishes this from the plain ranking path.
+    await seedLinkedConcept("alpha", "Alpha Beta", ["Alpha Beta Two"]);
+    await seedLinkedConcept("alpha-beta-two", "Alpha Beta Two", []);
+    const payload = await runJsonContext("alpha beta");
+    const primary = payload.primary as Array<{ id: string; reasons: string[] }>;
+    expect(primary.length).toBe(2);
+    // Every entry MUST gain `graph-neighbor` AND keep a non-graph
+    // signal so the additive-only contract is visible at the CLI surface.
+    expect(primary.every((p) => p.reasons.includes("graph-neighbor"))).toBe(true);
+    expect(
+      primary.every((p) => p.reasons.some((r) => r !== "graph-neighbor")),
+    ).toBe(true);
+  });
+
+  it("does not promote a graph-only page into primary[]", async () => {
+    // Alpha matches the prompt; Beta is reachable via wikilink but
+    // never matches the prompt itself. Beta must stay out of primary.
+    await seedLinkedConcept("alpha", "Alpha", ["Beta"]);
+    await seedLinkedConcept("beta", "Beta", []);
+    const payload = await runJsonContext("alpha");
+    const primaryIds = (payload.primary as Array<{ id: string }>).map((p) => p.id);
+    expect(primaryIds).toContain("concepts/alpha");
+    expect(primaryIds).not.toContain("concepts/beta");
+  });
+
+  it("--no-neighbors and --depth 0 both suppress the graph-neighbor annotation", async () => {
+    await seedLinkedConcept("alpha", "Alpha Beta", ["Alpha Beta Two"]);
+    await seedLinkedConcept("alpha-beta-two", "Alpha Beta Two", []);
+    for (const args of [["--no-neighbors"], ["--depth", "0"]]) {
+      const payload = await runJsonContext("alpha beta", args);
+      const primary = payload.primary as Array<{ reasons: string[] }>;
+      expect(primary.length).toBe(2);
+      for (const entry of primary) {
+        expect(entry.reasons).not.toContain("graph-neighbor");
+      }
+    }
+  });
 });
 
 describe("`llmwiki context --json --budget 1` — deterministic budget trimming", () => {

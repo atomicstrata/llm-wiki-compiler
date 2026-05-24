@@ -35,7 +35,7 @@ import {
   createSourceWindowBudget,
   materializeSourceWindows,
 } from "./provenance.js";
-import type { PageId } from "../viewer/types.js";
+import type { GraphData, PageId } from "../viewer/types.js";
 import { buildBudget, estimatePackTokens, trimToBudget } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
@@ -221,7 +221,8 @@ function assembleDraft(input: AssembleInput): ContextPack {
   // Rank against the ORIGINAL prompt — the truncated echo is a
   // display-only courtesy and must not silently drop ranking signal.
   const primary = rankPages(snapshot, options.rankingPrompt, options.topPages, semantic.hits);
-  const expansion = options.neighborsEnabled
+  const graphEnabled = options.neighborsEnabled && options.depth >= 1;
+  const expansion = graphEnabled
     ? expandGraphNeighborhood({
         graph: snapshot.graph,
         pages: snapshot.pages,
@@ -229,17 +230,55 @@ function assembleDraft(input: AssembleInput): ContextPack {
         depth: options.depth,
       })
     : emptyExpansion();
+  // Additive `graph-neighbor` reason only: cannot promote a page into
+  // primary[], only annotate entries that earned their slot via
+  // semantic/lexical/exact signals AND link to another primary page.
+  // Gated on `graphEnabled` so `--no-neighbors` / `--depth 0` runs
+  // never surface the reason (no graph context to justify it).
+  const annotatedPrimary = graphEnabled
+    ? annotateGraphNeighbors(primary, snapshot.graph)
+    : primary;
   return {
     version: 1,
     prompt: options.displayPrompt,
     budget: buildBudget(options.budget, 0),
     project,
-    primary,
+    primary: annotatedPrimary,
     neighbors: expansion.neighbors,
     warnings: buildTopLevelWarnings(options.promptTruncated, semantic.warning),
     gaps: expansion.gaps,
     suggestedActions: collectSuggestedActions(recommendation),
   };
+}
+
+/**
+ * Append `graph-neighbor` to existing primary entries that have a
+ * wikilink edge (outgoing OR incoming) to another primary entry. Pure:
+ * never reorders, rescores, or admits new entries — only widens the
+ * `reasons[]` set on entries that already passed ranking. Reasons stay
+ * sorted alphabetically and de-duped so snapshot comparisons remain
+ * stable.
+ */
+function annotateGraphNeighbors(
+  primary: ContextPack["primary"],
+  graph: GraphData,
+): ContextPack["primary"] {
+  if (primary.length < 2) return primary;
+  const primaryIds = collectPrimaryIds(primary);
+  const connected = new Set<PageId>();
+  for (const edge of graph.edges) {
+    if (primaryIds.has(edge.source) && primaryIds.has(edge.target)) {
+      connected.add(edge.source);
+      connected.add(edge.target);
+    }
+  }
+  if (connected.size === 0) return primary;
+  return primary.map((entry) => {
+    if (!connected.has(entry.id)) return entry;
+    if (entry.reasons.includes("graph-neighbor")) return entry;
+    const widened = Array.from(new Set([...entry.reasons, "graph-neighbor" as const])).sort();
+    return { ...entry, reasons: widened };
+  });
 }
 
 /** Collapse the ranked primary list into a Set keyed by PageId for fast lookups. */

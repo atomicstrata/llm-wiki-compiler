@@ -418,3 +418,81 @@ describe("buildContextPack — Slice 2 semantic retrieval integration", () => {
     expect(pack.warnings.map((w) => w.code)).toContain("query-embedding-unavailable");
   });
 });
+
+/**
+ * Seed two concept pages where `from` carries a wikilink to `to`. Both
+ * pages match the prompt "alpha beta" through title tokens so they
+ * both land in `primary[]` via lexical signals; the wikilink between
+ * them is what `annotateGraphNeighbors` should pick up.
+ */
+async function seedTwoLinkedConcepts(): Promise<void> {
+  await writePage(
+    path.join(tmpDir, CONCEPTS_DIR),
+    "alpha",
+    "Alpha Beta",
+    "[[Alpha Beta Two]]\n",
+  );
+  await writePage(
+    path.join(tmpDir, CONCEPTS_DIR),
+    "alpha-beta-two",
+    "Alpha Beta Two",
+    "body two",
+  );
+}
+
+describe("buildContextPack — graph-neighbor reason annotation", () => {
+  it("two primary pages connected by a wikilink each gain `graph-neighbor` as an additional reason", async () => {
+    await seedTwoLinkedConcepts();
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha beta" });
+    expect(pack.primary.length).toBe(2);
+    for (const entry of pack.primary) {
+      expect(entry.reasons).toContain("graph-neighbor");
+      // Additive only: every annotated entry still carries at least
+      // one non-graph signal (the ranking that earned its slot).
+      const nonGraph = entry.reasons.filter((r) => r !== "graph-neighbor");
+      expect(nonGraph.length).toBeGreaterThan(0);
+      // Reasons remain alphabetically sorted and de-duped.
+      expect([...entry.reasons].sort()).toEqual(entry.reasons);
+      expect(new Set(entry.reasons).size).toBe(entry.reasons.length);
+    }
+  });
+
+  it("does NOT promote graph-only pages into primary[] (only annotates existing entries)", async () => {
+    // Alpha is the only page that matches the prompt; Beta is linked
+    // from Alpha but matches no lexical/exact/semantic signal of its
+    // own. Beta must stay out of primary[] entirely.
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha", "[[Beta]]\n");
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "beta", "Beta", "unrelated body");
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha" });
+    const primaryIds = pack.primary.map((p) => p.id);
+    expect(primaryIds).toContain("concepts/alpha");
+    expect(primaryIds).not.toContain("concepts/beta");
+    // Alpha has no other primary peer to link to → no graph-neighbor.
+    const alpha = pack.primary.find((p) => p.id === "concepts/alpha");
+    expect(alpha?.reasons).not.toContain("graph-neighbor");
+  });
+
+  it("`--no-neighbors` suppresses the graph-neighbor reason on connected primary pages", async () => {
+    await seedTwoLinkedConcepts();
+    const pack = await buildContextPack({
+      root: tmpDir,
+      prompt: "alpha beta",
+      neighbors: false,
+    });
+    for (const entry of pack.primary) {
+      expect(entry.reasons).not.toContain("graph-neighbor");
+    }
+  });
+
+  it("`depth: 0` suppresses the graph-neighbor reason on connected primary pages", async () => {
+    await seedTwoLinkedConcepts();
+    const pack = await buildContextPack({
+      root: tmpDir,
+      prompt: "alpha beta",
+      depth: 0,
+    });
+    for (const entry of pack.primary) {
+      expect(entry.reasons).not.toContain("graph-neighbor");
+    }
+  });
+});
