@@ -16,7 +16,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { buildContextPack } from "../src/context/build.js";
-import { estimateTokens } from "../src/context/budget.js";
+import { estimateTokens, estimatePackTokens } from "../src/context/budget.js";
 import { PROMPT_ECHO_MAX_LENGTH } from "../src/context/types.js";
 import { retrieveSemanticChunks } from "../src/context/retrieval.js";
 import type { SemanticChunkHit } from "../src/context/retrieval.js";
@@ -262,6 +262,33 @@ describe("buildContextPack — budget envelope", () => {
     const pack = await buildContextPack({ root: tmpDir, prompt: "alpha", budget: 1 });
     expect(pack.budget.trimmedSections).toContain("primary");
     expect(pack.primary.length).toBe(0);
+  });
+
+  it("marks an irreducible empty-wiki envelope as truncated with trimmedSections=[]", async () => {
+    // Edge case: a completely empty wiki still produces an envelope
+    // larger than 1 token because of the stable metadata + suggested
+    // actions block. The trimmer has nothing to drop, so
+    // trimmedSections legitimately stays empty — but `truncated`
+    // MUST flip to `true` so consumers can tell the budget was
+    // overshot. The closed section-key contract is preserved: we
+    // never invent a sentinel section name.
+    const pack = await buildContextPack({ root: tmpDir, prompt: "anything", budget: 1 });
+    expect(pack.budget.truncated).toBe(true);
+    expect(pack.budget.trimmedSections).toEqual([]);
+    expect(pack.budget.estimatedTokens).toBeGreaterThan(1);
+    // Envelope still round-trips through JSON parsing.
+    expect(() => JSON.parse(JSON.stringify(pack))).not.toThrow();
+  });
+
+  it("reported estimatedTokens matches estimatePackTokens(finalPack) within one character of digit drift", async () => {
+    // After the two-pass re-estimate the reported value should match
+    // the actual JSON-string-length estimate of the final envelope
+    // exactly (or within a single token in the rare digit-flip case,
+    // e.g. estimate climbs from 99 to 100 between passes).
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha", "body one");
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha", budget: 500 });
+    const actual = estimatePackTokens(pack);
+    expect(Math.abs(pack.budget.estimatedTokens - actual)).toBeLessThanOrEqual(1);
   });
 });
 

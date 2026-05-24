@@ -424,17 +424,33 @@ describe("`llmwiki context` — Slice 3 graph neighborhood expansion (CLI)", () 
 });
 
 describe("`llmwiki context --json --budget 1` — deterministic budget trimming", () => {
-  it("exits 0, parses as JSON, sets truncated=true and non-empty trimmedSections", async () => {
-    await seedConcept("alpha", "Alpha", "Some prose body so the pack is well over a single token.");
-    const result = await runCLI(["context", "alpha", "--json", "--budget", "1"], tmpDir);
+  /** Run `context --json --budget 1` and return the parsed `budget` block. */
+  async function runTinyBudget(prompt: string): Promise<Record<string, unknown>> {
+    const result = await runCLI(["context", prompt, "--json", "--budget", "1"], tmpDir);
     expectCLIExit(result, 0);
     const payload = JSON.parse(result.stdout) as Record<string, unknown>;
-    const budget = payload.budget as Record<string, unknown>;
+    return payload.budget as Record<string, unknown>;
+  }
+
+  it("exits 0, parses as JSON, sets truncated=true and non-empty trimmedSections", async () => {
+    await seedConcept("alpha", "Alpha", "Some prose body so the pack is well over a single token.");
+    const budget = await runTinyBudget("alpha");
     expect(budget.truncated).toBe(true);
     expect(Array.isArray(budget.trimmedSections)).toBe(true);
     expect((budget.trimmedSections as string[]).length).toBeGreaterThan(0);
     // trimmedSections must only contain documented section keys.
     const allowed = new Set(["neighbors", "sourceWindows", "chunks", "primary"]);
     for (const section of budget.trimmedSections as string[]) expect(allowed.has(section)).toBe(true);
+  });
+
+  it("empty wiki + --budget 1 still marks the envelope truncated with an empty trimmedSections", async () => {
+    // No seeded pages — the envelope itself (metadata + suggestedActions)
+    // is well over 1 token but the trimmer has nothing to drop. The
+    // CLI must still emit valid JSON and signal truncated=true so a
+    // consuming agent can tell the budget was overshot.
+    const budget = await runTinyBudget("anything");
+    expect(budget.truncated).toBe(true);
+    expect(budget.trimmedSections).toEqual([]);
+    expect(budget.estimatedTokens as number).toBeGreaterThan(1);
   });
 });

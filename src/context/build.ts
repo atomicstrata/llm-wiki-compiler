@@ -322,33 +322,56 @@ function collectSuggestedActions(recommendation: Recommendation): RecommendedAct
  * for the trim order. Always emits valid JSON; the structured
  * envelope is mutated section-by-section rather than slicing the
  * serialized string.
+ *
+ * `budget.truncated` is `true` when EITHER any section was trimmed
+ * OR the final estimated envelope still exceeds `requestedTokens`
+ * (irreducible-envelope edge case: empty wiki + very small budget).
+ * In the latter case `trimmedSections` stays `[]` — the closed
+ * section-key contract is not bent to record "nothing was trimmable".
+ *
+ * `budget.estimatedTokens` is recomputed against the FINAL envelope
+ * shape (post-trim, post-truncated-flag, post-trimmedSections) via a
+ * two-pass estimate that converges on the digit-count fixed point of
+ * `estimatedTokens` itself. The residual drift between the reported
+ * `estimatedTokens` and `estimatePackTokens(returnedPack)` is bounded
+ * to a single character of the integer's decimal representation —
+ * well under one token for any realistic budget.
  */
 function finalizeBudget(draft: ContextPack, requestedTokens: number): ContextPack {
-  const estimateRaw = estimatePackTokens(draft);
-  if (estimateRaw <= requestedTokens) {
-    return {
-      ...draft,
-      budget: {
-        ...draft.budget,
-        requestedTokens,
-        estimatedTokens: estimateRaw,
-        truncated: false,
-        trimmedSections: [],
-      },
-    };
-  }
-  const { pack: trimmedPack, trimmedSections } = trimToBudget(draft, requestedTokens);
-  const estimatedTokens = estimatePackTokens(trimmedPack);
-  return {
-    ...trimmedPack,
-    budget: {
-      ...trimmedPack.budget,
-      requestedTokens,
-      estimatedTokens,
-      truncated: trimmedSections.length > 0,
-      trimmedSections,
-    },
-  };
+  const initialEstimate = estimatePackTokens(draft);
+  const trim = initialEstimate <= requestedTokens
+    ? { pack: draft, trimmedSections: [] as string[] }
+    : trimToBudget(draft, requestedTokens);
+  const trimmedAny = trim.trimmedSections.length > 0;
+  // First pass: write the eventual `truncated`/`trimmedSections`
+  // strings into the budget block with a placeholder zero estimate so
+  // the JSON shape the estimator sees matches what we'll ultimately
+  // ship. Second pass: write the first estimate back and re-measure
+  // so the reported value converges on the digit-count fixed point.
+  const e1 = estimatePackTokens(
+    applyBudget(trim.pack, {
+      requestedTokens, estimatedTokens: 0,
+      truncated: trimmedAny, trimmedSections: trim.trimmedSections,
+    }),
+  );
+  const e2 = estimatePackTokens(
+    applyBudget(trim.pack, {
+      requestedTokens, estimatedTokens: e1,
+      truncated: trimmedAny, trimmedSections: trim.trimmedSections,
+    }),
+  );
+  const truncated = trimmedAny || e2 > requestedTokens;
+  return applyBudget(trim.pack, {
+    requestedTokens,
+    estimatedTokens: e2,
+    truncated,
+    trimmedSections: trim.trimmedSections,
+  });
+}
+
+/** Replace `pack.budget` with `budget`, returning a fresh shallow-cloned envelope. */
+function applyBudget(pack: ContextPack, budget: ContextPack["budget"]): ContextPack {
+  return { ...pack, budget };
 }
 
 /**
