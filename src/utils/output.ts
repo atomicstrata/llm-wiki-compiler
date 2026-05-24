@@ -42,13 +42,31 @@ export function source(text: string): string {
   return `${CYAN}${text}${RESET}`;
 }
 
-/** Print a status line with an icon. */
+/**
+ * Process-wide quiet flag. Toggled by `quickstart --json` so the
+ * structured envelope is the only thing on stdout — every status/header
+ * call short-circuits while the flag is set.
+ *
+ * Default is false, preserving byte-for-byte behaviour for every other
+ * command. Callers are responsible for restoring the flag in a `finally`
+ * block if they need partial silence.
+ */
+let quietMode = false;
+
+/** Toggle the process-wide quiet flag. */
+export function setQuiet(quiet: boolean): void {
+  quietMode = quiet;
+}
+
+/** Print a status line with an icon. No-op while quiet mode is enabled. */
 export function status(icon: string, message: string): void {
+  if (quietMode) return;
   console.log(`${icon} ${message}`);
 }
 
-/** Print a section header. */
+/** Print a section header. No-op while quiet mode is enabled. */
 export function header(title: string): void {
+  if (quietMode) return;
   console.log(`\n${BOLD}${title}${RESET}`);
   console.log(dim("─".repeat(Math.min(title.length + 4, 60))));
 }

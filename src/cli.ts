@@ -23,9 +23,10 @@ import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
 import nextCommand from "./commands/next.js";
+import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
 import { startMCPServer } from "./mcp/server.js";
-import { DEFAULT_PROVIDER } from "./utils/constants.js";
-import { resolveAnthropicAuthFromEnv } from "./utils/claude-settings.js";
+import { applyLanguageOption } from "./utils/output-language.js";
+import { ensureProviderAvailable } from "./utils/provider-guard.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -250,18 +251,29 @@ program
   .command("next")
   .description("Show the recommended next action for this llmwiki project (read-only)")
   .option("--json", "Emit a stable JSON envelope for agent consumption")
-  .action(async (options: { json?: boolean }) => {
-    try {
-      const code = await nextCommand({ json: options.json });
-      // Set exitCode only when non-zero so the event loop can drain stdout
-      // naturally — calling process.exit() right after process.stdout.write
-      // can truncate output under pipes (CI, |head, captured shells).
-      if (code !== 0) process.exitCode = code;
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
+  .action(async (options: { json?: boolean }) =>
+    runExitCodeCommand(() => nextCommand({ json: options.json })),
+  );
+
+program
+  .command("quickstart <source>")
+  .description(
+    "Ingest a source and compile it into a wiki in one step. Recommends the next action when finished.",
+  )
+  .option("--review", "Generate review candidates instead of mutating wiki/")
+  .option("--no-open", "Skip the viewer handoff after a successful compile")
+  .option(
+    "--provider <name>",
+    "Override LLMWIKI_PROVIDER for this run only (e.g. anthropic, openai, ollama)",
+  )
+  .option(
+    "--lang <code>",
+    "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
+  )
+  .option("--json", "Emit the quickstart JSON envelope instead of human output (implies --no-open)")
+  .action(async (source: string, options: QuickstartOptions) =>
+    runExitCodeCommand(() => quickstartCommand(source, options)),
+  );
 
 program
   .command("serve")
@@ -279,67 +291,39 @@ program
   });
 
 /**
- * Apply the --lang CLI option by setting LLMWIKI_OUTPUT_LANG so prompt
- * builders pick it up (issue #37). Single env slot keeps the resolution
- * order simple: explicit flag wins over the inherited environment.
+ * Run the shared provider guard but match the legacy CLI error path:
+ * print the error in red and exit 1 instead of letting the throw
+ * surface as a stack trace. Programmatic callers (quickstart, MCP) use
+ * `ensureProviderAvailable` directly so they can convert the throw into
+ * a structured envelope.
  */
-function applyLanguageOption(lang: string | undefined): void {
-  if (lang && lang.trim().length > 0) {
-    process.env.LLMWIKI_OUTPUT_LANG = lang.trim();
-  }
-}
-
-/** API key env var required per provider. Null means no key needed. */
-const PROVIDER_KEY_VARS: Record<string, string | null> = {
-  anthropic: "ANTHROPIC_API_KEY",
-  openai: "OPENAI_API_KEY",
-  ollama: null,
-  minimax: "MINIMAX_API_KEY",
-  copilot: "GITHUB_TOKEN",
-};
-
-/** Exit with a helpful message if the selected provider's API key is missing. */
 function requireProvider(): void {
-  const provider = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
-  if (provider === "anthropic") {
-    assertAnthropicCredentials();
-    return;
+  try {
+    ensureProviderAvailable();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`\x1b[31mError:\x1b[0m ${message}`);
+    process.exit(1);
   }
-  const keyVar = PROVIDER_KEY_VARS[provider];
-  assertKnownProvider(provider, keyVar);
-  assertProviderApiKey(provider, keyVar);
 }
 
-/** Fail with a credential-help message when neither Anthropic env var is set. */
-function assertAnthropicCredentials(): void {
-  const auth = resolveAnthropicAuthFromEnv();
-  if (auth.apiKey || auth.authToken) return;
-  console.error(
-    `\x1b[31mError:\x1b[0m Anthropic credentials are required for the "anthropic" provider.\n` +
-      `  Set one of: export ANTHROPIC_API_KEY=<your-key> OR export ANTHROPIC_AUTH_TOKEN=<your-token>`,
-  );
-  process.exit(1);
-}
-
-/** Fail when `provider` is not in `PROVIDER_KEY_VARS`. */
-function assertKnownProvider(provider: string, keyVar: string | null | undefined): void {
-  if (keyVar !== undefined) return;
-  console.error(
-    `\x1b[31mError:\x1b[0m Unknown provider "${provider}".\n` +
-      `  Supported: ${Object.keys(PROVIDER_KEY_VARS).join(", ")}`,
-  );
-  process.exit(1);
-}
-
-/** Fail when the provider requires an API key env var and that var is unset. */
-function assertProviderApiKey(provider: string, keyVar: string | null | undefined): void {
-  if (!keyVar) return;
-  if (process.env[keyVar]) return;
-  console.error(
-    `\x1b[31mError:\x1b[0m ${keyVar} environment variable is required for the "${provider}" provider.\n` +
-      `  Set it with: export ${keyVar}=<your-key>`,
-  );
-  process.exit(1);
+/**
+ * Wrap a command implementation that returns an exit code with the
+ * shared CLI exit semantics: assign process.exitCode for non-zero
+ * returns (so stdout can drain before the event loop exits) and
+ * print a red-formatted error then process.exit(1) on throws.
+ *
+ * Centralised so command actions stay one-liners and fallow does not
+ * flag the try/catch+exitCode skeleton as duplicated across siblings.
+ */
+async function runExitCodeCommand(work: () => Promise<number>): Promise<void> {
+  try {
+    const code = await work();
+    if (code !== 0) process.exitCode = code;
+  } catch (err) {
+    console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
 }
 
 program.parse();

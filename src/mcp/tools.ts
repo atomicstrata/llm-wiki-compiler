@@ -27,7 +27,7 @@ import {
   QUERIES_DIR,
   CHUNK_TOP_K,
 } from "../utils/constants.js";
-import { ensureProviderAvailable } from "./provider-check.js";
+import { ensureProviderAvailable } from "../utils/provider-guard.js";
 
 /** Directories searched (in priority order) when resolving a page slug. */
 const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];

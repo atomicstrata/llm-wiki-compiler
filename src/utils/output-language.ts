@@ -35,3 +35,19 @@ export function languageDirective(): string {
   if (!lang) return "";
   return `Write the output in ${lang}.`;
 }
+
+/**
+ * Apply a CLI `--lang <code>` value into the shared env slot so prompt
+ * builders pick it up downstream. No-op when the caller did not pass the
+ * flag. Trims whitespace so accidental padding does not leak into the
+ * language directive.
+ *
+ * Lives in this module (not cli.ts) so every CLI verb plus the upcoming
+ * quickstart command share one implementation and the resolution order
+ * cannot drift between them.
+ */
+export function applyLanguageOption(lang: string | undefined): void {
+  if (lang && lang.trim().length > 0) {
+    process.env.LLMWIKI_OUTPUT_LANG = lang.trim();
+  }
+}

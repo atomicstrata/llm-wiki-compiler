@@ -28,6 +28,8 @@ llmwiki query "what is X?"
 llmwiki view --open
 ```
 
+In a hurry? `llmwiki quickstart ./notes.md` ingests the source, compiles the wiki, and prints the recommended next step in one go. If you're inside an existing project and unsure what to do next, run `llmwiki next`.
+
 
 <br>
 
@@ -247,6 +249,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 |---------|-------------|
 | `llmwiki ingest <url\|file>` | Fetch a URL or copy a local file into `sources/` |
 | `llmwiki ingest-session <path>` | Import a Claude/Codex/Cursor session export (single file or whole directory) into `sources/` |
+| `llmwiki quickstart <source>` | Ingest a source and compile a wiki in one step; supports `--review`, `--no-open`, `--provider`, `--lang`, and `--json` |
 | `llmwiki compile` | Incremental compile: extract concepts, generate wiki pages |
 | `llmwiki compile --review` | Write candidate pages to `.llmwiki/candidates/` instead of `wiki/` so you can review before they land |
 | `llmwiki compile --lang <code>` | Generate wiki content in the given language (e.g. `Chinese`, `ja`, `zh-CN`); also works on `query` |
