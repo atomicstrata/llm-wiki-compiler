@@ -12,6 +12,7 @@ import os from "os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerWikiTools, readPage } from "../src/mcp/tools.js";
 import { registerWikiResources } from "../src/mcp/resources.js";
+import { buildContextPack } from "../src/context/build.js";
 import { writePage } from "./fixtures/write-page.js";
 
 let root: string;
@@ -63,11 +64,12 @@ async function callTool(
 }
 
 describe("MCP server tool registration", () => {
-  it("registers all 7 expected tools", () => {
+  it("registers all 8 expected tools", () => {
     const server = buildServer();
     const names = Object.keys(getRegisteredTools(server)).sort();
     expect(names).toEqual([
       "compile_wiki",
+      "get_context_pack",
       "ingest_source",
       "lint_wiki",
       "query_wiki",
@@ -219,6 +221,153 @@ describe("wiki_status tool", () => {
     const result = await callTool(server, "wiki_status", {});
     const status = result.structuredContent?.result as { pendingCandidates: number };
     expect(status.pendingCandidates).toBe(validCandidates.length);
+  });
+});
+
+describe("get_context_pack tool", () => {
+  /**
+   * Suppress every Anthropic/OpenAI credential the host shell might
+   * have set so the tool exercises the documented credential-free
+   * path. Returns a restorer for `afterEach`-style cleanup.
+   */
+  function stripProviderEnv(): () => void {
+    const previous: Record<string, string | undefined> = {
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+      ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+      VOYAGE_API_KEY: process.env.VOYAGE_API_KEY,
+      LLMWIKI_CLAUDE_SETTINGS_PATH: process.env.LLMWIKI_CLAUDE_SETTINGS_PATH,
+    };
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.VOYAGE_API_KEY;
+    process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-settings.json");
+    return () => {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    };
+  }
+
+  /**
+   * Seed one concept page and call `get_context_pack` against it.
+   * Centralised so the per-test bodies stay focused on the assertion
+   * that differentiates them, and so fallow does not flag the
+   * seed+call pair as duplication across sibling tests.
+   */
+  async function seedRetrievalAndCall(): Promise<{
+    pack: Record<string, unknown>;
+    result: Awaited<ReturnType<typeof callTool>>;
+  }> {
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "retrieval",
+      { title: "Retrieval", summary: "How retrieval works" },
+      "Body content.",
+    );
+    const server = buildServer();
+    const result = await callTool(server, "get_context_pack", { prompt: "retrieval" });
+    return { pack: result.structuredContent?.result as Record<string, unknown>, result };
+  }
+
+  it("returns v1 envelope with the stable top-level field set over a seeded wiki page", async () => {
+    const { pack, result } = await seedRetrievalAndCall();
+    expect(pack.version).toBe(1);
+    expect(Object.keys(pack)).toEqual([
+      "version",
+      "prompt",
+      "budget",
+      "project",
+      "primary",
+      "neighbors",
+      "warnings",
+      "gaps",
+      "suggestedActions",
+    ]);
+    // structuredContent and the text content block must agree byte-for-byte.
+    expect(JSON.parse(result.content[0].text)).toEqual(pack);
+  });
+
+  it("matches buildContextPack() output byte-for-byte for the same inputs", async () => {
+    const { pack } = await seedRetrievalAndCall();
+    const fromCli = await buildContextPack({ root, prompt: "retrieval" });
+    expect(pack).toEqual(fromCli);
+  });
+
+  it("omitRoot=true keeps project.root present and sets it to null", async () => {
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha", summary: "" },
+      "body",
+    );
+    const server = buildServer();
+    const result = await callTool(server, "get_context_pack", {
+      prompt: "alpha",
+      omitRoot: true,
+    });
+    const pack = result.structuredContent?.result as { project: Record<string, unknown> };
+    expect(Object.keys(pack.project)).toContain("root");
+    expect(pack.project.root).toBeNull();
+  });
+
+  it("includeSources=true materializes sourceWindows for a claim-level citation", async () => {
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha", summary: "" },
+      "Cited prose. ^[paper.md:2-4]",
+    );
+    await writeFile(
+      path.join(root, "sources", "paper.md"),
+      ["one", "two", "three", "four", "five"].join("\n"),
+      "utf-8",
+    );
+    const server = buildServer();
+    const result = await callTool(server, "get_context_pack", {
+      prompt: "alpha",
+      includeSources: true,
+    });
+    const pack = result.structuredContent?.result as {
+      primary: Array<{ sourceWindows: Array<Record<string, unknown>> }>;
+    };
+    expect(pack.primary[0].sourceWindows).toEqual([
+      { file: "paper.md", start: 2, end: 4, text: "two\nthree\nfour" },
+    ]);
+  });
+
+  it("works without provider credentials (semantic retrieval falls back silently)", async () => {
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha", summary: "" },
+      "body",
+    );
+    const restore = stripProviderEnv();
+    try {
+      const server = buildServer();
+      const result = await callTool(server, "get_context_pack", { prompt: "alpha" });
+      const pack = result.structuredContent?.result as { version: number };
+      expect(pack.version).toBe(1);
+    } finally {
+      restore();
+    }
+  });
+
+  it("does not mutate project files", async () => {
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha", summary: "" },
+      "body",
+    );
+    const beforeFiles = await snapshotWorkspace(root);
+    const server = buildServer();
+    await callTool(server, "get_context_pack", { prompt: "alpha" });
+    const afterFiles = await snapshotWorkspace(root);
+    expect(afterFiles).toEqual(beforeFiles);
   });
 });
 

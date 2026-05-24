@@ -438,7 +438,7 @@ Add to your client's MCP config (e.g. `claude_desktop_config.json`):
 }
 ```
 
-Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`) and `ingest_source` work without any credentials.
+Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`, `get_context_pack`) and `ingest_source` work without any credentials.
 
 ### Tools
 
@@ -451,6 +451,7 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 | `read_page` | Read a single page by slug (concepts/ then queries/). |
 | `lint_wiki` | Run quality checks; returns structured diagnostics. |
 | `wiki_status` | Page count, source count, orphans, pending changes (read-only). |
+| `get_context_pack` | Build an agent-ready evidence pack (primary pages, semantic chunks, graph neighbors, citations, warnings, suggested actions) — same v1 JSON envelope as `llmwiki context --json`. `get_context_pack` **packages evidence**; `query_wiki` **generates answers**. |
 
 ### Resources
 
