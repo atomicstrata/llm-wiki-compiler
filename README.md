@@ -438,7 +438,7 @@ Add to your client's MCP config (e.g. `claude_desktop_config.json`):
 }
 ```
 
-Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`, `get_context_pack`) and `ingest_source` work without any credentials.
+Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`) and `ingest_source` work without any credentials. `get_context_pack` is read-only and provider credentials are optional — when present, semantic retrieval is used; otherwise the tool falls back to lexical ranking and surfaces an `embedding-store-missing` or `query-embedding-unavailable` warning.
 
 ### Tools
 

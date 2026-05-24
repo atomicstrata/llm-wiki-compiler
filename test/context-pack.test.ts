@@ -238,6 +238,31 @@ describe("buildContextPack — budget envelope", () => {
     expect(estimateTokens("")).toBe(0);
     expect(estimateTokens(null)).toBe(0);
   });
+
+  it("with a tiny --budget, sets truncated=true and non-empty trimmedSections (still valid JSON)", async () => {
+    // One concept page plus default deterministic warnings/suggestions
+    // produces an envelope well over 1 token; trimming must fire.
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha", "Some prose body.");
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha", budget: 1 });
+    expect(pack.budget.truncated).toBe(true);
+    expect(pack.budget.trimmedSections.length).toBeGreaterThan(0);
+    // Trimming must not produce invalid output — round-trip through
+    // JSON.parse to prove the envelope still parses.
+    expect(() => JSON.parse(JSON.stringify(pack))).not.toThrow();
+    // trimmedSections only contains the documented section keys.
+    const allowed = new Set(["neighbors", "sourceWindows", "chunks", "primary"]);
+    for (const section of pack.budget.trimmedSections) expect(allowed.has(section)).toBe(true);
+  });
+
+  it("trims `primary` last and reports it in trimmedSections when no other section can satisfy the budget", async () => {
+    // One matching page → primary[] starts with one entry; chunks +
+    // sourceWindows + neighbors are all empty in this fixture, so the
+    // trimmer descends to the documented last-resort section.
+    await writePage(path.join(tmpDir, CONCEPTS_DIR), "alpha", "Alpha", "body one");
+    const pack = await buildContextPack({ root: tmpDir, prompt: "alpha", budget: 1 });
+    expect(pack.budget.trimmedSections).toContain("primary");
+    expect(pack.primary.length).toBe(0);
+  });
 });
 
 /**

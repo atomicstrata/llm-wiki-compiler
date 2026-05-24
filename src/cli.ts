@@ -259,7 +259,9 @@ program
 program
   .command("context <prompt>")
   .description(
-    "Build an agent-ready evidence pack for <prompt> from the compiled wiki (read-only, no provider calls)",
+    "Build an agent-ready evidence pack for <prompt> from the compiled wiki " +
+      "(read-only; provider credentials optional — semantic retrieval is used " +
+      "when available and falls back to lexical otherwise)",
   )
   .option("--budget <tokens>", "Approximate output token budget (default 8000)")
   .option("--format <format>", "Output format: json | markdown (default markdown)")

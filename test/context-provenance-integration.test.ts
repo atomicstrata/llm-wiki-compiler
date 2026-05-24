@@ -205,3 +205,47 @@ describe("`llmwiki context` — markdown surfaces citations and source windows",
     expect(result.stdout).toContain("> three");
   });
 });
+
+/** Extract the stable list of `warnings[].code` values from a JSON payload. */
+function warningCodesOf(payload: Record<string, unknown>): string[] {
+  const warnings = payload.warnings as Array<Record<string, unknown>>;
+  return warnings.map((w) => w.code as string);
+}
+
+describe("`llmwiki context --json` — top-level project warnings", () => {
+  it("emits `pending-candidates` when project.pendingCandidates > 0", async () => {
+    await seedCitedConcept("alpha", "Alpha", "paper.md");
+    await seedCandidate("pending-aabbccdd");
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).toContain("pending-candidates");
+  });
+
+  it("emits `lint-errors` when the cached lint summary has errors > 0", async () => {
+    await seedCitedConcept("alpha", "Alpha", "paper.md");
+    await seedLintCache(2, 0);
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).toContain("lint-errors");
+  });
+
+  it("does not emit `lint-errors` when the cached lint summary has only warnings", async () => {
+    await seedCitedConcept("alpha", "Alpha", "paper.md");
+    await seedLintCache(0, 3);
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).not.toContain("lint-errors");
+  });
+
+  it("emits `source-window-unavailable` when --include-sources is on and a line-range citation produces no window", async () => {
+    // The cited file does not exist under sources/, so materialization
+    // returns an empty window list while the citation still records
+    // an unfulfilled line range.
+    await seedCitedConcept("alpha", "Alpha", "missing.md:1-3");
+    const payload = await runJsonContext("alpha", ["--include-sources"]);
+    expect(warningCodesOf(payload)).toContain("source-window-unavailable");
+  });
+
+  it("does NOT emit `source-window-unavailable` without --include-sources, even with unmaterialized spans", async () => {
+    await seedCitedConcept("alpha", "Alpha", "missing.md:1-3");
+    const payload = await runJsonContext("alpha");
+    expect(warningCodesOf(payload)).not.toContain("source-window-unavailable");
+  });
+});

@@ -410,4 +410,31 @@ describe("`llmwiki context` — Slice 3 graph neighborhood expansion (CLI)", () 
     const gamma = neighbors.find((n) => n.to === "concepts/gamma");
     expect(gamma?.from).toBe("concepts/beta");
   });
+
+  it("markdown output includes a `## Graph Neighborhood` section with rendered edges", async () => {
+    await seedLinkedConcept("alpha", "Alpha", ["Beta"]);
+    await seedLinkedConcept("beta", "Beta", []);
+    const result = await runCLI(["context", "alpha"], tmpDir);
+    expectCLIExit(result, 0);
+    expect(result.stdout).toContain("## Graph Neighborhood");
+    expect(result.stdout).toContain("`concepts/alpha`");
+    expect(result.stdout).toContain("`concepts/beta`");
+    expect(result.stdout).toContain("(wikilink, distance 1)");
+  });
+});
+
+describe("`llmwiki context --json --budget 1` — deterministic budget trimming", () => {
+  it("exits 0, parses as JSON, sets truncated=true and non-empty trimmedSections", async () => {
+    await seedConcept("alpha", "Alpha", "Some prose body so the pack is well over a single token.");
+    const result = await runCLI(["context", "alpha", "--json", "--budget", "1"], tmpDir);
+    expectCLIExit(result, 0);
+    const payload = JSON.parse(result.stdout) as Record<string, unknown>;
+    const budget = payload.budget as Record<string, unknown>;
+    expect(budget.truncated).toBe(true);
+    expect(Array.isArray(budget.trimmedSections)).toBe(true);
+    expect((budget.trimmedSections as string[]).length).toBeGreaterThan(0);
+    // trimmedSections must only contain documented section keys.
+    const allowed = new Set(["neighbors", "sourceWindows", "chunks", "primary"]);
+    for (const section of budget.trimmedSections as string[]) expect(allowed.has(section)).toBe(true);
+  });
 });

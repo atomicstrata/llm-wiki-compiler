@@ -112,9 +112,33 @@ function renderMarkdown(pack: ContextPack): string {
   const lines: string[] = [];
   appendHeader(lines, pack);
   appendPrimaryPages(lines, pack.primary);
+  appendGraphNeighborhood(lines, pack.neighbors);
   appendWarnings(lines, pack.warnings);
   appendSuggestedActions(lines, pack.suggestedActions);
   return lines.join("\n");
+}
+
+/**
+ * `## Graph Neighborhood` block listing each emitted neighbor edge.
+ * Empty `neighbors[]` (e.g. depth 0, `--no-neighbors`, or no graph
+ * topology) skips the section entirely so the human output stays
+ * focused on what's actually in the pack.
+ */
+function appendGraphNeighborhood(
+  lines: string[],
+  neighbors: ContextPack["neighbors"],
+): void {
+  if (neighbors.length === 0) return;
+  lines.push("## Graph Neighborhood");
+  lines.push("");
+  for (const neighbor of neighbors) {
+    const arrow = neighbor.direction === "outgoing" ? "->" : "<-";
+    lines.push(
+      `- \`${neighbor.from}\` ${arrow} \`${neighbor.to}\`` +
+        ` (${neighbor.reason}, distance ${neighbor.distance})`,
+    );
+  }
+  lines.push("");
 }
 
 /** Top block: title, prompt echo, budget line. */

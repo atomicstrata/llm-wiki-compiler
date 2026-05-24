@@ -36,7 +36,7 @@ import {
   materializeSourceWindows,
 } from "./provenance.js";
 import type { PageId } from "../viewer/types.js";
-import { buildBudget, estimatePackTokens } from "./budget.js";
+import { buildBudget, estimatePackTokens, trimToBudget } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
   DEFAULT_DEPTH,
@@ -105,7 +105,13 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   const withSources = normalized.includeSources
     ? await attachSourceWindows(draft, options.root)
     : draft;
-  return finalizeBudget(withSources, normalized.budget);
+  // Project-state warnings (pending candidates, lint errors,
+  // source-window unavailability) need the post-materialization
+  // primary list, so they land after attachSourceWindows and BEFORE
+  // budget trimming. Trimming may drop sourceWindows for budget
+  // reasons; the warning still correctly reports "windows missing".
+  const withProjectWarnings = appendProjectWarnings(withSources, state, normalized);
+  return finalizeBudget(withProjectWarnings, normalized.budget);
 }
 
 /**
@@ -310,12 +316,91 @@ function collectSuggestedActions(recommendation: Recommendation): RecommendedAct
 }
 
 /**
- * Compute `budget.estimatedTokens` from the serialized draft. Slice 1
- * does not trim yet — packets that exceed the budget are still emitted
- * with `truncated: false` so agents see the estimate honestly. Real
- * trimming lands with semantic chunks in Slice 2.
+ * Compute `budget.estimatedTokens` from the serialized draft and
+ * trim down the lower-priority sections deterministically when the
+ * draft overshoots `requestedTokens`. See `src/context/budget.ts`
+ * for the trim order. Always emits valid JSON; the structured
+ * envelope is mutated section-by-section rather than slicing the
+ * serialized string.
  */
 function finalizeBudget(draft: ContextPack, requestedTokens: number): ContextPack {
-  const estimatedTokens = estimatePackTokens(draft);
-  return { ...draft, budget: { ...draft.budget, requestedTokens, estimatedTokens } };
+  const estimateRaw = estimatePackTokens(draft);
+  if (estimateRaw <= requestedTokens) {
+    return {
+      ...draft,
+      budget: {
+        ...draft.budget,
+        requestedTokens,
+        estimatedTokens: estimateRaw,
+        truncated: false,
+        trimmedSections: [],
+      },
+    };
+  }
+  const { pack: trimmedPack, trimmedSections } = trimToBudget(draft, requestedTokens);
+  const estimatedTokens = estimatePackTokens(trimmedPack);
+  return {
+    ...trimmedPack,
+    budget: {
+      ...trimmedPack.budget,
+      requestedTokens,
+      estimatedTokens,
+      truncated: trimmedSections.length > 0,
+      trimmedSections,
+    },
+  };
+}
+
+/**
+ * Append `pending-candidates`, `lint-errors`, and
+ * `source-window-unavailable` to the top-level warnings list.
+ *
+ * Runs AFTER source-window materialization so we can detect the gap
+ * where `--include-sources` was on but a line-range citation
+ * produced no window (path-confined rejection, missing source file,
+ * 20-window cap reached, …). Runs BEFORE budget trimming so a
+ * budget-induced window drop does NOT spuriously add the warning;
+ * the trimmer mutates sourceWindows only after this pass.
+ */
+function appendProjectWarnings(
+  pack: ContextPack,
+  state: ProjectState,
+  options: NormalizedOptions,
+): ContextPack {
+  const warnings = [...pack.warnings];
+  if (state.pendingCandidates > 0) {
+    warnings.push({
+      code: "pending-candidates",
+      message:
+        `${state.pendingCandidates} review candidate${state.pendingCandidates === 1 ? "" : "s"} ` +
+        "pending approval. Run `llmwiki review list` to inspect.",
+    });
+  }
+  const lintErrors = state.lint.entry?.errors ?? 0;
+  if (lintErrors > 0) {
+    warnings.push({
+      code: "lint-errors",
+      message: `Last lint run reported ${lintErrors} error${lintErrors === 1 ? "" : "s"}.`,
+    });
+  }
+  if (options.includeSources && hasUnmaterializedSpans(pack)) {
+    warnings.push({
+      code: "source-window-unavailable",
+      message:
+        "One or more line-range citations did not produce a source window " +
+        "(path-confined, missing source file, or per-pack window cap reached).",
+    });
+  }
+  return { ...pack, warnings };
+}
+
+/** True when any primary page has line-range citations missing matching sourceWindows. */
+function hasUnmaterializedSpans(pack: ContextPack): boolean {
+  for (const entry of pack.primary) {
+    const lineRangeCount = entry.citations.filter(
+      (c) => c.start !== undefined && c.end !== undefined,
+    ).length;
+    if (lineRangeCount > entry.sourceWindows.length) return true;
+  }
+  return false;
 }
