@@ -59,6 +59,11 @@ export interface QuickstartOptions {
 
 /** Versioned JSON envelope shape — incremented independently from `next`. */
 const QUICKSTART_JSON_VERSION = 1;
+const VIEW_OPEN_ARGS_KEY = "view\u0000--open";
+
+type EnvRestorer = () => void;
+
+const NOOP_RESTORE: EnvRestorer = () => {};
 
 /** Ingest sub-envelope. */
 interface IngestEnvelope {
@@ -172,23 +177,40 @@ async function runQuickstart(
  * unset again on restore (rather than turning into an empty string,
  * which downstream resolvers normalise differently).
  */
-function applyEnvOverrides(options: QuickstartOptions): () => void {
-  const restorers: Array<() => void> = [];
-  if (options.provider && options.provider.trim().length > 0) {
-    restorers.push(snapshotEnv("LLMWIKI_PROVIDER"));
-    process.env.LLMWIKI_PROVIDER = options.provider.trim();
-  }
-  if (options.lang && options.lang.trim().length > 0) {
-    restorers.push(snapshotEnv("LLMWIKI_OUTPUT_LANG"));
-    applyLanguageOption(options.lang);
-  }
+function applyEnvOverrides(options: QuickstartOptions): EnvRestorer {
+  return combineRestorers([
+    applyProviderOverride(options.provider),
+    applyLanguageOverride(options.lang),
+  ]);
+}
+
+/** Compose scoped env cleanup callbacks so callers restore with one function. */
+function combineRestorers(restorers: EnvRestorer[]): EnvRestorer {
   return () => {
     for (const restore of restorers) restore();
   };
 }
 
+/** Apply the provider override if present, otherwise return a no-op restorer. */
+function applyProviderOverride(provider: string | undefined): EnvRestorer {
+  const trimmed = provider?.trim();
+  if (!trimmed) return NOOP_RESTORE;
+  const restore = snapshotEnv("LLMWIKI_PROVIDER");
+  process.env.LLMWIKI_PROVIDER = trimmed;
+  return restore;
+}
+
+/** Apply the language override if present, otherwise return a no-op restorer. */
+function applyLanguageOverride(lang: string | undefined): EnvRestorer {
+  const trimmed = lang?.trim();
+  if (!trimmed) return NOOP_RESTORE;
+  const restore = snapshotEnv("LLMWIKI_OUTPUT_LANG");
+  applyLanguageOption(trimmed);
+  return restore;
+}
+
 /** Capture a single env var's current value (including absence) so it can be restored later. */
-function snapshotEnv(name: string): () => void {
+function snapshotEnv(name: string): EnvRestorer {
   const previous = process.env[name];
   return () => {
     if (previous === undefined) {
@@ -480,6 +502,16 @@ interface HandoffGate {
   projectState: ProjectState | null;
 }
 
+type HandoffBlocker = (gate: HandoffGate) => boolean;
+
+const VIEWER_HANDOFF_BLOCKERS: HandoffBlocker[] = [
+  (gate) => gate.jsonMode,
+  (gate) => gate.options.open === false,
+  (gate) => gate.options.review === true,
+  (gate) => !gate.compile.ok,
+  (gate) => !hasRenderablePages(gate.projectState),
+];
+
 /**
  * Viewer Lifecycle start condition (plan §Viewer Lifecycle): wiki pages
  * exist, `--no-open` is false, `--json` is false, and `--review` is
@@ -488,12 +520,22 @@ interface HandoffGate {
  * to the user.
  */
 function shouldStartViewer(gate: HandoffGate): boolean {
-  if (gate.jsonMode) return false;
-  if (gate.options.open === false) return false;
-  if (gate.options.review === true) return false;
-  if (!gate.compile.ok) return false;
-  if (!gate.projectState) return false;
-  return gate.projectState.conceptCount + gate.projectState.queryCount > 0;
+  return VIEWER_HANDOFF_BLOCKERS.every((isBlocked) => !isBlocked(gate));
+}
+
+/** A viewer handoff is useful only when there is at least one rendered page. */
+function hasRenderablePages(state: ProjectState | null): boolean {
+  return conceptCountOf(state) + queryCountOf(state) > 0;
+}
+
+/** Null-safe concept count for the viewer handoff predicate. */
+function conceptCountOf(state: ProjectState | null): number {
+  return state === null ? 0 : state.conceptCount;
+}
+
+/** Null-safe saved-query count for the viewer handoff predicate. */
+function queryCountOf(state: ProjectState | null): number {
+  return state === null ? 0 : state.queryCount;
 }
 
 /**
@@ -520,9 +562,7 @@ function suppressRedundantViewerNext(next: NextEnvelope, handoff: boolean): Next
  * suppression invariant.
  */
 function isViewOpenAction(next: NextEnvelope): boolean {
-  const args = next.executable?.args;
-  if (!Array.isArray(args) || args.length !== 2) return false;
-  return args[0] === "view" && args[1] === "--open";
+  return next.executable?.args.join("\u0000") === VIEW_OPEN_ARGS_KEY;
 }
 
 /**
@@ -566,22 +606,33 @@ function appendIngestLine(lines: string[], ingest: IngestEnvelope): void {
 
 /** Compile summary lines — success counts, review-pending count, or failure note. */
 function appendCompileLines(lines: string[], compile: CompileEnvelope): void {
-  if (compile.error) {
-    lines.push("2. Compile did not complete.");
-    return;
-  }
-  if (compile.errors && compile.errors.length > 0) {
-    lines.push(`2. Compile reported ${compile.errors.length} error(s).`);
-    return;
-  }
-  if (compile.ok && compile.pendingCandidates > 0) {
-    lines.push(`2. Compiled review candidates → ${compile.pendingCandidates} pending`);
-    return;
-  }
-  if (compile.ok) {
-    lines.push(`2. Compiled wiki → ${compile.compiled} new, ${compile.skipped} skipped`);
-  }
+  const rule = COMPILE_LINE_RULES.find((candidate) => candidate.matches(compile));
+  if (rule) lines.push(rule.render(compile));
 }
+
+interface CompileLineRule {
+  matches: (compile: CompileEnvelope) => boolean;
+  render: (compile: CompileEnvelope) => string;
+}
+
+const COMPILE_LINE_RULES: CompileLineRule[] = [
+  {
+    matches: (compile) => compile.error !== null,
+    render: () => "2. Compile did not complete.",
+  },
+  {
+    matches: (compile) => (compile.errors?.length ?? 0) > 0,
+    render: (compile) => `2. Compile reported ${compile.errors?.length ?? 0} error(s).`,
+  },
+  {
+    matches: (compile) => compile.ok && compile.pendingCandidates > 0,
+    render: (compile) => `2. Compiled review candidates → ${compile.pendingCandidates} pending`,
+  },
+  {
+    matches: (compile) => compile.ok,
+    render: (compile) => `2. Compiled wiki → ${compile.compiled} new, ${compile.skipped} skipped`,
+  },
+];
 
 /** Trailing "Next:" line so the user sees the recommended follow-up. */
 function appendNextLines(lines: string[], next: NextEnvelope): void {

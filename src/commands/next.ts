@@ -20,6 +20,8 @@ import type {
   RecommendedAction,
 } from "../project/recommendations.js";
 
+type StateLineRenderer = (state: ProjectState) => string;
+
 /** Options surfaced by Commander for `llmwiki next`. */
 interface NextCommandOptions {
   json?: boolean;
@@ -27,6 +29,18 @@ interface NextCommandOptions {
 
 /** Versioned JSON envelope shape — incremented independently from quickstart. */
 const NEXT_JSON_VERSION = 1;
+
+const STATE_LINE_RENDERERS: Record<ProjectStateKind, StateLineRenderer> = {
+  "broken-project": () => "project root unreadable",
+  fresh: () => "no llmwiki project detected",
+  "sources-only": (state) =>
+    `${state.sourceCount} source${plural(state.sourceCount)}, no wiki pages yet`,
+  "review-pending": (state) =>
+    `review pending, ${state.pendingCandidates} candidate${plural(state.pendingCandidates)}`,
+  "lint-attention": formatLintAttentionLine,
+  "empty-wiki": () => "wiki/ exists but is empty",
+  "wiki-ready": formatWikiReadyLine,
+};
 
 /**
  * Run the `next` command. Stdout receives the human or JSON payload;
@@ -133,12 +147,11 @@ function appendHumanWarnings(lines: string[], warnings: ProjectStateWarning[]): 
 
 /** Human-friendly state-line description; pairs the state kind with key counters. */
 function describeStateLine(state: ProjectState, kind: ProjectStateKind): string {
-  if (kind === "broken-project") return "project root unreadable";
-  if (kind === "fresh") return "no llmwiki project detected";
-  if (kind === "sources-only") return `${state.sourceCount} source${plural(state.sourceCount)}, no wiki pages yet`;
-  if (kind === "review-pending") return `review pending, ${state.pendingCandidates} candidate${plural(state.pendingCandidates)}`;
-  if (kind === "lint-attention") return formatLintAttentionLine(state);
-  if (kind === "empty-wiki") return "wiki/ exists but is empty";
+  return STATE_LINE_RENDERERS[kind](state);
+}
+
+/** Ready-state summary keeps page and pending-candidate counts visible. */
+function formatWikiReadyLine(state: ProjectState): string {
   return `wiki ready, ${pageTotal(state)} page${plural(pageTotal(state))}, ${state.pendingCandidates} pending candidate${plural(state.pendingCandidates)}`;
 }
 
