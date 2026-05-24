@@ -22,6 +22,7 @@ import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
+import nextCommand from "./commands/next.js";
 import { startMCPServer } from "./mcp/server.js";
 import { DEFAULT_PROVIDER } from "./utils/constants.js";
 import { resolveAnthropicAuthFromEnv } from "./utils/claude-settings.js";
@@ -239,6 +240,23 @@ program
   .action(async (options: { target?: string; source?: string }) => {
     try {
       await exportCommand(process.cwd(), options);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("next")
+  .description("Show the recommended next action for this llmwiki project (read-only)")
+  .option("--json", "Emit a stable JSON envelope for agent consumption")
+  .action(async (options: { json?: boolean }) => {
+    try {
+      const code = await nextCommand({ json: options.json });
+      // Set exitCode only when non-zero so the event loop can drain stdout
+      // naturally — calling process.exit() right after process.stdout.write
+      // can truncate output under pipes (CI, |head, captured shells).
+      if (code !== 0) process.exitCode = code;
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

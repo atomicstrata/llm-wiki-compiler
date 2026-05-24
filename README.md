@@ -260,6 +260,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki query "question" --save` | Answer and save the result as a wiki page |
 | `llmwiki export [--target <name>]` | Export the wiki to portable formats — `llms.txt`, `llms-full.txt`, JSON, JSON-LD, GraphML, Marp slides |
 | `llmwiki view [--open]` | Start a read-only local web viewer for browsing, searching, and inspecting the compiled wiki |
+| `llmwiki next [--json]` | Show the recommended next action for this project (read-only); `--json` emits a stable envelope for agents |
 | `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
 | `llmwiki watch` | Auto-recompile when `sources/` changes |
 | `llmwiki serve [--root <dir>]` | Start an MCP server exposing wiki tools to AI agents |
