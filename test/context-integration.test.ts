@@ -340,3 +340,75 @@ describe("`llmwiki context` — Slice 2 semantic success via aimock", () => {
     expect(codes).not.toContain("query-embedding-unavailable");
   });
 });
+
+/**
+ * Write a wiki page with one or more `[[Wikilink]]` body lines so the
+ * viewer collector resolves outgoing edges (and ghost edges when the
+ * target page does not exist). Kept local to the Slice 3 integration
+ * tests so the per-test bodies stay focused on graph topology.
+ */
+async function seedLinkedConcept(
+  slug: string,
+  title: string,
+  wikilinks: string[],
+): Promise<void> {
+  await mkdir(path.join(tmpDir, CONCEPTS_DIR), { recursive: true });
+  const body = wikilinks.map((target) => `[[${target}]]`).join("\n\n");
+  const content = `---\ntitle: ${title}\n---\n\n${body}\n`;
+  await writeFile(path.join(tmpDir, CONCEPTS_DIR, `${slug}.md`), content, "utf-8");
+}
+
+describe("`llmwiki context` — Slice 3 graph neighborhood expansion (CLI)", () => {
+  it("emits a depth-1 outgoing neighbor + skips ghost as gap on a small linked wiki", async () => {
+    // Alpha (primary via exact-slug) -> Beta (real, neighbor)
+    // Alpha -> MissingTopic (ghost -> gap)
+    await seedLinkedConcept("alpha", "Alpha", ["Beta", "MissingTopic"]);
+    await seedLinkedConcept("beta", "Beta", []);
+    const payload = await runJsonContext("alpha");
+    const neighbors = payload.neighbors as Array<Record<string, unknown>>;
+    expect(neighbors).toHaveLength(1);
+    expect(neighbors[0]).toMatchObject({
+      from: "concepts/alpha",
+      to: "concepts/beta",
+      direction: "outgoing",
+      distance: 1,
+      reason: "wikilink",
+    });
+    const gaps = payload.gaps as Array<Record<string, unknown>>;
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]).toMatchObject({
+      code: "dangling-link",
+      pageId: "concepts/alpha",
+    });
+  });
+
+  it("--no-neighbors suppresses graph expansion while keeping neighbors[]/gaps[] present", async () => {
+    await seedLinkedConcept("alpha", "Alpha", ["Beta", "MissingTopic"]);
+    await seedLinkedConcept("beta", "Beta", []);
+    const payload = await runJsonContext("alpha", ["--no-neighbors"]);
+    expect(payload.neighbors).toEqual([]);
+    expect(payload.gaps).toEqual([]);
+  });
+
+  it("--depth 0 suppresses neighbors AND gaps but keeps the keys present", async () => {
+    await seedLinkedConcept("alpha", "Alpha", ["Beta", "MissingTopic"]);
+    await seedLinkedConcept("beta", "Beta", []);
+    const payload = await runJsonContext("alpha", ["--depth", "0"]);
+    expect(payload.neighbors).toEqual([]);
+    expect(payload.gaps).toEqual([]);
+  });
+
+  it("--depth 2 reaches a second-hop neighbor at distance 2 via a bridge", async () => {
+    // Alpha (primary) -> Beta -> Gamma
+    await seedLinkedConcept("alpha", "Alpha", ["Beta"]);
+    await seedLinkedConcept("beta", "Beta", ["Gamma"]);
+    await seedLinkedConcept("gamma", "Gamma", []);
+    const payload = await runJsonContext("alpha", ["--depth", "2"]);
+    const neighbors = payload.neighbors as Array<Record<string, unknown>>;
+    const distances = new Map(neighbors.map((n) => [n.to as string, n.distance as number]));
+    expect(distances.get("concepts/beta")).toBe(1);
+    expect(distances.get("concepts/gamma")).toBe(2);
+    const gamma = neighbors.find((n) => n.to === "concepts/gamma");
+    expect(gamma?.from).toBe("concepts/beta");
+  });
+});

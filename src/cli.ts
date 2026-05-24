@@ -264,10 +264,11 @@ program
   .option("--budget <tokens>", "Approximate output token budget (default 8000)")
   .option("--format <format>", "Output format: json | markdown (default markdown)")
   .option("--json", "Emit the stable v1 JSON envelope (overrides --format)")
-  .option("--depth <n>", "Graph neighborhood depth, default 1, max 2 (Slice 3+)")
+  .option("--depth <n>", "Graph neighborhood depth, default 1, max 2; 0 disables expansion")
   .option("--top-pages <n>", "Max primary pages (default 5)")
   .option("--top-chunks <n>", "Max semantic chunks (default 8, Slice 2+)")
   .option("--omit-root", "Emit project.root as null for privacy")
+  .option("--no-neighbors", "Suppress graph expansion (keeps neighbors/gaps as empty arrays)")
   .action(async (prompt: string, options: ContextCommandOptions) =>
     runExitCodeCommand(() => contextCommand(prompt, options)),
   );

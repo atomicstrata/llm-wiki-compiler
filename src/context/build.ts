@@ -29,6 +29,9 @@ import type { ViewerSnapshot } from "../viewer/types.js";
 import { rankPages } from "./ranking.js";
 import { retrieveSemanticChunks } from "./retrieval.js";
 import type { SemanticRetrievalOutcome, SemanticRetrievalWarning } from "./retrieval.js";
+import { expandGraphNeighborhood } from "./graph.js";
+import type { GraphExpansionOutput } from "./graph.js";
+import type { PageId } from "../viewer/types.js";
 import { buildBudget, estimatePackTokens } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
@@ -60,6 +63,8 @@ interface BuildContextPackOptions {
   topChunks?: number;
   /** When true, `project.root` is emitted as `null` for privacy. */
   omitRoot?: boolean;
+  /** When false, graph expansion is suppressed (neighbors + gaps stay empty). */
+  neighbors?: boolean;
 }
 
 /**
@@ -118,6 +123,7 @@ interface NormalizedOptions {
   topPages: number;
   topChunks: number;
   omitRoot: boolean;
+  neighborsEnabled: boolean;
   promptTruncated: boolean;
 }
 
@@ -133,6 +139,9 @@ function normalizeOptions(options: BuildContextPackOptions): NormalizedOptions {
     topPages: clampPositive(options.topPages, DEFAULT_TOP_PAGES),
     topChunks: clampPositive(options.topChunks, DEFAULT_TOP_CHUNKS),
     omitRoot: options.omitRoot === true,
+    // `--no-neighbors` is a Commander negated flag: absence means
+    // expansion is ON; only `options.neighbors === false` disables it.
+    neighborsEnabled: options.neighbors !== false,
     promptTruncated: truncated,
   };
 }
@@ -168,19 +177,40 @@ interface AssembleInput {
 function assembleDraft(input: AssembleInput): ContextPack {
   const { snapshot, state, recommendation, options, semantic } = input;
   const project = buildProject(snapshot, state, options.omitRoot);
+  // Rank against the ORIGINAL prompt — the truncated echo is a
+  // display-only courtesy and must not silently drop ranking signal.
+  const primary = rankPages(snapshot, options.rankingPrompt, options.topPages, semantic.hits);
+  const expansion = options.neighborsEnabled
+    ? expandGraphNeighborhood({
+        graph: snapshot.graph,
+        pages: snapshot.pages,
+        primaryIds: collectPrimaryIds(primary),
+        depth: options.depth,
+      })
+    : emptyExpansion();
   return {
     version: 1,
     prompt: options.displayPrompt,
     budget: buildBudget(options.budget, 0),
     project,
-    // Rank against the ORIGINAL prompt — the truncated echo is a
-    // display-only courtesy and must not silently drop ranking signal.
-    primary: rankPages(snapshot, options.rankingPrompt, options.topPages, semantic.hits),
-    neighbors: [],
+    primary,
+    neighbors: expansion.neighbors,
     warnings: buildTopLevelWarnings(options.promptTruncated, semantic.warning),
-    gaps: [],
+    gaps: expansion.gaps,
     suggestedActions: collectSuggestedActions(recommendation),
   };
+}
+
+/** Collapse the ranked primary list into a Set keyed by PageId for fast lookups. */
+function collectPrimaryIds(primary: ContextPack["primary"]): Set<PageId> {
+  const ids = new Set<PageId>();
+  for (const entry of primary) ids.add(entry.id);
+  return ids;
+}
+
+/** Empty expansion used when `--no-neighbors` suppresses graph traversal. */
+function emptyExpansion(): GraphExpansionOutput {
+  return { neighbors: [], gaps: [] };
 }
 
 /** Materialize the `project` block; `root` honors the `--omit-root` flag. */

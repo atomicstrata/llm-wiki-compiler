@@ -36,7 +36,7 @@ export interface ContextCommandOptions {
   format?: "json" | "markdown" | string;
   /** Shortcut for `--format json`. */
   json?: boolean;
-  /** Graph depth (capped at 2). Slice 3 will activate. */
+  /** Graph depth (capped at 2). 0 disables expansion the same way `--no-neighbors` does. */
   depth?: string | number;
   /** Max primary pages. */
   topPages?: string | number;
@@ -44,6 +44,12 @@ export interface ContextCommandOptions {
   topChunks?: string | number;
   /** Set `project.root` to `null` for privacy. */
   omitRoot?: boolean;
+  /**
+   * Set by Commander's `--no-neighbors` negated flag. When absent (the
+   * default), graph expansion runs; when `false`, expansion is skipped
+   * and both `neighbors[]` and `gaps[]` stay empty arrays.
+   */
+  neighbors?: boolean;
 }
 
 /**
@@ -63,6 +69,7 @@ export default async function contextCommand(
     topPages: coerceNumber(options.topPages, DEFAULT_TOP_PAGES),
     topChunks: coerceNumber(options.topChunks, DEFAULT_TOP_CHUNKS),
     omitRoot: options.omitRoot === true,
+    neighbors: options.neighbors,
   });
   emit(pack, resolveFormat(options));
   return 0;
