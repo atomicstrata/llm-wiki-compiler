@@ -6,8 +6,11 @@ A knowledge compiler CLI. Raw sources in, interlinked wiki out.
 
 ### Code Style & Standards
 
-- Files must be smaller than 400 lines excluding comments. Once 400 is exceeded, initiate a refactor.
+- Code files (TypeScript, Python, JavaScript, shell, SQL) must be smaller than 400 lines excluding comments. Once 400 is exceeded, initiate a refactor. **Markdown and other prose/config files (`.md`, `.mdx`, `.yaml`, `.json`, `.toml`) are exempt** — long planning documents, roadmaps, and reference catalogs are allowed to grow as substance requires.
 - Functions must be smaller than 40 lines excluding comments and the catch/finally blocks of try/catch sections. If a function exceeds that, refactor it.
+- test files must be smaller than 400 lines excluding comments. Once 400 is exceeded, split the tests into multiple files.
+- tests must be smaller than 40 lines excluding comments and the catch/finally blocks of try/catch sections. If a test exceeds that, refactor it, or separate it into multiple tests.
+
 
 ### clean code rules
 
@@ -44,4 +47,3 @@ Before committing any work, and before considering any task complete, you must:
 - First think through the problem, read the codebase for relevant files.
 - Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
 - Never speculate about code you have not opened. If the user references a specific file, you MUST read the file before answering. Make sure to investigate and read relevant files BEFORE answering questions about the codebase. Never make any claims about code before investigating unless you are certain of the correct answer - give grounded and hallucination-free answers.
-
