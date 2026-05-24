@@ -24,6 +24,7 @@ import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
 import nextCommand from "./commands/next.js";
 import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
+import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
@@ -253,6 +254,22 @@ program
   .option("--json", "Emit a stable JSON envelope for agent consumption")
   .action(async (options: { json?: boolean }) =>
     runExitCodeCommand(() => nextCommand({ json: options.json })),
+  );
+
+program
+  .command("context <prompt>")
+  .description(
+    "Build an agent-ready evidence pack for <prompt> from the compiled wiki (read-only, no provider calls)",
+  )
+  .option("--budget <tokens>", "Approximate output token budget (default 8000)")
+  .option("--format <format>", "Output format: json | markdown (default markdown)")
+  .option("--json", "Emit the stable v1 JSON envelope (overrides --format)")
+  .option("--depth <n>", "Graph neighborhood depth, default 1, max 2 (Slice 3+)")
+  .option("--top-pages <n>", "Max primary pages (default 5)")
+  .option("--top-chunks <n>", "Max semantic chunks (default 8, Slice 2+)")
+  .option("--omit-root", "Emit project.root as null for privacy")
+  .action(async (prompt: string, options: ContextCommandOptions) =>
+    runExitCodeCommand(() => contextCommand(prompt, options)),
   );
 
 program

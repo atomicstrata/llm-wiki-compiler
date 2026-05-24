@@ -1,0 +1,192 @@
+/**
+ * `buildContextPack()` — Slice 1 orchestrator.
+ *
+ * Composes the v1 context-pack envelope by:
+ *   1. Loading the frozen viewer snapshot (page metadata, frontmatter,
+ *      citations, warnings, etc).
+ *   2. Collecting project state via the shared `collectProjectState`
+ *      helper so the lint cache and pending-candidate counts match
+ *      what `llmwiki next` would report.
+ *   3. Lexically ranking pages against the prompt via the Slice-1
+ *      ranker.
+ *   4. Delegating the recommendation prefix to
+ *      `recommendNextAction(state)` so `context` does not introduce a
+ *      second project-state engine.
+ *
+ * Semantic retrieval, graph expansion, source windows, and MCP are
+ * intentionally left for later slices; this entry point already emits
+ * the full stable v1 JSON field set with empty arrays / `null`
+ * placeholders so agents written against Slice 1 will not break when
+ * later slices add data.
+ */
+
+import { buildViewerSnapshot } from "../viewer/snapshot.js";
+import { collectProjectState } from "../project/state.js";
+import { recommendNextAction } from "../project/recommendations.js";
+import type { Recommendation, RecommendedAction } from "../project/recommendations.js";
+import type { ProjectState } from "../project/state.js";
+import type { ViewerSnapshot } from "../viewer/types.js";
+import { rankPages } from "./ranking.js";
+import { buildBudget, estimatePackTokens } from "./budget.js";
+import {
+  DEFAULT_BUDGET_TOKENS,
+  DEFAULT_DEPTH,
+  DEFAULT_TOP_CHUNKS,
+  DEFAULT_TOP_PAGES,
+  MAX_DEPTH,
+  PROMPT_ECHO_MAX_LENGTH,
+} from "./types.js";
+import type {
+  ContextPack,
+  ContextProject,
+  ContextWarning,
+} from "./types.js";
+
+/** Caller-supplied build options; all fields except `prompt` are optional. */
+interface BuildContextPackOptions {
+  /** Project root; defaults to `process.cwd()` at the call site. */
+  root: string;
+  /** Free-text prompt the agent supplied. */
+  prompt: string;
+  /** Token budget; defaults to {@link DEFAULT_BUDGET_TOKENS}. */
+  budget?: number;
+  /** Graph depth; clamped to {@link MAX_DEPTH} when supplied. */
+  depth?: number;
+  /** Max primary pages; clamped to a non-negative integer. */
+  topPages?: number;
+  /** Max semantic chunks; pinned to {@link DEFAULT_TOP_CHUNKS} by default. */
+  topChunks?: number;
+  /** When true, `project.root` is emitted as `null` for privacy. */
+  omitRoot?: boolean;
+}
+
+/**
+ * Build the v1 context pack. Never throws on read-only filesystem
+ * issues — the project-state collector returns conservative defaults
+ * (`broken-project` state) which the orchestrator faithfully surfaces.
+ */
+export async function buildContextPack(options: BuildContextPackOptions): Promise<ContextPack> {
+  const normalized = normalizeOptions(options);
+  const snapshot = await buildViewerSnapshot(options.root);
+  const state = await collectProjectState(options.root);
+  const recommendation = recommendNextAction(state);
+  const draft = assembleDraft({ snapshot, state, recommendation, options: normalized });
+  return finalizeBudget(draft, normalized.budget);
+}
+
+/** Frozen, validated copy of the user-supplied options. */
+interface NormalizedOptions {
+  prompt: string;
+  budget: number;
+  depth: number;
+  topPages: number;
+  topChunks: number;
+  omitRoot: boolean;
+  promptTruncated: boolean;
+}
+
+/** Apply defaults and clamps so downstream code can trust the field types. */
+function normalizeOptions(options: BuildContextPackOptions): NormalizedOptions {
+  const { display, truncated } = truncatePrompt(options.prompt ?? "");
+  return {
+    prompt: display,
+    budget: clampPositive(options.budget, DEFAULT_BUDGET_TOKENS),
+    depth: clampDepth(options.depth),
+    topPages: clampPositive(options.topPages, DEFAULT_TOP_PAGES),
+    topChunks: clampPositive(options.topChunks, DEFAULT_TOP_CHUNKS),
+    omitRoot: options.omitRoot === true,
+    promptTruncated: truncated,
+  };
+}
+
+/** Truncate the echoed prompt without mutating the prompt used for ranking. */
+function truncatePrompt(raw: string): { display: string; truncated: boolean } {
+  if (raw.length <= PROMPT_ECHO_MAX_LENGTH) return { display: raw, truncated: false };
+  return { display: raw.slice(0, PROMPT_ECHO_MAX_LENGTH), truncated: true };
+}
+
+/** Clamp a numeric option to a non-negative integer with a fallback default. */
+function clampPositive(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.floor(value));
+}
+
+/** Clamp `--depth` into `[0, MAX_DEPTH]`. */
+function clampDepth(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return DEFAULT_DEPTH;
+  return Math.max(0, Math.min(MAX_DEPTH, Math.floor(value)));
+}
+
+/** Composite input passed to the assembler; grouped to keep argument lists short. */
+interface AssembleInput {
+  snapshot: ViewerSnapshot;
+  state: ProjectState;
+  recommendation: Recommendation;
+  options: NormalizedOptions;
+}
+
+/** Build the unbudgeted draft pack before token-budget finalization. */
+function assembleDraft(input: AssembleInput): ContextPack {
+  const { snapshot, state, recommendation, options } = input;
+  const project = buildProject(snapshot, state, options.omitRoot);
+  return {
+    version: 1,
+    prompt: options.prompt,
+    budget: buildBudget(options.budget, 0),
+    project,
+    primary: rankPages(snapshot, options.prompt, options.topPages),
+    neighbors: [],
+    warnings: buildTopLevelWarnings(options.promptTruncated),
+    gaps: [],
+    suggestedActions: collectSuggestedActions(recommendation),
+  };
+}
+
+/** Materialize the `project` block; `root` honors the `--omit-root` flag. */
+function buildProject(
+  snapshot: ViewerSnapshot,
+  state: ProjectState,
+  omitRoot: boolean,
+): ContextProject {
+  return {
+    root: omitRoot ? null : snapshot.root,
+    pages: snapshot.pages.length,
+    pendingCandidates: state.pendingCandidates,
+    lint: state.lint.entry,
+  };
+}
+
+/** Top-level state warnings emitted in Slice 1. Only prompt truncation lands here today. */
+function buildTopLevelWarnings(promptTruncated: boolean): ContextWarning[] {
+  const warnings: ContextWarning[] = [];
+  if (promptTruncated) {
+    warnings.push({
+      code: "truncated-prompt",
+      message: `Prompt exceeded ${PROMPT_ECHO_MAX_LENGTH} characters; the echoed copy was truncated.`,
+    });
+  }
+  return warnings;
+}
+
+/**
+ * Flatten the recommendation engine's output into the array-shaped
+ * `suggestedActions[]`. Per plan §Suggested Actions:
+ *   - index 0 is the primary recommendation
+ *   - subsequent entries are `otherActions` in declared order
+ *   - tests pin the prefix only; context-specific additions land in
+ *     later slices.
+ */
+function collectSuggestedActions(recommendation: Recommendation): RecommendedAction[] {
+  return [recommendation.recommended, ...recommendation.otherActions];
+}
+
+/**
+ * Compute `budget.estimatedTokens` from the serialized draft. Slice 1
+ * does not trim yet — packets that exceed the budget are still emitted
+ * with `truncated: false` so agents see the estimate honestly. Real
+ * trimming lands with semantic chunks in Slice 2.
+ */
+function finalizeBudget(draft: ContextPack, requestedTokens: number): ContextPack {
+  const estimatedTokens = estimatePackTokens(draft);
+  return { ...draft, budget: { ...draft.budget, requestedTokens, estimatedTokens } };
+}
