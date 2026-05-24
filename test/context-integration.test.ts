@@ -264,6 +264,39 @@ describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
     // Lexical fallback still places the page.
     firstPrimary(payload);
   });
+
+  it("stale-model store keeps --json output pure (no stdout warning leaks)", async () => {
+    // Regression: previously `findRelevantChunks` -> `loadActiveStore`
+    // wrote a `! Embedding store was built with ...` line to stdout via
+    // `output.status`, breaking JSON parsing. The wrapper must detect
+    // the model mismatch up front and skip the call entirely.
+    await seedConcept("alpha", "Alpha");
+    await seedEmbeddingStore(tmpDir, { model: "definitely-stale-model" });
+    const result = await runCLI(["context", "alpha", "--json"], tmpDir);
+    expectCLIExit(result, 0);
+    // stdout must parse cleanly as a single JSON object — no stale-warning prefix.
+    expect(result.stdout.trimStart().startsWith("{")).toBe(true);
+    const payload = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    // eslint-disable-next-line no-control-regex
+    expect(result.stdout).not.toMatch(/\x1b\[/);
+  });
+
+  it("malformed .llmwiki/embeddings.json does not crash and still lexically ranks", async () => {
+    // Regression: previously `readEmbeddingStore` propagated JSON.parse
+    // failures, exit 1 with a stack trace. The wrapper must catch and
+    // fall back to lexical with the documented warning.
+    await seedConcept("alpha", "Alpha");
+    await mkdir(path.join(tmpDir, LLMWIKI_DIR), { recursive: true });
+    await writeFile(path.join(tmpDir, EMBEDDINGS_FILE), "{broken", "utf-8");
+    const result = await runCLI(["context", "alpha", "--json"], tmpDir);
+    expectCLIExit(result, 0);
+    const payload = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    // Lexical signals still rank the seeded page.
+    const top = firstPrimary(payload);
+    expect(top.id).toBe("concepts/alpha");
+  });
 });
 
 describe("`llmwiki context` — Slice 2 semantic success via aimock", () => {

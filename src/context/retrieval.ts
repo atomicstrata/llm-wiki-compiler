@@ -12,12 +12,28 @@
  * branch fired.
  *
  * Stale-model stores are folded into the `embedding-store-missing`
- * branch because `findRelevantChunks()` -> `loadActiveStore()` already
- * silently skips them; the user-visible distinction is "no usable
- * chunks contributed", which both codes communicate.
+ * branch. We detect them HERE — not by waiting for `findRelevantChunks`
+ * to return `[]` — because the embeddings module emits a
+ * `output.status("!", ...)` warning to stdout via `console.log` when
+ * `loadActiveStore` sees a stale model. That leak would corrupt
+ * `llmwiki context --json` output (stdout must be pure JSON). Catching
+ * the model mismatch up front avoids the embeddings module's warning
+ * path entirely.
+ *
+ * Malformed embedding store files (truncated writes, hand-edits, etc.)
+ * are also folded into `embedding-store-missing` rather than propagated
+ * as crashes. `readEmbeddingStore` does not catch its own JSON parse
+ * failures, so the wrapper guards both the read and the parse so
+ * `context` keeps producing parseable output even when the store on
+ * disk is broken.
  */
 
-import { findRelevantChunks, readEmbeddingStore } from "../utils/embeddings.js";
+import {
+  findRelevantChunks,
+  readEmbeddingStore,
+  resolveEmbeddingModel,
+} from "../utils/embeddings.js";
+import type { EmbeddingStore } from "../utils/embeddings.js";
 
 /** Stable warning code returned when semantic retrieval did not contribute. */
 export type SemanticRetrievalWarning =
@@ -80,9 +96,9 @@ export async function retrieveSemanticChunks(
   }
 
   if (raw.length === 0) {
-    // Store had chunks at the pre-check moment, but `findRelevantChunks`
-    // returned nothing. The only path that fits is a stale-model store
-    // (loadActiveStore silently dropped it). Surface as
+    // Defensive: with the upfront stale-model + chunk-count checks the
+    // only way to land here is a TOCTOU race where the store changed
+    // between the pre-check read and `findRelevantChunks`. Surface as
     // `embedding-store-missing` so the warning vocabulary stays small.
     return emptyOutcome("embedding-store-missing");
   }
@@ -96,17 +112,52 @@ function emptyOutcome(warning: SemanticRetrievalWarning | null): SemanticRetriev
 }
 
 /**
- * True when the on-disk embedding store cannot supply chunks at all
- * (missing file, v1 page-only store, or v2 store with an empty chunk
- * array). Stale-model is intentionally NOT detected here — it surfaces
- * via the post-call empty-result branch above so we don't reimplement
- * the model-comparison logic already in `loadActiveStore`.
+ * True when the on-disk embedding store cannot supply chunks: file
+ * missing, JSON malformed, v1 / empty v2 store, OR built with a
+ * different embedding model than the active provider is using.
+ *
+ * The stale-model check MUST happen here (before any `findRelevantChunks`
+ * call) so the embeddings module's stale-store warning — which writes
+ * to stdout via `output.status` — never fires. That warning would
+ * corrupt `--json` output. Same reasoning applies to malformed-JSON
+ * reads: `readEmbeddingStore` lets `JSON.parse` throw, which would
+ * crash the command with exit 1 unless we catch it here.
  */
 async function isStoreUnusable(root: string): Promise<boolean> {
-  const store = await readEmbeddingStore(root);
+  const store = await tryReadEmbeddingStore(root);
   if (!store) return true;
   if (!store.chunks || store.chunks.length === 0) return true;
+  if (isStaleModel(store)) return true;
   return false;
+}
+
+/**
+ * Wrap `readEmbeddingStore` so a missing OR malformed file both reduce
+ * to `null`. The reader does `await readFile` + `JSON.parse` without
+ * its own catch, so a broken store would otherwise surface as an
+ * unhandled rejection to the caller.
+ */
+async function tryReadEmbeddingStore(root: string): Promise<EmbeddingStore | null> {
+  try {
+    return await readEmbeddingStore(root);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare the persisted store's embedding model against the active
+ * provider's resolved model. Returns true when they disagree so the
+ * caller can fall back without triggering the embeddings module's
+ * stdout warning. Defensive: a thrown `resolveEmbeddingModel` (e.g.
+ * unknown `LLMWIKI_PROVIDER`) is also treated as stale.
+ */
+function isStaleModel(store: EmbeddingStore): boolean {
+  try {
+    return store.model !== resolveEmbeddingModel();
+  } catch {
+    return true;
+  }
 }
 
 /** Project an embedding-store chunk hit onto the ranking-facing shape. */

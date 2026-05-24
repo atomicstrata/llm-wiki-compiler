@@ -11,23 +11,34 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 
+// Mock `resolveEmbeddingModel` so the stale-model pre-check is
+// deterministic regardless of which `LLMWIKI_PROVIDER` the host
+// shell happens to have set. `v2StoreWithChunk` declares the SAME
+// model name below so the default (non-stale) cases pass through to
+// `findRelevantChunks`.
+const ACTIVE_MODEL = "text-embedding-3-small";
 vi.mock("../src/utils/embeddings.js", () => ({
   readEmbeddingStore: vi.fn(),
   findRelevantChunks: vi.fn(),
+  resolveEmbeddingModel: vi.fn(() => ACTIVE_MODEL),
 }));
 
 import {
   readEmbeddingStore,
   findRelevantChunks,
+  resolveEmbeddingModel,
 } from "../src/utils/embeddings.js";
 import { retrieveSemanticChunks } from "../src/context/retrieval.js";
 
 const mockedReadStore = readEmbeddingStore as unknown as Mock;
 const mockedFindChunks = findRelevantChunks as unknown as Mock;
+const mockedResolveModel = resolveEmbeddingModel as unknown as Mock;
 
 afterEach(() => {
   mockedReadStore.mockReset();
   mockedFindChunks.mockReset();
+  mockedResolveModel.mockReset();
+  mockedResolveModel.mockReturnValue(ACTIVE_MODEL);
 });
 
 /** Build a fake v2 store with one synthetic chunk so the pre-check passes. */
@@ -81,10 +92,30 @@ describe("retrieveSemanticChunks — store-absence and credential branches", () 
   it("returns embedding-store-missing for a v2 store with empty chunks", async () => {
     mockedReadStore.mockResolvedValueOnce({
       version: 2,
-      model: "text-embedding-3-small",
+      model: ACTIVE_MODEL,
       dimensions: 4,
       entries: [],
       chunks: [],
+    });
+    await expectStoreUnusable();
+  });
+
+  it("returns embedding-store-missing when readEmbeddingStore throws (malformed JSON)", async () => {
+    mockedReadStore.mockRejectedValueOnce(
+      new SyntaxError("Unexpected token { in JSON at position 0"),
+    );
+    await expectStoreUnusable();
+  });
+
+  it("returns embedding-store-missing WITHOUT calling findRelevantChunks for a stale-model store", async () => {
+    // Same store shape as the happy path, but with a model name that
+    // does not match what the active provider would resolve to. The
+    // wrapper must catch this BEFORE invoking findRelevantChunks so
+    // the embeddings module's stdout-emitting stale-warning never
+    // fires (it would corrupt --json output).
+    mockedReadStore.mockResolvedValueOnce({
+      ...(v2StoreWithChunk() as object),
+      model: "definitely-stale-model",
     });
     await expectStoreUnusable();
   });
@@ -97,11 +128,12 @@ describe("retrieveSemanticChunks — store-absence and credential branches", () 
     expect(outcome.warning).toBe("query-embedding-unavailable");
   });
 
-  it("folds stale-model (loadActiveStore returned null -> [] downstream) into embedding-store-missing", async () => {
-    // Store passes our pre-check (chunks > 0) but findRelevantChunks
-    // returns [] because the model name disagrees with the active model.
-    // Translate that into the missing-store warning so the warning
-    // vocabulary stays small.
+  it("defensive: empty findRelevantChunks result after pre-check still emits embedding-store-missing", async () => {
+    // Under normal operation the upfront stale-model and chunk-count
+    // checks make this path unreachable, but a TOCTOU race (store
+    // mutated between the pre-check and the call) would surface as
+    // an empty result here. The wrapper still emits the documented
+    // warning rather than silently returning empty hits.
     mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
     mockedFindChunks.mockResolvedValueOnce([]);
     const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
