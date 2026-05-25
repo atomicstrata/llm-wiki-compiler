@@ -55,6 +55,10 @@ describe("extractCitationPairs", () => {
 });
 
 describe("selectDeterministicSample", () => {
+  const makePair = (hash: string, slug: string) => ({
+    claimHash: hash, pageSlug: slug, claimText: "c", citedFile: "f", spanText: "s", lineStart: 1, lineEnd: 1,
+  });
+
   it("returns the same pairs regardless of input order", () => {
     const pairs = Array.from({ length: 10 }, (_, i) => ({
       claimHash: String(i).padStart(16, "0"),
@@ -78,6 +82,38 @@ describe("selectDeterministicSample", () => {
       { claimHash: "aaaa0000aaaa0000", pageSlug: "p", claimText: "c", citedFile: "f", spanText: "s", lineStart: 1, lineEnd: 1 },
     ];
     expect(selectDeterministicSample(pairs, 20)).toHaveLength(1);
+  });
+
+  it("retains previously sampled hashes that still exist in the corpus", () => {
+    const pairs = [makePair("aaaa000000000000", "p1"), makePair("bbbb000000000000", "p2"), makePair("cccc000000000000", "p3")];
+    const sample = selectDeterministicSample(pairs, 2, ["bbbb000000000000", "cccc000000000000"]);
+    expect(sample.map((p) => p.claimHash)).toContain("bbbb000000000000");
+    expect(sample.map((p) => p.claimHash)).toContain("cccc000000000000");
+    expect(sample.map((p) => p.claimHash)).not.toContain("aaaa000000000000");
+  });
+
+  it("drops missing previous hashes and fills gaps from new pairs by hash-sort", () => {
+    const pairs = [makePair("aaaa000000000000", "p1"), makePair("bbbb000000000000", "p2")];
+    // "zzzz" no longer in corpus — both slots filled by hash-sort of remaining pairs
+    const sample = selectDeterministicSample(pairs, 2, ["zzzz000000000000"]);
+    expect(sample).toHaveLength(2);
+    expect(sample[0].claimHash).toBe("aaaa000000000000");
+    expect(sample[1].claimHash).toBe("bbbb000000000000");
+  });
+
+  it("slices to sampleSize when previousHashes exceeds sampleSize", () => {
+    const pairs = [makePair("aaaa000000000000", "p1"), makePair("bbbb000000000000", "p2"), makePair("cccc000000000000", "p3")];
+    const sample = selectDeterministicSample(pairs, 2, ["aaaa000000000000", "bbbb000000000000", "cccc000000000000"]);
+    expect(sample).toHaveLength(2);
+  });
+
+  it("retains a high-sorted existing pair when a new low-sorted pair is added", () => {
+    // Under the old algo, "zzzz" would be displaced by "aaaa" after corpus growth.
+    // Under the stable registry algo, "zzzz" must be retained.
+    const pairs = [makePair("zzzz000000000000", "p1"), makePair("aaaa000000000000", "p2")];
+    const sample = selectDeterministicSample(pairs, 1, ["zzzz000000000000"]);
+    expect(sample).toHaveLength(1);
+    expect(sample[0].claimHash).toBe("zzzz000000000000");
   });
 });
 
@@ -177,6 +213,19 @@ describe("evaluateCitationSupport", () => {
 
     // pair 1 served from cache, pair 2 fails — all new calls failed → must throw
     await expect(evaluateCitationSupport(env.dir, 10)).rejects.toThrow("ANTHROPIC_API_KEY not set");
+  });
+
+  it("includes sampledHashes in the result", async () => {
+    await env.writeSource("src.md", "Line 1\nLine 2\n");
+    await env.writeConcept(
+      "with-hashes",
+      `---\ntitle: With Hashes\nsources: [src.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim is backed by the source.^[src.md:1-2]\n`,
+    );
+
+    const result = await evaluateCitationSupport(env.dir, 10);
+    expect(result!.sampledHashes).toBeDefined();
+    expect(Array.isArray(result!.sampledHashes)).toBe(true);
+    expect(result!.sampledHashes).toHaveLength(result!.sampledCount);
   });
 
   it("skips already-cached pairs and does not call judge again", async () => {

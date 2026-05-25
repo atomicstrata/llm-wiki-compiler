@@ -57,7 +57,9 @@ async function runEvalComponents(root: string, suite: "fast" | "full", sampleSiz
     collectStats(root),
     loadPreviousReport(root),
   ]);
-  const citationSupport = suite === "full" ? await evaluateCitationSupport(root, sampleSize) : undefined;
+  const citationSupport = suite === "full"
+    ? await evaluateCitationSupport(root, sampleSize, previousReport?.citationSupport?.sampledHashes ?? [])
+    : undefined;
   return { health, citationCoverage, stats, previousReport, citationSupport };
 }
 

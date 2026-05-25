@@ -143,16 +143,33 @@ export async function extractCitationPairs(root: string): Promise<CitationPair[]
 }
 
 /**
- * Select a deterministic sample of N pairs by sorting on claimHash.
- * Ensures the same pairs are evaluated on every run for reproducibility.
+ * Select a stable sample of N pairs that resists churn as the corpus grows.
+ *
+ * Previously-sampled hashes are retained first; only empty slots are filled
+ * from new pairs (sorted by claimHash for determinism). This means adding new
+ * citations to the corpus never displaces an already-evaluated pair, so score
+ * movement in reports reflects quality change rather than sample turnover.
+ *
  * @param pairs - All extracted citation pairs.
  * @param sampleSize - Maximum number of pairs to return.
+ * @param previousHashes - Hashes selected in the prior run (from the saved report).
  */
 export function selectDeterministicSample(
   pairs: CitationPair[],
   sampleSize: number,
+  previousHashes: string[] = [],
 ): CitationPair[] {
-  return [...pairs].sort((a, b) => a.claimHash.localeCompare(b.claimHash)).slice(0, sampleSize);
+  const pairByHash = new Map(pairs.map((p) => [p.claimHash, p]));
+  const retained = previousHashes.flatMap((h) => {
+    const p = pairByHash.get(h);
+    return p ? [p] : [];
+  });
+  if (retained.length >= sampleSize) return retained.slice(0, sampleSize);
+  const retainedSet = new Set(previousHashes);
+  const newPairs = pairs
+    .filter((p) => !retainedSet.has(p.claimHash))
+    .sort((a, b) => a.claimHash.localeCompare(b.claimHash));
+  return [...retained, ...newPairs].slice(0, sampleSize);
 }
 
 /** Load previously cached judgements keyed by claimHash. */
@@ -268,24 +285,27 @@ async function judgeNewPairs(
 }
 
 /**
- * Run the citation support judge across a deterministic sample of wiki citations.
+ * Run the citation support judge across a stable sample of wiki citations.
  * Returns null if no citable paragraphs exist.
  * @param root - Absolute path to the project root.
  * @param sampleSize - Number of citation pairs to judge per run.
+ * @param previousHashes - Hashes sampled in the prior run; retained to prevent sample churn.
  */
 export async function evaluateCitationSupport(
   root: string,
   sampleSize = 20,
+  previousHashes: string[] = [],
 ): Promise<CitationSupportResult | null> {
   const allPairs = await extractCitationPairs(root);
   if (allPairs.length === 0) return null;
 
-  const sample = selectDeterministicSample(allPairs, sampleSize);
+  const sample = selectDeterministicSample(allPairs, sampleSize, previousHashes);
   const cache = await loadCachedJudgements(root);
   const { judgements, judgeErrors } = await judgeNewPairs(sample, cache, root);
 
   return {
     sampledCount: judgements.length,
+    sampledHashes: sample.map((p) => p.claimHash),
     totalCitations: allPairs.length,
     judgeErrors,
     ...aggregateJudgements(judgements),

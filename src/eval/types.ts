@@ -56,6 +56,8 @@ export interface CitationJudgement {
 
 export interface CitationSupportResult {
   sampledCount: number;
+  /** Ordered list of claimHash values evaluated in this run. Persisted so subsequent runs can retain the same sample as the corpus grows. */
+  sampledHashes: string[];
   totalCitations: number;
   meanScore: number;
   fullySupported: number;
