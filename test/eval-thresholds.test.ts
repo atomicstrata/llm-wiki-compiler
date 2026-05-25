@@ -9,6 +9,21 @@ import { checkThresholds } from "../src/eval/thresholds.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { makeEvalReport as makeReport } from "./fixtures/eval-report.js";
 
+function makeReportWithJudgeErrors(judgeErrors: number) {
+  return makeReport({
+    citationSupport: {
+      sampledCount: 9,
+      totalCitations: 10,
+      meanScore: 1.8,
+      fullySupported: 8,
+      partiallySupported: 1,
+      unsupported: 0,
+      judgeErrors,
+      judgements: [],
+    },
+  });
+}
+
 async function writeThresholds(root: string, config: object): Promise<void> {
   const dir = path.join(root, ".llmwiki", "eval");
   await mkdir(dir, { recursive: true });
@@ -86,6 +101,7 @@ describe("checkThresholds", () => {
         fullySupported: 5,
         partiallySupported: 3,
         unsupported: 2,
+        judgeErrors: 0,
         judgements: [],
       },
     });
@@ -100,6 +116,20 @@ describe("checkThresholds", () => {
     await writeThresholds(env.dir, { citation_support_mean: 1.5 });
 
     const violations = await checkThresholds(makeReport(), env.dir);
+    expect(violations).toHaveLength(0);
+  });
+
+  it("flags citation_judge_error_max when judgeErrors exceed the threshold", async () => {
+    await writeThresholds(env.dir, { citation_judge_error_max: 0 });
+    const violations = await checkThresholds(makeReportWithJudgeErrors(1), env.dir);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain("citation_judge_errors");
+    expect(violations[0]).toContain("1");
+  });
+
+  it("does not flag citation_judge_error_max when errors are within threshold", async () => {
+    await writeThresholds(env.dir, { citation_judge_error_max: 2 });
+    const violations = await checkThresholds(makeReportWithJudgeErrors(1), env.dir);
     expect(violations).toHaveLength(0);
   });
 

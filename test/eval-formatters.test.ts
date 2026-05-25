@@ -91,6 +91,7 @@ describe("formatHistoryTable", () => {
         fullySupported: 7,
         partiallySupported: 2,
         unsupported: 1,
+        judgeErrors: 0,
         judgements: [],
       },
     });
@@ -180,12 +181,50 @@ describe("formatTerminalReport", () => {
         fullySupported: 7,
         partiallySupported: 2,
         unsupported: 1,
+        judgeErrors: 0,
         judgements: [],
       },
     });
     const output = formatTerminalReport(report);
     expect(output).toContain("Citation Support");
     expect(output).toContain("1.65");
+  });
+
+  it("shows judge error count in citation support section when errors > 0", () => {
+    const report = makeReport({
+      suite: "full",
+      citationSupport: {
+        sampledCount: 9,
+        totalCitations: 10,
+        meanScore: 1.5,
+        fullySupported: 7,
+        partiallySupported: 1,
+        unsupported: 1,
+        judgeErrors: 1,
+        judgements: [],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("Judge errors:");
+    expect(output).toContain("1");
+  });
+
+  it("does not render NaN when sampledCount is zero", () => {
+    const report = makeReport({
+      suite: "full",
+      citationSupport: {
+        sampledCount: 0,
+        totalCitations: 5,
+        meanScore: 0,
+        fullySupported: 0,
+        partiallySupported: 0,
+        unsupported: 0,
+        judgeErrors: 5,
+        judgements: [],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).not.toContain("NaN");
   });
 
   it("shows delta arrows when delta is present", () => {

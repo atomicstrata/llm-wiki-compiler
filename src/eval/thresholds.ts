@@ -25,6 +25,8 @@ interface ThresholdConfig {
   citation_coverage_percent?: number;
   citation_precision_percent?: number;
   citation_support_mean?: number;
+  /** Maximum number of judge call failures allowed per run (0 = any error fails CI). */
+  citation_judge_error_max?: number;
 }
 
 /** Load the threshold config from disk, or return an empty config if absent. */
@@ -79,6 +81,16 @@ export async function checkThresholds(
   ) {
     violations.push(
       `citation_support_mean ${report.citationSupport.meanScore.toFixed(2)} is below threshold ${config.citation_support_mean}`,
+    );
+  }
+
+  if (
+    config.citation_judge_error_max !== undefined &&
+    report.citationSupport !== undefined &&
+    report.citationSupport.judgeErrors > config.citation_judge_error_max
+  ) {
+    violations.push(
+      `citation_judge_errors ${report.citationSupport.judgeErrors} exceeds max ${config.citation_judge_error_max}`,
     );
   }
 

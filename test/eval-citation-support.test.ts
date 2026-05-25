@@ -109,6 +109,76 @@ describe("evaluateCitationSupport", () => {
     expect(result!.unsupported).toBe(0);
   });
 
+  it("includes judgeErrors: 0 in result when all calls succeed", async () => {
+    await env.writeSource("ok.md", "Line 1\nLine 2\n");
+    await env.writeConcept(
+      "no-errors",
+      `---\ntitle: No Errors\nsources: [ok.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim is fully supported.^[ok.md:1-2]\n`,
+    );
+
+    const result = await evaluateCitationSupport(env.dir, 10);
+    expect(result!.judgeErrors).toBe(0);
+  });
+
+  it("records judgeErrors when some but not all judge calls fail", async () => {
+    const { callClaude } = await import("../src/utils/llm.js");
+    const spy = vi.mocked(callClaude);
+    spy.mockClear();
+    spy.mockRejectedValueOnce(new Error("temporary timeout"));
+
+    await env.writeSource("src.md", "Line 1\nLine 2\n");
+    await env.writeConcept(
+      "partial-fail",
+      `---\ntitle: Partial Fail\nsources: [src.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nFirst claim.^[src.md:1-1]\n\nSecond claim.^[src.md:2-2]\n`,
+    );
+
+    const result = await evaluateCitationSupport(env.dir, 10);
+    expect(result).not.toBeNull();
+    expect(result!.judgeErrors).toBe(1);
+    expect(result!.sampledCount).toBe(1);
+  });
+
+  it("throws when every judge call fails and nothing is cached", async () => {
+    const { callClaude } = await import("../src/utils/llm.js");
+    const spy = vi.mocked(callClaude);
+    spy.mockClear();
+    spy.mockRejectedValueOnce(new Error("ANTHROPIC_API_KEY not set"));
+
+    await env.writeSource("src.md", "Line 1\n");
+    await env.writeConcept(
+      "all-fail",
+      `---\ntitle: All Fail\nsources: [src.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim will trigger a failing judge call.^[src.md:1-1]\n`,
+    );
+
+    await expect(evaluateCitationSupport(env.dir, 10)).rejects.toThrow("ANTHROPIC_API_KEY not set");
+  });
+
+  it("throws when every new judge call fails even if the cache has entries", async () => {
+    const { callClaude } = await import("../src/utils/llm.js");
+    const spy = vi.mocked(callClaude);
+
+    await env.writeSource("src.md", "Line 1\nLine 2\n");
+    await env.writeConcept(
+      "warm-cache",
+      `---\ntitle: Warm Cache\nsources: [src.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim will be cached.^[src.md:1-1]\n`,
+    );
+
+    // First run — populates the cache for pair 1
+    spy.mockClear();
+    await evaluateCitationSupport(env.dir, 10);
+
+    // Add a second concept with a new uncached pair, then make the judge reject
+    await env.writeConcept(
+      "new-uncached",
+      `---\ntitle: New Uncached\nsources: [src.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim is not yet cached.^[src.md:2-2]\n`,
+    );
+    spy.mockClear();
+    spy.mockRejectedValueOnce(new Error("ANTHROPIC_API_KEY not set"));
+
+    // pair 1 served from cache, pair 2 fails — all new calls failed → must throw
+    await expect(evaluateCitationSupport(env.dir, 10)).rejects.toThrow("ANTHROPIC_API_KEY not set");
+  });
+
   it("skips already-cached pairs and does not call judge again", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
     const spy = vi.mocked(callClaude);

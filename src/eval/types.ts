@@ -61,6 +61,8 @@ export interface CitationSupportResult {
   fullySupported: number;
   partiallySupported: number;
   unsupported: number;
+  /** Number of judge calls that threw (credentials failure, network error, parse error). */
+  judgeErrors: number;
   judgements: CitationJudgement[];
 }
 

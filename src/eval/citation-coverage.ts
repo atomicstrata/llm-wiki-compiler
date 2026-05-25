@@ -12,37 +12,12 @@
 import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
-import { parseFrontmatter } from "../utils/markdown.js";
+import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { CitationCoverageResult, CitationPageResult } from "./types.js";
 
-/** Matches inline citation markers like ^[source.md] or ^[source.md:1-5]. */
-const CITATION_RE = /\^\[([^\]]+)\]/g;
-
 /** Prose paragraphs start with a Unicode letter. */
 const PROSE_LEAD_RE = /^\p{L}/u;
-
-/** Strip the line-range suffix from a citation entry to get the bare filename. */
-function sourceFilename(entry: string): string {
-  return entry.replace(/:[\d-]+$/, "").replace(/#L[\d-]+$/, "").trim();
-}
-
-/** Check whether a paragraph contains at least one citation marker. */
-function hasCitation(paragraph: string): boolean {
-  CITATION_RE.lastIndex = 0;
-  return CITATION_RE.test(paragraph);
-}
-
-/** Extract all cited source filenames from a paragraph. */
-function citedFilenames(paragraph: string): string[] {
-  const names: string[] = [];
-  CITATION_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = CITATION_RE.exec(paragraph)) !== null) {
-    names.push(sourceFilename(match[1]));
-  }
-  return names;
-}
 
 interface PageStats {
   pageResult: CitationPageResult;
@@ -60,12 +35,13 @@ function evaluatePage(slug: string, body: string, sourcesDir: string): PageStats
   let validCitations = 0;
 
   for (const para of paragraphs) {
-    if (hasCitation(para)) {
-      citedParagraphs++;
-      const filenames = citedFilenames(para);
-      totalCitations += filenames.length;
-      for (const file of filenames) {
-        if (existsSync(path.join(sourcesDir, file))) validCitations++;
+    const citations = extractClaimCitations(para);
+    if (citations.length === 0) continue;
+    citedParagraphs++;
+    for (const { spans } of citations) {
+      for (const span of spans) {
+        totalCitations++;
+        if (existsSync(path.join(sourcesDir, span.file))) validCitations++;
       }
     }
   }

@@ -58,6 +58,25 @@ describe("extractClaimCitations parser", () => {
       { file: "b.md", lines: { start: 1, end: 3 } },
     ]);
   });
+
+  it("treats comma-separated line numbers as two individual line spans on the same file", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:1, 12]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].raw).toBe("source.md:1, 12");
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 1, end: 1 } },
+      { file: "source.md", lines: { start: 12, end: 12 } },
+    ]);
+  });
+
+  it("treats compact comma line list (no space) as individual line spans", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:1,12]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 1, end: 1 } },
+      { file: "source.md", lines: { start: 12, end: 12 } },
+    ]);
+  });
 });
 
 describe("extractCitations backwards compatibility", () => {
@@ -74,6 +93,10 @@ describe("extractCitations backwards compatibility", () => {
     const body = "P1. ^[a.md]\n\nP2. ^[b.md:5-7, a.md]";
     const result = extractCitations(body);
     expect(result.sort()).toEqual(["a.md", "b.md"]);
+  });
+
+  it("does not emit a bogus file entry for comma-separated line numbers", () => {
+    expect(extractCitations("A claim. ^[source.md:1, 12]")).toEqual(["source.md"]);
   });
 });
 
@@ -96,6 +119,14 @@ describe("inspectProvenance", () => {
   it("records paragraph-only citations as empty range list", () => {
     const map = inspectProvenance("Para. ^[a.md]");
     expect(map.get("a.md")).toEqual([]);
+  });
+
+  it("records comma-separated line numbers as two individual ranges on the same file", () => {
+    const map = inspectProvenance("Claim. ^[source.md:1, 12]");
+    expect(map.get("source.md")).toEqual([
+      { start: 1, end: 1 },
+      { start: 12, end: 12 },
+    ]);
   });
 });
 

@@ -15,6 +15,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Matches 4xx status codes at the start of an error message, excluding 429
+// (rate-limit), which is transient and worth retrying.
+const NON_RETRIABLE_RE = /^4(?!29)\d\d\b/;
+
+/** Return true for client errors that will never succeed on retry (e.g. 401, 403). */
+function isNonRetriable(error: unknown): boolean {
+  const msg = error instanceof Error ? error.message : String(error);
+  return NON_RETRIABLE_RE.test(msg);
+}
+
 interface CallClaudeOptions {
   system: string;
   messages: LLMMessage[];
@@ -45,7 +55,7 @@ export async function callClaude(options: CallClaudeOptions): Promise<string> {
 
       return await provider.complete(system, messages, maxTokens);
     } catch (error) {
-      if (attempt === RETRY_COUNT) throw error;
+      if (attempt === RETRY_COUNT || isNonRetriable(error)) throw error;
 
       const delayMs = RETRY_BASE_MS * Math.pow(RETRY_MULTIPLIER, attempt);
       const errMsg = error instanceof Error ? error.message : String(error);

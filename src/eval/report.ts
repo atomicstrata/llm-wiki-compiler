@@ -76,8 +76,9 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
   const s = report.citationSupport;
   if (!s) return [];
   const meanDelta = fmtDelta(delta?.citationSupportMean);
-  const pctOf = (n: number) => `${((n / s.sampledCount) * 100).toFixed(0)}%`;
-  return [
+  const pctOf = (n: number) =>
+    s.sampledCount === 0 ? "—" : `${((n / s.sampledCount) * 100).toFixed(0)}%`;
+  const rows = [
     line(),
     line(bold(`Citation Support (${s.sampledCount} sampled):`)),
     line(`  Mean score: ${s.meanScore.toFixed(2)} / 2.0${meanDelta}`),
@@ -85,6 +86,10 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
     line(`  Partially supported: ${s.partiallySupported}  (${pctOf(s.partiallySupported)})`),
     line(`  Unsupported:         ${s.unsupported}  (${pctOf(s.unsupported)})`),
   ];
+  if (s.judgeErrors > 0) {
+    rows.push(line(colorError(`  Judge errors:        ${s.judgeErrors}`)));
+  }
+  return rows;
 }
 
 function formatStats(report: EvalReport): string[] {

@@ -4,7 +4,14 @@
  */
 
 import { evaluateCitationCoverage } from "../src/eval/citation-coverage.js";
+import type { CitationCoverageResult } from "../src/eval/types.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
+
+function expectTwoValidCitations(result: CitationCoverageResult): void {
+  expect(result.totalCitations).toBe(2);
+  expect(result.validCitations).toBe(2);
+  expect(result.precisionPercent).toBe(100);
+}
 
 describe("evaluateCitationCoverage", () => {
   const env = useLintTempRoot("eval-citation");
@@ -78,5 +85,37 @@ describe("evaluateCitationCoverage", () => {
     expect(result.totalCitations).toBe(1);
     expect(result.validCitations).toBe(0);
     expect(result.precisionPercent).toBe(0);
+  });
+
+  it("counts each source file in a multi-source marker as a separate citation", async () => {
+    await env.writeSource("a.md", "Source A.");
+    await env.writeSource("b.md", "Source B.");
+    await env.writeConcept(
+      "multi-source",
+      `---\ntitle: Multi\nsources: [a.md, b.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nClaim citing two sources.^[a.md, b.md]\n`,
+    );
+
+    expectTwoValidCitations(await evaluateCitationCoverage(env.dir));
+  });
+
+  it("counts each individually listed line in a comma-separated line list as a separate citation span", async () => {
+    await env.writeSource("ref.md", "Line one.\nLine two.\nLine three.\nLine four.\nLine five.\nLine six.\nLine seven.\nLine eight.\nLine nine.\nLine ten.\nLine eleven.\nLine twelve.\n");
+    await env.writeConcept(
+      "comma-lines",
+      `---\ntitle: Comma Lines\nsources: [ref.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nClaim citing two individual lines from one source.^[ref.md:1, 12]\n`,
+    );
+
+    expectTwoValidCitations(await evaluateCitationCoverage(env.dir));
+  });
+
+  it("counts all spans in a multi-source span marker correctly", async () => {
+    await env.writeSource("a.md", "A\nB\nC\nD\nE\n");
+    await env.writeSource("b.md", "A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\n");
+    await env.writeConcept(
+      "multi-span",
+      `---\ntitle: Multi Span\nsources: [a.md, b.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nClaim citing span ranges from two sources.^[a.md:1-5, b.md:10-12]\n`,
+    );
+
+    expectTwoValidCitations(await evaluateCitationCoverage(env.dir));
   });
 });

@@ -228,6 +228,46 @@ function aggregateJudgements(judgements: CitationJudgement[]): Pick<
 }
 
 /**
+ * Judge each non-cached pair in the sample, returning all collected judgements
+ * and an error count. Throws if every non-cached call fails (credentials missing,
+ * provider down, etc.) — an empty result would be meaningless.
+ */
+async function judgeNewPairs(
+  sample: CitationPair[],
+  cache: Map<string, CitationJudgement>,
+  root: string,
+): Promise<{ judgements: CitationJudgement[]; judgeErrors: number }> {
+  const judgements: CitationJudgement[] = [];
+  let judgeErrors = 0;
+  let newPairsAttempted = 0;
+  let firstError: unknown;
+
+  for (const pair of sample) {
+    const cached = cache.get(pair.claimHash);
+    if (cached) {
+      judgements.push(cached);
+    } else {
+      newPairsAttempted++;
+      try {
+        const judgement = await callJudge(pair);
+        await appendCachedJudgement(root, judgement);
+        judgements.push(judgement);
+      } catch (err) {
+        judgeErrors++;
+        if (firstError === undefined) firstError = err;
+      }
+    }
+  }
+
+  if (newPairsAttempted > 0 && judgeErrors === newPairsAttempted) {
+    const msg = firstError instanceof Error ? firstError.message : String(firstError);
+    throw new Error(`Citation judge failed for all ${judgeErrors} sampled pair(s): ${msg}`);
+  }
+
+  return { judgements, judgeErrors };
+}
+
+/**
  * Run the citation support judge across a deterministic sample of wiki citations.
  * Returns null if no citable paragraphs exist.
  * @param root - Absolute path to the project root.
@@ -242,26 +282,12 @@ export async function evaluateCitationSupport(
 
   const sample = selectDeterministicSample(allPairs, sampleSize);
   const cache = await loadCachedJudgements(root);
-
-  const judgements: CitationJudgement[] = [];
-  for (const pair of sample) {
-    const cached = cache.get(pair.claimHash);
-    if (cached) {
-      judgements.push(cached);
-    } else {
-      try {
-        const judgement = await callJudge(pair);
-        await appendCachedJudgement(root, judgement);
-        judgements.push(judgement);
-      } catch {
-        // Skip pairs where the judge fails — surface in sampledCount vs sample.length
-      }
-    }
-  }
+  const { judgements, judgeErrors } = await judgeNewPairs(sample, cache, root);
 
   return {
     sampledCount: judgements.length,
     totalCitations: allPairs.length,
+    judgeErrors,
     ...aggregateJudgements(judgements),
     judgements,
   };
