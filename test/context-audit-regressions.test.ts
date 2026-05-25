@@ -13,6 +13,7 @@ import path from "path";
 import { buildContextPack } from "../src/context/build.js";
 import { expandGraphNeighborhood } from "../src/context/graph.js";
 import { retrieveSemanticChunks } from "../src/context/retrieval.js";
+import { MAX_TOP_CHUNKS, MAX_TOP_PAGES } from "../src/context/types.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import type { GraphData, PageId, ViewerPage } from "../src/viewer/types.js";
 
@@ -118,5 +119,19 @@ describe("context-pack audit regressions", () => {
     const same = out.neighbors.find((n) => n.to === "concepts/same");
     const other = out.neighbors.find((n) => n.to === "concepts/other");
     expect(same?.score).toBeGreaterThan(other?.score ?? 0);
+  });
+
+  it("caps oversized topPages and topChunks inputs before ranking and retrieval", async () => {
+    for (let i = 0; i < MAX_TOP_PAGES + 5; i++) {
+      await writeConcept(`alpha-${i}`, `Alpha ${i}`, "Alpha body.");
+    }
+    const pack = await buildContextPack({
+      root,
+      prompt: "alpha",
+      topPages: 10_000,
+      topChunks: 10_000,
+    });
+    expect(pack.primary.length).toBe(MAX_TOP_PAGES);
+    expect(mockedRetrieve.mock.calls[0][2]).toBe(MAX_TOP_CHUNKS);
   });
 });

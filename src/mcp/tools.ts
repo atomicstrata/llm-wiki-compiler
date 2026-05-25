@@ -334,11 +334,11 @@ function contextPackInputSchema(): {
       .number()
       .optional()
       .describe("Graph neighborhood depth, 0..2 (default 1, 0 disables expansion)."),
-    topPages: z.number().optional().describe("Max primary pages (default 5)."),
+    topPages: z.number().optional().describe("Max primary pages (default 5, max 20)."),
     topChunks: z
       .number()
       .optional()
-      .describe("Max semantic chunks to surface (default 8)."),
+      .describe("Max semantic chunks to surface (default 8, max 50)."),
     omitRoot: z
       .boolean()
       .optional()
@@ -442,4 +442,3 @@ export async function readPage(root: string, slug: string): Promise<PageRecord |
   }
   return null;
 }
-

@@ -40,7 +40,12 @@ type ContextWarningCode =
 /** Closed v1 enum for `gaps[]` codes. */
 type ContextGapCode = "dangling-link" | "page-warning";
 
-/** Budget envelope. `estimatedTokens` uses a tokens ≈ chars/4 heuristic in v1. */
+/**
+ * Budget envelope. `estimatedTokens` uses a tokens ≈ chars/4 heuristic in v1.
+ * Because `estimatedTokens` is itself serialized inside the measured JSON, the
+ * reported value may differ from `estimatePackTokens(returnedPack)` by at most
+ * one token of digit-count drift.
+ */
 export interface ContextBudget {
   requestedTokens: number;
   estimatedTokens: number;
@@ -170,5 +175,11 @@ export const MAX_DEPTH = 2;
 /** Default cap on `primary[]` page count. */
 export const DEFAULT_TOP_PAGES = 5;
 
+/** Hard cap on `primary[]` page count to keep trimming and output bounded. */
+export const MAX_TOP_PAGES = 20;
+
 /** Default value pinned for `--top-chunks` (plan §Ranking Model). */
 export const DEFAULT_TOP_CHUNKS = 8;
+
+/** Hard cap on semantic chunks to keep budget trimming predictably small. */
+export const MAX_TOP_CHUNKS = 50;

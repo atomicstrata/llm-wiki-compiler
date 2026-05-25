@@ -43,6 +43,8 @@ import {
   DEFAULT_TOP_CHUNKS,
   DEFAULT_TOP_PAGES,
   MAX_DEPTH,
+  MAX_TOP_CHUNKS,
+  MAX_TOP_PAGES,
   PROMPT_ECHO_MAX_LENGTH,
 } from "./types.js";
 import type {
@@ -61,9 +63,9 @@ interface BuildContextPackOptions {
   budget?: number;
   /** Graph depth; clamped to {@link MAX_DEPTH} when supplied. */
   depth?: number;
-  /** Max primary pages; clamped to a non-negative integer. */
+  /** Max primary pages; clamped into the documented safe range. */
   topPages?: number;
-  /** Max semantic chunks; pinned to {@link DEFAULT_TOP_CHUNKS} by default. */
+  /** Max semantic chunks; pinned to the documented safe range. */
   topChunks?: number;
   /** When true, `project.root` is emitted as `null` for privacy. */
   omitRoot?: boolean;
@@ -179,8 +181,8 @@ function normalizeOptions(options: BuildContextPackOptions): NormalizedOptions {
     rankingPrompt,
     budget: clampPositive(options.budget, DEFAULT_BUDGET_TOKENS),
     depth: clampDepth(options.depth),
-    topPages: clampPositive(options.topPages, DEFAULT_TOP_PAGES),
-    topChunks: clampPositive(options.topChunks, DEFAULT_TOP_CHUNKS),
+    topPages: clampBounded(options.topPages, DEFAULT_TOP_PAGES, MAX_TOP_PAGES),
+    topChunks: clampBounded(options.topChunks, DEFAULT_TOP_CHUNKS, MAX_TOP_CHUNKS),
     omitRoot: options.omitRoot === true,
     // `--no-neighbors` is a Commander negated flag: absence means
     // expansion is ON; only `options.neighbors === false` disables it.
@@ -200,6 +202,11 @@ function truncatePrompt(raw: string): { display: string; truncated: boolean } {
 function clampPositive(value: number | undefined, fallback: number): number {
   if (value === undefined || !Number.isFinite(value)) return fallback;
   return Math.max(0, Math.floor(value));
+}
+
+/** Clamp a numeric option into `[0, max]` with a fallback default. */
+function clampBounded(value: number | undefined, fallback: number, max: number): number {
+  return Math.min(max, clampPositive(value, fallback));
 }
 
 /** Clamp `--depth` into `[0, MAX_DEPTH]`. */
