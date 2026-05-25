@@ -263,9 +263,12 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki export [--target <name>]` | Export the wiki to portable formats — `llms.txt`, `llms-full.txt`, JSON, JSON-LD, GraphML, Marp slides |
 | `llmwiki view [--open]` | Start a read-only local web viewer for browsing, searching, and inspecting the compiled wiki |
 | `llmwiki next [--json]` | Show the recommended next action for this project (read-only); `--json` emits a stable envelope for agents |
+| `llmwiki context "<prompt>" [--json]` | Build an agent-ready evidence pack (primary pages, citations, neighbors, suggested actions) — same v1 envelope as MCP `get_context_pack` |
 | `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
 | `llmwiki watch` | Auto-recompile when `sources/` changes |
 | `llmwiki serve [--root <dir>]` | Start an MCP server exposing wiki tools to AI agents |
+
+`llmwiki context --include-sources` and MCP `get_context_pack` with `includeSources: true` are opt-in because they can return raw snippets from files under `sources/`. Path confinement prevents reads outside `sources/`, but only enable source windows for agents you trust with the ingested source text.
 
 ## Output
 
@@ -438,7 +441,7 @@ Add to your client's MCP config (e.g. `claude_desktop_config.json`):
 }
 ```
 
-Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`) and `ingest_source` work without any credentials.
+Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for a configured provider on each call. Read-only tools (`read_page`, `lint_wiki`, `wiki_status`) and `ingest_source` work without any credentials. `get_context_pack` is read-only and provider credentials are optional — when present, semantic retrieval is used; otherwise the tool falls back to lexical ranking and surfaces an `embedding-store-missing` or `query-embedding-unavailable` warning.
 
 ### Tools
 
@@ -451,6 +454,7 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 | `read_page` | Read a single page by slug (concepts/ then queries/). |
 | `lint_wiki` | Run quality checks; returns structured diagnostics. |
 | `wiki_status` | Page count, source count, orphans, pending changes (read-only). |
+| `get_context_pack` | Build an agent-ready evidence pack (primary pages, semantic chunks, graph neighbors, citations, warnings, suggested actions) — same v1 JSON envelope as `llmwiki context --json`. `get_context_pack` **packages evidence**; `query_wiki` **generates answers**. |
 
 ### Resources
 
@@ -497,6 +501,10 @@ Karpathy describes an abstract pattern for turning raw data into compiled knowle
 
 ## Roadmap
 
+Shipped in 0.8.0:
+
+- ✅ Graph/context layer — `llmwiki context` and MCP `get_context_pack` produce token-budgeted evidence packs with primary pages, graph neighbors, citations, optional source windows, warnings, and suggested actions
+
 Shipped in 0.7.0:
 
 - ✅ Read-only local web viewer — `llmwiki view` with sidebar navigation, markdown rendering, search, metadata, health counts, and provenance/citation chips
@@ -537,7 +545,6 @@ Shipped in 0.2.0:
 
 Next up:
 
-- **Graph/context layer** — page-neighborhood tools, graph paths, gap detection, and token-budgeted context packs for agents.
 - **Evaluation harness** — benchmark answer quality, citation accuracy, update drift, retrieval recall, and scale curves against serious retrieval baselines.
 - **Task and decision ledger** — turn session ingest into durable agent memory: goals, decisions, open questions, outcomes, and next-agent handoffs.
 - **Rollback, audit, and source lifecycle** — undo/reverse ingest, compile diff reports, stale-claim checks, freshness reports, and a durable operation log.
@@ -550,7 +557,7 @@ Later / open to discussion:
 - Codex OAuth provider — ChatGPT subscription auth as a dedicated provider, with clear token refresh and embedding-limit behavior
 - Team-chat connectors for Slack/Discord/Teams-style institutional memory
 
-If you like ambitious problems: **local web UI**, **graph/context packs**, and **eval harness** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.
+If you like ambitious problems: **eval harness**, **task/decision ledger**, and **rollback/audit tooling** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.
 
 Explicitly not planned (good ideas, just not for this repo): full static-site generator, desktop or mobile apps, fine-tuning, a formal ontology engine, heavy graph database infrastructure.
 

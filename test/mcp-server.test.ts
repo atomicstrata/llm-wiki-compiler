@@ -5,35 +5,46 @@
  * mirroring what an MCP client would invoke over the wire.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { describe, it, expect, beforeEach } from "vitest";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import os from "os";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { registerWikiTools, readPage } from "../src/mcp/tools.js";
-import { registerWikiResources } from "../src/mcp/resources.js";
+import { readPage } from "../src/mcp/tools.js";
 import { writePage } from "./fixtures/write-page.js";
+import {
+  buildServer as buildSharedServer,
+  callTool as callSharedTool,
+  snapshotWorkspace,
+  useMcpRoot,
+} from "./fixtures/mcp-test-env.js";
 
+const rootHandle = useMcpRoot("llmwiki-mcp");
+/**
+ * Mirror the shared fixture's temp-root path into a file-local
+ * binding so the existing per-test bodies keep their `root` ergonomics.
+ * This beforeEach runs AFTER `useMcpRoot`'s, which is the one that
+ * creates the temp directory and assigns `rootHandle.value`.
+ */
 let root: string;
-
-beforeEach(async () => {
-  root = path.join(os.tmpdir(), `llmwiki-mcp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  await mkdir(path.join(root, "wiki/concepts"), { recursive: true });
-  await mkdir(path.join(root, "wiki/queries"), { recursive: true });
-  await mkdir(path.join(root, "sources"), { recursive: true });
-  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+beforeEach(() => {
+  root = rootHandle.value;
 });
 
-afterEach(async () => {
-  await rm(root, { recursive: true, force: true });
-});
-
-/** Build a fresh McpServer with all wiki tools and resources registered. */
+/** Local thin wrapper so the per-test bodies keep their `buildServer()` ergonomics. */
 function buildServer(): McpServer {
-  const server = new McpServer({ name: "llmwiki-test", version: "0.0.0" });
-  registerWikiTools(server, root);
-  registerWikiResources(server, root);
-  return server;
+  return buildSharedServer(root);
+}
+
+/** Local thin wrapper around the shared MCP tool caller. */
+async function callTool(
+  server: McpServer,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<{
+  content: Array<{ type: string; text: string }>;
+  structuredContent?: { result: unknown };
+}> {
+  return callSharedTool(server, name, args);
 }
 
 /** Internal helper: read the server's registered-tool map. */
@@ -51,23 +62,13 @@ function getRegisteredResourceTemplates(server: McpServer): Record<string, unkno
   return (server as unknown as { _registeredResourceTemplates: Record<string, unknown> })._registeredResourceTemplates;
 }
 
-/** Invoke a registered tool's handler and return its raw result. */
-async function callTool(
-  server: McpServer,
-  name: string,
-  args: Record<string, unknown>,
-): Promise<{ content: Array<{ type: string; text: string }>; structuredContent?: { result: unknown } }> {
-  const tools = getRegisteredTools(server);
-  const tool = tools[name] as { handler: (args: Record<string, unknown>) => Promise<unknown> };
-  return tool.handler(args) as Promise<{ content: Array<{ type: string; text: string }>; structuredContent?: { result: unknown } }>;
-}
-
 describe("MCP server tool registration", () => {
-  it("registers all 7 expected tools", () => {
+  it("registers all 8 expected tools", () => {
     const server = buildServer();
     const names = Object.keys(getRegisteredTools(server)).sort();
     expect(names).toEqual([
       "compile_wiki",
+      "get_context_pack",
       "ingest_source",
       "lint_wiki",
       "query_wiki",
@@ -313,23 +314,4 @@ describe("MCP resources", () => {
     expect(parsed).toMatchObject({ slug: "what-is-x", body: "Saved query body." });
   });
 });
-
-/** Snapshot every file under root by relative path so we can detect mutations. */
-async function snapshotWorkspace(rootDir: string): Promise<string[]> {
-  const { readdir } = await import("fs/promises");
-  const entries: string[] = [];
-  async function walk(dir: string): Promise<void> {
-    const items = await readdir(dir, { withFileTypes: true });
-    for (const item of items) {
-      const full = path.join(dir, item.name);
-      if (item.isDirectory()) {
-        await walk(full);
-      } else {
-        entries.push(path.relative(rootDir, full));
-      }
-    }
-  }
-  await walk(rootDir);
-  return entries.sort();
-}
 

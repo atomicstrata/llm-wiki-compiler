@@ -24,6 +24,7 @@ import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
 import nextCommand from "./commands/next.js";
 import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
+import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
@@ -253,6 +254,29 @@ program
   .option("--json", "Emit a stable JSON envelope for agent consumption")
   .action(async (options: { json?: boolean }) =>
     runExitCodeCommand(() => nextCommand({ json: options.json })),
+  );
+
+program
+  .command("context <prompt>")
+  .description(
+    "Build an agent-ready evidence pack for <prompt> from the compiled wiki " +
+      "(read-only; provider credentials optional — semantic retrieval is used " +
+      "when available and falls back to lexical otherwise)",
+  )
+  .option("--budget <tokens>", "Approximate output token budget (default 8000)")
+  .option("--format <format>", "Output format: json | markdown (default markdown)")
+  .option("--json", "Emit the stable v1 JSON envelope (overrides --format)")
+  .option("--depth <n>", "Graph neighborhood depth, default 1, max 2; 0 disables expansion")
+  .option("--top-pages <n>", "Max primary pages (default 5, max 20)")
+  .option("--top-chunks <n>", "Max semantic chunks (default 8, max 50)")
+  .option("--omit-root", "Emit project.root as null for privacy")
+  .option("--no-neighbors", "Suppress graph expansion (keeps neighbors/gaps as empty arrays)")
+  .option(
+    "--include-sources",
+    "Populate primary[].sourceWindows from claim-level citation spans (max 20 windows, 30 lines each)",
+  )
+  .action(async (prompt: string, options: ContextCommandOptions) =>
+    runExitCodeCommand(() => contextCommand(prompt, options)),
   );
 
 program

@@ -21,6 +21,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readState } from "../utils/state.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { findRelevantChunks, findRelevantPages } from "../utils/embeddings.js";
+import { buildContextPack } from "../context/build.js";
 import {
   CONCEPTS_DIR,
   INDEX_FILE,
@@ -55,7 +56,7 @@ function jsonResult(payload: unknown): {
   };
 }
 
-/** Register all 7 wiki tools on the given MCP server instance. */
+/** Register all 8 wiki tools on the given MCP server instance. */
 export function registerWikiTools(server: McpServer, root: string): void {
   registerIngestTool(server, root);
   registerCompileTool(server, root);
@@ -64,6 +65,7 @@ export function registerWikiTools(server: McpServer, root: string): void {
   registerReadTool(server, root);
   registerLintTool(server, root);
   registerStatusTool(server, root);
+  registerContextPackTool(server, root);
 }
 
 function registerIngestTool(server: McpServer, root: string): void {
@@ -255,6 +257,119 @@ function registerStatusTool(server: McpServer, root: string): void {
   );
 }
 
+/**
+ * Register the `get_context_pack` tool. Delegates to the same
+ * `buildContextPack()` helper as the CLI so the returned JSON matches
+ * `llmwiki context --json` byte-for-byte (modulo prompt content).
+ *
+ * No provider guard runs here: semantic retrieval is opportunistic
+ * inside `buildContextPack` and falls back to lexical with a stable
+ * warning when credentials are missing. The pack is read-only and
+ * never mutates the workspace, so the MCP layer needs no extra checks.
+ *
+ * The body is split into `contextPackToolConfig` (static metadata) and
+ * `buildContextPackFromArgs` (the per-call adapter) so this function
+ * stays inside the project's 40-line function ceiling.
+ */
+function registerContextPackTool(server: McpServer, root: string): void {
+  server.registerTool(
+    "get_context_pack",
+    contextPackToolConfig(),
+    async (args) => jsonResult(await buildContextPackFromArgs(root, args)),
+  );
+}
+
+/** Inline arg shape for {@link buildContextPackFromArgs}; matches `contextPackInputSchema`. */
+interface ContextPackToolArgs {
+  prompt: string;
+  budget?: number;
+  depth?: number;
+  topPages?: number;
+  topChunks?: number;
+  omitRoot?: boolean;
+  includeSources?: boolean;
+}
+
+/** Static `registerTool` metadata for `get_context_pack`. */
+function contextPackToolConfig(): {
+  title: string;
+  description: string;
+  inputSchema: ReturnType<typeof contextPackInputSchema>;
+} {
+  return {
+    title: "Get Context Pack",
+    description:
+      "Build an agent-ready evidence pack for `prompt` over the compiled " +
+      "wiki: primary pages, semantic chunks, graph neighbors, citations, " +
+      "warnings, and suggested next actions. Returns the same v1 JSON " +
+      "envelope as `llmwiki context --json`. Read-only; no provider " +
+      "credentials required. Use this to PREPARE evidence; use " +
+      "`query_wiki` to GENERATE a grounded natural-language answer.",
+    inputSchema: contextPackInputSchema(),
+  };
+}
+
+/**
+ * Zod schema for the `get_context_pack` tool arguments. Extracted so
+ * the registration function stays under the project's per-function
+ * line ceiling and so the schema can be unit-tested in isolation if
+ * we ever need to.
+ */
+function contextPackInputSchema(): {
+  prompt: z.ZodString;
+  budget: z.ZodOptional<z.ZodNumber>;
+  depth: z.ZodOptional<z.ZodNumber>;
+  topPages: z.ZodOptional<z.ZodNumber>;
+  topChunks: z.ZodOptional<z.ZodNumber>;
+  omitRoot: z.ZodOptional<z.ZodBoolean>;
+  includeSources: z.ZodOptional<z.ZodBoolean>;
+} {
+  return {
+    prompt: z.string().describe("Free-text task or topic to assemble context for."),
+    budget: z
+      .number()
+      .optional()
+      .describe("Approximate output token budget (default 8000)."),
+    depth: z
+      .number()
+      .optional()
+      .describe("Graph neighborhood depth, 0..2 (default 1, 0 disables expansion)."),
+    topPages: z.number().optional().describe("Max primary pages (default 5, max 20)."),
+    topChunks: z
+      .number()
+      .optional()
+      .describe("Max semantic chunks to surface (default 8, max 50)."),
+    omitRoot: z
+      .boolean()
+      .optional()
+      .describe("Emit `project.root` as null instead of the absolute path."),
+    includeSources: z
+      .boolean()
+      .optional()
+      .describe(
+        "Materialize `primary[].sourceWindows` from claim-level citations " +
+          "(reads files under `sources/` only; path-confined).",
+      ),
+  };
+}
+
+/** Per-call adapter that fans the tool args into `buildContextPack`. */
+async function buildContextPackFromArgs(
+  root: string,
+  args: ContextPackToolArgs,
+): Promise<Awaited<ReturnType<typeof buildContextPack>>> {
+  return buildContextPack({
+    root,
+    prompt: args.prompt,
+    budget: args.budget,
+    depth: args.depth,
+    topPages: args.topPages,
+    topChunks: args.topChunks,
+    omitRoot: args.omitRoot,
+    includeSources: args.includeSources,
+  });
+}
+
 /** Read-only status snapshot used by the wiki_status tool. */
 async function collectStatus(root: string): Promise<WikiStatus> {
   const concepts = await collectPageSummaries(path.join(root, CONCEPTS_DIR));
@@ -327,4 +442,3 @@ export async function readPage(root: string, slug: string): Promise<PageRecord |
   }
   return null;
 }
-
