@@ -10,10 +10,12 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "dev:view": "node scripts/dev-viewer.mjs",
+    "release:check-docs": "node scripts/check-release-docs.mjs",
+    "release:check-docs:current": "node scripts/check-release-docs.mjs --current-version",
     "test": "vitest run",
     "test:watch": "vitest",
     "fallow:ci": "bash scripts/fallow-ci.sh",
-    "prepublishOnly": "npm run build && npm test",
+    "prepublishOnly": "npm run release:check-docs:current && npm run build && npm test",
     "prepare": "husky"
   },
   "keywords": [
@@ -36,6 +38,7 @@
   },
   "files": [
     "dist/",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md"
   ],
