@@ -22,8 +22,9 @@
  *     `gaps` arrays without crashing
  *
  * Scores are deterministic and normalized into [0, 1]; direct neighbors
- * outrank second-hop, and pages with multiple primary connections get
- * a small additive bonus. Stable tie-sort: descending score, then
+ * outrank second-hop, pages with multiple primary connections get a
+ * small additive bonus, and same-kind page pairs get a smaller schema
+ * affinity bonus. Stable tie-sort: descending score, then
  * ascending `to` page id (Slice 3 does not have neighbor titles handy
  * without an extra lookup, and id is already monotonic per directory).
  */
@@ -69,6 +70,10 @@ const WEIGHT_NEIGHBOR_SECOND_HOP = 0.25;
  */
 const WEIGHT_PRIMARY_CONNECTION_BONUS = 0.05;
 const MAX_PRIMARY_CONNECTION_BONUS_HITS = 3;
+
+/** Small schema-affinity bump when both endpoints share the same page kind. */
+const WEIGHT_SAME_KIND_BONUS = 0.03;
+const DEFAULT_PAGE_KIND = "concept";
 
 /** Cap so combined scores stay inside the normalized [0, 1] range. */
 const MAX_NORMALIZED_SCORE = 1;
@@ -128,6 +133,7 @@ export function expandGraphNeighborhood(
   }
   const adjacency = buildAdjacency(input.graph);
   const ghostIds = collectGhostIds(input.graph.nodes);
+  const pageKinds = buildPageKindMap(input.pages);
   // Sort + cap depth-1 BEFORE depth-2 expansion so a trimmed-out
   // bridge can never contribute second-hop emissions. Without this
   // gate, a primary page with high fan-out could fan out further at
@@ -136,6 +142,7 @@ export function expandGraphNeighborhood(
     primaryIds: input.primaryIds,
     adjacency,
     ghostIds,
+    pageKinds,
   });
   const depth1 = depth1Raw.sort(compareNeighbors).slice(0, MAX_GRAPH_NEIGHBORS);
   const depth2 = input.depth >= 2
@@ -143,6 +150,7 @@ export function expandGraphNeighborhood(
         primaryIds: input.primaryIds,
         adjacency,
         ghostIds,
+        pageKinds,
         depthOneTargets: collectDepthOneTargets(depth1),
       })
     : [];
@@ -207,6 +215,7 @@ interface DepthOneInput {
   primaryIds: ReadonlySet<PageId>;
   adjacency: Adjacency;
   ghostIds: ReadonlySet<PageId>;
+  pageKinds: ReadonlyMap<PageId, string>;
 }
 
 /**
@@ -261,7 +270,12 @@ function tryEmitDirect(input: EmitDirectInput): void {
     to: other,
     direction,
     distance: 1,
-    score: WEIGHT_NEIGHBOR_DIRECT,
+    score: scoreWithSameKindBonus(
+      WEIGHT_NEIGHBOR_DIRECT,
+      ctx.primary,
+      other,
+      ctx.pageKinds,
+    ),
   });
 }
 
@@ -347,6 +361,7 @@ interface DepthTwoInput {
   primaryIds: ReadonlySet<PageId>;
   adjacency: Adjacency;
   ghostIds: ReadonlySet<PageId>;
+  pageKinds: ReadonlyMap<PageId, string>;
   depthOneTargets: ReadonlySet<PageId>;
 }
 
@@ -401,8 +416,46 @@ function tryEmitSecondHop(input: EmitSecondHopInput): void {
     to: other,
     direction,
     distance: 2,
-    score: WEIGHT_NEIGHBOR_SECOND_HOP,
+    score: scoreWithSameKindBonus(
+      WEIGHT_NEIGHBOR_SECOND_HOP,
+      ctx.bridge,
+      other,
+      ctx.pageKinds,
+    ),
   });
+}
+
+/** Map page ID to schema/page kind, defaulting legacy pages to concept. */
+function buildPageKindMap(pages: ViewerPage[]): Map<PageId, string> {
+  const kinds = new Map<PageId, string>();
+  for (const page of pages) {
+    const kind = page.frontmatter.kind;
+    kinds.set(page.id, typeof kind === "string" && kind.length > 0 ? kind : DEFAULT_PAGE_KIND);
+  }
+  return kinds;
+}
+
+/** Add the small kind-affinity bonus when both real endpoints share a kind. */
+function scoreWithSameKindBonus(
+  base: number,
+  from: PageId,
+  to: PageId,
+  pageKinds: ReadonlyMap<PageId, string>,
+): number {
+  return samePageKind(from, to, pageKinds)
+    ? clampScore(base + WEIGHT_SAME_KIND_BONUS)
+    : base;
+}
+
+/** True when both endpoints have an equal page kind in the real-page map. */
+function samePageKind(
+  from: PageId,
+  to: PageId,
+  pageKinds: ReadonlyMap<PageId, string>,
+): boolean {
+  const fromKind = pageKinds.get(from);
+  const toKind = pageKinds.get(to);
+  return fromKind !== undefined && toKind !== undefined && fromKind === toKind;
 }
 
 /** Collect just the `to` ids from a depth-1 neighbor list for fast lookups. */
@@ -439,4 +492,3 @@ function compareNeighbors(a: GraphNeighbor, b: GraphNeighbor): number {
   if (a.score !== b.score) return b.score - a.score;
   return a.to.localeCompare(b.to);
 }
-

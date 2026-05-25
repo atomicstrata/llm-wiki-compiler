@@ -111,7 +111,10 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   // budget trimming. Trimming may drop sourceWindows for budget
   // reasons; the warning still correctly reports "windows missing".
   const withProjectWarnings = appendProjectWarnings(withSources, state, normalized);
-  return finalizeBudget(withProjectWarnings, normalized.budget);
+  const graph = normalized.neighborsEnabled && normalized.depth >= 1
+    ? snapshot.graph
+    : null;
+  return finalizeBudget(withProjectWarnings, normalized.budget, graph);
 }
 
 /**
@@ -247,7 +250,10 @@ function assembleDraft(input: AssembleInput): ContextPack {
     neighbors: expansion.neighbors,
     warnings: buildTopLevelWarnings(options.promptTruncated, semantic.warning),
     gaps: expansion.gaps,
-    suggestedActions: collectSuggestedActions(recommendation),
+    suggestedActions: collectSuggestedActions(recommendation, {
+      hasPages: snapshot.pages.length > 0,
+      semanticWarning: semantic.warning,
+    }),
   };
 }
 
@@ -286,6 +292,26 @@ function collectPrimaryIds(primary: ContextPack["primary"]): Set<PageId> {
   const ids = new Set<PageId>();
   for (const entry of primary) ids.add(entry.id);
   return ids;
+}
+
+/** Strip graph-derived reasons so they can be recomputed after budget trimming. */
+function stripGraphNeighborReason(
+  primary: ContextPack["primary"],
+): ContextPack["primary"] {
+  return primary.map((entry) => ({
+    ...entry,
+    reasons: entry.reasons.filter((reason) => reason !== "graph-neighbor"),
+  }));
+}
+
+/** Reconcile graph-neighbor after trimToBudget may have removed a connected peer. */
+function reconcileGraphNeighborReasons(
+  pack: ContextPack,
+  graph: GraphData | null,
+): ContextPack {
+  const stripped = stripGraphNeighborReason(pack.primary);
+  const primary = graph ? annotateGraphNeighbors(stripped, graph) : stripped;
+  return primary === pack.primary ? pack : { ...pack, primary };
 }
 
 /** Empty expansion used when `--no-neighbors` suppresses graph traversal. */
@@ -338,6 +364,13 @@ function buildTopLevelWarnings(
         "Could not embed the prompt with the active provider; " +
         "semantic retrieval skipped, lexical signals still applied.",
     });
+  } else if (retrievalWarning === "semantic-retrieval-error") {
+    warnings.push({
+      code: "semantic-retrieval-error",
+      message:
+        "Semantic retrieval failed unexpectedly; " +
+        "lexical signals still applied and raw provider errors were not exposed.",
+    });
   }
   return warnings;
 }
@@ -350,8 +383,60 @@ function buildTopLevelWarnings(
  *   - tests pin the prefix only; context-specific additions land in
  *     later slices.
  */
-function collectSuggestedActions(recommendation: Recommendation): RecommendedAction[] {
-  return [recommendation.recommended, ...recommendation.otherActions];
+interface ContextActionInput {
+  hasPages: boolean;
+  semanticWarning: SemanticRetrievalWarning | null;
+}
+
+/** Context-specific suffix: rebuild embeddings when pages exist but no store is usable. */
+const CONTEXT_COMPILE_ACTION: RecommendedAction = {
+  command: "llmwiki compile",
+  reason: "Refresh compiled pages and rebuild the embedding store for semantic context.",
+  executable: { binary: "llmwiki", args: ["compile"] },
+};
+
+/** Context-specific suffix: open the selected wiki when shared recommendations omit it. */
+const CONTEXT_VIEW_ACTION: RecommendedAction = {
+  command: "llmwiki view --open",
+  reason: "Browse the compiled wiki in the local viewer.",
+  executable: { binary: "llmwiki", args: ["view", "--open"] },
+};
+
+/** Context-specific suffix: use the same prompt to generate an answer after reviewing evidence. */
+const CONTEXT_QUERY_ACTION: RecommendedAction = {
+  command: 'llmwiki query "<prompt>"',
+  reason: "Generate an answer with the same prompt after reviewing this context pack.",
+  executable: { binary: "llmwiki", args: ["query"], placeholders: ["prompt"] },
+};
+
+function collectSuggestedActions(
+  recommendation: Recommendation,
+  input: ContextActionInput,
+): RecommendedAction[] {
+  const actions: RecommendedAction[] = [];
+  for (const action of [recommendation.recommended, ...recommendation.otherActions]) {
+    appendUniqueAction(actions, action);
+  }
+  if (input.hasPages && input.semanticWarning === "embedding-store-missing") {
+    appendUniqueAction(actions, CONTEXT_COMPILE_ACTION);
+  }
+  if (input.hasPages) {
+    appendUniqueAction(actions, CONTEXT_VIEW_ACTION);
+    appendUniqueAction(actions, CONTEXT_QUERY_ACTION);
+  }
+  return actions;
+}
+
+/** Add `candidate` unless an equivalent executable action is already present. */
+function appendUniqueAction(actions: RecommendedAction[], candidate: RecommendedAction): void {
+  if (actions.some((action) => actionKey(action) === actionKey(candidate))) return;
+  actions.push(candidate);
+}
+
+/** Dedupe by executable intent, falling back to display command for non-executable actions. */
+function actionKey(action: RecommendedAction): string {
+  if (!action.executable) return action.command ?? action.reason;
+  return `${action.executable.binary} ${action.executable.args.join(" ")}`;
 }
 
 /**
@@ -376,31 +461,36 @@ function collectSuggestedActions(recommendation: Recommendation): RecommendedAct
  * to a single character of the integer's decimal representation —
  * well under one token for any realistic budget.
  */
-function finalizeBudget(draft: ContextPack, requestedTokens: number): ContextPack {
+function finalizeBudget(
+  draft: ContextPack,
+  requestedTokens: number,
+  graph: GraphData | null = null,
+): ContextPack {
   const initialEstimate = estimatePackTokens(draft);
   const trim = initialEstimate <= requestedTokens
     ? { pack: draft, trimmedSections: [] as string[] }
     : trimToBudget(draft, requestedTokens);
   const trimmedAny = trim.trimmedSections.length > 0;
+  const reconciledPack = reconcileGraphNeighborReasons(trim.pack, graph);
   // First pass: write the eventual `truncated`/`trimmedSections`
   // strings into the budget block with a placeholder zero estimate so
   // the JSON shape the estimator sees matches what we'll ultimately
   // ship. Second pass: write the first estimate back and re-measure
   // so the reported value converges on the digit-count fixed point.
   const e1 = estimatePackTokens(
-    applyBudget(trim.pack, {
+    applyBudget(reconciledPack, {
       requestedTokens, estimatedTokens: 0,
       truncated: trimmedAny, trimmedSections: trim.trimmedSections,
     }),
   );
   const e2 = estimatePackTokens(
-    applyBudget(trim.pack, {
+    applyBudget(reconciledPack, {
       requestedTokens, estimatedTokens: e1,
       truncated: trimmedAny, trimmedSections: trim.trimmedSections,
     }),
   );
   const truncated = trimmedAny || e2 > requestedTokens;
-  return applyBudget(trim.pack, {
+  return applyBudget(reconciledPack, {
     requestedTokens,
     estimatedTokens: e2,
     truncated,

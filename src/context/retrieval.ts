@@ -38,7 +38,8 @@ import type { EmbeddingStore } from "../utils/embeddings.js";
 /** Stable warning code returned when semantic retrieval did not contribute. */
 export type SemanticRetrievalWarning =
   | "embedding-store-missing"
-  | "query-embedding-unavailable";
+  | "query-embedding-unavailable"
+  | "semantic-retrieval-error";
 
 /**
  * Slimmed chunk record passed from retrieval into ranking. Keeps
@@ -88,11 +89,11 @@ export async function retrieveSemanticChunks(
   let raw: Awaited<ReturnType<typeof findRelevantChunks>>;
   try {
     raw = await findRelevantChunks(root, prompt, topChunks);
-  } catch {
-    // Provider call failed — usually missing credentials, occasionally a
-    // transient network blip. Either way, lexical fallback continues
-    // and the warning is what tells the agent what just happened.
-    return emptyOutcome("query-embedding-unavailable");
+  } catch (err) {
+    // Provider/config failures are expected in credential-free context
+    // runs. Unknown exceptions still fall back to lexical, but receive
+    // a distinct warning so real bugs are not mislabeled as auth.
+    return emptyOutcome(classifyRetrievalError(err));
   }
 
   if (raw.length === 0) {
@@ -158,6 +159,20 @@ function isStaleModel(store: EmbeddingStore): boolean {
   } catch {
     return true;
   }
+}
+
+/** Classify failures without leaking raw provider or stack text into JSON. */
+function classifyRetrievalError(err: unknown): SemanticRetrievalWarning {
+  const message = err instanceof Error ? err.message : String(err);
+  return looksLikeProviderFailure(message)
+    ? "query-embedding-unavailable"
+    : "semantic-retrieval-error";
+}
+
+/** Known provider/config/network failures that should keep the legacy warning code. */
+function looksLikeProviderFailure(message: string): boolean {
+  return /api[_ -]?key|auth|credential|token|provider|voyage|openai|ollama|timeout|fetch|econn|enotfound/i
+    .test(message);
 }
 
 /** Project an embedding-store chunk hit onto the ranking-facing shape. */

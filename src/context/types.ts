@@ -18,7 +18,6 @@ import type { RecommendedAction } from "../project/recommendations.js";
 /** Closed v1 enum for why a page landed in `primary[]`. */
 export type PrimaryReason =
   | "semantic-chunk"
-  | "semantic-page"
   | "title-match"
   | "body-match"
   | "exact-slug"
@@ -32,6 +31,7 @@ type NeighborReason = "wikilink";
 type ContextWarningCode =
   | "embedding-store-missing"
   | "query-embedding-unavailable"
+  | "semantic-retrieval-error"
   | "lint-errors"
   | "pending-candidates"
   | "source-window-unavailable"
@@ -45,7 +45,7 @@ export interface ContextBudget {
   requestedTokens: number;
   estimatedTokens: number;
   truncated: boolean;
-  /** Section keys (`primary`, `neighbors`, `sources`, `chunks`) that lost data. */
+  /** Section keys (`primary`, `neighbors`, `sourceWindows`, `chunks`) that lost data. */
   trimmedSections: string[];
 }
 

@@ -128,6 +128,14 @@ describe("retrieveSemanticChunks — store-absence and credential branches", () 
     expect(outcome.warning).toBe("query-embedding-unavailable");
   });
 
+  it("returns semantic-retrieval-error for unexpected internal failures", async () => {
+    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
+    mockedFindChunks.mockRejectedValueOnce(new Error("vector index invariant violated"));
+    const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
+    expect(outcome.hits).toEqual([]);
+    expect(outcome.warning).toBe("semantic-retrieval-error");
+  });
+
   it("defensive: empty findRelevantChunks result after pre-check still emits embedding-store-missing", async () => {
     // Under normal operation the upfront stale-model and chunk-count
     // checks make this path unreachable, but a TOCTOU race (store
