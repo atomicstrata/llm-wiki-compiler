@@ -56,7 +56,7 @@ const JUDGE_TOOL: LLMTool = {
 };
 
 const JUDGE_SYSTEM =
-  "You are an expert fact-checker. Given a claim from a wiki article and a source excerpt, rate whether the source supports the claim. Be strict: partial credit only if the source addresses the claim but is incomplete.";
+  "You are an expert fact-checker. Given a claim from a wiki article and a source excerpt, rate whether the source supports the claim. Be strict: partial credit only if the source addresses the claim but is incomplete. Important: if the source excerpt consists entirely of YAML frontmatter (metadata fields such as title, date, author, or tags between --- delimiters), treat it as non-evidence for any substantive claim and score it 0, unless the claim is explicitly about that metadata field.";
 
 // Content-addressable fingerprint of the judge prompt + tool schema.
 // Any edit to JUDGE_SYSTEM or JUDGE_TOOL produces a new hash, automatically
