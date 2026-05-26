@@ -42,10 +42,22 @@ interface ResolvedEvalOptions {
   outFormat: "terminal" | "json";
 }
 
+/**
+ * Parse and validate --sample as a positive integer.
+ * @throws if the value is not a positive integer (rejects 0, negatives, decimals, non-numeric).
+ */
+export function parseSampleSize(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(`--sample must be a positive integer (got "${raw}")`);
+  }
+  return n;
+}
+
 function resolveEvalOptions(options: EvalOptions): ResolvedEvalOptions {
   return {
     suite: options.suite === "full" ? "full" : "fast",
-    sampleSize: parseInt(options.sample ?? String(DEFAULT_SAMPLE_SIZE), 10),
+    sampleSize: parseSampleSize(options.sample ?? String(DEFAULT_SAMPLE_SIZE)),
     outFormat: options.out === "json" ? "json" : "terminal",
   };
 }
