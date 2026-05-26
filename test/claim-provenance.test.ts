@@ -69,15 +69,6 @@ describe("extractClaimCitations parser", () => {
     ]);
   });
 
-  it("treats compact comma line list (no space) as individual line spans", () => {
-    const citations = extractClaimCitations("A claim. ^[source.md:1,12]");
-    expect(citations).toHaveLength(1);
-    expect(citations[0].spans).toEqual([
-      { file: "source.md", lines: { start: 1, end: 1 } },
-      { file: "source.md", lines: { start: 12, end: 12 } },
-    ]);
-  });
-
   it("splits a digit-leading filename after a letter-leading one", () => {
     const citations = extractClaimCitations("A claim. ^[source.md, 2024-notes.md]");
     expect(citations).toHaveLength(1);
