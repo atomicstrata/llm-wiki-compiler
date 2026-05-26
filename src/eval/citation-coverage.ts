@@ -9,11 +9,11 @@
  * so that only human-readable claim text is counted.
  */
 
-import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
+import { resolveSourceFile } from "./source-path.js";
 import type { CitationCoverageResult, CitationPageResult } from "./types.js";
 
 /** Prose paragraphs start with a Unicode letter. */
@@ -28,7 +28,7 @@ interface PageStats {
 }
 
 /** Evaluate citation coverage and precision for a single page body. */
-function evaluatePage(slug: string, body: string, sourcesDir: string): PageStats {
+async function evaluatePage(slug: string, body: string, sourcesDir: string): Promise<PageStats> {
   const paragraphs = body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
   let citedParagraphs = 0;
   let totalCitations = 0;
@@ -41,7 +41,7 @@ function evaluatePage(slug: string, body: string, sourcesDir: string): PageStats
     for (const { spans } of citations) {
       for (const span of spans) {
         totalCitations++;
-        if (existsSync(path.join(sourcesDir, span.file))) validCitations++;
+        if ((await resolveSourceFile(sourcesDir, span.file)) !== null) validCitations++;
       }
     }
   }
@@ -74,7 +74,7 @@ export async function evaluateCitationCoverage(
   for (const { filePath, content } of pages) {
     const { body } = parseFrontmatter(content);
     const slug = path.basename(filePath, ".md");
-    const stats = evaluatePage(slug, body, sourcesDir);
+    const stats = await evaluatePage(slug, body, sourcesDir);
     totalProse += stats.proseParagraphs;
     totalCited += stats.citedParagraphs;
     totalCitations += stats.totalCitations;

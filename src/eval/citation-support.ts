@@ -18,6 +18,7 @@ import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
 import { callClaude } from "../utils/llm.js";
 import { SOURCES_DIR, DEFAULT_PROVIDER, PROVIDER_MODELS } from "../utils/constants.js";
+import { resolveSourceFile } from "./source-path.js";
 import type { LLMTool } from "../utils/provider.js";
 import type { CitationJudgement, CitationSupportResult } from "./types.js";
 import type { SourceSpan } from "../utils/types.js";
@@ -101,8 +102,8 @@ async function buildSpanPair(
   sourcesDir: string,
 ): Promise<CitationPair | null> {
   if (!span.lines) return null;
-  const sourceFile = path.join(sourcesDir, span.file);
-  if (!existsSync(sourceFile)) return null;
+  const sourceFile = await resolveSourceFile(sourcesDir, span.file);
+  if (sourceFile === null) return null;
   const spanText = await readSourceLines(sourceFile, span.lines.start, span.lines.end);
   return {
     claimHash: hashPair(claimText, spanText),
