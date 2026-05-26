@@ -228,6 +228,30 @@ describe("evaluateCitationSupport", () => {
     expect(result!.sampledHashes).toHaveLength(result!.sampledCount);
   });
 
+  it("does not reuse cached judgement when the model changes", async () => {
+    const { callClaude } = await import("../src/utils/llm.js");
+    const spy = vi.mocked(callClaude);
+    spy.mockClear();
+
+    await env.writeSource("model-change.md", "Source content.\n");
+    await env.writeConcept(
+      "model-change",
+      `---\ntitle: Model Change\nsources: [model-change.md]\nsummary: A concept.\ncreatedAt: 2024-01-01\nupdatedAt: 2024-01-01\n---\n\nThis claim is backed by the source.^[model-change.md:1-1]\n`,
+    );
+
+    // First run with model A — populates cache
+    process.env.LLMWIKI_MODEL = "model-a";
+    await evaluateCitationSupport(env.dir, 10);
+    const callsAfterModelA = spy.mock.calls.length;
+
+    // Second run with model B — different cache key, must re-judge
+    process.env.LLMWIKI_MODEL = "model-b";
+    await evaluateCitationSupport(env.dir, 10);
+    expect(spy.mock.calls.length).toBeGreaterThan(callsAfterModelA);
+
+    delete process.env.LLMWIKI_MODEL;
+  });
+
   it("skips already-cached pairs and does not call judge again", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
     const spy = vi.mocked(callClaude);

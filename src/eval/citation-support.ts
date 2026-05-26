@@ -58,9 +58,25 @@ const JUDGE_TOOL: LLMTool = {
 const JUDGE_SYSTEM =
   "You are an expert fact-checker. Given a claim from a wiki article and a source excerpt, rate whether the source supports the claim. Be strict: partial credit only if the source addresses the claim but is incomplete.";
 
+// Content-addressable fingerprint of the judge prompt + tool schema.
+// Any edit to JUDGE_SYSTEM or JUDGE_TOOL produces a new hash, automatically
+// invalidating cached judgements without requiring a manual version bump.
+const JUDGE_CONFIG_HASH = createHash("sha256")
+  .update(JUDGE_SYSTEM + JSON.stringify(JUDGE_TOOL))
+  .digest("hex")
+  .slice(0, 8);
+
 /** Compute a stable 16-char hex hash for a (claim, span) pair. */
 function hashPair(claimText: string, spanText: string): string {
   return createHash("sha256").update(claimText + spanText).digest("hex").slice(0, 16);
+}
+
+/** Derive a full cache key from content hash + judge config fingerprint + model. */
+function makeCacheKey(contentHash: string, model: string): string {
+  return createHash("sha256")
+    .update(contentHash + JUDGE_CONFIG_HASH + model)
+    .digest("hex")
+    .slice(0, 16);
 }
 
 /** Extract the text of specific lines from a file (1-indexed, inclusive). */
@@ -202,7 +218,7 @@ function resolveModel(): string {
 }
 
 /** Call the LLM judge for a single (claim, span) pair. */
-async function callJudge(pair: CitationPair): Promise<CitationJudgement> {
+async function callJudge(pair: CitationPair, cacheKey: string, model: string): Promise<CitationJudgement> {
   const userMessage =
     `Claim: ${pair.claimText}\n\nSource (${pair.citedFile}, lines ${pair.lineStart}–${pair.lineEnd}):\n${pair.spanText}`;
 
@@ -215,7 +231,7 @@ async function callJudge(pair: CitationPair): Promise<CitationJudgement> {
 
   const parsed = JSON.parse(raw) as { score: 0 | 1 | 2; reason: string };
   return {
-    claimHash: pair.claimHash,
+    claimHash: cacheKey,
     pageSlug: pair.pageSlug,
     citedFile: pair.citedFile,
     lineStart: pair.lineStart,
@@ -224,7 +240,7 @@ async function callJudge(pair: CitationPair): Promise<CitationJudgement> {
     spanText: pair.spanText,
     score: parsed.score,
     reason: parsed.reason,
-    model: resolveModel(),
+    model,
     timestamp: new Date().toISOString(),
   };
 }
@@ -254,19 +270,21 @@ async function judgeNewPairs(
   cache: Map<string, CitationJudgement>,
   root: string,
 ): Promise<{ judgements: CitationJudgement[]; judgeErrors: number }> {
+  const model = resolveModel();
   const judgements: CitationJudgement[] = [];
   let judgeErrors = 0;
   let newPairsAttempted = 0;
   let firstError: unknown;
 
   for (const pair of sample) {
-    const cached = cache.get(pair.claimHash);
+    const cacheKey = makeCacheKey(pair.claimHash, model);
+    const cached = cache.get(cacheKey);
     if (cached) {
       judgements.push(cached);
     } else {
       newPairsAttempted++;
       try {
-        const judgement = await callJudge(pair);
+        const judgement = await callJudge(pair, cacheKey, model);
         await appendCachedJudgement(root, judgement);
         judgements.push(judgement);
       } catch (err) {
