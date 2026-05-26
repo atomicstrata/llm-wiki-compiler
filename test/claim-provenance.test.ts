@@ -77,6 +77,43 @@ describe("extractClaimCitations parser", () => {
       { file: "source.md", lines: { start: 12, end: 12 } },
     ]);
   });
+
+  it("splits a digit-leading filename after a letter-leading one", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md, 2024-notes.md]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].spans).toEqual([
+      { file: "source.md" },
+      { file: "2024-notes.md" },
+    ]);
+  });
+
+  it("splits a digit-leading filename before a letter-leading one", () => {
+    const citations = extractClaimCitations("A claim. ^[2024-notes.md, source.md]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].spans).toEqual([
+      { file: "2024-notes.md" },
+      { file: "source.md" },
+    ]);
+  });
+
+  it("handles two digit-leading filenames", () => {
+    const citations = extractClaimCitations("A claim. ^[99problems.md, 1.md]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].spans).toEqual([
+      { file: "99problems.md" },
+      { file: "1.md" },
+    ]);
+  });
+
+  it("still preserves comma-line form when followed by digit-leading filename", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:1, 12, 2024-notes.md]");
+    expect(citations).toHaveLength(1);
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 1, end: 1 } },
+      { file: "source.md", lines: { start: 12, end: 12 } },
+      { file: "2024-notes.md" },
+    ]);
+  });
 });
 
 describe("extractCitations backwards compatibility", () => {

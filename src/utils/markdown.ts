@@ -161,14 +161,27 @@ export function extractClaimCitations(body: string): ClaimCitation[] {
 }
 
 /**
+ * Split a raw citation marker interior (the content between `^[` and `]`) into
+ * individual source-entry strings, without separating comma-separated line
+ * numbers like the `12` in `source.md:1, 12`.
+ *
+ * The rule: split on every comma EXCEPT those followed by a purely-digit token
+ * (which must be a line-number continuation). This correctly handles
+ * digit-leading filenames such as `2024-notes.md`, `99problems.md`, and `1.md`.
+ */
+export function splitCitationMarker(inner: string): string[] {
+  return inner.split(/,(?!\s*\d+\s*(?:,|$))/);
+}
+
+/**
  * Parse the inside of `^[...]` into one or more SourceSpan entries.
- * Only splits on commas that begin a new filename (followed by a letter or
- * underscore), so `source.md:1, 12` stays as one entry and its two line
- * numbers each become their own single-line span via parseSpanEntries.
+ * Delegates splitting to {@link splitCitationMarker} so `source.md:1, 12`
+ * stays as one entry while digit-leading filenames like `2024-notes.md` are
+ * correctly recognised as separate entries.
  */
 function parseCitationEntries(inner: string): SourceSpan[] {
   const spans: SourceSpan[] = [];
-  for (const part of inner.split(/,\s*(?=[a-zA-Z_])/)) {
+  for (const part of splitCitationMarker(inner)) {
     const trimmed = part.trim();
     if (trimmed.length === 0) continue;
     spans.push(...parseSpanEntries(trimmed));
