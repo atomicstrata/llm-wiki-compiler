@@ -34,6 +34,8 @@ Adds guided project next steps, one-command quickstart, agent-ready context grap
 ### Test infrastructure
 
 - Hardened the basename-collision CLI tests with explicit timeouts.
+- Hardened local Vitest timeouts for subprocess-heavy integration tests.
+- Changed the npm publish preflight to run release-doc checks, build, and a dry-run package check; the full test suite remains enforced by CI.
 - Added coverage for quickstart/next JSON envelopes, context packs, MCP context packs, graph rendering, eval reports/history/cache/thresholds, and release-doc checks.
 
 ### Contributors

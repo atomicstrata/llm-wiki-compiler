@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "fallow:ci": "bash scripts/fallow-ci.sh",
-    "prepublishOnly": "npm run release:check-docs:current && npm run build && npm test",
+    "prepublishOnly": "npm run release:check-docs:current && npm run build && npm pack --dry-run --ignore-scripts",
     "prepare": "husky"
   },
   "keywords": [
