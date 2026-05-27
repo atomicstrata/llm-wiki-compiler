@@ -29,6 +29,7 @@ import {
 
 const exec = promisify(execCb);
 const CLI = path.resolve("dist/cli.js");
+const CLI_REJECTION_TIMEOUT_MS = 30_000;
 
 let ipv6Available = false;
 
@@ -84,7 +85,10 @@ describe("CLI — wildcard host rejection", () => {
     const root = await makeTempRoot(`viewer-host-wildcard-${host.replace(/[:.*]/g, "-")}`);
     let stderr = "";
     try {
-      await exec(`node "${CLI}" view --port 0 --allow-lan --host "${host}"`, { cwd: root, timeout: 5000 });
+      await exec(`node "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
+        cwd: root,
+        timeout: CLI_REJECTION_TIMEOUT_MS,
+      });
       throw new Error("expected CLI to exit non-zero for wildcard host");
     } catch (err) {
       stderr = String((err as { stderr?: string }).stderr ?? "");

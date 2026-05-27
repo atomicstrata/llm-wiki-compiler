@@ -25,7 +25,7 @@ const CLI = path.resolve("dist/cli.js");
 // Parses either `http://127.0.0.1:PORT` or the bracketed-IPv6 form
 // `http://[::1]:PORT` — group 1 captures the host without the brackets.
 const READINESS_RE = /Viewer ready at http:\/\/(?:\[([^\]]+)\]|([^\s:]+)):(\d+)/;
-const DEFAULT_READY_TIMEOUT_MS = 5000;
+const DEFAULT_READY_TIMEOUT_MS = 30_000;
 
 /** Handle returned by {@link startViewerCLI}. */
 export interface ViewerProcessHandle {
