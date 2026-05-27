@@ -18,6 +18,7 @@ import {
 } from "../utils/constants.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { readState } from "../utils/state.js";
+import { loadPreviousReport, loadHistory } from "../eval/stats.js";
 
 /** Standard JSON content block for an MCP resource read result. */
 function jsonContent(uri: URL, payload: unknown): {
@@ -45,13 +46,15 @@ function markdownContent(uri: URL, text: string): {
   };
 }
 
-/** Register all 5 read-only wiki resources on the given MCP server. */
+/** Register all 7 read-only wiki resources on the given MCP server. */
 export function registerWikiResources(server: McpServer, root: string): void {
   registerIndexResource(server, root);
   registerSourcesResource(server, root);
   registerStateResource(server, root);
   registerConceptResource(server, root);
   registerQueryResource(server, root);
+  registerEvalReportResource(server, root);
+  registerEvalHistoryResource(server, root);
 }
 
 function registerIndexResource(server: McpServer, root: string): void {
@@ -168,6 +171,38 @@ async function loadPageWithMeta(
 
   const { meta, body } = parseFrontmatter(content);
   return { slug, meta, body: body.trim() };
+}
+
+function registerEvalReportResource(server: McpServer, root: string): void {
+  server.registerResource(
+    "eval-report",
+    "llmwiki://eval/report",
+    {
+      title: "Eval Report",
+      description: "Latest eval report — health score, citation coverage, corpus stats.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const report = await loadPreviousReport(root);
+      return { contents: [jsonContent(uri, report ?? {})] };
+    },
+  );
+}
+
+function registerEvalHistoryResource(server: McpServer, root: string): void {
+  server.registerResource(
+    "eval-history",
+    "llmwiki://eval/history",
+    {
+      title: "Eval History",
+      description: "Eval run history — trend table of past eval reports.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      const reports = await loadHistory(root, 10);
+      return { contents: [jsonContent(uri, reports)] };
+    },
+  );
 }
 
 /** Build a resource list payload by enumerating .md files in a wiki directory. */

@@ -36,8 +36,8 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
     instructions:
       "llmwiki is a knowledge compiler. Use ingest_source to add raw sources, " +
       "compile_wiki to run the LLM pipeline, query_wiki for grounded answers, " +
-      "and search_pages to retrieve relevant pages. read_page, lint_wiki, and " +
-      "wiki_status work without an API key.",
+      "search_pages to retrieve relevant pages, and run_eval to score wiki quality. " +
+      "read_page, lint_wiki, wiki_status, and run_eval (fast suite) work without an API key.",
   });
 
   registerWikiTools(server, root);

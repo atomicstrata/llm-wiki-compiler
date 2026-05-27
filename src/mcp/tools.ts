@@ -2,7 +2,7 @@
  * MCP tool registrations for llmwiki.
  *
  * Each tool wraps an existing pipeline function (ingest, compile, query,
- * search, read, lint, status) and converts its structured result into
+ * search, read, lint, status, context-pack, eval) and converts its structured result into
  * an MCP CallToolResult. Tools that need an LLM provider validate the
  * provider lazily — the server itself starts without credentials so
  * read-only tools always work.
@@ -29,6 +29,7 @@ import {
   CHUNK_TOP_K,
 } from "../utils/constants.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
+import { runEval } from "../eval/index.js";
 
 /** Directories searched (in priority order) when resolving a page slug. */
 const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];
@@ -56,7 +57,7 @@ function jsonResult(payload: unknown): {
   };
 }
 
-/** Register all 8 wiki tools on the given MCP server instance. */
+/** Register all 9 wiki tools on the given MCP server instance. */
 export function registerWikiTools(server: McpServer, root: string): void {
   registerIngestTool(server, root);
   registerCompileTool(server, root);
@@ -66,6 +67,7 @@ export function registerWikiTools(server: McpServer, root: string): void {
   registerLintTool(server, root);
   registerStatusTool(server, root);
   registerContextPackTool(server, root);
+  registerEvalTool(server, root);
 }
 
 function registerIngestTool(server: McpServer, root: string): void {
@@ -369,6 +371,32 @@ async function buildContextPackFromArgs(
     includeSources: args.includeSources,
   });
 }
+
+
+function registerEvalTool(server: McpServer, root: string): void {
+  server.registerTool(
+    "run_eval",
+    {
+      title: "Run Eval",
+      description:
+        "Run the wiki quality eval harness. fast suite checks health and citation " +
+        "coverage without LLM calls. full suite also LLM-judges a sample of citations " +
+        "(requires an LLM provider). Appends results to eval history.",
+      inputSchema: {
+        suite: z.enum(["fast", "full"]).optional().default("fast")
+          .describe("fast=no LLM calls, full=includes citation support (requires LLM provider)"),
+        sampleSize: z.number().int().min(1).max(100).optional()
+          .describe("Citations to sample for citation support (full suite only, default 20)"),
+      },
+    },
+    async ({ suite, sampleSize }) => {
+      if (suite === "full") ensureProviderAvailable();
+      const report = await runEval(root, suite, sampleSize ?? 20);
+      return jsonResult(report);
+    },
+  );
+}
+
 
 /** Read-only status snapshot used by the wiki_status tool. */
 async function collectStatus(root: string): Promise<WikiStatus> {
