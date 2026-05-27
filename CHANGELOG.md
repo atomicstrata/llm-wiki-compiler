@@ -29,7 +29,7 @@ Adds guided project next steps, one-command quickstart, agent-ready context grap
 
 ### Changed
 
-- **Fallow upgraded to 2.77.0** with follow-on code-health cleanup across CLI, viewer, adapters, watch, and tests.
+- **Fallow upgraded to 2.82.0** with follow-on code-health cleanup across CLI, viewer, adapters, watch, and tests. The CI action is pinned to the matching signed release so binary verification uses embedded platform digests rather than unauthenticated GitHub API lookups.
 
 ### Test infrastructure
 

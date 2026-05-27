@@ -29,8 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Pin the action wrapper while using the signed 2.77.0 binary release.
-      - uses: fallow-rs/fallow@fed4b483dd1cbba8c1f55dcfe5b9599c389f95a8
+      # Pin the action wrapper while using the signed 2.82.0 binary release.
+      - uses: fallow-rs/fallow@5cc7152083ad57f20880a14ac82262a5a6861eec
         with:
-          version: 2.77.0
+          version: 2.82.0
           fail-on-issues: true
