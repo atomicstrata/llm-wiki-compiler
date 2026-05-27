@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-05-26
+
+Adds guided project next steps, one-command quickstart, agent-ready context graph packs, a viewer graph route, and the first eval harness for measuring wiki quality over time.
+
+### Added
+
+- **`llmwiki next`** — inspects the current project and recommends the next useful command. Human output is concise; `--json` emits a stable envelope for agents.
+- **`llmwiki quickstart <source>`** — ingests one source, compiles the wiki, and opens the local viewer when pages are ready. Supports `--review`, `--no-open`, `--provider`, `--lang`, and `--json`.
+- **`llmwiki context "<prompt>"`** — builds an agent-ready evidence pack with primary pages, semantic chunks when available, graph neighbors, citations, gaps, warnings, and suggested actions. `--include-sources` can add path-confined source windows.
+- **MCP `get_context_pack`** — exposes the same v1 context-pack envelope over MCP. It packages evidence for agents; `query_wiki` remains the answer-generation tool.
+- **Viewer graph route** — the local web viewer now includes a force-directed graph at `#/graph`, plus navigation polish so graph/page/sidebar state stays in sync.
+- **`llmwiki eval`** — measures wiki health score, citation coverage, citation precision, corpus stats, regression deltas, and optional LLM-as-judge citation support. Includes `eval report`, `eval history`, `eval judgements`, and `eval cache` subcommands.
+- **Eval thresholds** — `.llmwiki/eval/thresholds.yaml` can gate health, citation coverage, citation precision, and full-suite citation support scores in CI.
+
+### Fixed
+
+- **Pipe-alias wikilinks** — `[[slug|Display Text]]` is now detected correctly by lint and viewer link tooling.
+- **Source-path confinement in eval** — citation-support judging resolves source paths through a shared confinement helper, including encoded traversal edge cases.
+- **Eval cache invalidation** — citation judgements include judge configuration in the cache key, so changing model/provider settings re-judges affected claims instead of reusing stale scores.
+- **Sample validation in eval** — invalid `--sample` values fail loudly instead of falling through to surprising sampling behavior.
+- **Contributor docs** — upstream remote setup now points at the current `atomicstrata` GitHub org.
+
+### Changed
+
+- **Fallow upgraded to 2.77.0** with follow-on code-health cleanup across CLI, viewer, adapters, watch, and tests.
+
+### Test infrastructure
+
+- Hardened the basename-collision CLI tests with explicit timeouts.
+- Added coverage for quickstart/next JSON envelopes, context packs, MCP context packs, graph rendering, eval reports/history/cache/thresholds, and release-doc checks.
+
+### Contributors
+
+Thanks to **@joshuaknipe** for a major release's worth of contributions: pipe-alias wikilink fixes (#61), upstream docs cleanup (#62), the viewer graph route (#63), and the eval harness with health scoring, citation quality, and corpus stats (#67).
+
 ## [0.7.0] - 2026-05-18
 
 Adds the first local web viewer for compiled wikis, a GitHub Copilot provider, and a persisted lint summary that lets the viewer report wiki health without re-running lint on every page load.

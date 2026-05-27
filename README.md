@@ -554,7 +554,10 @@ Karpathy describes an abstract pattern for turning raw data into compiled knowle
 
 Shipped in 0.8.0:
 
+- ✅ Guided project flow — `llmwiki next` recommends the next useful command, and `llmwiki quickstart <source>` ingests, compiles, and opens the viewer in one step
 - ✅ Graph/context layer — `llmwiki context` and MCP `get_context_pack` produce token-budgeted evidence packs with primary pages, graph neighbors, citations, optional source windows, warnings, and suggested actions
+- ✅ Viewer graph route — `llmwiki view` includes a force-directed `#/graph` route for exploring page relationships
+- ✅ Evaluation harness — `llmwiki eval` measures health score, citation coverage/precision, corpus stats, regression deltas, optional LLM-as-judge citation support, and CI thresholds
 
 Shipped in 0.7.0:
 
@@ -596,10 +599,10 @@ Shipped in 0.2.0:
 
 Next up:
 
-- **Evaluation harness** — benchmark answer quality, citation accuracy, update drift, retrieval recall, and scale curves against serious retrieval baselines.
 - **Task and decision ledger** — turn session ingest into durable agent memory: goals, decisions, open questions, outcomes, and next-agent handoffs.
 - **Rollback, audit, and source lifecycle** — undo/reverse ingest, compile diff reports, stale-claim checks, freshness reports, and a durable operation log.
 - **Domain templates** — schema/prompt packs for research, codebase docs, team handbooks, decision logs, and standards/regulations.
+- **Eval extensions** — retrieval recall suites, update-drift benchmarks, and comparisons against serious retrieval baselines.
 
 Later / open to discussion:
 
@@ -608,7 +611,7 @@ Later / open to discussion:
 - Codex OAuth provider — ChatGPT subscription auth as a dedicated provider, with clear token refresh and embedding-limit behavior
 - Team-chat connectors for Slack/Discord/Teams-style institutional memory
 
-If you like ambitious problems: **eval harness**, **task/decision ledger**, and **rollback/audit tooling** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.
+If you like ambitious problems: **task/decision ledger**, **rollback/audit tooling**, and **eval extensions** are the meatiest next contributions. Open an issue to claim one or kick off a design discussion.
 
 Explicitly not planned (good ideas, just not for this repo): full static-site generator, desktop or mobile apps, fine-tuning, a formal ontology engine, heavy graph database infrastructure.
 
