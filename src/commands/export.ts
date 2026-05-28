@@ -21,6 +21,7 @@ import * as output from "../utils/output.js";
 import { collectExportPages } from "../export/collect.js";
 import { buildLlmsTxt, buildLlmsFullTxt } from "../export/llms-txt.js";
 import { buildJsonExport } from "../export/json-export.js";
+import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
 import { buildMarp } from "../export/marp.js";
@@ -51,6 +52,13 @@ export interface ExportOptions {
    * Accepts "concepts", "queries", or "all" (default when absent).
    */
   source?: string;
+  /**
+   * Optional bridge identifier embedded in the JSON export envelope.
+   * Validated against the bridge contract regex
+   * (`/^[a-z0-9][a-z0-9-]{0,62}$/`); invalid values throw before any
+   * file is written.
+   */
+  projectId?: string;
 }
 
 /** Result returned by runExport for testing and MCP consumers. */
@@ -92,20 +100,26 @@ function resolveMarpSource(rawSource: string | undefined): MarpSource {
   return rawSource;
 }
 
+/** Inputs to {@link buildContent}. Grouped to keep the argument list short. */
+interface BuildContentInputs {
+  target: ExportTarget;
+  pages: ExportPage[];
+  projectTitle: string;
+  marpSource: MarpSource;
+  /** Optional bridge identifier; only consumed by the json target. */
+  projectId?: string;
+}
+
 /** Build the content string for a single target. */
-function buildContent(
-  target: ExportTarget,
-  pages: ReturnType<typeof collectExportPages> extends Promise<infer T> ? T : never,
-  projectTitle: string,
-  marpSource: MarpSource,
-): string {
+function buildContent(inputs: BuildContentInputs): string {
+  const { target, pages, projectTitle, marpSource, projectId } = inputs;
   switch (target) {
     case "llms-txt":
       return buildLlmsTxt(pages, projectTitle);
     case "llms-full-txt":
       return buildLlmsFullTxt(pages, projectTitle);
     case "json":
-      return buildJsonExport(pages);
+      return buildJsonExport(pages, projectId !== undefined ? { projectId } : {});
     case "json-ld":
       return buildJsonLd(pages);
     case "graphml":
@@ -140,6 +154,8 @@ function computeReportedPageCount(
  * @returns Paths written and page count.
  */
 export async function runExport(root: string, options: ExportOptions = {}): Promise<ExportResult> {
+  const projectId =
+    options.projectId !== undefined ? validateProjectId(options.projectId) : undefined;
   const pages = await collectExportPages(root);
   const projectTitle = resolveProjectTitle(root);
 
@@ -148,7 +164,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
   const written: string[] = [];
 
   for (const target of targets) {
-    const content = buildContent(target, pages, projectTitle, marpSource);
+    const content = buildContent({ target, pages, projectTitle, marpSource, projectId });
     const outPath = path.join(root, EXPORT_DIR, TARGET_FILENAMES[target]);
     await atomicWrite(outPath, content);
     written.push(outPath);

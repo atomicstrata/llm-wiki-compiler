@@ -40,12 +40,13 @@ export const MAX_LINES_PER_WINDOW = 30;
 const CITATION_KEY_SEPARATOR = " <#> ";
 
 /**
- * Flat citation shape consumed by `ContextPrimary.citations[]`. Mirrors
- * the inline anonymous type in `src/context/types.ts`; kept private so
- * the ranker reaches it via structural inference rather than a named
- * cross-module import.
+ * Flat citation shape consumed by `ContextPrimary.citations[]` AND by
+ * the JSON export's `ExportPage.citations[]`. Exported so both
+ * surfaces share one normalized shape rather than drifting — consumers
+ * can reuse the same flattening rule across `llmwiki context` and
+ * `llmwiki export`.
  */
-interface FlatCitation {
+export interface FlatCitation {
   file: string;
   start?: number;
   end?: number;

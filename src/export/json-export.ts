@@ -7,28 +7,53 @@
  * additional transformation.
  *
  * Schema:
- *   { exportedAt, pageCount, pages: ExportPage[] }
+ *   { exportedAt, pageCount, projectId?, pages: ExportPage[] }
+ *
+ * `projectId` is the optional bridge identifier. When present it pins the
+ * on-disk export to a stable identity that downstream consumers (the
+ * Atomic Memory adapter especially) use to derive deterministic external
+ * IDs. Validation happens at the CLI/programmatic boundary, not here —
+ * by the time we serialize, the value has been checked.
  */
 
+import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
 
 /** Top-level shape of the JSON export file. */
 interface JsonExportDocument {
   exportedAt: string;
   pageCount: number;
+  /** Optional bridge identifier. See `src/export/project-id.ts` for the validation rule. */
+  projectId?: string;
   pages: ExportPage[];
+}
+
+/** Options accepted by {@link buildJsonExport}. */
+export interface BuildJsonExportOptions {
+  /**
+   * Optional project identifier. Validated against the bridge contract
+   * regex; throws if invalid so a malformed value never reaches disk.
+   */
+  projectId?: string;
 }
 
 /**
  * Build the JSON export document from a list of export pages.
  * @param pages - Sorted array of export pages.
+ * @param options - Optional bridge envelope fields (e.g. `projectId`).
  * @returns Pretty-printed JSON string.
  */
-export function buildJsonExport(pages: ExportPage[]): string {
+export function buildJsonExport(
+  pages: ExportPage[],
+  options: BuildJsonExportOptions = {},
+): string {
   const doc: JsonExportDocument = {
     exportedAt: new Date().toISOString(),
     pageCount: pages.length,
     pages,
   };
+  if (options.projectId !== undefined) {
+    doc.projectId = validateProjectId(options.projectId);
+  }
   return JSON.stringify(doc, null, 2);
 }

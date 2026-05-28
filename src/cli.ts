@@ -312,7 +312,11 @@ program
     "--source <kind>",
     "For marp target: which pages to include — concepts, queries, or all (default: all)",
   )
-  .action(async (options: { target?: string; source?: string }) => {
+  .option(
+    "--project-id <id>",
+    "Bridge identifier embedded in the JSON export envelope. Must match /^[a-z0-9][a-z0-9-]{0,62}$/.",
+  )
+  .action(async (options: { target?: string; source?: string; projectId?: string }) => {
     try {
       await exportCommand(process.cwd(), options);
     } catch (err) {

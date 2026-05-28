@@ -9,34 +9,102 @@
  * export and viewer callers share one source.
  */
 
+import path from "path";
 import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
-import type { ExportPage } from "./types.js";
+import { extractClaimCitations } from "../utils/markdown.js";
+import { flattenCitations } from "../context/provenance.js";
+import type { PageKind } from "../schema/types.js";
+import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
+import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import type { ExportPage, PageDirectory } from "./types.js";
 
 export { extractWikilinkSlugs };
+
+/** Resolve the project-relative path for a wiki page (e.g. `wiki/concepts/retrieval.md`). */
+function buildPagePath(pageDirectory: PageDirectory, slug: string): string {
+  const dir = pageDirectory === "concepts" ? CONCEPTS_DIR : QUERIES_DIR;
+  return path.posix.join(dir, `${slug}.md`);
+}
+
+/** Pull a typed string array out of frontmatter or return `[]` for missing/malformed input. */
+function readStringArray(meta: Record<string, unknown>, field: string): string[] {
+  const value = meta[field];
+  if (!Array.isArray(value)) return [];
+  return (value as unknown[]).filter((s): s is string => typeof s === "string");
+}
+
+/** Read a numeric confidence value if present and in the [0, 1] range. */
+function readAdvisoryConfidence(meta: Record<string, unknown>): number | undefined {
+  const value = meta.confidence;
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  if (value < 0 || value > 1) return undefined;
+  return value;
+}
+
+/** Validate and return a ProvenanceState from frontmatter, or undefined. */
+function readProvenanceState(meta: Record<string, unknown>): ProvenanceState | undefined {
+  const value = meta.provenanceState;
+  if (value === "extracted" || value === "merged" || value === "inferred" || value === "ambiguous") {
+    return value;
+  }
+  return undefined;
+}
+
+/** Filter ContradictionRef entries to the documented `{ slug, reason? }` shape. */
+function readContradictedBy(meta: Record<string, unknown>): ContradictionRef[] | undefined {
+  const raw = meta.contradictedBy;
+  if (!Array.isArray(raw)) return undefined;
+  const refs: ContradictionRef[] = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== "object") continue;
+    const candidate = entry as Record<string, unknown>;
+    if (typeof candidate.slug !== "string" || candidate.slug.length === 0) continue;
+    const ref: ContradictionRef = { slug: candidate.slug };
+    if (typeof candidate.reason === "string") ref.reason = candidate.reason;
+    refs.push(ref);
+  }
+  return refs.length > 0 ? refs : undefined;
+}
+
+/** Validate and return PageKind from frontmatter, or undefined. */
+function readPageKind(meta: Record<string, unknown>): PageKind | undefined {
+  const value = meta.kind;
+  if (value === "concept" || value === "entity" || value === "comparison" || value === "overview") {
+    return value;
+  }
+  return undefined;
+}
 
 /**
  * Normalize a kept page into the shape every export writer consumes.
  * Caller is responsible for filtering out records that fail the export
- * gate (orphaned, untitled, unreadable).
+ * gate (orphaned, untitled, unreadable). The bridge contract additions
+ * (path, kind, advisory*, citations, aliases) are populated here so
+ * every export format gets the same enriched payload.
  */
 function toExportPage(raw: RawWikiPage): ExportPage {
   const meta = raw.frontmatter;
+  const aliases = readStringArray(meta, "aliases");
   return {
     title: raw.title as string,
     slug: raw.slug,
     pageDirectory: raw.pageDirectory,
+    path: buildPagePath(raw.pageDirectory, raw.slug),
     summary: typeof meta.summary === "string" ? meta.summary : "",
-    sources: Array.isArray(meta.sources)
-      ? (meta.sources as unknown[]).filter((s): s is string => typeof s === "string")
-      : [],
-    tags: Array.isArray(meta.tags)
-      ? (meta.tags as unknown[]).filter((t): t is string => typeof t === "string")
-      : [],
+    sources: readStringArray(meta, "sources"),
+    tags: readStringArray(meta, "tags"),
     createdAt: typeof meta.createdAt === "string" ? meta.createdAt : new Date().toISOString(),
     updatedAt: typeof meta.updatedAt === "string" ? meta.updatedAt : new Date().toISOString(),
     links: extractWikilinkSlugs(raw.body),
     body: raw.body,
+    kind: readPageKind(meta),
+    advisoryConfidence: readAdvisoryConfidence(meta),
+    provenanceState: readProvenanceState(meta),
+    contradictedBy: readContradictedBy(meta),
+    citations: flattenCitations(extractClaimCitations(raw.body)),
+    ...(aliases.length > 0 ? { aliases } : {}),
+    advisoryFreshnessStatus: "unverified",
   };
 }
 
