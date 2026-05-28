@@ -527,6 +527,16 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 <br>
 
 
+## Companion: Atomic Memory
+
+[Atomic Memory](https://github.com/atomicstrata/atomicmemory) is a separate runtime memory layer for AI applications — semantic retrieval, mutation, and provenance over a long-lived store. It is **valuable on its own** and remains so whether or not llmwiki is in the picture.
+
+`@atomicmemory/llmwiki` (in the Atomic Memory monorepo) is a one-way bridge: it imports an `llmwiki export --target json` envelope as one verbatim Atomic Memory record per wiki page, with all advisory metadata (kind, citations, confidence, provenance state, contradictions, aliases, freshness) preserved under `memory.metadata.llmwiki.*`.
+
+The bridge does NOT replace llmwiki. llmwiki's local-first markdown output remains independently useful as a notebook, RAG index, CI-checked knowledge base, or domain pack source. The bridge just lets you layer runtime semantic recall on top of compiled knowledge when that is the task at hand.
+
+See the cookbook at `packages/llmwiki/docs/cookbook.md` in the Atomic Memory monorepo for the full compile → export → import → package workflow.
+
 ## Limitations
 
 Early software. Best for small, high-signal corpora (a few dozen sources). Query routing is index-based.
