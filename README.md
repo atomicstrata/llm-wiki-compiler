@@ -6,10 +6,21 @@ Inspired by Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914
 
 ![llmwiki demo](docs/images/demo.gif)
 
+## What you get
+
+- **Compiled wiki, not chunks.** A two-phase LLM pipeline turns raw sources into typed pages (`concept`, `entity`, `comparison`, `overview`) with paragraph- and claim-level citations back to source line ranges.
+- **Hybrid retrieval.** Semantic chunk embeddings (incremental, content-hash-aware) narrow hundreds of pages to a small top-K; BM25 reranking and wikilink-graph expansion build the final evidence pack.
+- **Local web viewer.** `llmwiki view` opens a read-only browser UI with sidebar navigation, search, a force-directed graph, and provenance/citation chips per page.
+- **Eval harness.** `llmwiki eval` measures health score (0–100), citation coverage and precision, optional LLM-as-judge support scoring, regression deltas, and CI-gateable thresholds.
+- **MCP server.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent — including `get_context_pack` for budgeted, citation-aware evidence packs.
+- **Bridge to runtime memory.** `llmwiki export --target json --project-id <id>` produces a typed envelope that [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) imports as one verbatim Atomic Memory record per page, preserving all advisory metadata.
+- **Provider-portable.** Anthropic, OpenAI-compatible (incl. local llama.cpp / vLLM), Ollama, GitHub Copilot.
+
 ## Who this is for
 
-- **AI researchers and engineers** building persistent knowledge from papers, docs, and notes
+- **AI researchers and engineers** building durable knowledge from papers, docs, and notes
 - **Technical writers** compiling scattered sources into a structured, interlinked reference
+- **Open-source maintainers** turning READMEs, ADRs, and design docs into a navigable knowledge base
 - **Anyone with too many bookmarks** who wants a wiki instead of a graveyard of tabs
 
 ## Quick start
@@ -180,28 +191,42 @@ A truncation warning prints to stderr when the cap fires so you know which conce
 <br>
 
 
-## Why not just RAG?
+## Why compile, not just retrieve?
 
-RAG retrieves chunks at query time. Every question re-discovers the same relationships from scratch. Nothing accumulates.
+llmwiki uses embeddings — chunk-level, incremental, with BM25 reranking. But the embedding layer sits **below** the compiled wiki, not in front of it.
 
-llmwiki **compiles** your sources into a wiki. Concepts get their own pages. Pages link to each other. When you ask a question with `--save`, the answer becomes a new page, and future queries use it as context. Your explorations compound.
+**RAG retrieves chunks at query time.** Every question re-discovers the same relationships from scratch. The wiki structure, citation graph, and merged-concept disambiguation never accumulate; they get re-invented per query.
 
-This is complementary to RAG, not a replacement. RAG is great for ad-hoc retrieval over large corpora. llmwiki gives you a persistent, structured artifact to retrieve from.
+**llmwiki compiles your sources into a wiki first.** Concepts get their own typed pages. Concepts shared across multiple sources are merged into one page instead of competing as duplicate chunks. Pages link to each other via `[[wikilinks]]`. When you ask a question with `--save`, the answer becomes a new page, and future queries use it as context.
+
+Then semantic retrieval, BM25 reranking, and graph expansion run over the compiled artifact — narrowing hundreds of pages to a tight, citation-traceable evidence pack.
 
 ```
 RAG:     query → search chunks → answer → forget
-llmwiki: sources → compile → wiki → query → save → richer wiki → better answers
+llmwiki: sources → compile → wiki → embed → query → save → richer wiki → better answers
 ```
+
+llmwiki is complementary to traditional RAG: use RAG for ad-hoc retrieval over noisy or fast-changing corpora; use llmwiki when you want a persistent, structured, citation-traceable artifact that compounds.
 
 ## How it works
 
 ```
-sources/  →  SHA-256 hash check  →  LLM concept extraction  →  wiki page generation  →  [[wikilink]] resolution  →  index.md
+sources/  →  hash check  →  LLM concept extraction  →  page generation  →  [[wikilink]] resolve
+                                                                            ↓
+                                                       chunk embeddings  ←  wiki/  →  index.md
+                                                              ↓
+                                       semantic search + BM25 rerank + graph expansion
+                                                              ↓
+                                                  llmwiki query / context / MCP
 ```
 
-**Two-phase pipeline.** Phase 1 extracts all concepts from all sources. Phase 2 generates pages. This eliminates order-dependence, catches failures before writing anything, and merges concepts shared across multiple sources into single pages.
+**Two-phase compile.** Phase 1 extracts all concepts from all sources. Phase 2 generates pages. This eliminates order-dependence, catches failures before writing anything, and merges concepts shared across multiple sources into single pages.
 
-**Incremental.** Only changed sources go through the LLM. Everything else is skipped via hash-based change detection.
+**Incremental everywhere.** Hash-based change detection on sources, content-hash-aware embedding updates, cached citation judgements. Only changed work runs through the LLM.
+
+**Hybrid retrieval.** `.llmwiki/embeddings.json` v2 carries page- and chunk-level vectors. `llmwiki query` and `llmwiki context` narrow hundreds of pages down to a chunk-level top-K via cosine similarity, then rerank with BM25 and expand along the wikilink graph for the final evidence pack.
+
+**Citation-traceable.** Paragraphs carry `^[source.md]` markers; specific claims pin to `^[source.md:42-58]` line ranges. `llmwiki lint` validates that every citation resolves to a real file and line range; `llmwiki eval` measures citation precision and (optionally) LLM-judged claim support.
 
 **Compounding queries.** `llmwiki query --save` writes the answer as a wiki page and immediately rebuilds the index. Saved answers show up in future queries as context.
 
@@ -538,32 +563,39 @@ Use them independently or together. Each remains valuable on its own — llmwiki
 
 The [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) bridge ingests `llmwiki export --target json --project-id <id>` envelopes as one verbatim Atomic Memory record per wiki page, preserving all advisory metadata (kind, citations, confidence, provenance state, contradictions, aliases, freshness) under `memory.metadata.llmwiki.*`. See the [bridge cookbook](https://github.com/atomicstrata/atomicmemory/blob/main/packages/llmwiki/docs/cookbook.md) for the full compile → export → import → package workflow.
 
-## Limitations
+## Scale and what works
 
-Early software. Best for small, high-signal corpora (a few dozen sources). Query routing is index-based.
+Still early software, but the scale story has matured well past the "few dozen sources" era.
 
-**Honest about truncation.** Sources that exceed the character limit are truncated on ingest with `truncated: true` and the original character count recorded in frontmatter, so downstream consumers know they're working with partial content.
+- **Semantic chunk retrieval** (`.llmwiki/embeddings.json` v2) narrows hundreds of pages down to a small top-K before LLM selection, with BM25 reranking and graph-neighborhood expansion layered on top.
+- **Incremental everything.** Hash-based source-change detection, content-hash-aware embedding updates, cached citation judgements. Re-running on an unchanged corpus is a few seconds.
+- **Lexical fallback.** Index-based routing kicks in automatically when no embedding store is present or the active provider has no embedding credentials, surfacing a stable warning code rather than hard-failing.
+
+**Honest about truncation.** Sources that exceed the character limit are truncated on ingest with `truncated: true` and the original character count recorded in frontmatter, so downstream consumers know they're working with partial content. A per-concept prompt budget prevents popular shared concepts from crashing compile.
+
+**Where it's still early.** No source-freshness watchdog yet (re-ingest detects content changes, but doesn't proactively re-check URLs). No team / multi-writer conflict resolution. The viewer is read-only by design — write operations go through the CLI or MCP.
 
 ## Karpathy's LLM Wiki pattern vs this compiler
 
-Karpathy describes an abstract pattern for turning raw data into compiled knowledge. Here's how llmwiki maps to it:
+Karpathy described an abstract pattern for turning raw data into compiled knowledge. Here's how llmwiki maps to it today:
 
 | Karpathy's concept | llmwiki | Status |
 |---|---|---|
-| Data ingest | `llmwiki ingest` | Implemented |
-| Compile wiki | `llmwiki compile` | Implemented |
-| Q&A | `llmwiki query` | Implemented |
+| Data ingest | `llmwiki ingest`, `ingest-session` (Claude/Codex/Cursor) | Implemented |
+| Compile wiki | `llmwiki compile` (two-phase, incremental) | Implemented |
+| Q&A | `llmwiki query` (semantic + BM25 + graph expansion) | Implemented |
 | Output filing (save answers back) | `llmwiki query --save` | Implemented |
 | Auto-recompile | `llmwiki watch` | Implemented |
-| Linting / health-check pass | `llmwiki lint` | Implemented |
-| Agent integration | `llmwiki serve` (MCP server) | Implemented |
-| Image support | `llmwiki ingest <image>` | Implemented |
+| Linting / health-check pass | `llmwiki lint` + `llmwiki eval` (CI-gateable) | Implemented |
+| Agent integration | `llmwiki serve` MCP server with `get_context_pack` | Implemented |
+| Multimodal ingest | Images, PDFs, transcripts via `llmwiki ingest` | Implemented |
 | Marp slides | `llmwiki export --target marp` | Implemented |
+| Bridge to runtime memory | `llmwiki export --target json --project-id` → [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) | Implemented |
 | Fine-tuning | — | Not yet implemented |
 
 ## Roadmap
 
-Shipped in 0.9.0:
+Available on main, will ship in 0.9.0:
 
 - ✅ JSON export bridge contract — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records
 
