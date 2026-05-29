@@ -9,7 +9,7 @@
 import { evaluateHealth } from "./health.js";
 import { evaluateCitationCoverage } from "./citation-coverage.js";
 import { evaluateCitationSupport } from "./citation-support.js";
-import { collectStats, appendHistory, loadPreviousReport } from "./stats.js";
+import { collectStats, appendHistory, loadPreviousReport, loadLastFullReport } from "./stats.js";
 import { computeDelta } from "./delta.js";
 import { checkThresholds } from "./thresholds.js";
 import type { EvalReport, HealthResult, CitationCoverageResult, CitationSupportResult, StatsResult } from "./types.js";
@@ -39,14 +39,15 @@ async function buildReport(root: string, components: EvalComponents, suite: "fas
 
 /** Run the full eval pipeline, append to history, and return the report. */
 export async function runEval(root: string, suite: "fast" | "full", sampleSize: number): Promise<EvalReport> {
-  const [health, citationCoverage, stats, previousReport] = await Promise.all([
+  const [health, citationCoverage, stats, previousReport, previousFullReport] = await Promise.all([
     evaluateHealth(root),
     evaluateCitationCoverage(root),
     collectStats(root),
     loadPreviousReport(root),
+    suite === "full" ? loadLastFullReport(root) : Promise.resolve(null),
   ]);
   const citationSupport = suite === "full"
-    ? await evaluateCitationSupport(root, sampleSize, previousReport?.citationSupport?.sampledHashes ?? [])
+    ? await evaluateCitationSupport(root, sampleSize, previousFullReport?.citationSupport?.sampledHashes ?? [])
     : undefined;
   const report = await buildReport(root, { health, citationCoverage, stats, previousReport, citationSupport }, suite);
   await appendHistory(root, report);

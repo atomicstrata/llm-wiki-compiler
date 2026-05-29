@@ -5,7 +5,7 @@
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { collectStats, appendHistory, loadHistory } from "../src/eval/stats.js";
+import { collectStats, appendHistory, loadHistory, loadLastFullReport } from "../src/eval/stats.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { makeEvalReport } from "./fixtures/eval-report.js";
 import type { EvalReport } from "../src/eval/types.js";
@@ -125,5 +125,44 @@ describe("loadHistory", () => {
 
     const history = await loadHistory(env.dir, 100);
     expect(history).toHaveLength(1);
+  });
+});
+
+describe("loadLastFullReport", () => {
+  const env = useLintTempRoot("eval-last-full");
+
+  it("returns null when history is empty", async () => {
+    const result = await loadLastFullReport(env.dir);
+    expect(result).toBeNull();
+  });
+
+  it("returns null when only fast-suite reports exist", async () => {
+    await appendHistory(env.dir, makeEvalReport({ suite: "fast" }));
+    const result = await loadLastFullReport(env.dir);
+    expect(result).toBeNull();
+  });
+
+  it("returns the full-suite report even when a fast report follows it", async () => {
+    const sampledHashes = ["hash-a", "hash-b", "hash-c"];
+    const fullReport = makeEvalReport({
+      suite: "full",
+      citationSupport: {
+        sampledCount: 3,
+        sampledHashes,
+        totalCitations: 10,
+        meanScore: 1.5,
+        fullySupported: 2,
+        partiallySupported: 1,
+        unsupported: 0,
+        judgeErrors: 0,
+        judgements: [],
+      },
+    });
+    await appendHistory(env.dir, fullReport);
+    await appendHistory(env.dir, makeEvalReport({ suite: "fast" }));
+
+    const result = await loadLastFullReport(env.dir);
+    expect(result?.suite).toBe("full");
+    expect(result?.citationSupport?.sampledHashes).toEqual(sampledHashes);
   });
 });

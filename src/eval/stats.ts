@@ -93,21 +93,44 @@ export async function loadHistory(root: string, n = 10): Promise<EvalReport[]> {
   return reports;
 }
 
+/** Read the history file and return its non-empty lines, or null if it doesn't exist. */
+async function readHistoryLines(root: string): Promise<string[] | null> {
+  const historyPath = path.join(root, HISTORY_FILE);
+  if (!existsSync(historyPath)) return null;
+  const content = await readFile(historyPath, "utf-8");
+  return content.trim().split("\n").filter(Boolean);
+}
+
 /**
  * Load the most recent eval report from history.jsonl, or null if none exists.
  * @param root - Absolute path to the project root.
  */
 export async function loadPreviousReport(root: string): Promise<EvalReport | null> {
-  const historyPath = path.join(root, HISTORY_FILE);
-  if (!existsSync(historyPath)) return null;
-
-  const content = await readFile(historyPath, "utf-8");
-  const lines = content.trim().split("\n").filter(Boolean);
-  if (lines.length === 0) return null;
-
+  const lines = await readHistoryLines(root);
+  if (!lines || lines.length === 0) return null;
   try {
     return JSON.parse(lines[lines.length - 1]) as EvalReport;
   } catch {
     return null;
   }
+}
+
+/**
+ * Load the most recent full-suite eval report from history.jsonl, skipping fast-suite
+ * entries. This ensures citation-support sampledHashes are not lost when a fast run
+ * occurs between two full runs.
+ * @param root - Absolute path to the project root.
+ */
+export async function loadLastFullReport(root: string): Promise<EvalReport | null> {
+  const lines = await readHistoryLines(root);
+  if (!lines) return null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const report = JSON.parse(lines[i]) as EvalReport;
+      if (report.suite === "full") return report;
+    } catch {
+      // Skip malformed lines
+    }
+  }
+  return null;
 }
