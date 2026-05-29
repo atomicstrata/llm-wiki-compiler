@@ -377,17 +377,20 @@ describe("eval resources", () => {
 
 /** Run `fn` with all Anthropic credentials cleared and a missing settings path, then restore. */
 async function withNoCredentials(root: string, fn: () => Promise<void>): Promise<void> {
+  const saved: Record<string, string | undefined> = {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
+    LLMWIKI_CLAUDE_SETTINGS_PATH: process.env.LLMWIKI_CLAUDE_SETTINGS_PATH,
+  };
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
-  const originalSettingsPath = process.env.LLMWIKI_CLAUDE_SETTINGS_PATH;
   process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-such-settings.json");
   try {
     await fn();
   } finally {
-    if (originalSettingsPath !== undefined) {
-      process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = originalSettingsPath;
-    } else {
-      delete process.env.LLMWIKI_CLAUDE_SETTINGS_PATH;
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   }
 }
