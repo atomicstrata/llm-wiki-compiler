@@ -260,7 +260,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki schema show` | Print the resolved schema for the current project |
 | `llmwiki query "question"` | Ask questions against your compiled wiki |
 | `llmwiki query "question" --save` | Answer and save the result as a wiki page |
-| `llmwiki export [--target <name>]` | Export the wiki to portable formats — `llms.txt`, `llms-full.txt`, JSON, JSON-LD, GraphML, Marp slides |
+| `llmwiki export [--target <name>] [--project-id <id>]` | Export the wiki to portable formats — `llms.txt`, `llms-full.txt`, JSON, JSON-LD, GraphML, Marp slides. `--project-id` pins a stable identifier inside the JSON envelope so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can derive deterministic external IDs |
 | `llmwiki view [--open]` | Start a read-only local web viewer for browsing, searching, and inspecting the compiled wiki |
 | `llmwiki next [--json]` | Show the recommended next action for this project (read-only); `--json` emits a stable envelope for agents |
 | `llmwiki context "<prompt>" [--json]` | Build an agent-ready evidence pack (primary pages, citations, neighbors, suggested actions) — same v1 envelope as MCP `get_context_pack` |
@@ -529,13 +529,14 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 
 ## Companion: Atomic Memory
 
-[Atomic Memory](https://github.com/atomicstrata/atomicmemory) is a separate runtime memory layer for AI applications — semantic retrieval, mutation, and provenance over a long-lived store. It is **valuable on its own** and remains so whether or not llmwiki is in the picture.
+llmwiki and [Atomic Memory](https://github.com/atomicstrata/atomicmemory) are complementary layers of open context infrastructure, both maintained by [Atomic Strata](https://github.com/atomicstrata):
 
-`@atomicmemory/llmwiki` (in the Atomic Memory monorepo) is a one-way bridge: it imports an `llmwiki export --target json` envelope as one verbatim Atomic Memory record per wiki page, with all advisory metadata (kind, citations, confidence, provenance state, contradictions, aliases, freshness) preserved under `memory.metadata.llmwiki.*`.
+- **llmwiki** gives you a persistent **knowledge base** — durable markdown compiled from your sources, inspectable on disk.
+- **Atomic Memory** gives your agents persistent **working memory** — runtime context that's searchable, correctable, scoped, and inspectable over time.
 
-The bridge does NOT replace llmwiki. llmwiki's local-first markdown output remains independently useful as a notebook, RAG index, CI-checked knowledge base, or domain pack source. The bridge just lets you layer runtime semantic recall on top of compiled knowledge when that is the task at hand.
+Use them independently or together. Each remains valuable on its own — llmwiki as a notebook, RAG index, CI-checked knowledge base, or domain pack source; Atomic Memory as a runtime memory layer for any agent or app.
 
-See the cookbook at `packages/llmwiki/docs/cookbook.md` in the Atomic Memory monorepo for the full compile → export → import → package workflow.
+The [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) bridge ingests `llmwiki export --target json --project-id <id>` envelopes as one verbatim Atomic Memory record per wiki page, preserving all advisory metadata (kind, citations, confidence, provenance state, contradictions, aliases, freshness) under `memory.metadata.llmwiki.*`. See the [bridge cookbook](https://github.com/atomicstrata/atomicmemory/blob/main/packages/llmwiki/docs/cookbook.md) for the full compile → export → import → package workflow.
 
 ## Limitations
 
@@ -561,6 +562,10 @@ Karpathy describes an abstract pattern for turning raw data into compiled knowle
 | Fine-tuning | — | Not yet implemented |
 
 ## Roadmap
+
+Shipped in 0.9.0:
+
+- ✅ JSON export bridge contract — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records
 
 Shipped in 0.8.0:
 
@@ -628,6 +633,10 @@ Explicitly not planned (good ideas, just not for this repo): full static-site ge
 ## Requirements
 
 Node.js >= 24, plus provider credentials (for Anthropic: `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`).
+
+## About
+
+llmwiki is maintained by [Atomic Strata](https://github.com/atomicstrata), the team behind [Atomic Memory](https://github.com/atomicstrata/atomicmemory). Atomic Strata builds open context infrastructure: durable compiled knowledge with llmwiki, runtime memory with Atomic Memory.
 
 ## License
 
