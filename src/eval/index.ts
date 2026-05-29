@@ -37,8 +37,8 @@ async function buildReport(root: string, components: EvalComponents, suite: "fas
   return { ...partial, ...(delta ? { delta } : {}), thresholdViolations };
 }
 
-/** Run the full eval pipeline, append to history, and return the report. */
-export async function runEval(root: string, suite: "fast" | "full", sampleSize: number): Promise<EvalReport> {
+/** Run the full eval pipeline, optionally append to history, and return the report. */
+export async function runEval(root: string, suite: "fast" | "full", sampleSize: number, record = true): Promise<EvalReport> {
   const [health, citationCoverage, stats, previousReport, previousFullReport] = await Promise.all([
     evaluateHealth(root),
     evaluateCitationCoverage(root),
@@ -50,6 +50,6 @@ export async function runEval(root: string, suite: "fast" | "full", sampleSize: 
     ? await evaluateCitationSupport(root, sampleSize, previousFullReport?.citationSupport?.sampledHashes ?? [])
     : undefined;
   const report = await buildReport(root, { health, citationCoverage, stats, previousReport, citationSupport }, suite);
-  await appendHistory(root, report);
+  if (record) await appendHistory(root, report);
   return report;
 }
