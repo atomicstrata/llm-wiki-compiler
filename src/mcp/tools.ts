@@ -381,17 +381,20 @@ function registerEvalTool(server: McpServer, root: string): void {
       description:
         "Run the wiki quality eval harness. fast suite checks health and citation " +
         "coverage without LLM calls. full suite also LLM-judges a sample of citations " +
-        "(requires an LLM provider). Appends results to eval history.",
+        "(requires an LLM provider). " +
+        "Set record: true to append results to eval history (default false — read-only).",
       inputSchema: {
         suite: z.enum(["fast", "full"]).optional().default("fast")
           .describe("fast=no LLM calls, full=includes citation support (requires LLM provider)"),
         sampleSize: z.number().int().min(1).max(100).optional()
           .describe("Citations to sample for citation support (full suite only, default 20)"),
+        record: z.boolean().optional().default(false)
+          .describe("Append results to eval history (default false; set true to persist a checkpoint)"),
       },
     },
-    async ({ suite, sampleSize }) => {
+    async ({ suite, sampleSize, record }) => {
       if (suite === "full") ensureProviderAvailable();
-      const report = await runEval(root, suite, sampleSize ?? 20);
+      const report = await runEval(root, suite, sampleSize ?? 20, record ?? false);
       return jsonResult(report);
     },
   );
