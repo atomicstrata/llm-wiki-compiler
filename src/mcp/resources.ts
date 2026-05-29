@@ -199,7 +199,7 @@ function registerEvalHistoryResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri) => {
-      const reports = await loadHistory(root, 10);
+      const reports = await loadHistory(root);
       return { contents: [jsonContent(uri, reports)] };
     },
   );

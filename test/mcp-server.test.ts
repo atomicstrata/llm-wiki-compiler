@@ -247,18 +247,20 @@ describe("error handling", () => {
   });
 });
 
+type ResourceMap = Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>;
+
 describe("MCP resources", () => {
   it("resolves the wiki-index static resource", async () => {
     await writeFile(path.join(root, "wiki/index.md"), "# Test Index\n");
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://index"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://index"];
     const result = await resource.readCallback(new URL("llmwiki://index"));
     expect(result.contents[0].text).toContain("Test Index");
   });
 
   it("resolves the wiki-state static resource", async () => {
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://state"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://state"];
     const result = await resource.readCallback(new URL("llmwiki://state"));
     const parsed = JSON.parse(result.contents[0].text);
     expect(parsed).toMatchObject({ version: 1, sources: expect.any(Object) });
@@ -270,7 +272,7 @@ describe("MCP resources", () => {
       "---\ntitle: Article\nsource: example.com\n---\n\nbody",
     );
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://sources"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://sources"];
     const result = await resource.readCallback(new URL("llmwiki://sources"));
     const parsed = JSON.parse(result.contents[0].text);
     expect(parsed).toEqual([expect.objectContaining({ filename: "article.md", title: "Article" })]);
@@ -312,9 +314,6 @@ describe("MCP resources", () => {
     expect(parsed).toMatchObject({ slug: "what-is-x", body: "Saved query body." });
   });
 });
-
-
-type ResourceMap = Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>;
 
 describe("run_eval tool", () => {
   it("returns EvalReport shape for an empty project (fast suite)", async () => {

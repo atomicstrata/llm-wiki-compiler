@@ -29,7 +29,7 @@ interface EvalOptions {
   sample?: string;
 }
 
-const DEFAULT_SAMPLE_SIZE = 20;
+export const DEFAULT_SAMPLE_SIZE = 20;
 
 interface ResolvedEvalOptions {
   suite: "fast" | "full";

@@ -30,6 +30,7 @@ import {
 } from "../utils/constants.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { runEval } from "../eval/index.js";
+import { DEFAULT_SAMPLE_SIZE } from "../commands/eval.js";
 
 /** Directories searched (in priority order) when resolving a page slug. */
 const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];
@@ -372,7 +373,6 @@ async function buildContextPackFromArgs(
   });
 }
 
-
 function registerEvalTool(server: McpServer, root: string): void {
   server.registerTool(
     "run_eval",
@@ -387,13 +387,13 @@ function registerEvalTool(server: McpServer, root: string): void {
         suite: z.enum(["fast", "full"]).optional().default("fast")
           .describe("fast=no LLM calls, full=includes citation support (requires LLM provider)"),
         sampleSize: z.number().int().min(1).max(100).optional()
-          .describe("Citations to sample for citation support (full suite only, default 20)"),
+          .describe(`Citations to sample for citation support (full suite only, default ${DEFAULT_SAMPLE_SIZE})`),
         record: z.boolean().optional().default(false)
           .describe("Append results to eval history (default false; set true to persist a checkpoint)"),
       },
     },
     async ({ suite, sampleSize, record }) => {
-      const report = await runEval(root, suite, sampleSize ?? 20, record ?? false);
+      const report = await runEval(root, suite, sampleSize ?? DEFAULT_SAMPLE_SIZE, record ?? false);
       return jsonResult(report);
     },
   );
