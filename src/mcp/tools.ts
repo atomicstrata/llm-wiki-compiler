@@ -393,7 +393,6 @@ function registerEvalTool(server: McpServer, root: string): void {
       },
     },
     async ({ suite, sampleSize, record }) => {
-      if (suite === "full") ensureProviderAvailable();
       const report = await runEval(root, suite, sampleSize ?? 20, record ?? false);
       return jsonResult(report);
     },

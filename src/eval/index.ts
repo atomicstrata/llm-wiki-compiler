@@ -12,6 +12,7 @@ import { evaluateCitationSupport } from "./citation-support.js";
 import { collectStats, appendHistory, loadPreviousReport, loadLastFullReport } from "./stats.js";
 import { computeDelta } from "./delta.js";
 import { checkThresholds } from "./thresholds.js";
+import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import type { EvalReport, HealthResult, CitationCoverageResult, CitationSupportResult, StatsResult } from "./types.js";
 
 interface EvalComponents {
@@ -39,6 +40,7 @@ async function buildReport(root: string, components: EvalComponents, suite: "fas
 
 /** Run the full eval pipeline, optionally append to history, and return the report. */
 export async function runEval(root: string, suite: "fast" | "full", sampleSize: number, record = true): Promise<EvalReport> {
+  if (suite === "full") ensureProviderAvailable();
   const [health, citationCoverage, stats, previousReport, previousFullReport] = await Promise.all([
     evaluateHealth(root),
     evaluateCitationCoverage(root),
