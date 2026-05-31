@@ -19,7 +19,7 @@ import path from "path";
 import { writePage } from "./fixtures/write-page.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { collectExportPages } from "../src/export/collect.js";
-import { buildJsonExport } from "../src/export/json-export.js";
+import { buildJsonExport, EXPORT_SCHEMA_VERSION } from "../src/export/json-export.js";
 import {
   PROJECT_ID_PATTERN,
   validateProjectId,
@@ -40,6 +40,7 @@ interface BridgeExportPage {
 }
 
 interface BridgeExportEnvelope {
+  schemaVersion: number;
   exportedAt: string;
   pageCount: number;
   projectId?: string;
@@ -162,6 +163,21 @@ describe("bridge export contract — projectId envelope field", () => {
     const pages = await collectExportPages(root);
     const env = JSON.parse(buildJsonExport(pages, { projectId: "my-kb" })) as BridgeExportEnvelope;
     expect(env.projectId).toBe("my-kb");
+  });
+});
+
+describe("bridge export contract — schemaVersion envelope field", () => {
+  it("emits schemaVersion equal to EXPORT_SCHEMA_VERSION on every build", async () => {
+    const root = await makeTempRoot("schemaversion");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "p",
+      { title: "P", summary: "s" },
+      "Body.\n",
+    );
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as BridgeExportEnvelope;
+    expect(env.schemaVersion).toBe(EXPORT_SCHEMA_VERSION);
+    expect(env.schemaVersion).toBe(1);
   });
 });
 
