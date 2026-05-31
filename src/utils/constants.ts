@@ -98,6 +98,12 @@ export const CANDIDATES_DIR = ".llmwiki/candidates";
 /** Rejected review candidates archived for audit (not deleted). */
 export const CANDIDATES_ARCHIVE_DIR = ".llmwiki/candidates/archive";
 
+/** Pending rule candidates (radar W2) awaiting approve/reject. */
+export const RULE_CANDIDATES_DIR = ".llmwiki/rule-candidates";
+
+/** Rejected rule candidates archived for audit (not deleted). */
+export const RULE_CANDIDATES_ARCHIVE_DIR = ".llmwiki/rule-candidates/archive";
+
 /** Number of most similar pages to return from embedding-based pre-filter. */
 export const EMBEDDING_TOP_K = 15;
 

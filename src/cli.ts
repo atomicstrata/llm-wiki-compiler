@@ -29,6 +29,13 @@ import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
+import {
+  rulesApproveCommand,
+  rulesExportCommand,
+  rulesExtractCommand,
+  rulesListCommand,
+  rulesRejectCommand,
+} from "./commands/rules.js";
 import nextCommand from "./commands/next.js";
 import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
@@ -154,6 +161,74 @@ reviewCommand
   .action(async (id: string) => {
     try {
       await reviewRejectCommand(id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+const rulesCommand = program
+  .command("rules")
+  .description(
+    "Extract, review, and export machine-actionable RuleCandidate records for Atomic Radar",
+  );
+
+rulesCommand
+  .command("extract")
+  .description("Extract rule candidates from changed sources (writes .llmwiki/rule-candidates/)")
+  .action(async () => {
+    try {
+      requireProvider();
+      await rulesExtractCommand();
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+rulesCommand
+  .command("list")
+  .description("List pending rule candidates")
+  .action(async () => {
+    try {
+      await rulesListCommand();
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+rulesCommand
+  .command("approve <id>")
+  .description("Approve a rule candidate (status → approved)")
+  .action(async (id: string) => {
+    try {
+      await rulesApproveCommand(id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+rulesCommand
+  .command("reject <id>")
+  .description("Reject a rule candidate (status → rejected, archived)")
+  .action(async (id: string) => {
+    try {
+      await rulesRejectCommand(id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+rulesCommand
+  .command("export")
+  .description("Emit rule candidates as a JSON array for Radar (dist/exports/rule-candidates.json)")
+  .option("--scope <scope>", "approved (default), proposed, or all")
+  .action(async (options: { scope?: string }) => {
+    try {
+      await rulesExportCommand(options);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
