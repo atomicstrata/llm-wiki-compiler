@@ -7,7 +7,13 @@
  * additional transformation.
  *
  * Schema:
- *   { schemaVersion, exportedAt, pageCount, projectId?, pages: ExportPage[] }
+ *   { schemaVersion, exportedAt, pageCount, modelId, promptVersion,
+ *     projectId?, pages: ExportPage[] }
+ *
+ * `modelId` and `promptVersion` are the W4 provenance stamp: they let a
+ * downstream auditor tie compiled pages back to the model and prompt
+ * generation that produced them. Per-page `contentHash` / `sourceHashes`
+ * (on each ExportPage) complete the lineage. All are additive.
  *
  * `schemaVersion` lets downstream consumers (e.g. Radar) pin to a known
  * contract. Increment when a breaking field change lands; additive fields
@@ -21,6 +27,8 @@
  */
 
 import { validateProjectId } from "./project-id.js";
+import { PROMPT_VERSION } from "../compiler/prompts.js";
+import { resolveActiveModelId } from "../utils/provider.js";
 import type { ExportPage } from "./types.js";
 
 /**
@@ -38,6 +46,19 @@ interface JsonExportDocument {
   schemaVersion: number;
   exportedAt: string;
   pageCount: number;
+  /**
+   * Model id the compile pipeline would call (radar W4 provenance). Resolved
+   * from the active LLM client config so a downstream auditor can tie pages
+   * back to the exact model that produced them.
+   */
+  modelId: string;
+  /**
+   * Named version of the extraction + page-generation prompt contract
+   * (radar W4 provenance). Bumped when prompt wording changes in a way that
+   * could alter compiled content, so pages from different prompt generations
+   * are distinguishable even under an identical model id.
+   */
+  promptVersion: string;
   /** Optional bridge identifier. See `src/export/project-id.ts` for the validation rule. */
   projectId?: string;
   pages: ExportPage[];
@@ -50,6 +71,13 @@ export interface BuildJsonExportOptions {
    * regex; throws if invalid so a malformed value never reaches disk.
    */
   projectId?: string;
+  /**
+   * Override for the provenance `modelId` stamp. When omitted, the model id
+   * is resolved from the active LLM client config via
+   * {@link resolveActiveModelId}. Supplied explicitly by tests and by
+   * callers that already know the compiling model.
+   */
+  modelId?: string;
 }
 
 /**
@@ -66,6 +94,8 @@ export function buildJsonExport(
     schemaVersion: EXPORT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     pageCount: pages.length,
+    modelId: options.modelId ?? resolveActiveModelId(),
+    promptVersion: PROMPT_VERSION,
     pages,
   };
   if (options.projectId !== undefined) {

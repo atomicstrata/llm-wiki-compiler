@@ -106,6 +106,21 @@ export interface ExportPage {
    * cannot assert source-freshness until that feature ships.
    */
   advisoryFreshnessStatus: AdvisoryFreshnessStatus;
+  /**
+   * Deterministic SHA-256 (hex) of {@link ExportPage.body}. Lets a
+   * downstream auditor (radar W4) detect content drift and verify that an
+   * imported page still matches what the compiler exported, without
+   * re-reading the markdown. Stable for identical bodies.
+   */
+  contentHash: string;
+  /**
+   * SHA-256 hashes of the source files this page derived from — the same
+   * per-source digests the compiler records in `.llmwiki/state.json` for
+   * change detection. Resolved from the page's `sources` list; ordered and
+   * de-duplicated. Empty when a page has no recorded sources (e.g. seed
+   * pages). Lets an auditor tie a page back to exact source bytes.
+   */
+  sourceHashes: string[];
 }
 
 /**

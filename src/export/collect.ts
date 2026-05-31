@@ -17,6 +17,12 @@ import { flattenCitations } from "../context/provenance.js";
 import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import {
+  buildSourceHashLookup,
+  hashPageBody,
+  resolveSourceHashes,
+  type SourceHashLookup,
+} from "./provenance.js";
 import type { ExportPage, PageDirectory } from "./types.js";
 
 export { extractWikilinkSlugs };
@@ -83,16 +89,17 @@ function readPageKind(meta: Record<string, unknown>): PageKind | undefined {
  * (path, kind, advisory*, citations, aliases) are populated here so
  * every export format gets the same enriched payload.
  */
-function toExportPage(raw: RawWikiPage): ExportPage {
+function toExportPage(raw: RawWikiPage, sourceHashes: SourceHashLookup): ExportPage {
   const meta = raw.frontmatter;
   const aliases = readStringArray(meta, "aliases");
+  const sources = readStringArray(meta, "sources");
   return {
     title: raw.title as string,
     slug: raw.slug,
     pageDirectory: raw.pageDirectory,
     path: buildPagePath(raw.pageDirectory, raw.slug),
     summary: typeof meta.summary === "string" ? meta.summary : "",
-    sources: readStringArray(meta, "sources"),
+    sources,
     tags: readStringArray(meta, "tags"),
     createdAt: typeof meta.createdAt === "string" ? meta.createdAt : new Date().toISOString(),
     updatedAt: typeof meta.updatedAt === "string" ? meta.updatedAt : new Date().toISOString(),
@@ -105,6 +112,8 @@ function toExportPage(raw: RawWikiPage): ExportPage {
     citations: flattenCitations(extractClaimCitations(raw.body)),
     ...(aliases.length > 0 ? { aliases } : {}),
     advisoryFreshnessStatus: "unverified",
+    contentHash: hashPageBody(raw.body),
+    sourceHashes: resolveSourceHashes(sources, sourceHashes),
   };
 }
 
@@ -115,8 +124,9 @@ function toExportPage(raw: RawWikiPage): ExportPage {
  */
 export async function collectExportPages(root: string): Promise<ExportPage[]> {
   const raw = await collectRawWikiPages(root);
+  const sourceHashes = await buildSourceHashLookup(root);
   const kept = raw.filter((page) => page.parseStatus.hasTitle && !page.parseStatus.orphaned);
-  const pages = kept.map(toExportPage);
+  const pages = kept.map((page) => toExportPage(page, sourceHashes));
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
 }
