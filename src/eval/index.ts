@@ -15,6 +15,8 @@ import { checkThresholds } from "./thresholds.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import type { EvalReport, HealthResult, CitationCoverageResult, CitationSupportResult, StatsResult } from "./types.js";
 
+export const DEFAULT_SAMPLE_SIZE = 20;
+
 interface EvalComponents {
   health: HealthResult;
   citationCoverage: CitationCoverageResult;

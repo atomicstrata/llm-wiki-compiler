@@ -29,8 +29,7 @@ import {
   CHUNK_TOP_K,
 } from "../utils/constants.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
-import { runEval } from "../eval/index.js";
-import { DEFAULT_SAMPLE_SIZE } from "../commands/eval.js";
+import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 
 /** Directories searched (in priority order) when resolving a page slug. */
 const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];

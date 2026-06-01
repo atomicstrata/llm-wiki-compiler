@@ -13,7 +13,7 @@
  */
 
 import { loadHistory, loadPreviousReport } from "../eval/stats.js";
-import { runEval } from "../eval/index.js";
+import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import {
   formatTerminalReport,
   formatJsonReport,
@@ -28,8 +28,6 @@ interface EvalOptions {
   out?: string;
   sample?: string;
 }
-
-export const DEFAULT_SAMPLE_SIZE = 20;
 
 interface ResolvedEvalOptions {
   suite: "fast" | "full";
