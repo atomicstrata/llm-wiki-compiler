@@ -6,6 +6,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { parseSampleSize } from "../src/commands/eval.js";
 import { runEval } from "../src/eval/index.js";
+import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 
 describe("parseSampleSize", () => {
   it.each(["0", "-1", "-100"])("rejects %s (zero or negative)", (raw) => {
@@ -30,6 +31,8 @@ describe("parseSampleSize", () => {
 });
 
 describe("runEval credential guard", () => {
+  const env = useLintTempRoot("eval-cmd");
+
   afterEach(() => {
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_AUTH_TOKEN;
@@ -51,10 +54,6 @@ describe("runEval credential guard", () => {
     delete process.env.ANTHROPIC_AUTH_TOKEN;
     process.env.LLMWIKI_PROVIDER = "anthropic";
 
-    // fast suite skips the guard — it will fail on missing files, not on credentials
-    await runEval("/tmp", "fast", 1).catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      expect(message).not.toContain("Anthropic credentials are required");
-    });
+    await expect(runEval(env.dir, "fast", 1, false)).resolves.toBeDefined();
   });
 });
