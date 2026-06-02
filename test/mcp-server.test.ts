@@ -17,6 +17,8 @@ import {
   snapshotWorkspace,
   useMcpRoot,
 } from "./fixtures/mcp-test-env.js";
+import { appendHistory } from "../src/eval/stats.js";
+import { makeEvalReport } from "./fixtures/eval-report.js";
 
 const rootHandle = useMcpRoot("llmwiki-mcp");
 /**
@@ -73,6 +75,7 @@ describe("MCP server tool registration", () => {
       "lint_wiki",
       "query_wiki",
       "read_page",
+      "run_eval",
       "search_pages",
       "wiki_status",
     ]);
@@ -82,7 +85,13 @@ describe("MCP server tool registration", () => {
     const server = buildServer();
     const staticUris = Object.keys(getRegisteredResources(server)).sort();
     const templateNames = Object.keys(getRegisteredResourceTemplates(server)).sort();
-    expect(staticUris).toEqual(["llmwiki://index", "llmwiki://sources", "llmwiki://state"]);
+    expect(staticUris).toEqual([
+      "llmwiki://eval/history",
+      "llmwiki://eval/report",
+      "llmwiki://index",
+      "llmwiki://sources",
+      "llmwiki://state",
+    ]);
     expect(templateNames).toEqual(["wiki-concept", "wiki-query"]);
   });
 });
@@ -231,36 +240,27 @@ describe("error handling", () => {
   });
 
   it("compile_wiki surfaces missing-credential errors", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_AUTH_TOKEN;
-    const originalSettingsPath = process.env.LLMWIKI_CLAUDE_SETTINGS_PATH;
-    process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-such-settings.json");
-    const server = buildServer();
-
-    try {
+    await withNoCredentials(root, async () => {
+      const server = buildServer();
       await expect(callTool(server, "compile_wiki", {})).rejects.toThrow(/Anthropic credentials/);
-    } finally {
-      if (originalSettingsPath !== undefined) {
-        process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = originalSettingsPath;
-      } else {
-        delete process.env.LLMWIKI_CLAUDE_SETTINGS_PATH;
-      }
-    }
+    });
   });
 });
+
+type ResourceMap = Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>;
 
 describe("MCP resources", () => {
   it("resolves the wiki-index static resource", async () => {
     await writeFile(path.join(root, "wiki/index.md"), "# Test Index\n");
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://index"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://index"];
     const result = await resource.readCallback(new URL("llmwiki://index"));
     expect(result.contents[0].text).toContain("Test Index");
   });
 
   it("resolves the wiki-state static resource", async () => {
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://state"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://state"];
     const result = await resource.readCallback(new URL("llmwiki://state"));
     const parsed = JSON.parse(result.contents[0].text);
     expect(parsed).toMatchObject({ version: 1, sources: expect.any(Object) });
@@ -272,7 +272,7 @@ describe("MCP resources", () => {
       "---\ntitle: Article\nsource: example.com\n---\n\nbody",
     );
     const server = buildServer();
-    const resource = (getRegisteredResources(server) as Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>)["llmwiki://sources"];
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://sources"];
     const result = await resource.readCallback(new URL("llmwiki://sources"));
     const parsed = JSON.parse(result.contents[0].text);
     expect(parsed).toEqual([expect.objectContaining({ filename: "article.md", title: "Article" })]);
@@ -315,3 +315,81 @@ describe("MCP resources", () => {
   });
 });
 
+describe("run_eval tool", () => {
+  it("returns EvalReport shape for an empty project (fast suite)", async () => {
+    const server = buildServer();
+    const result = await callTool(server, "run_eval", { suite: "fast" });
+    const payload = result.structuredContent?.result as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      suite: "fast",
+      timestamp: expect.any(String),
+      health: expect.objectContaining({ score: expect.any(Number) }),
+      citationCoverage: expect.objectContaining({ coveragePercent: expect.any(Number) }),
+      stats: expect.objectContaining({ pageCount: expect.any(Number) }),
+      thresholdViolations: expect.any(Array),
+    });
+    expect(payload.citationSupport).toBeUndefined();
+  });
+
+  it("throws credentials error when suite=full and no provider configured", async () => {
+    await withNoCredentials(root, async () => {
+      const server = buildServer();
+      await expect(callTool(server, "run_eval", { suite: "full" })).rejects.toThrow(/Anthropic credentials/);
+    });
+  });
+});
+
+describe("eval resources", () => {
+  it("resolves llmwiki://eval/report returning {} when no history exists", async () => {
+    const server = buildServer();
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://eval/report"];
+    const result = await resource.readCallback(new URL("llmwiki://eval/report"));
+    expect(JSON.parse(result.contents[0].text)).toEqual({});
+  });
+
+  it("resolves llmwiki://eval/report returning the last report when history exists", async () => {
+    await appendHistory(root, makeEvalReport());
+    const server = buildServer();
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://eval/report"];
+    const result = await resource.readCallback(new URL("llmwiki://eval/report"));
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed).toMatchObject({ suite: "fast", health: { score: 90 } });
+  });
+
+  it("resolves llmwiki://eval/history returning [] when no history exists", async () => {
+    const server = buildServer();
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://eval/history"];
+    const result = await resource.readCallback(new URL("llmwiki://eval/history"));
+    expect(JSON.parse(result.contents[0].text)).toEqual([]);
+  });
+
+  it("resolves llmwiki://eval/history returning entries when history exists", async () => {
+    await appendHistory(root, makeEvalReport());
+    await appendHistory(root, makeEvalReport({ suite: "full" }));
+    const server = buildServer();
+    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://eval/history"];
+    const result = await resource.readCallback(new URL("llmwiki://eval/history"));
+    const parsed = JSON.parse(result.contents[0].text) as unknown[];
+    expect(parsed).toHaveLength(2);
+  });
+});
+
+/** Run `fn` with all Anthropic credentials cleared and a missing settings path, then restore. */
+async function withNoCredentials(root: string, fn: () => Promise<void>): Promise<void> {
+  const saved: Record<string, string | undefined> = {
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
+    ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
+    LLMWIKI_CLAUDE_SETTINGS_PATH: process.env.LLMWIKI_CLAUDE_SETTINGS_PATH,
+  };
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+  process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-such-settings.json");
+  try {
+    await fn();
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}

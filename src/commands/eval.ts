@@ -12,12 +12,8 @@
  *   evalJudgementsCommand  — browse individual citation judgements with filters
  */
 
-import { evaluateHealth } from "../eval/health.js";
-import { evaluateCitationCoverage } from "../eval/citation-coverage.js";
-import { evaluateCitationSupport } from "../eval/citation-support.js";
-import { collectStats, appendHistory, loadPreviousReport, loadHistory } from "../eval/stats.js";
-import { computeDelta } from "../eval/delta.js";
-import { checkThresholds } from "../eval/thresholds.js";
+import { loadHistory, loadPreviousReport } from "../eval/stats.js";
+import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import {
   formatTerminalReport,
   formatJsonReport,
@@ -26,15 +22,12 @@ import {
   formatJudgementsDisplay,
 } from "../eval/report.js";
 import { clearCitationCache, loadCitationCache, summarizeCitationCache } from "../eval/cache.js";
-import type { EvalReport } from "../eval/types.js";
 
 interface EvalOptions {
   suite?: string;
   out?: string;
   sample?: string;
 }
-
-const DEFAULT_SAMPLE_SIZE = 20;
 
 interface ResolvedEvalOptions {
   suite: "fast" | "full";
@@ -62,34 +55,6 @@ function resolveEvalOptions(options: EvalOptions): ResolvedEvalOptions {
   };
 }
 
-async function runEvalComponents(root: string, suite: "fast" | "full", sampleSize: number) {
-  const [health, citationCoverage, stats, previousReport] = await Promise.all([
-    evaluateHealth(root),
-    evaluateCitationCoverage(root),
-    collectStats(root),
-    loadPreviousReport(root),
-  ]);
-  const citationSupport = suite === "full"
-    ? await evaluateCitationSupport(root, sampleSize, previousReport?.citationSupport?.sampledHashes ?? [])
-    : undefined;
-  return { health, citationCoverage, stats, previousReport, citationSupport };
-}
-
-async function buildReport(root: string, components: Awaited<ReturnType<typeof runEvalComponents>>, suite: "fast" | "full"): Promise<EvalReport> {
-  const { health, citationCoverage, stats, previousReport, citationSupport } = components;
-  const partial = {
-    suite,
-    timestamp: new Date().toISOString(),
-    health,
-    citationCoverage,
-    stats,
-    ...(citationSupport ? { citationSupport } : {}),
-  };
-  const delta = previousReport ? computeDelta(partial as EvalReport, previousReport) : undefined;
-  const thresholdViolations = await checkThresholds(partial as EvalReport, root);
-  return { ...partial, ...(delta ? { delta } : {}), thresholdViolations };
-}
-
 /**
  * Run the eval harness against the current project.
  * @param options - Parsed CLI options.
@@ -98,9 +63,7 @@ export default async function evalCommand(options: EvalOptions = {}): Promise<vo
   const root = process.cwd();
   const { suite, sampleSize, outFormat } = resolveEvalOptions(options);
 
-  const components = await runEvalComponents(root, suite, sampleSize);
-  const report = await buildReport(root, components, suite);
-  await appendHistory(root, report);
+  const report = await runEval(root, suite, sampleSize);
 
   const output = outFormat === "json" ? formatJsonReport(report) : formatTerminalReport(report);
   console.log(output);
