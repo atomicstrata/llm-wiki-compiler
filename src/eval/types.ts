@@ -39,6 +39,23 @@ export interface CitationCoverageResult {
   perPage: CitationPageResult[];
 }
 
+/** Per-source citation detail emitted by source-utilization eval. */
+export interface SourceUtilizationEntry {
+  sourceFile: string;
+  citingPageCount: number;
+  citingPages: string[];
+}
+
+export interface SourceUtilizationResult {
+  totalSources: number;
+  citedSources: number;
+  uncitedSources: number;
+  /** 0.0-1.0. 1.0 when zero sources exist (vacuously complete). */
+  utilizationRate: number;
+  /** Sorted by citingPageCount descending. */
+  perSource: SourceUtilizationEntry[];
+}
+
 export interface CitationJudgement {
   /** First 16 hex chars of SHA-256(claimText + spanText) — stable cache key. */
   claimHash: string;
@@ -90,6 +107,7 @@ export interface EvalReport {
   timestamp: string;
   health: HealthResult;
   citationCoverage: CitationCoverageResult;
+  sourceUtilization: SourceUtilizationResult;
   citationSupport?: CitationSupportResult;
   stats: StatsResult;
   delta?: EvalDelta;

@@ -92,6 +92,33 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
   return rows;
 }
 
+function formatSourceUtilization(report: EvalReport): string[] {
+  const u = report.sourceUtilization;
+  if (u.totalSources === 0) {
+    return [line(), line('Source Utilization:  (no sources yet)')];
+  }
+  const pct = (u.utilizationRate * 100).toFixed(0);
+  const rows = [
+    line(),
+    line(bold('Source Utilization:  ' + pct + '%')),
+    line('  ' + u.citedSources + ' / ' + u.totalSources + ' sources cited by >=1 wiki page'),
+  ];
+  if (u.uncitedSources > 0) {
+    const uncited = u.perSource
+      .filter(function(s) { return s.citingPageCount === 0; })
+      .map(function(s) { return s.sourceFile; });
+    rows.push(line(colorError('  ' + String(u.uncitedSources) + ' uncited:')));
+    for (const f of uncited.slice(0, 5)) {
+      rows.push(line(dim('    - ' + f)));
+    }
+    if (uncited.length > 5) {
+      rows.push(line(dim('    ... and ' + String(uncited.length - 5) + ' more')));
+    }
+    rows.push(line(dim('  Tip: re-run llmwiki compile to extract concepts from uncited sources.')));
+  }
+  return rows;
+}
+
 function formatStats(report: EvalReport): string[] {
   const s = report.stats;
   return [
