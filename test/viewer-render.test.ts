@@ -124,6 +124,13 @@ describe("renderPageHtml — wikilinks", () => {
     expect(html).toContain('data-missing="true"');
     expect(html).toContain("[[ghost]]");
   });
+
+  it("resolves [[X]] to a page that declares X as a frontmatter alias", () => {
+    const target = { ...buildPage("deep-learning-foundations", "Deep Learning Foundations"), aliases: ["deep learning"] };
+    const { html } = renderPageHtml("See [[deep learning]].", buildSnapshot([target]), { isLoopback: true });
+    expect(html).toContain('data-page-id="concepts/deep-learning-foundations"');
+    expect(html).not.toContain('data-missing="true"');
+  });
 });
 
 describe("renderPageHtml — citation chips", () => {
