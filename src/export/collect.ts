@@ -114,6 +114,8 @@ function toExportPage(raw: RawWikiPage, sourceHashes: SourceHashLookup): ExportP
     advisoryFreshnessStatus: "unverified",
     contentHash: hashPageBody(raw.body),
     sourceHashes: resolveSourceHashes(sources, sourceHashes),
+    ...(typeof meta.modelId === "string" ? { modelId: meta.modelId } : {}),
+    ...(typeof meta.promptVersion === "string" ? { promptVersion: meta.promptVersion } : {}),
   };
 }
 

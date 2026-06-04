@@ -9,60 +9,32 @@
  * tagged evidence, the `proposed` rule fields, and a stamped provenance.modelId.
  */
 
-import { describe, it, expect, vi } from "vitest";
-import { writeFile } from "fs/promises";
-import path from "path";
+import { describe, it, expect } from "vitest";
 import { extractRuleCandidates } from "../src/compiler/rule-extractor.js";
 import {
   listRuleCandidates,
   setRuleCandidateStatus,
+  validateRuleCandidate,
 } from "../src/compiler/rule-candidates.js";
 import {
   buildRuleCandidatesJson,
   collectRuleCandidatesForExport,
 } from "../src/export/rule-candidates-json.js";
+import { candidateFileId } from "../src/utils/candidate-store.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
+import {
+  restoreProviderEnvAfterEach,
+  seedRuleSource as seedSource,
+  stubRuleExtraction,
+} from "./fixtures/rule-extraction.js";
 import type { RuleCandidate } from "../src/utils/rule-types.js";
 
 const FIXED_NOW = "2026-05-31T00:00:00.000Z";
 
-/** Derive the on-disk file id from a dotted candidate id (matches the store). */
-function fileIdFor(candidateId: string): string {
-  return candidateId.replace(/[^a-zA-Z0-9_-]/g, "-");
-}
+/** Candidate ids carry a content-hash suffix so distinct rules never collide. */
+const CANDIDATE_ID_RE = /^rulecand\.process\.require-tests-before-merge-[a-f0-9]{8}$/;
 
-/** Stub callClaude so the rule tool returns one deterministic rule. */
-async function stubRuleExtraction(): Promise<void> {
-  const llm = await import("../src/utils/llm.js");
-  vi.spyOn(llm, "callClaude").mockImplementation(async ({ tools }) => {
-    if (!tools || tools.length === 0) return "";
-    return JSON.stringify({
-      rules: [
-        {
-          category: "Process",
-          title: "Require tests before merge",
-          description: "All PRs must include passing tests.",
-          when: "a pull request is opened without test changes",
-          then: "warn",
-          confidence: "high",
-          evidenceLineStart: 1,
-          evidenceLineEnd: 2,
-        },
-      ],
-    });
-  });
-}
-
-/** Seed sources/ with one file and set the provider env for model id resolution. */
-async function seedSource(dir: string): Promise<void> {
-  process.env.LLMWIKI_PROVIDER = "anthropic";
-  process.env.ANTHROPIC_API_KEY = "test-key";
-  await writeFile(
-    path.join(dir, "sources", "guide.md"),
-    "Always run the test suite before merging a change.\nNo exceptions.",
-    "utf-8",
-  );
-}
+restoreProviderEnvAfterEach();
 
 describe("rule-candidate extraction", () => {
   const ctx = useTempRoot(["sources"]);
@@ -75,10 +47,11 @@ describe("rule-candidate extraction", () => {
     expect(result.candidates).toHaveLength(1);
     const candidate = result.candidates[0]!;
 
-    expect(candidate.id).toBe("rulecand.process.require-tests-before-merge");
+    expect(candidate.id).toMatch(CANDIDATE_ID_RE);
     expect(candidate.status).toBe("proposed");
     expect(candidate.confidence).toBe("high");
     expect(candidate.createdAt).toBe(FIXED_NOW);
+    expect(validateRuleCandidate(candidate)).toBeNull();
     assertProposedRule(candidate);
     assertEvidenceAndProvenance(candidate);
   });
@@ -90,7 +63,7 @@ describe("rule-candidate extraction", () => {
     await extractRuleCandidates(ctx.dir, FIXED_NOW);
     const listed = await listRuleCandidates(ctx.dir);
     expect(listed).toHaveLength(1);
-    expect(listed[0]!.proposed.id).toBe("rule.process.require-tests-before-merge");
+    expect(listed[0]!.proposed.id).toBe(`rule.${listed[0]!.id.slice("rulecand.".length)}`);
   });
 });
 
@@ -101,7 +74,7 @@ describe("rule-candidate approve + export", () => {
     await seedSource(ctx.dir);
     await stubRuleExtraction();
     const { candidates } = await extractRuleCandidates(ctx.dir, FIXED_NOW);
-    const fileId = fileIdFor(candidates[0]!.id);
+    const fileId = candidateFileId(candidates[0]!.id);
 
     const updated = await setRuleCandidateStatus(ctx.dir, fileId, "approved");
     expect(updated!.status).toBe("approved");
@@ -114,7 +87,7 @@ describe("rule-candidate approve + export", () => {
     await seedSource(ctx.dir);
     await stubRuleExtraction();
     const { candidates } = await extractRuleCandidates(ctx.dir, FIXED_NOW);
-    const fileId = fileIdFor(candidates[0]!.id);
+    const fileId = candidateFileId(candidates[0]!.id);
     await setRuleCandidateStatus(ctx.dir, fileId, "approved");
 
     const approved = await collectRuleCandidatesForExport(ctx.dir, "approved");
@@ -130,7 +103,7 @@ describe("rule-candidate approve + export", () => {
 /** Assert the `proposed` rule sub-object matches the contract. */
 function assertProposedRule(candidate: RuleCandidate): void {
   expect(candidate.proposed).toEqual({
-    id: "rule.process.require-tests-before-merge",
+    id: `rule.${candidate.id.slice("rulecand.".length)}`,
     category: "process",
     title: "Require tests before merge",
     description: "All PRs must include passing tests.",

@@ -15,7 +15,21 @@ import path from "path";
 import { safeReadFile } from "./markdown.js";
 
 /** Extension used for all candidate JSON files. */
-const CANDIDATE_JSON_EXT = ".json";
+export const CANDIDATE_JSON_EXT = ".json";
+
+/**
+ * Turn a dotted candidate id into a single filesystem-safe path segment.
+ *
+ * Only characters outside `[a-z0-9._-]` are replaced (with `_`); dots are
+ * PRESERVED. Collapsing dots to `-` (the old behavior) made `rulecand.a.b-c`
+ * and `rulecand.a-b.c` map to the same file, silently overwriting one
+ * candidate with the other. Keeping dots makes the mapping injective for the
+ * ids this codebase emits (category in `[a-z0-9_]`, slug in `[a-z0-9-]`).
+ * @param candidateId - The dotted candidate id.
+ */
+export function candidateFileId(candidateId: string): string {
+  return candidateId.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
 
 /**
  * List the file ids (basename without `.json`) of every candidate JSON file in

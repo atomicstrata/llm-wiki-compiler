@@ -121,6 +121,19 @@ export interface ExportPage {
    * pages). Lets an auditor tie a page back to exact source bytes.
    */
   sourceHashes: string[];
+  /**
+   * Model id that produced this page's current content, stamped into the
+   * page's frontmatter at compile time (radar W4). Unlike an export-time env
+   * read, this is true per-page lineage: a page compiled by model A keeps
+   * `modelId: A` even if the exporter's env later points at model B. Absent
+   * for pages compiled before provenance stamping shipped.
+   */
+  modelId?: string;
+  /**
+   * Named prompt-contract version the page was compiled under (radar W4),
+   * stamped at compile time. Absent for pre-provenance pages.
+   */
+  promptVersion?: string;
 }
 
 /**

@@ -13,8 +13,11 @@
  */
 
 import path from "path";
-import { atomicWrite, safeReadFile } from "../utils/markdown.js";
+import { createHash } from "node:crypto";
+import { atomicWrite, safeReadFile, slugify } from "../utils/markdown.js";
 import {
+  CANDIDATE_JSON_EXT,
+  candidateFileId,
   listCandidateFileIds,
   moveCandidateToArchive,
 } from "../utils/candidate-store.js";
@@ -30,9 +33,6 @@ import type {
   RuleStatus,
 } from "../utils/rule-types.js";
 
-/** Filesystem extension used for rule-candidate JSON files. */
-const RULE_CANDIDATE_EXT = ".json";
-
 /** Allowed confidence values, used by the on-disk validity guard. */
 const CONFIDENCE_VALUES: readonly RuleConfidence[] = ["low", "medium", "high"];
 
@@ -41,12 +41,116 @@ const STATUS_VALUES: readonly RuleStatus[] = ["proposed", "approved", "rejected"
 
 /** Absolute path to a rule candidate's JSON file. */
 function ruleCandidatePath(root: string, id: string): string {
-  return path.join(root, RULE_CANDIDATES_DIR, `${id}${RULE_CANDIDATE_EXT}`);
+  return path.join(root, RULE_CANDIDATES_DIR, `${id}${CANDIDATE_JSON_EXT}`);
 }
 
 /** Absolute path to the archived JSON file for a rejected rule candidate. */
 function ruleArchivePath(root: string, id: string): string {
-  return path.join(root, RULE_CANDIDATES_ARCHIVE_DIR, `${id}${RULE_CANDIDATE_EXT}`);
+  return path.join(root, RULE_CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_JSON_EXT}`);
+}
+
+/** Radar contract caps (mirrored from radar-protocol rule_candidate_validation.rs). */
+const CATEGORY_CAP = 64;
+const TITLE_CAP = 256;
+const PREDICATE_CAP = 512;
+const EVIDENCE_REF_CAP = 1024;
+const MAX_EVIDENCE_PER_CANDIDATE = 64;
+const CANDIDATE_ID_RE = /^rulecand\.[a-z0-9_]+\.[a-z0-9-]+$/;
+const RULE_ID_RE = /^rule\.[a-z0-9_]+\.[a-z0-9-]+$/;
+
+/**
+ * Normalize a raw LLM category into Radar's category alphabet `[a-z0-9_]+`.
+ * Radar rejects hyphens in the category segment, but `slugify` emits them, so
+ * a multi-word category ("code review") must collapse to underscores
+ * ("code_review") or the candidate is silently dropped at import.
+ * @param raw - The model-supplied category string.
+ */
+export function sanitizeRuleCategory(raw: string): string {
+  const cleaned = raw.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
+  return (cleaned || "general").slice(0, CATEGORY_CAP);
+}
+
+/**
+ * Build a collision-resistant slug segment in Radar's slug alphabet `[a-z0-9-]+`.
+ * Appends a short hex digest of a content signature (source identity + rule
+ * body) so two rules with the same title — across sources or from similar LLM
+ * outputs — never collapse onto the same candidate id/file.
+ * @param title - The rule title.
+ * @param contentSignature - Stable per-rule signature (e.g. source + when + then).
+ */
+export function buildRuleSlug(title: string, contentSignature: string): string {
+  const base = slugify(title);
+  const hash = createHash("sha256").update(contentSignature).digest("hex").slice(0, 8);
+  return base ? `${base}-${hash}` : `rule-${hash}`;
+}
+
+/**
+ * Producer-side mirror of Radar's import gate. Returns an error string when a
+ * candidate would be rejected at import (bad id/category alphabet, oversized
+ * field, non-https url, unsafe evidence path, too many refs), or null when it
+ * is importable. Keeps the producer from "successfully" emitting candidates
+ * Radar silently refuses.
+ * @param c - The candidate to validate.
+ */
+export function validateRuleCandidate(c: RuleCandidate): string | null {
+  if (!CANDIDATE_ID_RE.test(c.id)) return `candidate id "${c.id}" violates ${CANDIDATE_ID_RE}`;
+  if (!RULE_ID_RE.test(c.proposed.id)) return `proposed rule id "${c.proposed.id}" violates ${RULE_ID_RE}`;
+  const capError = firstFieldOverCap(c);
+  if (capError) return capError;
+  if (c.evidence.length > MAX_EVIDENCE_PER_CANDIDATE) {
+    return `too many evidence refs: ${c.evidence.length} (max ${MAX_EVIDENCE_PER_CANDIDATE})`;
+  }
+  return firstEvidenceError(c.evidence);
+}
+
+/** First over-cap proposed-rule field, or null. */
+function firstFieldOverCap(c: RuleCandidate): string | null {
+  const checks: Array<[string, string, number]> = [
+    ["category", c.proposed.category, CATEGORY_CAP],
+    ["title", c.proposed.title, TITLE_CAP],
+    ["when", c.proposed.when, PREDICATE_CAP],
+    ["then", c.proposed.then, PREDICATE_CAP],
+  ];
+  for (const [name, value, cap] of checks) {
+    if (value.length > cap) return `${name} exceeds ${cap} chars`;
+  }
+  return null;
+}
+
+/** First evidence ref that Radar would reject (scheme/path/length), or null. */
+function firstEvidenceError(evidence: EvidenceRef[]): string | null {
+  for (const ref of evidence) {
+    const error = evidenceRefError(ref);
+    if (error) return error;
+  }
+  return null;
+}
+
+/** Radar's per-ref check for the two network/filesystem-backed evidence kinds. */
+function evidenceRefError(ref: EvidenceRef): string | null {
+  if (ref.kind === "url") return urlEvidenceError(ref.url);
+  if (ref.kind === "file") return fileEvidenceError(ref.path);
+  return null;
+}
+
+/** Url evidence must be https and within the reference cap. */
+function urlEvidenceError(url: string): string | null {
+  if (url.length > EVIDENCE_REF_CAP) return `evidence url exceeds ${EVIDENCE_REF_CAP} chars`;
+  if (!url.startsWith("https://")) return `url evidence must be https: ${url}`;
+  return null;
+}
+
+/** File evidence must be a safe relative path within the reference cap. */
+function fileEvidenceError(filePath: string): string | null {
+  if (filePath.length > EVIDENCE_REF_CAP) return `evidence path exceeds ${EVIDENCE_REF_CAP} chars`;
+  if (isUnsafeEvidencePath(filePath)) return `unsafe evidence path: ${filePath}`;
+  return null;
+}
+
+/** Reject absolute paths, Windows drive/UNC roots, and any `..` traversal segment. */
+function isUnsafeEvidencePath(p: string): boolean {
+  if (p.startsWith("/") || p.startsWith("\\") || /^[a-zA-Z]:/.test(p)) return true;
+  return p.split(/[/\\]/).some((seg) => seg === "..");
 }
 
 /** Input shape for assembling a new candidate (id/status/createdAt derived here). */
@@ -103,15 +207,10 @@ export async function writeRuleCandidate(
   root: string,
   candidate: RuleCandidate,
 ): Promise<string> {
-  const fileId = fileIdFor(candidate.id);
+  const fileId = candidateFileId(candidate.id);
   const target = ruleCandidatePath(root, fileId);
   await atomicWrite(target, JSON.stringify(candidate, null, 2));
   return target;
-}
-
-/** Turn a dotted candidate id into a filesystem-safe single segment. */
-function fileIdFor(candidateId: string): string {
-  return candidateId.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */

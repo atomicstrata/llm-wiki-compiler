@@ -66,8 +66,13 @@ export async function compileDelta(
   const result = await compileAndReport(root, options);
   const changedSlugSet = new Set(result.pages);
 
+  // `result.pages` are concept/seed slugs, all written under wiki/concepts.
+  // Match on (pageDirectory, slug), not bare slug, so a saved query that
+  // happens to share a slug with a changed concept is never mis-included.
   const allPages = await collectExportPages(root);
-  const changedPages = allPages.filter((page) => changedSlugSet.has(page.slug));
+  const changedPages = allPages.filter(
+    (page) => page.pageDirectory === "concepts" && changedSlugSet.has(page.slug),
+  );
 
   return {
     changedPages,

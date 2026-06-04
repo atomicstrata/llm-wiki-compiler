@@ -187,11 +187,24 @@ function mapRawRule(r: RawRule): ExtractedRule {
     then: (r.then as string).trim(),
     confidence: r.confidence as RuleConfidence,
   };
-  const start = coerceLine(r.evidenceLineStart);
-  const end = coerceLine(r.evidenceLineEnd);
+  assignEvidenceSpan(rule, coerceLine(r.evidenceLineStart), coerceLine(r.evidenceLineEnd));
+  return rule;
+}
+
+/**
+ * Attach a line span to a rule only when it is internally consistent. An
+ * inverted span (end < start) is dropped entirely rather than shipped to Radar,
+ * which would otherwise render a negative-length range. A lone start or end is
+ * still carried — it is a valid single-anchor hint.
+ */
+function assignEvidenceSpan(
+  rule: ExtractedRule,
+  start: number | undefined,
+  end: number | undefined,
+): void {
+  if (start !== undefined && end !== undefined && end < start) return;
   if (start !== undefined) rule.evidenceLineStart = start;
   if (end !== undefined) rule.evidenceLineEnd = end;
-  return rule;
 }
 
 /**

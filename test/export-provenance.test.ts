@@ -4,8 +4,8 @@
  * Verifies the auditable lineage fields a downstream consumer (Atomic Radar)
  * relies on:
  *
- *  - Envelope carries `modelId` (resolved from LLM client config, or an
- *    explicit override) and `promptVersion` (the named prompt-contract const).
+ *  - Each page carries `modelId` / `promptVersion` surfaced from its compile-time
+ *    frontmatter — true per-page lineage, NOT a single export-time env read.
  *  - Each page carries a deterministic `contentHash` over its body and the
  *    `sourceHashes` it derived from (surfaced from `.llmwiki/state.json`).
  *  - `contentHash` is stable for the same body and changes when the body does.
@@ -19,22 +19,19 @@ import { writePage } from "./fixtures/write-page.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { collectExportPages } from "../src/export/collect.js";
 import { buildJsonExport } from "../src/export/json-export.js";
-import { PROMPT_VERSION } from "../src/compiler/prompts.js";
 
 interface ProvenancePage {
   slug: string;
   body: string;
   contentHash: string;
   sourceHashes: string[];
+  modelId?: string;
+  promptVersion?: string;
 }
 
 interface ProvenanceEnvelope {
-  modelId: string;
-  promptVersion: string;
   pages: ProvenancePage[];
 }
-
-const STUB_MODEL_ID = "stub-model-1";
 
 /** Hex SHA-256 of a string — mirror of the export's body hash for assertions. */
 function sha256(text: string): string {
@@ -63,39 +60,48 @@ function findPage(env: ProvenanceEnvelope, slug: string): ProvenancePage {
   return page;
 }
 
-describe("export provenance — envelope modelId + promptVersion", () => {
-  it("stamps an explicit modelId override and the named promptVersion", async () => {
-    const root = await makeTempRoot("prov-env");
+describe("export provenance — per-page modelId + promptVersion", () => {
+  it("surfaces the compile-time modelId/promptVersion stamped in frontmatter", async () => {
+    const root = await makeTempRoot("prov-perpage");
     await writePage(
       path.join(root, "wiki/concepts"),
       "retrieval",
-      { title: "Retrieval", summary: "x", sources: [] },
+      { title: "Retrieval", summary: "x", sources: [], modelId: "model-a", promptVersion: "v1" },
       "Body.\n",
     );
-    const pages = await collectExportPages(root);
-    const env = JSON.parse(
-      buildJsonExport(pages, { modelId: STUB_MODEL_ID }),
-    ) as ProvenanceEnvelope;
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
 
-    expect(env.modelId).toBe(STUB_MODEL_ID);
-    expect(env.promptVersion).toBe(PROMPT_VERSION);
+    expect(findPage(env, "retrieval").modelId).toBe("model-a");
+    expect(findPage(env, "retrieval").promptVersion).toBe("v1");
   });
 
-  it("resolves modelId from LLMWIKI_MODEL when no override is given", async () => {
-    const root = await makeTempRoot("prov-modelenv");
+  it("omits provenance for pages compiled before stamping shipped", async () => {
+    const root = await makeTempRoot("prov-legacy");
     await writePage(
       path.join(root, "wiki/concepts"),
-      "p",
-      { title: "P", summary: "s", sources: [] },
+      "legacy",
+      { title: "Legacy", summary: "s", sources: [] },
+      "Body.\n",
+    );
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
+
+    expect(findPage(env, "legacy").modelId).toBeUndefined();
+    expect(findPage(env, "legacy").promptVersion).toBeUndefined();
+  });
+
+  it("keeps a page's modelId even when a different model exports it", async () => {
+    const root = await makeTempRoot("prov-noenv");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "pinned",
+      { title: "Pinned", summary: "s", sources: [], modelId: "compiled-by-A", promptVersion: "v1" },
       "Body.\n",
     );
     process.env.LLMWIKI_PROVIDER = "anthropic";
-    process.env.LLMWIKI_MODEL = "claude-test-model";
+    process.env.LLMWIKI_MODEL = "exporting-with-B";
     try {
-      const env = JSON.parse(
-        buildJsonExport(await collectExportPages(root)),
-      ) as ProvenanceEnvelope;
-      expect(env.modelId).toBe("claude-test-model");
+      const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
+      expect(findPage(env, "pinned").modelId).toBe("compiled-by-A");
     } finally {
       delete process.env.LLMWIKI_PROVIDER;
       delete process.env.LLMWIKI_MODEL;
@@ -114,9 +120,7 @@ describe("export provenance — per-page contentHash + sourceHashes", () => {
       { title: "Retrieval", summary: "x", sources: ["paper.md", "other.md"] },
       body,
     );
-    const env = JSON.parse(
-      buildJsonExport(await collectExportPages(root), { modelId: STUB_MODEL_ID }),
-    ) as ProvenanceEnvelope;
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
     const page = findPage(env, "retrieval");
 
     expect(page.contentHash).toBe(sha256(page.body));
@@ -131,12 +135,8 @@ describe("export provenance — per-page contentHash + sourceHashes", () => {
       { title: "Stable", summary: "s", sources: [] },
       "Identical body content.\n",
     );
-    const first = JSON.parse(
-      buildJsonExport(await collectExportPages(root), { modelId: STUB_MODEL_ID }),
-    ) as ProvenanceEnvelope;
-    const second = JSON.parse(
-      buildJsonExport(await collectExportPages(root), { modelId: STUB_MODEL_ID }),
-    ) as ProvenanceEnvelope;
+    const first = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
+    const second = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
 
     expect(findPage(first, "stable").contentHash).toBe(findPage(second, "stable").contentHash);
   });
@@ -149,9 +149,7 @@ describe("export provenance — per-page contentHash + sourceHashes", () => {
       { title: "Seedlike", summary: "s", sources: [] },
       "Body.\n",
     );
-    const env = JSON.parse(
-      buildJsonExport(await collectExportPages(root), { modelId: STUB_MODEL_ID }),
-    ) as ProvenanceEnvelope;
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
     expect(findPage(env, "seedlike").sourceHashes).toEqual([]);
   });
 });

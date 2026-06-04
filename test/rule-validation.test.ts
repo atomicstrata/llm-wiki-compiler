@@ -1,0 +1,92 @@
+/**
+ * Unit tests for the rule-candidate id/category/validation helpers (radar W2).
+ *
+ * These guard the producer↔Radar contract: category alphabet, collision-free
+ * ids, evidence-span sanity, and the producer-side mirror of Radar's import
+ * gate (so the compiler never "successfully" emits a candidate Radar rejects).
+ */
+
+import { describe, it, expect } from "vitest";
+import {
+  buildRuleCandidate,
+  buildRuleSlug,
+  sanitizeRuleCategory,
+  validateRuleCandidate,
+} from "../src/compiler/rule-candidates.js";
+import { parseRules } from "../src/compiler/rule-prompts.js";
+import type { RuleCandidate } from "../src/utils/rule-types.js";
+
+const NOW = "2026-05-31T00:00:00.000Z";
+
+function candidate(category: string, slug: string): RuleCandidate {
+  return buildRuleCandidate(
+    {
+      category,
+      slug,
+      title: "T",
+      description: "d",
+      when: "w",
+      then: "warn",
+      evidence: [{ kind: "file", path: "guide.md" }],
+      provenance: { source: "llm-wiki-compiler" },
+      confidence: "high",
+    },
+    NOW,
+  );
+}
+
+describe("sanitizeRuleCategory", () => {
+  it("collapses hyphen/space runs to underscores (Radar's [a-z0-9_] alphabet)", () => {
+    expect(sanitizeRuleCategory("Code Review")).toBe("code_review");
+    expect(sanitizeRuleCategory("ci/cd pipeline")).toBe("ci_cd_pipeline");
+  });
+
+  it("falls back to 'general' for an empty result", () => {
+    expect(sanitizeRuleCategory("!!!")).toBe("general");
+  });
+});
+
+describe("buildRuleSlug", () => {
+  it("appends an 8-hex content hash so same-title rules never collide", () => {
+    const a = buildRuleSlug("Require tests", "sourceA\nwhen\nthen");
+    const b = buildRuleSlug("Require tests", "sourceB\nwhen\nthen");
+    expect(a).toMatch(/^require-tests-[a-f0-9]{8}$/);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("validateRuleCandidate", () => {
+  it("accepts a sanitized multi-word category", () => {
+    expect(validateRuleCandidate(candidate("code_review", "x-abcd1234"))).toBeNull();
+  });
+
+  it("rejects a hyphen in the category segment (Radar would refuse it)", () => {
+    expect(validateRuleCandidate(candidate("code-review", "x-abcd1234"))).toContain("candidate id");
+  });
+
+  it("rejects non-https url evidence", () => {
+    const c = candidate("process", "x-abcd1234");
+    c.evidence = [{ kind: "url", url: "http://example.com" }];
+    expect(validateRuleCandidate(c)).toContain("https");
+  });
+
+  it("rejects an over-cap predicate", () => {
+    const c = candidate("process", "x-abcd1234");
+    c.proposed.when = "x".repeat(513);
+    expect(validateRuleCandidate(c)).toContain("when");
+  });
+});
+
+describe("parseRules evidence-span sanity", () => {
+  it("drops an inverted span (end < start) rather than emitting it", () => {
+    const raw = JSON.stringify({
+      rules: [{
+        category: "process", title: "T", description: "d", when: "w", then: "warn",
+        confidence: "high", evidenceLineStart: 40, evidenceLineEnd: 7,
+      }],
+    });
+    const [rule] = parseRules(raw);
+    expect(rule!.evidenceLineStart).toBeUndefined();
+    expect(rule!.evidenceLineEnd).toBeUndefined();
+  });
+});

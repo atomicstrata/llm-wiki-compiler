@@ -30,6 +30,7 @@ import {
   readRuleCandidate,
   setRuleCandidateStatus,
 } from "../compiler/rule-candidates.js";
+import { candidateFileId } from "../utils/candidate-store.js";
 import {
   RULE_EXPORT_SCOPES,
   buildRuleCandidatesJson,
@@ -39,11 +40,6 @@ import {
 
 /** Default output path (relative to root) for `rules export`. */
 const RULE_EXPORT_PATH = "dist/exports/rule-candidates.json";
-
-/** Turn a dotted candidate id into the filesystem id used on disk. */
-function fileIdFor(candidateId: string): string {
-  return candidateId.replace(/[^a-zA-Z0-9_-]/g, "-");
-}
 
 /**
  * Extract rule candidates from changed sources. Requires the sources/ folder
@@ -86,8 +82,7 @@ function reportExtraction(result: RuleExtractionResult): void {
 
 /** List pending rule candidates with their proposed-rule summary line. */
 export async function rulesListCommand(): Promise<void> {
-  const candidates = await collectRuleCandidatesForExport(process.cwd(), "all");
-  const pending = candidates.filter((c) => c.status === "proposed");
+  const pending = await collectRuleCandidatesForExport(process.cwd(), "proposed");
   if (pending.length === 0) {
     output.status("i", output.dim("No pending rule candidates."));
     return;
@@ -159,7 +154,7 @@ async function mutateUnderLock(
   underLock: (root: string, fileId: string) => Promise<boolean>,
 ): Promise<void> {
   const root = process.cwd();
-  const fileId = fileIdFor(id);
+  const fileId = candidateFileId(id);
 
   const preCheck = await readRuleCandidate(root, fileId);
   if (!preCheck) {
