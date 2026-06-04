@@ -16,11 +16,17 @@
 
 import { collectRawWikiPages, extractWikilinkSlugs, extractWikilinkTargets } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
-import { extractClaimCitations } from "../utils/markdown.js";
+import { extractClaimCitations, slugify } from "../utils/markdown.js";
 import type { PageId, ViewerPage, ViewerWarning } from "./types.js";
 
 /** Minimal page shape `resolveBareSlug` needs to find a target. */
-type PageIndexEntry = { id: PageId; pageDirectory: ViewerPage["pageDirectory"]; slug: string };
+type PageIndexEntry = {
+  id: PageId;
+  pageDirectory: ViewerPage["pageDirectory"];
+  slug: string;
+  /** Declared frontmatter aliases, used as a resolution fallback after exact slug. */
+  aliases?: readonly string[];
+};
 
 /**
  * Build the decorated page list for a project root. Each `ViewerPage`
@@ -49,7 +55,19 @@ export function resolveBareSlug(
   if (concept) return concept.id;
   const query = pages.find((p) => p.pageDirectory === "queries" && p.slug === slug);
   if (query) return query.id;
+  // Alias fallback: a page whose declared aliases slugify to this target. An
+  // exact slug match always wins (above) so a real page is never shadowed by
+  // another page's alias; concepts still take precedence over queries.
+  const conceptAlias = pages.find((p) => p.pageDirectory === "concepts" && hasAliasSlug(p, slug));
+  if (conceptAlias) return conceptAlias.id;
+  const queryAlias = pages.find((p) => p.pageDirectory === "queries" && hasAliasSlug(p, slug));
+  if (queryAlias) return queryAlias.id;
   return null;
+}
+
+/** True when any of the page's declared aliases slugifies to `slug`. */
+function hasAliasSlug(page: PageIndexEntry, slug: string): boolean {
+  return (page.aliases ?? []).some((alias) => slugify(alias) === slug);
 }
 
 /**
@@ -124,10 +142,18 @@ function buildPageShell(page: RawWikiPage): ViewerPage {
     filePath: page.filePath,
     frontmatter: page.frontmatter,
     body: page.body,
+    aliases: readAliases(page.frontmatter),
     outgoingLinks: [],
     citations: extractClaimCitations(page.body),
     warnings: warningsFromParseStatus(page),
   };
+}
+
+/** Read the `aliases` frontmatter field as a string list (empty when absent/malformed). */
+function readAliases(frontmatter: Record<string, unknown>): string[] {
+  const raw = frontmatter.aliases;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((entry): entry is string => typeof entry === "string");
 }
 
 /**
