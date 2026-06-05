@@ -1,14 +1,14 @@
 /**
- * RuleCandidate persistence for the llmwiki rule-extraction pipeline (radar W2).
+ * RuleCandidate persistence for the llmwiki rule-extraction pipeline (rule pipeline).
  *
  * Parallel to `candidates.ts` (the concept review queue) but for structured
  * `RuleCandidate` records. `llmwiki rules extract` writes one JSON file per
  * candidate under `.llmwiki/rule-candidates/<id>.json`; `rules approve`/`reject`
- * flip `status` (and archive rejects); `rules export` emits the array Radar
+ * flip `status` (and archive rejects); `rules export` emits the array the rule importer
  * consumes. The full candidate is stored on disk so approval is a pure
  * status flip — the LLM is never called again at approval time.
  *
- * Candidate JSON is the canonical Radar import shape: camelCase keys, tagged
+ * Candidate JSON is the canonical the rule importer import shape: camelCase keys, tagged
  * evidence, lowercase status/confidence. Do not reshape it for local use.
  */
 
@@ -49,7 +49,7 @@ function ruleArchivePath(root: string, id: string): string {
   return path.join(root, RULE_CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_JSON_EXT}`);
 }
 
-/** Radar contract caps (mirrored from radar-protocol rule_candidate_validation.rs). */
+/** the rule importer contract caps (mirrored from the rule-import contract rule_candidate_validation.rs). */
 const CATEGORY_CAP = 64;
 const TITLE_CAP = 256;
 const PREDICATE_CAP = 512;
@@ -59,8 +59,8 @@ const CANDIDATE_ID_RE = /^rulecand\.[a-z0-9_]+\.[a-z0-9-]+$/;
 const RULE_ID_RE = /^rule\.[a-z0-9_]+\.[a-z0-9-]+$/;
 
 /**
- * Normalize a raw LLM category into Radar's category alphabet `[a-z0-9_]+`.
- * Radar rejects hyphens in the category segment, but `slugify` emits them, so
+ * Normalize a raw LLM category into the rule importer's category alphabet `[a-z0-9_]+`.
+ * the rule importer rejects hyphens in the category segment, but `slugify` emits them, so
  * a multi-word category ("code review") must collapse to underscores
  * ("code_review") or the candidate is silently dropped at import.
  * @param raw - The model-supplied category string.
@@ -71,7 +71,7 @@ export function sanitizeRuleCategory(raw: string): string {
 }
 
 /**
- * Build a collision-resistant slug segment in Radar's slug alphabet `[a-z0-9-]+`.
+ * Build a collision-resistant slug segment in the rule importer's slug alphabet `[a-z0-9-]+`.
  * Appends a short hex digest of a content signature (source identity + rule
  * body) so two rules with the same title — across sources or from similar LLM
  * outputs — never collapse onto the same candidate id/file.
@@ -85,11 +85,11 @@ export function buildRuleSlug(title: string, contentSignature: string): string {
 }
 
 /**
- * Producer-side mirror of Radar's import gate. Returns an error string when a
+ * Producer-side mirror of the rule importer's import gate. Returns an error string when a
  * candidate would be rejected at import (bad id/category alphabet, oversized
  * field, non-https url, unsafe evidence path, too many refs), or null when it
  * is importable. Keeps the producer from "successfully" emitting candidates
- * Radar silently refuses.
+ * the rule importer silently refuses.
  * @param c - The candidate to validate.
  */
 export function validateRuleCandidate(c: RuleCandidate): string | null {
@@ -117,7 +117,7 @@ function firstFieldOverCap(c: RuleCandidate): string | null {
   return null;
 }
 
-/** First evidence ref that Radar would reject (scheme/path/length), or null. */
+/** First evidence ref that the rule importer would reject (scheme/path/length), or null. */
 function firstEvidenceError(evidence: EvidenceRef[]): string | null {
   for (const ref of evidence) {
     const error = evidenceRefError(ref);
@@ -126,7 +126,7 @@ function firstEvidenceError(evidence: EvidenceRef[]): string | null {
   return null;
 }
 
-/** Radar's per-ref check for the two network/filesystem-backed evidence kinds. */
+/** the rule importer's per-ref check for the two network/filesystem-backed evidence kinds. */
 function evidenceRefError(ref: EvidenceRef): string | null {
   if (ref.kind === "url") return urlEvidenceError(ref.url);
   if (ref.kind === "file") return fileEvidenceError(ref.path);
@@ -167,7 +167,7 @@ export interface RuleCandidateDraft {
 }
 
 /**
- * Assemble a RuleCandidate from a draft. Ids follow Radar's convention
+ * Assemble a RuleCandidate from a draft. Ids follow the rule importer's convention
  * (`rulecand.<category>.<slug>` / `rule.<category>.<slug>`), status starts at
  * `proposed`, and version starts at 1.
  * @param draft - The extracted rule fields.

@@ -1,7 +1,7 @@
 # `sources/` Input Contract
 
 This document defines the **stable input contract** for the `sources/` directory:
-the format a programmatic producer (for example, **Atomic Radar**) writes to drive
+the format a programmatic producer (for example, **a downstream rule importer**) writes to drive
 `llmwiki compile` without going through the interactive `llmwiki ingest` command.
 
 Anything that can write a markdown file with the frontmatter described here can feed
@@ -55,7 +55,7 @@ the file.
 | Field        | Type   | Meaning |
 |--------------|--------|---------|
 | `title`      | string | Human-readable title. Drives the **filename slug** (see below) and the wiki page title. Must contain at least one letter or digit, otherwise the slug is empty and the write is rejected. |
-| `source`     | string | Source identity (URL, file path, or any stable producer-chosen URI). Used for re-ingest idempotency and basename-collision disambiguation. For a Radar git-log producer this would be e.g. a commit URL or `repo@sha:path`. |
+| `source`     | string | Source identity (URL, file path, or any stable producer-chosen URI). Used for re-ingest idempotency and basename-collision disambiguation. For a git-log producer this would be e.g. a commit URL or `repo@sha:path`. |
 | `ingestedAt` | string | ISO-8601 timestamp of when the source was captured. |
 
 ### Optional
@@ -134,7 +134,7 @@ page (the W4 provenance stamp).
 ## Future: a `git`-log adapter
 
 W1 documents the contract only; no new connector ships with it. The natural next
-connector for Atomic Radar is a **git-log adapter** that walks commit history and
+connector for a downstream rule importer is a **git-log adapter** that walks commit history and
 emits one `sources/*.md` per commit (or per changed file), with:
 
 - `title` = commit subject (or `path @ short-sha`),

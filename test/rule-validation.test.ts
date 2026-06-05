@@ -1,9 +1,9 @@
 /**
- * Unit tests for the rule-candidate id/category/validation helpers (radar W2).
+ * Unit tests for the rule-candidate id/category/validation helpers (rule pipeline).
  *
- * These guard the producer↔Radar contract: category alphabet, collision-free
- * ids, evidence-span sanity, and the producer-side mirror of Radar's import
- * gate (so the compiler never "successfully" emits a candidate Radar rejects).
+ * These guard the producer↔the rule importer contract: category alphabet, collision-free
+ * ids, evidence-span sanity, and the producer-side mirror of the rule importer's import
+ * gate (so the compiler never "successfully" emits a candidate the rule importer rejects).
  */
 
 import { describe, it, expect } from "vitest";
@@ -36,7 +36,7 @@ function candidate(category: string, slug: string): RuleCandidate {
 }
 
 describe("sanitizeRuleCategory", () => {
-  it("collapses hyphen/space runs to underscores (Radar's [a-z0-9_] alphabet)", () => {
+  it("collapses hyphen/space runs to underscores (the rule importer's [a-z0-9_] alphabet)", () => {
     expect(sanitizeRuleCategory("Code Review")).toBe("code_review");
     expect(sanitizeRuleCategory("ci/cd pipeline")).toBe("ci_cd_pipeline");
   });
@@ -60,7 +60,7 @@ describe("validateRuleCandidate", () => {
     expect(validateRuleCandidate(candidate("code_review", "x-abcd1234"))).toBeNull();
   });
 
-  it("rejects a hyphen in the category segment (Radar would refuse it)", () => {
+  it("rejects a hyphen in the category segment (the rule importer would refuse it)", () => {
     expect(validateRuleCandidate(candidate("code-review", "x-abcd1234"))).toContain("candidate id");
   });
 

@@ -170,7 +170,7 @@ reviewCommand
 const rulesCommand = program
   .command("rules")
   .description(
-    "Extract, review, and export machine-actionable RuleCandidate records for Atomic Radar",
+    "Extract, review, and export machine-actionable RuleCandidate records for a downstream rule importer",
   );
 
 rulesCommand
@@ -224,7 +224,7 @@ rulesCommand
 
 rulesCommand
   .command("export")
-  .description("Emit rule candidates as a JSON array for Radar (dist/exports/rule-candidates.json)")
+  .description("Emit rule candidates as a JSON array for the rule importer (dist/exports/rule-candidates.json)")
   .option("--scope <scope>", "approved (default), proposed, or all")
   .action(async (options: { scope?: string }) => {
     try {

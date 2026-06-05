@@ -1,7 +1,7 @@
 /**
- * Export provenance helpers (radar W4).
+ * Export provenance helpers (export provenance).
  *
- * Surfaces the auditable lineage a downstream consumer (e.g. Atomic Radar)
+ * Surfaces the auditable lineage a downstream consumer (e.g. a downstream rule importer)
  * needs to answer "this page came from these sources, via this model and
  * prompt version":
  *

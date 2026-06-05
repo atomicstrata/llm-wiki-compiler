@@ -1,5 +1,5 @@
 /**
- * Shared fixtures for the radar W2 rule-extraction tests.
+ * Shared fixtures for the rule-extraction tests.
  *
  * Stubs the LLM tool call so extraction is deterministic and offline, and
  * seeds a single source file with the provider env the model-id resolver

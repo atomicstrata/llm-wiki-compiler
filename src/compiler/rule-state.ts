@@ -1,5 +1,5 @@
 /**
- * Rule-extraction change-detection state (radar W2).
+ * Rule-extraction change-detection state (rule pipeline).
  *
  * `llmwiki rules extract` must decide which sources to (re)process on its own
  * cadence, independent of the concept compiler. If it reused `.llmwiki/state.json`

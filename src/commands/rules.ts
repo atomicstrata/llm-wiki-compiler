@@ -1,15 +1,15 @@
 /**
- * Commander actions for `llmwiki rules …` (radar W2).
+ * Commander actions for `llmwiki rules …` (rule pipeline).
  *
  * The rule-candidate lifecycle mirrors the concept review flow but emits
- * structured `RuleCandidate` records for Atomic Radar instead of prose pages:
+ * structured `RuleCandidate` records for a downstream rule importer instead of prose pages:
  *
  *   rules extract            — LLM-extract rules from changed sources into
  *                              .llmwiki/rule-candidates/<id>.json (status proposed)
  *   rules list               — list pending candidates
  *   rules approve <id>       — flip status → approved (in place)
  *   rules reject  <id>       — flip status → rejected, archive out of pending
- *   rules export [--scope]   — write the candidate array as JSON for Radar
+ *   rules export [--scope]   — write the candidate array as JSON for the rule importer
  *
  * Mutations run under `.llmwiki/lock` to serialize against a concurrent
  * extract/approve/reject, matching the concept review lock discipline.
@@ -117,7 +117,7 @@ export async function rulesRejectCommand(id: string): Promise<void> {
 }
 
 /**
- * Export rule candidates as a JSON array for Radar. Defaults to approved-only;
+ * Export rule candidates as a JSON array for the rule importer. Defaults to approved-only;
  * `--scope proposed|all` widens the selection. Writes to
  * dist/exports/rule-candidates.json.
  */

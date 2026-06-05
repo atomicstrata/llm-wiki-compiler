@@ -1,5 +1,5 @@
 /**
- * Rule-extraction orchestrator (radar W2).
+ * Rule-extraction orchestrator (rule pipeline).
  *
  * Drives the `RuleCandidate` producer half of the learning loop: for each
  * changed source file (gated by the same SHA-256 change detection the concept
@@ -68,7 +68,7 @@ function isUrl(value: unknown): value is string {
  * URL-origin sources emit a `url` evidence ref; everything else emits a `file`
  * ref keyed on the source filename, carrying the extraction's line span when
  * present. Exactly one evidence ref is produced per rule so the contract stays
- * predictable for Radar.
+ * predictable for the rule importer.
  */
 function buildEvidence(
   sourceFile: string,
@@ -125,7 +125,7 @@ interface RuleInContext {
 
 /**
  * Build a candidate for a single extracted rule. The category is normalized to
- * Radar's `[a-z0-9_]` alphabet and the slug carries a content-hash suffix so
+ * the rule importer's `[a-z0-9_]` alphabet and the slug carries a content-hash suffix so
  * distinct rules never collide on the same id/file. createdAt is injected by
  * the caller for a single consistent timestamp per run.
  */
@@ -230,7 +230,7 @@ export async function extractRuleCandidates(
  * Persist a freshly-extracted candidate, refusing to clobber a human decision.
  * Returns true when the candidate was written. An existing candidate that has
  * already been approved or rejected is preserved as-is; a candidate that would
- * fail Radar's import gate is dropped with a note instead of being emitted.
+ * fail the rule importer's import gate is dropped with a note instead of being emitted.
  */
 async function persistCandidate(
   root: string,

@@ -1,12 +1,12 @@
 /**
- * Rule-extraction prompt + tool schema (radar W2).
+ * Rule-extraction prompt + tool schema (rule pipeline).
  *
  * Sibling of `prompts.ts`'s concept-extraction contract. Where concept
  * extraction yields prose wiki pages, rule extraction yields structured
  * `RuleCandidate.proposed` fields: a machine-actionable proposed rule with a
  * trigger predicate (`when`), an action discriminator (`then`), a category,
  * and an extraction confidence. The compiler maps this tool output into
- * `RuleCandidate` records that Atomic Radar imports for human approval.
+ * `RuleCandidate` records that a downstream rule importer imports for human approval.
  *
  * The `when`/`then` language is interpreter-defined: a concise human-readable
  * condition/action string is sufficient at this stage.
@@ -193,7 +193,7 @@ function mapRawRule(r: RawRule): ExtractedRule {
 
 /**
  * Attach a line span to a rule only when it is internally consistent. An
- * inverted span (end < start) is dropped entirely rather than shipped to Radar,
+ * inverted span (end < start) is dropped entirely rather than shipped to the rule importer,
  * which would otherwise render a negative-length range. A lone start or end is
  * still carried — it is a valid single-anchor hint.
  */

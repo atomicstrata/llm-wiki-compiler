@@ -1,7 +1,7 @@
 /**
  * Unit tests for the W4 export provenance stamp.
  *
- * Verifies the auditable lineage fields a downstream consumer (Atomic Radar)
+ * Verifies the auditable lineage fields a downstream consumer (a downstream rule importer)
  * relies on:
  *
  *  - Each page carries `modelId` / `promptVersion` surfaced from its compile-time

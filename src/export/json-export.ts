@@ -15,7 +15,7 @@
  * export-time model id would misattribute pages compiled under a different
  * model, which is exactly the lineage bug this avoids.
  *
- * `schemaVersion` lets downstream consumers (e.g. Radar) pin to a known
+ * `schemaVersion` lets downstream consumers (e.g. the rule importer) pin to a known
  * contract. Increment when a breaking field change lands; additive fields
  * do not require a bump.
  *

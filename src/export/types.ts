@@ -108,7 +108,7 @@ export interface ExportPage {
   advisoryFreshnessStatus: AdvisoryFreshnessStatus;
   /**
    * Deterministic SHA-256 (hex) of {@link ExportPage.body}. Lets a
-   * downstream auditor (radar W4) detect content drift and verify that an
+   * downstream auditor (export provenance) detect content drift and verify that an
    * imported page still matches what the compiler exported, without
    * re-reading the markdown. Stable for identical bodies.
    */
@@ -123,14 +123,14 @@ export interface ExportPage {
   sourceHashes: string[];
   /**
    * Model id that produced this page's current content, stamped into the
-   * page's frontmatter at compile time (radar W4). Unlike an export-time env
+   * page's frontmatter at compile time (export provenance). Unlike an export-time env
    * read, this is true per-page lineage: a page compiled by model A keeps
    * `modelId: A` even if the exporter's env later points at model B. Absent
    * for pages compiled before provenance stamping shipped.
    */
   modelId?: string;
   /**
-   * Named prompt-contract version the page was compiled under (radar W4),
+   * Named prompt-contract version the page was compiled under (export provenance),
    * stamped at compile time. Absent for pre-provenance pages.
    */
   promptVersion?: string;

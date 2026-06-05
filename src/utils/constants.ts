@@ -99,13 +99,13 @@ export const CANDIDATES_DIR = ".llmwiki/candidates";
 export const CANDIDATES_ARCHIVE_DIR = ".llmwiki/candidates/archive";
 
 /**
- * Per-source hashes already processed by `rules extract` (radar W2). Kept
+ * Per-source hashes already processed by `rules extract` (rule pipeline). Kept
  * separate from STATE_FILE so rule extraction and concept compilation advance
  * their change-detection cursors independently.
  */
 export const RULE_STATE_FILE = ".llmwiki/rule-state.json";
 
-/** Pending rule candidates (radar W2) awaiting approve/reject. */
+/** Pending rule candidates (rule pipeline) awaiting approve/reject. */
 export const RULE_CANDIDATES_DIR = ".llmwiki/rule-candidates";
 
 /** Rejected rule candidates archived for audit (not deleted). */

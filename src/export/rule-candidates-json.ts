@@ -1,8 +1,8 @@
 /**
- * Rule-candidate JSON export (radar W2).
+ * Rule-candidate JSON export (rule pipeline).
  *
- * Emits the persisted `RuleCandidate` records as a JSON array for Atomic Radar
- * to import. The array element shape is the canonical Radar contract verbatim
+ * Emits the persisted `RuleCandidate` records as a JSON array for a downstream rule importer
+ * to import. The array element shape is the canonical the rule importer contract verbatim
  * — camelCase keys, tagged evidence, lowercase status/confidence — because the
  * on-disk candidates are already stored in that shape. Export is a pure read +
  * filter + serialize with no LLM calls.
@@ -45,7 +45,7 @@ export async function collectRuleCandidatesForExport(
 /**
  * Serialize rule candidates as a pretty-printed JSON array string.
  * @param candidates - Candidates to serialize.
- * @returns JSON array string matching Radar's RuleCandidate[] contract.
+ * @returns JSON array string matching the rule importer's RuleCandidate[] contract.
  */
 export function buildRuleCandidatesJson(candidates: RuleCandidate[]): string {
   return `${JSON.stringify(candidates, null, 2)}\n`;

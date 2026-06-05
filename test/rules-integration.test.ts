@@ -1,5 +1,5 @@
 /**
- * CLI-level integration tests for the `llmwiki rules` subcommand family (radar W2).
+ * CLI-level integration tests for the `llmwiki rules` subcommand family (rule pipeline).
  *
  * Spawns real subprocesses via the shared run-cli fixture so the full CLI
  * surface (Commander routing, exit codes, stdout/stderr) is exercised without
@@ -22,7 +22,7 @@ async function makeWorkspace(suffix: string): Promise<string> {
   return cwd;
 }
 
-/** A minimal, Radar-valid approved candidate for export/list fixtures. */
+/** A minimal, import-valid approved candidate for export/list fixtures. */
 function makeCandidate(): RuleCandidate {
   return {
     id: "rulecand.process.require-tests-abcd1234",

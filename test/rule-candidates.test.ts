@@ -1,10 +1,10 @@
 /**
- * Tests for the radar W2 rule-candidate pipeline: extraction → candidate →
+ * Tests for the rule-candidate pipeline: extraction → candidate →
  * approve → export. The LLM tool call is stubbed via vi.spyOn on the shared
  * `callClaude` helper (the same mock pattern used by review.test.ts), so no
  * network call is made and the extracted rule is deterministic.
  *
- * The shape assertions verify the emitted record matches Atomic Radar's
+ * The shape assertions verify the emitted record matches a downstream rule importer's
  * `RuleCandidate` contract exactly: camelCase keys, `status: "proposed"`,
  * tagged evidence, the `proposed` rule fields, and a stamped provenance.modelId.
  */
@@ -39,7 +39,7 @@ restoreProviderEnvAfterEach();
 describe("rule-candidate extraction", () => {
   const ctx = useTempRoot(["sources"]);
 
-  it("emits a RuleCandidate matching the Radar contract shape", async () => {
+  it("emits a RuleCandidate matching the rule-import contract shape", async () => {
     await seedSource(ctx.dir);
     await stubRuleExtraction();
 

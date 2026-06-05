@@ -1,5 +1,5 @@
 /**
- * Tests for rule-extraction state + approval-preservation (radar W2 blockers).
+ * Tests for rule-extraction state + approval-preservation (the rule pipeline blockers).
  *
  * `rules extract` must (a) advance its OWN change-detection cursor in
  * `.llmwiki/rule-state.json` so an unchanged source is not re-extracted every
@@ -74,13 +74,13 @@ describe("approval preservation", () => {
 describe("evidence span bounding + category sanitization", () => {
   const ctx = useTempRoot(["sources"]);
 
-  it("drops an out-of-bounds evidence line and emits a Radar-valid id", async () => {
+  it("drops an out-of-bounds evidence line and emits an import-valid id", async () => {
     await seedSource(ctx.dir);
     await stubRuleExtraction("Code Review", OUT_OF_BOUNDS_END);
     const { candidates } = await extractRuleCandidates(ctx.dir, NOW);
     const candidate = candidates[0]!;
 
-    // category had a space -> underscored segment; id passes Radar's regex.
+    // category had a space -> underscored segment; id passes the rule importer's regex.
     expect(candidate.id).toMatch(/^rulecand\.code_review\.[a-z0-9-]+$/);
     // evidenceLineEnd was 9999 (past the 2-line source) -> dropped.
     const ref = candidate.evidence[0]!;

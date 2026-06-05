@@ -1,17 +1,17 @@
 /**
- * RuleCandidate protocol types (radar W2).
+ * RuleCandidate protocol types (rule pipeline).
  *
- * These shapes mirror Atomic Radar's `RuleCandidate` import contract exactly:
+ * These shapes mirror a downstream rule importer's `RuleCandidate` import contract exactly:
  * the compiler is the "recommend rules" producer in the learning loop, emitting
- * machine-actionable proposed rules that Radar imports and a human approves.
+ * machine-actionable proposed rules that the rule importer imports and a human approves.
  *
  * Wire encoding is camelCase JSON. Evidence is a tagged union discriminated by
  * `kind`. Status and confidence are lowercase string literals. Because these
- * records cross the boundary into Radar, the field names and casing here are
+ * records cross the boundary into the rule importer, the field names and casing here are
  * load-bearing — do not rename them for local convenience.
  */
 
-/** Confidence in an extracted rule, on Radar's three-level scale. */
+/** Confidence in an extracted rule, on the rule importer's three-level scale. */
 export type RuleConfidence = "low" | "medium" | "high";
 
 /**
@@ -60,8 +60,8 @@ export interface RuleProvenance {
 }
 
 /**
- * A proposed rule awaiting human approval in Radar. Persisted as JSON under
- * `.llmwiki/rule-candidates/<id>.json` and exported as a JSON array for Radar
+ * A proposed rule awaiting human approval in the rule importer. Persisted as JSON under
+ * `.llmwiki/rule-candidates/<id>.json` and exported as a JSON array for the rule importer
  * to consume.
  */
 export interface RuleCandidate {

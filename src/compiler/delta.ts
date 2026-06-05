@@ -1,9 +1,9 @@
 /**
- * Programmatic incremental compile delta (radar W5).
+ * Programmatic incremental compile delta (incremental delta).
  *
  * Exposes {@link compileDelta}: a library entry point that runs the normal
  * hash-gated compile and then returns ONLY the export pages that changed in
- * that run, instead of the full corpus. A caller (e.g. Atomic Radar) can
+ * that run, instead of the full corpus. A caller (e.g. a downstream rule importer) can
  * poll this after each ingest and ship just the deltas to its downstream
  * store, without diffing the whole wiki itself.
  *
