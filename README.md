@@ -304,6 +304,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 ## Output
 
 ```
+log.md              append-only activity journal (ingests, compiles, queries, lint passes)
 wiki/
   concepts/         one .md file per concept, with YAML frontmatter
   queries/          saved query answers, included in index and retrieval
@@ -315,6 +316,30 @@ wiki/
 ```
 
 Obsidian-compatible. `[[wikilinks]]` resolve to concept titles.
+
+`log.md` records what happened and when. Each entry is a heading with a fixed
+prefix — `## [YYYY-MM-DDThh:mm:ssZ] operation | description` (an ISO 8601 UTC
+timestamp) — followed by a short bullet body carrying page wikilinks and counts:
+
+```markdown
+## [2026-06-05T09:14:02Z] ingest | Attention Is All You Need
+- Source: https://arxiv.org/abs/1706.03762
+- Saved: sources/attention-is-all-you-need.md
+- Chars: 38,214
+
+## [2026-06-05T09:15:30Z] compile | 1 source(s) → 6 page(s)
+- Sources: attention-is-all-you-need.md
+- Created: [[self-attention]], [[multi-head-attention]], [[transformer]]
+- Updated: [[positional-encoding]]
+
+## [2026-06-05T09:16:11Z] query | What is multi-head attention?
+- Pages: [[multi-head-attention]], [[self-attention]]
+```
+
+Only headings start with `## [`, so the gist's recipe still works even with the
+bodies: `grep "^## \[" log.md | tail -5` shows the five most recent operations.
+Where `index.md` organizes content for discovery, `log.md` tracks temporal
+progression.
 
 ## Local web viewer
 

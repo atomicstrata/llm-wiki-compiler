@@ -13,6 +13,7 @@ import path from "path";
 import { readFile } from "fs/promises";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSource } from "../utils/source-writer.js";
+import { appendLog } from "../utils/activity-log.js";
 import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import ingestWeb from "../ingest/web.js";
@@ -265,6 +266,16 @@ export async function ingestSource(source: string): Promise<IngestResult> {
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
   const savedPath = await saveSource(title, document, source);
+
+  // Journal the ingest so log.md mirrors the gist's `ingest | Article Title`
+  // convention. Covers both CLI and the MCP ingest_source tool.
+  await appendLog(process.cwd(), "ingest", title, {
+    details: [
+      `Source: ${source}`,
+      `Saved: ${savedPath}`,
+      `Chars: ${result.content.length.toLocaleString()}`,
+    ],
+  });
 
   return {
     filename: path.basename(savedPath),

@@ -34,6 +34,7 @@ import {
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
+import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
 
 /** Directories to search when loading selected pages, in priority order. */
@@ -437,6 +438,13 @@ export async function generateAnswer(
 
   const selection = await selectRelevantPages(root, question, Boolean(options.debug));
   options.onPageSelection?.(selection.pages, selection.reasoning);
+
+  // Journal the question so log.md records queries alongside ingests and
+  // compiles. Logged here (not in the CLI command) so MCP queries are captured
+  // too, and after selection so the cited pages can be listed.
+  await appendLog(root, "query", question, {
+    details: selection.pages.length > 0 ? [`Pages: ${formatWikilinkList(selection.pages)}`] : [],
+  });
 
   const pagesContent = await loadSelectedPages(root, selection.pages);
 

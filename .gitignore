@@ -5,6 +5,7 @@ dist/
 .llm-wiki/
 /wiki/
 /sources/
+/log.md
 *.tmp
 .DS_Store
 localdocs/
