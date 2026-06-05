@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { createHash } from "node:crypto";
 import { checkStalePages } from "../src/linter/rules.js";
@@ -20,13 +21,18 @@ async function writeState(dir: string, sources: Record<string, { hash: string; c
   await writeFile(path.join(dir, ".llmwiki/state.json"), JSON.stringify({ version: 1, indexHash: "", sources: entries }));
 }
 
+/** Write a source file whose current content differs from the recorded hash, making owners stale. */
+async function writeStaleSource(dir: string, concepts: string[]) {
+  await mkdir(path.join(dir, "sources"), { recursive: true });
+  await writeFile(path.join(dir, "sources/a.md"), "NEW body");
+  await writeState(dir, { "a.md": { hash: sha("OLD body"), concepts } });
+}
+
 describe("checkStalePages", () => {
   const env = useLintTempRoot("freshness-lint");
 
   it("reports a page whose source changed since compile", async () => {
-    await mkdir(path.join(env.dir, "sources"), { recursive: true });
-    await writeFile(path.join(env.dir, "sources/a.md"), "NEW body");
-    await writeState(env.dir, { "a.md": { hash: sha("OLD body"), concepts: ["topic"] } });
+    await writeStaleSource(env.dir, ["topic"]);
     await writeConcept(env.dir, "topic", { title: "Topic" }, "Body.");
 
     const snap = await buildFreshnessSnapshot(env.dir);
@@ -44,5 +50,30 @@ describe("checkStalePages", () => {
 
     const snap = await buildFreshnessSnapshot(env.dir);
     expect(await checkStalePages(env.dir, snap)).toEqual([]);
+  });
+
+  it("never reports a query page as stale", async () => {
+    await writeStaleSource(env.dir, ["topic"]);
+    await mkdir(path.join(env.dir, "wiki/queries"), { recursive: true });
+    await writeFile(path.join(env.dir, "wiki/queries/topic.md"), "---\ntitle: Topic\n---\n\nBody.\n");
+    const snap = await buildFreshnessSnapshot(env.dir);
+    expect(await checkStalePages(env.dir, snap)).toEqual([]);
+  });
+});
+
+describe("checkStalePages — corrupt state is read-only and non-fatal", () => {
+  const env = useLintTempRoot("freshness-lint-corrupt");
+
+  it("reports no stale pages and writes no .bak when state.json is corrupt", async () => {
+    await mkdir(path.join(env.dir, ".llmwiki"), { recursive: true });
+    await writeFile(path.join(env.dir, ".llmwiki/state.json"), "{ not valid json");
+    await mkdir(path.join(env.dir, "wiki/concepts"), { recursive: true });
+    await writeFile(path.join(env.dir, "wiki/concepts/topic.md"), "---\ntitle: Topic\n---\n\nBody.\n");
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+    const results = await checkStalePages(env.dir, snap);
+
+    expect(results).toEqual([]); // corrupt state => every page unverified, never stale
+    expect(existsSync(path.join(env.dir, ".llmwiki/state.json.bak"))).toBe(false);
   });
 });

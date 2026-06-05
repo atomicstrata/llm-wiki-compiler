@@ -169,7 +169,7 @@ export async function checkStalePages(root: string, snapshot: FreshnessSnapshot)
   for (const page of pages) {
     const { meta } = parseFrontmatter(page.content);
     const slug = path.basename(page.filePath, ".md");
-    const pageDirectory = page.filePath.includes(QUERIES_DIR) ? "queries" : "concepts";
+    const pageDirectory = path.basename(path.dirname(page.filePath)) === "queries" ? "queries" : "concepts";
     const { freshnessStatus } = computeFreshness({ slug, pageDirectory, frontmatter: meta }, snapshot);
     if (freshnessStatus === "stale") {
       results.push({

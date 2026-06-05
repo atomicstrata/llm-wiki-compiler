@@ -25,8 +25,10 @@ export function computeFreshness(page: PageFreshnessInput, snapshot: FreshnessSn
 /** Source-derived freshness status, per the spec's ordered ownership algorithm. */
 function classify(page: PageFreshnessInput, snapshot: FreshnessSnapshot): FreshnessStatus {
   if (snapshot.stateStatus !== "ok") return "unverified";
-  if (page.frontmatter.orphaned === true) return "orphaned";
+  // Query pages are generated answers, not source projections — always unverified,
+  // never orphaned/fresh (they also never receive `orphaned` frontmatter).
   if (page.pageDirectory === "queries") return "unverified";
+  if (page.frontmatter.orphaned === true) return "orphaned";
 
   const owners = ownersOf(page.slug, snapshot);
   if (owners.length === 0) return "unverified";
