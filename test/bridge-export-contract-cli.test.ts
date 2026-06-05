@@ -27,7 +27,7 @@ interface BridgeEnvelope {
   exportedAt: string;
   pageCount: number;
   projectId?: string;
-  pages: { slug: string; path: string; advisoryFreshnessStatus: string }[];
+  pages: { slug: string; path: string; freshnessStatus: string }[];
 }
 
 async function makeWiki(suffix: string): Promise<string> {
@@ -67,7 +67,7 @@ describe("llmwiki export --target json (bridge contract CLI)", () => {
       const env = await readJsonExport(root);
       expect(env.projectId).toBe("my-kb");
       expect(env.pages[0].path).toBe("wiki/concepts/retrieval.md");
-      expect(env.pages[0].advisoryFreshnessStatus).toBe("unverified");
+      expect(env.pages[0].freshnessStatus).toBe("unverified");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

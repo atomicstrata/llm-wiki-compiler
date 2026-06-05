@@ -19,8 +19,11 @@ import {
   checkContradictedPages,
   checkInferredWithoutCitations,
   checkSchemaCrossLinks,
+  checkStalePages,
 } from "./rules.js";
 import { loadSchema } from "../schema/index.js";
+import { buildFreshnessSnapshot } from "../freshness/index.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /** Rule-only lint checks that don't depend on the schema layer. */
 const RULES_WITHOUT_SCHEMA: LintRule[] = [
@@ -38,6 +41,9 @@ const RULES_WITHOUT_SCHEMA: LintRule[] = [
 
 /** Lint rules that need the resolved schema to know per-kind expectations. */
 const RULES_WITH_SCHEMA: SchemaAwareLintRule[] = [checkSchemaCrossLinks];
+
+type FreshnessLintRule = (root: string, snapshot: FreshnessSnapshot) => Promise<LintResult[]>;
+const RULES_WITH_FRESHNESS: FreshnessLintRule[] = [checkStalePages];
 
 /**
  * Count occurrences of a specific severity level in the results.
@@ -58,12 +64,14 @@ function countBySeverity(
  */
 export async function lint(root: string): Promise<LintSummary> {
   const schema = await loadSchema(root);
-  const [plainResults, schemaResults] = await Promise.all([
+  const freshness = await buildFreshnessSnapshot(root);
+  const [plainResults, schemaResults, freshnessResults] = await Promise.all([
     Promise.all(RULES_WITHOUT_SCHEMA.map((rule) => rule(root))),
     Promise.all(RULES_WITH_SCHEMA.map((rule) => rule(root, schema))),
+    Promise.all(RULES_WITH_FRESHNESS.map((rule) => rule(root, freshness))),
   ]);
 
-  const results = [...plainResults.flat(), ...schemaResults.flat()];
+  const results = [...plainResults.flat(), ...schemaResults.flat(), ...freshnessResults.flat()];
 
   return {
     errors: countBySeverity(results, "error"),
