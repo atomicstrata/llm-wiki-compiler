@@ -3,7 +3,7 @@
   "entry": [
     "src/viewer/assets/viewer.js",
     "scripts/copy-viewer-assets.mjs",
-    "src/freshness/types.ts"
+    "src/freshness/index.ts"
   ],
   "ignorePatterns": [
     "src/viewer/assets/index.html",
