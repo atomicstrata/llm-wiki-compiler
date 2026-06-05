@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { checkStalePages } from "../src/linter/rules.js";
 import { buildFreshnessSnapshot } from "../src/freshness/index.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
+import { writeCorruptTestStateJson, writeTestStateJson } from "./fixtures/state-json.js";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -16,9 +17,10 @@ async function writeConcept(dir: string, slug: string, frontmatter: Record<strin
 }
 
 async function writeState(dir: string, sources: Record<string, { hash: string; concepts: string[] }>) {
-  await mkdir(path.join(dir, ".llmwiki"), { recursive: true });
-  const entries = Object.fromEntries(Object.entries(sources).map(([f, s]) => [f, { ...s, compiledAt: "t" }]));
-  await writeFile(path.join(dir, ".llmwiki/state.json"), JSON.stringify({ version: 1, indexHash: "", sources: entries }));
+  const entries = Object.fromEntries(
+    Object.entries(sources).map(([f, s]) => [f, { ...s, compiledAt: "t" }]),
+  );
+  await writeTestStateJson(dir, { version: 1, indexHash: "", sources: entries });
 }
 
 /** Write a source file whose current content differs from the recorded hash, making owners stale. */
@@ -65,8 +67,7 @@ describe("checkStalePages — corrupt state is read-only and non-fatal", () => {
   const env = useLintTempRoot("freshness-lint-corrupt");
 
   it("reports no stale pages and writes no .bak when state.json is corrupt", async () => {
-    await mkdir(path.join(env.dir, ".llmwiki"), { recursive: true });
-    await writeFile(path.join(env.dir, ".llmwiki/state.json"), "{ not valid json");
+    await writeCorruptTestStateJson(env.dir);
     await mkdir(path.join(env.dir, "wiki/concepts"), { recursive: true });
     await writeFile(path.join(env.dir, "wiki/concepts/topic.md"), "---\ntitle: Topic\n---\n\nBody.\n");
 
