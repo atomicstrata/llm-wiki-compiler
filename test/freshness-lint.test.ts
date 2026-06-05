@@ -2,14 +2,16 @@ import { describe, it, expect } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { createHash } from "node:crypto";
 import { checkStalePages } from "../src/linter/rules.js";
 import { lint } from "../src/linter/index.js";
 import { buildFreshnessSnapshot } from "../src/freshness/index.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
-import { writeCorruptTestStateJson, writeTestStateJson } from "./fixtures/state-json.js";
-
-const sha = (s: string) => createHash("sha256").update(s).digest("hex");
+import {
+  sha256Hex,
+  writeCorruptTestStateJson,
+  writeSourceFile,
+  writeSourceState,
+} from "./fixtures/state-json.js";
 
 async function writeConcept(dir: string, slug: string, frontmatter: Record<string, unknown>, body: string) {
   await mkdir(path.join(dir, "wiki/concepts"), { recursive: true });
@@ -17,18 +19,18 @@ async function writeConcept(dir: string, slug: string, frontmatter: Record<strin
   await writeFile(path.join(dir, "wiki/concepts", `${slug}.md`), `---\n${fm}\n---\n\n${body}\n`);
 }
 
-async function writeState(dir: string, sources: Record<string, { hash: string; concepts: string[] }>) {
-  const entries = Object.fromEntries(
-    Object.entries(sources).map(([f, s]) => [f, { ...s, compiledAt: "t" }]),
-  );
-  await writeTestStateJson(dir, { version: 1, indexHash: "", sources: entries });
-}
-
 /** Write a source file whose current content differs from the recorded hash, making owners stale. */
 async function writeStaleSource(dir: string, concepts: string[]) {
-  await mkdir(path.join(dir, "sources"), { recursive: true });
-  await writeFile(path.join(dir, "sources/a.md"), "NEW body");
-  await writeState(dir, { "a.md": { hash: sha("OLD body"), concepts } });
+  await writeSourceFile(dir, "a.md", "NEW body");
+  await writeSourceState(dir, { "a.md": { hash: sha256Hex("OLD body"), concepts } });
+}
+
+/** Build the snapshot, run the rule, and assert exactly one finding of the given rule. Returns it. */
+async function expectSingleFinding(dir: string, rule: string) {
+  const results = await checkStalePages(dir, await buildFreshnessSnapshot(dir));
+  expect(results).toHaveLength(1);
+  expect(results[0].rule).toBe(rule);
+  return results[0];
 }
 
 describe("checkStalePages", () => {
@@ -38,17 +40,14 @@ describe("checkStalePages", () => {
     await writeStaleSource(env.dir, ["topic"]);
     await writeConcept(env.dir, "topic", { title: "Topic" }, "Body.");
 
-    const snap = await buildFreshnessSnapshot(env.dir);
-    const results = await checkStalePages(env.dir, snap);
-    expect(results).toHaveLength(1);
-    expect(results[0].rule).toBe("stale-page");
-    expect(results[0].severity).toBe("warning");
+    const finding = await expectSingleFinding(env.dir, "stale-page");
+    expect(finding.severity).toBe("warning");
   });
 
   it("reports nothing when sources are unchanged", async () => {
     await mkdir(path.join(env.dir, "sources"), { recursive: true });
     await writeFile(path.join(env.dir, "sources/a.md"), "same");
-    await writeState(env.dir, { "a.md": { hash: sha("same"), concepts: ["topic"] } });
+    await writeSourceState(env.dir, { "a.md": { hash: sha256Hex("same"), concepts: ["topic"] } });
     await writeConcept(env.dir, "topic", { title: "Topic" }, "Body.");
 
     const snap = await buildFreshnessSnapshot(env.dir);
@@ -65,17 +64,14 @@ describe("checkStalePages", () => {
 
   it("reports a computed-orphaned page (all owning sources deleted, no frontmatter flag)", async () => {
     // a.md owns "topic" in state, but the source file does not exist on disk.
-    await writeState(env.dir, { "a.md": { hash: sha("gone"), concepts: ["topic"] } });
+    await writeSourceState(env.dir, { "a.md": { hash: sha256Hex("gone"), concepts: ["topic"] } });
     await writeConcept(env.dir, "topic", { title: "Topic" }, "Body.");
 
-    const snap = await buildFreshnessSnapshot(env.dir);
-    const results = await checkStalePages(env.dir, snap);
-    expect(results).toHaveLength(1);
-    expect(results[0].rule).toBe("orphaned-page");
+    await expectSingleFinding(env.dir, "orphaned-page");
   });
 
   it("does not double-report a frontmatter-orphaned page (left to checkOrphanedPages)", async () => {
-    await writeState(env.dir, { "a.md": { hash: sha("gone"), concepts: ["topic"] } });
+    await writeSourceState(env.dir, { "a.md": { hash: sha256Hex("gone"), concepts: ["topic"] } });
     await writeConcept(env.dir, "topic", { title: "Topic", orphaned: true }, "Body.");
 
     const snap = await buildFreshnessSnapshot(env.dir);
