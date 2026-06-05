@@ -160,14 +160,21 @@ export async function checkOrphanedPages(root: string): Promise<LintResult[]> {
 }
 
 /**
- * Report concept pages whose source content changed since the last compile.
- * Receives the shared freshness snapshot so hashing happens once per lint run.
+ * Report pages whose computed freshness is actionable: `stale` (a source
+ * changed since compile) or `orphaned` (every source it derived from was
+ * deleted but no compile has cleaned the page up yet). Pages already flagged
+ * `orphaned: true` in frontmatter are left to {@link checkOrphanedPages} so the
+ * two rules never double-report. `fresh` and `unverified` are not findings —
+ * unverified covers legitimately unowned pages (query pages, hand-authored
+ * content) that should not warn. Receives the shared freshness snapshot so the
+ * source-hash pass happens once per lint run.
  */
 export async function checkStalePages(root: string, snapshot: FreshnessSnapshot): Promise<LintResult[]> {
   const pages = await collectAllPages(root);
   const results: LintResult[] = [];
   for (const page of pages) {
     const { meta } = parseFrontmatter(page.content);
+    if (meta.orphaned === true) continue;
     const slug = path.basename(page.filePath, ".md");
     const pageDirectory = path.basename(path.dirname(page.filePath)) === "queries" ? "queries" : "concepts";
     const { freshnessStatus } = computeFreshness({ slug, pageDirectory, frontmatter: meta }, snapshot);
@@ -177,6 +184,13 @@ export async function checkStalePages(root: string, snapshot: FreshnessSnapshot)
         severity: "warning",
         file: page.filePath,
         message: `Page is stale — a source it was compiled from has changed since the last compile`,
+      });
+    } else if (freshnessStatus === "orphaned") {
+      results.push({
+        rule: "orphaned-page",
+        severity: "warning",
+        file: page.filePath,
+        message: `Page is orphaned — every source it was compiled from has been deleted; recompile to clean it up`,
       });
     }
   }

@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { createHash } from "node:crypto";
 import { checkStalePages } from "../src/linter/rules.js";
+import { lint } from "../src/linter/index.js";
 import { buildFreshnessSnapshot } from "../src/freshness/index.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { writeCorruptTestStateJson, writeTestStateJson } from "./fixtures/state-json.js";
@@ -60,6 +61,39 @@ describe("checkStalePages", () => {
     await writeFile(path.join(env.dir, "wiki/queries/topic.md"), "---\ntitle: Topic\n---\n\nBody.\n");
     const snap = await buildFreshnessSnapshot(env.dir);
     expect(await checkStalePages(env.dir, snap)).toEqual([]);
+  });
+
+  it("reports a computed-orphaned page (all owning sources deleted, no frontmatter flag)", async () => {
+    // a.md owns "topic" in state, but the source file does not exist on disk.
+    await writeState(env.dir, { "a.md": { hash: sha("gone"), concepts: ["topic"] } });
+    await writeConcept(env.dir, "topic", { title: "Topic" }, "Body.");
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+    const results = await checkStalePages(env.dir, snap);
+    expect(results).toHaveLength(1);
+    expect(results[0].rule).toBe("orphaned-page");
+  });
+
+  it("does not double-report a frontmatter-orphaned page (left to checkOrphanedPages)", async () => {
+    await writeState(env.dir, { "a.md": { hash: sha("gone"), concepts: ["topic"] } });
+    await writeConcept(env.dir, "topic", { title: "Topic", orphaned: true }, "Body.");
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+    expect(await checkStalePages(env.dir, snap)).toEqual([]);
+  });
+});
+
+describe("lint() orchestrator surfaces freshness findings", () => {
+  const env = useLintTempRoot("freshness-lint-orchestrator");
+
+  it("includes the stale-page finding in the full lint summary", async () => {
+    await writeStaleSource(env.dir, ["topic"]);
+    await writeConcept(env.dir, "topic", { title: "Topic", summary: "s" }, "Body with a [[topic]] link.");
+
+    const summary = await lint(env.dir);
+    const staleFindings = summary.results.filter((r) => r.rule === "stale-page");
+    expect(staleFindings).toHaveLength(1);
+    expect(staleFindings[0].file).toContain("topic.md");
   });
 });
 
