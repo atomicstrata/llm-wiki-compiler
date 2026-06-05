@@ -7,6 +7,11 @@
  */
 
 import type { FreshnessSnapshot, PageFreshness, PageFreshnessInput, FreshnessStatus } from "./types.js";
+import { existsSync } from "fs";
+import path from "path";
+import { readStateClassified } from "../utils/state.js";
+import { hashFile } from "../compiler/hasher.js";
+import { SOURCES_DIR } from "../utils/constants.js";
 
 /** Compute the three orthogonal freshness signals for one page. */
 export function computeFreshness(page: PageFreshnessInput, snapshot: FreshnessSnapshot): PageFreshness {
@@ -36,4 +41,26 @@ function classify(page: PageFreshnessInput, snapshot: FreshnessSnapshot): Freshn
 /** Sources whose recorded concept set includes this page's slug (state is authoritative). */
 function ownersOf(slug: string, snapshot: FreshnessSnapshot) {
   return Object.values(snapshot.sources).filter((s) => s.concepts.includes(slug));
+}
+
+/**
+ * Build the per-run freshness snapshot: one read-only state read + one hash
+ * pass over sources/. Shared by every freshness consumer so hashing happens once.
+ */
+export async function buildFreshnessSnapshot(root: string): Promise<FreshnessSnapshot> {
+  const { status, state } = await readStateClassified(root);
+  const sources: FreshnessSnapshot["sources"] = {};
+  if (status === "ok") {
+    for (const [file, entry] of Object.entries(state.sources)) {
+      const filePath = path.join(root, SOURCES_DIR, file);
+      const exists = existsSync(filePath);
+      sources[file] = {
+        recordedHash: entry.hash,
+        currentHash: exists ? await hashFile(filePath) : null,
+        exists,
+        concepts: entry.concepts,
+      };
+    }
+  }
+  return { stateStatus: status, sources };
 }
