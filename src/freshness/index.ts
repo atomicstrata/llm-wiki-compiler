@@ -1,5 +1,5 @@
 /**
- * Computed source-freshness layer (radar P0).
+ * Computed source-freshness layer.
  *
  * Derives a page's freshness on demand from a FreshnessSnapshot (state.json
  * hashes + current source hashes). Pure — never reads or writes the filesystem

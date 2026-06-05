@@ -1,5 +1,5 @@
 /**
- * Types for the computed source-freshness layer (radar P0).
+ * Types for the computed source-freshness layer.
  *
  * Freshness is derived on demand from the filesystem + state.json and is never
  * persisted. `FreshnessSnapshot` is built once per command/viewer snapshot and
