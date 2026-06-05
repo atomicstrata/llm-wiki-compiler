@@ -7,6 +7,10 @@
  * llmwiki tool uses — object / array / string / number / boolean / enum, with
  * a `required` list — into the raw shape the SDK expects. It is intentionally
  * narrow: unsupported nodes fall back to `z.unknown()` rather than throwing.
+ *
+ * Two contract details are preserved so the SDK path matches the raw API path:
+ * numeric/boolean enums keep their literal types (e.g. eval scores `0 | 1 | 2`,
+ * not `"0" | "1" | "2"`), and field `description`s carry through via `.describe`.
  */
 
 import { z, type ZodType } from "zod";
@@ -18,6 +22,7 @@ interface JsonSchemaNode {
   required?: string[];
   items?: JsonSchemaNode;
   enum?: unknown[];
+  description?: string;
 }
 
 /** Builders for primitive JSON Schema types, keyed by `type`. */
@@ -28,11 +33,20 @@ const SCALAR_BUILDERS: Record<string, () => ZodType> = {
   boolean: () => z.boolean(),
 };
 
-/** Convert a single JSON Schema node into a Zod type. */
-function nodeToZod(node: JsonSchemaNode): ZodType {
-  if (Array.isArray(node.enum) && node.enum.length > 0) {
-    return z.enum(node.enum.map(String) as [string, ...string[]]);
+/** Build a Zod type for an enum, keeping numeric/boolean values as literals. */
+function enumToZod(values: unknown[]): ZodType {
+  if (values.every((value) => typeof value === "string")) {
+    return z.enum(values as [string, ...string[]]);
   }
+  const literals = values.map((value) => z.literal(value as string | number | boolean));
+  return literals.length === 1
+    ? literals[0]
+    : z.union(literals as unknown as [ZodType, ZodType, ...ZodType[]]);
+}
+
+/** Map a JSON Schema node to a Zod type, ignoring any field description. */
+function baseType(node: JsonSchemaNode): ZodType {
+  if (Array.isArray(node.enum) && node.enum.length > 0) return enumToZod(node.enum);
   const scalar = node.type ? SCALAR_BUILDERS[node.type] : undefined;
   if (scalar) return scalar();
   if (node.type === "array") {
@@ -40,6 +54,12 @@ function nodeToZod(node: JsonSchemaNode): ZodType {
   }
   if (node.type === "object") return z.object(shapeFromProperties(node));
   return z.unknown();
+}
+
+/** Convert a node to a Zod type, carrying its description through via .describe(). */
+function nodeToZod(node: JsonSchemaNode): ZodType {
+  const zodType = baseType(node);
+  return node.description ? zodType.describe(node.description) : zodType;
 }
 
 /** Build a Zod raw shape from an object schema's properties + required list. */

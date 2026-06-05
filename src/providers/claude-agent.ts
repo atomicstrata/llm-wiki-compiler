@@ -92,6 +92,17 @@ function accumulateText(blocks: AssistantBlock[], onToken?: (text: string) => vo
   return text;
 }
 
+/**
+ * Extract the text of a success result, or throw on any error result subtype
+ * (auth failure, max turns, execution failure, …). Failing loudly here keeps a
+ * bad SDK run from silently producing empty or partial wiki output.
+ */
+function resultText(message: { subtype?: string; result?: string; errors?: string[] }): string {
+  if (message.subtype === "success") return message.result ?? "";
+  const detail = message.errors?.join("; ") || message.subtype || "unknown error";
+  throw new Error(`Claude Agent SDK returned an error result: ${detail}`);
+}
+
 /** Return the input of the first matching `tool_use` block, or undefined. */
 function findToolInput(
   blocks: AssistantBlock[],
@@ -140,6 +151,7 @@ export class ClaudeAgentProvider implements LLMProvider {
         systemPrompt: `${system}\n\n${OUTPUT_ONLY_DIRECTIVE}`,
         model: this.model,
         maxTurns: MAX_TURNS,
+        tools: [],
         allowedTools: [],
         ...debugOptions(),
       },
@@ -151,8 +163,8 @@ export class ClaudeAgentProvider implements LLMProvider {
       traceMessage(message);
       if (message.type === "assistant") {
         streamed += accumulateText(message.message.content as AssistantBlock[], onToken);
-      } else if (message.type === "result" && message.subtype === "success") {
-        finalText = message.result;
+      } else if (message.type === "result") {
+        finalText = resultText(message);
       }
     }
     return finalText || streamed;
@@ -185,6 +197,8 @@ export class ClaudeAgentProvider implements LLMProvider {
         model: this.model,
         maxTurns: MAX_TURNS,
         mcpServers: { [TOOL_SERVER_NAME]: mcpServer },
+        // Disable every built-in tool; only the in-process MCP tool is reachable.
+        tools: [],
         allowedTools: [qualifiedName],
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
@@ -200,26 +214,39 @@ export class ClaudeAgentProvider implements LLMProvider {
   }
 }
 
-/** An assistant message carrying content blocks (other SDK messages are ignored). */
-interface AssistantMessage {
+/** An SDK message: assistant content, or a result whose error subtype must throw. */
+interface StreamMessage {
   type: string;
+  subtype?: string;
+  result?: string;
+  errors?: string[];
   message?: { content: AssistantBlock[] };
 }
 
-/** Read the first matching `tool_use` input from a query stream as JSON. */
+/**
+ * Read the first matching `tool_use` input from a query stream as JSON. Throws
+ * on an SDK error result, and throws if the model never called the tool (prose
+ * or empty output) — callers expect JSON, so a silent fallback would degrade
+ * into zero extracted concepts or broken eval output.
+ */
 async function collectToolInput(
   response: AsyncIterable<unknown>,
   toolName: string,
   qualifiedName: string,
 ): Promise<string> {
-  let fallbackText = "";
+  let prose = "";
   for await (const raw of response) {
     traceMessage(raw);
-    const message = raw as AssistantMessage;
+    const message = raw as StreamMessage;
+    if (message.type === "result") {
+      resultText(message); // throws on any error result; success is ignored here
+      continue;
+    }
     if (message.type !== "assistant" || !message.message) continue;
     const input = findToolInput(message.message.content, toolName, qualifiedName);
     if (input !== undefined) return JSON.stringify(input);
-    fallbackText += accumulateText(message.message.content);
+    prose += accumulateText(message.message.content);
   }
-  return fallbackText;
+  const suffix = prose ? `; it responded with prose instead: ${prose.slice(0, 200)}` : ".";
+  throw new Error(`Claude Agent SDK did not call the "${toolName}" tool${suffix}`);
 }

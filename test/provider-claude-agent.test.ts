@@ -80,6 +80,35 @@ describe("ClaudeAgentProvider generation", () => {
   });
 });
 
+describe("ClaudeAgentProvider failure handling", () => {
+  const TOOLS = [
+    { name: "extract_concepts", description: "d", input_schema: { type: "object", properties: {} } },
+  ];
+
+  it("throws on an SDK error result instead of returning partial text", async () => {
+    query.mockReturnValue(
+      messageStream([{ type: "result", subtype: "error_during_execution", errors: ["auth failed"] }]),
+    );
+    await expect(
+      new ClaudeAgentProvider("m").complete("sys", [{ role: "user", content: "hi" }], 100),
+    ).rejects.toThrow("error result: auth failed");
+  });
+
+  it("throws when the model never calls the tool", async () => {
+    query.mockReturnValue(messageStream([{ type: "result", subtype: "success", result: "done" }]));
+    await expect(
+      new ClaudeAgentProvider("m").toolCall("sys", [{ role: "user", content: "hi" }], TOOLS, 100),
+    ).rejects.toThrow('did not call the "extract_concepts" tool');
+  });
+
+  it("throws and surfaces prose when the model answers in text instead", async () => {
+    query.mockReturnValue(messageStream([assistantText("I think the answer is 42.")]));
+    await expect(
+      new ClaudeAgentProvider("m").toolCall("sys", [{ role: "user", content: "hi" }], TOOLS, 100),
+    ).rejects.toThrow("prose instead");
+  });
+});
+
 describe("ClaudeAgentProvider embeddings", () => {
   it("delegates embed() to Voyage and throws without VOYAGE_API_KEY", async () => {
     delete process.env.VOYAGE_API_KEY;

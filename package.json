@@ -56,7 +56,7 @@
     "js-yaml": "^4.1.1",
     "jsdom": "^25.0.0",
     "markdown-it": "^14.1.1",
-    "openai": "^4.0.0",
+    "openai": "^6.42.0",
     "p-limit": "^6.0.0",
     "pdf-parse": "^2.4.5",
     "sanitize-html": "^2.17.3",

@@ -97,6 +97,13 @@ instead of the raw Messages API. It authenticates with your **local Claude Code
 login** (OAuth/subscription), so **no `ANTHROPIC_API_KEY` is required** — if you
 can run `claude` in your terminal, this provider works.
 
+> **Terms of use.** This provider drives your Claude Code / Agent SDK session
+> programmatically to compile wikis. That is not automatically appropriate for
+> every account type, plan, or environment. Before using it, review Anthropic's
+> current [Claude Code](https://www.anthropic.com/legal/consumer-terms) and
+> [Agent SDK](https://docs.anthropic.com/en/api/agent-sdk/overview) terms and
+> usage policies, and make sure your intended use complies with them.
+
 ```bash
 export LLMWIKI_PROVIDER=claude-agent
 export LLMWIKI_MODEL=claude-sonnet-4-5  # optional; this is the default

@@ -9,6 +9,9 @@ import OpenAI from "openai";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
 
+/** Placeholder key so client construction succeeds when no real key is set yet. */
+const PLACEHOLDER_API_KEY = "llmwiki-unset";
+
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
   baseURL?: string;
@@ -66,9 +69,11 @@ export class OpenAIProvider implements LLMProvider {
   constructor(model: string, options: OpenAIProviderOptions = {}) {
     this.model = model;
     this.configuredEmbeddingModel = options.embeddingModel;
-    // The OpenAI SDK validates OPENAI_API_KEY at construction time.
-    // Pass the key explicitly so the provider controls when validation happens.
-    const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? "";
+    // The OpenAI SDK (v6+) throws on a missing/empty key at construction time.
+    // Real credential validation is owned by ensureProviderAvailable (the provider
+    // guard), so pass a placeholder when unset to defer the check; local servers
+    // that ignore auth accept any value anyway.
+    const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? PLACEHOLDER_API_KEY;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
     this.client = new OpenAI({
       apiKey: resolvedKey,
@@ -134,9 +139,9 @@ export class OpenAIProvider implements LLMProvider {
       tool_choice: "required",
     });
 
-    const toolCalls = response.choices[0]?.message?.tool_calls;
-    if (toolCalls && toolCalls.length > 0) {
-      return toolCalls[0].function.arguments;
+    const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+    if (toolCall?.type === "function") {
+      return toolCall.function.arguments;
     }
 
     return response.choices[0]?.message?.content ?? "";
