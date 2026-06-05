@@ -31,6 +31,8 @@ import {
   resolvePageKind,
   type SchemaConfig,
 } from "../schema/index.js";
+import { computeFreshness } from "../freshness/index.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /** Minimum body length (in characters) for a page to be considered non-empty. */
 const MIN_BODY_LENGTH = 50;
@@ -154,6 +156,30 @@ export async function checkOrphanedPages(root: string): Promise<LintResult[]> {
     }
   }
 
+  return results;
+}
+
+/**
+ * Report concept pages whose source content changed since the last compile.
+ * Receives the shared freshness snapshot so hashing happens once per lint run.
+ */
+export async function checkStalePages(root: string, snapshot: FreshnessSnapshot): Promise<LintResult[]> {
+  const pages = await collectAllPages(root);
+  const results: LintResult[] = [];
+  for (const page of pages) {
+    const { meta } = parseFrontmatter(page.content);
+    const slug = path.basename(page.filePath, ".md");
+    const pageDirectory = page.filePath.includes(QUERIES_DIR) ? "queries" : "concepts";
+    const { freshnessStatus } = computeFreshness({ slug, pageDirectory, frontmatter: meta }, snapshot);
+    if (freshnessStatus === "stale") {
+      results.push({
+        rule: "stale-page",
+        severity: "warning",
+        file: page.filePath,
+        message: `Page is stale — a source it was compiled from has changed since the last compile`,
+      });
+    }
+  }
   return results;
 }
 

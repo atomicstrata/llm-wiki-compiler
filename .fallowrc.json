@@ -2,8 +2,7 @@
   "$schema": "https://fallow.tools/schema.json",
   "entry": [
     "src/viewer/assets/viewer.js",
-    "scripts/copy-viewer-assets.mjs",
-    "src/freshness/index.ts"
+    "scripts/copy-viewer-assets.mjs"
   ],
   "ignorePatterns": [
     "src/viewer/assets/index.html",
