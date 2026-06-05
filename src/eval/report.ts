@@ -92,6 +92,18 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
   return rows;
 }
 
+function formatCitationDepth(report: EvalReport): string[] {
+  var d = report.citationDepth;
+  if (d.totalCitations === 0) return [line(), line('Citation Depth:  (no citations)')];
+  var pct = (d.claimLevelRate * 100).toFixed(0);
+  return [
+    line(),
+    line(bold("Citation Depth:")),
+    line('  Claim-level (with line numbers): ' + d.preciseCitations + ' / ' + d.totalCitations + '  (' + pct + '%)'),
+    line('  Avg citations per paragraph: ' + d.avgCitationsPerParagraph.toFixed(1)),
+  ];
+}
+
 function formatSourceUtilization(report: EvalReport): string[] {
   const u = report.sourceUtilization;
   if (u.totalSources === 0) {

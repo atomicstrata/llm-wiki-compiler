@@ -177,7 +177,7 @@ describe("evaluateSourceUtilization", () => {
     expect(result.perSource[0].citingPageCount).toBe(1);
   });
 
-  it("returns empty perSource when no pages exist", async () => {
+  it("lists all sources in perSource even when uncited", async () => {
     await env.writeSource("orphan.md", "# Orphan\n\nNobody cites me.");
 
     const result = await evaluateSourceUtilization(env.dir);
@@ -185,6 +185,9 @@ describe("evaluateSourceUtilization", () => {
     expect(result.citedSources).toBe(0);
     expect(result.uncitedSources).toBe(1);
     expect(result.utilizationRate).toBe(0);
-    expect(result.perSource).toHaveLength(0);
+    expect(result.perSource).toHaveLength(1);
+    expect(result.perSource[0].sourceFile).toBe("orphan.md");
+    expect(result.perSource[0].citingPageCount).toBe(0);
+    expect(result.perSource[0].citingPages).toEqual([]);
   });
 });

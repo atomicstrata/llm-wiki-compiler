@@ -11,6 +11,7 @@
  *   citation_precision_percent — minimum citation precision (0–100)
  *   citation_support_mean     — minimum mean judge score (0.0–2.0)
  *   source_utilization_rate   — minimum fraction of sources cited (0.0–1.0)
+ *   claim_level_citation_rate — minimum fraction of citations with line ranges (0.0–1.0)
  */
 
 import { readFile } from "fs/promises";
@@ -30,6 +31,7 @@ interface ThresholdConfig {
   citation_judge_error_max?: number;
   /** Minimum fraction of sources cited by ≥1 wiki page (0.0–1.0). */
   source_utilization_rate?: number;
+  claim_level_citation_rate?: number;
 }
 
 /** Load the threshold config from disk, or return an empty config if absent. */
@@ -103,6 +105,15 @@ export async function checkThresholds(
   ) {
     violations.push(
       `source_utilization_rate ${(report.sourceUtilization.utilizationRate * 100).toFixed(1)}% is below threshold ${(config.source_utilization_rate * 100).toFixed(1)}%`,
+    );
+  }
+
+  if (
+    config.claim_level_citation_rate !== undefined &&
+    report.citationDepth.claimLevelRate < config.claim_level_citation_rate
+  ) {
+    violations.push(
+      `claim_level_citation_rate ${(report.citationDepth.claimLevelRate * 100).toFixed(1)}% is below threshold ${(config.claim_level_citation_rate * 100).toFixed(1)}%`,
     );
   }
 
