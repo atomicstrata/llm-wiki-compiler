@@ -19,6 +19,7 @@ import {
   sha256Hex,
   writeSourceFile,
   writeSourceState,
+  writeCorruptTestStateJson,
 } from "./fixtures/state-json.js";
 import {
   startViewerCLI,
@@ -292,6 +293,28 @@ describe("llmwiki view — privacy gate", () => {
     const root = await makeTempRoot("viewer-server-lan-only");
     const handle = startViewerCLI(["--allow-lan", "--port", "0"], root);
     await expect(handle).rejects.toThrow(/exited before ready/);
+  });
+});
+
+describe("llmwiki view — stateStatus in /api/pages", () => {
+  const { start: startViewer } = useViewerProcessLifecycle();
+
+  it("/api/pages includes stateStatus in the envelope (ok or missing, never absent)", async () => {
+    const root = await makeTempRoot("viewer-pages-statestatus-present");
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/pages");
+    expect(status).toBe(200);
+    const stateStatus = (body as Record<string, unknown>).stateStatus;
+    expect(["ok", "missing", "corrupt"]).toContain(stateStatus);
+  });
+
+  it("/api/pages includes stateStatus: corrupt for a corrupt state.json", async () => {
+    const root = await makeTempRoot("viewer-pages-statestatus-corrupt");
+    await writeCorruptTestStateJson(root);
+    const handle = await startViewer(root);
+    const { status, body } = await fetchJson(handle, "/api/pages");
+    expect(status).toBe(200);
+    expect((body as Record<string, unknown>).stateStatus).toBe("corrupt");
   });
 });
 

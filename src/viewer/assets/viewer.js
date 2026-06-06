@@ -270,13 +270,23 @@ async function renderHealthPane(main) {
 function buildHealthDashboard(health) {
   const wrap = document.createElement("section");
   wrap.className = "health-dashboard";
-  if (health?.stateStatus === "corrupt") wrap.prepend(buildCorruptStateBanner());
+  // The global banner (injected at bootstrap) covers every route including health;
+  // only add it here if bootstrap didn't already inject one (e.g. if /api/pages
+  // was not yet fetched when navigating directly to #/health).
+  prependBannerIfNeeded(wrap, health?.stateStatus);
   const rows = HEALTH_METRIC_ROWS.map(([label, key]) => [label, health?.[key] ?? 0]);
   const metrics = buildDefinitionList(rows);
   metrics.className = "metric-list";
   wrap.appendChild(metrics);
   wrap.appendChild(buildLintBlock(health?.lint));
   return wrap;
+}
+
+/** Prepend a corrupt-state banner to `container` if one is not already in the document. */
+function prependBannerIfNeeded(container, stateStatus) {
+  if (stateStatus !== "corrupt") return;
+  if (document.querySelector(".corrupt-state-banner")) return;
+  container.prepend(buildCorruptStateBanner());
 }
 
 /**
@@ -322,6 +332,21 @@ function applyHomeEnvelope(envelope) {
   titleEl.textContent = projectTitle(envelope);
   renderSidebar(envelope?.pages || []);
   renderHome(envelope);
+  // Inject after renderHome so the banner survives the innerHTML clear.
+  injectGlobalCorruptBanner(envelope?.stateStatus);
+}
+
+/**
+ * Inject the corrupt-state banner into the app-layout container (above `main`)
+ * so it persists across route changes. Runs once at app bootstrap from the
+ * /api/pages envelope. No-ops when not corrupt or already injected.
+ */
+function injectGlobalCorruptBanner(stateStatus) {
+  if (stateStatus !== "corrupt") return;
+  if (document.querySelector(".corrupt-state-banner")) return;
+  const layout = document.querySelector(".app-layout");
+  if (!layout) return;
+  layout.prepend(buildCorruptStateBanner());
 }
 
 /** Fetch /api/index and render the rendered HTML coming back from the server. */

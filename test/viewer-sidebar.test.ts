@@ -126,6 +126,32 @@ describe("sidebar freshness filter", () => {
   });
 });
 
+/** Responder serving /api/pages with stateStatus embedded in the envelope. */
+function pagesWithStateStatus(stateStatus: string): FetchResponder {
+  return (url) => {
+    if (url.endsWith("/api/pages"))
+      return jsonResponse({ ...PAGES_BASE, pages: [], stateStatus });
+    return null;
+  };
+}
+
+describe("global corrupt-state banner (home route)", () => {
+  it("renders the banner in the main pane at load when stateStatus is corrupt", async () => {
+    const { dom } = await mountViewerDom([], pagesWithStateStatus("corrupt"));
+    await flushMicrotasks();
+    const banner = dom.window.document.querySelector(".corrupt-state-banner");
+    expect(banner).not.toBeNull();
+    expect(banner?.getAttribute("role")).toBe("alert");
+  });
+
+  it("does NOT render a global banner when stateStatus is ok", async () => {
+    const { dom } = await mountViewerDom([], pagesWithStateStatus("ok"));
+    await flushMicrotasks();
+    const banner = dom.window.document.querySelector(".corrupt-state-banner");
+    expect(banner).toBeNull();
+  });
+});
+
 /** Responder serving a health payload with the given stateStatus. */
 function healthResponderFor(stateStatus: string): FetchResponder {
   return (url) => {
