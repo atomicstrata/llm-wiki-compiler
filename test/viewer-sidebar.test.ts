@@ -183,3 +183,31 @@ describe("corrupt-state banner", () => {
     expect(banner).toBeNull();
   });
 });
+
+/** Responder for deep-link corrupt-state banner test: /api/pages returns corrupt, everything else 404s. */
+function deepLinkCorruptResponder(stateStatus: string): FetchResponder {
+  return (url) => {
+    if (url.endsWith("/api/pages"))
+      return jsonResponse({ ...PAGES_BASE, pages: [], stateStatus });
+    return null;
+  };
+}
+
+describe("global corrupt-state banner on deep-link routes", () => {
+  it("renders the banner when entry route is #/graph and stateStatus is corrupt", async () => {
+    // Bootstrap with a non-home, non-health route — the home renderer is never called.
+    // The banner must still appear because main() fetches /api/pages at startup.
+    const { dom } = await mountViewerDom([], deepLinkCorruptResponder("corrupt"), "#/graph");
+    await flushMicrotasks();
+    const banner = dom.window.document.querySelector(".corrupt-state-banner");
+    expect(banner).not.toBeNull();
+    expect(banner?.getAttribute("role")).toBe("alert");
+  });
+
+  it("does NOT render a banner on #/graph when stateStatus is ok", async () => {
+    const { dom } = await mountViewerDom([], deepLinkCorruptResponder("ok"), "#/graph");
+    await flushMicrotasks();
+    const banner = dom.window.document.querySelector(".corrupt-state-banner");
+    expect(banner).toBeNull();
+  });
+});

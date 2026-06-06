@@ -509,6 +509,12 @@ function main() {
   const embedded = readEmbeddedIndex();
   renderSidebar(embedded.pages);
   wireSearch({ fetchJson });
+  // Ensure the corrupt-state banner appears on every entry route, not just home.
+  // injectGlobalCorruptBanner is idempotent, so the home route's own /api/pages
+  // fetch won't double-render if both settle.
+  void fetchJson("/api/pages")
+    .then((env) => injectGlobalCorruptBanner(env?.stateStatus))
+    .catch(() => {});
   window.addEventListener("hashchange", () => {
     void renderRoute();
   });
