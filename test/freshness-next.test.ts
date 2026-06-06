@@ -31,7 +31,7 @@ async function seedLintCache(dir: string, results: LintResult[]): Promise<void> 
 }
 
 describe("llmwiki next — freshness", () => {
-  it("reports stale/orphaned counts from the lint cache in --json", async () => {
+  it("summary.lint has only {warnings,errors,at} and freshness stays top-level", async () => {
     await touchMarkdown(path.join(env.dir, CONCEPTS_DIR), "topic.md");
     await seedLintCache(env.dir, [
       { rule: "stale-page", severity: "warning", file: "topic.md", message: "stale" },
@@ -39,8 +39,14 @@ describe("llmwiki next — freshness", () => {
 
     const payload = await runNextJson(env.dir);
     const s = payload.summary as Record<string, unknown>;
+    // summary.freshness surfaced at top level of summary
     expect(s.freshness).toEqual({ stalePages: 1, orphanedPages: 0 });
-
+    // summary.lint must NOT leak the freshness field from LintCacheEntry
+    const lint = s.lint as Record<string, unknown> | null;
+    expect(lint).not.toBeNull();
+    expect("freshness" in lint!).toBe(false);
+    expect(Object.keys(lint!).sort()).toEqual(["at", "errors", "warnings"]);
+    // stale-pages warning surfaced at the top level too
     const warnings = payload.warnings as Array<Record<string, unknown>>;
     expect(warnings.some((w) => w.code === "stale-pages")).toBe(true);
   });

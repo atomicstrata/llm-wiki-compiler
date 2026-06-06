@@ -104,7 +104,9 @@ function buildSummary(state: ProjectState): JsonSummary {
     pendingCandidates: state.pendingCandidates,
     hasIndex: state.hasIndex,
     hasLintCache: state.lint.present,
-    lint: state.lint.entry,
+    lint: state.lint.entry
+      ? { warnings: state.lint.entry.warnings, errors: state.lint.entry.errors, at: state.lint.entry.at }
+      : null,
     freshness: state.lint.entry?.freshness ?? null,
   };
 }
