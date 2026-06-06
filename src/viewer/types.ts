@@ -53,6 +53,8 @@ export interface ViewerPage {
   filePath: string;
   /** Raw frontmatter object (empty when missing or malformed). */
   frontmatter: Record<string, unknown>;
+  /** Declared frontmatter aliases; a wikilink whose slug matches one resolves here. */
+  aliases?: string[];
   /** Markdown body with the frontmatter block stripped. Needed by Slice 4. */
   body: string;
   /** Outgoing wikilink targets resolved to namespaced IDs. */

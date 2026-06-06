@@ -31,6 +31,8 @@ import {
   resolvePageKind,
   type SchemaConfig,
 } from "../schema/index.js";
+import { computeFreshness } from "../freshness/index.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /** Minimum body length (in characters) for a page to be considered non-empty. */
 const MIN_BODY_LENGTH = 50;
@@ -154,6 +156,44 @@ export async function checkOrphanedPages(root: string): Promise<LintResult[]> {
     }
   }
 
+  return results;
+}
+
+/**
+ * Report pages whose computed freshness is actionable: `stale` (a source
+ * changed since compile) or `orphaned` (every source it derived from was
+ * deleted but no compile has cleaned the page up yet). Pages already flagged
+ * `orphaned: true` in frontmatter are left to {@link checkOrphanedPages} so the
+ * two rules never double-report. `fresh` and `unverified` are not findings —
+ * unverified covers legitimately unowned pages (query pages, hand-authored
+ * content) that should not warn. Receives the shared freshness snapshot so the
+ * source-hash pass happens once per lint run.
+ */
+export async function checkStalePages(root: string, snapshot: FreshnessSnapshot): Promise<LintResult[]> {
+  const pages = await collectAllPages(root);
+  const results: LintResult[] = [];
+  for (const page of pages) {
+    const { meta } = parseFrontmatter(page.content);
+    if (meta.orphaned === true) continue;
+    const slug = path.basename(page.filePath, ".md");
+    const pageDirectory = path.basename(path.dirname(page.filePath)) === "queries" ? "queries" : "concepts";
+    const { freshnessStatus } = computeFreshness({ slug, pageDirectory, frontmatter: meta }, snapshot);
+    if (freshnessStatus === "stale") {
+      results.push({
+        rule: "stale-page",
+        severity: "warning",
+        file: page.filePath,
+        message: `Page is stale — a source it was compiled from has changed since the last compile`,
+      });
+    } else if (freshnessStatus === "orphaned") {
+      results.push({
+        rule: "orphaned-page",
+        severity: "warning",
+        file: page.filePath,
+        message: `Page is orphaned — every source it was compiled from has been deleted; recompile to clean it up`,
+      });
+    }
+  }
   return results;
 }
 

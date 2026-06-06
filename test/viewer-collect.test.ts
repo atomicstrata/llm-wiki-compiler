@@ -120,3 +120,51 @@ describe("collectViewerPages — outgoing links and bare-slug resolution", () =>
     expect(resolveBareSlug("a", pages)).toBe("concepts/a");
   });
 });
+
+describe("collectViewerPages — alias resolution", () => {
+  it("resolves a wikilink whose slug matches a page's declared alias", async () => {
+    const root = await makeTempRoot("viewer-collect-alias");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "computer-vision-and-nlp-integration",
+      { title: "CV/NLP Integration", aliases: ["Computer Vision", "NLP"] },
+      "B.",
+    );
+    const pages = await collectViewerPages(root);
+    // `[[computer vision]]` slugifies to "computer-vision" — no page has that
+    // exact slug, but a page declares it as an alias.
+    expect(resolveBareSlug("computer-vision", pages)).toBe("concepts/computer-vision-and-nlp-integration");
+    expect(resolveBareSlug("nlp", pages)).toBe("concepts/computer-vision-and-nlp-integration");
+  });
+
+  it("prefers an exact slug match over an alias match", async () => {
+    const root = await makeTempRoot("viewer-collect-alias-precedence");
+    await writePage(path.join(root, "wiki/concepts"), "vision", { title: "Vision" }, "B.");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "other",
+      { title: "Other", aliases: ["Vision"] },
+      "B.",
+    );
+    expect(resolveBareSlug("vision", await collectViewerPages(root))).toBe("concepts/vision");
+  });
+
+  it("resolves outgoing links and clears danglingLinks via aliases end-to-end", async () => {
+    const root = await makeTempRoot("viewer-collect-alias-e2e");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "deep-learning-foundations",
+      { title: "Deep Learning Foundations", aliases: ["deep learning"] },
+      "B.",
+    );
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "linker",
+      { title: "Linker" },
+      "See [[deep learning]].",
+    );
+    const linker = (await collectViewerPages(root)).find((p) => p.slug === "linker");
+    expect(linker?.outgoingLinks).toEqual(["concepts/deep-learning-foundations"]);
+    expect(linker?.danglingLinks ?? []).toEqual([]);
+  });
+});
