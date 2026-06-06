@@ -349,7 +349,7 @@ a:hover, a:focus-visible { text-decoration: underline; }
   font-style: italic;
 }
 
-/* Corrupt-state banner — shown in the health pane when stateStatus === "corrupt". */
+/* Corrupt-state banner — shown globally (and in the health pane) when stateStatus === "corrupt". */
 .corrupt-state-banner {
   background: rgba(176, 0, 32, 0.08);
   color: var(--missing);

@@ -332,7 +332,7 @@ function applyHomeEnvelope(envelope) {
   titleEl.textContent = projectTitle(envelope);
   renderSidebar(envelope?.pages || []);
   renderHome(envelope);
-  // Inject after renderHome so the banner survives the innerHTML clear.
+  // Inject into .app-layout (outside <main>) so the banner persists across route changes.
   injectGlobalCorruptBanner(envelope?.stateStatus);
 }
 
