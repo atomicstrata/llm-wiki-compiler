@@ -197,36 +197,43 @@ async function persistExtractionStates(
   }
 }
 
-/** List page slugs already on disk (concepts + queries) before a compile run. */
-async function listExistingPageSlugs(root: string): Promise<Set<string>> {
-  const slugs = new Set<string>();
+/**
+ * Snapshot page IDs already on disk before a compile run, namespaced by
+ * directory (e.g. `wiki/concepts/foo`, `wiki/queries/foo`). Namespacing keeps
+ * the created/updated split correct when a concept and a query share a slug.
+ */
+async function listExistingPageIds(root: string): Promise<Set<string>> {
+  const ids = new Set<string>();
   for (const dir of [CONCEPTS_DIR, QUERIES_DIR]) {
     try {
       const files = await readdir(path.join(root, dir));
       for (const file of files) {
-        if (file.endsWith(".md")) slugs.add(file.slice(0, -3));
+        if (file.endsWith(".md")) ids.add(`${dir}/${file.slice(0, -3)}`);
       }
     } catch {
       // Directory may not exist yet on a first compile — nothing to snapshot.
     }
   }
-  return slugs;
+  return ids;
 }
 
 /**
  * Journal a non-review compile to log.md: the source files consumed, plus the
  * produced pages split into created (new on disk) and updated (overwritten).
+ * Compile only ever writes concept-namespace pages (concept and seed pages both
+ * land under wiki/concepts/), so existence is checked against that namespace.
  */
 async function logCompile(
   root: string,
   buckets: ChangeBuckets,
   generation: PageGenerationResult,
-  existingSlugs: Set<string>,
+  existingIds: Set<string>,
 ): Promise<void> {
   if (buckets.toCompile.length === 0 && buckets.deleted.length === 0) return;
-  const produced = [...generation.pages.map((entry) => entry.slug), ...generation.seedSlugs];
-  const created = produced.filter((slug) => !existingSlugs.has(slug));
-  const updated = produced.filter((slug) => existingSlugs.has(slug));
+  const produced = [...new Set([...generation.pages.map((entry) => entry.slug), ...generation.seedSlugs])];
+  const existed = (slug: string): boolean => existingIds.has(`${CONCEPTS_DIR}/${slug}`);
+  const created = produced.filter((slug) => !existed(slug));
+  const updated = produced.filter((slug) => existed(slug));
   const heading = `${buckets.toCompile.length} source(s) → ${produced.length} page(s)`;
   const details: string[] = [];
   if (buckets.toCompile.length > 0) {
@@ -346,7 +353,7 @@ async function runCompilePipeline(
 
   // Snapshot pages on disk before generation so the journal can tell which
   // produced pages are new (created) versus overwritten (updated).
-  const existingSlugs = await listExistingPageSlugs(root);
+  const existingIds = await listExistingPageIds(root);
   const generation = await generatePagesPhase(root, extractions, frozenSlugs, schema, options);
 
   if (!options.review) {
@@ -359,7 +366,7 @@ async function runCompilePipeline(
     // to honour the "no wiki/ mutation" contract of that mode.
     await generateSeedPages(root, schema, generation);
     await finalizeWiki(root, generation.pages, generation.seedSlugs);
-    await logCompile(root, buckets, generation, existingSlugs);
+    await logCompile(root, buckets, generation, existingIds);
   }
   return summarizeCompile(buckets, generation, extractions, options);
 }

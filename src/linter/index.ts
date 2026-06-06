@@ -21,11 +21,9 @@ import {
   checkSchemaCrossLinks,
   checkStalePages,
 } from "./rules.js";
-import path from "path";
 import { loadSchema } from "../schema/index.js";
 import { buildFreshnessSnapshot } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
-import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 
 /** Rule-only lint checks that don't depend on the schema layer. */
 const RULES_WITHOUT_SCHEMA: LintRule[] = [
@@ -82,29 +80,7 @@ export async function lint(root: string): Promise<LintSummary> {
     results,
   };
 
-  await logLintPass(root, summary);
+  // NOTE: lint() must stay read-only — the MCP `lint_wiki` tool documents it as
+  // non-mutating. Journaling to log.md lives in the CLI command (commands/lint.ts).
   return summary;
-}
-
-/** Distinct page slugs touched by error/warning diagnostics, in first-seen order. */
-function flaggedPageSlugs(results: LintResult[]): string[] {
-  const slugs: string[] = [];
-  const seen = new Set<string>();
-  for (const result of results) {
-    if (result.severity === "info") continue;
-    const slug = path.basename(result.file, ".md");
-    if (seen.has(slug)) continue;
-    seen.add(slug);
-    slugs.push(slug);
-  }
-  return slugs;
-}
-
-/** Journal the lint pass so log.md mirrors the gist's "lint passes" record. */
-async function logLintPass(root: string, summary: LintSummary): Promise<void> {
-  const heading =
-    `${summary.errors} error(s), ${summary.warnings} warning(s), ${summary.info} info`;
-  const flagged = flaggedPageSlugs(summary.results);
-  const details = flagged.length > 0 ? [`Flagged: ${formatWikilinkList(flagged)}`] : [];
-  await appendLog(root, "lint", heading, { details });
 }

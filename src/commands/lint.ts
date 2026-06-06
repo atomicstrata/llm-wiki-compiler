@@ -6,11 +6,13 @@
  * if any errors are found.
  */
 
+import path from "path";
 import { lint } from "../linter/index.js";
 import { writeLintCache } from "../linter/cache.js";
 import * as output from "../utils/output.js";
-import type { LintResult } from "../linter/types.js";
+import type { LintResult, LintSummary } from "../linter/types.js";
 import { loadSchema } from "../schema/index.js";
+import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 
 /** Map severity levels to output formatting functions. */
 const SEVERITY_FORMATTERS: Record<LintResult["severity"], (text: string) => string> = {
@@ -60,8 +62,35 @@ export default async function lintCommand(): Promise<void> {
   output.status("*", summaryLine);
 
   await writeLintCache(process.cwd(), summary);
+  await journalLintPass(process.cwd(), summary);
 
   if (summary.errors > 0) {
     process.exit(1);
   }
+}
+
+/** Distinct page slugs touched by error/warning diagnostics, in first-seen order. */
+function flaggedPageSlugs(results: LintResult[]): string[] {
+  const slugs: string[] = [];
+  const seen = new Set<string>();
+  for (const result of results) {
+    if (result.severity === "info") continue;
+    const slug = path.basename(result.file, ".md");
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    slugs.push(slug);
+  }
+  return slugs;
+}
+
+/**
+ * Journal the lint pass to log.md. Lives in the CLI command (not the core
+ * lint() function) so the MCP `lint_wiki` tool stays read-only as documented.
+ */
+async function journalLintPass(root: string, summary: LintSummary): Promise<void> {
+  const heading =
+    `${summary.errors} error(s), ${summary.warnings} warning(s), ${summary.info} info`;
+  const flagged = flaggedPageSlugs(summary.results);
+  const details = flagged.length > 0 ? [`Flagged: ${formatWikilinkList(flagged)}`] : [];
+  await appendLog(root, "lint", heading, { details });
 }

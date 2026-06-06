@@ -439,13 +439,6 @@ export async function generateAnswer(
   const selection = await selectRelevantPages(root, question, Boolean(options.debug));
   options.onPageSelection?.(selection.pages, selection.reasoning);
 
-  // Journal the question so log.md records queries alongside ingests and
-  // compiles. Logged here (not in the CLI command) so MCP queries are captured
-  // too, and after selection so the cited pages can be listed.
-  await appendLog(root, "query", question, {
-    details: selection.pages.length > 0 ? [`Pages: ${formatWikilinkList(selection.pages)}`] : [],
-  });
-
   const pagesContent = await loadSelectedPages(root, selection.pages);
 
   if (!pagesContent) {
@@ -454,6 +447,13 @@ export async function generateAnswer(
 
   const answer = await callAnswerLLM(question, pagesContent, selection.chunks, options.onToken);
   const saved = options.save ? await saveQueryPage(root, question, answer) : undefined;
+
+  // Journal the query only after the answer is produced — matching compile,
+  // which logs after finalization — so a mid-flight LLM failure records nothing.
+  // Logged here (not in the CLI command) so MCP queries are captured too.
+  await appendLog(root, "query", question, {
+    details: selection.pages.length > 0 ? [`Pages: ${formatWikilinkList(selection.pages)}`] : [],
+  });
 
   return {
     answer,
