@@ -30,6 +30,11 @@ import {
   snapshotWorkspace,
   useMcpRoot,
 } from "./fixtures/mcp-test-env.js";
+import {
+  sha256Hex,
+  writeSourceFile,
+  writeSourceState,
+} from "./fixtures/state-json.js";
 
 const rootHandle = useMcpRoot("llmwiki-mcp-context");
 const rootOf = (): string => rootHandle.value;
@@ -186,5 +191,28 @@ describe("get_context_pack tool", () => {
     await callTool(server, "get_context_pack", { prompt: "alpha" });
     const afterFiles = await snapshotWorkspace(root);
     expect(afterFiles).toEqual(beforeFiles);
+  });
+
+  it("get_context_pack surfaces freshnessStatus on primary pages", async () => {
+    const root = rootOf();
+    // State records OLD hash; disk has NEW content → stale
+    await writeSourceState(root, {
+      "a.md": { hash: sha256Hex("OLD body"), concepts: ["topic"] },
+    });
+    await writeSourceFile(root, "a.md", "NEW body");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "topic",
+      { title: "Topic", summary: "The topic page" },
+      "A topic page body.",
+    );
+    const server = buildServer(root);
+    const result = await callTool(server, "get_context_pack", { prompt: "topic" });
+    const pack = result.structuredContent?.result as {
+      primary: Array<{ id: string; freshnessStatus: string }>;
+    };
+    const primary = pack.primary.find((p) => p.id.endsWith("topic"));
+    expect(primary).toBeDefined();
+    expect(primary?.freshnessStatus).toBe("stale");
   });
 });
