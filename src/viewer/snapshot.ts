@@ -78,6 +78,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   return {
     root,
     generatedAt: new Date().toISOString(),
+    stateStatus: classified.status,
     project,
     counts,
     index: fullIndex,

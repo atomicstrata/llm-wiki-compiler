@@ -164,6 +164,8 @@ export interface ViewerSnapshot {
   root: string;
   /** ISO-8601 timestamp the snapshot was built at. */
   generatedAt: string;
+  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt-state banner. */
+  stateStatus: "ok" | "missing" | "corrupt";
   /** Project metadata for the dashboard header. */
   project: ViewerProject;
   /** Frozen counts for `/api/pages` and `/api/health`. */

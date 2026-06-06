@@ -268,12 +268,27 @@ async function renderHealthPane(main) {
 function buildHealthDashboard(health) {
   const wrap = document.createElement("section");
   wrap.className = "health-dashboard";
+  if (health?.stateStatus === "corrupt") wrap.prepend(buildCorruptStateBanner());
   const rows = HEALTH_METRIC_ROWS.map(([label, key]) => [label, health?.[key] ?? 0]);
   const metrics = buildDefinitionList(rows);
   metrics.className = "metric-list";
   wrap.appendChild(metrics);
   wrap.appendChild(buildLintBlock(health?.lint));
   return wrap;
+}
+
+/**
+ * Build the corrupt-state warning banner. Displayed when `/api/health`
+ * reports `stateStatus === "corrupt"`, meaning the project's state.json
+ * could not be parsed at viewer startup and freshness data is unreliable.
+ */
+function buildCorruptStateBanner() {
+  const banner = document.createElement("div");
+  banner.className = "corrupt-state-banner";
+  banner.setAttribute("role", "alert");
+  banner.textContent =
+    "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.";
+  return banner;
 }
 
 /** Render the lint summary, or a "lint has not been run yet" placeholder. */

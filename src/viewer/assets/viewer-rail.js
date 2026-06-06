@@ -7,6 +7,16 @@
  * timestamps, plus a "Warnings" block fed by `payload.warnings`
  * (parser issues, unresolved citations, malformed citation entries).
  *
+ * Freshness badges (STALE, ORPHANED, CONTRADICTED, ARCHIVED) are
+ * rendered from `payload.freshness`. The design rule: badge ONLY the
+ * two actionable source-freshness states (stale, orphaned) plus the
+ * two provenance flags (contradicted, archived). `fresh` and
+ * `unverified` get NO badge — badging neutral/default states would
+ * stamp nearly the whole wiki. A "Freshness as of <generatedAt>"
+ * caption is shown on every page (keyed on the always-present
+ * `generatedAt`), anchoring the displayed freshness to snapshot/server-
+ * start time because the viewer does not live-watch the filesystem.
+ *
  * Fields render only when the frontmatter actually carries a value, so
  * a legacy page with no provenance metadata shows a compact rail
  * rather than a wall of `(none)` rows. Labels mirror `review show`
@@ -58,9 +68,11 @@ export function renderSupportRail(payload) {
   const support = document.querySelector(SUPPORT_SELECTOR);
   if (!support) return;
   support.innerHTML = "";
+  appendFreshnessBadges(support, payload);
   appendFrontmatterDl(support, extractFrontmatter(payload));
   const warnings = extractWarnings(payload);
   if (warnings.length > 0) support.appendChild(buildRailWarnings(warnings));
+  appendFreshnessCaption(support, payload);
 }
 
 /** Clear the support rail entirely (used on non-page routes). */
@@ -254,4 +266,63 @@ function buildWarningItem(warning) {
 /** Pick the best human-readable label for a warning: message → code → "". */
 function warningText(safe) {
   return safe.message || safe.code || "";
+}
+
+/**
+ * Badge specs: each entry is [modifier, label, predicate(freshness)].
+ * Only entries whose predicate is truthy produce a badge. Ordered by
+ * axis: source-freshness first (stale, orphaned), then provenance
+ * (contradicted, archived).
+ */
+const BADGE_SPECS = [
+  ["stale",       "STALE",       (f) => f.freshnessStatus === "stale"],
+  ["orphaned",    "ORPHANED",    (f) => f.freshnessStatus === "orphaned"],
+  ["contradicted","CONTRADICTED",(f) => f.contradicted],
+  ["archived",    "ARCHIVED",    (f) => f.archived],
+];
+
+/**
+ * Append freshness badges to the rail. Badges render ONLY for actionable
+ * states: STALE, ORPHANED (source-freshness axis) and CONTRADICTED,
+ * ARCHIVED (provenance axis). `fresh` and `unverified` get no badge —
+ * they are the neutral defaults and badging them would stamp nearly the
+ * whole wiki with noise.
+ */
+function appendFreshnessBadges(support, payload) {
+  const freshness = payload?.freshness;
+  if (!freshness) return;
+  const wrap = buildFreshnessBadgeWrap(freshness);
+  if (wrap) support.appendChild(wrap);
+}
+
+/** Build the badges container from the freshness object, or null if no badges apply. */
+function buildFreshnessBadgeWrap(freshness) {
+  const activeBadges = BADGE_SPECS.filter(([, , pred]) => pred(freshness));
+  if (activeBadges.length === 0) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "freshness-badges";
+  for (const [modifier, label] of activeBadges) wrap.appendChild(buildBadge(modifier, label));
+  return wrap;
+}
+
+/** Build one badge `<span>` with a modifier class and text label. */
+function buildBadge(modifier, label) {
+  const span = document.createElement("span");
+  span.className = `freshness-badge badge-${modifier}`;
+  span.textContent = label;
+  return span;
+}
+
+/**
+ * Append the "Freshness as of <generatedAt>" caption when the payload
+ * carries a generatedAt timestamp. Explicitly honest: the viewer
+ * does not live-watch the filesystem, so this caption anchors the
+ * freshness data to the server-start time rather than implying live state.
+ */
+function appendFreshnessCaption(support, payload) {
+  if (!payload?.generatedAt) return;
+  const caption = document.createElement("p");
+  caption.className = "freshness-caption";
+  caption.textContent = `Freshness as of ${payload.generatedAt}`;
+  support.appendChild(caption);
 }

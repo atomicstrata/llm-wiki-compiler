@@ -314,6 +314,75 @@ a:hover, a:focus-visible { text-decoration: underline; }
   }
 }
 
+/* Freshness badges — shown in the support rail for STALE, ORPHANED,
+ * CONTRADICTED, ARCHIVED pages. fresh/unverified get no badge. */
+.freshness-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+.freshness-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.badge-stale    { background: rgba(200, 90, 0, 0.12); color: #b85c00; }
+.badge-orphaned { background: rgba(176, 0, 32, 0.10); color: var(--missing); }
+.badge-contradicted { background: rgba(100, 0, 180, 0.10); color: #6400b4; }
+.badge-archived { background: rgba(100, 100, 110, 0.12); color: var(--fg-muted); }
+@media (prefers-color-scheme: dark) {
+  .badge-stale    { background: rgba(255, 160, 60, 0.14); color: #ffa03c; }
+  .badge-contradicted { background: rgba(180, 100, 255, 0.14); color: #b464ff; }
+}
+
+/* Freshness caption — "Freshness as of <timestamp>" — always shown
+ * when freshness data is present to be honest about the frozen snapshot. */
+.freshness-caption {
+  font-size: 0.76rem;
+  color: var(--fg-muted);
+  margin-top: 0.75rem;
+  font-style: italic;
+}
+
+/* Corrupt-state banner — shown in the health pane when stateStatus === "corrupt". */
+.corrupt-state-banner {
+  background: rgba(176, 0, 32, 0.08);
+  color: var(--missing);
+  border: 1px solid rgba(176, 0, 32, 0.2);
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+/* Freshness filter — sidebar select control for filtering by freshness axis. */
+.freshness-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0.75rem;
+}
+.freshness-filter-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+}
+.freshness-filter-select {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
 /* Graph pane */
 .graph-pane {
   width: 100%;
