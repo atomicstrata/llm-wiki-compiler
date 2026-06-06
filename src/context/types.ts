@@ -14,6 +14,7 @@
 import type { PageId } from "../viewer/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { RecommendedAction } from "../project/recommendations.js";
+import type { FreshnessStatus } from "../freshness/types.js";
 
 /** Closed v1 enum for why a page landed in `primary[]`. */
 export type PrimaryReason =
@@ -116,6 +117,16 @@ export interface ContextPrimary {
   citations: ContextCitation[];
   sourceWindows: ContextSourceWindow[];
   warnings: ContextPageWarning[];
+  // The three freshness signals are FLATTENED here (rather than nested as a
+  // `freshness: PageFreshness` object like `ViewerPage`) for an idiomatic JSON
+  // wire shape for agents. Consequently, any future field added to
+  // `PageFreshness` must be mirrored here by hand — it won't auto-propagate.
+  /** Computed source-freshness of this page (advisory snapshot, not a guarantee). */
+  freshnessStatus: FreshnessStatus;
+  /** Disputed by another page (`contradictedBy` non-empty). */
+  contradicted: boolean;
+  /** Explicitly archived (`archived: true` frontmatter). */
+  archived: boolean;
 }
 
 /** One graph neighbor edge. `distance` is 1 for direct, 2 for second-hop. */

@@ -224,6 +224,24 @@ function compareRows(a: RankingRow, b: RankingRow): number {
 }
 
 /**
+ * Build the `warnings` array for a primary page, forwarding viewer-level
+ * warnings and appending `stale-page` when the page's source has changed
+ * since the last compile. The `stale-page` code is context-only — the
+ * viewer surfaces freshness as badges, not warnings.
+ */
+function buildPrimaryWarnings(page: ViewerPage): ContextPrimary["warnings"] {
+  const warnings = page.warnings.map((w) => ({ code: w.code, message: w.message }));
+  if (page.freshness.freshnessStatus === "stale") {
+    warnings.push({
+      code: "stale-page",
+      message:
+        "A source this page was compiled from has changed since the last compile; treat with caution.",
+    });
+  }
+  return warnings;
+}
+
+/**
  * Convert a ranking row into a ContextPrimary.
  *
  * Slice 4 fills `citations` from the viewer collector's already-parsed
@@ -234,7 +252,8 @@ function compareRows(a: RankingRow, b: RankingRow): number {
  * Page-local `warnings` was wired in Slice 1; it forwards the same
  * `ViewerWarning` objects the viewer surfaces, so any malformed-frontmatter
  * or unresolved-citation diagnostic the viewer already knows about
- * lands in the context pack automatically.
+ * lands in the context pack automatically. A `stale-page` warning is
+ * synthesized here when the page's freshness status is `stale`.
  *
  * `sourceWindows` stays empty here — the orchestrator owns the
  * per-pack budget and writes windows back into the primary entries
@@ -242,6 +261,7 @@ function compareRows(a: RankingRow, b: RankingRow): number {
  * snapshot.
  */
 function rowToPrimary(row: RankingRow): ContextPrimary {
+  const { freshness } = row.page;
   return {
     id: row.page.id,
     title: row.page.title,
@@ -252,7 +272,10 @@ function rowToPrimary(row: RankingRow): ContextPrimary {
     chunks: row.chunks,
     citations: flattenCitations(row.page.citations),
     sourceWindows: [],
-    warnings: row.page.warnings.map((w) => ({ code: w.code, message: w.message })),
+    warnings: buildPrimaryWarnings(row.page),
+    freshnessStatus: freshness.freshnessStatus,
+    contradicted: freshness.contradicted,
+    archived: freshness.archived,
   };
 }
 
