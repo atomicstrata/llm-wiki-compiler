@@ -60,12 +60,16 @@ function lastCompileTime(sources: Record<string, { compiledAt: string }>): strin
 export async function collectStatus(root: string): Promise<WikiStatus> {
   const classified = await readStateClassified(root);
   const snapshot = await buildFreshnessSnapshot(root, classified);
-  const conceptSummaries = await collectPageSummaries(path.join(root, CONCEPTS_DIR));
-  const queries = await collectPageSummaries(path.join(root, QUERIES_DIR));
-  const scannedConcepts = await scanWikiPages(path.join(root, CONCEPTS_DIR));
+
+  const [conceptSummaries, queries, scannedConcepts, pendingCandidates, changes] = await Promise.all([
+    collectPageSummaries(path.join(root, CONCEPTS_DIR)),
+    collectPageSummaries(path.join(root, QUERIES_DIR)),
+    scanWikiPages(path.join(root, CONCEPTS_DIR)),
+    countCandidates(root),
+    detectChanges(root, classified.state),
+  ]);
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
-  const changes = await detectChanges(root, classified.state);
 
   return {
     pages: { concepts: conceptSummaries.length, queries: queries.length, total: conceptSummaries.length + queries.length },
@@ -74,7 +78,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     stalePages,
     orphanedPages,
     stateStatus: classified.status,
-    pendingCandidates: await countCandidates(root),
+    pendingCandidates,
     pendingChanges: changes.filter((c) => c.status !== "unchanged").map((c) => ({ file: c.file, status: c.status })),
   };
 }

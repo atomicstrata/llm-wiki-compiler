@@ -57,6 +57,8 @@ const HEALTH_METRIC_ROWS = [
   ["Saved queries", "queries"],
   ["Compiled sources", "sources"],
   ["Source files", "sourceFiles"],
+  ["Stale pages", "stale"],
+  ["Orphaned pages", "orphaned"],
   ["Pending reviews", "pendingReviews"],
 ];
 
