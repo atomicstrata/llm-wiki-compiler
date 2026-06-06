@@ -247,8 +247,12 @@ function registerStatusTool(server: McpServer, root: string): void {
     {
       title: "Wiki Status",
       description:
-        "Summarize the wiki: page count, source count, last compile time, " +
-        "orphaned pages, and pending source changes. Read-only — never " +
+        "Summarize the wiki: page count, source count, last compile time, pending source " +
+        "changes, and freshness-derived page health. stalePages lists concept slugs whose " +
+        "source changed or partially disappeared since last compile. orphanedPages lists " +
+        "concept slugs whose every owning source was deleted OR that are frontmatter-flagged " +
+        "orphaned (superset of prior behavior). stateStatus reports state.json readability " +
+        "(ok | missing | corrupt) so corrupt state is never silent. Read-only — never " +
         "modifies the workspace.",
       inputSchema: {},
     },
