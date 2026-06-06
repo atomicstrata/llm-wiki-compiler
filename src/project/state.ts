@@ -30,6 +30,7 @@ import {
 import { countCandidates } from "../compiler/candidates.js";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../linter/cache.js";
 import type { LintCacheEntry } from "../linter/cache.js";
+import { readStateClassified } from "../utils/state.js";
 
 /** Markdown extension treated as a wiki page for counting purposes. */
 const MARKDOWN_EXT = ".md";
@@ -41,7 +42,9 @@ type ProjectStateWarningCode =
   | "index-missing"
   | "sources-not-compiled"
   | "pending-candidates"
-  | "project-unreadable";
+  | "project-unreadable"
+  | "state-unreadable"
+  | "stale-pages";
 
 /** One structural warning surfaced alongside the primary state. */
 export interface ProjectStateWarning {
@@ -87,7 +90,9 @@ export async function collectProjectState(root: string): Promise<ProjectState> {
   const counts = await collectPageCounts(root, dirs);
   const lint = await collectLintCacheStatus(root);
   const mtimes = await collectMtimes(root, dirs);
-  return assembleState({ root, dirs, counts, lint, mtimes });
+  // Read-only; never writes a .bak file — safe for the cheap orientation command.
+  const stateStatus = (await readStateClassified(root)).status;
+  return assembleState({ root, dirs, counts, lint, mtimes, stateStatus });
 }
 
 /** State returned when `root` itself cannot be inspected. */
@@ -192,15 +197,33 @@ async function readLintCacheEntry(cachePath: string): Promise<LintCacheEntry | n
   }
 }
 
-/** Mirror of the cache module's validator; kept local to avoid leaking internal helpers. */
+/**
+ * Validate the lint cache JSON shape, carrying the optional `freshness` field
+ * through when it is present and well-formed. Returns null for any missing or
+ * corrupt field in the required subset ({@link LintCacheEntry}).
+ */
 function validateCacheShape(value: unknown): LintCacheEntry | null {
   if (typeof value !== "object" || value === null) return null;
   const candidate = value as Record<string, unknown>;
-  const { warnings, errors, at } = candidate;
+  const { warnings, errors, at, freshness } = candidate;
   if (!isNonNegativeInteger(warnings)) return null;
   if (!isNonNegativeInteger(errors)) return null;
   if (typeof at !== "string" || !LINT_CACHE_TIMESTAMP_PATTERN.test(at)) return null;
-  return { warnings, errors, at };
+  const entry: LintCacheEntry = { warnings, errors, at };
+  // Intentionally lenient (diverges from cache.ts:isValidEntry): a malformed
+  // `freshness` sub-field is silently dropped rather than rejecting the whole
+  // entry, so `next` still surfaces valid lint counts. Do not "align" the two.
+  if (isValidFreshnessShape(freshness)) entry.freshness = freshness;
+  return entry;
+}
+
+/** True when `value` is a well-formed freshness sub-object. */
+function isValidFreshnessShape(
+  value: unknown,
+): value is { stalePages: number; orphanedPages: number } {
+  if (typeof value !== "object" || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return isNonNegativeInteger(c.stalePages) && isNonNegativeInteger(c.orphanedPages);
 }
 
 /** True for finite, non-negative integers. NaN and Infinity fail Number.isInteger. */
@@ -215,12 +238,13 @@ interface AssembleStateInput {
   counts: PageCounts;
   lint: LintCacheStatus;
   mtimes: MtimePair;
+  stateStatus: "ok" | "missing" | "corrupt";
 }
 
 /** Combine the per-section reads into the final ProjectState + warning list. */
 function assembleState(input: AssembleStateInput): ProjectState {
-  const { root, dirs, counts, lint, mtimes } = input;
-  const warnings = buildWarnings({ dirs, counts, lint, mtimes });
+  const { root, dirs, counts, lint, mtimes, stateStatus } = input;
+  const warnings = buildWarnings({ dirs, counts, lint, mtimes, stateStatus });
   return { root, ...dirs, ...counts, lint, ...mtimes, warnings };
 }
 
@@ -230,6 +254,7 @@ interface WarningInput {
   counts: PageCounts;
   lint: LintCacheStatus;
   mtimes: MtimePair;
+  stateStatus: "ok" | "missing" | "corrupt";
 }
 
 /** Derive every structural warning from the already-collected state slices. */
@@ -237,6 +262,7 @@ function buildWarnings(input: WarningInput): ProjectStateWarning[] {
   const warnings: ProjectStateWarning[] = [];
   appendLintWarnings(warnings, input.lint, input.mtimes.latestWikiMtimeMs);
   appendStructuralWarnings(warnings, input.dirs, input.counts);
+  appendFreshnessWarnings(warnings, input.lint, input.stateStatus);
   return warnings;
 }
 
@@ -284,6 +310,32 @@ function appendStructuralWarnings(
     warnings.push({
       code: "sources-not-compiled",
       message: "Sources exist but no wiki pages were found. Run `llmwiki compile`.",
+    });
+  }
+}
+
+/**
+ * Freshness warnings: corrupt state.json (fail-loud, not silent) and stale/orphaned
+ * page counts from the lint cache. Missing state stays quiet — it is normal before
+ * the first compile. Only corrupt state warns because it silently zeros all findings.
+ */
+function appendFreshnessWarnings(
+  warnings: ProjectStateWarning[],
+  lint: LintCacheStatus,
+  stateStatus: "ok" | "missing" | "corrupt",
+): void {
+  if (stateStatus === "corrupt") {
+    warnings.push({
+      code: "state-unreadable",
+      message:
+        ".llmwiki/state.json is corrupt — run `llmwiki compile` to rebuild it (freshness figures shown are from the last lint and may be stale).",
+    });
+  }
+  const f = lint.entry?.freshness;
+  if (f && (f.stalePages > 0 || f.orphanedPages > 0)) {
+    warnings.push({
+      code: "stale-pages",
+      message: `${f.stalePages} stale, ${f.orphanedPages} orphaned page(s) as of the last lint — run \`llmwiki compile\` to refresh.`,
     });
   }
 }
