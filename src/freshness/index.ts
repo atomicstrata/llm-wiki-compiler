@@ -10,6 +10,7 @@ import type { FreshnessSnapshot, PageFreshness, PageFreshnessInput, FreshnessSta
 import { existsSync } from "fs";
 import path from "path";
 import { readStateClassified } from "../utils/state.js";
+import type { ClassifiedState } from "../utils/state.js";
 import { hashFile } from "../compiler/hasher.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 
@@ -48,9 +49,16 @@ function ownersOf(slug: string, snapshot: FreshnessSnapshot) {
 /**
  * Build the per-run freshness snapshot: one read-only state read + one hash
  * pass over sources/. Shared by every freshness consumer so hashing happens once.
+ *
+ * @param classified - Optional pre-read classified state. When supplied the
+ *   disk read is skipped, letting callers that already have state avoid a
+ *   redundant read. Omit (or pass `undefined`) to read from disk as usual.
  */
-export async function buildFreshnessSnapshot(root: string): Promise<FreshnessSnapshot> {
-  const { status, state } = await readStateClassified(root);
+export async function buildFreshnessSnapshot(
+  root: string,
+  classified?: ClassifiedState,
+): Promise<FreshnessSnapshot> {
+  const { status, state } = classified ?? (await readStateClassified(root));
   const sources: FreshnessSnapshot["sources"] = {};
   if (status === "ok") {
     for (const [file, entry] of Object.entries(state.sources)) {
