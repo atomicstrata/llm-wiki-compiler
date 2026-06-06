@@ -23,6 +23,7 @@ import { resolveAnthropicAuthFromEnv } from "./claude-settings.js";
 /** Map of provider name to the env var that satisfies it. Null = no key needed. */
 const PROVIDER_KEY_VARS: Record<string, string | null> = {
   anthropic: "ANTHROPIC_API_KEY",
+  "claude-agent": null,
   openai: "OPENAI_API_KEY",
   ollama: null,
   minimax: "MINIMAX_API_KEY",

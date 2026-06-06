@@ -7,9 +7,7 @@
 
 import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { EMBEDDING_MODELS } from "../utils/constants.js";
-
-const VOYAGE_EMBEDDINGS_URL = "https://api.voyageai.com/v1/embeddings";
+import { voyageEmbed } from "./voyage-embed.js";
 
 /**
  * Builds the client options for the Anthropic SDK.
@@ -139,32 +137,6 @@ export class AnthropicProvider implements LLMProvider {
    * to Voyage (their recommended partner). Requires VOYAGE_API_KEY.
    */
   async embed(text: string): Promise<number[]> {
-    const apiKey = process.env.VOYAGE_API_KEY?.trim();
-    if (!apiKey) {
-      throw new Error(
-        "VOYAGE_API_KEY is not set. Anthropic embeddings use Voyage — set VOYAGE_API_KEY to enable semantic search.",
-      );
-    }
-
-    const response = await fetch(VOYAGE_EMBEDDINGS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ input: text, model: EMBEDDING_MODELS.anthropic }),
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Voyage embeddings request failed (${response.status}): ${detail}`);
-    }
-
-    const json = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
-    const vector = json.data?.[0]?.embedding;
-    if (!Array.isArray(vector)) {
-      throw new Error("Voyage embeddings response did not include a vector.");
-    }
-    return vector;
+    return voyageEmbed(text);
   }
 }
