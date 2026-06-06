@@ -39,6 +39,7 @@ const MARKDOWN_EXT = ".md";
 type ProjectStateWarningCode =
   | "lint-cache-stale"
   | "lint-cache-unparseable"
+  | "freshness-cache-stale"
   | "index-missing"
   | "sources-not-compiled"
   | "pending-candidates"
@@ -262,7 +263,7 @@ function buildWarnings(input: WarningInput): ProjectStateWarning[] {
   const warnings: ProjectStateWarning[] = [];
   appendLintWarnings(warnings, input.lint, input.mtimes.latestWikiMtimeMs);
   appendStructuralWarnings(warnings, input.dirs, input.counts);
-  appendFreshnessWarnings(warnings, input.lint, input.stateStatus);
+  appendFreshnessWarnings(warnings, input.lint, input.stateStatus, input.mtimes.latestSourceMtimeMs);
   return warnings;
 }
 
@@ -315,14 +316,18 @@ function appendStructuralWarnings(
 }
 
 /**
- * Freshness warnings: corrupt state.json (fail-loud, not silent) and stale/orphaned
- * page counts from the lint cache. Missing state stays quiet — it is normal before
- * the first compile. Only corrupt state warns because it silently zeros all findings.
+ * Freshness warnings: corrupt state.json (fail-loud, not silent), stale/orphaned
+ * page counts from the lint cache, and a heuristic freshness-cache-stale warning
+ * when sources/ changed after the last lint.
+ *
+ * Missing state stays quiet — it is normal before the first compile.
+ * Only corrupt state warns because it silently zeros all findings.
  */
 function appendFreshnessWarnings(
   warnings: ProjectStateWarning[],
   lint: LintCacheStatus,
   stateStatus: "ok" | "missing" | "corrupt",
+  latestSourceMtimeMs: number | null,
 ): void {
   if (stateStatus === "corrupt") {
     warnings.push({
@@ -338,6 +343,25 @@ function appendFreshnessWarnings(
       message: `${f.stalePages} stale, ${f.orphanedPages} orphaned page(s) as of the last lint — run \`llmwiki compile\` to refresh.`,
     });
   }
+  if (lint.entry && isFreshnessCacheStale(lint.entry, latestSourceMtimeMs)) {
+    warnings.push({
+      code: "freshness-cache-stale",
+      message:
+        "sources/ changed since the last lint — freshness counts may be out of date; run `llmwiki lint` to refresh.",
+    });
+  }
+}
+
+/**
+ * Heuristic: the sources/ directory mtime is newer than the last lint run.
+ * Catches added/removed source files; may NOT detect in-place content edits on
+ * all filesystems (same limitation as the wiki-mtime lint-cache-stale check).
+ */
+function isFreshnessCacheStale(entry: LintCacheEntry, latestSourceMtimeMs: number | null): boolean {
+  if (latestSourceMtimeMs === null) return false;
+  const lintMs = Date.parse(entry.at);
+  if (Number.isNaN(lintMs)) return false;
+  return latestSourceMtimeMs > lintMs;
 }
 
 /** Cheap structural staleness: last-lint timestamp older than wiki dir mtime. */

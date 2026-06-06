@@ -11,12 +11,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdir } from "fs/promises";
+import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { touchMarkdown, runNextJson, useNextTempDir } from "./fixtures/next-test-helpers.js";
 import { writeCorruptTestStateJson } from "./fixtures/state-json.js";
 import { writeLintCache } from "../src/linter/cache.js";
-import { CONCEPTS_DIR, LLMWIKI_DIR } from "../src/utils/constants.js";
+import { CONCEPTS_DIR, LLMWIKI_DIR, SOURCES_DIR } from "../src/utils/constants.js";
 import type { LintResult } from "../src/linter/types.js";
 
 const env = useNextTempDir("freshness-next");
@@ -78,5 +78,37 @@ describe("llmwiki next — freshness", () => {
 
     const warnings = payload.warnings as Array<Record<string, unknown>>;
     expect(warnings.some((w) => w.code === "stale-pages")).toBe(false);
+  });
+});
+
+/** Write a lint cache with an OLD timestamp and create a source file with a newer mtime. */
+async function seedStaleFreshnessCache(dir: string): Promise<void> {
+  // Write the lint cache JSON directly with an old `at` timestamp (well before "now").
+  // This guarantees the sources/ dir mtime (created after) is > Date.parse(at).
+  await mkdir(path.join(dir, LLMWIKI_DIR), { recursive: true });
+  const entry = { warnings: 0, errors: 0, at: "2020-01-01T00:00:00.000Z", freshness: { stalePages: 0, orphanedPages: 0 } };
+  await writeFile(path.join(dir, LLMWIKI_DIR, "last-lint.json"), JSON.stringify(entry), "utf-8");
+  // Create sources/ dir with a file — its mtime is "now", which is > 2020-01-01.
+  await mkdir(path.join(dir, SOURCES_DIR), { recursive: true });
+  await writeFile(path.join(dir, SOURCES_DIR, "new-source.md"), "# New", "utf-8");
+}
+
+describe("llmwiki next — freshness-cache-stale warning", () => {
+  it("emits freshness-cache-stale when sources/ is newer than the last lint", async () => {
+    await seedStaleFreshnessCache(env.dir);
+
+    const payload = await runNextJson(env.dir);
+    const warnings = payload.warnings as Array<Record<string, unknown>>;
+    expect(warnings.some((w) => w.code === "freshness-cache-stale")).toBe(true);
+  });
+
+  it("does NOT emit freshness-cache-stale when lint cache is recent (no sources/ dir)", async () => {
+    // Seed a lint cache with a recent timestamp (now), but no sources/ dir exists,
+    // so latestSourceMtimeMs is null and the heuristic does not fire.
+    await seedLintCache(env.dir, []);
+
+    const payload = await runNextJson(env.dir);
+    const warnings = payload.warnings as Array<Record<string, unknown>>;
+    expect(warnings.some((w) => w.code === "freshness-cache-stale")).toBe(false);
   });
 });
