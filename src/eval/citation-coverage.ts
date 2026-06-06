@@ -11,14 +11,12 @@
 
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
-import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
+import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { resolveSourceFile } from "./source-path.js";
 import type { CitationCoverageResult, CitationPageResult } from "./types.js";
 
 /** Prose paragraphs start with a Unicode letter. */
-const PROSE_LEAD_RE = /^\p{L}/u;
-
 interface PageStats {
   pageResult: CitationPageResult;
   proseParagraphs: number;
@@ -29,7 +27,7 @@ interface PageStats {
 
 /** Evaluate citation coverage and precision for a single page body. */
 async function evaluatePage(slug: string, body: string, sourcesDir: string): Promise<PageStats> {
-  const paragraphs = body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
+  const paragraphs = splitProseParagraphs(body);
   let citedParagraphs = 0;
   let totalCitations = 0;
   let validCitations = 0;

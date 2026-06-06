@@ -11,15 +11,13 @@
  */
 
 import { collectAllPages } from "../linter/rules.js";
-import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
+import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import type { CitationDepthResult } from "./types.js";
-
-const PROSE_LEAD_RE = /^\p{L}/u;
 
 interface PageCounts { total: number; precise: number; proseParagraphs: number; }
 
 function countPageCitations(body: string): PageCounts {
-  const paragraphs = body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
+  const paragraphs = splitProseParagraphs(body);
   let total = 0;
   let precise = 0;
   for (const para of paragraphs) {
@@ -32,21 +30,6 @@ function countPageCitations(body: string): PageCounts {
     }
   }
   return { total, precise, proseParagraphs: paragraphs.length };
-}
-
-function buildResult(
-  totalCitations: number, citationsWithLineRange: number, totalProseParagraphs: number,
-): CitationDepthResult {
-  const claimLevelRate = totalCitations === 0 ? 0 : citationsWithLineRange / totalCitations;
-  const avgCitationsPerParagraph = totalProseParagraphs === 0 ? 0
-    : Math.round((totalCitations / totalProseParagraphs) * 100) / 100;
-  return {
-    totalCitations,
-    preciseCitations: citationsWithLineRange,
-    vagueCitations: totalCitations - citationsWithLineRange,
-    claimLevelRate: Math.round(claimLevelRate * 1000) / 1000,
-    avgCitationsPerParagraph,
-  };
 }
 
 export async function evaluateCitationDepth(
@@ -63,5 +46,14 @@ export async function evaluateCitationDepth(
     citationsWithLineRange += counts.precise;
     totalProseParagraphs += counts.proseParagraphs;
   }
-  return buildResult(totalCitations, citationsWithLineRange, totalProseParagraphs);
+  const claimLevelRate = totalCitations === 0 ? 0 : citationsWithLineRange / totalCitations;
+  const avgCitationsPerParagraph = totalProseParagraphs === 0 ? 0
+    : totalCitations / totalProseParagraphs;
+  return {
+    totalCitations,
+    preciseCitations: citationsWithLineRange,
+    vagueCitations: totalCitations - citationsWithLineRange,
+    claimLevelRate: Math.round(claimLevelRate * 1000) / 1000,
+    avgCitationsPerParagraph,
+  };
 }

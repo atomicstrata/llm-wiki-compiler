@@ -50,8 +50,10 @@ export interface SourceUtilizationResult {
   totalSources: number;
   citedSources: number;
   uncitedSources: number;
-  /** 0.0-1.0. 1.0 when zero sources exist (vacuously complete). */
-  utilizationRate: number;
+  /** 0.0-1.0, or null when totalSources is 0 (not measured). */
+  utilizationRate: number | null;
+  /** Non-fatal issues encountered during evaluation (e.g. unreadable files). */
+  warnings: string[];
   /** Sorted by citingPageCount descending. */
   perSource: SourceUtilizationEntry[];
 }

@@ -62,6 +62,21 @@ export function slugify(title: string): string {
     .replace(/^-|-$/g, "");
 }
 
+
+const PROSE_LEAD_RE = /^\p{L}/u;
+
+/**
+ * Split a markdown body into prose paragraphs for eval metrics.
+ * Headings, code blocks, list items, and blank lines are excluded
+ * so that only human-readable claim text is counted. Used by
+ * citation-coverage, citation-support, source-utilization, and
+ * citation-depth so they agree on what counts as prose.
+ */
+export function splitProseParagraphs(body: string): string[] {
+  return body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
+}
+
+
 /** Build YAML frontmatter string from key-value pairs. */
 export function buildFrontmatter(fields: Record<string, unknown>): string {
   const dumped = yaml.dump(fields, { lineWidth: -1, quotingType: '"' }).trimEnd();

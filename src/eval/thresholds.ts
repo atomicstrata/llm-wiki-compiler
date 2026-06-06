@@ -101,6 +101,8 @@ export async function checkThresholds(
 
   if (
     config.source_utilization_rate !== undefined &&
+    report.sourceUtilization.utilizationRate !== null &&
+    report.sourceUtilization.totalSources > 0 &&
     report.sourceUtilization.utilizationRate < config.source_utilization_rate
   ) {
     violations.push(

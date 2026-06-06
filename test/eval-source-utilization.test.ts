@@ -24,13 +24,14 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
 
   const env = useLintTempRoot("eval-su");
 
-  it("returns utilizationRate=1 when no sources exist", async () => {
+  it("returns utilizationRate=null when no sources exist", async () => {
     const result = await evaluateSourceUtilization(env.dir);
     expect(result.totalSources).toBe(0);
     expect(result.citedSources).toBe(0);
     expect(result.uncitedSources).toBe(0);
-    expect(result.utilizationRate).toBe(1);
+    expect(result.utilizationRate).toBeNull();
     expect(result.perSource).toHaveLength(0);
+    expect(result.warnings).toEqual([]);
   });
 
   it("returns utilizationRate=0 when sources exist but no pages cite them", async () => {
@@ -47,7 +48,7 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
     expect(result.citedSources).toBe(0);
     expect(result.uncitedSources).toBe(2);
     expect(result.utilizationRate).toBe(0);
-    // perSource entries with count 0 are not in the map, so perSource is empty
+    // Both sources appear in perSource with citingPageCount=0
   });
 
   it("returns utilizationRate=1 when every source is cited", async () => {
@@ -198,7 +199,47 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
     );
   });
 
-    it("lists all sources in perSource even when uncited", async () => {
+  
+  it("ignores citations to nonexistent source files", async () => {
+    await env.writeSource("real.md", "# Real\n\nContent.");
+    await env.writeConcept(
+      "page",
+      fm("Page") + "Cites real and a ghost.^[real.md] And a ghost.^[ghost.md]\n",
+    );
+
+    const result = await evaluateSourceUtilization(env.dir);
+    expect(result.totalSources).toBe(1);
+    expect(result.citedSources).toBe(1);
+    expect(result.uncitedSources).toBe(0);
+    expect(result.utilizationRate).toBe(1);
+    const ghostEntry = result.perSource.find(function(e) { return e.sourceFile === "ghost.md"; });
+    expect(ghostEntry).toBeUndefined();
+  });
+
+  it("excludes symlink sources pointing outside the sources tree", async () => {
+    await env.writeSource("ok.md", "# OK\n\nContent.");
+    await env.writeConcept("p", fm("P") + "Cites ok.^[ok.md]\n");
+
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const leakPath = path.join(env.dir, "sources", "leak.md");
+    const outsidePath = path.join(env.dir, "outside.md");
+    try {
+      await fs.writeFile(outsidePath, "# Outside\n\nLeaked content.");
+      await fs.symlink(outsidePath, leakPath);
+    } catch {
+      return; // symlink not supported on this platform
+    }
+
+    const result = await evaluateSourceUtilization(env.dir);
+    expect(result.totalSources).toBe(1);
+    expect(result.citedSources).toBe(1);
+    expect(result.utilizationRate).toBe(1);
+    expect(result.warnings.length).toBeGreaterThanOrEqual(1);
+
+    await fs.unlink(outsidePath).catch(function() {});
+  });
+  it("lists all sources in perSource even when uncited", async () => {
     await env.writeSource("orphan.md", "# Orphan\n\nNobody cites me.");
 
     const result = await evaluateSourceUtilization(env.dir);

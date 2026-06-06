@@ -22,8 +22,9 @@ export function makeEvalReport(overrides: Partial<EvalReport> = {}): EvalReport 
       totalSources: 3,
       citedSources: 3,
       uncitedSources: 0,
-      utilizationRate: 1,
+      utilizationRate: 0.8,
       perSource: [],
+      warnings: [],
     },
     citationDepth: {
       totalCitations: 8,

@@ -93,9 +93,9 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
 }
 
 function formatCitationDepth(report: EvalReport): string[] {
-  var d = report.citationDepth;
+  const d = report.citationDepth;
   if (d.totalCitations === 0) return [line(), line('Citation Depth:  (no citations)')];
-  var pct = (d.claimLevelRate * 100).toFixed(0);
+  const pct = (d.claimLevelRate * 100).toFixed(0);
   return [
     line(),
     line(bold("Citation Depth:")),
@@ -107,12 +107,12 @@ function formatCitationDepth(report: EvalReport): string[] {
 function formatSourceUtilization(report: EvalReport): string[] {
   const u = report.sourceUtilization;
   if (u.totalSources === 0) {
-    return [line(), line('Source Utilization:  (no sources yet)')];
+    return [line(), line('Source Utilization:  N/A (no sources)')];
   }
-  const pct = (u.utilizationRate * 100).toFixed(0);
+  const pct = u.utilizationRate !== null ? (u.utilizationRate * 100).toFixed(0) + "%" : "N/A";
   const rows = [
     line(),
-    line(bold('Source Utilization:  ' + pct + '%')),
+    line(bold('Source Utilization:  ' + pct)),
     line('  ' + u.citedSources + ' / ' + u.totalSources + ' sources cited by >=1 wiki page'),
   ];
   if (u.uncitedSources > 0) {

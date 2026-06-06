@@ -6,29 +6,25 @@
  * linked to any generated page — a silent failure mode that no existing
  * lint rule catches.
  *
- * Algorithm: enumerate on-disk source files, resolve each citation string
- * via the existing resolveSourceFile to a canonical realpath, then
- * cross-reference in canonical-path space. Because cited counts are derived
- * from the on-disk file set (not from raw citation strings), citations that
- * point to non-existent files are simply skipped and never affect the
- * utilization numbers.
+ * Algorithm: enumerate on-disk source files, resolve each through
+ * resolveSourceFile to a canonical realpath, then cross-reference with
+ * citation targets resolved the same way. Both sides use the same confined
+ * resolver so symlinks and path differences are handled consistently.
+ * When totalSources is 0, utilizationRate is null ("not measured").
  */
 
-import { readdir, realpath } from "fs/promises";
+import { readdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
-import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
+import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import { resolveSourceFile } from "./source-path.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { SourceUtilizationResult } from "./types.js";
 
-const PROSE_LEAD_RE = /^\p{L}/u;
-
 function collectRawCitedFiles(body: string): Set<string> {
   const files = new Set<string>();
-  const paragraphs = body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
-  for (const para of paragraphs) {
+  for (const para of splitProseParagraphs(body)) {
     const citations = extractClaimCitations(para);
     for (const { spans } of citations) {
       for (const span of spans) files.add(span.file);
@@ -43,23 +39,37 @@ async function listSourceFiles(dir: string): Promise<string[]> {
   return entries.filter((e) => e.endsWith(".md"));
 }
 
+function pageSlug(filePath: string): string {
+  const dir = path.basename(path.dirname(filePath));
+  return dir + "/" + path.basename(filePath, ".md");
+}
+
+/**
+ * Resolve each on-disk source file through the same confined resolver
+ * used for citation targets. Files that fail resolution (e.g. symlinks
+ * pointing outside sources/) are excluded from the inventory and reported
+ * as warnings so they don't skew the cited/uncited counts.
+ */
 async function buildFileToRealMap(
-  sourcesDir: string, sourceFiles: string[],
+  sourcesDir: string,
+  sourceFiles: string[],
+  warnings: string[],
 ): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   for (const f of sourceFiles) {
-    try { map.set(f, await realpath(path.join(sourcesDir, f))); } catch { /* skip */ }
+    const resolved = await resolveSourceFile(sourcesDir, f);
+    if (resolved === null) {
+      warnings.push("Unresolvable source file excluded from inventory: " + f);
+    } else {
+      map.set(f, resolved);
+    }
   }
   return map;
 }
 
-function pageSlug(filePath: string): string {
-  const dir = filePath.includes("queries") ? "queries" : "concepts";
-  return dir + "/" + path.basename(filePath, ".md");
-}
-
 async function collectCitedRealpaths(
-  sourcesDir: string, pages: Array<{ filePath: string; content: string }>,
+  sourcesDir: string,
+  pages: Array<{ filePath: string; content: string }>,
 ): Promise<Map<string, Set<string>>> {
   const citedRealToPages = new Map<string, Set<string>>();
   for (const { filePath, content } of pages) {
@@ -103,13 +113,17 @@ export async function evaluateSourceUtilization(
   const sourcesDir = path.join(root, SOURCES_DIR);
   const sourceFiles = await listSourceFiles(sourcesDir);
   const totalSources = sourceFiles.length;
+  const warnings: string[] = [];
+
   if (totalSources === 0) {
-    return { totalSources: 0, citedSources: 0, uncitedSources: 0, utilizationRate: 1, perSource: [] };
+    return { totalSources: 0, citedSources: 0, uncitedSources: 0, utilizationRate: null, perSource: [], warnings };
   }
-  const fileToReal = await buildFileToRealMap(sourcesDir, sourceFiles);
+
+  const fileToReal = await buildFileToRealMap(sourcesDir, sourceFiles, warnings);
   const pages = await collectAllPages(root);
   const citedRealToPages = await collectCitedRealpaths(sourcesDir, pages);
   const perSource = buildPerSource(sourceFiles, fileToReal, citedRealToPages);
+
   const citedCount = perSource.filter((e) => e.citingPageCount > 0).length;
   return {
     totalSources,
@@ -117,5 +131,6 @@ export async function evaluateSourceUtilization(
     uncitedSources: totalSources - citedCount,
     utilizationRate: Math.round((citedCount / totalSources) * 1000) / 1000,
     perSource,
+    warnings,
   };
 }

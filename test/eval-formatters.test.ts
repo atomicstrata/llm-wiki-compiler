@@ -33,6 +33,7 @@ function makeReport(overrides: Partial<EvalReport> = {}): EvalReport {
       uncitedSources: 1,
       utilizationRate: 0.8,
       perSource: [],
+      warnings: [],
     },
     citationDepth: {
       totalCitations: 15,
