@@ -68,6 +68,17 @@ describe("wiki_status freshness", () => {
     expect(status.stateStatus).toBe("corrupt");
     expect(existsSync(path.join(root, ".llmwiki/state.json.bak"))).toBe(false);
   });
+
+  it("returns empty pendingChanges on corrupt state (no false 'new' entries)", async () => {
+    await writePage(path.join(root, CONCEPTS_DIR), "topic", { title: "Topic" }, "Body.");
+    await writeSourceFile(root, "a.md", "some content");
+    await writeCorruptTestStateJson(root);
+
+    const status = await collectStatus(root);
+
+    expect(status.stateStatus).toBe("corrupt");
+    expect(status.pendingChanges).toEqual([]);
+  });
 });
 
 describe("llmwiki://state resource — no .bak side effect", () => {

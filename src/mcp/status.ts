@@ -71,6 +71,12 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
 
+  // Suppress pendingChanges when state is unreadable: comparing against emptyState
+  // would classify every source file as "new", which is false precision on corrupt state.
+  const pendingChanges = classified.status === "ok"
+    ? changes.filter((c) => c.status !== "unchanged").map((c) => ({ file: c.file, status: c.status }))
+    : [];
+
   return {
     pages: { concepts: conceptSummaries.length, queries: queries.length, total: conceptSummaries.length + queries.length },
     sources: Object.keys(classified.state.sources).length,
@@ -79,6 +85,6 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     orphanedPages,
     stateStatus: classified.status,
     pendingCandidates,
-    pendingChanges: changes.filter((c) => c.status !== "unchanged").map((c) => ({ file: c.file, status: c.status })),
+    pendingChanges,
   };
 }
