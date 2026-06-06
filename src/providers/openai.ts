@@ -42,6 +42,15 @@ function resolveOpenAITimeoutMs(): number | undefined {
   return readTimeoutEnv("LLMWIKI_REQUEST_TIMEOUT_MS");
 }
 
+/**
+ * Placeholder passed to the OpenAI client when no real key is set. The SDK (v6+)
+ * throws on a missing/empty key at construction, but real credential validation
+ * is owned by `ensureProviderAvailable` (the provider guard); deferring here
+ * keeps that the single source of truth. Local servers that ignore auth accept
+ * any value anyway.
+ */
+const PLACEHOLDER_API_KEY = "llmwiki-unset";
+
 /** Translate an Anthropic-style LLMTool to an OpenAI ChatCompletionTool. */
 export function translateToolToOpenAI(
   tool: LLMTool,
@@ -66,9 +75,10 @@ export class OpenAIProvider implements LLMProvider {
   constructor(model: string, options: OpenAIProviderOptions = {}) {
     this.model = model;
     this.configuredEmbeddingModel = options.embeddingModel;
-    // The OpenAI SDK validates OPENAI_API_KEY at construction time.
-    // Pass the key explicitly so the provider controls when validation happens.
-    const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? "";
+    // The OpenAI SDK (v6+) throws on a missing/empty key at construction. Real
+    // credential validation is owned by the provider guard, so pass a
+    // placeholder when unset to defer the check to that single source of truth.
+    const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? PLACEHOLDER_API_KEY;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
     this.client = new OpenAI({
       apiKey: resolvedKey,
@@ -134,9 +144,11 @@ export class OpenAIProvider implements LLMProvider {
       tool_choice: "required",
     });
 
-    const toolCalls = response.choices[0]?.message?.tool_calls;
-    if (toolCalls && toolCalls.length > 0) {
-      return toolCalls[0].function.arguments;
+    // openai v6 made tool_calls a union of function and custom calls; only the
+    // function variant carries `.function`.
+    const toolCall = response.choices[0]?.message?.tool_calls?.[0];
+    if (toolCall?.type === "function") {
+      return toolCall.function.arguments;
     }
 
     return response.choices[0]?.message?.content ?? "";

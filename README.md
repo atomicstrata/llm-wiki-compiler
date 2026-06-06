@@ -597,7 +597,10 @@ Karpathy described an abstract pattern for turning raw data into compiled knowle
 
 Available on main, will ship in 0.9.0:
 
+- ✅ Source freshness — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since compile, computed on demand from `.llmwiki/state.json` and the current `sources/`; the JSON export carries per-page `freshnessStatus`, `contradicted`, and `archived`
 - ✅ JSON export bridge contract — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records
+- ✅ Eval over MCP — `run_eval` MCP tool scores wiki quality (fast suite needs no API key; full suite LLM-judges a sample of citations), plus read-only `llmwiki://eval/report` and `llmwiki://eval/history` resources
+- ✅ Alias-aware wikilinks — the viewer resolves a `[[term]]` link to any page that declares `term` in its `aliases` frontmatter, not just an exact slug match
 
 Shipped in 0.8.0:
 

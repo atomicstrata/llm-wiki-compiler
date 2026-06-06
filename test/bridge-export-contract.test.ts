@@ -6,7 +6,7 @@
  *
  *  - Every new `ExportPage` field round-trips from frontmatter through
  *    the JSON envelope (path, kind, advisoryConfidence, provenanceState,
- *    contradictedBy, citations, aliases, advisoryFreshnessStatus).
+   contradictedBy, citations, aliases, freshnessStatus, contradicted, archived).
  *  - `projectId` is embedded only when supplied; regex enforcement
  *    rejects malformed values at the validator boundary.
  *
@@ -36,7 +36,9 @@ interface BridgeExportPage {
   contradictedBy?: { slug: string; reason?: string }[];
   citations: { file: string; start?: number; end?: number }[];
   aliases?: string[];
-  advisoryFreshnessStatus: string;
+  freshnessStatus: string;
+  contradicted: boolean;
+  archived: boolean;
 }
 
 interface BridgeExportEnvelope {
@@ -53,7 +55,7 @@ function findPage(envelope: BridgeExportEnvelope, slug: string): BridgeExportPag
 }
 
 describe("bridge export contract — collectExportPages + buildJsonExport", () => {
-  it("populates path, kind, citations, and advisoryFreshnessStatus for a basic concept", async () => {
+  it("populates path, kind, citations, and freshnessStatus for a basic concept", async () => {
     const root = await makeTempRoot("basic");
     await writePage(
       path.join(root, "wiki/concepts"),
@@ -68,7 +70,9 @@ describe("bridge export contract — collectExportPages + buildJsonExport", () =
 
     expect(page.path).toBe("wiki/concepts/retrieval.md");
     expect(page.kind).toBe("concept");
-    expect(page.advisoryFreshnessStatus).toBe("unverified");
+    expect(page.freshnessStatus).toBe("unverified");
+    expect(page.contradicted).toBe(false);
+    expect(page.archived).toBe(false);
     expect(page.citations).toEqual([{ file: "paper.md", start: 10, end: 15 }]);
   });
 

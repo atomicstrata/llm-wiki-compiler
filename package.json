@@ -46,7 +46,7 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
+    "@anthropic-ai/sdk": "^0.101.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.5.0",
     "chokidar": "^4.0.0",
@@ -55,13 +55,13 @@
     "js-yaml": "^4.1.1",
     "jsdom": "^25.0.0",
     "markdown-it": "^14.1.1",
-    "openai": "^4.0.0",
+    "openai": "^6.42.0",
     "p-limit": "^6.0.0",
     "pdf-parse": "^2.4.5",
     "sanitize-html": "^2.17.3",
     "turndown": "^7.2.0",
     "youtube-transcript": "^1.3.1",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@copilotkit/aimock": "^1.15.1",
