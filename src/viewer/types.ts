@@ -14,6 +14,7 @@
 
 import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
+import type { PageFreshness } from "../freshness/types.js";
 
 /**
  * Canonical page identifier: `concepts/<slug>` or `queries/<slug>`. Bare
@@ -67,6 +68,8 @@ export interface ViewerPage {
   citations: ClaimCitation[];
   /** Diagnostics surfaced for this page (parser issues, unresolved citations…). */
   warnings: ViewerWarning[];
+  /** Computed source-freshness as of snapshot build (server start). Never live-updated. */
+  freshness: PageFreshness;
 }
 
 /**
@@ -91,6 +94,9 @@ export interface ViewerCounts {
   sourceFiles: number;
   pendingReviews: number;
   compiledSources: number;
+  /** Pages computed stale/orphaned at snapshot build. */
+  stale: number;
+  orphaned: number;
 }
 
 /**

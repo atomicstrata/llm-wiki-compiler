@@ -18,6 +18,7 @@ import { collectRawWikiPages, extractWikilinkSlugs, extractWikilinkTargets } fro
 import type { RawWikiPage } from "../wiki/collect.js";
 import { extractClaimCitations, slugify } from "../utils/markdown.js";
 import type { PageId, ViewerPage, ViewerWarning } from "./types.js";
+import type { PageFreshness } from "../freshness/types.js";
 
 /** Minimal page shape `resolveBareSlug` needs to find a target. */
 type PageIndexEntry = {
@@ -146,8 +147,17 @@ function buildPageShell(page: RawWikiPage): ViewerPage {
     outgoingLinks: [],
     citations: extractClaimCitations(page.body),
     warnings: warningsFromParseStatus(page),
+    // Placeholder: overwritten by attachFreshness() in buildViewerSnapshot.
+    freshness: UNVERIFIED_FRESHNESS,
   };
 }
+
+/** Default freshness placeholder — overwritten in the snapshot build. */
+const UNVERIFIED_FRESHNESS: PageFreshness = {
+  freshnessStatus: "unverified",
+  contradicted: false,
+  archived: false,
+};
 
 /** Read the `aliases` frontmatter field as a string list (empty when absent/malformed). */
 function readAliases(frontmatter: Record<string, unknown>): string[] {

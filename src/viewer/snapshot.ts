@@ -5,12 +5,15 @@
  * live-watch the filesystem, so post-startup mutations are intentionally
  * invisible to the running viewer until it restarts.
  *
- * The snapshot consolidates four data sources:
+ * The snapshot consolidates five data sources:
  *   - `collectViewerPages` for the decorated page list AND the
  *     concept/query counts (deriving counts from the already-confined
  *     page list means symlinked entries dropped by the collector
  *     cannot quietly inflate the counts via a second unconfined scan)
- *   - `readState` for the compiled-source count
+ *   - `readStateClassified` (read-only, never writes a `.bak`) for the
+ *     compiled-source count AND as the input to the freshness snapshot
+ *   - `buildFreshnessSnapshot` for per-page freshness and the aggregate
+ *     stale/orphaned counts (one state read + one hash pass over sources/)
  *   - `countCandidates` for the pending-reviews count
  *   - `readdir(sources/)` for the cheap source-file count
  */
@@ -19,11 +22,13 @@ import { readdir, readFile, realpath } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { countCandidates } from "../compiler/candidates.js";
-import { readState } from "../utils/state.js";
+import { readStateClassified } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
+import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 import type {
   ViewerCounts,
   ViewerIndex,
@@ -45,25 +50,15 @@ const INDEX_HREF = "/#/index";
  * `readLintCache` in `src/viewer/health.ts` is the sole exception.
  */
 export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot> {
-  const [pages, state, pendingReviews, sourceFilenames, index] = await Promise.all([
+  const [pages, classified, pendingReviews, sourceFilenames, index] = await Promise.all([
     collectViewerPages(root),
-    readState(root),
+    readStateClassified(root),
     countCandidates(root),
     listSourceFiles(root),
     readIndexFile(root),
   ]);
+  const freshnessSnapshot = await buildFreshnessSnapshot(root, classified);
   const project = buildProject(root);
-  // Concept/query counts are derived from `pages`, the already-confined
-  // viewer page list, NOT from a second unconfined directory scan.
-  // Anything the collector dropped for path-safety reasons (symlinked
-  // file or directory) is therefore also excluded from the counts.
-  const counts: ViewerCounts = {
-    concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
-    queries: pages.filter((p) => p.pageDirectory === "queries").length,
-    sourceFiles: sourceFilenames.length,
-    pendingReviews,
-    compiledSources: Object.keys(state.sources).length,
-  };
   const fullIndex: ViewerIndex = {
     available: index.available,
     href: INDEX_HREF,
@@ -71,7 +66,14 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), pages),
   };
   const sourceFileSet = new Set(sourceFilenames);
-  const annotatedPages = pages.map((page) => annotateCitationWarnings(page, sourceFileSet));
+  // Concept/query counts are derived from `pages`, the already-confined
+  // viewer page list, NOT from a second unconfined directory scan.
+  // Anything the collector dropped for path-safety reasons (symlinked
+  // file or directory) is therefore also excluded from the counts.
+  const annotatedPages = pages
+    .map((page) => annotateCitationWarnings(page, sourceFileSet))
+    .map((page) => attachFreshness(page, freshnessSnapshot));
+  const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, classified.state);
   const graph = buildGraphData(annotatedPages);
   return {
     root,
@@ -108,6 +110,43 @@ function annotateCitationWarnings(page: ViewerPage, sourceFiles: ReadonlySet<str
   }
   if (extra.length === 0) return page;
   return { ...page, warnings: [...page.warnings, ...extra] };
+}
+
+/**
+ * Derive the frozen counts from the annotated page list, source filenames,
+ * candidates count, and state. Concept/query counts are derived from pages
+ * (the already-confined collector list) so symlinked drops don't inflate them.
+ */
+function buildCounts(
+  pages: ViewerPage[],
+  sourceFilenames: string[],
+  pendingReviews: number,
+  state: { sources: Record<string, unknown> },
+): ViewerCounts {
+  return {
+    concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
+    queries: pages.filter((p) => p.pageDirectory === "queries").length,
+    sourceFiles: sourceFilenames.length,
+    pendingReviews,
+    compiledSources: Object.keys(state.sources).length,
+    stale: pages.filter((p) => p.freshness.freshnessStatus === "stale").length,
+    orphaned: pages.filter((p) => p.freshness.freshnessStatus === "orphaned").length,
+  };
+}
+
+/**
+ * Attach computed source-freshness to a page. Called once per page during
+ * snapshot build so freshness is frozen at startup alongside all other
+ * snapshot data.
+ */
+function attachFreshness(page: ViewerPage, snapshot: FreshnessSnapshot): ViewerPage {
+  return {
+    ...page,
+    freshness: computeFreshness(
+      { slug: page.slug, pageDirectory: page.pageDirectory, frontmatter: page.frontmatter },
+      snapshot,
+    ),
+  };
 }
 
 /** Classify every comma-separated entry inside one `^[…]` marker. */
