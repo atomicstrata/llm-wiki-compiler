@@ -32,18 +32,18 @@ async function logExists(root: string): Promise<boolean> {
   }
 }
 
-describe("lint journaling: CLI writes, core stays read-only", () => {
+describe("lint is not journaled", () => {
   let fx: LintTempRoot;
   beforeEach(async () => { fx = await makeLintTempRoot("log-lint-int"); });
   afterEach(async () => { await rm(fx.root, { recursive: true, force: true }); });
 
-  it("CLI `llmwiki lint` appends a lint entry to log.md", async () => {
+  it("CLI `llmwiki lint` does not write log.md", async () => {
     await fx.writeConceptPage("clean", `---\ntitle: Clean\nsummary: ok.\n---\n${LONG_BODY}`);
     expectCLIExit(await runCLI(["lint"], fx.root), 0);
-    expect(await readLog(fx.root)).toMatch(/^## \[.+Z\] lint \| 0 error\(s\)/m);
+    expect(await logExists(fx.root)).toBe(false);
   }, 30_000);
 
-  it("core lint() does NOT write log.md (MCP read-only contract)", async () => {
+  it("core lint() does not write log.md (MCP read-only contract)", async () => {
     await fx.writeConceptPage("clean", `---\ntitle: Clean\nsummary: ok.\n---\n${LONG_BODY}`);
     await lint(fx.root);
     expect(await logExists(fx.root)).toBe(false);

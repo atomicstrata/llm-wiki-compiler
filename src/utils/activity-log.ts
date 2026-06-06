@@ -3,10 +3,11 @@
  *
  * Implements the chronological journal described in Karpathy's llm-wiki gist:
  * a single append-only file recording what happened and when — ingests,
- * compiles, queries, and lint passes. Each entry is a heading line with a
- * fixed prefix — `## [YYYY-MM-DDThh:mm:ssZ] operation | description` —
- * optionally followed by a markdown bullet body carrying detail (page
- * wikilinks, counts).
+ * compiles, and queries. (lint is intentionally excluded: it is a read-only
+ * check and the MCP `lint_wiki` tool is documented as non-mutating.) Each entry
+ * is a heading line with a fixed prefix —
+ * `## [YYYY-MM-DDThh:mm:ssZ] operation | description` — optionally followed by
+ * a markdown bullet body carrying detail (page wikilinks, counts).
  *
  * The heading prefix is what keeps the log parseable: because only headings
  * start with `## [`, the gist's recipe `grep "^## \[" log.md | tail -5` still

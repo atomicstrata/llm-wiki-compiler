@@ -304,7 +304,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 ## Output
 
 ```
-log.md              append-only activity journal (ingests, compiles, queries, lint passes)
+log.md              append-only activity journal (ingests, compiles, queries)
 wiki/
   concepts/         one .md file per concept, with YAML frontmatter
   queries/          saved query answers, included in index and retrieval

@@ -110,9 +110,9 @@ describe("appendLog", () => {
   });
 
   it("keeps headings parseable by the gist's grep recipe despite bodies", async () => {
-    await appendLog(tmpDir, "lint", "0 error(s), 1 warning(s), 0 info", {
+    await appendLog(tmpDir, "compile", "1 source(s) → 1 page(s)", {
       date: DAY,
-      details: ["Flagged: [[some-page]]"],
+      details: ["Created: [[some-page]]"],
     });
 
     const content = await readFile(path.join(tmpDir, LOG_FILE), "utf-8");

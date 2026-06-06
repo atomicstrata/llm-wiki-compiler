@@ -80,7 +80,7 @@ export async function lint(root: string): Promise<LintSummary> {
     results,
   };
 
-  // NOTE: lint() must stay read-only — the MCP `lint_wiki` tool documents it as
-  // non-mutating. Journaling to log.md lives in the CLI command (commands/lint.ts).
+  // lint is intentionally not journaled to log.md — it is a read-only check,
+  // and the MCP `lint_wiki` tool documents it as non-mutating.
   return summary;
 }
