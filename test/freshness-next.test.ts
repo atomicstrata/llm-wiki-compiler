@@ -93,22 +93,23 @@ async function seedStaleFreshnessCache(dir: string): Promise<void> {
   await writeFile(path.join(dir, SOURCES_DIR, "new-source.md"), "# New", "utf-8");
 }
 
+/** Run next --json and return whether warnings include a given code. */
+async function hasWarningCode(dir: string, code: string): Promise<boolean> {
+  const payload = await runNextJson(dir);
+  const warnings = payload.warnings as Array<Record<string, unknown>>;
+  return warnings.some((w) => w.code === code);
+}
+
 describe("llmwiki next — freshness-cache-stale warning", () => {
   it("emits freshness-cache-stale when sources/ is newer than the last lint", async () => {
     await seedStaleFreshnessCache(env.dir);
-
-    const payload = await runNextJson(env.dir);
-    const warnings = payload.warnings as Array<Record<string, unknown>>;
-    expect(warnings.some((w) => w.code === "freshness-cache-stale")).toBe(true);
+    expect(await hasWarningCode(env.dir, "freshness-cache-stale")).toBe(true);
   });
 
   it("does NOT emit freshness-cache-stale when lint cache is recent (no sources/ dir)", async () => {
     // Seed a lint cache with a recent timestamp (now), but no sources/ dir exists,
     // so latestSourceMtimeMs is null and the heuristic does not fire.
     await seedLintCache(env.dir, []);
-
-    const payload = await runNextJson(env.dir);
-    const warnings = payload.warnings as Array<Record<string, unknown>>;
-    expect(warnings.some((w) => w.code === "freshness-cache-stale")).toBe(false);
+    expect(await hasWarningCode(env.dir, "freshness-cache-stale")).toBe(false);
   });
 });
