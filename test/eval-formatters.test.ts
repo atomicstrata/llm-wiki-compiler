@@ -249,4 +249,11 @@ describe("formatTerminalReport", () => {
     expect(output).toContain("↑5");
     expect(output).toContain("↓2");
   });
+
+  it("includes source utilization and citation depth sections", () => {
+    const output = formatTerminalReport(makeReport());
+    expect(output).toContain("Source Utilization:");
+    expect(output).toContain("Citation Depth:");
+    expect(output).toContain("Claim-level");
+  });
 });
