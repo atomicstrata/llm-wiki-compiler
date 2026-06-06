@@ -6,7 +6,7 @@
  * and never persists freshness. See localdocs/specs/2026-06-04-source-freshness-design.md.
  */
 
-import type { FreshnessSnapshot, PageFreshness, PageFreshnessInput, FreshnessStatus } from "./types.js";
+import type { FreshnessSnapshot, PageFreshness, PageFreshnessInput, FreshnessStatus, SourceFreshness } from "./types.js";
 import { existsSync } from "fs";
 import path from "path";
 import { readStateClassified } from "../utils/state.js";
@@ -61,16 +61,35 @@ export async function buildFreshnessSnapshot(
   const { status, state } = classified ?? (await readStateClassified(root));
   const sources: FreshnessSnapshot["sources"] = {};
   if (status === "ok") {
+    const sourcesRoot = path.resolve(root, SOURCES_DIR);
     for (const [file, entry] of Object.entries(state.sources)) {
-      const filePath = path.join(root, SOURCES_DIR, file);
-      const exists = existsSync(filePath);
-      sources[file] = {
-        recordedHash: entry.hash,
-        currentHash: exists ? await hashFile(filePath) : null,
-        exists,
-        concepts: entry.concepts,
-      };
+      sources[file] = await classifySource(sourcesRoot, file, entry);
     }
   }
   return { stateStatus: status, sources };
+}
+
+/**
+ * Classify one source entry from state.json, guarding against path traversal.
+ * A poisoned key like `../../etc/passwd` would resolve outside sources/ and
+ * could read arbitrary files; we treat any such key as non-existent.
+ */
+async function classifySource(
+  sourcesRoot: string,
+  file: string,
+  entry: { hash: string; concepts: string[] },
+): Promise<SourceFreshness> {
+  const resolved = path.resolve(sourcesRoot, file);
+  const isInsideSources = resolved === sourcesRoot || resolved.startsWith(sourcesRoot + path.sep);
+  if (!isInsideSources) {
+    // Defense-in-depth: reject path-traversal keys without throwing or reading.
+    return { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
+  }
+  const exists = existsSync(resolved);
+  return {
+    recordedHash: entry.hash,
+    currentHash: exists ? await hashFile(resolved) : null,
+    exists,
+    concepts: entry.concepts,
+  };
 }

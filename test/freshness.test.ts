@@ -117,4 +117,27 @@ describe("buildFreshnessSnapshot", () => {
     const snap = await buildFreshnessSnapshot(env.dir, classified);
     expect(Object.keys(snap.sources)).toEqual(["a.md"]);
   });
+
+  it("treats path-traversal keys as not-exists without throwing or reading outside sources/", async () => {
+    // State contains a traversal key and a normal key.
+    await writeSourceState(env.dir, {
+      "../escape.md": { hash: "X", concepts: ["escape"] },
+      "normal.md": { hash: sha256Hex("normal"), concepts: ["normal"] },
+    });
+    await writeSourceFile(env.dir, "normal.md", "normal");
+    // Write a file at the traversal destination to prove it is NOT read.
+    const { writeFile: wf } = await import("fs/promises");
+    await wf(path.join(env.dir, "escape.md"), "outside-sources", "utf-8");
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+
+    // Traversal key: treated as non-existent, no throw.
+    expect(snap.sources["../escape.md"]).toEqual(
+      expect.objectContaining({ exists: false, currentHash: null }),
+    );
+    // Normal key: classified correctly.
+    expect(snap.sources["normal.md"]).toEqual(
+      expect.objectContaining({ exists: true, currentHash: sha256Hex("normal") }),
+    );
+  });
 });
