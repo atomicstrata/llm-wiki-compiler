@@ -45,6 +45,7 @@ export const DEFAULT_PROVIDER = "anthropic";
 /** Default model per provider. */
 export const PROVIDER_MODELS: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
+  "claude-agent": "claude-sonnet-4-6",
   openai: "gpt-4o",
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",
@@ -123,6 +124,7 @@ export const MAX_INFERRED_PARAGRAPHS_WITHOUT_CITATIONS = 2;
 /** Embedding model to use per provider. */
 export const EMBEDDING_MODELS: Record<string, string> = {
   anthropic: "voyage-3-lite",
+  "claude-agent": "voyage-3-lite",
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
 };
