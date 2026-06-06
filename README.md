@@ -106,7 +106,7 @@ can run `claude` in your terminal, this provider works.
 
 ```bash
 export LLMWIKI_PROVIDER=claude-agent
-export LLMWIKI_MODEL=claude-sonnet-4-5  # optional; this is the default
+export LLMWIKI_MODEL=claude-sonnet-4-6  # optional; this is the default
 llmwiki compile
 ```
 

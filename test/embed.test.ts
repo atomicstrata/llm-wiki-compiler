@@ -117,13 +117,13 @@ describe("AnthropicProvider.embed", () => {
 
   it("throws a clear error when VOYAGE_API_KEY is missing", async () => {
     delete process.env.VOYAGE_API_KEY;
-    const provider = new AnthropicProvider("claude-sonnet-4-20250514", { apiKey: "sk-test" });
+    const provider = new AnthropicProvider("claude-sonnet-4-6", { apiKey: "sk-test" });
     await expect(provider.embed("hello")).rejects.toThrow(/VOYAGE_API_KEY is not set/);
   });
 
   it("throws a clear error when VOYAGE_API_KEY is whitespace", async () => {
     process.env.VOYAGE_API_KEY = "   ";
-    const provider = new AnthropicProvider("claude-sonnet-4-20250514", { apiKey: "sk-test" });
+    const provider = new AnthropicProvider("claude-sonnet-4-6", { apiKey: "sk-test" });
     await expect(provider.embed("hello")).rejects.toThrow(/VOYAGE_API_KEY is not set/);
   });
 });

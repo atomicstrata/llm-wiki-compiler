@@ -9,9 +9,6 @@ import OpenAI from "openai";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
 
-/** Placeholder key so client construction succeeds when no real key is set yet. */
-const PLACEHOLDER_API_KEY = "llmwiki-unset";
-
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
   baseURL?: string;
@@ -45,6 +42,15 @@ function resolveOpenAITimeoutMs(): number | undefined {
   return readTimeoutEnv("LLMWIKI_REQUEST_TIMEOUT_MS");
 }
 
+/**
+ * Placeholder passed to the OpenAI client when no real key is set. The SDK (v6+)
+ * throws on a missing/empty key at construction, but real credential validation
+ * is owned by `ensureProviderAvailable` (the provider guard); deferring here
+ * keeps that the single source of truth. Local servers that ignore auth accept
+ * any value anyway.
+ */
+const PLACEHOLDER_API_KEY = "llmwiki-unset";
+
 /** Translate an Anthropic-style LLMTool to an OpenAI ChatCompletionTool. */
 export function translateToolToOpenAI(
   tool: LLMTool,
@@ -69,10 +75,9 @@ export class OpenAIProvider implements LLMProvider {
   constructor(model: string, options: OpenAIProviderOptions = {}) {
     this.model = model;
     this.configuredEmbeddingModel = options.embeddingModel;
-    // The OpenAI SDK (v6+) throws on a missing/empty key at construction time.
-    // Real credential validation is owned by ensureProviderAvailable (the provider
-    // guard), so pass a placeholder when unset to defer the check; local servers
-    // that ignore auth accept any value anyway.
+    // The OpenAI SDK (v6+) throws on a missing/empty key at construction. Real
+    // credential validation is owned by the provider guard, so pass a
+    // placeholder when unset to defer the check to that single source of truth.
     const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? PLACEHOLDER_API_KEY;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
     this.client = new OpenAI({
@@ -139,6 +144,8 @@ export class OpenAIProvider implements LLMProvider {
       tool_choice: "required",
     });
 
+    // openai v6 made tool_calls a union of function and custom calls; only the
+    // function variant carries `.function`.
     const toolCall = response.choices[0]?.message?.tool_calls?.[0];
     if (toolCall?.type === "function") {
       return toolCall.function.arguments;
