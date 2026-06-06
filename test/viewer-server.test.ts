@@ -16,6 +16,11 @@ import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import { makeOutsideDir } from "./fixtures/outside-dir.js";
 import {
+  sha256Hex,
+  writeSourceFile,
+  writeSourceState,
+} from "./fixtures/state-json.js";
+import {
   startViewerCLI,
   useViewerProcessLifecycle,
   type ViewerProcessHandle,
@@ -287,5 +292,56 @@ describe("llmwiki view — privacy gate", () => {
     const root = await makeTempRoot("viewer-server-lan-only");
     const handle = startViewerCLI(["--allow-lan", "--port", "0"], root);
     await expect(handle).rejects.toThrow(/exited before ready/);
+  });
+});
+
+describe("llmwiki view — freshness serialization", () => {
+  const { start: startViewer } = useViewerProcessLifecycle();
+
+  /** Spin up a viewer with one stale "topic" concept and return the handle. */
+  async function startWithStaleTopic(label: string): Promise<ViewerProcessHandle> {
+    const root = await makeTempRoot(label);
+    await writePage(path.join(root, "wiki/concepts"), "topic", { title: "Topic" }, "Body.");
+    // OLD hash in state + NEW content on disk → stale at snapshot build time.
+    await writeSourceState(root, { "a.md": { hash: sha256Hex("OLD"), concepts: ["topic"] } });
+    await writeSourceFile(root, "a.md", "NEW");
+    return startViewer(root);
+  }
+
+  it("/api/pages row carries freshness.freshnessStatus for a stale page", async () => {
+    const handle = await startWithStaleTopic("viewer-freshness-pages-row");
+    const { status, body } = await fetchJson(handle, "/api/pages");
+    expect(status).toBe(200);
+    const pages = (body as { pages: Array<Record<string, unknown>> }).pages;
+    const row = pages.find((p) => p.slug === "topic");
+    expect(row).toBeDefined();
+    const freshness = row?.freshness as { freshnessStatus: string };
+    expect(freshness.freshnessStatus).toBe("stale");
+  });
+
+  it("/api/page payload carries freshness.freshnessStatus for a stale page", async () => {
+    const handle = await startWithStaleTopic("viewer-freshness-page-payload");
+    const { status, body } = await fetchJson(handle, "/api/page/concepts/topic");
+    expect(status).toBe(200);
+    const page = body as Record<string, unknown>;
+    const freshness = page.freshness as { freshnessStatus: string };
+    expect(freshness.freshnessStatus).toBe("stale");
+  });
+
+  it("/api/health carries stale and orphaned counts matching the snapshot", async () => {
+    const root = await makeTempRoot("viewer-freshness-health-counts");
+    await writePage(path.join(root, "wiki/concepts"), "stale-page", { title: "Stale" }, "Body.");
+    await writePage(path.join(root, "wiki/concepts"), "orphan-page", { title: "Orphan" }, "Body.");
+    // stale-page: source exists but hash mismatches.
+    await writeSourceState(root, {
+      "a.md": { hash: sha256Hex("OLD"), concepts: ["stale-page"] },
+      "b.md": { hash: "any", concepts: ["orphan-page"] },
+    });
+    await writeSourceFile(root, "a.md", "NEW"); // b.md intentionally absent → orphaned
+    const handle = await startViewer(root);
+    const { body } = await fetchJson(handle, "/api/health");
+    const health = body as { stale: number; orphaned: number };
+    expect(health.stale).toBe(1);
+    expect(health.orphaned).toBe(1);
   });
 });

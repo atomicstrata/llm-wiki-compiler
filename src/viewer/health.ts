@@ -24,6 +24,8 @@ interface ViewerHealthResponse {
   sourceFiles: number;
   concepts: number;
   queries: number;
+  stale: number;
+  orphaned: number;
   lint: LintCacheEntry | null;
 }
 
@@ -42,6 +44,8 @@ export async function buildHealthResponse(
     sourceFiles: snapshot.counts.sourceFiles,
     concepts: snapshot.counts.concepts,
     queries: snapshot.counts.queries,
+    stale: snapshot.counts.stale,
+    orphaned: snapshot.counts.orphaned,
     lint,
   };
 }

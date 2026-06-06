@@ -330,6 +330,7 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
     warnings: page.warnings,
+    freshness: page.freshness,
   };
 }
 
@@ -461,6 +462,7 @@ function pagePayload(
     outgoingLinks: page.outgoingLinks,
     frontmatter: page.frontmatter,
     warnings: page.warnings,
+    freshness: page.freshness,
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
     createdAt:
