@@ -135,13 +135,17 @@ function pagesWithStateStatus(stateStatus: string): FetchResponder {
   };
 }
 
+/** Assert the banner is present and has role="alert". */
+function expectCorruptBanner(banner: Element | null): void {
+  expect(banner).not.toBeNull();
+  expect(banner?.getAttribute("role")).toBe("alert");
+}
+
 describe("global corrupt-state banner (home route)", () => {
   it("renders the banner in the main pane at load when stateStatus is corrupt", async () => {
     const { dom } = await mountViewerDom([], pagesWithStateStatus("corrupt"));
     await flushMicrotasks();
-    const banner = dom.window.document.querySelector(".corrupt-state-banner");
-    expect(banner).not.toBeNull();
-    expect(banner?.getAttribute("role")).toBe("alert");
+    expectCorruptBanner(dom.window.document.querySelector(".corrupt-state-banner"));
   });
 
   it("does NOT render a global banner when stateStatus is ok", async () => {
@@ -173,9 +177,7 @@ async function bannerForStateStatus(stateStatus: string): Promise<Element | null
 
 describe("corrupt-state banner", () => {
   it("renders the banner when /api/health reports stateStatus: corrupt", async () => {
-    const banner = await bannerForStateStatus("corrupt");
-    expect(banner).not.toBeNull();
-    expect(banner?.getAttribute("role")).toBe("alert");
+    expectCorruptBanner(await bannerForStateStatus("corrupt"));
   });
 
   it("does NOT render the banner when /api/health reports stateStatus: ok", async () => {
@@ -199,9 +201,7 @@ describe("global corrupt-state banner on deep-link routes", () => {
     // The banner must still appear because main() fetches /api/pages at startup.
     const { dom } = await mountViewerDom([], deepLinkCorruptResponder("corrupt"), "#/graph");
     await flushMicrotasks();
-    const banner = dom.window.document.querySelector(".corrupt-state-banner");
-    expect(banner).not.toBeNull();
-    expect(banner?.getAttribute("role")).toBe("alert");
+    expectCorruptBanner(dom.window.document.querySelector(".corrupt-state-banner"));
   });
 
   it("does NOT render a banner on #/graph when stateStatus is ok", async () => {
