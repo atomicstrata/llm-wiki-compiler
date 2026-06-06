@@ -27,6 +27,20 @@ function makeReport(overrides: Partial<EvalReport> = {}): EvalReport {
       precisionPercent: 93,
       perPage: [],
     },
+    sourceUtilization: {
+      totalSources: 5,
+      citedSources: 4,
+      uncitedSources: 1,
+      utilizationRate: 0.8,
+      perSource: [],
+    },
+    citationDepth: {
+      totalCitations: 15,
+      preciseCitations: 8,
+      vagueCitations: 7,
+      claimLevelRate: 0.533,
+      avgCitationsPerParagraph: 0.75,
+    },
     stats: {
       timestamp: "2026-05-23T10:30:00.000Z",
       sourceCount: 5,

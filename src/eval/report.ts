@@ -160,6 +160,8 @@ export function formatTerminalReport(report: EvalReport): string {
     divider(),
     ...formatHealth(report, delta),
     ...formatCoverage(report, delta),
+    ...formatSourceUtilization(report),
+    ...formatCitationDepth(report),
     ...formatSupport(report, delta),
     ...formatStats(report),
     ...formatViolations(report.thresholdViolations),

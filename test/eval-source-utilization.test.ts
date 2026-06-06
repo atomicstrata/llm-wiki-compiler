@@ -13,6 +13,15 @@ function fm(title: string, extra = ""): string {
 }
 
 describe("evaluateSourceUtilization", () => {
+/** Helper: run evaluator and assert basic single-source-cited results. */
+async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expectedCount: number) {
+  const result = await evaluateSourceUtilization(env.dir);
+  expect(result.totalSources).toBe(1);
+  expect(result.citedSources).toBe(1);
+  expect(result.perSource[0].citingPageCount).toBe(expectedCount);
+  return result;
+}
+
   const env = useLintTempRoot("eval-su");
 
   it("returns utilizationRate=1 when no sources exist", async () => {
@@ -103,11 +112,11 @@ describe("evaluateSourceUtilization", () => {
     // Sorted by citingPageCount desc
     expect(result.perSource[0].sourceFile).toBe("popular.md");
     expect(result.perSource[0].citingPageCount).toBe(3);
-    expect(result.perSource[0].citingPages).toEqual(["p1", "p2", "p3"]);
+    expect(result.perSource[0].citingPages).toEqual(["concepts/p1", "concepts/p2", "concepts/p3"]);
 
     expect(result.perSource[1].sourceFile).toBe("niche.md");
     expect(result.perSource[1].citingPageCount).toBe(1);
-    expect(result.perSource[1].citingPages).toEqual(["p1"]);
+    expect(result.perSource[1].citingPages).toEqual(["concepts/p1"]);
   });
 
   it("counts claim-level citations (line ranges) correctly", async () => {
@@ -138,11 +147,8 @@ describe("evaluateSourceUtilization", () => {
       fm("Query") + "Query page also cites shared.^[shared.md]\n",
     );
 
-    const result = await evaluateSourceUtilization(env.dir);
-    expect(result.totalSources).toBe(1);
-    expect(result.citedSources).toBe(1);
-    expect(result.perSource[0].citingPageCount).toBe(2);
-    expect(result.perSource[0].citingPages).toEqual(["concept-page", "query-page"]);
+    const result = await assertSingleCited(env, 2);
+    expect(result.perSource[0].citingPages).toEqual(["concepts/concept-page", "queries/query-page"]);
   });
 
   it("handles multi-source citations (^[a.md, b.md]) correctly", async () => {
