@@ -5,15 +5,19 @@
  * agents get source-level accuracy rather than frontmatter-only orphans.
  * Uses `readStateClassified` throughout — never `readState` — so corrupt
  * state.json never produces a `.bak` side-effect.
+ *
+ * `pendingChanges` is derived directly from the freshness snapshot (which
+ * already has per-source currentHash/recordedHash/exists) plus a cheap
+ * directory listing — no second hash pass. `detectChanges` is NOT called.
  */
 
 import path from "path";
+import { readdir } from "fs/promises";
 import { collectPageSummaries, scanWikiPages } from "../compiler/indexgen.js";
-import { detectChanges } from "../compiler/hasher.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /** Shape returned by `collectStatus` and surfaced by the `wiki_status` tool. */
@@ -56,17 +60,48 @@ function lastCompileTime(sources: Record<string, { compiledAt: string }>): strin
   return times.length > 0 ? times.sort().slice(-1)[0] : null;
 }
 
+/** List markdown filenames in sources/ without hashing — cheap directory scan. */
+async function listSourceFilesOnDisk(root: string): Promise<string[]> {
+  try {
+    const entries = await readdir(path.join(root, SOURCES_DIR));
+    return entries.filter((f) => f.endsWith(".md"));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Derive pending source changes (new/changed/deleted) from the freshness snapshot — no extra hashing.
+ * The snapshot already contains recordedHash, currentHash, and exists for each tracked source,
+ * so we only need a cheap directory listing to discover untracked (new) files.
+ */
+function pendingChangesFromSnapshot(
+  snapshot: FreshnessSnapshot,
+  sourceFilesOnDisk: string[],
+): Array<{ file: string; status: string }> {
+  const out: Array<{ file: string; status: string }> = [];
+  for (const [file, s] of Object.entries(snapshot.sources)) {
+    if (!s.exists) out.push({ file, status: "deleted" });
+    else if (s.currentHash !== s.recordedHash) out.push({ file, status: "changed" });
+  }
+  const recorded = new Set(Object.keys(snapshot.sources));
+  for (const file of sourceFilesOnDisk) {
+    if (!recorded.has(file)) out.push({ file, status: "new" });
+  }
+  return out;
+}
+
 /** Build a read-only status snapshot used by the `wiki_status` MCP tool. */
 export async function collectStatus(root: string): Promise<WikiStatus> {
   const classified = await readStateClassified(root);
   const snapshot = await buildFreshnessSnapshot(root, classified);
 
-  const [conceptSummaries, queries, scannedConcepts, pendingCandidates, changes] = await Promise.all([
+  const [conceptSummaries, queries, scannedConcepts, pendingCandidates, sourceFilesOnDisk] = await Promise.all([
     collectPageSummaries(path.join(root, CONCEPTS_DIR)),
     collectPageSummaries(path.join(root, QUERIES_DIR)),
     scanWikiPages(path.join(root, CONCEPTS_DIR)),
     countCandidates(root),
-    detectChanges(root, classified.state),
+    listSourceFilesOnDisk(root),
   ]);
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
@@ -74,7 +109,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
   // Suppress pendingChanges when state is unreadable: comparing against emptyState
   // would classify every source file as "new", which is false precision on corrupt state.
   const pendingChanges = classified.status === "ok"
-    ? changes.filter((c) => c.status !== "unchanged").map((c) => ({ file: c.file, status: c.status }))
+    ? pendingChangesFromSnapshot(snapshot, sourceFilesOnDisk)
     : [];
 
   return {

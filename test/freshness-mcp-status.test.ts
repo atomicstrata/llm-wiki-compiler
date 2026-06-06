@@ -79,6 +79,34 @@ describe("wiki_status freshness", () => {
     expect(status.stateStatus).toBe("corrupt");
     expect(status.pendingChanges).toEqual([]);
   });
+
+  it("snapshot-derived pendingChanges: changed, new, and deleted sources all appear correctly", async () => {
+    // a.md: recorded with OLD hash → changed
+    const oldHash = sha256Hex("OLD content");
+    // b.md: in state but not on disk → deleted
+    const bHash = sha256Hex("b content");
+    await writeSourceState(root, {
+      "a.md": { hash: oldHash, concepts: [] },
+      "b.md": { hash: bHash, concepts: [] },
+    });
+    // Write a.md with new content so its hash drifts.
+    await writeSourceFile(root, "a.md", "NEW content");
+    // Write c.md on disk but NOT in state → new.
+    await writeSourceFile(root, "c.md", "c content");
+
+    const status = await collectStatus(root);
+
+    expect(status.stateStatus).toBe("ok");
+    expect(status.pendingChanges).toEqual(
+      expect.arrayContaining([
+        { file: "a.md", status: "changed" },
+        { file: "b.md", status: "deleted" },
+        { file: "c.md", status: "new" },
+      ]),
+    );
+    // unchanged entries must NOT appear
+    expect(status.pendingChanges.some((c) => c.status === "unchanged")).toBe(false);
+  });
 });
 
 describe("llmwiki://state resource — no .bak side effect", () => {
