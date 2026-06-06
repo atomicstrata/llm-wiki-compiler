@@ -183,7 +183,28 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
     expect(result.perSource[0].citingPageCount).toBe(1);
   });
 
-  it("lists all sources in perSource even when uncited", async () => {
+
+  it("distinguishes concept and query pages with the same slug", async () => {
+    await env.writeSource("src.md", "# Src\n\nContent.");
+    await env.writeConcept(
+      "collision",
+      fm("Concept Collision") + "Concept page cites src.^[src.md]\n",
+    );
+    await env.writeQuery(
+      "collision",
+      fm("Query Collision") + "Query page also cites src.^[src.md]\n",
+    );
+
+    const result = await evaluateSourceUtilization(env.dir);
+    expect(result.totalSources).toBe(1);
+    expect(result.citedSources).toBe(1);
+    expect(result.perSource[0].citingPageCount).toBe(2);
+    expect(result.perSource[0].citingPages).toEqual(
+      expect.arrayContaining(["concepts/collision", "queries/collision"]),
+    );
+  });
+
+    it("lists all sources in perSource even when uncited", async () => {
     await env.writeSource("orphan.md", "# Orphan\n\nNobody cites me.");
 
     const result = await evaluateSourceUtilization(env.dir);
