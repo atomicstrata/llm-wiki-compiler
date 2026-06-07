@@ -475,6 +475,9 @@ health_score: 85
 citation_coverage_percent: 70
 citation_precision_percent: 90
 citation_support_mean: 1.4   # only checked when --suite full
+source_utilization_rate: 0.9 # min fraction of valid sources cited by a page
+source_warnings_max: 0       # max excluded sources (out-of-tree symlinks, etc.)
+claim_level_citation_rate: 0.5 # min fraction of citations with line ranges
 ```
 
 Threshold violations are listed in the report. Exit code is non-zero when any threshold is breached, suitable for CI gating.
