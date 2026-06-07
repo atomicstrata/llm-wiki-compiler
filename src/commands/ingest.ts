@@ -11,6 +11,7 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
+import { createHash } from "node:crypto";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSource } from "../utils/source-writer.js";
 import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
@@ -272,6 +273,35 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
     truncated: result.truncated,
     source,
     sourceType,
+  };
+}
+
+/** Input shape for raw-text ingestion. */
+export interface IngestTextInput { title: string; text: string; source?: string }
+
+/**
+ * Ingest raw text directly into the wiki sources directory.
+ *
+ * When `source` is omitted a deterministic synthetic identity
+ * `manual:<sha256(title\ntext)>` is derived so that identical content is
+ * idempotent and differing content coexists (mirrors saveSource collision rules).
+ *
+ * @param root - Absolute path to the wiki root directory.
+ * @param input - Title, raw text body, and optional explicit source identity.
+ * @returns Structured ingest result with filename, char count, and source URI.
+ */
+export async function ingestTextSource(root: string, input: IngestTextInput): Promise<IngestResult> {
+  const source = input.source ?? `manual:${createHash("sha256").update(`${input.title}\n${input.text}`).digest("hex")}`;
+  const result = enforceCharLimit(input.text);
+  enforceMinContent(result.content);
+  const document = buildDocument(input.title, source, result, "file");
+  const savedPath = await saveSource(root, input.title, document, source);
+  return {
+    filename: path.basename(savedPath),
+    charCount: result.content.length,
+    truncated: result.truncated,
+    source,
+    sourceType: "file",
   };
 }
 
