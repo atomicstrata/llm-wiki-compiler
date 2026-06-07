@@ -6,15 +6,38 @@
  * formatJsonReport serialises the raw EvalReport for machine consumption.
  */
 
-import { bold, dim, error as colorError } from "../utils/output.js";
+import { bold, dim, warn as colorWarn, error as colorError } from "../utils/output.js";
 import type { EvalReport, EvalDelta, HealthRuleResult, CitationJudgement } from "./types.js";
 import type { CacheSummary } from "./cache.js";
 
+/** Max source-utilization warnings listed before the rest are summarized. */
+const MAX_LISTED_WARNINGS = 5;
+
 const BOX_WIDTH = 49;
+const INNER_WIDTH = BOX_WIDTH - 2;
 const HORIZONTAL = "─".repeat(BOX_WIDTH);
 
+/** Matches ANSI color escape sequences so width is measured on visible text. */
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+
+/** Visible character width of a string, ignoring ANSI color escapes. */
+function visibleWidth(text: string): number {
+  return text.replace(ANSI_PATTERN, "").length;
+}
+
+/**
+ * Render one boxed line. Pads to the inner width using the *visible* length
+ * (so color escapes don't skew alignment) and truncates over-long content with
+ * an ellipsis so the frame stays intact regardless of what the caller passes.
+ * Truncated lines drop color; the full text remains in the JSON report.
+ */
 function line(content = ""): string {
-  return `│ ${content.padEnd(BOX_WIDTH - 2)} │`;
+  const visible = visibleWidth(content);
+  if (visible > INNER_WIDTH) {
+    const plain = content.replace(ANSI_PATTERN, "");
+    return `│ ${plain.slice(0, INNER_WIDTH - 1)}… │`;
+  }
+  return `│ ${content}${" ".repeat(INNER_WIDTH - visible)} │`;
 }
 
 function top(): string {
@@ -104,10 +127,27 @@ function formatCitationDepth(report: EvalReport): string[] {
   ];
 }
 
+/**
+ * Render source-inventory warnings (e.g. an out-of-tree symlink excluded from
+ * the count) so they are visible in the terminal, not just the JSON report.
+ * Returns no rows when there are no warnings.
+ */
+function warningRows(warnings: string[]): string[] {
+  if (warnings.length === 0) return [];
+  const rows = [line(colorWarn('  ' + warnings.length + ' source warning(s):'))];
+  for (const w of warnings.slice(0, MAX_LISTED_WARNINGS)) {
+    rows.push(line(dim('    ! ' + w)));
+  }
+  if (warnings.length > MAX_LISTED_WARNINGS) {
+    rows.push(line(dim('    ... and ' + String(warnings.length - MAX_LISTED_WARNINGS) + ' more')));
+  }
+  return rows;
+}
+
 function formatSourceUtilization(report: EvalReport): string[] {
   const u = report.sourceUtilization;
   if (u.totalSources === 0) {
-    return [line(), line('Source Utilization:  N/A (no sources)')];
+    return [line(), line('Source Utilization:  N/A (no sources)'), ...warningRows(u.warnings)];
   }
   const pct = u.utilizationRate !== null ? (u.utilizationRate * 100).toFixed(0) + "%" : "N/A";
   const rows = [
@@ -128,6 +168,7 @@ function formatSourceUtilization(report: EvalReport): string[] {
     }
     rows.push(line(dim('  Tip: re-run llmwiki compile to extract concepts from uncited sources.')));
   }
+  rows.push(...warningRows(u.warnings));
   return rows;
 }
 

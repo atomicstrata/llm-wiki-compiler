@@ -257,4 +257,45 @@ describe("formatTerminalReport", () => {
     expect(output).toContain("Citation Depth:");
     expect(output).toContain("Claim-level");
   });
+
+  it("surfaces source-inventory warnings in the terminal report", () => {
+    const report = makeReport({
+      sourceUtilization: {
+        totalSources: 1, citedSources: 1, uncitedSources: 0, utilizationRate: 1, perSource: [],
+        warnings: ["ghost.md: symlink target missing or outside sources/ (excluded)"],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("source warning(s):");
+    expect(output).toContain("ghost.md"); // filename is front-loaded, survives truncation
+  });
+
+  it("surfaces warnings even when no sources are measured", () => {
+    const report = makeReport({
+      sourceUtilization: {
+        totalSources: 0, citedSources: 0, uncitedSources: 0, utilizationRate: null, perSource: [],
+        warnings: ["dangling.md: could not be resolved (excluded)"],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("N/A (no sources)");
+    expect(output).toContain("dangling.md");
+  });
+
+  it("keeps every boxed line at the frame width even with overflowing content", () => {
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+    const report = makeReport({
+      thresholdViolations: ["source_utilization_rate 12.5% is far below the configured threshold 95.0%"],
+      sourceUtilization: {
+        totalSources: 1, citedSources: 0, uncitedSources: 1, utilizationRate: 0,
+        perSource: [{ sourceFile: "a-very-long-source-filename-that-overflows-the-box.md", citingPageCount: 0, citingPages: [] }],
+        warnings: ["a-really-long-source-name.md: symlink target missing or outside sources/ (excluded)"],
+      },
+    });
+    const lines = formatTerminalReport(report).split("\n").filter(Boolean);
+    const frameWidth = stripAnsi(lines[0]).length;
+    for (const l of lines) {
+      expect(stripAnsi(l).length).toBe(frameWidth);
+    }
+  });
 });
