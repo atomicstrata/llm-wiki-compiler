@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { mkdtemp, readFile, stat } from "node:fs/promises";
+import { mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ingestTextSource } from "../../src/commands/ingest.js";
+import { ingestSource, ingestTextSource } from "../../src/commands/ingest.js";
 import { LOG_FILE } from "../../src/utils/constants.js";
 
 describe("ingestTextSource writeStatus + journaling", () => {
@@ -24,5 +24,17 @@ describe("ingestTextSource writeStatus + journaling", () => {
     expect(r3.writeStatus).toBe("unchanged");
     expect(await readFile(path.join(root, LOG_FILE), "utf-8")).toBe(logBefore); // no new journal line
     expect((await stat(path.join(root, "sources", r3.filename))).mtimeMs).toBe(fileBefore.mtimeMs);
+  });
+
+  it("ingestSource: re-ingesting an unchanged file is a no-op (writeStatus + no journal)", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "ingest-src-status-"));
+    const src = path.join(root, "note.md");
+    await writeFile(src, "Enough body content to satisfy the minimum source length requirement.", "utf-8");
+    const a = await ingestSource(root, src);
+    expect(a.writeStatus).toBe("created");
+    const logAfterFirst = await readFile(path.join(root, LOG_FILE), "utf-8");
+    const b = await ingestSource(root, src);
+    expect(b.writeStatus).toBe("unchanged");
+    expect(await readFile(path.join(root, LOG_FILE), "utf-8")).toBe(logAfterFirst); // no new entry
   });
 });
