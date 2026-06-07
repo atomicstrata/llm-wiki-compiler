@@ -4,7 +4,7 @@
  * path-safe, never joined with an extra extension. Read-only, no LLM.
  */
 import path from "path";
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, unlink } from "fs/promises";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
 import { SOURCES_DIR } from "../utils/constants.js";
@@ -68,6 +68,24 @@ export async function listSources(root: string, options: ListSourcesOptions = {}
   }
   const next = offset + page.length < files.length ? String(offset + page.length) : undefined;
   return next !== undefined ? { sources, cursor: next } : { sources };
+}
+
+/**
+ * Delete the source file `sources/<id>` (the id already includes `.md`).
+ * Returns `true` if a file was removed, `false` if the (valid) id had no file.
+ * Reconciliation of the now-orphaned compiled page is deferred to the next
+ * `compile`, consistent with how llmwiki already handles deleted sources —
+ * this does not touch `wiki/`.
+ */
+export async function deleteSource(root: string, id: string): Promise<boolean> {
+  assertSafeSourceId(id);
+  try {
+    await unlink(path.join(root, SOURCES_DIR, id));
+    return true;
+  } catch (err) {
+    if ((err as { code?: string }).code === "ENOENT") return false;
+    throw err;
+  }
 }
 
 export async function getSource(root: string, id: string): Promise<SourceRecord | null> {
