@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { readPage } from "../src/mcp/tools.js";
+import { readPageRecord } from "../src/pages/read.js";
 import { writePage } from "./fixtures/write-page.js";
 import {
   buildServer as buildSharedServer,
@@ -135,7 +135,7 @@ describe("compile_wiki tool", () => {
   });
 });
 
-describe("read_page tool and helper", () => {
+describe("read_page tool and readPageRecord helper", () => {
   it("reads a concept page", async () => {
     await writePage(
       path.join(root, "wiki/concepts"),
@@ -144,7 +144,7 @@ describe("read_page tool and helper", () => {
       "Deep learning basics.",
     );
 
-    const page = await readPage(root, "neural-networks");
+    const page = await readPageRecord(root, "neural-networks");
     expect(page).toEqual({
       slug: "neural-networks",
       title: "Neural Networks",
@@ -161,13 +161,13 @@ describe("read_page tool and helper", () => {
       "Saved query body.",
     );
 
-    const page = await readPage(root, "what-is-x");
+    const page = await readPageRecord(root, "what-is-x");
     expect(page?.title).toBe("What is X?");
     expect(page?.body).toBe("Saved query body.");
   });
 
   it("returns null when slug exists in neither directory", async () => {
-    expect(await readPage(root, "missing")).toBeNull();
+    expect(await readPageRecord(root, "missing")).toBeNull();
   });
 
   it("read_page tool throws an error for missing pages", async () => {

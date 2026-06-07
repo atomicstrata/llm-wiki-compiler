@@ -8,36 +8,18 @@
  * read-only tools always work.
  */
 
-import path from "path";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ingestSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
-import { generateAnswer, selectPages } from "../commands/query.js";
+import { generateAnswer } from "../commands/query.js";
 import { lint } from "../linter/index.js";
-import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { collectStatus } from "../status/collect.js";
-import { findRelevantChunks, findRelevantPages } from "../utils/embeddings.js";
 import { buildContextPack } from "../context/build.js";
-import {
-  CONCEPTS_DIR,
-  INDEX_FILE,
-  QUERIES_DIR,
-  CHUNK_TOP_K,
-} from "../utils/constants.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
-
-/** Directories searched (in priority order) when resolving a page slug. */
-const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];
-
-/** Shape returned by search_pages for each matching page. */
-interface PageRecord {
-  slug: string;
-  title: string;
-  summary: string;
-  body: string;
-}
+import { readPageRecord } from "../pages/read.js";
+import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
 
 /**
  * Wrap an arbitrary JSON value as the standard MCP CallToolResult.
@@ -159,43 +141,6 @@ function registerSearchTool(server: McpServer, root: string): void {
   );
 }
 
-/**
- * Resolve search candidates. Tries chunk-level retrieval first (highest
- * precision), then falls back to page-level embeddings, then to LLM-driven
- * selection over the wiki index.
- */
-async function pickSearchSlugs(root: string, question: string): Promise<string[]> {
-  try {
-    const chunks = await findRelevantChunks(root, question, CHUNK_TOP_K);
-    if (chunks.length > 0) return dedupePreservingOrder(chunks.map((c) => c.chunk.slug));
-  } catch {
-    // Chunk store unavailable — fall through to page-level embeddings.
-  }
-
-  try {
-    const candidates = await findRelevantPages(root, question);
-    if (candidates.length > 0) return candidates.map((c) => c.slug);
-  } catch {
-    // Embeddings unavailable — fall through to index-based selection.
-  }
-
-  const indexContent = await safeReadFile(path.join(root, INDEX_FILE));
-  const { pages } = await selectPages(question, indexContent);
-  return pages;
-}
-
-/** Deduplicate slugs while preserving the first-seen ordering. */
-function dedupePreservingOrder(slugs: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const slug of slugs) {
-    if (seen.has(slug)) continue;
-    seen.add(slug);
-    out.push(slug);
-  }
-  return out;
-}
-
 function registerReadTool(server: McpServer, root: string): void {
   server.registerTool(
     "read_page",
@@ -209,7 +154,7 @@ function registerReadTool(server: McpServer, root: string): void {
       },
     },
     async ({ slug }) => {
-      const page = await readPage(root, slug);
+      const page = await readPageRecord(root, slug);
       if (!page) {
         throw new Error(`Page not found: ${slug}`);
       }
@@ -390,34 +335,3 @@ function registerEvalTool(server: McpServer, root: string): void {
 }
 
 
-/** Load full content for a list of slugs, skipping missing/orphaned pages. */
-async function loadPageRecords(root: string, slugs: string[]): Promise<PageRecord[]> {
-  const records: PageRecord[] = [];
-  for (const slug of slugs) {
-    const page = await readPage(root, slug);
-    if (page) records.push(page);
-  }
-  return records;
-}
-
-/**
- * Locate a page by slug across the priority-ordered page directories,
- * skipping orphaned entries to match the query pipeline's behaviour.
- */
-export async function readPage(root: string, slug: string): Promise<PageRecord | null> {
-  for (const dir of PAGE_DIRS) {
-    const content = await safeReadFile(path.join(root, dir, `${slug}.md`));
-    if (!content) continue;
-
-    const { meta, body } = parseFrontmatter(content);
-    if (meta.orphaned) continue;
-
-    return {
-      slug,
-      title: typeof meta.title === "string" ? meta.title : slug,
-      summary: typeof meta.summary === "string" ? meta.summary : "",
-      body: body.trim(),
-    };
-  }
-  return null;
-}
