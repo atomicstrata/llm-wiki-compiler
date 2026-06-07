@@ -107,4 +107,47 @@ describe("context pack freshness", () => {
     expect(primary?.freshnessStatus).toBe("unverified");
     expect(primary?.warnings.some((w) => w.code === "stale-page")).toBe(false);
   });
+
+  it("adds contradicted-page warning on a contradicted primary page", async () => {
+    await seedFresh();
+    // Overwrite the page with contradictedBy frontmatter.
+    await writePage(
+      path.join(root, CONCEPTS_DIR),
+      "topic",
+      { title: "Topic", summary: "The topic page", contradictedBy: [{ slug: "other" }] },
+      "A topic page body.",
+    );
+
+    const primary = await packPrimary();
+
+    expect(primary).toBeDefined();
+    expect(primary?.contradicted).toBe(true);
+    expect(primary?.warnings.some((w) => w.code === "contradicted-page")).toBe(true);
+  });
+
+  it("adds archived-page warning on an archived primary page", async () => {
+    await seedFresh();
+    // Overwrite the page with archived frontmatter.
+    await writePage(
+      path.join(root, CONCEPTS_DIR),
+      "topic",
+      { title: "Topic", summary: "The topic page", archived: true },
+      "A topic page body.",
+    );
+
+    const primary = await packPrimary();
+
+    expect(primary).toBeDefined();
+    expect(primary?.archived).toBe(true);
+    expect(primary?.warnings.some((w) => w.code === "archived-page")).toBe(true);
+  });
+
+  it("does not add contradicted-page or archived-page warning on a fresh, non-contradicted, non-archived page", async () => {
+    await seedFresh();
+
+    const primary = await packPrimary();
+
+    expect(primary?.warnings.some((w) => w.code === "contradicted-page")).toBe(false);
+    expect(primary?.warnings.some((w) => w.code === "archived-page")).toBe(false);
+  });
 });

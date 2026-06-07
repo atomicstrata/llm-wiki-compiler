@@ -225,9 +225,10 @@ function compareRows(a: RankingRow, b: RankingRow): number {
 
 /**
  * Build the `warnings` array for a primary page, forwarding viewer-level
- * warnings and appending `stale-page` when the page's source has changed
- * since the last compile. The `stale-page` code is context-only — the
- * viewer surfaces freshness as badges, not warnings.
+ * warnings and appending freshness-derived warnings for stale, contradicted,
+ * and archived pages. These codes are context-only — the viewer surfaces
+ * freshness as badges, not warnings. A page can carry multiple warnings
+ * (e.g. stale AND contradicted → both codes appear).
  */
 function buildPrimaryWarnings(page: ViewerPage): ContextPrimary["warnings"] {
   const warnings = page.warnings.map((w) => ({ code: w.code, message: w.message }));
@@ -236,6 +237,18 @@ function buildPrimaryWarnings(page: ViewerPage): ContextPrimary["warnings"] {
       code: "stale-page",
       message:
         "A source this page was compiled from has changed since the last compile; treat with caution.",
+    });
+  }
+  if (page.freshness.contradicted) {
+    warnings.push({
+      code: "contradicted-page",
+      message: "This page is contradicted by another page; treat its claims with caution.",
+    });
+  }
+  if (page.freshness.archived) {
+    warnings.push({
+      code: "archived-page",
+      message: "This page is archived and may be outdated or deprecated.",
     });
   }
   return warnings;
