@@ -71,7 +71,11 @@ export function header(title: string): void {
   console.log(dim("─".repeat(Math.min(title.length + 4, 60))));
 }
 
-/** Quiet-aware warning line (stderr-style notices). No-op while quiet. */
+/**
+ * Quiet-aware warning line (stderr-style notices). No-op while quiet.
+ * Writes to stderr via `console.warn` — distinct from `status()`/`header()`,
+ * which write progress to stdout via `console.log`.
+ */
 export function note(message: string): void {
   if (quietMode) return;
   console.warn(message);
