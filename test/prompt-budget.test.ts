@@ -8,6 +8,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  budgetAndNumberSource,
   buildBudgetedCombinedContent,
   resolvePromptBudgetChars,
   type SourceSlice,
@@ -18,6 +19,21 @@ const ENV_KEY = "LLMWIKI_PROMPT_BUDGET_CHARS";
 
 afterEach(() => {
   delete process.env[ENV_KEY];
+});
+
+describe("budgetAndNumberSource", () => {
+  it("prepends 1-based line numbers so line-span prompts have real anchors", () => {
+    const numbered = budgetAndNumberSource("guide.md", "first\nsecond");
+    expect(numbered).toContain("1 | first");
+    expect(numbered).toContain("2 | second");
+  });
+
+  it("clips content past the budget so extraction never blows the prompt window", () => {
+    process.env[ENV_KEY] = "10";
+    const numbered = budgetAndNumberSource("guide.md", "x".repeat(500));
+    expect(numbered).toContain("truncated for prompt budget");
+    expect(numbered.length).toBeLessThan(500);
+  });
 });
 
 describe("resolvePromptBudgetChars", () => {

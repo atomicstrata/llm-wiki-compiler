@@ -17,7 +17,7 @@ import {
   STATE_FILE,
 } from "../utils/constants.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
-import { readState } from "../utils/state.js";
+import { readStateClassified } from "../utils/state.js";
 import { loadPreviousReport, loadHistory } from "../eval/stats.js";
 
 /** Standard JSON content block for an MCP resource read result. */
@@ -98,7 +98,7 @@ function registerStateResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri) => {
-      const state = await readState(root);
+      const { state } = await readStateClassified(root);
       return { contents: [jsonContent(uri, state)] };
     },
   );

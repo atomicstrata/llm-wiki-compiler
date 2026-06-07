@@ -107,6 +107,34 @@ export interface ExportPage {
   contradicted: boolean;
   /** True when the page is explicitly archived (`archived: true` frontmatter). */
   archived: boolean;
+  /**
+   * Deterministic SHA-256 (hex) of {@link ExportPage.body}. Lets a
+   * downstream auditor (export provenance) detect content drift and verify that an
+   * imported page still matches what the compiler exported, without
+   * re-reading the markdown. Stable for identical bodies.
+   */
+  contentHash: string;
+  /**
+   * SHA-256 hashes of the source files this page derived from — the same
+   * per-source digests the compiler records in `.llmwiki/state.json` for
+   * change detection. Resolved from the page's `sources` list; ordered and
+   * de-duplicated. Empty when a page has no recorded sources (e.g. seed
+   * pages). Lets an auditor tie a page back to exact source bytes.
+   */
+  sourceHashes: string[];
+  /**
+   * Model id that produced this page's current content, stamped into the
+   * page's frontmatter at compile time (export provenance). Unlike an export-time env
+   * read, this is true per-page lineage: a page compiled by model A keeps
+   * `modelId: A` even if the exporter's env later points at model B. Absent
+   * for pages compiled before provenance stamping shipped.
+   */
+  modelId?: string;
+  /**
+   * Named prompt-contract version the page was compiled under (export provenance),
+   * stamped at compile time. Absent for pre-provenance pages.
+   */
+  promptVersion?: string;
 }
 
 /**

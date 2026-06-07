@@ -16,12 +16,20 @@ import { atomicWrite } from "../utils/markdown.js";
 import { LLMWIKI_DIR, LAST_LINT_FILE } from "../utils/constants.js";
 import type { LintSummary } from "./types.js";
 
+/** Per-rule freshness counts, derived from the lint results. Optional so a pre-upgrade cache still parses. */
+export interface LintFreshnessCounts {
+  stalePages: number;
+  orphanedPages: number;
+}
+
 /** One persisted lint summary. Shape is part of the public viewer-cache contract. */
 export interface LintCacheEntry {
   warnings: number;
   errors: number;
   /** ISO-8601 timestamp of the run that produced these counts. */
   at: string;
+  /** Stale/orphaned page counts from the freshness lint rule. Absent on pre-0.9 caches. */
+  freshness?: LintFreshnessCounts;
 }
 
 /**
@@ -30,6 +38,11 @@ export interface LintCacheEntry {
  * never drift from the documented contract.
  */
 export const LINT_CACHE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+/** Count results emitted by a given lint rule. */
+function countByRule(results: LintSummary["results"], rule: string): number {
+  return results.filter((r) => r.rule === rule).length;
+}
 
 /**
  * Persist a lint summary to `.llmwiki/last-lint.json` after a completed run.
@@ -42,6 +55,10 @@ export async function writeLintCache(root: string, summary: LintSummary): Promis
     warnings: summary.warnings,
     errors: summary.errors,
     at: new Date().toISOString(),
+    freshness: {
+      stalePages: countByRule(summary.results, "stale-page"),
+      orphanedPages: countByRule(summary.results, "orphaned-page"),
+    },
   };
   await atomicWrite(path.join(root, LAST_LINT_FILE), `${JSON.stringify(entry, null, 2)}\n`);
 }
@@ -65,12 +82,24 @@ export async function readLintCache(root: string): Promise<LintCacheEntry | null
     return null;
   }
   if (!isValidEntry(parsed)) return null;
-  return { warnings: parsed.warnings, errors: parsed.errors, at: parsed.at };
+  return {
+    warnings: parsed.warnings,
+    errors: parsed.errors,
+    at: parsed.at,
+    ...(parsed.freshness !== undefined ? { freshness: parsed.freshness } : {}),
+  };
 }
 
 /** True for finite non-negative integers, including zero. NaN and Infinity fail Number.isInteger. */
 function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+/** Validates the optional freshness sub-object; rejects if present but malformed. */
+function isValidFreshness(value: unknown): value is LintFreshnessCounts {
+  if (typeof value !== "object" || value === null) return false;
+  const c = value as Record<string, unknown>;
+  return isNonNegativeInteger(c.stalePages) && isNonNegativeInteger(c.orphanedPages);
 }
 
 /**
@@ -81,14 +110,19 @@ function isNonNegativeInteger(value: unknown): value is number {
  * anything else means the file was hand-edited or corrupted). The timestamp
  * must match the exact ISO-8601 shape the writer produces, otherwise downstream
  * consumers risk surfacing values like "2026-01-01" as full timestamps.
+ * The `freshness` field is optional — pre-upgrade caches omitting it still parse.
  */
 function isValidEntry(value: unknown): value is LintCacheEntry {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    isNonNegativeInteger(candidate.warnings) &&
-    isNonNegativeInteger(candidate.errors) &&
-    typeof candidate.at === "string" &&
-    LINT_CACHE_TIMESTAMP_PATTERN.test(candidate.at)
-  );
+  if (
+    !isNonNegativeInteger(candidate.warnings) ||
+    !isNonNegativeInteger(candidate.errors) ||
+    typeof candidate.at !== "string" ||
+    !LINT_CACHE_TIMESTAMP_PATTERN.test(candidate.at)
+  ) {
+    return false;
+  }
+  if (candidate.freshness !== undefined && !isValidFreshness(candidate.freshness)) return false;
+  return true;
 }

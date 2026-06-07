@@ -301,10 +301,11 @@ async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot): Promi
   res.end(body);
 }
 
-/** `/api/pages` — full envelope with counts, recent pages, and page list. */
+/** `/api/pages` — full envelope with counts, recent pages, page list, and stateStatus. */
 function handleApiPages(res: ServerResponse, snapshot: ViewerSnapshot): void {
   writeJson(res, 200, {
     project: snapshot.project,
+    stateStatus: snapshot.stateStatus,
     counts: {
       concepts: snapshot.counts.concepts,
       queries: snapshot.counts.queries,
@@ -330,6 +331,7 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
     warnings: page.warnings,
+    freshness: page.freshness,
   };
 }
 
@@ -461,6 +463,7 @@ function pagePayload(
     outgoingLinks: page.outgoingLinks,
     frontmatter: page.frontmatter,
     warnings: page.warnings,
+    freshness: page.freshness,
     updatedAt:
       typeof page.frontmatter.updatedAt === "string" ? (page.frontmatter.updatedAt as string) : "",
     createdAt:

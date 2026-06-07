@@ -8,7 +8,23 @@
  */
 
 import * as output from "../utils/output.js";
+import { resolveActiveModelId } from "../utils/provider.js";
+import { PROMPT_VERSION } from "./prompts.js";
 import type { ExtractedConcept } from "../utils/types.js";
+
+/**
+ * Stamp compile-time lineage onto a page's frontmatter: the model id that the
+ * active provider would use and the named prompt-contract version. Written when
+ * the page is (re)generated, so it records the model/prompt that actually
+ * produced the page's current content — unlike an export-time env read, which
+ * can attribute a page to a model that never touched it. Surfaced per-page in
+ * the JSON export (`ExportPage.modelId` / `promptVersion`).
+ * @param fields - Mutable frontmatter record being assembled for a page.
+ */
+export function addModelProvenanceMeta(fields: Record<string, unknown>): void {
+  fields.modelId = resolveActiveModelId();
+  fields.promptVersion = PROMPT_VERSION;
+}
 
 /**
  * Copy provenance metadata fields from an extracted concept onto the

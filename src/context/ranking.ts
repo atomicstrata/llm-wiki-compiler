@@ -224,6 +224,37 @@ function compareRows(a: RankingRow, b: RankingRow): number {
 }
 
 /**
+ * Build the `warnings` array for a primary page, forwarding viewer-level
+ * warnings and appending freshness-derived warnings for stale, contradicted,
+ * and archived pages. These codes are context-only — the viewer surfaces
+ * freshness as badges, not warnings. A page can carry multiple warnings
+ * (e.g. stale AND contradicted → both codes appear).
+ */
+function buildPrimaryWarnings(page: ViewerPage): ContextPrimary["warnings"] {
+  const warnings = page.warnings.map((w) => ({ code: w.code, message: w.message }));
+  if (page.freshness.freshnessStatus === "stale") {
+    warnings.push({
+      code: "stale-page",
+      message:
+        "A source this page was compiled from has changed since the last compile; treat with caution.",
+    });
+  }
+  if (page.freshness.contradicted) {
+    warnings.push({
+      code: "contradicted-page",
+      message: "This page is contradicted by another page; treat its claims with caution.",
+    });
+  }
+  if (page.freshness.archived) {
+    warnings.push({
+      code: "archived-page",
+      message: "This page is archived and may be outdated or deprecated.",
+    });
+  }
+  return warnings;
+}
+
+/**
  * Convert a ranking row into a ContextPrimary.
  *
  * Slice 4 fills `citations` from the viewer collector's already-parsed
@@ -234,7 +265,8 @@ function compareRows(a: RankingRow, b: RankingRow): number {
  * Page-local `warnings` was wired in Slice 1; it forwards the same
  * `ViewerWarning` objects the viewer surfaces, so any malformed-frontmatter
  * or unresolved-citation diagnostic the viewer already knows about
- * lands in the context pack automatically.
+ * lands in the context pack automatically. A `stale-page` warning is
+ * synthesized here when the page's freshness status is `stale`.
  *
  * `sourceWindows` stays empty here — the orchestrator owns the
  * per-pack budget and writes windows back into the primary entries
@@ -242,6 +274,7 @@ function compareRows(a: RankingRow, b: RankingRow): number {
  * snapshot.
  */
 function rowToPrimary(row: RankingRow): ContextPrimary {
+  const { freshness } = row.page;
   return {
     id: row.page.id,
     title: row.page.title,
@@ -252,7 +285,10 @@ function rowToPrimary(row: RankingRow): ContextPrimary {
     chunks: row.chunks,
     citations: flattenCitations(row.page.citations),
     sourceWindows: [],
-    warnings: row.page.warnings.map((w) => ({ code: w.code, message: w.message })),
+    warnings: buildPrimaryWarnings(row.page),
+    freshnessStatus: freshness.freshnessStatus,
+    contradicted: freshness.contradicted,
+    archived: freshness.archived,
   };
 }
 

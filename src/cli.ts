@@ -29,6 +29,7 @@ import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
+import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
 import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
@@ -159,6 +160,8 @@ reviewCommand
       process.exit(1);
     }
   });
+
+registerRulesCommand(program, requireProvider);
 
 program
   .command("query <question>")

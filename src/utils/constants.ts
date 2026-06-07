@@ -99,6 +99,19 @@ export const CANDIDATES_DIR = ".llmwiki/candidates";
 /** Rejected review candidates archived for audit (not deleted). */
 export const CANDIDATES_ARCHIVE_DIR = ".llmwiki/candidates/archive";
 
+/**
+ * Per-source hashes already processed by `rules extract` (rule pipeline). Kept
+ * separate from STATE_FILE so rule extraction and concept compilation advance
+ * their change-detection cursors independently.
+ */
+export const RULE_STATE_FILE = ".llmwiki/rule-state.json";
+
+/** Pending rule candidates (rule pipeline) awaiting approve/reject. */
+export const RULE_CANDIDATES_DIR = ".llmwiki/rule-candidates";
+
+/** Rejected rule candidates archived for audit (not deleted). */
+export const RULE_CANDIDATES_ARCHIVE_DIR = ".llmwiki/rule-candidates/archive";
+
 /** Number of most similar pages to return from embedding-based pre-filter. */
 export const EMBEDDING_TOP_K = 15;
 
