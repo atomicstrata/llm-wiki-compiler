@@ -19,6 +19,7 @@ import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
 import { SOURCES_DIR } from "./constants.js";
+import type { WriteStatus } from "./types.js";
 
 /** Length of the hex hash suffix appended to disambiguate basename collisions. */
 const COLLISION_HASH_LEN = 8;
@@ -68,19 +69,26 @@ async function resolveCollisionFreeFilename(
 /**
  * Write a markdown document into `sources/` under a slug derived from
  * the title, applying the empty-slug guard and basename-collision
- * disambiguation. Returns the resolved destination path.
+ * disambiguation.
+ *
+ * The body (content after frontmatter) is compared against any existing
+ * file so that volatile frontmatter fields like `ingestedAt` don't cause
+ * a phantom write. When the body is unchanged the write is skipped and
+ * `writeStatus` is `"unchanged"`, preserving the file's mtime.
  *
  * @param title - Human-readable title used to derive the filename.
  * @param document - Full markdown content (frontmatter + body) to write.
  * @param source - Source identity (URL, file path, etc.) used both for
  *                 collision disambiguation and idempotency on re-ingest.
+ * @returns An object with the resolved destination `path` and a
+ *          `writeStatus` of `"created"`, `"updated"`, or `"unchanged"`.
  */
 export async function saveSource(
   root: string,
   title: string,
   document: string,
   source: string,
-): Promise<string> {
+): Promise<{ path: string; writeStatus: WriteStatus }> {
   const slug = slugify(title);
   // Defense in depth — even with the Unicode-aware slugifier (#35), a
   // title made entirely of punctuation/emoji/symbols still slugifies to
@@ -94,8 +102,29 @@ export async function saveSource(
   }
   const sourcesDir = path.join(root, SOURCES_DIR);
   await mkdir(sourcesDir, { recursive: true });
+
   const filename = await resolveCollisionFreeFilename(sourcesDir, slug, source);
   const destPath = path.join(sourcesDir, filename);
+
+  // Decide created/updated/unchanged by comparing the BODY (not full bytes):
+  // buildDocument stamps a fresh `ingestedAt` every call, so a byte compare
+  // would never be "unchanged". On a body match, skip the write entirely so
+  // mtime / freshness surfaces don't see a phantom change.
+  const newBody = parseFrontmatter(document).body;
+  let existingBody: string | null = null;
+  try {
+    existingBody = parseFrontmatter(await readFile(destPath, "utf-8")).body;
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ENOENT") throw err;
+  }
+
+  if (existingBody === null) {
+    await writeFile(destPath, document, "utf-8");
+    return { path: destPath, writeStatus: "created" };
+  }
+  if (existingBody === newBody) {
+    return { path: destPath, writeStatus: "unchanged" };
+  }
   await writeFile(destPath, document, "utf-8");
-  return destPath;
+  return { path: destPath, writeStatus: "updated" };
 }

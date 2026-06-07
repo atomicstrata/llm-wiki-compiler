@@ -288,7 +288,7 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
-  const savedPath = await saveSource(root, title, document, source);
+  const { path: savedPath } = await saveSource(root, title, document, source);
 
   // Journal the ingest (CLI, MCP ingest_source tool, and SDK all share this path).
   await journalIngest(root, title, source, savedPath, result.content.length);
@@ -329,7 +329,7 @@ export async function ingestTextSource(root: string, input: IngestTextInput): Pr
   const result = enforceCharLimit(input.text);
   enforceMinContent(result.content);
   const document = buildDocument(input.title, source, result, "file");
-  const savedPath = await saveSource(root, input.title, document, source);
+  const { path: savedPath } = await saveSource(root, input.title, document, source);
 
   // Mirror ingestSource so both ingest paths journal identically.
   await journalIngest(root, input.title, source, savedPath, result.content.length);
