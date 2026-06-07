@@ -288,10 +288,12 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
-  const { path: savedPath } = await saveSource(root, title, document, source);
+  const { path: savedPath, writeStatus } = await saveSource(root, title, document, source);
 
-  // Journal the ingest (CLI, MCP ingest_source tool, and SDK all share this path).
-  await journalIngest(root, title, source, savedPath, result.content.length);
+  // Journal only real writes — a no-op re-ingest must not append a log line.
+  if (writeStatus !== "unchanged") {
+    await journalIngest(root, title, source, savedPath, result.content.length);
+  }
 
   return {
     filename: path.basename(savedPath),
@@ -299,6 +301,7 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
     truncated: result.truncated,
     source,
     sourceType,
+    writeStatus,
   };
 }
 
@@ -329,10 +332,13 @@ export async function ingestTextSource(root: string, input: IngestTextInput): Pr
   const result = enforceCharLimit(input.text);
   enforceMinContent(result.content);
   const document = buildDocument(input.title, source, result, "file");
-  const { path: savedPath } = await saveSource(root, input.title, document, source);
+  const { path: savedPath, writeStatus } = await saveSource(root, input.title, document, source);
 
-  // Mirror ingestSource so both ingest paths journal identically.
-  await journalIngest(root, input.title, source, savedPath, result.content.length);
+  // Mirror ingestSource so both ingest paths journal identically;
+  // a no-op re-ingest must not append a log line.
+  if (writeStatus !== "unchanged") {
+    await journalIngest(root, input.title, source, savedPath, result.content.length);
+  }
 
   return {
     filename: path.basename(savedPath),
@@ -340,6 +346,7 @@ export async function ingestTextSource(root: string, input: IngestTextInput): Pr
     truncated: result.truncated,
     source,
     sourceType: "file",
+    writeStatus,
   };
 }
 

@@ -222,6 +222,8 @@ export interface IngestResult {
   source: string;
   /** Detected source type; undefined for legacy results produced before this field was added. */
   sourceType?: SourceType;
+  /** Whether the source file was created, updated (content changed), or unchanged (no-op). */
+  writeStatus: WriteStatus;
 }
 
 /**
