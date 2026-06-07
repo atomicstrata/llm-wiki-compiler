@@ -94,8 +94,8 @@ function buildPage(
   return {
     slug,
     pageDirectory: dir,
-    title: String(meta.title ?? slug),
-    summary: String(meta.summary ?? ""),
+    title: typeof meta.title === "string" ? meta.title : slug,
+    summary: typeof meta.summary === "string" ? meta.summary : "",
     tags: Array.isArray(meta.tags) ? meta.tags.map(String) : [],
     links: extractWikilinkSlugs(body),
     createdAt: typeof meta.createdAt === "string" ? meta.createdAt : undefined,
@@ -140,13 +140,24 @@ export async function listPages(
   root: string,
   options: ListPagesOptions = {},
 ): Promise<ListPagesResult> {
-  const all: Page[] = [];
+  const all = await collectPages(root, options);
+  all.sort(
+    (a, b) =>
+      a.pageDirectory.localeCompare(b.pageDirectory) || a.slug.localeCompare(b.slug),
+  );
+  return paginate(all, options);
+}
 
+/**
+ * Read every page from both directories, applying the archive/orphan filters.
+ * Bodies are always read so wikilinks can be extracted; they are only retained
+ * on the returned Page when `includeBody` is set.
+ */
+async function collectPages(root: string, options: ListPagesOptions): Promise<Page[]> {
+  const all: Page[] = [];
   for (const dir of PAGE_DIRECTORIES) {
     const dirPath = path.join(root, DIR_NAMES[dir]);
-    const scanned = await scanWikiPages(dirPath);
-
-    for (const { slug, meta } of scanned) {
+    for (const { slug, meta } of await scanWikiPages(dirPath)) {
       const content = await safeReadFile(path.join(dirPath, `${slug}.md`));
       const { body } = parseFrontmatter(content);
       const page = buildPage(dir, slug, meta, body, options.includeBody === true);
@@ -155,17 +166,22 @@ export async function listPages(
       all.push(page);
     }
   }
+  return all;
+}
 
-  all.sort(
-    (a, b) =>
-      a.pageDirectory.localeCompare(b.pageDirectory) || a.slug.localeCompare(b.slug),
-  );
-
-  const offset = options.cursor ? Number(options.cursor) : 0;
-  const limit = options.limit ?? all.length;
+/**
+ * Slice an already-sorted page list into a cursor-paged result. A non-positive
+ * or absent limit is treated as unbounded (avoids a `limit: 0` empty-slice loop);
+ * a non-integer or negative cursor is rejected rather than silently recycled.
+ */
+function paginate(all: Page[], options: ListPagesOptions): ListPagesResult {
+  const offset = options.cursor !== undefined ? Number(options.cursor) : 0;
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error(`invalid listPages cursor: ${options.cursor}`);
+  }
+  const limit = options.limit && options.limit > 0 ? options.limit : all.length;
   const slice = all.slice(offset, offset + limit);
   const nextOffset = offset + slice.length;
   const cursor = nextOffset < all.length ? String(nextOffset) : undefined;
-
   return cursor !== undefined ? { pages: slice, cursor } : { pages: slice };
 }
