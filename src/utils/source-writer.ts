@@ -76,6 +76,10 @@ async function resolveCollisionFreeFilename(
  * a phantom write. When the body is unchanged the write is skipped and
  * `writeStatus` is `"unchanged"`, preserving the file's mtime.
  *
+ * The body comparison is exact, so callers must use a consistent
+ * trailing-newline convention — a body differing only by a trailing `\n`
+ * counts as `"updated"`. `buildDocument` already appends `\n` consistently.
+ *
  * @param title - Human-readable title used to derive the filename.
  * @param document - Full markdown content (frontmatter + body) to write.
  * @param source - Source identity (URL, file path, etc.) used both for

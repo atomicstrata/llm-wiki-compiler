@@ -12,9 +12,12 @@ describe("saveSource writeStatus", () => {
     const r1 = await saveSource(root, "Note", doc("alpha"), "manual:fixed");
     expect(r1.writeStatus).toBe("created");
 
+    const r1mtime = (await stat(r1.path)).mtimeMs;
+    await new Promise((res) => setTimeout(res, 5));
     const r2 = await saveSource(root, "Note", doc("beta"), "manual:fixed"); // same source, new body
     expect(r2.writeStatus).toBe("updated");
     expect(r2.path).toBe(r1.path);
+    expect((await stat(r2.path)).mtimeMs).toBeGreaterThan(r1mtime); // actually rewritten
 
     const before = await stat(r2.path);
     await new Promise((res) => setTimeout(res, 5));
