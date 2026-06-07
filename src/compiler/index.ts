@@ -46,6 +46,7 @@ import { resolveLinks } from "./resolver.js";
 import { generateIndex } from "./indexgen.js";
 import { buildBudgetedCombinedContent, type SourceSlice } from "./prompt-budget.js";
 import { addObsidianMeta, generateMOC } from "./obsidian.js";
+import { addModelProvenanceMeta } from "./provenance.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
 import { writeCandidate } from "./candidates.js";
 import {
@@ -700,6 +701,7 @@ async function generateSingleSeedPage(
   };
   const frontmatterFields: Record<string, unknown> = { ...typedFields };
   addObsidianMeta(frontmatterFields, seed.title, []);
+  addModelProvenanceMeta(frontmatterFields);
   const frontmatter = buildFrontmatter(frontmatterFields);
   const error = await writePageIfValid(pagePath, `${frontmatter}\n\n${pageBody}\n`, seed.title);
   return error ? { slug, error } : { slug };

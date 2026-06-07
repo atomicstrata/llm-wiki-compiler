@@ -19,7 +19,7 @@ import path from "path";
 import { writePage } from "./fixtures/write-page.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { collectExportPages } from "../src/export/collect.js";
-import { buildJsonExport } from "../src/export/json-export.js";
+import { buildJsonExport, EXPORT_SCHEMA_VERSION } from "../src/export/json-export.js";
 import {
   PROJECT_ID_PATTERN,
   validateProjectId,
@@ -42,6 +42,7 @@ interface BridgeExportPage {
 }
 
 interface BridgeExportEnvelope {
+  schemaVersion: number;
   exportedAt: string;
   pageCount: number;
   projectId?: string;
@@ -52,6 +53,13 @@ function findPage(envelope: BridgeExportEnvelope, slug: string): BridgeExportPag
   const page = envelope.pages.find((p) => p.slug === slug);
   if (!page) throw new Error(`expected to find page with slug "${slug}" in export`);
   return page;
+}
+
+/** Temp root seeded with one minimal concept page — the common envelope-test setup. */
+async function rootWithOnePage(suffix: string): Promise<string> {
+  const root = await makeTempRoot(suffix);
+  await writePage(path.join(root, "wiki/concepts"), "p", { title: "P", summary: "s" }, "Body.\n");
+  return root;
 }
 
 describe("bridge export contract — collectExportPages + buildJsonExport", () => {
@@ -144,28 +152,25 @@ describe("bridge export contract — collectExportPages + buildJsonExport", () =
 
 describe("bridge export contract — projectId envelope field", () => {
   it("omits projectId from the envelope when none is supplied", async () => {
-    const root = await makeTempRoot("noproj");
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "p",
-      { title: "P", summary: "s" },
-      "Body.\n",
-    );
+    const root = await rootWithOnePage("noproj");
     const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as BridgeExportEnvelope;
     expect(env.projectId).toBeUndefined();
   });
 
   it("embeds a valid projectId in the envelope", async () => {
-    const root = await makeTempRoot("proj");
-    await writePage(
-      path.join(root, "wiki/concepts"),
-      "p",
-      { title: "P", summary: "s" },
-      "Body.\n",
-    );
+    const root = await rootWithOnePage("proj");
     const pages = await collectExportPages(root);
     const env = JSON.parse(buildJsonExport(pages, { projectId: "my-kb" })) as BridgeExportEnvelope;
     expect(env.projectId).toBe("my-kb");
+  });
+});
+
+describe("bridge export contract — schemaVersion envelope field", () => {
+  it("emits schemaVersion equal to EXPORT_SCHEMA_VERSION on every build", async () => {
+    const root = await rootWithOnePage("schemaversion");
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as BridgeExportEnvelope;
+    expect(env.schemaVersion).toBe(EXPORT_SCHEMA_VERSION);
+    expect(env.schemaVersion).toBe(1);
   });
 });
 

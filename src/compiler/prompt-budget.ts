@@ -90,6 +90,25 @@ function numberLines(content: string): string {
     .join("\n");
 }
 
+/**
+ * Clip a single source's content to the active prompt budget and prepend line
+ * numbers, so a prompt that asks the model for line spans actually shows the
+ * model numbered lines (and never exceeds the budget). Used by the rule
+ * extractor, which feeds one source per call rather than a merged concept.
+ *
+ * @param file - Source filename, for the truncation warning only.
+ * @param content - Raw source content.
+ * @returns Numbered (and, when over budget, truncated) content.
+ */
+export function budgetAndNumberSource(file: string, content: string): string {
+  const budget = resolvePromptBudgetChars();
+  if (content.length <= budget) {
+    return numberLines(content);
+  }
+  warnTruncation(file, content.length, 1, budget, budget);
+  return numberLines(content.slice(0, budget) + TRUNCATION_MARKER);
+}
+
 /** Render the slice list using the same `--- SOURCE: ---` headers the LLM is taught to read. */
 function formatSlices(slices: SourceSlice[]): string {
   return slices

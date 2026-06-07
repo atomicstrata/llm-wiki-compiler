@@ -157,3 +157,20 @@ function getProviderName(): string {
 export function getActiveProviderName(): string {
   return getProviderName();
 }
+
+/**
+ * Resolve the model id the compile pipeline would call, without
+ * instantiating a provider (which can require API credentials).
+ *
+ * Used by the export provenance stamp so a downstream auditor can tie a
+ * compiled page back to the exact model that produced it. Mirrors the
+ * per-provider model resolution in {@link getProvider} so the reported id
+ * matches what an actual compile call would use.
+ */
+export function resolveActiveModelId(): string {
+  const providerName = getProviderName();
+  if (providerName === "anthropic") {
+    return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
+  }
+  return getModelForProvider(providerName as "openai" | "ollama" | "minimax" | "copilot");
+}

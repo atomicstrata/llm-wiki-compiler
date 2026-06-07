@@ -19,6 +19,12 @@ import { flattenCitations } from "../context/provenance.js";
 import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import {
+  hashPageBody,
+  resolveSourceHashes,
+  sourceHashLookupFromSnapshot,
+  type SourceHashLookup,
+} from "./provenance.js";
 import type { ExportPage, PageDirectory } from "./types.js";
 
 export { extractWikilinkSlugs };
@@ -85,9 +91,14 @@ function readPageKind(meta: Record<string, unknown>): PageKind | undefined {
  * (path, kind, advisory*, citations, aliases) are populated here so
  * every export format gets the same enriched payload.
  */
-function toExportPage(raw: RawWikiPage, snapshot: FreshnessSnapshot): ExportPage {
+function toExportPage(
+  raw: RawWikiPage,
+  snapshot: FreshnessSnapshot,
+  sourceHashes: SourceHashLookup,
+): ExportPage {
   const meta = raw.frontmatter;
   const aliases = readStringArray(meta, "aliases");
+  const sources = readStringArray(meta, "sources");
   const freshness = computeFreshness(
     { slug: raw.slug, pageDirectory: raw.pageDirectory, frontmatter: meta },
     snapshot,
@@ -98,7 +109,7 @@ function toExportPage(raw: RawWikiPage, snapshot: FreshnessSnapshot): ExportPage
     pageDirectory: raw.pageDirectory,
     path: buildPagePath(raw.pageDirectory, raw.slug),
     summary: typeof meta.summary === "string" ? meta.summary : "",
-    sources: readStringArray(meta, "sources"),
+    sources,
     tags: readStringArray(meta, "tags"),
     createdAt: typeof meta.createdAt === "string" ? meta.createdAt : new Date().toISOString(),
     updatedAt: typeof meta.updatedAt === "string" ? meta.updatedAt : new Date().toISOString(),
@@ -113,6 +124,10 @@ function toExportPage(raw: RawWikiPage, snapshot: FreshnessSnapshot): ExportPage
     freshnessStatus: freshness.freshnessStatus,
     contradicted: freshness.contradicted,
     archived: freshness.archived,
+    contentHash: hashPageBody(raw.body),
+    sourceHashes: resolveSourceHashes(sources, sourceHashes),
+    ...(typeof meta.modelId === "string" ? { modelId: meta.modelId } : {}),
+    ...(typeof meta.promptVersion === "string" ? { promptVersion: meta.promptVersion } : {}),
   };
 }
 
@@ -126,9 +141,10 @@ function toExportPage(raw: RawWikiPage, snapshot: FreshnessSnapshot): ExportPage
 export async function collectExportPages(root: string): Promise<ExportPage[]> {
   const raw = await collectRawWikiPages(root);
   const snapshot = await buildFreshnessSnapshot(root);
+  const sourceHashes = sourceHashLookupFromSnapshot(snapshot);
   const kept = raw.filter((page) => page.parseStatus.hasTitle && !page.parseStatus.orphaned);
   const pages = kept
-    .map((page) => toExportPage(page, snapshot))
+    .map((page) => toExportPage(page, snapshot, sourceHashes))
     .filter((page) => page.freshnessStatus !== "orphaned");
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
