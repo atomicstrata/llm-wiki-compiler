@@ -12,7 +12,9 @@
  *   - A shebang on the library bundle that would break `import`
  *   - Missing type declarations (`.d.ts`)
  *
- * Slow test — excluded from the default `npm test` run.
+ * Network-dependent: `npm install <tarball>` resolves llmwiki's ~17 runtime
+ * deps fresh from the registry, so this is a developer-invoked `test:pack`
+ * smoke test excluded from the default/CI `npm test` run.
  * Run explicitly with: `npm run test:pack`
  */
 
@@ -40,6 +42,7 @@ describe("packaging (slow; run via `npm run test:pack`)", () => {
         .map((l) => l.trim())
         .filter((l) => l.endsWith(".tgz"))
         .at(-1)!;
+      expect(name).toMatch(/\.tgz$/);
       await writeFile(path.join(fixture, "package.json"), JSON.stringify({ name: "f", type: "module" }));
       execFileSync("npm", ["install", path.join(out, name)], { cwd: fixture, stdio: "ignore" });
       await writeFile(path.join(fixture, "probe.mjs"), `import { createWiki } from "llm-wiki-compiler"; if (typeof createWiki !== "function") process.exit(2);`);
@@ -48,6 +51,5 @@ describe("packaging (slow; run via `npm run test:pack`)", () => {
       await rm(out, { recursive: true, force: true });   // no .tgz left in the repo
       await rm(fixture, { recursive: true, force: true });
     }
-    expect(true).toBe(true);
   }, 180_000);
 });
