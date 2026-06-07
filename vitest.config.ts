@@ -21,7 +21,6 @@ export default defineConfig({
     // exclude vitest discovers and runs every feature branch's tests.
     exclude: [
       ...configDefaults.exclude,
-      "**/dist/**",
       ".claude/**",
       ".worktrees/**",
       "test/sdk/packaging.test.ts",
