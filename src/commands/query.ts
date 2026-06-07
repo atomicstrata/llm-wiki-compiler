@@ -34,6 +34,7 @@ import {
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
+import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
 
 /** Directories to search when loading selected pages, in priority order. */
@@ -446,6 +447,13 @@ export async function generateAnswer(
 
   const answer = await callAnswerLLM(question, pagesContent, selection.chunks, options.onToken);
   const saved = options.save ? await saveQueryPage(root, question, answer) : undefined;
+
+  // Journal the query only after the answer is produced — matching compile,
+  // which logs after finalization — so a mid-flight LLM failure records nothing.
+  // Logged here (not in the CLI command) so MCP queries are captured too.
+  await appendLog(root, "query", question, {
+    details: selection.pages.length > 0 ? [`Pages: ${formatWikilinkList(selection.pages)}`] : [],
+  });
 
   return {
     answer,

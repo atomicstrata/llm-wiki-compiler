@@ -1,10 +1,11 @@
 /**
- * Support-rail + sidebar-grouping + stale-rail-clearing tests.
+ * Support-rail + sidebar-grouping + stale-rail-clearing + freshness-badge tests.
  *
  * Mounts the real viewer assets through `mountViewerDom` and drives
  * hash-route navigation to assert the right metadata renders on the
  * right route. Covers every Slice-5 review finding that touches the
- * client's right-hand rail or the sidebar group structure.
+ * client's right-hand rail or the sidebar group structure, plus the
+ * Slice-9 freshness badges and the "Freshness as of…" caption.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -267,5 +268,107 @@ describe("stale support rail clearing", () => {
   it("clears the rail when navigating to a 404 page", async () => {
     const rail = await loadStickyPageAndNavigate("#/concepts/ghost");
     expect(rail.textContent ?? "").not.toContain("sticky-marker");
+  });
+});
+
+// --- Freshness badge tests ---
+
+/** Build a page payload carrying the given freshness object. */
+function freshnessPagePayload(slug: string, freshness: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: `concepts/${slug}`,
+    pageDirectory: "concepts",
+    slug,
+    title: slug,
+    html: "<p>Body</p>",
+    citations: [],
+    outgoingLinks: [],
+    frontmatter: {},
+    warnings: [],
+    updatedAt: "",
+    createdAt: "",
+    generatedAt: "2026-05-14T00:00:00.000Z",
+    freshness,
+  };
+}
+
+/** Navigate to a concepts page with the given freshness and return the rail. */
+async function railForFreshness(slug: string, freshness: Record<string, unknown>): Promise<HTMLElement> {
+  const embedded: EmbeddedPage[] = [
+    { id: `concepts/${slug}`, pageDirectory: "concepts", slug, title: slug, kind: "concept" },
+  ];
+  const responder: FetchResponder = (url) => {
+    if (url.endsWith("/api/pages")) return pagesResponse(embedded);
+    if (url.includes(`/api/page/concepts/${slug}`)) {
+      return jsonResponse(freshnessPagePayload(slug, freshness));
+    }
+    return null;
+  };
+  const { dom } = await mountViewerDom(embedded, responder);
+  dom.window.location.hash = `#/concepts/${slug}`;
+  await flushMicrotasks();
+  return dom.window.document.querySelector("[data-support-rail]") as HTMLElement;
+}
+
+describe("freshness badges", () => {
+  it("renders .badge-stale for a stale page", async () => {
+    const rail = await railForFreshness("stale-page", {
+      freshnessStatus: "stale", contradicted: false, archived: false,
+    });
+    expect(rail.querySelector(".badge-stale")).not.toBeNull();
+    expect(rail.querySelector(".badge-orphaned")).toBeNull();
+  });
+
+  it("renders .badge-orphaned for an orphaned page", async () => {
+    const rail = await railForFreshness("orphaned-page", {
+      freshnessStatus: "orphaned", contradicted: false, archived: false,
+    });
+    expect(rail.querySelector(".badge-orphaned")).not.toBeNull();
+    expect(rail.querySelector(".badge-stale")).toBeNull();
+  });
+
+  it("renders .badge-contradicted for a contradicted page", async () => {
+    const rail = await railForFreshness("contradicted-page", {
+      freshnessStatus: "fresh", contradicted: true, archived: false,
+    });
+    expect(rail.querySelector(".badge-contradicted")).not.toBeNull();
+  });
+
+  it("renders .badge-archived for an archived page", async () => {
+    const rail = await railForFreshness("archived-page", {
+      freshnessStatus: "fresh", contradicted: false, archived: true,
+    });
+    expect(rail.querySelector(".badge-archived")).not.toBeNull();
+  });
+
+  it("renders NO freshness badge for a fresh page", async () => {
+    const rail = await railForFreshness("fresh-page", {
+      freshnessStatus: "fresh", contradicted: false, archived: false,
+    });
+    expect(rail.querySelector(".freshness-badge")).toBeNull();
+  });
+
+  it("renders NO freshness badge for an unverified (query/hand-authored) page", async () => {
+    const rail = await railForFreshness("unverified-page", {
+      freshnessStatus: "unverified", contradicted: false, archived: false,
+    });
+    expect(rail.querySelector(".freshness-badge")).toBeNull();
+  });
+
+  it("shows the 'Freshness as of' caption when generatedAt is present", async () => {
+    const rail = await railForFreshness("any-page", {
+      freshnessStatus: "fresh", contradicted: false, archived: false,
+    });
+    expect(rail.querySelector(".freshness-caption")).not.toBeNull();
+    expect(rail.textContent).toContain("Freshness as of");
+    expect(rail.textContent).toContain("2026-05-14T00:00:00.000Z");
+  });
+
+  it("stale+contradicted page shows both badges independently", async () => {
+    const rail = await railForFreshness("multi-badge-page", {
+      freshnessStatus: "stale", contradicted: true, archived: false,
+    });
+    expect(rail.querySelector(".badge-stale")).not.toBeNull();
+    expect(rail.querySelector(".badge-contradicted")).not.toBeNull();
   });
 });

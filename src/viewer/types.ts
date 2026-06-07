@@ -14,6 +14,7 @@
 
 import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
+import type { PageFreshness } from "../freshness/types.js";
 
 /**
  * Canonical page identifier: `concepts/<slug>` or `queries/<slug>`. Bare
@@ -67,6 +68,8 @@ export interface ViewerPage {
   citations: ClaimCitation[];
   /** Diagnostics surfaced for this page (parser issues, unresolved citations…). */
   warnings: ViewerWarning[];
+  /** Computed source-freshness as of snapshot build (server start). Never live-updated. */
+  freshness: PageFreshness;
 }
 
 /**
@@ -91,6 +94,9 @@ export interface ViewerCounts {
   sourceFiles: number;
   pendingReviews: number;
   compiledSources: number;
+  /** Pages computed stale/orphaned at snapshot build. */
+  stale: number;
+  orphaned: number;
 }
 
 /**
@@ -158,6 +164,8 @@ export interface ViewerSnapshot {
   root: string;
   /** ISO-8601 timestamp the snapshot was built at. */
   generatedAt: string;
+  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt-state banner. */
+  stateStatus: "ok" | "missing" | "corrupt";
   /** Project metadata for the dashboard header. */
   project: ViewerProject;
   /** Frozen counts for `/api/pages` and `/api/health`. */

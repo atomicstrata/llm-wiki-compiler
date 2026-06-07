@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, symlink } from "fs/promises";
 import path from "path";
 import { createHash } from "node:crypto";
-import { computeFreshness } from "../src/freshness/index.js";
-import { buildFreshnessSnapshot } from "../src/freshness/index.js";
+import { computeFreshness, buildFreshnessSnapshot } from "../src/freshness/index.js";
 import type { FreshnessSnapshot } from "../src/freshness/types.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
-import { writeTestStateJson } from "./fixtures/state-json.js";
+import { writeTestStateJson, writeSourceState, writeSourceFile, sha256Hex } from "./fixtures/state-json.js";
+import { readStateClassified } from "../src/utils/state.js";
 
 function snapshot(sources: FreshnessSnapshot["sources"], stateStatus: FreshnessSnapshot["stateStatus"] = "ok"): FreshnessSnapshot {
   return { stateStatus, sources };
@@ -103,5 +103,75 @@ describe("buildFreshnessSnapshot", () => {
     const snap = await buildFreshnessSnapshot(env.dir);
     expect(snap.stateStatus).toBe("missing");
     expect(snap.sources).toEqual({});
+  });
+
+  it("reuses a supplied ClassifiedState instead of re-reading", async () => {
+    await writeSourceState(env.dir, { "a.md": { hash: sha256Hex("x"), concepts: ["topic"] } });
+    await writeSourceFile(env.dir, "a.md", "x");
+
+    const classified = await readStateClassified(env.dir);
+    // Mutate state.json on disk AFTER reading; the snapshot must reflect the
+    // supplied (pre-mutation) classified state, proving it did not re-read.
+    await writeSourceState(env.dir, { "b.md": { hash: sha256Hex("y"), concepts: ["other"] } });
+
+    const snap = await buildFreshnessSnapshot(env.dir, classified);
+    expect(Object.keys(snap.sources)).toEqual(["a.md"]);
+  });
+
+  it("treats a symlink that escapes sources/ as not-exists (defense-in-depth)", async () => {
+    // Write a file outside sources/ that a symlink inside sources/ would target.
+    const outsidePath = path.join(env.dir, "outside.md");
+    await writeFile(outsidePath, "secret content", "utf-8");
+    await mkdir(path.join(env.dir, "sources"), { recursive: true });
+    const symlinkPath = path.join(env.dir, "sources", "evil.md");
+    let symlinkCreated = false;
+    try {
+      await symlink(outsidePath, symlinkPath);
+      symlinkCreated = true;
+    } catch {
+      // Symlink creation not permitted in this environment — skip gracefully.
+    }
+    if (!symlinkCreated) return;
+
+    const normalContent = "normal content";
+    await writeSourceState(env.dir, {
+      "evil.md": { hash: sha256Hex("secret content"), concepts: ["evil"] },
+      "normal.md": { hash: sha256Hex(normalContent), concepts: ["normal"] },
+    });
+    await writeSourceFile(env.dir, "normal.md", normalContent);
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+
+    // Symlink escaping sources/ must be treated as not-exists, never hashed.
+    expect(snap.sources["evil.md"]).toEqual(
+      expect.objectContaining({ exists: false, currentHash: null }),
+    );
+    // Normal file still classifies correctly.
+    expect(snap.sources["normal.md"]).toEqual(
+      expect.objectContaining({ exists: true, currentHash: sha256Hex(normalContent) }),
+    );
+  });
+
+  it("treats path-traversal keys as not-exists without throwing or reading outside sources/", async () => {
+    // State contains a traversal key and a normal key.
+    await writeSourceState(env.dir, {
+      "../escape.md": { hash: "X", concepts: ["escape"] },
+      "normal.md": { hash: sha256Hex("normal"), concepts: ["normal"] },
+    });
+    await writeSourceFile(env.dir, "normal.md", "normal");
+    // Write a file at the traversal destination to prove it is NOT read.
+    const { writeFile: wf } = await import("fs/promises");
+    await wf(path.join(env.dir, "escape.md"), "outside-sources", "utf-8");
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+
+    // Traversal key: treated as non-existent, no throw.
+    expect(snap.sources["../escape.md"]).toEqual(
+      expect.objectContaining({ exists: false, currentHash: null }),
+    );
+    // Normal key: classified correctly.
+    expect(snap.sources["normal.md"]).toEqual(
+      expect.objectContaining({ exists: true, currentHash: sha256Hex("normal") }),
+    );
   });
 });

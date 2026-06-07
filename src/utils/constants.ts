@@ -81,6 +81,24 @@ export const STATE_FILE = ".llmwiki/state.json";
 export const LOCK_FILE = ".llmwiki/lock";
 export const INDEX_FILE = "wiki/index.md";
 export const MOC_FILE = "wiki/MOC.md";
+
+/**
+ * Append-only activity journal at the project root, per Karpathy's llm-wiki
+ * gist: a chronological record of what happened and when (ingests, compiles,
+ * queries, lint passes). Lives at the root rather than under wiki/ because it
+ * spans project-level operations — ingest writes before any wiki/ exists.
+ */
+export const LOG_FILE = "log.md";
+
+/** Max characters for a single log.md entry description before truncation. */
+export const LOG_DESCRIPTION_MAX_CHARS = 200;
+
+/**
+ * Max number of page wikilinks listed in a single log.md entry detail line.
+ * Beyond this the list is truncated with a "(+N more)" suffix so a large
+ * compile doesn't write a wall of links into the journal.
+ */
+export const LOG_MAX_PAGE_LINKS = 20;
 export const EMBEDDINGS_FILE = ".llmwiki/embeddings.json";
 export const LAST_LINT_FILE = ".llmwiki/last-lint.json";
 

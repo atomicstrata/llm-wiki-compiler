@@ -14,6 +14,7 @@ import { readFile } from "fs/promises";
 import { createHash } from "node:crypto";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSource } from "../utils/source-writer.js";
+import { appendLog } from "../utils/activity-log.js";
 import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import ingestWeb from "../ingest/web.js";
@@ -266,6 +267,18 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
   const savedPath = await saveSource(root, title, document, source);
+
+  // Journal the ingest so log.md mirrors the `ingest | Article Title`
+  // convention. Covers the CLI, the MCP ingest_source tool, and the SDK.
+  // Journal under `root` (not cwd) and record the root-relative saved path so
+  // the entry is portable regardless of the caller's working directory.
+  await appendLog(root, "ingest", title, {
+    details: [
+      `Source: ${source}`,
+      `Saved: ${path.join(SOURCES_DIR, path.basename(savedPath))}`,
+      `Chars: ${result.content.length.toLocaleString()}`,
+    ],
+  });
 
   return {
     filename: path.basename(savedPath),

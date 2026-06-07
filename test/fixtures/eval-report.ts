@@ -18,6 +18,21 @@ export function makeEvalReport(overrides: Partial<EvalReport> = {}): EvalReport 
       precisionPercent: 100,
       perPage: [],
     },
+    sourceUtilization: {
+      totalSources: 3,
+      citedSources: 3,
+      uncitedSources: 0,
+      utilizationRate: 0.8,
+      perSource: [],
+      warnings: [],
+    },
+    citationDepth: {
+      totalCitations: 8,
+      preciseCitations: 4,
+      vagueCitations: 4,
+      claimLevelRate: 0.5,
+      avgCitationsPerParagraph: 0.8,
+    },
     stats: {
       timestamp: new Date().toISOString(),
       sourceCount: 3,

@@ -57,6 +57,8 @@ const HEALTH_METRIC_ROWS = [
   ["Saved queries", "queries"],
   ["Compiled sources", "sources"],
   ["Source files", "sourceFiles"],
+  ["Stale pages", "stale"],
+  ["Orphaned pages", "orphaned"],
   ["Pending reviews", "pendingReviews"],
 ];
 
@@ -268,12 +270,37 @@ async function renderHealthPane(main) {
 function buildHealthDashboard(health) {
   const wrap = document.createElement("section");
   wrap.className = "health-dashboard";
+  // The global banner (injected at bootstrap) covers every route including health;
+  // only add it here if bootstrap didn't already inject one (e.g. if /api/pages
+  // was not yet fetched when navigating directly to #/health).
+  prependBannerIfNeeded(wrap, health?.stateStatus);
   const rows = HEALTH_METRIC_ROWS.map(([label, key]) => [label, health?.[key] ?? 0]);
   const metrics = buildDefinitionList(rows);
   metrics.className = "metric-list";
   wrap.appendChild(metrics);
   wrap.appendChild(buildLintBlock(health?.lint));
   return wrap;
+}
+
+/** Prepend a corrupt-state banner to `container` if one is not already in the document. */
+function prependBannerIfNeeded(container, stateStatus) {
+  if (stateStatus !== "corrupt") return;
+  if (document.querySelector(".corrupt-state-banner")) return;
+  container.prepend(buildCorruptStateBanner());
+}
+
+/**
+ * Build the corrupt-state warning banner. Displayed when `/api/health`
+ * reports `stateStatus === "corrupt"`, meaning the project's state.json
+ * could not be parsed at viewer startup and freshness data is unreliable.
+ */
+function buildCorruptStateBanner() {
+  const banner = document.createElement("div");
+  banner.className = "corrupt-state-banner";
+  banner.setAttribute("role", "alert");
+  banner.textContent =
+    "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.";
+  return banner;
 }
 
 /** Render the lint summary, or a "lint has not been run yet" placeholder. */
@@ -305,6 +332,21 @@ function applyHomeEnvelope(envelope) {
   titleEl.textContent = projectTitle(envelope);
   renderSidebar(envelope?.pages || []);
   renderHome(envelope);
+  // Inject into .app-layout (outside <main>) so the banner persists across route changes.
+  injectGlobalCorruptBanner(envelope?.stateStatus);
+}
+
+/**
+ * Inject the corrupt-state banner into the app-layout container (above `main`)
+ * so it persists across route changes. Runs once at app bootstrap from the
+ * /api/pages envelope. No-ops when not corrupt or already injected.
+ */
+function injectGlobalCorruptBanner(stateStatus) {
+  if (stateStatus !== "corrupt") return;
+  if (document.querySelector(".corrupt-state-banner")) return;
+  const layout = document.querySelector(".app-layout");
+  if (!layout) return;
+  layout.prepend(buildCorruptStateBanner());
 }
 
 /** Fetch /api/index and render the rendered HTML coming back from the server. */
@@ -467,6 +509,12 @@ function main() {
   const embedded = readEmbeddedIndex();
   renderSidebar(embedded.pages);
   wireSearch({ fetchJson });
+  // Ensure the corrupt-state banner appears on every entry route, not just home.
+  // injectGlobalCorruptBanner is idempotent, so the home route's own /api/pages
+  // fetch won't double-render if both settle.
+  void fetchJson("/api/pages")
+    .then((env) => injectGlobalCorruptBanner(env?.stateStatus))
+    .catch(() => {});
   window.addEventListener("hashchange", () => {
     void renderRoute();
   });
