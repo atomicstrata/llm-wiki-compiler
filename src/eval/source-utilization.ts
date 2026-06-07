@@ -10,7 +10,8 @@
  * resolveSourceFile to a canonical realpath, then cross-reference with
  * citation targets resolved the same way. Both sides use the same confined
  * resolver so symlinks and path differences are handled consistently.
- * When totalSources is 0, utilizationRate is null ("not measured").
+ * When no valid sources remain after filtering, utilizationRate is null
+ * ("not measured").
  */
 
 import { readdir } from "fs/promises";
@@ -44,27 +45,40 @@ function pageSlug(filePath: string): string {
   return dir + "/" + path.basename(filePath, ".md");
 }
 
+interface InventoryResult {
+  /** Names of source files that passed confinement (the valid inventory). */
+  validFiles: string[];
+  /** Map from valid source filename to its canonical realpath. */
+  fileToReal: Map<string, string>;
+  /** Non-fatal issues (e.g. out-of-tree symlinks excluded). */
+  warnings: string[];
+}
+
 /**
- * Resolve each on-disk source file through the same confined resolver
- * used for citation targets. Files that fail resolution (e.g. symlinks
- * pointing outside sources/) are excluded from the inventory and reported
- * as warnings so they don't skew the cited/uncited counts.
+ * Build the filtered source inventory by resolving every on-disk source
+ * through resolveSourceFile — the same confined resolver used for citation
+ * targets. Files that fail resolution are excluded from the inventory and
+ * reported as warnings. The caller MUST derive totalSources, perSource,
+ * and cited/uncited counts from the returned validFiles, never from the
+ * raw readdir() result.
  */
-async function buildFileToRealMap(
+async function resolveSourceInventory(
   sourcesDir: string,
   sourceFiles: string[],
-  warnings: string[],
-): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+): Promise<InventoryResult> {
+  const fileToReal = new Map<string, string>();
+  const validFiles: string[] = [];
+  const warnings: string[] = [];
   for (const f of sourceFiles) {
     const resolved = await resolveSourceFile(sourcesDir, f);
     if (resolved === null) {
       warnings.push("Unresolvable source file excluded from inventory: " + f);
     } else {
-      map.set(f, resolved);
+      fileToReal.set(f, resolved);
+      validFiles.push(f);
     }
   }
-  return map;
+  return { validFiles, fileToReal, warnings };
 }
 
 async function collectCitedRealpaths(
@@ -87,11 +101,11 @@ async function collectCitedRealpaths(
 }
 
 function buildPerSource(
-  sourceFiles: string[],
+  validFiles: string[],
   fileToReal: Map<string, string>,
   citedRealToPages: Map<string, Set<string>>,
 ): SourceUtilizationResult["perSource"] {
-  const records = sourceFiles.map((sourceFile) => {
+  const records = validFiles.map((sourceFile) => {
     const real = fileToReal.get(sourceFile);
     const pageSlugs = real ? citedRealToPages.get(real) : undefined;
     return {
@@ -111,18 +125,29 @@ export async function evaluateSourceUtilization(
   root: string,
 ): Promise<SourceUtilizationResult> {
   const sourcesDir = path.join(root, SOURCES_DIR);
-  const sourceFiles = await listSourceFiles(sourcesDir);
-  const totalSources = sourceFiles.length;
-  const warnings: string[] = [];
+  const rawFiles = await listSourceFiles(sourcesDir);
+
+  // Build the filtered inventory — all downstream counts must use this,
+  // never rawFiles.length.
+  const { validFiles, fileToReal, warnings } = await resolveSourceInventory(sourcesDir, rawFiles);
+  const totalSources = validFiles.length;
 
   if (totalSources === 0) {
-    return { totalSources: 0, citedSources: 0, uncitedSources: 0, utilizationRate: null, perSource: [], warnings };
+    // When raw readdir found files but the confined resolver filtered
+    // them all out, carry those warnings forward so the caller can see
+    // *why* the inventory is empty.
+    const rawWarnings = rawFiles.length > 0 && warnings.length > 0
+      ? warnings
+      : [];
+    return {
+      totalSources: 0, citedSources: 0, uncitedSources: 0,
+      utilizationRate: null, perSource: [], warnings: rawWarnings,
+    };
   }
 
-  const fileToReal = await buildFileToRealMap(sourcesDir, sourceFiles, warnings);
   const pages = await collectAllPages(root);
   const citedRealToPages = await collectCitedRealpaths(sourcesDir, pages);
-  const perSource = buildPerSource(sourceFiles, fileToReal, citedRealToPages);
+  const perSource = buildPerSource(validFiles, fileToReal, citedRealToPages);
 
   const citedCount = perSource.filter((e) => e.citingPageCount > 0).length;
   return {

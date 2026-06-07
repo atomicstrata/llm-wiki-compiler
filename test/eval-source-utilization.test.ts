@@ -128,9 +128,7 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
       fm("Precise") + "Specific claim with line range.^[src.md:2-3]\n",
     );
 
-    const result = await evaluateSourceUtilization(env.dir);
-    expect(result.totalSources).toBe(1);
-    expect(result.citedSources).toBe(1);
+    const result = await assertSingleCited(env, 1);
     expect(result.utilizationRate).toBe(1);
     expect(result.perSource[0].sourceFile).toBe("src.md");
     expect(result.perSource[0].citingPageCount).toBe(1);
@@ -231,11 +229,12 @@ async function assertSingleCited(env: ReturnType<typeof useLintTempRoot>, expect
       return; // symlink not supported on this platform
     }
 
-    const result = await evaluateSourceUtilization(env.dir);
-    expect(result.totalSources).toBe(1);
-    expect(result.citedSources).toBe(1);
+    const result = await assertSingleCited(env, 1);
     expect(result.utilizationRate).toBe(1);
     expect(result.warnings.length).toBeGreaterThanOrEqual(1);
+    // Symlink source leak.md must not appear in perSource
+    const leakEntry = result.perSource.find(function(e) { return e.sourceFile === "leak.md"; });
+    expect(leakEntry).toBeUndefined();
 
     await fs.unlink(outsidePath).catch(function() {});
   });

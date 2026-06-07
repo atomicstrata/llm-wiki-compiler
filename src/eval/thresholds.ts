@@ -42,6 +42,15 @@ async function loadThresholds(root: string): Promise<ThresholdConfig> {
   return (yaml.load(raw) as ThresholdConfig) ?? {};
 }
 
+/** Check source-utilization and citation-depth thresholds. */
+function checkNewThresholds(
+  violations: string[],
+  config: ThresholdConfig,
+  report: EvalReport,
+): void {
+  checkNewThresholds(violations, config, report);
+}
+
 /**
  * Check the report against configured thresholds.
  * @param report - The completed eval report.
