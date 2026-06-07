@@ -3,6 +3,16 @@
   "version": "0.8.0",
   "description": "A knowledge compiler CLI — raw sources in, interlinked wiki out",
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "llmwiki": "dist/cli.js"
   },
@@ -16,7 +26,8 @@
     "test:watch": "vitest",
     "fallow:ci": "bash scripts/fallow-ci.sh",
     "prepublishOnly": "npm run release:check-docs:current && npm run build && npm pack --dry-run --ignore-scripts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:pack": "vitest run test/sdk/packaging.test.ts"
   },
   "keywords": [
     "knowledge",
