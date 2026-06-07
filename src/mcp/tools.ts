@@ -333,5 +333,3 @@ function registerEvalTool(server: McpServer, root: string): void {
     },
   );
 }
-
-

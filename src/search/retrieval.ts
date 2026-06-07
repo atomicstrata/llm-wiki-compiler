@@ -15,8 +15,7 @@ import { findRelevantChunks, findRelevantPages } from "../utils/embeddings.js";
 import { selectPages } from "../commands/query.js";
 import { safeReadFile } from "../utils/markdown.js";
 import { CHUNK_TOP_K, INDEX_FILE } from "../utils/constants.js";
-import { readPageRecord } from "../pages/read.js";
-import type { PageRecord } from "../pages/read.js";
+import { readPageRecord, type PageRecord } from "../pages/read.js";
 
 /** Deduplicate slugs while preserving the first-seen ordering. */
 function dedupePreservingOrder(slugs: string[]): string[] {
