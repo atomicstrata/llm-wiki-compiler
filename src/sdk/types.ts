@@ -17,6 +17,7 @@ import type { WikiStatus } from "../status/collect.js";
 import type { Page, PageRef, ListPagesOptions, ListPagesResult } from "../pages/list.js";
 import type { PageRecord } from "../pages/read.js";
 import type { JsonExportDocument, BuildJsonExportOptions } from "../export/json-export.js";
+import type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "../sources/store.js";
 
 /** Options for `createWiki`. */
 export interface CreateWikiOptions {
@@ -108,6 +109,12 @@ export interface Wiki {
   getPage(ref: PageRef): Promise<Page | null>;
   /** List wiki pages with optional filters and cursor-based pagination. No LLM required. */
   listPages(options?: ListPagesOptions): Promise<ListPagesResult>;
+  /** List source files under `sources/` with optional pagination and body inclusion. No LLM required. */
+  listSources(options?: ListSourcesOptions): Promise<ListSourcesResult>;
+  /** Fetch a single source record by its basename id (e.g. "note.md"). No LLM required. */
+  getSource(id: string): Promise<SourceRecord | null>;
+  /** Delete the source file for the given id. Returns true if deleted, false if not found. No LLM required. */
+  deleteSource(id: string): Promise<boolean>;
   /**
    * Collect a read-only status snapshot of the wiki. No LLM required.
    *
