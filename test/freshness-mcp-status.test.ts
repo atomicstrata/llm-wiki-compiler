@@ -80,6 +80,16 @@ describe("wiki_status freshness", () => {
     expect(status.pendingChanges).toEqual([]);
   });
 
+  it("reports uncompiled sources as pending on missing state (never-compiled project)", async () => {
+    // No state.json written → state is "missing". Sources on disk should appear as "new".
+    await writeSourceFile(root, "a.md", "first source");
+
+    const status = await collectStatus(root);
+
+    expect(status.stateStatus).toBe("missing");
+    expect(status.pendingChanges).toContainEqual({ file: "a.md", status: "new" });
+  });
+
   it("snapshot-derived pendingChanges: changed, new, and deleted sources all appear correctly", async () => {
     // a.md: recorded with OLD hash → changed
     const oldHash = sha256Hex("OLD content");

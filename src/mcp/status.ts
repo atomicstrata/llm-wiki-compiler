@@ -106,11 +106,12 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
 
-  // Suppress pendingChanges when state is unreadable: comparing against emptyState
-  // would classify every source file as "new", which is false precision on corrupt state.
-  const pendingChanges = classified.status === "ok"
-    ? pendingChangesFromSnapshot(snapshot, sourceFilesOnDisk)
-    : [];
+  // Suppress pendingChanges only on corrupt state: comparing against an empty snapshot
+  // on corrupt state would classify every source file as "new", which is false precision.
+  // On missing state the snapshot is legitimately empty, so every on-disk source is "new" — correct.
+  const pendingChanges = classified.status === "corrupt"
+    ? []
+    : pendingChangesFromSnapshot(snapshot, sourceFilesOnDisk);
 
   return {
     pages: { concepts: conceptSummaries.length, queries: queries.length, total: conceptSummaries.length + queries.length },
