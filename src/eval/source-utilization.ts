@@ -14,7 +14,7 @@
  * ("not measured").
  */
 
-import { readdir } from "fs/promises";
+import { readdir, lstat } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
@@ -62,6 +62,18 @@ interface InventoryResult {
  * and cited/uncited counts from the returned validFiles, never from the
  * raw readdir() result.
  */
+/**
+ * Explain why a source file was excluded from the inventory. The common case is
+ * a symlink whose target is missing or resolves outside the sources tree;
+ * everything else (bad path, unreadable) collapses to a generic reason.
+ */
+async function exclusionReason(sourcesDir: string, file: string): Promise<string> {
+  const stat = await lstat(path.join(sourcesDir, file)).catch(() => null);
+  return stat?.isSymbolicLink()
+    ? "symlink target missing or outside sources/ (excluded)"
+    : "could not be resolved (excluded)";
+}
+
 async function resolveSourceInventory(
   sourcesDir: string,
   sourceFiles: string[],
@@ -72,7 +84,9 @@ async function resolveSourceInventory(
   for (const f of sourceFiles) {
     const resolved = await resolveSourceFile(sourcesDir, f);
     if (resolved === null) {
-      warnings.push("Unresolvable source file excluded from inventory: " + f);
+      // Filename first so the actionable detail survives any display
+      // truncation; distinguish the common symlink case from other failures.
+      warnings.push(`${f}: ${await exclusionReason(sourcesDir, f)}`);
     } else {
       fileToReal.set(f, resolved);
       validFiles.push(f);

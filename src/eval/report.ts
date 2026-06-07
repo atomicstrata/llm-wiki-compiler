@@ -14,10 +14,30 @@ import type { CacheSummary } from "./cache.js";
 const MAX_LISTED_WARNINGS = 5;
 
 const BOX_WIDTH = 49;
+const INNER_WIDTH = BOX_WIDTH - 2;
 const HORIZONTAL = "─".repeat(BOX_WIDTH);
 
+/** Matches ANSI color escape sequences so width is measured on visible text. */
+const ANSI_PATTERN = /\x1b\[[0-9;]*m/g;
+
+/** Visible character width of a string, ignoring ANSI color escapes. */
+function visibleWidth(text: string): number {
+  return text.replace(ANSI_PATTERN, "").length;
+}
+
+/**
+ * Render one boxed line. Pads to the inner width using the *visible* length
+ * (so color escapes don't skew alignment) and truncates over-long content with
+ * an ellipsis so the frame stays intact regardless of what the caller passes.
+ * Truncated lines drop color; the full text remains in the JSON report.
+ */
 function line(content = ""): string {
-  return `│ ${content.padEnd(BOX_WIDTH - 2)} │`;
+  const visible = visibleWidth(content);
+  if (visible > INNER_WIDTH) {
+    const plain = content.replace(ANSI_PATTERN, "");
+    return `│ ${plain.slice(0, INNER_WIDTH - 1)}… │`;
+  }
+  return `│ ${content}${" ".repeat(INNER_WIDTH - visible)} │`;
 }
 
 function top(): string {
