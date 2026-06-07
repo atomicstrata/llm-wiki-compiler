@@ -14,6 +14,13 @@ import { detectChanges } from "../compiler/hasher.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import type { SourceChange } from "../utils/types.js";
+
+/**
+ * A source change that is actually pending: `"unchanged"` entries are
+ * filtered out by `collectStatus`, so only these three statuses remain.
+ */
+type PendingChange = SourceChange & { status: Exclude<SourceChange["status"], "unchanged"> };
 
 /** Read-only status snapshot returned by `collectStatus`. */
 export interface WikiStatus {
@@ -23,7 +30,7 @@ export interface WikiStatus {
   orphanedPages: string[];
   /** Number of compile candidates awaiting human review. */
   pendingCandidates: number;
-  pendingChanges: Array<{ file: string; status: string }>;
+  pendingChanges: Array<{ file: string; status: PendingChange["status"] }>;
 }
 
 /** Find concept slugs whose pages are flagged as orphaned. */
@@ -52,7 +59,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     orphanedPages: orphans,
     pendingCandidates,
     pendingChanges: changes
-      .filter((c) => c.status !== "unchanged")
+      .filter((c): c is PendingChange => c.status !== "unchanged")
       .map((c) => ({ file: c.file, status: c.status })),
   };
 }
