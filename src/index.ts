@@ -26,3 +26,6 @@ export {
   ProviderUnavailableError,
   UnknownProviderError,
 } from "./utils/provider-guard.js";
+
+export { createWiki } from "./sdk/wiki.js";
+export type { Wiki, CreateWikiOptions, SdkCompileOptions, ContextPackOptions } from "./sdk/types.js";
