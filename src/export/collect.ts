@@ -20,9 +20,9 @@ import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import {
-  buildSourceHashLookup,
   hashPageBody,
   resolveSourceHashes,
+  sourceHashLookupFromSnapshot,
   type SourceHashLookup,
 } from "./provenance.js";
 import type { ExportPage, PageDirectory } from "./types.js";
@@ -140,10 +140,8 @@ function toExportPage(
  */
 export async function collectExportPages(root: string): Promise<ExportPage[]> {
   const raw = await collectRawWikiPages(root);
-  const [snapshot, sourceHashes] = await Promise.all([
-    buildFreshnessSnapshot(root),
-    buildSourceHashLookup(root),
-  ]);
+  const snapshot = await buildFreshnessSnapshot(root);
+  const sourceHashes = sourceHashLookupFromSnapshot(snapshot);
   const kept = raw.filter((page) => page.parseStatus.hasTitle && !page.parseStatus.orphaned);
   const pages = kept
     .map((page) => toExportPage(page, snapshot, sourceHashes))

@@ -10,6 +10,8 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 import { extractRuleCandidates } from "../src/compiler/rule-extractor.js";
 import {
   listRuleCandidates,
@@ -97,6 +99,27 @@ describe("rule-candidate approve + export", () => {
     expect(json[0]!.status).toBe("approved");
     expect(json[0]!.proposed.version).toBe(1);
     expect(json[0]!.evidence[0]).toEqual({ kind: "file", path: "guide.md", lineStart: 1, lineEnd: 2 });
+  });
+
+  it("skips malformed persisted candidates instead of exporting them", async () => {
+    await mkdir(path.join(ctx.dir, ".llmwiki/rule-candidates"), { recursive: true });
+    await writeFile(
+      path.join(ctx.dir, ".llmwiki/rule-candidates/rulecand-process-bad.json"),
+      JSON.stringify({
+        id: "rulecand.process.bad",
+        proposed: {},
+        evidence: [],
+        provenance: { source: "llm-wiki-compiler" },
+        confidence: "high",
+        status: "approved",
+        createdAt: FIXED_NOW,
+      }),
+      "utf-8",
+    );
+
+    const approved = await collectRuleCandidatesForExport(ctx.dir, "approved");
+
+    expect(approved).toEqual([]);
   });
 });
 

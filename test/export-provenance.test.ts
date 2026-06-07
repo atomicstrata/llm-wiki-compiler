@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
+import { existsSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { writePage } from "./fixtures/write-page.js";
@@ -52,6 +53,12 @@ async function writeState(root: string, sources: Record<string, string>): Promis
     ),
   };
   await writeFile(path.join(root, ".llmwiki/state.json"), JSON.stringify(state), "utf-8");
+}
+
+/** Write a corrupt `.llmwiki/state.json` fixture. */
+async function writeCorruptState(root: string): Promise<void> {
+  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+  await writeFile(path.join(root, ".llmwiki/state.json"), "{not-json", "utf-8");
 }
 
 function findPage(env: ProvenanceEnvelope, slug: string): ProvenancePage {
@@ -151,5 +158,21 @@ describe("export provenance — per-page contentHash + sourceHashes", () => {
     );
     const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
     expect(findPage(env, "seedlike").sourceHashes).toEqual([]);
+  });
+
+  it("does not write a .bak when state.json is corrupt", async () => {
+    const root = await makeTempRoot("prov-corrupt-state");
+    await writeCorruptState(root);
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "safe-export",
+      { title: "Safe Export", summary: "s", sources: ["a.md"] },
+      "Body.\n",
+    );
+
+    const env = JSON.parse(buildJsonExport(await collectExportPages(root))) as ProvenanceEnvelope;
+
+    expect(findPage(env, "safe-export").sourceHashes).toEqual([]);
+    expect(existsSync(path.join(root, ".llmwiki/state.json.bak"))).toBe(false);
   });
 });

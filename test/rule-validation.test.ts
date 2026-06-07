@@ -75,6 +75,18 @@ describe("validateRuleCandidate", () => {
     c.proposed.when = "x".repeat(513);
     expect(validateRuleCandidate(c)).toContain("when");
   });
+
+  it("rejects malformed proposed-rule objects before export", () => {
+    const c = candidate("process", "x-abcd1234") as unknown as Record<string, unknown>;
+    c.proposed = {};
+    expect(validateRuleCandidate(c as RuleCandidate)).toContain("proposed.id");
+  });
+
+  it("rejects mismatched candidate/proposed ids", () => {
+    const c = candidate("process", "x-abcd1234");
+    c.proposed.id = "rule.other.x-abcd1234";
+    expect(validateRuleCandidate(c)).toContain("does not match");
+  });
 });
 
 describe("parseRules evidence-span sanity", () => {

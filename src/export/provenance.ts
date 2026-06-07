@@ -7,9 +7,8 @@
  *
  *  - {@link hashPageBody} derives a deterministic SHA-256 over a page body so
  *    a consumer can detect content drift without re-reading the markdown.
- *  - {@link buildSourceHashLookup} reads `.llmwiki/state.json` (the same
- *    per-source SHA-256 hashes the compiler computes for change detection in
- *    `src/compiler/hasher.ts`) into a filename → hash map.
+ *  - {@link sourceHashLookupFromSnapshot} reuses a freshness snapshot's
+ *    recorded per-source SHA-256 hashes as a filename → hash map.
  *  - {@link resolveSourceHashes} maps a page's `sources` frontmatter list to
  *    those committed hashes, preserving order and de-duplicating.
  *
@@ -20,7 +19,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readState } from "../utils/state.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /** Map of source filename → committed SHA-256 hash from state.json. */
 export type SourceHashLookup = Record<string, string>;
@@ -37,17 +36,14 @@ export function hashPageBody(body: string): string {
 }
 
 /**
- * Build a filename → source-hash lookup from the persisted compile state.
- * Reuses the per-source SHA-256 hashes the compiler already records for
- * incremental change detection, so the export never recomputes them.
- * @param root - Project root directory containing `.llmwiki/state.json`.
- * @returns Lookup keyed by source filename (as stored in frontmatter `sources`).
+ * Build a filename -> source-hash lookup from an existing freshness snapshot.
+ * The snapshot already contains state.json's recorded hashes, so export callers
+ * that compute freshness can reuse the same read-only state pass.
  */
-export async function buildSourceHashLookup(root: string): Promise<SourceHashLookup> {
-  const state = await readState(root);
+export function sourceHashLookupFromSnapshot(snapshot: FreshnessSnapshot): SourceHashLookup {
   const lookup: SourceHashLookup = {};
-  for (const [file, entry] of Object.entries(state.sources)) {
-    lookup[file] = entry.hash;
+  for (const [file, source] of Object.entries(snapshot.sources)) {
+    lookup[file] = source.recordedHash;
   }
   return lookup;
 }
@@ -62,7 +58,7 @@ export async function buildSourceHashLookup(root: string): Promise<SourceHashLoo
  * deterministic for a given (sources, state) pair.
  *
  * @param sources - Source filenames cited by the page (frontmatter `sources`).
- * @param lookup - Filename → hash map from {@link buildSourceHashLookup}.
+ * @param lookup - Filename → hash map from {@link sourceHashLookupFromSnapshot}.
  * @returns Ordered, de-duplicated list of source hashes.
  */
 export function resolveSourceHashes(

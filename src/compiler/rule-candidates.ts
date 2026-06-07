@@ -39,6 +39,9 @@ const CONFIDENCE_VALUES: readonly RuleConfidence[] = ["low", "medium", "high"];
 /** Allowed status values, used by the on-disk validity guard. */
 const STATUS_VALUES: readonly RuleStatus[] = ["proposed", "approved", "rejected"];
 
+/** Runtime evidence shape checker for a tagged evidence variant. */
+type EvidenceShapeChecker = (ref: Record<string, unknown>) => string | null;
+
 /** Absolute path to a rule candidate's JSON file. */
 function ruleCandidatePath(root: string, id: string): string {
   return path.join(root, RULE_CANDIDATES_DIR, `${id}${CANDIDATE_JSON_EXT}`);
@@ -93,14 +96,64 @@ export function buildRuleSlug(title: string, contentSignature: string): string {
  * @param c - The candidate to validate.
  */
 export function validateRuleCandidate(c: RuleCandidate): string | null {
+  const shapeError = ruleCandidateShapeError(c);
+  if (shapeError) return shapeError;
   if (!CANDIDATE_ID_RE.test(c.id)) return `candidate id "${c.id}" violates ${CANDIDATE_ID_RE}`;
   if (!RULE_ID_RE.test(c.proposed.id)) return `proposed rule id "${c.proposed.id}" violates ${RULE_ID_RE}`;
+  if (c.proposed.id !== `rule.${c.id.slice("rulecand.".length)}`) {
+    return `proposed rule id "${c.proposed.id}" does not match candidate id "${c.id}"`;
+  }
+  if (!c.id.startsWith(`rulecand.${c.proposed.category}.`)) {
+    return `candidate id "${c.id}" does not match category "${c.proposed.category}"`;
+  }
   const capError = firstFieldOverCap(c);
   if (capError) return capError;
   if (c.evidence.length > MAX_EVIDENCE_PER_CANDIDATE) {
     return `too many evidence refs: ${c.evidence.length} (max ${MAX_EVIDENCE_PER_CANDIDATE})`;
   }
   return firstEvidenceError(c.evidence);
+}
+
+/** Runtime shape validation before contract-specific validation reads fields. */
+function ruleCandidateShapeError(value: unknown): string | null {
+  if (!value || typeof value !== "object") return "candidate must be an object";
+  const c = value as Record<string, unknown>;
+  return candidateScalarShapeError(c)
+    ?? candidateEnumShapeError(c)
+    ?? proposedRuleShapeError(c.proposed)
+    ?? candidateEvidenceShapeError(c.evidence)
+    ?? provenanceShapeError(c.provenance);
+}
+
+/** Runtime shape validation for top-level scalar candidate fields. */
+function candidateScalarShapeError(c: Record<string, unknown>): string | null {
+  if (typeof c.id !== "string") return "candidate id must be a string";
+  if (typeof c.createdAt !== "string") return "createdAt must be a string";
+  return null;
+}
+
+/** Runtime shape validation for top-level candidate enum fields. */
+function candidateEnumShapeError(c: Record<string, unknown>): string | null {
+  if (!CONFIDENCE_VALUES.includes(c.confidence as RuleConfidence)) return "invalid confidence";
+  if (!STATUS_VALUES.includes(c.status as RuleStatus)) return "invalid status";
+  return null;
+}
+
+/** Runtime shape validation for the top-level evidence array. */
+function candidateEvidenceShapeError(value: unknown): string | null {
+  if (!Array.isArray(value)) return "evidence must be an array";
+  return firstEvidenceShapeError(value);
+}
+
+/** Runtime shape validation for the proposed rule object. */
+function proposedRuleShapeError(value: unknown): string | null {
+  if (!value || typeof value !== "object") return "proposed rule must be an object";
+  const proposed = value as Record<string, unknown>;
+  for (const field of ["id", "category", "title", "description", "when", "then"]) {
+    if (typeof proposed[field] !== "string") return `proposed.${field} must be a string`;
+  }
+  if (proposed.version !== 1) return "proposed.version must be 1";
+  return null;
 }
 
 /** First over-cap proposed-rule field, or null. */
@@ -123,6 +176,59 @@ function firstEvidenceError(evidence: EvidenceRef[]): string | null {
     const error = evidenceRefError(ref);
     if (error) return error;
   }
+  return null;
+}
+
+/** Runtime shape validation for every evidence ref. */
+function firstEvidenceShapeError(evidence: unknown[]): string | null {
+  for (const ref of evidence) {
+    const error = evidenceShapeError(ref);
+    if (error) return error;
+  }
+  return null;
+}
+
+/** Runtime shape validation for one evidence ref. */
+function evidenceShapeError(ref: unknown): string | null {
+  if (!ref || typeof ref !== "object") return "evidence ref must be an object";
+  const candidate = ref as Record<string, unknown>;
+  if (typeof candidate.kind !== "string") return "evidence kind must be a string";
+  const checkEvidenceShape = EVIDENCE_SHAPE_CHECKERS[candidate.kind];
+  return checkEvidenceShape ? checkEvidenceShape(candidate) : "unknown evidence kind";
+}
+
+/** Runtime shape validation for each tagged evidence variant. */
+const EVIDENCE_SHAPE_CHECKERS: Record<string, EvidenceShapeChecker> = {
+  audit: (ref) => requiredStringField(ref, "auditId", "audit evidence requires auditId"),
+  file: fileEvidenceShapeError,
+  memory: (ref) => requiredStringField(ref, "memoryId", "memory evidence requires memoryId"),
+  url: (ref) => requiredStringField(ref, "url", "url evidence requires url"),
+};
+
+/** Require a string field inside an on-disk tagged object. */
+function requiredStringField(
+  value: Record<string, unknown>,
+  field: string,
+  message: string,
+): string | null {
+  return typeof value[field] === "string" ? null : message;
+}
+
+/** Runtime shape validation for file evidence, including optional line spans. */
+function fileEvidenceShapeError(ref: Record<string, unknown>): string | null {
+  if (typeof ref.path !== "string") return "file evidence requires path";
+  if (ref.lineStart !== undefined && typeof ref.lineStart !== "number") return "lineStart must be a number";
+  if (ref.lineEnd !== undefined && typeof ref.lineEnd !== "number") return "lineEnd must be a number";
+  return null;
+}
+
+/** Runtime shape validation for provenance. */
+function provenanceShapeError(value: unknown): string | null {
+  if (!value || typeof value !== "object") return "provenance must be an object";
+  const provenance = value as Record<string, unknown>;
+  if (typeof provenance.source !== "string") return "provenance.source must be a string";
+  if (provenance.modelId !== undefined && typeof provenance.modelId !== "string") return "provenance.modelId must be a string";
+  if (provenance.modelVersion !== undefined && typeof provenance.modelVersion !== "string") return "provenance.modelVersion must be a string";
   return null;
 }
 
@@ -215,17 +321,7 @@ export async function writeRuleCandidate(
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */
 function isValidRuleCandidate(value: unknown): value is RuleCandidate {
-  if (!value || typeof value !== "object") return false;
-  const c = value as Record<string, unknown>;
-  return (
-    typeof c.id === "string" &&
-    typeof c.createdAt === "string" &&
-    Array.isArray(c.evidence) &&
-    typeof c.proposed === "object" &&
-    c.proposed !== null &&
-    CONFIDENCE_VALUES.includes(c.confidence as RuleConfidence) &&
-    STATUS_VALUES.includes(c.status as RuleStatus)
-  );
+  return validateRuleCandidate(value as RuleCandidate) === null;
 }
 
 /** Read one candidate JSON file. Returns null when missing or malformed. */
