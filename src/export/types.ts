@@ -16,6 +16,7 @@
 import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
 import type { FlatCitation } from "../context/provenance.js";
+import type { FreshnessStatus } from "../freshness/types.js";
 
 /**
  * Flat citation shape exported alongside each page. Identical to the
@@ -25,13 +26,6 @@ import type { FlatCitation } from "../context/provenance.js";
  */
 export type ExportCitation = FlatCitation;
 
-/**
- * Per-page freshness label. Always `"unverified"` in v1 — the bridge
- * cannot assert freshness relative to changed sources until the
- * source-freshness feature (roadmap P0) lands. Renamed from "unknown"
- * because consumers must act on stale data, not ignore it.
- */
-export type AdvisoryFreshnessStatus = "unverified";
 
 /**
  * Which wiki/ subdirectory a page lives in.
@@ -102,10 +96,17 @@ export interface ExportPage {
    */
   aliases?: string[];
   /**
-   * Per-page freshness status. Always `"unverified"` in v1 — the bridge
-   * cannot assert source-freshness until that feature ships.
+   * Advisory per-page source-freshness, computed at export time from
+   * `.llmwiki/state.json` + the current `sources/`. A snapshot, not a
+   * guarantee. The export is active-page-only, so this is `fresh`, `stale`,
+   * or `unverified` — never `orphaned` (orphaned pages are dropped from the
+   * export and surfaced by lint/the viewer instead).
    */
-  advisoryFreshnessStatus: AdvisoryFreshnessStatus;
+  freshnessStatus: FreshnessStatus;
+  /** True when the page is disputed by another page (`contradictedBy` non-empty). */
+  contradicted: boolean;
+  /** True when the page is explicitly archived (`archived: true` frontmatter). */
+  archived: boolean;
   /**
    * Deterministic SHA-256 (hex) of {@link ExportPage.body}. Lets a
    * downstream auditor (export provenance) detect content drift and verify that an

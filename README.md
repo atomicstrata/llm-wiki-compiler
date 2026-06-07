@@ -14,7 +14,7 @@ Inspired by Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914
 - **Eval harness.** `llmwiki eval` measures health score (0–100), citation coverage and precision, optional LLM-as-judge support scoring, regression deltas, and CI-gateable thresholds.
 - **MCP server.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent — including `get_context_pack` for budgeted, citation-aware evidence packs.
 - **Bridge to runtime memory.** `llmwiki export --target json --project-id <id>` produces a typed envelope that [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) imports as one verbatim Atomic Memory record per page, preserving all advisory metadata.
-- **Provider-portable.** Anthropic, OpenAI-compatible (incl. local llama.cpp / vLLM), Ollama, GitHub Copilot.
+- **Provider-portable.** Anthropic, Claude Agent SDK (local Claude Code login, no API key), OpenAI-compatible (incl. local llama.cpp / vLLM), Ollama, GitHub Copilot.
 
 ## Who this is for
 
@@ -88,6 +88,43 @@ Example with zero exports (Claude Code already configured):
 ```bash
 llmwiki compile
 ```
+
+### Claude Agent SDK (local Claude Code login)
+
+The `claude-agent` provider routes calls through the
+[Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript)
+instead of the raw Messages API. It authenticates with your **local Claude Code
+login** (OAuth/subscription), so **no `ANTHROPIC_API_KEY` is required** — if you
+can run `claude` in your terminal, this provider works.
+
+> **Terms of use.** This provider drives your Claude Code / Agent SDK session
+> programmatically to compile wikis. That is not automatically appropriate for
+> every account type, plan, or environment. Before using it, review Anthropic's
+> current [Claude Code](https://www.anthropic.com/legal/consumer-terms) and
+> [Agent SDK](https://docs.anthropic.com/en/api/agent-sdk/overview) terms and
+> usage policies, and make sure your intended use complies with them.
+
+```bash
+export LLMWIKI_PROVIDER=claude-agent
+export LLMWIKI_MODEL=claude-sonnet-4-6  # optional; this is the default
+llmwiki compile
+```
+
+Notes:
+
+- Generation (`compile`) and structured extraction work off the local login with
+  no extra credentials.
+- Semantic search (`llmwiki query`) still needs embeddings, which Claude does not
+  provide. Set `VOYAGE_API_KEY` to enable them (same as the `anthropic`
+  provider); otherwise `query` falls back to lexical ranking.
+- To see what the SDK is doing, set `LLMWIKI_DEBUG=1` for a concise one-line trace
+  per SDK message (`[claude-agent] system:init`, `… assistant`, `… result:success`)
+  plus any `claude` subprocess errors. Use `LLMWIKI_DEBUG=verbose` to additionally
+  enable the SDK's full verbose logging.
+
+  ```bash
+  LLMWIKI_DEBUG=1 LLMWIKI_PROVIDER=claude-agent llmwiki compile
+  ```
 
 ### OpenAI-Compatible Local Servers
 
@@ -597,7 +634,10 @@ Karpathy described an abstract pattern for turning raw data into compiled knowle
 
 Available on main, will ship in 0.9.0:
 
+- ✅ Source freshness — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since compile, computed on demand from `.llmwiki/state.json` and the current `sources/`; the JSON export carries per-page `freshnessStatus`, `contradicted`, and `archived`
 - ✅ JSON export bridge contract — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records
+- ✅ Eval over MCP — `run_eval` MCP tool scores wiki quality (fast suite needs no API key; full suite LLM-judges a sample of citations), plus read-only `llmwiki://eval/report` and `llmwiki://eval/history` resources
+- ✅ Alias-aware wikilinks — the viewer resolves a `[[term]]` link to any page that declares `term` in its `aliases` frontmatter, not just an exact slug match
 
 Shipped in 0.8.0:
 

@@ -17,23 +17,38 @@ function emptyState(): WikiState {
   return { version: 1, indexHash: "", sources: {} };
 }
 
-/** Read .llmwiki/state.json, recovering from corruption gracefully. */
-export async function readState(root: string): Promise<WikiState> {
+/** State file read outcome: ok = parsed, missing = no file, corrupt = unparseable. */
+export interface ClassifiedState {
+  status: "ok" | "missing" | "corrupt";
+  state: WikiState;
+}
+
+/**
+ * Read .llmwiki/state.json and classify the outcome WITHOUT side effects.
+ * Unlike readState(), this never writes a .bak on corrupt input, so read-only
+ * callers (freshness/lint/view/export) can safely use it.
+ */
+export async function readStateClassified(root: string): Promise<ClassifiedState> {
   const filePath = path.join(root, STATE_FILE);
-
-  if (!existsSync(filePath)) {
-    return emptyState();
-  }
-
+  if (!existsSync(filePath)) return { status: "missing", state: emptyState() };
   try {
     const raw = await readFile(filePath, "utf-8");
-    return JSON.parse(raw) as WikiState;
+    return { status: "ok", state: JSON.parse(raw) as WikiState };
   } catch {
+    return { status: "corrupt", state: emptyState() };
+  }
+}
+
+/** Read .llmwiki/state.json, recovering from corruption gracefully (writes a .bak). */
+export async function readState(root: string): Promise<WikiState> {
+  const classified = await readStateClassified(root);
+  if (classified.status === "corrupt") {
+    const filePath = path.join(root, STATE_FILE);
     const bakPath = filePath + ".bak";
     console.warn(`⚠ Corrupt state.json — backed up to ${bakPath}, starting fresh.`);
     await copyFile(filePath, bakPath);
-    return emptyState();
   }
+  return classified.state;
 }
 
 /** Atomically write state.json (write .tmp then rename). */

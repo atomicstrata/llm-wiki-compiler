@@ -12,6 +12,8 @@
 import path from "path";
 import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
+import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
+import type { FreshnessSnapshot } from "../freshness/types.js";
 import { extractClaimCitations } from "../utils/markdown.js";
 import { flattenCitations } from "../context/provenance.js";
 import type { PageKind } from "../schema/types.js";
@@ -89,10 +91,18 @@ function readPageKind(meta: Record<string, unknown>): PageKind | undefined {
  * (path, kind, advisory*, citations, aliases) are populated here so
  * every export format gets the same enriched payload.
  */
-function toExportPage(raw: RawWikiPage, sourceHashes: SourceHashLookup): ExportPage {
+function toExportPage(
+  raw: RawWikiPage,
+  snapshot: FreshnessSnapshot,
+  sourceHashes: SourceHashLookup,
+): ExportPage {
   const meta = raw.frontmatter;
   const aliases = readStringArray(meta, "aliases");
   const sources = readStringArray(meta, "sources");
+  const freshness = computeFreshness(
+    { slug: raw.slug, pageDirectory: raw.pageDirectory, frontmatter: meta },
+    snapshot,
+  );
   return {
     title: raw.title as string,
     slug: raw.slug,
@@ -111,7 +121,9 @@ function toExportPage(raw: RawWikiPage, sourceHashes: SourceHashLookup): ExportP
     contradictedBy: readContradictedBy(meta),
     citations: flattenCitations(extractClaimCitations(raw.body)),
     ...(aliases.length > 0 ? { aliases } : {}),
-    advisoryFreshnessStatus: "unverified",
+    freshnessStatus: freshness.freshnessStatus,
+    contradicted: freshness.contradicted,
+    archived: freshness.archived,
     contentHash: hashPageBody(raw.body),
     sourceHashes: resolveSourceHashes(sources, sourceHashes),
     ...(typeof meta.modelId === "string" ? { modelId: meta.modelId } : {}),
@@ -121,14 +133,21 @@ function toExportPage(raw: RawWikiPage, sourceHashes: SourceHashLookup): ExportP
 
 /**
  * Collect all exportable wiki pages from `wiki/concepts/` and `wiki/queries/`.
- * Drops orphaned and untitled records — those are diagnosed by the viewer,
- * not exported. Returns the surviving pages sorted by title.
+ * Drops untitled records, frontmatter-orphaned records, and computed-orphaned
+ * records (every owning source deleted) — those are diagnosed by lint/the
+ * viewer, not exported. The freshness snapshot is built once and shared across
+ * all pages. Returns the surviving pages sorted by title.
  */
 export async function collectExportPages(root: string): Promise<ExportPage[]> {
   const raw = await collectRawWikiPages(root);
-  const sourceHashes = await buildSourceHashLookup(root);
+  const [snapshot, sourceHashes] = await Promise.all([
+    buildFreshnessSnapshot(root),
+    buildSourceHashLookup(root),
+  ]);
   const kept = raw.filter((page) => page.parseStatus.hasTitle && !page.parseStatus.orphaned);
-  const pages = kept.map((page) => toExportPage(page, sourceHashes));
+  const pages = kept
+    .map((page) => toExportPage(page, snapshot, sourceHashes))
+    .filter((page) => page.freshnessStatus !== "orphaned");
   pages.sort((a, b) => a.title.localeCompare(b.title));
   return pages;
 }

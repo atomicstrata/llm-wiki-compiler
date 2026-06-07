@@ -12,3 +12,11 @@ localdocs/
 .worktrees/
 .sisyphus/
 .claude/
+# Local demo/test wiki workspaces (e.g. my-wiki/). The product output dirs
+# /wiki/ and /sources/ above are root-anchored, so a nested workspace's
+# my-wiki/wiki/ and my-wiki/sources/ would otherwise be tracked.
+*-wiki/
+# Superpowers planning artifacts (specs/plans) are internal-only; they live in
+# localdocs/. The skills default to docs/superpowers/, so guard against leaking
+# them into the public repo.
+docs/superpowers/
