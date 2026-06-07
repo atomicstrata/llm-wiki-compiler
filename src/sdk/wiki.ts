@@ -5,18 +5,24 @@
  * `createWiki(options)` returns a `Wiki` object that delegates every
  * method to the SDK-safe core functions built across Tasks 1–9. All
  * methods run silently (no console output) by scoping quiet mode to the
- * async call tree via AsyncLocalStorage, so concurrent calls are isolated.
+ * async call tree via AsyncLocalStorage, so concurrent calls are fully
+ * isolated — no global flag is mutated, eliminating the concurrency caveat
+ * described in earlier design drafts.
  *
  * Provider-gating rules:
  *   - `compile`, `search`, `query` — always guard (throw ProviderUnavailableError if no creds)
  *   - `runEval({ mode: "full" })` — guards only when mode is "full"
  *   - All other methods — no credential check; safe to call without an LLM provider
  *
- * The root path is normalized once via `path.resolve` so every downstream
- * call works from an absolute path regardless of the caller's cwd.
+ * Root-path validation: `createWiki` normalizes the root once via `path.resolve`.
+ * A non-existent root is accepted — `ingest`/`ingestText` create `sources/` via
+ * recursive `mkdir` on first write. If the path already exists but is NOT a
+ * directory (e.g. a regular file was passed by mistake), construction throws
+ * immediately with a clear error message.
  */
 
 import path from "node:path";
+import { existsSync, statSync } from "node:fs";
 import { withQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
@@ -50,6 +56,12 @@ export function createWiki(options: CreateWikiOptions): Wiki {
   // Normalize once so every delegated call works from an absolute path,
   // independent of any subsequent cwd changes in the calling process.
   const root = path.resolve(options.root);
+
+  // A missing root is valid — ingest/ingestText create sources/ via recursive mkdir.
+  // But if the path already exists and is NOT a directory, it is always a caller mistake.
+  if (existsSync(root) && !statSync(root).isDirectory()) {
+    throw new Error(`createWiki: root exists but is not a directory: ${root}`);
+  }
 
   return {
     ingest: ({ source }) => runQuiet(() => ingestSource(root, source)),
