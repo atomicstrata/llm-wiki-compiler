@@ -2,7 +2,16 @@
  * ANSI colored terminal output helpers.
  * Provides consistent styling for compilation progress, status messages,
  * and streaming token display.
+ *
+ * Quiet-mode is scoped per async call tree via AsyncLocalStorage so that
+ * concurrent SDK calls (e.g. `Promise.all([wiki.lint(), wiki.search()])`)
+ * never corrupt each other's quiet state. The process-wide `quietMode` flag
+ * is preserved for the `quickstart --json` code path that calls `setQuiet`
+ * directly; `isQuiet()` checks the scoped value first and falls back to the
+ * global flag.
  */
+
+import { AsyncLocalStorage } from "node:async_hooks";
 
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
@@ -48,10 +57,30 @@ export function source(text: string): string {
  * call short-circuits while the flag is set.
  *
  * Default is false, preserving byte-for-byte behaviour for every other
- * command. Callers are responsible for restoring the flag in a `finally`
- * block if they need partial silence.
+ * command. SDK callers should use `withQuiet` instead of mutating this
+ * flag directly, to avoid concurrent call corruption.
  */
 let quietMode = false;
+
+/** ALS store scopes quietness to a single async call tree. */
+const quietScope = new AsyncLocalStorage<boolean>();
+
+/**
+ * Run `fn` with quiet mode scoped to the current async call tree.
+ * Concurrent calls are fully isolated — no global flag is mutated.
+ * Returns whatever `fn` returns (preserves Promise for async functions).
+ */
+export function withQuiet<T>(fn: () => T): T {
+  return quietScope.run(true, fn);
+}
+
+/**
+ * Returns true if the current async context is quiet (via ALS scope)
+ * or the process-wide quiet flag is set. The scoped value takes priority.
+ */
+export function isQuiet(): boolean {
+  return quietScope.getStore() ?? quietMode;
+}
 
 /** Toggle the process-wide quiet flag. */
 export function setQuiet(quiet: boolean): void {
@@ -60,13 +89,13 @@ export function setQuiet(quiet: boolean): void {
 
 /** Print a status line with an icon. No-op while quiet mode is enabled. */
 export function status(icon: string, message: string): void {
-  if (quietMode) return;
+  if (isQuiet()) return;
   console.log(`${icon} ${message}`);
 }
 
 /** Print a section header. No-op while quiet mode is enabled. */
 export function header(title: string): void {
-  if (quietMode) return;
+  if (isQuiet()) return;
   console.log(`\n${BOLD}${title}${RESET}`);
   console.log(dim("─".repeat(Math.min(title.length + 4, 60))));
 }
@@ -77,11 +106,11 @@ export function header(title: string): void {
  * which write progress to stdout via `console.log`.
  */
 export function note(message: string): void {
-  if (quietMode) return;
+  if (isQuiet()) return;
   console.warn(message);
 }
 
-/** Read the current quiet flag so callers can save/restore it. */
+/** Read the current process-wide quiet flag. */
 export function getQuiet(): boolean {
   return quietMode;
 }

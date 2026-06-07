@@ -4,8 +4,8 @@
  *
  * `createWiki(options)` returns a `Wiki` object that delegates every
  * method to the SDK-safe core functions built across Tasks 1–9. All
- * methods run silently (no console output) by temporarily forcing the
- * shared quiet flag, restoring the caller's prior value on exit.
+ * methods run silently (no console output) by scoping quiet mode to the
+ * async call tree via AsyncLocalStorage, so concurrent calls are isolated.
  *
  * Provider-gating rules:
  *   - `compile`, `search`, `query` — always guard (throw ProviderUnavailableError if no creds)
@@ -17,7 +17,7 @@
  */
 
 import path from "node:path";
-import { setQuiet, getQuiet } from "../utils/output.js";
+import { withQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
 import { generateAnswer } from "../commands/query.js";
@@ -32,18 +32,12 @@ import { getPage, listPages } from "../pages/list.js";
 import type { CreateWikiOptions, Wiki, SdkCompileOptions } from "./types.js";
 
 /**
- * Run `fn` with output forced quiet, restoring the prior flag on exit.
- * Never force-false: if the caller already had quiet=false, that state
- * is restored after `fn` completes.
+ * Run `fn` with output scoped quiet via AsyncLocalStorage.
+ * Concurrent calls are fully isolated — no global flag is mutated.
+ * Declared async so synchronous throws inside `fn` become rejected promises.
  */
 async function runQuiet<T>(fn: () => Promise<T>): Promise<T> {
-  const prev = getQuiet();
-  setQuiet(true);
-  try {
-    return await fn();
-  } finally {
-    setQuiet(prev);
-  }
+  return withQuiet(fn);
 }
 
 /**
