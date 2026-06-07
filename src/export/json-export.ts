@@ -36,7 +36,7 @@ import type { ExportPage } from "./types.js";
 export const EXPORT_SCHEMA_VERSION = 1;
 
 /** Top-level shape of the JSON export file. */
-interface JsonExportDocument {
+export interface JsonExportDocument {
   /**
    * Contract version for downstream consumers. Start at 1; increment only on
    * breaking envelope changes so consumers can pin a supported range.
@@ -59,15 +59,15 @@ export interface BuildJsonExportOptions {
 }
 
 /**
- * Build the JSON export document from a list of export pages.
+ * Build the JSON export document object from a list of export pages.
  * @param pages - Sorted array of export pages.
  * @param options - Optional bridge envelope fields (e.g. `projectId`).
- * @returns Pretty-printed JSON string.
+ * @returns The structured JsonExportDocument object (not serialized).
  */
-export function buildJsonExport(
+export function buildJsonExportDocument(
   pages: ExportPage[],
   options: BuildJsonExportOptions = {},
-): string {
+): JsonExportDocument {
   const doc: JsonExportDocument = {
     schemaVersion: EXPORT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
@@ -77,5 +77,18 @@ export function buildJsonExport(
   if (options.projectId !== undefined) {
     doc.projectId = validateProjectId(options.projectId);
   }
-  return JSON.stringify(doc, null, 2);
+  return doc;
+}
+
+/**
+ * Build the JSON export document from a list of export pages.
+ * @param pages - Sorted array of export pages.
+ * @param options - Optional bridge envelope fields (e.g. `projectId`).
+ * @returns Pretty-printed JSON string.
+ */
+export function buildJsonExport(
+  pages: ExportPage[],
+  options: BuildJsonExportOptions = {},
+): string {
+  return JSON.stringify(buildJsonExportDocument(pages, options), null, 2);
 }
