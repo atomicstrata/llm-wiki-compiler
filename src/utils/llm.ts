@@ -9,6 +9,7 @@
 import { RETRY_COUNT, RETRY_BASE_MS, RETRY_MULTIPLIER } from "./constants.js";
 import { getProvider } from "./provider.js";
 import type { LLMMessage, LLMTool } from "./provider.js";
+import { note } from "./output.js";
 
 /** Sleep for a given number of milliseconds. */
 function sleep(ms: number): Promise<void> {
@@ -59,8 +60,8 @@ export async function callClaude(options: CallClaudeOptions): Promise<string> {
 
       const delayMs = RETRY_BASE_MS * Math.pow(RETRY_MULTIPLIER, attempt);
       const errMsg = error instanceof Error ? error.message : String(error);
-      console.warn(`⚠ API call failed (attempt ${attempt + 1}/${RETRY_COUNT + 1}): ${errMsg}`);
-      console.warn(`  Retrying in ${delayMs / 1000}s...`);
+      note(`⚠ API call failed (attempt ${attempt + 1}/${RETRY_COUNT + 1}): ${errMsg}`);
+      note(`  Retrying in ${delayMs / 1000}s...`);
       await sleep(delayMs);
     }
   }

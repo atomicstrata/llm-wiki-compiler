@@ -70,3 +70,14 @@ export function header(title: string): void {
   console.log(`\n${BOLD}${title}${RESET}`);
   console.log(dim("─".repeat(Math.min(title.length + 4, 60))));
 }
+
+/** Quiet-aware warning line (stderr-style notices). No-op while quiet. */
+export function note(message: string): void {
+  if (quietMode) return;
+  console.warn(message);
+}
+
+/** Read the current quiet flag so callers can save/restore it. */
+export function getQuiet(): boolean {
+  return quietMode;
+}
