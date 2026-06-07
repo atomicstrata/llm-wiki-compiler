@@ -9,6 +9,7 @@ import { parseFrontmatter } from "../utils/markdown.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 
+/** A single source file under `sources/`, with frontmatter metadata. */
 export interface SourceRecord {
   id: string;          // basename incl. ".md"
   title: string;
@@ -17,13 +18,20 @@ export interface SourceRecord {
   ingestedAt?: string;
   body?: string;
 }
+
+/** Options for paginating `listSources` and opting into source bodies. */
 export interface ListSourcesOptions { cursor?: string; limit?: number; includeBody?: boolean }
+
+/** Result returned by `listSources`. */
 export interface ListSourcesResult { sources: SourceRecord[]; cursor?: string }
 
 /** Reject anything that isn't a bare `sources/` basename ending in `.md`. */
-export function assertSafeSourceId(id: string): void {
+function assertSafeSourceId(id: string): void {
   if (typeof id !== "string" || id.length === 0) throw new PathSafetyError("source id must be a non-empty string");
   if (!id.endsWith(".md")) throw new PathSafetyError(`source id must end in .md: "${id}"`);
+  // Conservative: real source IDs are `slug-<hex>.md` (slugified title + collision
+  // hash) and never contain `..`, so rejecting any `..` substring is safe and
+  // simpler than component-level normalization.
   if (id.includes("/") || id.includes("\\") || id.includes("\0") || id.includes(".."))
     throw new PathSafetyError(`source id must be a bare basename: "${id}"`);
 }

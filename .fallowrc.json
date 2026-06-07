@@ -8,10 +8,7 @@
     "src/viewer/assets/index.html",
     "src/viewer/assets/viewer.css"
   ],
-  "ignoreExports": [
-    { "file": "src/utils/output.ts", "exports": ["getQuiet"] },
-    { "file": "src/sources/store.ts", "exports": ["assertSafeSourceId"] }
-  ],
+  "ignoreExports": [{ "file": "src/utils/output.ts", "exports": ["getQuiet"] }],
   "overrides": [
     {
       "files": ["src/providers/*.ts", "src/utils/provider-guard.ts"],
