@@ -49,7 +49,7 @@ export interface JsonExportDocument {
   pages: ExportPage[];
 }
 
-/** Options accepted by {@link buildJsonExport}. */
+/** Options accepted by {@link buildJsonExportDocument}. */
 export interface BuildJsonExportOptions {
   /**
    * Optional project identifier. Validated against the bridge contract

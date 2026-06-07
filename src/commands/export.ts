@@ -20,7 +20,12 @@ import { atomicWrite } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import { collectExportPages } from "../export/collect.js";
 import { buildLlmsTxt, buildLlmsFullTxt } from "../export/llms-txt.js";
-import { buildJsonExport, buildJsonExportDocument, type JsonExportDocument } from "../export/json-export.js";
+import {
+  buildJsonExport,
+  buildJsonExportDocument,
+  type BuildJsonExportOptions,
+  type JsonExportDocument,
+} from "../export/json-export.js";
 import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
@@ -200,13 +205,10 @@ function resolveTargets(rawTarget: string | undefined): ExportTarget[] {
  */
 export async function exportJson(
   root: string,
-  options: { projectId?: string } = {},
+  options: BuildJsonExportOptions = {},
 ): Promise<JsonExportDocument> {
   const pages = await collectExportPages(root);
-  return buildJsonExportDocument(
-    pages,
-    options.projectId !== undefined ? { projectId: options.projectId } : {},
-  );
+  return buildJsonExportDocument(pages, options);
 }
 
 /**
