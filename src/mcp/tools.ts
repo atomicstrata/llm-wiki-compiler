@@ -15,10 +15,7 @@ import { ingestSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
 import { generateAnswer, selectPages } from "../commands/query.js";
 import { lint } from "../linter/index.js";
-import { collectPageSummaries, scanWikiPages } from "../compiler/indexgen.js";
-import { detectChanges } from "../compiler/hasher.js";
-import { countCandidates } from "../compiler/candidates.js";
-import { readState } from "../utils/state.js";
+import { collectStatus } from "./status.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { findRelevantChunks, findRelevantPages } from "../utils/embeddings.js";
 import { buildContextPack } from "../context/build.js";
@@ -250,9 +247,15 @@ function registerStatusTool(server: McpServer, root: string): void {
     {
       title: "Wiki Status",
       description:
-        "Summarize the wiki: page count, source count, last compile time, " +
-        "orphaned pages, and pending source changes. Read-only — never " +
-        "modifies the workspace.",
+        "Summarize the wiki: page count, source count, last compile time, pending source " +
+        "changes, and freshness-derived page health. stalePages lists concept slugs whose " +
+        "source changed or partially disappeared since last compile. orphanedPages lists " +
+        "concept slugs whose every owning source was deleted OR that are frontmatter-flagged " +
+        "orphaned (superset of prior behavior). stateStatus reports state.json readability " +
+        "(ok | missing | corrupt) so corrupt state is never silent. Each list (stalePages, " +
+        "orphanedPages, pendingChanges) is capped at 100 entries for response size; the " +
+        "corresponding *Count fields (staleCount, orphanedCount, pendingChangesCount) give " +
+        "the true totals. Read-only — never modifies the workspace.",
       inputSchema: {},
     },
     async () => jsonResult(await collectStatus(root)),
@@ -398,47 +401,6 @@ function registerEvalTool(server: McpServer, root: string): void {
   );
 }
 
-
-/** Read-only status snapshot used by the wiki_status tool. */
-async function collectStatus(root: string): Promise<WikiStatus> {
-  const concepts = await collectPageSummaries(path.join(root, CONCEPTS_DIR));
-  const queries = await collectPageSummaries(path.join(root, QUERIES_DIR));
-  const state = await readState(root);
-  const changes = await detectChanges(root, state);
-  const orphans = await findOrphanedSlugs(root);
-  const pendingCandidates = await countCandidates(root);
-  const compileTimes = Object.values(state.sources).map((s) => s.compiledAt);
-  const lastCompile = compileTimes.length > 0
-    ? compileTimes.sort().slice(-1)[0]
-    : null;
-
-  return {
-    pages: { concepts: concepts.length, queries: queries.length, total: concepts.length + queries.length },
-    sources: Object.keys(state.sources).length,
-    lastCompiledAt: lastCompile,
-    orphanedPages: orphans,
-    pendingCandidates,
-    pendingChanges: changes
-      .filter((c) => c.status !== "unchanged")
-      .map((c) => ({ file: c.file, status: c.status })),
-  };
-}
-
-interface WikiStatus {
-  pages: { concepts: number; queries: number; total: number };
-  sources: number;
-  lastCompiledAt: string | null;
-  orphanedPages: string[];
-  /** Number of compile candidates awaiting human review. */
-  pendingCandidates: number;
-  pendingChanges: Array<{ file: string; status: string }>;
-}
-
-/** Find concept slugs whose pages are flagged as orphaned. */
-async function findOrphanedSlugs(root: string): Promise<string[]> {
-  const scanned = await scanWikiPages(path.join(root, CONCEPTS_DIR));
-  return scanned.filter(({ meta }) => meta.orphaned).map(({ slug }) => slug);
-}
 
 /** Load full content for a list of slugs, skipping missing/orphaned pages. */
 async function loadPageRecords(root: string, slugs: string[]): Promise<PageRecord[]> {

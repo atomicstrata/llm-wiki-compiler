@@ -15,7 +15,7 @@ import { readFile, appendFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
-import { parseFrontmatter, extractClaimCitations } from "../utils/markdown.js";
+import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import { callClaude } from "../utils/llm.js";
 import { SOURCES_DIR, DEFAULT_PROVIDER, PROVIDER_MODELS } from "../utils/constants.js";
 import { resolveSourceFile } from "./source-path.js";
@@ -25,8 +25,6 @@ import type { SourceSpan } from "../utils/types.js";
 
 const CACHE_DIR = path.join(".llmwiki", "eval");
 const CACHE_FILE = path.join(CACHE_DIR, "citation-cache.jsonl");
-const PROSE_LEAD_RE = /^\p{L}/u;
-
 /** Internal pair combining a claim paragraph with its cited source span. */
 interface CitationPair {
   claimHash: string;
@@ -136,7 +134,7 @@ async function extractPagePairs(
   body: string,
   sourcesDir: string,
 ): Promise<CitationPair[]> {
-  const paragraphs = body.split(/\n\s*\n/).filter((p) => PROSE_LEAD_RE.test(p.trim()));
+  const paragraphs = splitProseParagraphs(body);
   const results = await Promise.all(paragraphs.map((p) => extractParagraphPairs(slug, p, sourcesDir)));
   return results.flat();
 }

@@ -1,5 +1,6 @@
 /**
- * Count parity between `/api/health` and MCP `wiki_status`.
+ * Count parity between `/api/health` and MCP `wiki_status`, plus
+ * stateStatus surfacing for the corrupt-state banner.
  *
  * The two surfaces serve different envelopes — MCP returns
  * `{ pages: { concepts, queries, total }, sources, pendingCandidates, ... }`,
@@ -16,6 +17,7 @@ import { describe, it, expect } from "vitest";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
+import { writeCorruptTestStateJson, writeSourceState } from "./fixtures/state-json.js";
 import {
   useViewerProcessLifecycle,
   type ViewerProcessHandle,
@@ -33,6 +35,7 @@ interface ViewerHealth {
   sources: number;
   sourceFiles: number;
   pendingReviews: number;
+  stateStatus: "ok" | "missing" | "corrupt";
   lint: unknown;
 }
 
@@ -70,5 +73,35 @@ describe("/api/health count parity vs MCP wiki_status helpers", () => {
     const handle = await startViewer(root);
     const health = await fetchHealth(handle);
     expect(health.lint).toBeNull();
+  });
+});
+
+describe("/api/health stateStatus", () => {
+  it("returns stateStatus: ok for a project with valid state.json", async () => {
+    const root = await makeTempRoot("viewer-health-statestatus-ok");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Body.");
+    // Write a minimal valid state.json so readStateClassified returns "ok".
+    await writeSourceState(root, {});
+    const handle = await startViewer(root);
+    const health = await fetchHealth(handle);
+    expect(health.stateStatus).toBe("ok");
+  });
+
+  it("returns stateStatus: missing for a project with no state.json", async () => {
+    const root = await makeTempRoot("viewer-health-statestatus-missing");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Body.");
+    // No state.json written — freshness-viewer fixture confirms missing → unverified pages.
+    const handle = await startViewer(root);
+    const health = await fetchHealth(handle);
+    expect(health.stateStatus).toBe("missing");
+  });
+
+  it("returns stateStatus: corrupt for a project with corrupt state.json", async () => {
+    const root = await makeTempRoot("viewer-health-statestatus-corrupt");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Body.");
+    await writeCorruptTestStateJson(root);
+    const handle = await startViewer(root);
+    const health = await fetchHealth(handle);
+    expect(health.stateStatus).toBe("corrupt");
   });
 });

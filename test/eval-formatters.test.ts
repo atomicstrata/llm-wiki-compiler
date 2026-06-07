@@ -27,6 +27,21 @@ function makeReport(overrides: Partial<EvalReport> = {}): EvalReport {
       precisionPercent: 93,
       perPage: [],
     },
+    sourceUtilization: {
+      totalSources: 5,
+      citedSources: 4,
+      uncitedSources: 1,
+      utilizationRate: 0.8,
+      perSource: [],
+      warnings: [],
+    },
+    citationDepth: {
+      totalCitations: 15,
+      preciseCitations: 8,
+      vagueCitations: 7,
+      claimLevelRate: 0.533,
+      avgCitationsPerParagraph: 0.75,
+    },
     stats: {
       timestamp: "2026-05-23T10:30:00.000Z",
       sourceCount: 5,
@@ -234,5 +249,12 @@ describe("formatTerminalReport", () => {
     const output = formatTerminalReport(report);
     expect(output).toContain("↑5");
     expect(output).toContain("↓2");
+  });
+
+  it("includes source utilization and citation depth sections", () => {
+    const output = formatTerminalReport(makeReport());
+    expect(output).toContain("Source Utilization:");
+    expect(output).toContain("Citation Depth:");
+    expect(output).toContain("Claim-level");
   });
 });

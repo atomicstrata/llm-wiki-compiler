@@ -92,6 +92,45 @@ function formatSupport(report: EvalReport, delta: EvalDelta | undefined): string
   return rows;
 }
 
+function formatCitationDepth(report: EvalReport): string[] {
+  const d = report.citationDepth;
+  if (d.totalCitations === 0) return [line(), line('Citation Depth:  (no citations)')];
+  const pct = (d.claimLevelRate * 100).toFixed(0);
+  return [
+    line(),
+    line(bold("Citation Depth:")),
+    line('  Claim-level (with line numbers): ' + d.preciseCitations + ' / ' + d.totalCitations + '  (' + pct + '%)'),
+    line('  Avg citations per paragraph: ' + d.avgCitationsPerParagraph.toFixed(1)),
+  ];
+}
+
+function formatSourceUtilization(report: EvalReport): string[] {
+  const u = report.sourceUtilization;
+  if (u.totalSources === 0) {
+    return [line(), line('Source Utilization:  N/A (no sources)')];
+  }
+  const pct = u.utilizationRate !== null ? (u.utilizationRate * 100).toFixed(0) + "%" : "N/A";
+  const rows = [
+    line(),
+    line(bold('Source Utilization:  ' + pct)),
+    line('  ' + u.citedSources + ' / ' + u.totalSources + ' sources cited by >=1 wiki page'),
+  ];
+  if (u.uncitedSources > 0) {
+    const uncited = u.perSource
+      .filter(function(s) { return s.citingPageCount === 0; })
+      .map(function(s) { return s.sourceFile; });
+    rows.push(line(colorError('  ' + String(u.uncitedSources) + ' uncited:')));
+    for (const f of uncited.slice(0, 5)) {
+      rows.push(line(dim('    - ' + f)));
+    }
+    if (uncited.length > 5) {
+      rows.push(line(dim('    ... and ' + String(uncited.length - 5) + ' more')));
+    }
+    rows.push(line(dim('  Tip: re-run llmwiki compile to extract concepts from uncited sources.')));
+  }
+  return rows;
+}
+
 function formatStats(report: EvalReport): string[] {
   const s = report.stats;
   return [
@@ -121,6 +160,8 @@ export function formatTerminalReport(report: EvalReport): string {
     divider(),
     ...formatHealth(report, delta),
     ...formatCoverage(report, delta),
+    ...formatSourceUtilization(report),
+    ...formatCitationDepth(report),
     ...formatSupport(report, delta),
     ...formatStats(report),
     ...formatViolations(report.thresholdViolations),
