@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, symlink } from "fs/promises";
 import path from "path";
 import { createHash } from "node:crypto";
 import { computeFreshness, buildFreshnessSnapshot } from "../src/freshness/index.js";
@@ -116,6 +116,40 @@ describe("buildFreshnessSnapshot", () => {
 
     const snap = await buildFreshnessSnapshot(env.dir, classified);
     expect(Object.keys(snap.sources)).toEqual(["a.md"]);
+  });
+
+  it("treats a symlink that escapes sources/ as not-exists (defense-in-depth)", async () => {
+    // Write a file outside sources/ that a symlink inside sources/ would target.
+    const outsidePath = path.join(env.dir, "outside.md");
+    await writeFile(outsidePath, "secret content", "utf-8");
+    await mkdir(path.join(env.dir, "sources"), { recursive: true });
+    const symlinkPath = path.join(env.dir, "sources", "evil.md");
+    let symlinkCreated = false;
+    try {
+      await symlink(outsidePath, symlinkPath);
+      symlinkCreated = true;
+    } catch {
+      // Symlink creation not permitted in this environment — skip gracefully.
+    }
+    if (!symlinkCreated) return;
+
+    const normalContent = "normal content";
+    await writeSourceState(env.dir, {
+      "evil.md": { hash: sha256Hex("secret content"), concepts: ["evil"] },
+      "normal.md": { hash: sha256Hex(normalContent), concepts: ["normal"] },
+    });
+    await writeSourceFile(env.dir, "normal.md", normalContent);
+
+    const snap = await buildFreshnessSnapshot(env.dir);
+
+    // Symlink escaping sources/ must be treated as not-exists, never hashed.
+    expect(snap.sources["evil.md"]).toEqual(
+      expect.objectContaining({ exists: false, currentHash: null }),
+    );
+    // Normal file still classifies correctly.
+    expect(snap.sources["normal.md"]).toEqual(
+      expect.objectContaining({ exists: true, currentHash: sha256Hex(normalContent) }),
+    );
   });
 
   it("treats path-traversal keys as not-exists without throwing or reading outside sources/", async () => {
