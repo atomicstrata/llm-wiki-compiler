@@ -6,9 +6,12 @@
  * formatJsonReport serialises the raw EvalReport for machine consumption.
  */
 
-import { bold, dim, error as colorError } from "../utils/output.js";
+import { bold, dim, warn as colorWarn, error as colorError } from "../utils/output.js";
 import type { EvalReport, EvalDelta, HealthRuleResult, CitationJudgement } from "./types.js";
 import type { CacheSummary } from "./cache.js";
+
+/** Max source-utilization warnings listed before the rest are summarized. */
+const MAX_LISTED_WARNINGS = 5;
 
 const BOX_WIDTH = 49;
 const HORIZONTAL = "─".repeat(BOX_WIDTH);
@@ -104,10 +107,27 @@ function formatCitationDepth(report: EvalReport): string[] {
   ];
 }
 
+/**
+ * Render source-inventory warnings (e.g. an out-of-tree symlink excluded from
+ * the count) so they are visible in the terminal, not just the JSON report.
+ * Returns no rows when there are no warnings.
+ */
+function warningRows(warnings: string[]): string[] {
+  if (warnings.length === 0) return [];
+  const rows = [line(colorWarn('  ' + warnings.length + ' source warning(s):'))];
+  for (const w of warnings.slice(0, MAX_LISTED_WARNINGS)) {
+    rows.push(line(dim('    ! ' + w)));
+  }
+  if (warnings.length > MAX_LISTED_WARNINGS) {
+    rows.push(line(dim('    ... and ' + String(warnings.length - MAX_LISTED_WARNINGS) + ' more')));
+  }
+  return rows;
+}
+
 function formatSourceUtilization(report: EvalReport): string[] {
   const u = report.sourceUtilization;
   if (u.totalSources === 0) {
-    return [line(), line('Source Utilization:  N/A (no sources)')];
+    return [line(), line('Source Utilization:  N/A (no sources)'), ...warningRows(u.warnings)];
   }
   const pct = u.utilizationRate !== null ? (u.utilizationRate * 100).toFixed(0) + "%" : "N/A";
   const rows = [
@@ -128,6 +148,7 @@ function formatSourceUtilization(report: EvalReport): string[] {
     }
     rows.push(line(dim('  Tip: re-run llmwiki compile to extract concepts from uncited sources.')));
   }
+  rows.push(...warningRows(u.warnings));
   return rows;
 }
 

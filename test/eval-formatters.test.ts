@@ -257,4 +257,28 @@ describe("formatTerminalReport", () => {
     expect(output).toContain("Citation Depth:");
     expect(output).toContain("Claim-level");
   });
+
+  it("surfaces source-inventory warnings in the terminal report", () => {
+    const report = makeReport({
+      sourceUtilization: {
+        totalSources: 1, citedSources: 1, uncitedSources: 0, utilizationRate: 1, perSource: [],
+        warnings: ["Unresolvable source file excluded from inventory: ghost.md"],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("source warning(s):");
+    expect(output).toContain("ghost.md");
+  });
+
+  it("surfaces warnings even when no sources are measured", () => {
+    const report = makeReport({
+      sourceUtilization: {
+        totalSources: 0, citedSources: 0, uncitedSources: 0, utilizationRate: null, perSource: [],
+        warnings: ["Unresolvable source file excluded from inventory: dangling.md"],
+      },
+    });
+    const output = formatTerminalReport(report);
+    expect(output).toContain("N/A (no sources)");
+    expect(output).toContain("dangling.md");
+  });
 });
