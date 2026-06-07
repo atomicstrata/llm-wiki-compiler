@@ -43,4 +43,19 @@ describe("SDK ingest journaling is root-bound", () => {
     await rm(root, { recursive: true, force: true });
     await rm(foreignCwd, { recursive: true, force: true });
   });
+
+  it("wiki.ingestText also journals the ingest under root with a relative Saved path", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "wiki-jrnl-text-"));
+    await createWiki({ root }).ingestText({
+      title: "My Note",
+      text: "Enough inline body content to satisfy the minimum source length requirement.",
+    });
+
+    expect(existsSync(path.join(root, LOG_FILE))).toBe(true);
+    const log = await readFile(path.join(root, LOG_FILE), "utf-8");
+    expect(log).toMatch(/^## \[.+Z\] ingest \| My Note/m);
+    expect(log).toContain("- Saved: sources/");
+
+    await rm(root, { recursive: true, force: true });
+  });
 });

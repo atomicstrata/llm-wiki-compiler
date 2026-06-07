@@ -250,6 +250,28 @@ async function fetchContent(
 }
 
 /**
+ * Append a root-bound ingest entry to the activity journal (`log.md`).
+ * Shared by `ingestSource` and `ingestTextSource` so both ingest paths journal
+ * identically: under the project `root` (not cwd) with a root-relative `Saved`
+ * path, keeping the entry portable regardless of the caller's working directory.
+ */
+async function journalIngest(
+  root: string,
+  title: string,
+  source: string,
+  savedPath: string,
+  charCount: number,
+): Promise<void> {
+  await appendLog(root, "ingest", title, {
+    details: [
+      `Source: ${source}`,
+      `Saved: ${path.join(SOURCES_DIR, path.basename(savedPath))}`,
+      `Chars: ${charCount.toLocaleString()}`,
+    ],
+  });
+}
+
+/**
  * Programmatic ingest entry point. Identical fetch + write logic to the CLI
  * command but returns a structured IngestResult instead of writing to stdout.
  * Used by the MCP server's ingest_source tool.
@@ -268,17 +290,8 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
   const document = buildDocument(title, source, result, sourceType);
   const savedPath = await saveSource(root, title, document, source);
 
-  // Journal the ingest so log.md mirrors the `ingest | Article Title`
-  // convention. Covers the CLI, the MCP ingest_source tool, and the SDK.
-  // Journal under `root` (not cwd) and record the root-relative saved path so
-  // the entry is portable regardless of the caller's working directory.
-  await appendLog(root, "ingest", title, {
-    details: [
-      `Source: ${source}`,
-      `Saved: ${path.join(SOURCES_DIR, path.basename(savedPath))}`,
-      `Chars: ${result.content.length.toLocaleString()}`,
-    ],
-  });
+  // Journal the ingest (CLI, MCP ingest_source tool, and SDK all share this path).
+  await journalIngest(root, title, source, savedPath, result.content.length);
 
   return {
     filename: path.basename(savedPath),
@@ -317,6 +330,10 @@ export async function ingestTextSource(root: string, input: IngestTextInput): Pr
   enforceMinContent(result.content);
   const document = buildDocument(input.title, source, result, "file");
   const savedPath = await saveSource(root, input.title, document, source);
+
+  // Mirror ingestSource so both ingest paths journal identically.
+  await journalIngest(root, input.title, source, savedPath, result.content.length);
+
   return {
     filename: path.basename(savedPath),
     charCount: result.content.length,
