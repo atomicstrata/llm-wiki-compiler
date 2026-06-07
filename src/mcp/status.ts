@@ -20,20 +20,43 @@ import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js"
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
+/**
+ * Maximum number of items returned in each agent-facing list (stalePages,
+ * orphanedPages, pendingChanges). Bounds the MCP response size and agent
+ * context consumption on large wikis. True totals are in the matching *Count fields.
+ */
+export const MAX_STATUS_LIST = 100;
+
 /** Shape returned by `collectStatus` and surfaced by the `wiki_status` tool. */
 export interface WikiStatus {
   pages: { concepts: number; queries: number; total: number };
   sources: number;
   lastCompiledAt: string | null;
-  /** Concept slugs whose source changed or partially disappeared since compile. */
+  /**
+   * Concept slugs whose source changed or partially disappeared since compile.
+   * Capped at MAX_STATUS_LIST (sorted ascending); see staleCount for the true total.
+   */
   stalePages: string[];
-  /** Concept slugs whose every owning source was deleted, or frontmatter-flagged orphaned (superset of old behavior). */
+  /** True total of stale pages (may exceed stalePages.length when capped). */
+  staleCount: number;
+  /**
+   * Concept slugs whose every owning source was deleted, or frontmatter-flagged orphaned.
+   * Capped at MAX_STATUS_LIST (sorted ascending); see orphanedCount for the true total.
+   */
   orphanedPages: string[];
+  /** True total of orphaned pages (may exceed orphanedPages.length when capped). */
+  orphanedCount: number;
   /** Readability of .llmwiki/state.json — surfaced so corrupt state is never silent. */
   stateStatus: "ok" | "missing" | "corrupt";
   /** Number of compile candidates awaiting human review. */
   pendingCandidates: number;
+  /**
+   * Source files with changes since last compile (new/changed/deleted).
+   * Capped at MAX_STATUS_LIST (sorted by file); see pendingChangesCount for the true total.
+   */
   pendingChanges: Array<{ file: string; status: string }>;
+  /** True total of pending changes (may exceed pendingChanges.length when capped). */
+  pendingChangesCount: number;
 }
 
 /** Classify scanned concept pages into stale/orphaned arrays using the freshness snapshot. */
@@ -91,6 +114,24 @@ function pendingChangesFromSnapshot(
   return out;
 }
 
+/**
+ * Sort a slug list ascending and cap it at MAX_STATUS_LIST.
+ * Deterministic truncation ensures agents see the same subset on repeated calls.
+ */
+function capSlugs(slugs: string[]): string[] {
+  return slugs.slice().sort().slice(0, MAX_STATUS_LIST);
+}
+
+/**
+ * Sort a pending-change list by file name ascending and cap at MAX_STATUS_LIST.
+ * Deterministic truncation matches capSlugs behaviour for consistency.
+ */
+function capPendingChanges(
+  changes: Array<{ file: string; status: string }>,
+): Array<{ file: string; status: string }> {
+  return changes.slice().sort((a, b) => a.file.localeCompare(b.file)).slice(0, MAX_STATUS_LIST);
+}
+
 /** Build a read-only status snapshot used by the `wiki_status` MCP tool. */
 export async function collectStatus(root: string): Promise<WikiStatus> {
   const classified = await readStateClassified(root);
@@ -117,10 +158,13 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     pages: { concepts: conceptSummaries.length, queries: queries.length, total: conceptSummaries.length + queries.length },
     sources: Object.keys(classified.state.sources).length,
     lastCompiledAt: lastCompileTime(classified.state.sources),
-    stalePages,
-    orphanedPages,
+    stalePages: capSlugs(stalePages),
+    staleCount: stalePages.length,
+    orphanedPages: capSlugs(orphanedPages),
+    orphanedCount: orphanedPages.length,
     stateStatus: classified.status,
     pendingCandidates,
-    pendingChanges,
+    pendingChanges: capPendingChanges(pendingChanges),
+    pendingChangesCount: pendingChanges.length,
   };
 }

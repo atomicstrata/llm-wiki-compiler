@@ -11,7 +11,7 @@ import { existsSync } from "fs";
 import { rm } from "fs/promises";
 import path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { collectStatus } from "../src/mcp/status.js";
+import { collectStatus, MAX_STATUS_LIST } from "../src/mcp/status.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import {
@@ -116,6 +116,24 @@ describe("wiki_status freshness", () => {
     );
     // unchanged entries must NOT appear
     expect(status.pendingChanges.some((c) => c.status === "unchanged")).toBe(false);
+  });
+});
+
+describe("wiki_status list capping", () => {
+  it("caps stalePages at MAX_STATUS_LIST and reports the true total in staleCount", async () => {
+    // One source a.md with OLD hash, on disk with NEW content, owning 101 concept slugs.
+    const totalStale = MAX_STATUS_LIST + 1;
+    const slugs = Array.from({ length: totalStale }, (_, i) => `topic-${i}`);
+    await writeSourceState(root, { "a.md": { hash: sha256Hex("OLD"), concepts: slugs } });
+    await writeSourceFile(root, "a.md", "NEW content");
+    for (const slug of slugs) {
+      await writePage(path.join(root, CONCEPTS_DIR), slug, { title: slug }, "Body.");
+    }
+
+    const status = await collectStatus(root);
+
+    expect(status.stalePages.length).toBe(MAX_STATUS_LIST);
+    expect(status.staleCount).toBe(totalStale);
   });
 });
 
