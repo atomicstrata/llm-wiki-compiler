@@ -19,6 +19,19 @@ describe("ensureProviderAvailable error taxonomy", () => {
     }
   });
 
+  it("throws ProviderUnavailableError for a non-anthropic provider missing its key", () => {
+    process.env.LLMWIKI_PROVIDER = "openai";
+    delete process.env.OPENAI_API_KEY;
+    try { ensureProviderAvailable(); throw new Error("did not throw"); }
+    catch (e) {
+      expect(e).toBeInstanceOf(ProviderUnavailableError);
+      const err = e as ProviderUnavailableError;
+      expect(err.code).toBe("provider_unavailable");
+      expect(err.provider).toBe("openai");
+      expect(err.missing).toContain("OPENAI_API_KEY");
+    }
+  });
+
   it("throws UnknownProviderError for an unsupported provider", () => {
     process.env.LLMWIKI_PROVIDER = "bogus";
     try { ensureProviderAvailable(); throw new Error("did not throw"); }

@@ -71,11 +71,11 @@ export function ensureProviderAvailable(): void {
 
   const keyVar = PROVIDER_KEY_VARS[provider];
   if (keyVar === undefined) {
+    const supported = Object.keys(PROVIDER_KEY_VARS);
     throw new UnknownProviderError(
       provider,
-      Object.keys(PROVIDER_KEY_VARS),
-      `Unknown provider "${provider}".\n` +
-        `  Supported: ${Object.keys(PROVIDER_KEY_VARS).join(", ")}`,
+      supported,
+      `Unknown provider "${provider}".\n` + `  Supported: ${supported.join(", ")}`,
     );
   }
 
