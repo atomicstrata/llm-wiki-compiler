@@ -15,4 +15,18 @@ describe("ingestTextSource identity", () => {
     files = await readdir(path.join(root, "sources"));
     expect(files.length).toBe(2);
   });
+
+  it("uses explicit source when provided", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "wiki-text-"));
+    const result = await ingestTextSource(root, { title: "Note", text: "alpha", source: "manual:custom-id" });
+    expect(result.source).toBe("manual:custom-id");
+  });
+
+  it("does not collide when the title/text boundary shifts", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "wiki-text-"));
+    await ingestTextSource(root, { title: "ab", text: "cde" });
+    await ingestTextSource(root, { title: "abc", text: "de" });
+    const files = await readdir(path.join(root, "sources"));
+    expect(files.length).toBe(2);
+  });
 });

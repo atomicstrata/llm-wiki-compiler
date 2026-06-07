@@ -283,15 +283,23 @@ export interface IngestTextInput { title: string; text: string; source?: string 
  * Ingest raw text directly into the wiki sources directory.
  *
  * When `source` is omitted a deterministic synthetic identity
- * `manual:<sha256(title\ntext)>` is derived so that identical content is
+ * `manual:<sha256(title,text)>` is derived so that identical content is
  * idempotent and differing content coexists (mirrors saveSource collision rules).
+ * The hash is fed a length-prefixed title so the title/text boundary is
+ * unambiguous — a raw separator (newline) or bare concatenation would let a
+ * boundary-shifted pair collide (e.g. title="a",text="b" vs title="ab",text="").
  *
  * @param root - Absolute path to the wiki root directory.
  * @param input - Title, raw text body, and optional explicit source identity.
  * @returns Structured ingest result with filename, char count, and source URI.
  */
 export async function ingestTextSource(root: string, input: IngestTextInput): Promise<IngestResult> {
-  const source = input.source ?? `manual:${createHash("sha256").update(`${input.title}\n${input.text}`).digest("hex")}`;
+  const digest = createHash("sha256")
+    .update(`${input.title.length}\n`)
+    .update(input.title)
+    .update(input.text)
+    .digest("hex");
+  const source = input.source ?? `manual:${digest}`;
   const result = enforceCharLimit(input.text);
   enforceMinContent(result.content);
   const document = buildDocument(input.title, source, result, "file");
