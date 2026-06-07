@@ -226,7 +226,7 @@ async function runIngestStep(source: string): Promise<IngestEnvelope> {
   output.header("llmwiki quickstart");
   output.status("*", output.info(`Ingesting ${source}`));
   try {
-    const result = await ingestSource(source);
+    const result = await ingestSource(process.cwd(), source);
     const relPath = path.join(SOURCES_DIR, result.filename);
     output.status("+", output.success(`Ingested → ${relPath}`));
     return buildIngestSuccess(result, relPath);

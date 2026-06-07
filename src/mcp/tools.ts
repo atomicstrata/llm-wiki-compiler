@@ -85,14 +85,8 @@ function registerIngestTool(server: McpServer, root: string): void {
       },
     },
     async ({ source }) => {
-      const previousCwd = process.cwd();
-      try {
-        process.chdir(root);
-        const result = await ingestSource(source);
-        return jsonResult(result);
-      } finally {
-        process.chdir(previousCwd);
-      }
+      const result = await ingestSource(root, source);
+      return jsonResult(result);
     },
   );
 }

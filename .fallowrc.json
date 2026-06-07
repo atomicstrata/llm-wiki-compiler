@@ -10,7 +10,7 @@
   ],
   "overrides": [
     {
-      "files": ["src/providers/*.ts"],
+      "files": ["src/providers/*.ts", "src/utils/provider-guard.ts"],
       "rules": {
         "unused-class-members": "off"
       }

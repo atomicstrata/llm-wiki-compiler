@@ -43,9 +43,13 @@ function shortHashOfSource(source: string): string {
  *   share a basename coexist instead of one silently overwriting the
  *   other.
  */
-async function resolveCollisionFreeFilename(slug: string, source: string): Promise<string> {
+async function resolveCollisionFreeFilename(
+  sourcesDir: string,
+  slug: string,
+  source: string,
+): Promise<string> {
   const candidate = `${slug}.md`;
-  const candidatePath = path.join(SOURCES_DIR, candidate);
+  const candidatePath = path.join(sourcesDir, candidate);
   let existing: string;
   try {
     existing = await readFile(candidatePath, "utf-8");
@@ -72,6 +76,7 @@ async function resolveCollisionFreeFilename(slug: string, source: string): Promi
  *                 collision disambiguation and idempotency on re-ingest.
  */
 export async function saveSource(
+  root: string,
   title: string,
   document: string,
   source: string,
@@ -87,9 +92,10 @@ export async function saveSource(
         `Rename the source file to one with at least one letter or digit.`,
     );
   }
-  await mkdir(SOURCES_DIR, { recursive: true });
-  const filename = await resolveCollisionFreeFilename(slug, source);
-  const destPath = path.join(SOURCES_DIR, filename);
+  const sourcesDir = path.join(root, SOURCES_DIR);
+  await mkdir(sourcesDir, { recursive: true });
+  const filename = await resolveCollisionFreeFilename(sourcesDir, slug, source);
+  const destPath = path.join(sourcesDir, filename);
   await writeFile(destPath, document, "utf-8");
   return destPath;
 }

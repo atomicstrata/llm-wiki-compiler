@@ -255,7 +255,7 @@ async function fetchContent(
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
  * @returns Saved filename, character count, truncation flag, source URI, and detected source type.
  */
-export async function ingestSource(source: string): Promise<IngestResult> {
+export async function ingestSource(root: string, source: string): Promise<IngestResult> {
   const sourceType = await detectSourceType(source);
   output.status("*", output.info(`Ingesting [${sourceType}]: ${source}`));
 
@@ -264,7 +264,7 @@ export async function ingestSource(source: string): Promise<IngestResult> {
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
-  const savedPath = await saveSource(title, document, source);
+  const savedPath = await saveSource(root, title, document, source);
 
   return {
     filename: path.basename(savedPath),
@@ -280,8 +280,9 @@ export async function ingestSource(source: string): Promise<IngestResult> {
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
  */
 export default async function ingest(source: string): Promise<void> {
-  const result = await ingestSource(source);
-  const savedPath = path.join(SOURCES_DIR, result.filename);
+  const cwd = process.cwd();
+  const result = await ingestSource(cwd, source);
+  const savedPath = path.join(cwd, SOURCES_DIR, result.filename);
 
   output.status(
     "+",
