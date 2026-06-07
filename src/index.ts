@@ -29,3 +29,13 @@ export {
 
 export { createWiki } from "./sdk/wiki.js";
 export type { Wiki, CreateWikiOptions, SdkCompileOptions, ContextPackOptions } from "./sdk/types.js";
+
+// Result/input types for the Wiki facade methods, re-exported so typed
+// consumers don't have to deep-import from internal module paths.
+export type { IngestResult, CompileResult, QueryResult } from "./utils/types.js";
+export type { IngestTextInput } from "./commands/ingest.js";
+export type { LintSummary } from "./linter/types.js";
+export type { ContextPack } from "./context/types.js";
+export type { EvalReport } from "./eval/types.js";
+export type { WikiStatus } from "./status/collect.js";
+export type { PageRecord } from "./pages/read.js";

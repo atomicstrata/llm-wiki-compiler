@@ -10,6 +10,7 @@ describe("createWiki facade (non-LLM)", () => {
     await mkdir(path.join(root, "wiki/concepts"), { recursive: true });
     await writeFile(path.join(root, "wiki/concepts/a.md"), "---\ntitle: A\nsummary: s\n---\nbody", "utf-8");
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const wiki = createWiki({ root });
     await wiki.ingestText({ title: "Note", text: "hello" });
     const { pages } = await wiki.listPages();
@@ -18,6 +19,8 @@ describe("createWiki facade (non-LLM)", () => {
     expect(pages.map((p) => p.slug)).toContain("a");
     expect(doc.schemaVersion).toBe(1);
     expect(logSpy).not.toHaveBeenCalled(); // quiet by default
+    expect(warnSpy).not.toHaveBeenCalled(); // note() routes to console.warn
     logSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });

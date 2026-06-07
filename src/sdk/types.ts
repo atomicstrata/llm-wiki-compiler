@@ -16,7 +16,7 @@ import type { EvalReport } from "../eval/types.js";
 import type { WikiStatus } from "../status/collect.js";
 import type { Page, PageRef, ListPagesOptions, ListPagesResult } from "../pages/list.js";
 import type { PageRecord } from "../pages/read.js";
-import type { JsonExportDocument } from "../export/json-export.js";
+import type { JsonExportDocument, BuildJsonExportOptions } from "../export/json-export.js";
 
 /** Options for `createWiki`. */
 export interface CreateWikiOptions {
@@ -58,7 +58,13 @@ export interface Wiki {
   compile(options?: SdkCompileOptions): Promise<CompileResult>;
   /** Pick and hydrate the most relevant pages for a question. Requires LLM credentials. */
   search(question: string): Promise<PageRecord[]>;
-  /** Generate a grounded answer from the wiki. Requires LLM credentials. */
+  /**
+   * Generate a grounded answer from the wiki. Requires LLM credentials.
+   *
+   * Streaming token delivery (`onToken`) is intentionally NOT exposed by the
+   * facade in v1 — only `save` and `debug` are surfaced. Callers needing
+   * per-token streaming should use `generateAnswer` directly.
+   */
   query(question: string, options?: { save?: boolean; debug?: boolean }): Promise<QueryResult>;
   /** Fetch a single page by directory and slug. No LLM required. */
   getPage(ref: PageRef): Promise<Page | null>;
@@ -75,7 +81,7 @@ export interface Wiki {
    */
   getContextPack(options: ContextPackOptions): Promise<ContextPack>;
   /** Export the wiki as a structured JSON document. No LLM required. */
-  exportJson(options?: { projectId?: string }): Promise<JsonExportDocument>;
+  exportJson(options?: BuildJsonExportOptions): Promise<JsonExportDocument>;
   /**
    * Run the eval harness. "fast" mode is credential-free; "full" mode
    * requires LLM credentials for citation-support judging.

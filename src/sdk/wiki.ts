@@ -16,7 +16,7 @@
  * call works from an absolute path regardless of the caller's cwd.
  */
 
-import path from "path";
+import path from "node:path";
 import { setQuiet, getQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
