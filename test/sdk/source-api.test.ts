@@ -15,6 +15,8 @@ describe("Wiki source API", () => {
 
     const { sources } = await wiki.listSources();
     expect(sources.map((s) => s.id)).toContain(r.filename);
+    const listed = sources.find((s) => s.id === r.filename);
+    expect(listed?.body).toBeUndefined(); // bodies are opt-in via includeBody
 
     const got = await wiki.getSource(r.filename);
     expect(got?.body).toContain("source body");

@@ -40,4 +40,5 @@ export type { EvalReport } from "./eval/types.js";
 export type { WikiStatus } from "./status/collect.js";
 export type { PageRecord } from "./pages/read.js";
 export type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "./sources/store.js";
+// WriteStatus is part of IngestResult — re-exported so callers needn't deep-import utils/types.
 export type { WriteStatus } from "./utils/types.js";
