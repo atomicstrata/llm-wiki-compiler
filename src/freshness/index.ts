@@ -63,24 +63,40 @@ export async function buildFreshnessSnapshot(
   const sources: FreshnessSnapshot["sources"] = {};
   if (status === "ok") {
     const sourcesRoot = path.resolve(root, SOURCES_DIR);
+    // Resolve the real sources root ONCE — the per-source containment check reuses it,
+    // so a snapshot over N sources does at most N (not 2N) realpath syscalls.
+    const realSourcesRoot = await realSourcesRootOrFallback(sourcesRoot);
     for (const [file, entry] of Object.entries(state.sources)) {
-      sources[file] = await classifySource(sourcesRoot, file, entry);
+      sources[file] = await classifySource(sourcesRoot, realSourcesRoot, file, entry);
     }
   }
   return { stateStatus: status, sources };
 }
 
 /**
- * Resolve symlinks and check whether a file's real path is inside sourcesRoot.
- * Both sides are realpath'd so projects under symlinked temp dirs (e.g. macOS
- * /tmp → /private/tmp) still pass — both sides normalize consistently.
+ * Real path of the sources root, falling back to the lexical path if realpath
+ * throws (e.g. sources/ does not exist yet). The fallback is safe: a missing
+ * sources root means no source file can resolve inside it, and per-file
+ * existsSync already gates hashing.
+ */
+async function realSourcesRootOrFallback(sourcesRoot: string): Promise<string> {
+  try {
+    return await realpath(sourcesRoot);
+  } catch {
+    return sourcesRoot;
+  }
+}
+
+/**
+ * Resolve a file's symlinks and check whether its real path is inside the
+ * pre-resolved real sources root. The root is realpath'd once by the caller so
+ * projects under symlinked temp dirs (e.g. macOS /tmp → /private/tmp) still pass.
  * Returns false on any error (treat as not inside, refuse to hash).
  */
-async function resolvesInsideSources(resolved: string, sourcesRoot: string): Promise<boolean> {
+async function resolvesInsideSources(resolved: string, realSourcesRoot: string): Promise<boolean> {
   try {
     const realFile = await realpath(resolved);
-    const realRoot = await realpath(sourcesRoot);
-    return realFile === realRoot || realFile.startsWith(realRoot + path.sep);
+    return realFile === realSourcesRoot || realFile.startsWith(realSourcesRoot + path.sep);
   } catch {
     return false;
   }
@@ -94,6 +110,7 @@ async function resolvesInsideSources(resolved: string, sourcesRoot: string): Pro
  */
 async function classifySource(
   sourcesRoot: string,
+  realSourcesRoot: string,
   file: string,
   entry: { hash: string; concepts: string[] },
 ): Promise<SourceFreshness> {
@@ -103,7 +120,7 @@ async function classifySource(
     return { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
   }
   const exists = existsSync(resolved);
-  if (exists && !(await resolvesInsideSources(resolved, sourcesRoot))) {
+  if (exists && !(await resolvesInsideSources(resolved, realSourcesRoot))) {
     // Symlink escapes sources/ — treat as unverifiable, never hash/read it.
     return { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
   }

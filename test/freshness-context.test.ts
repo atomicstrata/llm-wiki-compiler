@@ -150,4 +150,26 @@ describe("context pack freshness", () => {
     expect(primary?.warnings.some((w) => w.code === "contradicted-page")).toBe(false);
     expect(primary?.warnings.some((w) => w.code === "archived-page")).toBe(false);
   });
+
+  it("carries BOTH stale-page and contradicted-page warnings on a stale+contradicted page", async () => {
+    // State records OLD hash; disk has NEW content → stale.
+    await writeSourceState(root, {
+      "a.md": { hash: sha256Hex("OLD body"), concepts: ["topic"] },
+    });
+    await writeSourceFile(root, "a.md", "NEW body");
+    // Page frontmatter marks it contradicted.
+    await writePage(
+      path.join(root, CONCEPTS_DIR),
+      "topic",
+      { title: "Topic", summary: "The topic page", contradictedBy: [{ slug: "other" }] },
+      "A topic page body.",
+    );
+
+    const primary = await packPrimary();
+
+    expect(primary?.freshnessStatus).toBe("stale");
+    expect(primary?.contradicted).toBe(true);
+    expect(primary?.warnings.some((w) => w.code === "stale-page")).toBe(true);
+    expect(primary?.warnings.some((w) => w.code === "contradicted-page")).toBe(true);
+  });
 });
