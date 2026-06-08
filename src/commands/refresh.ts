@@ -6,12 +6,14 @@
  */
 
 import { compileAndReport } from "../compiler/index.js";
+import { countCandidates } from "../compiler/candidates.js";
 import {
   resolveStaleRefresh,
   type RefreshPlan,
   type RefreshStateStatus,
 } from "../compiler/refresh-plan.js";
 import * as output from "../utils/output.js";
+import type { CompileResult } from "../utils/types.js";
 
 interface RefreshCommandOptions {
   stale?: boolean;
@@ -69,8 +71,40 @@ async function runRefresh(
     output.status("i", output.dim("Dry run — no files changed, no LLM calls made."));
     return 0;
   }
+  await warnOnReviewBypass(root);
   maybeEnsureProvider(plan, ensureProvider);
-  await compileAndReport(root, { changeFilter: plan.changeFilter, skipSeedPages: true });
+  const result = await compileAndReport(root, { changeFilter: plan.changeFilter, skipSeedPages: true });
+  return reportCompileOutcome(result, plan);
+}
+
+/**
+ * Warn that refresh writes directly to wiki/ (bypassing the review workflow)
+ * when pending candidates exist, so a review-workflow user isn't surprised by
+ * un-reviewed direct writes. Advisory only — never blocks the recompile.
+ */
+async function warnOnReviewBypass(root: string): Promise<void> {
+  const pending = await countCandidates(root);
+  if (pending > 0) {
+    output.status("!", output.warn(
+      `refresh --stale writes directly to wiki/ and does not create review candidates (${pending} pending candidate(s) exist).`,
+    ));
+  }
+}
+
+/**
+ * Surface the compile result: print any pipeline errors and exit 1 on failure
+ * (lock contention, extraction/validation errors), or a one-line success
+ * summary and exit 0. Without this, refresh swallowed errors and always exited 0.
+ */
+function reportCompileOutcome(result: CompileResult, plan: RefreshPlan): number {
+  if (result.errors.length > 0) {
+    for (const e of result.errors) output.status("✗", output.error(e));
+    reportNewSkipped(plan.newSkipped);
+    return 1;
+  }
+  output.status("✓", output.success(
+    `Refreshed ${plan.recompiledPages.length} page(s); cleaned up ${plan.computedOrphanedPages.length} orphaned page(s).`,
+  ));
   reportNewSkipped(plan.newSkipped);
   return 0;
 }

@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 import { existsSync } from "fs";
-import { readFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -97,13 +97,37 @@ describe("llmwiki refresh --stale --dry-run", () => {
   });
 });
 
+/**
+ * Set up a cleanup-only stale project: a page whose sole owning source is in
+ * state but deleted from disk → computedOrphaned, no recompile, no LLM.
+ */
+async function setupCleanupOnlyStale(label: string): Promise<string> {
+  const root = await makeTempRoot(label);
+  await writeConceptPage(root, "topic");
+  await writeSourceState(root, { "a.md": { hash: sha256Hex("gone"), concepts: ["topic"] } });
+  return root;
+}
+
+/** Hold the compile lock by writing a live PID, so the subprocess can't acquire it. */
+async function holdLock(root: string, pid: number): Promise<void> {
+  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+  await writeFile(path.join(root, ".llmwiki/lock"), String(pid), "utf-8");
+}
+
+/** Write a minimal valid pending review candidate so countCandidates() sees one. */
+async function writePendingCandidate(root: string): Promise<void> {
+  const dir = path.join(root, ".llmwiki/candidates");
+  await mkdir(dir, { recursive: true });
+  const candidate = {
+    id: "cand1", title: "Topic", slug: "topic", body: "Body.",
+    sources: ["a.md"], generatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  await writeFile(path.join(dir, "cand1.json"), JSON.stringify(candidate), "utf-8");
+}
+
 describe("llmwiki refresh --stale (live, cleanup-only)", () => {
   it("cleans up a deleted-owner page with no provider key and makes no LLM calls", async () => {
-    const root = await makeTempRoot("refresh-cleanup");
-    await writeConceptPage(root, "topic");
-    // a.md is recorded in state but absent on disk → its exclusively-owned page
-    // is orphaned cleanup only, never a recompile, so the LLM is never invoked.
-    await writeSourceState(root, { "a.md": { hash: sha256Hex("gone"), concepts: ["topic"] } });
+    const root = await setupCleanupOnlyStale("refresh-cleanup");
 
     const result = await runCLI(["refresh", "--stale"], root, NO_KEY_ENV);
 
@@ -115,5 +139,27 @@ describe("llmwiki refresh --stale (live, cleanup-only)", () => {
     expect(state.sources["a.md"]).toBeUndefined();
     const page = await readFile(path.join(root, "wiki/concepts/topic.md"), "utf-8");
     expect(page).toMatch(/^orphaned:\s*true/m);
+  });
+
+  it("exits non-zero and surfaces the error when the compile lock is held", async () => {
+    const root = await setupCleanupOnlyStale("refresh-locked");
+    // The test process is alive for the whole run, so its PID reads as a live
+    // lock holder in the subprocess → acquireLock returns false → compile error.
+    await holdLock(root, process.pid);
+
+    const result = await runCLI(["refresh", "--stale"], root, NO_KEY_ENV);
+
+    expectCLIExit(result, 1);
+    expect(result.stdout + result.stderr).toMatch(/could not acquire .*lock/i);
+  });
+
+  it("warns that refresh bypasses review when pending candidates exist", async () => {
+    const root = await setupCleanupOnlyStale("refresh-bypass");
+    await writePendingCandidate(root);
+
+    const result = await runCLI(["refresh", "--stale"], root, NO_KEY_ENV);
+
+    expectCLIExit(result, 0);
+    expect(result.stdout + result.stderr).toMatch(/writes directly to wiki\/.*does not create review candidates/i);
   });
 });
