@@ -13,15 +13,15 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { writeFile, mkdir, readFile, rm } from "fs/promises";
+import { writeFile, readFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import os from "os";
 import { compileAndReport } from "../src/compiler/index.js";
 import { resolveStaleRefresh } from "../src/compiler/refresh-plan.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { readStateClassified } from "../src/utils/state.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
+import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
 import { writeSourceState, writeSourceFile, sha256Hex } from "./fixtures/state-json.js";
 
 // ---------------------------------------------------------------------------
@@ -37,13 +37,14 @@ function extractionFor(title: string): string {
 
 const STUB_BODY = "Stub body content. ^[a.md]";
 
-/** Build a fresh temp project root with sources/ wiki/concepts/ .llmwiki/ dirs. */
+/**
+ * Build a fresh temp project root with sources/ wiki/concepts/ .llmwiki/ dirs.
+ * The shared fixture also seeds an unrelated `sample.md` into sources/ with no
+ * state entry — like new.md it has no owner page and is correctly filtered out
+ * of the refresh run, so each test's effective sources are its own files + sample.md.
+ */
 async function makeTmpRoot(suffix: string): Promise<string> {
-  const root = path.join(os.tmpdir(), `llmwiki-refresh-integ-${suffix}-${Date.now()}`);
-  await mkdir(path.join(root, "sources"), { recursive: true });
-  await mkdir(path.join(root, "wiki", "concepts"), { recursive: true });
-  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
-  return root;
+  return makeCompileProjectRoot({ dirSuffix: `refresh-integ-${suffix}` });
 }
 
 /** Silence compile output and run resolveStaleRefresh + compileAndReport. */
@@ -107,6 +108,8 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       expect(state.sources["a.md"]?.hash).toBe(sha256Hex(aContent));
       expect("new.md" in state.sources).toBe(false);
       expect(result.pages).not.toContain("new-topic");
+      // No page file for new.md landed on disk either (slug "new-topic" from "# New Topic").
+      expect(existsSync(path.join(root, CONCEPTS_DIR, "new-topic.md"))).toBe(false);
       // Only a.md was extracted; new.md was filtered out by changeFilter.
       expect(extractSpy).toHaveBeenCalledTimes(1);
     } finally {
@@ -135,7 +138,7 @@ describe("refresh --stale (real run, stubbed provider)", () => {
         "b.md": { hash: "some-old-hash", concepts: ["topic-x"] },
       });
       await writeConceptPage(root, "topic-x", "Topic X", ["a.md", "b.md"], "Existing body of X.");
-      const ORIGINAL_CONTENT = await readFile(path.join(root, CONCEPTS_DIR, "topic-x.md"), "utf-8");
+      const originalContent = await readFile(path.join(root, CONCEPTS_DIR, "topic-x.md"), "utf-8");
 
       // Spy: extraction must NOT fire (a.md is unchanged; no changed owners).
       const extractSpy = stubProviderCalls("Topic X");
@@ -155,7 +158,7 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       expect("b.md" in state.sources).toBe(false);
       // Content kept: topic-x.md byte-for-byte UNCHANGED.
       const afterContent = await readFile(path.join(root, CONCEPTS_DIR, "topic-x.md"), "utf-8");
-      expect(afterContent).toBe(ORIGINAL_CONTENT);
+      expect(afterContent).toBe(originalContent);
       // a.md NOT extracted — unchanged live owner skipped in v1.
       expect(extractSpy).not.toHaveBeenCalled();
     } finally {
