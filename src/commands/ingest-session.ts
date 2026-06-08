@@ -54,7 +54,7 @@ async function saveSessionSource(
   const frontmatter = buildSessionFrontmatter(session, sourcePath);
   const body = formatSessionAsMarkdown(session);
   const document = `${frontmatter}\n\n${body}\n`;
-  return saveSource(root, session.title, document, sourcePath);
+  return (await saveSource(root, session.title, document, sourcePath)).path;
 }
 
 /**

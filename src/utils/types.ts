@@ -226,6 +226,9 @@ export interface QueryResult {
 /** Source type tag persisted in frontmatter to describe the ingest origin. */
 export type SourceType = "web" | "file" | "image" | "pdf" | "transcript";
 
+/** Outcome of a source write: a new file, a content change, or a no-op. */
+export type WriteStatus = "created" | "updated" | "unchanged";
+
 /** Structured result returned by the ingest pipeline. */
 export interface IngestResult {
   filename: string;
@@ -234,6 +237,8 @@ export interface IngestResult {
   source: string;
   /** Detected source type; undefined for legacy results produced before this field was added. */
   sourceType?: SourceType;
+  /** Whether the source file was created, updated (content changed), or unchanged (no-op). */
+  writeStatus: WriteStatus;
 }
 
 /**

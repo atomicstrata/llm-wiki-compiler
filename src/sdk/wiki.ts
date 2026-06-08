@@ -35,6 +35,7 @@ import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { collectStatus } from "../status/collect.js";
 import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
 import { getPage, listPages } from "../pages/list.js";
+import { listSources, getSource, deleteSource } from "../sources/store.js";
 import type { CreateWikiOptions, Wiki, SdkCompileOptions } from "./types.js";
 
 /**
@@ -90,6 +91,12 @@ export function createWiki(options: CreateWikiOptions): Wiki {
     getPage: (ref) => runQuiet(() => getPage(root, ref)),
 
     listPages: (opts) => runQuiet(() => listPages(root, opts)),
+
+    listSources: (opts) => runQuiet(() => listSources(root, opts)),
+
+    getSource: (id) => runQuiet(() => getSource(root, id)),
+
+    deleteSource: (id) => runQuiet(() => deleteSource(root, id)),
 
     status: () => runQuiet(() => collectStatus(root)),
 
