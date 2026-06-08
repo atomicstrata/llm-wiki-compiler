@@ -18,7 +18,7 @@ import { mkdir, readdir, readFile, writeFile, lstat } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
-import { safeRealpath, isInsideDir } from "./path-confine.js";
+import { safeRealpath, confinedRegularFile } from "./path-confine.js";
 import { SOURCES_DIR } from "./constants.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
 import type { WriteStatus } from "./types.js";
@@ -87,13 +87,11 @@ async function findFileBySourceIdentity(sourcesDir: string, source: string): Pro
     if ((err as { code?: string }).code === "ENOENT") return null;
     throw err;
   }
-  const canonicalDir = await safeRealpath(sourcesDir);
-  if (canonicalDir === null) return null;
   for (const name of names) {
-    // Realpath-confine: skip entries whose target escapes sources/ (e.g. a planted
-    // symlink), so we never read — or, via saveSource's writeFile, write — through them.
-    const real = await safeRealpath(path.join(sourcesDir, name));
-    if (real === null || !isInsideDir(real, canonicalDir)) continue;
+    // Regular files only: symlinks (whether escaping or in-tree aliases) are never
+    // sources, keeping the scan consistent with list/get/delete.
+    const real = await confinedRegularFile(sourcesDir, name);
+    if (real === null) continue;
     const { meta } = parseFrontmatter(await readFile(real, "utf-8"));
     if (typeof meta.source === "string" && meta.source === source) return name;
   }

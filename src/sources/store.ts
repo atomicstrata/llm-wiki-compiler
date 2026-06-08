@@ -7,7 +7,7 @@ import path from "path";
 import { readdir, readFile, unlink } from "fs/promises";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
-import { safeRealpath, isInsideDir, resolveSourcesDir } from "../utils/path-confine.js";
+import { confinedRegularFile, resolveSourcesDir } from "../utils/path-confine.js";
 
 /** A single source file under `sources/`, with frontmatter metadata. */
 export interface SourceRecord {
@@ -64,9 +64,10 @@ export async function listSources(root: string, options: ListSourcesOptions = {}
   const page = files.slice(offset, offset + limit);
   const sources: SourceRecord[] = [];
   for (const id of page) {
-    // Skip any entry whose realpath escapes sources/ (e.g. a symlink planted inside the dir).
-    const real = await safeRealpath(path.join(dir, id));
-    if (real === null || !isInsideDir(real, dir)) continue;
+    // Skip any entry that is not a confined regular file (symlinks — whether
+    // escaping or in-tree aliases — are never sources).
+    const real = await confinedRegularFile(dir, id);
+    if (real === null) continue;
     const content = await readFile(real, "utf-8");
     sources.push(toRecord(id, content, options.includeBody === true));
   }
@@ -85,15 +86,12 @@ export async function deleteSource(root: string, id: string): Promise<boolean> {
   assertSafeSourceId(id);
   const dir = await resolveSourcesDir(root);
   if (dir === null) return false;
-  const filePath = path.join(dir, id);
-  const real = await safeRealpath(filePath);
-  // Not a valid in-tree source (missing, broken, or a symlink escaping sources/) →
-  // nothing to delete. Keeps delete coherent with getSource/listSources.
-  if (real === null || !isInsideDir(real, dir)) return false;
+  // Not a confined regular file (missing, symlink, or directory) → nothing to delete.
+  // Keeps delete coherent with getSource/listSources.
+  const real = await confinedRegularFile(dir, id);
+  if (real === null) return false;
   try {
-    // Unlink the entry by its own path (removes a regular file, or an intra-sources
-    // symlink entry — never via the resolved target).
-    await unlink(filePath);
+    await unlink(path.join(dir, id));
     return true;
   } catch (err) {
     if ((err as { code?: string }).code === "ENOENT") return false;
@@ -105,8 +103,9 @@ export async function getSource(root: string, id: string): Promise<SourceRecord 
   assertSafeSourceId(id);
   const dir = await resolveSourcesDir(root);
   if (dir === null) return null;
-  const real = await safeRealpath(path.join(dir, id));
-  if (real === null || !isInsideDir(real, dir)) return null;
+  // Only confined regular files are valid sources (symlinks — in-tree or escaping — are not).
+  const real = await confinedRegularFile(dir, id);
+  if (real === null) return null;
   let content: string;
   try {
     content = await readFile(real, "utf-8");
