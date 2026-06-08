@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-08
+
+Adds an end-to-end source-freshness loop — detect stale pages, surface them everywhere, and repair them with a targeted recompile — plus an in-process SDK with source-backed write APIs, a JSON export bridge contract for downstream importers, richer eval metrics, rule-candidate extraction, and a local-login Claude Agent provider.
+
+### Added
+
+- **Source freshness** — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since the last compile, computed on demand from `.llmwiki/state.json` and the current `sources/`. Freshness is surfaced across MCP (`wiki_status` stale/orphaned lists and a `stateStatus` field, plus `get_context_pack`), context packs (per-page `freshnessStatus`/`contradicted`/`archived` and a `stale-page` warning), the local viewer (STALE/ORPHANED/CONTRADICTED/ARCHIVED badges, a per-axis filter, health-pane counts, and a corrupt-state banner), the JSON export, and `llmwiki next`.
+- **`llmwiki refresh --stale [--dry-run]`** — a targeted recompile that repairs stale/orphaned pages by recompiling their changed owning sources and cleaning up deleted owners, while deliberately skipping unrelated new sources. `--dry-run` previews the plan with no LLM calls and no writes; cleanup-only refreshes require no API key.
+- **JSON export bridge contract** — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records.
+- **Eval over MCP** — a `run_eval` MCP tool (the fast suite needs no API key; the full suite LLM-judges a sample of citations), plus read-only `llmwiki://eval/report` and `llmwiki://eval/history` resources.
+- **Eval source-utilization metrics** — source-utilization and citation-depth dimensions, surfaced source warnings, a frame-safe report, and a `source_warnings_max` CI gate.
+- **Rule-candidate extraction** — extract reusable rule candidates from sources with review/approve and a JSON export pipeline.
+- **In-process SDK** — `createWiki()` exposes the compiler in-process, with source-backed write APIs (`writeStatus`, `listSources`/`getSource`/`deleteSource`) for programmatic callers.
+- **Claude Agent SDK provider** — a provider that authenticates through a local Claude Code login and uses bundled plan tokens, so no separate API key is required.
+- **Alias-aware wikilinks** — the viewer resolves a `[[term]]` link to any page that declares `term` in its `aliases` frontmatter, not just an exact slug match.
+- **Append-only activity journal** — an append-only `log.md` records ingest, compile, review, and export activity.
+
+### Changed
+
+- Upgraded core dependencies — zod 3 → 4, openai 4 → 6, and `@anthropic-ai/sdk` 0.39 → 0.101 — and bumped the default model to `claude-sonnet-4-6` (the previous default was deprecated).
+
+### Fixed
+
+- Three read-only paths (`wiki_status`, the `llmwiki://state` MCP resource, and the viewer startup snapshot) no longer write a `.bak` file when `.llmwiki/state.json` is corrupt; corrupt and missing state are now surfaced explicitly instead of being swallowed.
+- `wiki_status` derives pending source changes from the freshness snapshot instead of running a redundant second source-hash pass.
+
+### Contributors
+
+Thanks to **@alvins82** for the Claude Agent SDK provider (#81) and the append-only activity journal (#85), **@dohu012** for source-utilization and citation-depth eval metrics (#86), and **@joshuaknipe** for the `run_eval` MCP tool and eval resources (#74).
+
 ## [0.8.0] - 2026-05-26
 
 Adds guided project next steps, one-command quickstart, agent-ready context graph packs, a viewer graph route, and the first eval harness for measuring wiki quality over time.

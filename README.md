@@ -12,7 +12,10 @@ Inspired by Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914
 - **Hybrid retrieval.** Semantic chunk embeddings (incremental, content-hash-aware) narrow hundreds of pages to a small top-K; BM25 reranking and wikilink-graph expansion build the final evidence pack.
 - **Local web viewer.** `llmwiki view` opens a read-only browser UI with sidebar navigation, search, a force-directed graph, and provenance/citation chips per page.
 - **Eval harness.** `llmwiki eval` measures health score (0–100), citation coverage and precision, optional LLM-as-judge support scoring, regression deltas, and CI-gateable thresholds.
+- **Source freshness.** `llmwiki lint` flags pages whose sources changed (`stale`) or were deleted (`orphaned`) since the last compile — surfaced across the viewer, MCP, context packs, the JSON export, and `llmwiki next` — and `llmwiki refresh --stale` repairs them with a targeted recompile.
 - **MCP server.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent — including `get_context_pack` for budgeted, citation-aware evidence packs.
+- **In-process SDK.** `createWiki({ root })` drives the whole pipeline programmatically — ingest, compile, query, status/freshness, context packs, export, eval — for embedding llmwiki in your own tooling without shelling out.
+- **Activity journal.** Every ingest, compile, and query appends a timestamped, machine-parseable entry to `log.md` — a human- and agent-readable audit trail of how the wiki was built, carrying page wikilinks and counts.
 - **Bridge to runtime memory.** `llmwiki export --target json --project-id <id>` produces a typed envelope that [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki) imports as one verbatim Atomic Memory record per page, preserving all advisory metadata.
 - **Provider-portable.** Anthropic, Claude Agent SDK (local Claude Code login, no API key), OpenAI-compatible (incl. local llama.cpp / vLLM), Ollama, GitHub Copilot.
 
@@ -249,17 +252,21 @@ llmwiki is complementary to traditional RAG: use RAG for ad-hoc retrieval over n
 
 ```
 sources/  →  hash check  →  LLM concept extraction  →  page generation  →  [[wikilink]] resolve
-                                                                            ↓
-                                                       chunk embeddings  ←  wiki/  →  index.md
-                                                              ↓
-                                       semantic search + BM25 rerank + graph expansion
-                                                              ↓
-                                                  llmwiki query / context / MCP
+              │                                                             ↓
+              │                                        chunk embeddings  ←  wiki/  →  index.md
+              │                                               ↓
+              │                             semantic search + BM25 rerank + graph expansion
+              │                                               ↓
+              │                                    llmwiki query / context / MCP
+              ↓
+   stale / orphaned pages  →  llmwiki refresh --stale  →  recompile changed owners, clean up orphans
 ```
 
-**Two-phase compile.** Phase 1 extracts all concepts from all sources. Phase 2 generates pages. This eliminates order-dependence, catches failures before writing anything, and merges concepts shared across multiple sources into single pages.
+**Two-phase compile.** Phase 1 extracts all concepts from every source; Phase 2 generates pages. Splitting the phases eliminates order-dependence, catches extraction failures before anything is written, merges concepts shared across multiple sources into a single page, and marks pages whose sources were all deleted as `orphaned` rather than silently dropping them.
 
-**Incremental everywhere.** Hash-based change detection on sources, content-hash-aware embedding updates, cached citation judgements. Only changed work runs through the LLM.
+**Incremental everywhere.** Hash-based change detection on sources, content-hash-aware embedding updates, and cached citation judgements mean only changed work runs through the LLM. Recompiling after editing one source touches just the pages that source contributed to.
+
+**Source freshness and repair.** Every page records the sources — and their content hashes — that produced it. On any later command, llmwiki compares those recorded hashes against `sources/` on disk: a page whose sources changed since the last compile is `stale`, and a page whose sources were all deleted is `orphaned`. `llmwiki lint`, `llmwiki status`, the viewer, the JSON export, and the MCP tools surface this without recompiling anything. `llmwiki refresh --stale` then repairs it — recompiling only the changed sources that own stale pages and cleaning up orphaned ones, while deliberately leaving unrelated new sources for a full `llmwiki compile`. `--dry-run` previews the plan with no LLM calls.
 
 **Hybrid retrieval.** `.llmwiki/embeddings.json` v2 carries page- and chunk-level vectors. `llmwiki query` and `llmwiki context` narrow hundreds of pages down to a chunk-level top-K via cosine similarity, then rerank with BM25 and expand along the wikilink graph for the final evidence pack.
 
@@ -314,10 +321,15 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki compile` | Incremental compile: extract concepts, generate wiki pages |
 | `llmwiki compile --review` | Write candidate pages to `.llmwiki/candidates/` instead of `wiki/` so you can review before they land |
 | `llmwiki compile --lang <code>` | Generate wiki content in the given language (e.g. `Chinese`, `ja`, `zh-CN`); also works on `query` |
+| `llmwiki refresh --stale [--dry-run]` | Repair stale/orphaned pages: recompile the sources that own stale pages and clean up deleted owners, skipping unrelated new sources. `--dry-run` previews the plan with no LLM calls or writes |
 | `llmwiki review list` | List pending candidate pages |
 | `llmwiki review show <id>` | Print a candidate's title, summary, and body |
 | `llmwiki review approve <id>` | Promote a candidate into `wiki/` and refresh index/MOC/embeddings |
 | `llmwiki review reject <id>` | Archive a candidate without touching `wiki/` |
+| `llmwiki rules extract` | Extract machine-actionable rule candidates from changed sources into `.llmwiki/rule-candidates/` |
+| `llmwiki rules list` | List pending rule candidates |
+| `llmwiki rules approve <id>` / `reject <id>` | Approve or reject a rule candidate |
+| `llmwiki rules export` | Emit approved rule candidates as a JSON array for a downstream rule importer |
 | `llmwiki schema init` | Write a starter `.llmwiki/schema.json` file |
 | `llmwiki schema show` | Print the resolved schema for the current project |
 | `llmwiki query "question"` | Ask questions against your compiled wiki |
@@ -326,7 +338,7 @@ Pages include source attribution in frontmatter. Paragraphs are annotated with `
 | `llmwiki view [--open]` | Start a read-only local web viewer for browsing, searching, and inspecting the compiled wiki |
 | `llmwiki next [--json]` | Show the recommended next action for this project (read-only); `--json` emits a stable envelope for agents |
 | `llmwiki context "<prompt>" [--json]` | Build an agent-ready evidence pack (primary pages, citations, neighbors, suggested actions) — same v1 envelope as MCP `get_context_pack` |
-| `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, etc.) |
+| `llmwiki lint` | Check wiki quality (broken links, orphans, empty pages, low confidence, contradictions, stale pages whose sources changed, etc.) |
 | `llmwiki eval [--suite fast\|full]` | Measure wiki quality: health score (0–100), citation coverage, corpus stats. `--suite full` adds LLM-as-judge citation support scoring |
 | `llmwiki eval cache show` | Print score distribution and top-cited pages from the citation judgement cache |
 | `llmwiki eval cache clear` | Remove the citation judgement cache |
@@ -352,7 +364,7 @@ wiki/
   candidates/archive/  rejected candidates kept for audit
 ```
 
-Obsidian-compatible. `[[wikilinks]]` resolve to concept titles.
+Obsidian-compatible. `[[wikilinks]]` resolve to concept titles — or to any page that declares the term in its `aliases` frontmatter, so links survive renames and synonyms.
 
 `log.md` records what happened and when. Each entry is a heading with a fixed
 prefix — `## [YYYY-MM-DDThh:mm:ssZ] operation | description` (an ISO 8601 UTC
@@ -490,6 +502,7 @@ llmwiki eval cache clear       # wipe the citation judgement cache
 - **Health score (0–100)** aggregates all lint rules. Errors (broken citations, broken wikilinks, duplicate concepts) cost more than warnings.
 - **Citation coverage** — fraction of prose paragraphs that carry a `^[...]` marker, plus citation precision (fraction of citations pointing to existing source files).
 - **Citation support (full suite)** — samples up to N `(claim, source span)` pairs, asks a judge model to score each 0–2 (unsupported → fully supported), and caches results so subsequent runs only re-judge new pairs.
+- **Source utilization & citation depth** — the fraction of a page's valid sources that are actually cited (`source_utilization_rate`), and the share of citations pinned to specific line ranges rather than whole files (`claim_level_citation_rate`). Source warnings flag sources excluded from compilation (e.g. out-of-tree symlinks), gateable via `source_warnings_max`.
 - **Corpus stats** — page count, source count, total wiki characters, embedding counts, appended to `history.jsonl` for trend tracking.
 - **Regression deltas** — current report is diffed against the previous entry in history.
 
@@ -594,8 +607,9 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 | `search_pages` | Return full content of pages relevant to a question. |
 | `read_page` | Read a single page by slug (concepts/ then queries/). |
 | `lint_wiki` | Run quality checks; returns structured diagnostics. |
-| `wiki_status` | Page count, source count, orphans, pending changes (read-only). |
-| `get_context_pack` | Build an agent-ready evidence pack (primary pages, semantic chunks, graph neighbors, citations, warnings, suggested actions) — same v1 JSON envelope as `llmwiki context --json`. `get_context_pack` **packages evidence**; `query_wiki` **generates answers**. |
+| `wiki_status` | Page/source counts, stale and orphaned pages, a `stateStatus` field, and pending changes (read-only). |
+| `get_context_pack` | Build an agent-ready evidence pack (primary pages, semantic chunks, graph neighbors, citations, per-page freshness, warnings, suggested actions) — same v1 JSON envelope as `llmwiki context --json`. `get_context_pack` **packages evidence**; `query_wiki` **generates answers**. |
+| `run_eval` | Score wiki quality (the fast suite needs no API key; the full suite LLM-judges a sample of citations); read-only. |
 
 ### Resources
 
@@ -606,6 +620,56 @@ Tools that need an LLM (`compile_wiki`, `query_wiki`, `search_pages`) check for 
 | `llmwiki://query/{slug}` | A single saved query page. |
 | `llmwiki://sources` | List of ingested source files with metadata. |
 | `llmwiki://state` | Compilation state (per-source hashes, last compile times). |
+| `llmwiki://eval/report` | The most recent eval report. |
+| `llmwiki://eval/history` | Trend of past eval runs. |
+
+</details>
+
+
+<br>
+
+---
+
+<br>
+
+
+<details>
+<summary><span style="font-size: 1.4em;"><strong>SDK — programmatic API — click to expand</strong></span></summary>
+
+
+## SDK — `createWiki()`
+
+Drive llmwiki in-process instead of shelling out to the CLI. `createWiki({ root })` returns a `Wiki` facade bound to a project directory. Every method runs silently (no console output) and is concurrency-safe — quiet mode is scoped per async call, not via a global flag. `createWiki` is exported from the package entry, so `import { createWiki } from "llm-wiki-compiler"` works for any installed version.
+
+```ts
+import { createWiki } from "llm-wiki-compiler";
+
+const wiki = createWiki({ root: "./my-wiki" });
+
+await wiki.ingestText({ title: "Notes", text: "Raw text to compile…" });
+await wiki.compile();                        // needs LLM credentials
+const { answer } = await wiki.query("What did I note about X?");
+const status = await wiki.status();          // no credentials needed
+```
+
+### Methods
+
+| Method | What it does | LLM creds |
+|--------|--------------|:---------:|
+| `ingest({ source })` | Fetch a URL or read a local file into `sources/`. **Trusted input only** — a server-side fetch + local-file-read primitive (SSRF risk); use `ingestText` for untrusted content. | No |
+| `ingestText({ title, text })` | Ingest raw text — the safe path for untrusted content (no fetch, no file read). | No |
+| `compile(options?)` | Compile pending sources into wiki pages. `options.review` queues candidates instead of writing. **Sends source content to the provider.** | Yes |
+| `search(question)` | Retrieve and hydrate the most relevant page records. | Yes |
+| `query(question, options?)` | Grounded answer; `options.save` persists it as a page, `options.debug` returns retrieval detail. | Yes |
+| `getPage(ref)` / `listPages(options?)` | Read one page / list pages with filters and cursor pagination. | No |
+| `listSources(options?)` / `getSource(id)` / `deleteSource(id)` | List, read, or delete ingested sources. `id` is the `IngestResult.filename` (e.g. `"note.md"`); `deleteSource` reconciles the compiled page on the next `compile()`. | No |
+| `status()` | Read-only status snapshot — counts, freshness, pending changes. | No |
+| `lint()` | Run all lint rules; severity-counted summary. | No |
+| `getContextPack({ prompt, budget?, depth?, topPages?, topChunks? })` | Build a v1 context pack — same envelope as MCP `get_context_pack`. Semantic retrieval when embeddings exist, lexical fallback otherwise. | No |
+| `exportJson(options?)` | Structured JSON export document (same shape as `llmwiki export --target json`). | No |
+| `runEval({ mode, record? })` | Eval harness. `mode: "fast"` is credential-free; `"full"` LLM-judges a sample of citations. | full only |
+
+**Notes.** Methods that need a provider throw `ProviderUnavailableError` when no credentials are configured; the rest run credential-free. Output is suppressed and there is no progress callback in v1 (`compile`/`runEval` on a large corpus can run for minutes with no feedback). `status()`, `lint()`, and `exportJson()` each hash the full source corpus per call (no cross-call cache) — avoid calling them in a hot loop. All result types (`CompileResult`, `QueryResult`, `WikiStatus`, `ContextPack`, …) are exported from the package for typed consumption.
 
 </details>
 
@@ -660,11 +724,15 @@ Karpathy described an abstract pattern for turning raw data into compiled knowle
 
 ## Roadmap
 
-Available on main, will ship in 0.9.0:
+Shipped in 0.9.0:
 
-- ✅ Source freshness — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since compile, computed on demand from `.llmwiki/state.json` and the current `sources/`; the JSON export carries per-page `freshnessStatus`, `contradicted`, and `archived`
+- ✅ Source freshness — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since compile, surfaced across MCP (`wiki_status`, `get_context_pack`), context packs, the viewer (badges, a per-axis filter, health counts, a corrupt-state banner), the JSON export, and `llmwiki next`
+- ✅ `llmwiki refresh --stale` — repairs stale/orphaned pages with a targeted recompile of their changed owning sources (and deleted-owner cleanup), skipping unrelated new sources; `--dry-run` previews with no LLM calls or writes
 - ✅ JSON export bridge contract — `llmwiki export --target json --project-id <id>` adds per-page `path`, `kind`, advisory confidence/provenance, flattened citations, aliases, and freshness so downstream importers (e.g. [`@atomicmemory/llmwiki`](https://github.com/atomicstrata/atomicmemory/tree/main/packages/llmwiki)) can ingest pages as durable memory records
-- ✅ Eval over MCP — `run_eval` MCP tool scores wiki quality (fast suite needs no API key; full suite LLM-judges a sample of citations), plus read-only `llmwiki://eval/report` and `llmwiki://eval/history` resources
+- ✅ In-process SDK — `createWiki()` exposes the compiler in-process, with source-backed write APIs for programmatic callers
+- ✅ Eval over MCP + richer metrics — `run_eval` tool and read-only `llmwiki://eval/report`/`llmwiki://eval/history` resources, plus source-utilization and citation-depth metrics with a `source_warnings_max` CI gate
+- ✅ Rule-candidate extraction — extract reusable rule candidates from sources with review/approve and a JSON export pipeline
+- ✅ Claude Agent provider — authenticates through a local Claude Code login (bundled plan tokens, no separate API key)
 - ✅ Alias-aware wikilinks — the viewer resolves a `[[term]]` link to any page that declares `term` in its `aliases` frontmatter, not just an exact slug match
 
 Shipped in 0.8.0:
