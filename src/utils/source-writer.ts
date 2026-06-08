@@ -54,13 +54,16 @@ async function resolveCollisionFreeFilename(
   const candidate = `${slug}.md`;
   const candidatePath = path.join(sourcesDir, candidate);
   try {
-    await readFile(candidatePath, "utf-8");
+    // No-follow existence probe: lstat never reads or follows a planted symlink
+    // at sources/<slug>.md (readFile here would EISDIR on a symlinked dir or leak
+    // an outside file). The actual write is still guarded by wx/lstat downstream.
+    await lstat(candidatePath);
   } catch (err) {
-    const e = err as { code?: string };
-    if (e.code === "ENOENT") return candidate;
+    if ((err as { code?: string }).code === "ENOENT") return candidate;
     throw err;
   }
-  // File exists and is owned by a different source — append a stable hash suffix.
+  // An entry already occupies sources/<slug>.md (a different source, or a planted
+  // symlink) — append a stable hash suffix instead of touching it.
   return `${slug}-${shortHashOfSource(source)}.md`;
 }
 
