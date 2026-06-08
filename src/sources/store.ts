@@ -85,9 +85,17 @@ export async function listSources(root: string, options: ListSourcesOptions = {}
  */
 export async function deleteSource(root: string, id: string): Promise<boolean> {
   assertSafeSourceId(id);
+  const dir = path.join(root, SOURCES_DIR);
+  const filePath = path.join(dir, id);
+  const canonicalDir = await safeRealpath(dir);
+  const real = canonicalDir === null ? null : await safeRealpath(filePath);
+  // Not a valid in-tree source (missing, broken, or a symlink escaping sources/) →
+  // nothing to delete. Keeps delete coherent with getSource/listSources.
+  if (real === null || canonicalDir === null || !isInsideDir(real, canonicalDir)) return false;
   try {
-    // unlink removes the entry (incl. a symlink) itself, never a symlink target — safe.
-    await unlink(path.join(root, SOURCES_DIR, id));
+    // Unlink the entry by its own path (removes a regular file, or an intra-sources
+    // symlink entry — never via the resolved target).
+    await unlink(filePath);
     return true;
   } catch (err) {
     if ((err as { code?: string }).code === "ENOENT") return false;
