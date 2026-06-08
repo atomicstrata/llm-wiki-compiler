@@ -45,10 +45,14 @@ export interface MountResult {
  * Mount the viewer shell + scripts into JSDOM. Returns the dom and a
  * fetch-mock spy so tests can assert what was called. After mount, the
  * promise has been flushed past the initial microtask cycle.
+ *
+ * @param startHash - Optional initial `location.hash` value (e.g. `"#/graph"`).
+ *   Set before scripts run so `main()` sees this hash as the entry route.
  */
 export async function mountViewerDom(
   pages: EmbeddedPage[],
   responder: FetchResponder,
+  startHash?: string,
 ): Promise<MountResult> {
   const [shell, viewerSrc, searchSrc, sidebarSrc, railSrc] = await Promise.all([
     readFile(SHELL_PATH, "utf-8"),
@@ -63,8 +67,9 @@ export async function mountViewerDom(
     const response = await responder(url);
     return response ?? new Response(null, { status: 404 });
   });
+  const startUrl = startHash ? `http://127.0.0.1:0/${startHash}` : "http://127.0.0.1:0/";
   const dom = new JSDOM(html, {
-    url: "http://127.0.0.1:0/",
+    url: startUrl,
     runScripts: "outside-only",
     virtualConsole: new VirtualConsole(),
   });

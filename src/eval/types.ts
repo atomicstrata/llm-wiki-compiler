@@ -39,6 +39,36 @@ export interface CitationCoverageResult {
   perPage: CitationPageResult[];
 }
 
+/** Per-source citation detail emitted by source-utilization eval. */
+export interface SourceUtilizationEntry {
+  sourceFile: string;
+  citingPageCount: number;
+  citingPages: string[];
+}
+
+export interface SourceUtilizationResult {
+  totalSources: number;
+  citedSources: number;
+  uncitedSources: number;
+  /** 0.0-1.0, or null when totalSources is 0 (not measured). */
+  utilizationRate: number | null;
+  /** Non-fatal issues encountered during evaluation (e.g. unreadable files). */
+  warnings: string[];
+  /** Sorted by citingPageCount descending. */
+  perSource: SourceUtilizationEntry[];
+}
+
+/** Citation depth metrics — how precise are the wiki's citations. */
+export interface CitationDepthResult {
+  totalCitations: number;
+  preciseCitations: number;
+  vagueCitations: number;
+  /** 0.0-1.0 fraction of citations that include a line range. */
+  claimLevelRate: number;
+  /** Average number of citation markers per prose paragraph. */
+  avgCitationsPerParagraph: number;
+}
+
 export interface CitationJudgement {
   /** First 16 hex chars of SHA-256(claimText + spanText) — stable cache key. */
   claimHash: string;
@@ -90,6 +120,8 @@ export interface EvalReport {
   timestamp: string;
   health: HealthResult;
   citationCoverage: CitationCoverageResult;
+  sourceUtilization: SourceUtilizationResult;
+  citationDepth: CitationDepthResult;
   citationSupport?: CitationSupportResult;
   stats: StatsResult;
   delta?: EvalDelta;

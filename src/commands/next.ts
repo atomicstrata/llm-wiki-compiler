@@ -91,6 +91,8 @@ interface JsonSummary {
   hasIndex: boolean;
   hasLintCache: boolean;
   lint: { warnings: number; errors: number; at: string } | null;
+  /** Stale/orphaned counts from the last lint, or null when lint has not run. */
+  freshness: { stalePages: number; orphanedPages: number } | null;
 }
 
 /** Build the `summary` block, mapping LintCacheStatus to the documented shape. */
@@ -102,7 +104,10 @@ function buildSummary(state: ProjectState): JsonSummary {
     pendingCandidates: state.pendingCandidates,
     hasIndex: state.hasIndex,
     hasLintCache: state.lint.present,
-    lint: state.lint.entry,
+    lint: state.lint.entry
+      ? { warnings: state.lint.entry.warnings, errors: state.lint.entry.errors, at: state.lint.entry.at }
+      : null,
+    freshness: state.lint.entry?.freshness ?? null,
   };
 }
 

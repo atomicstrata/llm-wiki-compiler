@@ -20,7 +20,12 @@ import { atomicWrite } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import { collectExportPages } from "../export/collect.js";
 import { buildLlmsTxt, buildLlmsFullTxt } from "../export/llms-txt.js";
-import { buildJsonExport } from "../export/json-export.js";
+import {
+  buildJsonExport,
+  buildJsonExportDocument,
+  type BuildJsonExportOptions,
+  type JsonExportDocument,
+} from "../export/json-export.js";
 import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
@@ -189,6 +194,21 @@ function resolveTargets(rawTarget: string | undefined): ExportTarget[] {
   }
 
   return [rawTarget];
+}
+
+/**
+ * Pure in-memory entry point — collects pages and returns the export document
+ * object without writing any files or emitting console output.
+ * @param root - Absolute path to the project root directory.
+ * @param options - Optional export options (e.g. `projectId`).
+ * @returns The JsonExportDocument object ready for programmatic consumption.
+ */
+export async function exportJson(
+  root: string,
+  options: BuildJsonExportOptions = {},
+): Promise<JsonExportDocument> {
+  const pages = await collectExportPages(root);
+  return buildJsonExportDocument(pages, options);
 }
 
 /**

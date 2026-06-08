@@ -7,7 +7,7 @@
  *   - End-to-end write to sources/ via ingestSessionFile
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import path from "path";
 import os from "os";
 import { mkdir, readdir } from "fs/promises";
@@ -221,35 +221,31 @@ describe("ingestSessionFile", () => {
     );
     await mkdir(tempRoot, { recursive: true });
     originalCwd = process.cwd();
-    process.chdir(tempRoot);
   });
 
-  // Restore cwd after each test so we do not pollute the test environment.
+  // Restore cwd after each test so a test that changes it cannot leak a stale
+  // working directory into the rest of the suite, even when it throws.
+  afterEach(() => process.chdir(originalCwd));
+
   it("saves a Claude session to sources/ and returns correct metadata", async () => {
-    const result = await ingestSessionFile(claudeFile);
+    const result = await ingestSessionFile(tempRoot, claudeFile);
     expect(result.adapter).toBe("claude");
     expect(result.filename.endsWith(".md")).toBe(true);
     expect(result.title).toBe("How do I implement a binary search tree in TypeScript?");
 
     const files = await readdir(path.join(tempRoot, "sources"));
     expect(files).toContain(result.filename);
-
-    process.chdir(originalCwd);
   });
 
   it("saves a Codex session to sources/ and returns correct metadata", async () => {
-    const result = await ingestSessionFile(codexFile);
+    const result = await ingestSessionFile(tempRoot, codexFile);
     expect(result.adapter).toBe("codex");
     expect(result.filename.endsWith(".md")).toBe(true);
-
-    process.chdir(originalCwd);
   });
 
   it("saves a Cursor session to sources/ and returns correct metadata", async () => {
-    const result = await ingestSessionFile(cursorFile);
+    const result = await ingestSessionFile(tempRoot, cursorFile);
     expect(result.adapter).toBe("cursor");
     expect(result.filename.endsWith(".md")).toBe(true);
-
-    process.chdir(originalCwd);
   });
 });

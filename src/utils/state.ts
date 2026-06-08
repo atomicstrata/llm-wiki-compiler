@@ -11,6 +11,7 @@ import { readFile, writeFile, rename, mkdir, copyFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { LLMWIKI_DIR, STATE_FILE } from "./constants.js";
+import { note } from "./output.js";
 import type { WikiState, SourceState } from "./types.js";
 
 function emptyState(): WikiState {
@@ -45,7 +46,7 @@ export async function readState(root: string): Promise<WikiState> {
   if (classified.status === "corrupt") {
     const filePath = path.join(root, STATE_FILE);
     const bakPath = filePath + ".bak";
-    console.warn(`⚠ Corrupt state.json — backed up to ${bakPath}, starting fresh.`);
+    note(`⚠ Corrupt state.json — backed up to ${bakPath}, starting fresh.`);
     await copyFile(filePath, bakPath);
   }
   return classified.state;

@@ -73,10 +73,14 @@ export async function lint(root: string): Promise<LintSummary> {
 
   const results = [...plainResults.flat(), ...schemaResults.flat(), ...freshnessResults.flat()];
 
-  return {
+  const summary: LintSummary = {
     errors: countBySeverity(results, "error"),
     warnings: countBySeverity(results, "warning"),
     info: countBySeverity(results, "info"),
     results,
   };
+
+  // lint is intentionally not journaled to log.md — it is a read-only check,
+  // and the MCP `lint_wiki` tool documents it as non-mutating.
+  return summary;
 }

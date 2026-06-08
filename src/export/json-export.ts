@@ -7,7 +7,17 @@
  * additional transformation.
  *
  * Schema:
- *   { exportedAt, pageCount, projectId?, pages: ExportPage[] }
+ *   { schemaVersion, exportedAt, pageCount, projectId?, pages: ExportPage[] }
+ *
+ * W4 provenance lives PER PAGE (`ExportPage.modelId` / `promptVersion` plus
+ * `contentHash` / `sourceHashes`), stamped into each page at compile time.
+ * It is deliberately not summarized at the envelope level: a single
+ * export-time model id would misattribute pages compiled under a different
+ * model, which is exactly the lineage bug this avoids.
+ *
+ * `schemaVersion` lets downstream consumers (e.g. the rule importer) pin to a known
+ * contract. Increment when a breaking field change lands; additive fields
+ * do not require a bump.
  *
  * `projectId` is the optional bridge identifier. When present it pins the
  * on-disk export to a stable identity that downstream consumers (the
@@ -19,8 +29,19 @@
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
 
+/**
+ * Monotonically-incremented envelope version.
+ * Bump when a breaking field change lands; additive additions do not require a bump.
+ */
+export const EXPORT_SCHEMA_VERSION = 1;
+
 /** Top-level shape of the JSON export file. */
-interface JsonExportDocument {
+export interface JsonExportDocument {
+  /**
+   * Contract version for downstream consumers. Start at 1; increment only on
+   * breaking envelope changes so consumers can pin a supported range.
+   */
+  schemaVersion: number;
   exportedAt: string;
   pageCount: number;
   /** Optional bridge identifier. See `src/export/project-id.ts` for the validation rule. */
@@ -28,13 +49,35 @@ interface JsonExportDocument {
   pages: ExportPage[];
 }
 
-/** Options accepted by {@link buildJsonExport}. */
+/** Options accepted by {@link buildJsonExportDocument}. */
 export interface BuildJsonExportOptions {
   /**
    * Optional project identifier. Validated against the bridge contract
    * regex; throws if invalid so a malformed value never reaches disk.
    */
   projectId?: string;
+}
+
+/**
+ * Build the JSON export document object from a list of export pages.
+ * @param pages - Sorted array of export pages.
+ * @param options - Optional bridge envelope fields (e.g. `projectId`).
+ * @returns The structured JsonExportDocument object (not serialized).
+ */
+export function buildJsonExportDocument(
+  pages: ExportPage[],
+  options: BuildJsonExportOptions = {},
+): JsonExportDocument {
+  const doc: JsonExportDocument = {
+    schemaVersion: EXPORT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    pageCount: pages.length,
+    pages,
+  };
+  if (options.projectId !== undefined) {
+    doc.projectId = validateProjectId(options.projectId);
+  }
+  return doc;
 }
 
 /**
@@ -47,13 +90,5 @@ export function buildJsonExport(
   pages: ExportPage[],
   options: BuildJsonExportOptions = {},
 ): string {
-  const doc: JsonExportDocument = {
-    exportedAt: new Date().toISOString(),
-    pageCount: pages.length,
-    pages,
-  };
-  if (options.projectId !== undefined) {
-    doc.projectId = validateProjectId(options.projectId);
-  }
-  return JSON.stringify(doc, null, 2);
+  return JSON.stringify(buildJsonExportDocument(pages, options), null, 2);
 }

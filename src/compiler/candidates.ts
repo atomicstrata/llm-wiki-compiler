@@ -12,11 +12,15 @@
  * called again at approval time.
  */
 
-import { readdir, rename, unlink, writeFile, mkdir } from "fs/promises";
+import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
 import { atomicWrite, safeReadFile } from "../utils/markdown.js";
+import {
+  listCandidateFileIds,
+  moveCandidateToArchive,
+} from "../utils/candidate-store.js";
 import * as output from "../utils/output.js";
 import {
   CANDIDATES_DIR,
@@ -189,13 +193,9 @@ function isValidCandidate(value: unknown): value is ReviewCandidate {
  */
 export async function listCandidates(root: string): Promise<ReviewCandidate[]> {
   const dir = path.join(root, CANDIDATES_DIR);
-  if (!existsSync(dir)) return [];
-
-  const entries = await readdir(dir, { withFileTypes: true });
+  const ids = await listCandidateFileIds(dir);
   const candidates: ReviewCandidate[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith(CANDIDATE_EXT)) continue;
-    const id = entry.name.slice(0, -CANDIDATE_EXT.length);
+  for (const id of ids) {
     const candidate = await readCandidate(root, id);
     if (candidate) candidates.push(candidate);
   }
@@ -231,18 +231,5 @@ export async function deleteCandidate(root: string, id: string): Promise<boolean
  * @returns True when the candidate was found and archived.
  */
 export async function archiveCandidate(root: string, id: string): Promise<boolean> {
-  const sourcePath = candidatePath(root, id);
-  if (!existsSync(sourcePath)) return false;
-
-  const target = archivePath(root, id);
-  await mkdir(path.dirname(target), { recursive: true });
-  // Copy via writeFile + unlink to support cross-filesystem rename failures.
-  try {
-    await rename(sourcePath, target);
-  } catch {
-    const raw = await safeReadFile(sourcePath);
-    await writeFile(target, raw, "utf-8");
-    await unlink(sourcePath);
-  }
-  return true;
+  return moveCandidateToArchive(candidatePath(root, id), archivePath(root, id));
 }

@@ -24,6 +24,10 @@ interface ViewerHealthResponse {
   sourceFiles: number;
   concepts: number;
   queries: number;
+  stale: number;
+  orphaned: number;
+  /** Classification of state.json at snapshot build time. "corrupt" triggers the client-side banner. */
+  stateStatus: "ok" | "missing" | "corrupt";
   lint: LintCacheEntry | null;
 }
 
@@ -42,6 +46,9 @@ export async function buildHealthResponse(
     sourceFiles: snapshot.counts.sourceFiles,
     concepts: snapshot.counts.concepts,
     queries: snapshot.counts.queries,
+    stale: snapshot.counts.stale,
+    orphaned: snapshot.counts.orphaned,
+    stateStatus: snapshot.stateStatus,
     lint,
   };
 }

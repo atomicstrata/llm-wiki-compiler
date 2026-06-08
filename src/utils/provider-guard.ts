@@ -20,9 +20,28 @@
 import { DEFAULT_PROVIDER } from "./constants.js";
 import { resolveAnthropicAuthFromEnv } from "./claude-settings.js";
 
+/** Thrown when the active provider has no usable credentials. */
+export class ProviderUnavailableError extends Error {
+  readonly code = "provider_unavailable" as const;
+  constructor(readonly provider: string, readonly missing: string[], message: string) {
+    super(message);
+    this.name = "ProviderUnavailableError";
+  }
+}
+
+/** Thrown when LLMWIKI_PROVIDER names an unsupported provider. */
+export class UnknownProviderError extends Error {
+  readonly code = "unknown_provider" as const;
+  constructor(readonly provider: string, readonly supported: string[], message: string) {
+    super(message);
+    this.name = "UnknownProviderError";
+  }
+}
+
 /** Map of provider name to the env var that satisfies it. Null = no key needed. */
 const PROVIDER_KEY_VARS: Record<string, string | null> = {
   anthropic: "ANTHROPIC_API_KEY",
+  "claude-agent": null,
   openai: "OPENAI_API_KEY",
   ollama: null,
   minimax: "MINIMAX_API_KEY",
@@ -40,7 +59,9 @@ export function ensureProviderAvailable(): void {
   if (provider === "anthropic") {
     const auth = resolveAnthropicAuthFromEnv();
     if (!auth.apiKey && !auth.authToken) {
-      throw new Error(
+      throw new ProviderUnavailableError(
+        "anthropic",
+        ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"],
         `Anthropic credentials are required for the "anthropic" provider.\n` +
           `  Set one of: export ANTHROPIC_API_KEY=<your-key> OR export ANTHROPIC_AUTH_TOKEN=<your-token>`,
       );
@@ -50,14 +71,18 @@ export function ensureProviderAvailable(): void {
 
   const keyVar = PROVIDER_KEY_VARS[provider];
   if (keyVar === undefined) {
-    throw new Error(
-      `Unknown provider "${provider}".\n` +
-        `  Supported: ${Object.keys(PROVIDER_KEY_VARS).join(", ")}`,
+    const supported = Object.keys(PROVIDER_KEY_VARS);
+    throw new UnknownProviderError(
+      provider,
+      supported,
+      `Unknown provider "${provider}".\n` + `  Supported: ${supported.join(", ")}`,
     );
   }
 
   if (keyVar && !process.env[keyVar]) {
-    throw new Error(
+    throw new ProviderUnavailableError(
+      provider,
+      [keyVar],
       `${keyVar} environment variable is required for the "${provider}" provider.\n` +
         `  Set it with: export ${keyVar}=<your-key>`,
     );

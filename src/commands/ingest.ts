@@ -11,8 +11,10 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
+import { createHash } from "node:crypto";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSource } from "../utils/source-writer.js";
+import { appendLog } from "../utils/activity-log.js";
 import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import ingestWeb from "../ingest/web.js";
@@ -248,6 +250,28 @@ async function fetchContent(
 }
 
 /**
+ * Append a root-bound ingest entry to the activity journal (`log.md`).
+ * Shared by `ingestSource` and `ingestTextSource` so both ingest paths journal
+ * identically: under the project `root` (not cwd) with a root-relative `Saved`
+ * path, keeping the entry portable regardless of the caller's working directory.
+ */
+async function journalIngest(
+  root: string,
+  title: string,
+  source: string,
+  savedPath: string,
+  charCount: number,
+): Promise<void> {
+  await appendLog(root, "ingest", title, {
+    details: [
+      `Source: ${source}`,
+      `Saved: ${path.join(SOURCES_DIR, path.basename(savedPath))}`,
+      `Chars: ${charCount.toLocaleString()}`,
+    ],
+  });
+}
+
+/**
  * Programmatic ingest entry point. Identical fetch + write logic to the CLI
  * command but returns a structured IngestResult instead of writing to stdout.
  * Used by the MCP server's ingest_source tool.
@@ -255,7 +279,7 @@ async function fetchContent(
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
  * @returns Saved filename, character count, truncation flag, source URI, and detected source type.
  */
-export async function ingestSource(source: string): Promise<IngestResult> {
+export async function ingestSource(root: string, source: string): Promise<IngestResult> {
   const sourceType = await detectSourceType(source);
   output.status("*", output.info(`Ingesting [${sourceType}]: ${source}`));
 
@@ -264,7 +288,10 @@ export async function ingestSource(source: string): Promise<IngestResult> {
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
-  const savedPath = await saveSource(title, document, source);
+  const savedPath = await saveSource(root, title, document, source);
+
+  // Journal the ingest (CLI, MCP ingest_source tool, and SDK all share this path).
+  await journalIngest(root, title, source, savedPath, result.content.length);
 
   return {
     filename: path.basename(savedPath),
@@ -275,13 +302,55 @@ export async function ingestSource(source: string): Promise<IngestResult> {
   };
 }
 
+/** Input shape for raw-text ingestion. */
+export interface IngestTextInput { title: string; text: string; source?: string }
+
+/**
+ * Ingest raw text directly into the wiki sources directory.
+ *
+ * When `source` is omitted a deterministic synthetic identity
+ * `manual:<sha256(title,text)>` is derived so that identical content is
+ * idempotent and differing content coexists (mirrors saveSource collision rules).
+ * The hash is fed a length-prefixed title so the title/text boundary is
+ * unambiguous — a raw separator (newline) or bare concatenation would let a
+ * boundary-shifted pair collide (e.g. title="a",text="b" vs title="ab",text="").
+ *
+ * @param root - Absolute path to the wiki root directory.
+ * @param input - Title, raw text body, and optional explicit source identity.
+ * @returns Structured ingest result with filename, char count, and source URI.
+ */
+export async function ingestTextSource(root: string, input: IngestTextInput): Promise<IngestResult> {
+  const digest = createHash("sha256")
+    .update(`${input.title.length}\n`)
+    .update(input.title)
+    .update(input.text)
+    .digest("hex");
+  const source = input.source ?? `manual:${digest}`;
+  const result = enforceCharLimit(input.text);
+  enforceMinContent(result.content);
+  const document = buildDocument(input.title, source, result, "file");
+  const savedPath = await saveSource(root, input.title, document, source);
+
+  // Mirror ingestSource so both ingest paths journal identically.
+  await journalIngest(root, input.title, source, savedPath, result.content.length);
+
+  return {
+    filename: path.basename(savedPath),
+    charCount: result.content.length,
+    truncated: result.truncated,
+    source,
+    sourceType: "file",
+  };
+}
+
 /**
  * Ingest a source and save it to the sources/ directory.
  * @param source - A URL (http/https), YouTube URL, local file, PDF, or image path.
  */
 export default async function ingest(source: string): Promise<void> {
-  const result = await ingestSource(source);
-  const savedPath = path.join(SOURCES_DIR, result.filename);
+  const cwd = process.cwd();
+  const result = await ingestSource(cwd, source);
+  const savedPath = path.join(cwd, SOURCES_DIR, result.filename);
 
   output.status(
     "+",

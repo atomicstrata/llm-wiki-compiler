@@ -24,6 +24,18 @@ function withLangLine(...lines: string[]): string[] {
   return lang ? [...lines, lang] : lines;
 }
 
+/**
+ * Named version of the extraction + page-generation prompt contract.
+ *
+ * Bump this whenever the wording of the extraction tool schema, the
+ * extraction system prompt, or the page-generation prompt changes in a way
+ * that could alter compiled page content. The export provenance stamp
+ * (`promptVersion` in the JSON export envelope) carries this value so a
+ * downstream auditor can distinguish pages produced under different prompt
+ * generations even when the model id is identical. Format is `vMAJOR`.
+ */
+export const PROMPT_VERSION = "v1";
+
 /** Allowed provenance state strings emitted by the LLM tool schema. */
 const PROVENANCE_STATE_VALUES: ProvenanceState[] = [
   "extracted",

@@ -44,7 +44,8 @@ export const DEFAULT_PROVIDER = "anthropic";
 
 /** Default model per provider. */
 export const PROVIDER_MODELS: Record<string, string> = {
-  anthropic: "claude-sonnet-4-20250514",
+  anthropic: "claude-sonnet-4-6",
+  "claude-agent": "claude-sonnet-4-6",
   openai: "gpt-4o",
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",
@@ -80,6 +81,24 @@ export const STATE_FILE = ".llmwiki/state.json";
 export const LOCK_FILE = ".llmwiki/lock";
 export const INDEX_FILE = "wiki/index.md";
 export const MOC_FILE = "wiki/MOC.md";
+
+/**
+ * Append-only activity journal at the project root, per Karpathy's llm-wiki
+ * gist: a chronological record of what happened and when (ingests, compiles,
+ * queries, lint passes). Lives at the root rather than under wiki/ because it
+ * spans project-level operations — ingest writes before any wiki/ exists.
+ */
+export const LOG_FILE = "log.md";
+
+/** Max characters for a single log.md entry description before truncation. */
+export const LOG_DESCRIPTION_MAX_CHARS = 200;
+
+/**
+ * Max number of page wikilinks listed in a single log.md entry detail line.
+ * Beyond this the list is truncated with a "(+N more)" suffix so a large
+ * compile doesn't write a wall of links into the journal.
+ */
+export const LOG_MAX_PAGE_LINKS = 20;
 export const EMBEDDINGS_FILE = ".llmwiki/embeddings.json";
 export const LAST_LINT_FILE = ".llmwiki/last-lint.json";
 
@@ -97,6 +116,19 @@ export const CANDIDATES_DIR = ".llmwiki/candidates";
 
 /** Rejected review candidates archived for audit (not deleted). */
 export const CANDIDATES_ARCHIVE_DIR = ".llmwiki/candidates/archive";
+
+/**
+ * Per-source hashes already processed by `rules extract` (rule pipeline). Kept
+ * separate from STATE_FILE so rule extraction and concept compilation advance
+ * their change-detection cursors independently.
+ */
+export const RULE_STATE_FILE = ".llmwiki/rule-state.json";
+
+/** Pending rule candidates (rule pipeline) awaiting approve/reject. */
+export const RULE_CANDIDATES_DIR = ".llmwiki/rule-candidates";
+
+/** Rejected rule candidates archived for audit (not deleted). */
+export const RULE_CANDIDATES_ARCHIVE_DIR = ".llmwiki/rule-candidates/archive";
 
 /** Number of most similar pages to return from embedding-based pre-filter. */
 export const EMBEDDING_TOP_K = 15;
@@ -123,6 +155,7 @@ export const MAX_INFERRED_PARAGRAPHS_WITHOUT_CITATIONS = 2;
 /** Embedding model to use per provider. */
 export const EMBEDDING_MODELS: Record<string, string> = {
   anthropic: "voyage-3-lite",
+  "claude-agent": "voyage-3-lite",
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
 };

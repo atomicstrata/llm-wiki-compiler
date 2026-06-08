@@ -64,6 +64,21 @@ describe("writeLintCache", () => {
     expect(parsed.errors).toBe(0);
     expect(parsed.warnings).toBe(0);
   });
+
+  it("persists freshness counts derived from the results to disk", async () => {
+    await writeLintCache(tmpDir, {
+      errors: 0,
+      warnings: 3,
+      info: 0,
+      results: [
+        { rule: "stale-page", severity: "warning", file: "a.md", message: "" },
+        { rule: "stale-page", severity: "warning", file: "b.md", message: "" },
+        { rule: "orphaned-page", severity: "warning", file: "c.md", message: "" },
+      ],
+    });
+    const parsed = JSON.parse(await readRawCache()) as Record<string, unknown>;
+    expect(parsed.freshness).toEqual({ stalePages: 2, orphanedPages: 1 });
+  });
 });
 
 describe("readLintCache", () => {
@@ -117,6 +132,39 @@ describe("readLintCache", () => {
     await writeRawCache(JSON.stringify({ warnings: 0, errors: 0, at: "" }));
     expect(await readLintCache(tmpDir)).toBeNull();
     await writeRawCache(JSON.stringify({ warnings: 0, errors: 0, at: "2026-05-11T00:00:00Z" }));
+    expect(await readLintCache(tmpDir)).toBeNull();
+  });
+});
+
+describe("freshness counts", () => {
+  it("persists and reads back freshness counts", async () => {
+    await writeLintCache(tmpDir, {
+      errors: 0,
+      warnings: 2,
+      info: 0,
+      results: [
+        { rule: "stale-page", severity: "warning", file: "a.md", message: "" },
+        { rule: "orphaned-page", severity: "warning", file: "b.md", message: "" },
+      ],
+    });
+    const entry = await readLintCache(tmpDir);
+    expect(entry?.freshness).toEqual({ stalePages: 1, orphanedPages: 1 });
+  });
+
+  it("reads a pre-upgrade cache (no freshness field) as undefined", async () => {
+    await writeRawCache(JSON.stringify({ warnings: 0, errors: 0, at: "2026-06-05T00:00:00.000Z" }));
+    const entry = await readLintCache(tmpDir);
+    expect(entry?.freshness).toBeUndefined();
+  });
+
+  it("rejects the whole entry when freshness is present but malformed", async () => {
+    const bad = JSON.stringify({
+      warnings: 0,
+      errors: 0,
+      at: "2026-06-05T00:00:00.000Z",
+      freshness: { stalePages: "bad", orphanedPages: 1 },
+    });
+    await writeRawCache(bad);
     expect(await readLintCache(tmpDir)).toBeNull();
   });
 });

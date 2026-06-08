@@ -12,6 +12,7 @@ import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { CopilotProvider } from "../providers/copilot.js";
+import { ClaudeAgentProvider } from "../providers/claude-agent.js";
 import {
   resolveAnthropicAuthFromEnv,
   resolveAnthropicBaseURLFromEnv,
@@ -50,7 +51,7 @@ export interface LLMProvider {
   embed(text: string): Promise<number[]>;
 }
 
-const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "openai", "ollama", "minimax", "copilot"]);
+const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);
 
 /**
  * Factory that returns the appropriate LLMProvider based on env vars.
@@ -65,6 +66,8 @@ export function getProvider(): LLMProvider {
   switch (providerName) {
     case "anthropic":
       return getAnthropicProvider();
+    case "claude-agent":
+      return getClaudeAgentProvider();
     case "openai":
       return new OpenAIProvider(getModelForProvider("openai"), {
         baseURL: readOptionalEnv("OPENAI_BASE_URL"),
@@ -130,6 +133,16 @@ function getAnthropicProvider(): AnthropicProvider {
   });
 }
 
+/**
+ * Build the Claude Agent SDK provider. Auth is handled by the local Claude Code
+ * login, so no API key is read here; LLMWIKI_MODEL (or the Claude settings
+ * model) still overrides the default model.
+ */
+function getClaudeAgentProvider(): ClaudeAgentProvider {
+  const model = resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS["claude-agent"];
+  return new ClaudeAgentProvider(model);
+}
+
 function getProviderName(): string {
   const providerName = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
   if (!SUPPORTED_PROVIDERS.has(providerName)) {
@@ -143,4 +156,21 @@ function getProviderName(): string {
 /** Expose the resolved provider name for callers that need model lookup. */
 export function getActiveProviderName(): string {
   return getProviderName();
+}
+
+/**
+ * Resolve the model id the compile pipeline would call, without
+ * instantiating a provider (which can require API credentials).
+ *
+ * Used by the export provenance stamp so a downstream auditor can tie a
+ * compiled page back to the exact model that produced it. Mirrors the
+ * per-provider model resolution in {@link getProvider} so the reported id
+ * matches what an actual compile call would use.
+ */
+export function resolveActiveModelId(): string {
+  const providerName = getProviderName();
+  if (providerName === "anthropic") {
+    return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
+  }
+  return getModelForProvider(providerName as "openai" | "ollama" | "minimax" | "copilot");
 }

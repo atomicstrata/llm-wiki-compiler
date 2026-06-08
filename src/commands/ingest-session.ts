@@ -46,22 +46,27 @@ function buildSessionFrontmatter(session: NormalizedSession, sourcePath: string)
  * same title from different transcript files coexist instead of one
  * silently overwriting the other.
  */
-async function saveSessionSource(session: NormalizedSession, sourcePath: string): Promise<string> {
+async function saveSessionSource(
+  root: string,
+  session: NormalizedSession,
+  sourcePath: string,
+): Promise<string> {
   const frontmatter = buildSessionFrontmatter(session, sourcePath);
   const body = formatSessionAsMarkdown(session);
   const document = `${frontmatter}\n\n${body}\n`;
-  return saveSource(session.title, document, sourcePath);
+  return saveSource(root, session.title, document, sourcePath);
 }
 
 /**
  * Ingest a single session file.
+ * @param root - Absolute path to the wiki root directory.
  * @throws When the file is not recognised or is malformed.
  */
-export async function ingestSessionFile(filePath: string): Promise<SessionIngestResult> {
+export async function ingestSessionFile(root: string, filePath: string): Promise<SessionIngestResult> {
   output.status("*", output.info(`Ingesting session: ${filePath}`));
 
   const session = await parseSessionFile(filePath);
-  const savedPath = await saveSessionSource(session, filePath);
+  const savedPath = await saveSessionSource(root, session, filePath);
 
   output.status(
     "+",
@@ -102,7 +107,7 @@ async function listDirectoryFiles(dirPath: string): Promise<string[]> {
  * failure mode the user needs to know about — exiting 0 with "Imported
  * 0 session(s), skipped N" was easy to miss in scripts.
  */
-async function ingestDirectory(dirPath: string): Promise<void> {
+async function ingestDirectory(root: string, dirPath: string): Promise<void> {
   const files = await listDirectoryFiles(dirPath);
 
   if (files.length === 0) {
@@ -116,7 +121,7 @@ async function ingestDirectory(dirPath: string): Promise<void> {
 
   for (const file of files) {
     try {
-      await ingestSessionFile(file);
+      await ingestSessionFile(root, file);
       imported++;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -143,14 +148,15 @@ async function ingestDirectory(dirPath: string): Promise<void> {
  * Dispatches to single-file or directory import based on the target type.
  */
 export default async function ingestSession(targetPath: string): Promise<void> {
+  const root = process.cwd();
   const info = await stat(targetPath).catch(() => {
     throw new Error(`Path not found: ${targetPath}`);
   });
 
   if (info.isDirectory()) {
-    await ingestDirectory(targetPath);
+    await ingestDirectory(root, targetPath);
   } else {
-    await ingestSessionFile(targetPath);
+    await ingestSessionFile(root, targetPath);
   }
 
   output.status("→", output.dim("Next: llmwiki compile"));

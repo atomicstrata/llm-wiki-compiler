@@ -144,4 +144,27 @@ describe("checkThresholds", () => {
     expect(violations.some((v) => v.includes("health_score"))).toBe(true);
     expect(violations.some((v) => v.includes("citation_coverage_percent"))).toBe(true);
   });
+
+  function makeReportWithWarnings(warnings: string[]) {
+    return makeReport({
+      sourceUtilization: { totalSources: 2, citedSources: 2, uncitedSources: 0, utilizationRate: 1, perSource: [], warnings },
+    });
+  }
+
+  it("flags source_warnings_max when excluded sources exceed the limit", async () => {
+    await writeThresholds(env.dir, { source_warnings_max: 0 });
+    const report = makeReportWithWarnings(["ghost.md: symlink target missing or outside sources/ (excluded)"]);
+
+    const violations = await checkThresholds(report, env.dir);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain("source_warnings");
+    expect(violations[0]).toContain("exceeds max 0");
+  });
+
+  it("passes source_warnings_max when warnings are within the limit", async () => {
+    await writeThresholds(env.dir, { source_warnings_max: 2 });
+    const report = makeReportWithWarnings(["one.md: could not be resolved (excluded)"]);
+
+    expect(await checkThresholds(report, env.dir)).toHaveLength(0);
+  });
 });
