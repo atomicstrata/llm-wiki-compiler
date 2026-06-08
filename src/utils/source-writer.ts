@@ -149,11 +149,15 @@ export async function saveSource(
         `Rename the source file to one with at least one letter or digit.`,
     );
   }
+  // Create <root>/sources first — recursive mkdir creates a missing root + sources as
+  // real dirs (the SDK contract: a fresh, not-yet-existing root is accepted on first
+  // ingest). mkdir never follows a trailing symlink, so it won't write through a
+  // symlinked sources/.
+  await mkdir(path.join(root, SOURCES_DIR), { recursive: true });
+  // Canonicalize root and re-derive the TRUSTED sources path; reject a symlinked-away sources/.
   const canonicalRoot = await safeRealpath(root);
-  if (canonicalRoot === null) throw new PathSafetyError(`root does not exist: ${root}`);
+  if (canonicalRoot === null) throw new PathSafetyError(`root does not exist: ${root}`); // defensive; mkdir created it
   const sourcesDir = path.join(canonicalRoot, SOURCES_DIR);
-  await mkdir(sourcesDir, { recursive: true });
-  // sources/ must be a real directory — refuse to write into a symlinked-away sources/.
   if (!(await lstat(sourcesDir)).isDirectory()) {
     throw new PathSafetyError(`sources/ must be a real directory, not a symlink`);
   }
