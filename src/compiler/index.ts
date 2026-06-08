@@ -291,6 +291,34 @@ function summarizeCompile(
   return baseResult;
 }
 
+/**
+ * Apply `options.changeFilter` to the full detected change set.
+ * When no filter is provided, returns the original list unchanged.
+ * Separating this keeps `runCompilePipeline` below the cyclomatic threshold.
+ */
+function applyChangeFilter(
+  detected: SourceChange[],
+  filter: CompileOptions["changeFilter"],
+): SourceChange[] {
+  return filter ? detected.filter(filter) : detected;
+}
+
+/**
+ * Generate seed pages unless `skipSeedPages` is set or we are in review mode.
+ * Centralises both guard conditions so each call site in the pipeline is a
+ * single unconditional statement instead of an inline if-block.
+ */
+async function maybeSeedPages(
+  root: string,
+  schema: SchemaConfig,
+  generation: PageGenerationResult,
+  options: CompileOptions,
+): Promise<void> {
+  if (!options.review && !options.skipSeedPages) {
+    await generateSeedPages(root, schema, generation);
+  }
+}
+
 /** Inner pipeline, runs under lock protection. Returns structured CompileResult. */
 async function runCompilePipeline(
   root: string,
@@ -299,7 +327,8 @@ async function runCompilePipeline(
   const schema = await loadSchema(root);
   reportSchemaStatus(schema);
   const state = await readState(root);
-  const changes = await detectChanges(root, state);
+  const detected = await detectChanges(root, state);
+  const changes = applyChangeFilter(detected, options.changeFilter);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
 
   const buckets = bucketChanges(changes);
@@ -315,7 +344,7 @@ async function runCompilePipeline(
         candidates: [],
         seedSlugs: [],
       };
-      await generateSeedPages(root, schema, emptyGeneration);
+      await maybeSeedPages(root, schema, emptyGeneration, options);
       // Rebuild index/MOC so the newly-written seed pages become discoverable,
       // and propagate any seed-page validation errors into the returned result.
       await finalizeWiki(root, emptyGeneration.pages, emptyGeneration.seedSlugs);
@@ -365,7 +394,7 @@ async function runCompilePipeline(
     await persistFrozenSlugs(root, frozenSlugs, extractions);
     // Seed pages write directly into wiki/, so skip them in review mode
     // to honour the "no wiki/ mutation" contract of that mode.
-    await generateSeedPages(root, schema, generation);
+    await maybeSeedPages(root, schema, generation, options);
     await finalizeWiki(root, generation.pages, generation.seedSlugs);
     await logCompile(root, buckets, generation, existingIds);
   }
