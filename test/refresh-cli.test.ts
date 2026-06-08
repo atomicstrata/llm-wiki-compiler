@@ -96,3 +96,24 @@ describe("llmwiki refresh --stale --dry-run", () => {
     expect(result.stdout + result.stderr).toMatch(/usage: llmwiki refresh --stale/i);
   });
 });
+
+describe("llmwiki refresh --stale (live, cleanup-only)", () => {
+  it("cleans up a deleted-owner page with no provider key and makes no LLM calls", async () => {
+    const root = await makeTempRoot("refresh-cleanup");
+    await writeConceptPage(root, "topic");
+    // a.md is recorded in state but absent on disk → its exclusively-owned page
+    // is orphaned cleanup only, never a recompile, so the LLM is never invoked.
+    await writeSourceState(root, { "a.md": { hash: sha256Hex("gone"), concepts: ["topic"] } });
+
+    const result = await runCLI(["refresh", "--stale"], root, NO_KEY_ENV);
+
+    expectCLIExit(result, 0);
+    const combined = result.stdout + result.stderr;
+    expect(combined).not.toMatch(/anthropic|credentials|API[_ ]?KEY/i);
+    expect(combined).toMatch(/cleaned up \(orphaned\):.*topic/);
+    const state = JSON.parse(await readFile(path.join(root, ".llmwiki/state.json"), "utf-8"));
+    expect(state.sources["a.md"]).toBeUndefined();
+    const page = await readFile(path.join(root, "wiki/concepts/topic.md"), "utf-8");
+    expect(page).toMatch(/^orphaned:\s*true/m);
+  });
+});

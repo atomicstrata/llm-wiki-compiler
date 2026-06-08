@@ -69,10 +69,22 @@ async function runRefresh(
     output.status("i", output.dim("Dry run — no files changed, no LLM calls made."));
     return 0;
   }
-  ensureProvider?.();
+  maybeEnsureProvider(plan, ensureProvider);
   await compileAndReport(root, { changeFilter: plan.changeFilter, skipSeedPages: true });
   reportNewSkipped(plan.newSkipped);
   return 0;
+}
+
+/**
+ * Invoke the provider guard only when the plan will trigger an LLM extraction.
+ * Concept extraction runs solely for changed owners and their known-affected
+ * co-contributors; with no changed owners, knownAffected is empty too
+ * (findAffectedSources expands only from changed/new sources), so cleanup-only
+ * plans (orphan/shared state repair) skip the guard and need no key.
+ */
+function maybeEnsureProvider(plan: RefreshPlan, ensureProvider?: () => void): void {
+  const needsLLM = plan.changedOwners.length > 0 || plan.knownAffected.length > 0;
+  if (needsLLM) ensureProvider?.();
 }
 
 /**
