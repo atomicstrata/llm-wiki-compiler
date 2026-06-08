@@ -42,8 +42,11 @@ export interface RefreshPlan {
   changeFilter: (change: SourceChange) => boolean;
 }
 
+/** Classified outcome of reading .llmwiki/state.json for a refresh run. */
+export type RefreshStateStatus = "ok" | "missing" | "corrupt";
+
 export interface RefreshResolution {
-  stateStatus: "ok" | "missing" | "corrupt";
+  stateStatus: RefreshStateStatus;
   /** null unless stateStatus === "ok" */
   plan: RefreshPlan | null;
 }

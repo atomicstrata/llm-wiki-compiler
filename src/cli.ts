@@ -31,6 +31,7 @@ import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
 import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
+import refreshCommand from "./commands/refresh.js";
 import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
@@ -103,6 +104,21 @@ program
       applyLanguageOption(options.lang);
       requireProvider();
       await compileCommand({ review: options.review });
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("refresh")
+  .description("Recompile only stale/changed pages without touching unrelated new sources")
+  .option("--stale", "Resolve stale/orphaned pages and recompile them")
+  .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
+  .action(async (options: { stale?: boolean; dryRun?: boolean }) => {
+    try {
+      const code = await refreshCommand(options, requireProvider);
+      process.exit(code);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
