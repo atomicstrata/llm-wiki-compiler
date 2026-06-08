@@ -26,11 +26,12 @@
  *     pages in the UI.
  */
 
-import { readdir, readFile, realpath } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { parseFrontmatterStatus, slugify } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import type { PageDirectory } from "../export/types.js";
+import { safeRealpath, isInsideDir } from "../utils/path-confine.js";
 
 /** Regex that matches `[[wikilink]]` or `[[wikilink|alias]]` patterns. */
 const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
@@ -108,26 +109,6 @@ export function extractWikilinkTargets(body: string): { slug: string; display: s
     }
   }
   return targets;
-}
-
-/**
- * `realpath` wrapper that returns null instead of throwing on missing
- * files. Used everywhere we resolve a possibly-absent or possibly-broken
- * symlink and want to fall through to "skip this entry."
- */
-async function safeRealpath(p: string): Promise<string | null> {
-  try {
-    return await realpath(p);
-  } catch {
-    return null;
-  }
-}
-
-/** True when `child` equals `dir` or sits beneath it. */
-function isInsideDir(child: string, dir: string): boolean {
-  if (child === dir) return true;
-  const prefix = dir.endsWith(path.sep) ? dir : dir + path.sep;
-  return child.startsWith(prefix);
 }
 
 /**
