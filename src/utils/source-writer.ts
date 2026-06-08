@@ -14,12 +14,13 @@
  *    `source` field is consulted before suffixing.
  */
 
-import { mkdir, readdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile, lstat } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { SOURCES_DIR } from "./constants.js";
+import { PathSafetyError } from "../viewer/path-safety.js";
 import type { WriteStatus } from "./types.js";
 
 /** Length of the hex hash suffix appended to disambiguate basename collisions. */
@@ -148,8 +149,14 @@ export async function saveSource(
         `Rename the source file to one with at least one letter or digit.`,
     );
   }
-  const sourcesDir = path.join(root, SOURCES_DIR);
+  const canonicalRoot = await safeRealpath(root);
+  if (canonicalRoot === null) throw new PathSafetyError(`root does not exist: ${root}`);
+  const sourcesDir = path.join(canonicalRoot, SOURCES_DIR);
   await mkdir(sourcesDir, { recursive: true });
+  // sources/ must be a real directory — refuse to write into a symlinked-away sources/.
+  if (!(await lstat(sourcesDir)).isDirectory()) {
+    throw new PathSafetyError(`sources/ must be a real directory, not a symlink`);
+  }
 
   // The source identity (not the title-derived slug) is the key: reuse the
   // existing file for this source even if the title changed; only allocate a
@@ -159,8 +166,22 @@ export async function saveSource(
   const destPath = path.join(sourcesDir, filename);
 
   if (existingByIdentity === null) {
-    await writeFile(destPath, document, "utf-8");
+    // New source: exclusive create — never write through a pre-existing entry
+    // (e.g. a planted symlink at the slug/hash destination).
+    try {
+      await writeFile(destPath, document, { encoding: "utf-8", flag: "wx" });
+    } catch (err) {
+      if ((err as { code?: string }).code === "EEXIST") {
+        throw new PathSafetyError(`refusing to write: ${filename} already exists in sources/`);
+      }
+      throw err;
+    }
     return { path: destPath, writeStatus: "created" };
+  }
+  // Update: the identity scan returned an in-tree match — require a regular file
+  // (reject an intra-sources symlink target; never writeFile through a symlink).
+  if (!(await lstat(destPath)).isFile()) {
+    throw new PathSafetyError(`refusing to write: ${filename} is not a regular file`);
   }
   const existing = await readFile(destPath, "utf-8");
   if (stableContent(existing) === stableContent(document)) {

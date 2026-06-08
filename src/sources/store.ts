@@ -7,8 +7,7 @@ import path from "path";
 import { readdir, readFile, unlink } from "fs/promises";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
-import { SOURCES_DIR } from "../utils/constants.js";
-import { safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { safeRealpath, isInsideDir, resolveSourcesDir } from "../utils/path-confine.js";
 
 /** A single source file under `sources/`, with frontmatter metadata. */
 export interface SourceRecord {
@@ -50,9 +49,8 @@ function toRecord(id: string, content: string, includeBody: boolean): SourceReco
 }
 
 export async function listSources(root: string, options: ListSourcesOptions = {}): Promise<ListSourcesResult> {
-  const dir = path.join(root, SOURCES_DIR);
-  const canonicalDir = await safeRealpath(dir);
-  if (canonicalDir === null) return { sources: [] };
+  const dir = await resolveSourcesDir(root);
+  if (dir === null) return { sources: [] };
   let files: string[];
   try {
     files = (await readdir(dir)).filter((f) => f.endsWith(".md")).sort();
@@ -68,7 +66,7 @@ export async function listSources(root: string, options: ListSourcesOptions = {}
   for (const id of page) {
     // Skip any entry whose realpath escapes sources/ (e.g. a symlink planted inside the dir).
     const real = await safeRealpath(path.join(dir, id));
-    if (real === null || !isInsideDir(real, canonicalDir)) continue;
+    if (real === null || !isInsideDir(real, dir)) continue;
     const content = await readFile(real, "utf-8");
     sources.push(toRecord(id, content, options.includeBody === true));
   }
@@ -85,13 +83,13 @@ export async function listSources(root: string, options: ListSourcesOptions = {}
  */
 export async function deleteSource(root: string, id: string): Promise<boolean> {
   assertSafeSourceId(id);
-  const dir = path.join(root, SOURCES_DIR);
+  const dir = await resolveSourcesDir(root);
+  if (dir === null) return false;
   const filePath = path.join(dir, id);
-  const canonicalDir = await safeRealpath(dir);
-  const real = canonicalDir === null ? null : await safeRealpath(filePath);
+  const real = await safeRealpath(filePath);
   // Not a valid in-tree source (missing, broken, or a symlink escaping sources/) →
   // nothing to delete. Keeps delete coherent with getSource/listSources.
-  if (real === null || canonicalDir === null || !isInsideDir(real, canonicalDir)) return false;
+  if (real === null || !isInsideDir(real, dir)) return false;
   try {
     // Unlink the entry by its own path (removes a regular file, or an intra-sources
     // symlink entry — never via the resolved target).
@@ -105,10 +103,10 @@ export async function deleteSource(root: string, id: string): Promise<boolean> {
 
 export async function getSource(root: string, id: string): Promise<SourceRecord | null> {
   assertSafeSourceId(id);
-  const dir = path.join(root, SOURCES_DIR);
-  const canonicalDir = await safeRealpath(dir);
-  const real = canonicalDir === null ? null : await safeRealpath(path.join(dir, id));
-  if (real === null || canonicalDir === null || !isInsideDir(real, canonicalDir)) return null;
+  const dir = await resolveSourcesDir(root);
+  if (dir === null) return null;
+  const real = await safeRealpath(path.join(dir, id));
+  if (real === null || !isInsideDir(real, dir)) return null;
   let content: string;
   try {
     content = await readFile(real, "utf-8");
