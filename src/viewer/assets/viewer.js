@@ -456,11 +456,28 @@ function leadingH1(body) {
   return first.tagName === "H1" ? first : null;
 }
 
-/** True when the heading text matches `title` after trimming both sides. */
+/**
+ * True when the heading text matches `title` after normalising both sides.
+ * Comparison is case-insensitive and collapses internal whitespace so minor
+ * LLM-generated variations (capitalisation, extra spaces, non-breaking
+ * hyphens vs regular hyphens) still match and the duplicate H1 is removed.
+ */
 function hasMatchingHeadingText(heading, title) {
   if (!title) return false;
   const headingText = heading.textContent?.trim();
-  return headingText === title.trim();
+  if (!headingText) return false;
+  return normaliseTitle(headingText) === normaliseTitle(title);
+}
+
+/** Lowercase, collapse whitespace, and replace common Unicode lookalikes so titles compare loosely. */
+function normaliseTitle(raw) {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[‐-―−]/g, "-") // non-breaking hyphens, minus → plain hyphen
+    .replace(/[‘’]/g, "'")         // curly single quotes → straight
+    .replace(/[“”]/g, '"');        // curly double quotes → straight
 }
 
 /** Render every payload warning as a banner above the page body. */

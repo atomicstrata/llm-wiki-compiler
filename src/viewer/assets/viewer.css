@@ -80,34 +80,6 @@ a:hover, a:focus-visible { text-decoration: underline; }
   object-fit: contain;
 }
 .app-title { font-size: 1.05rem; }
-.github-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--fg);
-  background: var(--surface-raised);
-  font-weight: 700;
-  line-height: 1;
-}
-.github-link:hover,
-.github-link:focus-visible {
-  background: var(--accent-soft);
-  text-decoration: none;
-}
-.github-mark {
-  width: 1.25rem;
-  height: 1.25rem;
-  flex: none;
-  fill: currentColor;
-}
-.github-stars {
-  font-size: 0.82rem;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
 
 .app-layout {
   display: grid;

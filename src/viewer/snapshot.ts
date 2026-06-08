@@ -25,7 +25,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
-import { isMalformedCitationEntry } from "../utils/markdown.js";
+import { isMalformedCitationEntry, splitCitationMarker } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
@@ -156,7 +156,7 @@ function appendCitationWarningsForMarker(
   sourceFiles: ReadonlySet<string>,
   into: ViewerWarning[],
 ): void {
-  for (const entry of raw.split(",")) {
+  for (const entry of splitCitationMarker(raw)) {
     const trimmed = entry.trim();
     if (trimmed.length === 0) continue;
     if (isMalformedCitationEntry(trimmed)) {
