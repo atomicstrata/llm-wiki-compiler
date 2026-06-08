@@ -18,6 +18,7 @@ import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
+import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { SOURCES_DIR } from "./constants.js";
 import type { WriteStatus } from "./types.js";
 
@@ -35,14 +36,14 @@ function shortHashOfSource(source: string): string {
 }
 
 /**
- * Resolve the destination filename for a slug + source identity:
+ * Resolve the destination filename for a slug + source identity when no
+ * existing file owns this source (source-identity matching is handled upstream
+ * by `findFileBySourceIdentity` before this is called):
  *
  * - When `${slug}.md` does not exist, return `${slug}.md`.
- * - When it exists and its frontmatter `source` matches the incoming
- *   source, return `${slug}.md` so re-ingest stays idempotent.
- * - Otherwise return `${slug}-<hash>.md` so two distinct sources that
- *   share a basename coexist instead of one silently overwriting the
- *   other.
+ * - When it exists (necessarily owned by a DIFFERENT source), return
+ *   `${slug}-<hash>.md` so two distinct sources that share a basename
+ *   coexist instead of one silently overwriting the other.
  */
 async function resolveCollisionFreeFilename(
   sourcesDir: string,
@@ -51,18 +52,14 @@ async function resolveCollisionFreeFilename(
 ): Promise<string> {
   const candidate = `${slug}.md`;
   const candidatePath = path.join(sourcesDir, candidate);
-  let existing: string;
   try {
-    existing = await readFile(candidatePath, "utf-8");
+    await readFile(candidatePath, "utf-8");
   } catch (err) {
     const e = err as { code?: string };
     if (e.code === "ENOENT") return candidate;
     throw err;
   }
-  const { meta } = parseFrontmatter(existing);
-  if (typeof meta.source === "string" && meta.source === source) {
-    return candidate;
-  }
+  // File exists and is owned by a different source — append a stable hash suffix.
   return `${slug}-${shortHashOfSource(source)}.md`;
 }
 
@@ -71,6 +68,10 @@ async function resolveCollisionFreeFilename(
  * regardless of its title-derived filename — the source identity is the key,
  * so re-ingesting under a renamed title updates the same file instead of
  * forking. O(number of sources): reads each file's frontmatter.
+ *
+ * Realpath-confined: entries whose resolved path escapes `sourcesDir` (e.g. a
+ * planted symlink) are silently skipped, preventing both arbitrary-file-reads
+ * and confused-deputy write-through via `saveSource`.
  */
 async function findFileBySourceIdentity(sourcesDir: string, source: string): Promise<string | null> {
   let names: string[];
@@ -80,8 +81,14 @@ async function findFileBySourceIdentity(sourcesDir: string, source: string): Pro
     if ((err as { code?: string }).code === "ENOENT") return null;
     throw err;
   }
+  const canonicalDir = await safeRealpath(sourcesDir);
+  if (canonicalDir === null) return null;
   for (const name of names) {
-    const { meta } = parseFrontmatter(await readFile(path.join(sourcesDir, name), "utf-8"));
+    // Realpath-confine: skip entries whose target escapes sources/ (e.g. a planted
+    // symlink), so we never read — or, via saveSource's writeFile, write — through them.
+    const real = await safeRealpath(path.join(sourcesDir, name));
+    if (real === null || !isInsideDir(real, canonicalDir)) continue;
+    const { meta } = parseFrontmatter(await readFile(real, "utf-8"));
     if (typeof meta.source === "string" && meta.source === source) return name;
   }
   return null;
