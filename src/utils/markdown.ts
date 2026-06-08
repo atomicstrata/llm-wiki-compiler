@@ -22,11 +22,12 @@ const CITATION_MARKER_PATTERN = /\^\[([^\]]+)\]/g;
 const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:[,-]\s*(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
 
 /**
- * Regex matching a colon-form entry with two or more comma-separated line numbers,
- * e.g. `source.md:1, 12` or `source.md:3,7,42`. Captured `lines` is the raw
- * digit-and-comma string; each token expands into its own single-line SourceSpan.
+ * Regex matching a colon-form entry with two or more comma-separated line specs,
+ * e.g. `source.md:1, 12`, `source.md:3,7,42`, or `source.md:327-328, 351-352`.
+ * Captured `lines` is the raw spec string; each token expands into its own
+ * SourceSpan (single-line or range).
  */
-const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:,\s*\d+)+)$/;
+const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)+)$/;
 
 /** The minimum valid line number in a source span (lines are 1-indexed). */
 const MIN_LINE_NUMBER = 1;
@@ -163,14 +164,16 @@ export function extractClaimCitations(body: string): ClaimCitation[] {
 /**
  * Split a raw citation marker interior (the content between `^[` and `]`) into
  * individual source-entry strings, without separating comma-separated line
- * numbers like the `12` in `source.md:1, 12`.
+ * numbers or ranges like the `12` in `source.md:1, 12` or the `351-352` in
+ * `source.md:327-328, 351-352`.
  *
- * The rule: split on every comma EXCEPT those followed by a purely-digit token
- * (which must be a line-number continuation). This correctly handles
- * digit-leading filenames such as `2024-notes.md`, `99problems.md`, and `1.md`.
+ * The rule: split on every comma EXCEPT those followed by a line-spec token
+ * (a number or number-range, which must be a line-number continuation).
+ * This correctly handles digit-leading filenames such as `2024-notes.md`,
+ * `99problems.md`, and `1.md`.
  */
 export function splitCitationMarker(inner: string): string[] {
-  return inner.split(/,(?!\s*\d+\s*(?:,|$))/);
+  return inner.split(/,(?!\s*\d+(?:-\d+)?\s*(?:,|$))/);
 }
 
 /**
@@ -191,8 +194,8 @@ function parseCitationEntries(inner: string): SourceSpan[] {
 
 /**
  * Dispatch a single trimmed citation entry to the right span parser.
- * Comma-separated line numbers (e.g. `file.md:1, 12`) expand into one
- * SourceSpan per line; everything else delegates to parseSpanEntry.
+ * Comma-separated line specs (e.g. `file.md:1, 12` or `file.md:327-328, 351-352`)
+ * expand into one SourceSpan per spec; everything else delegates to parseSpanEntry.
  */
 function parseSpanEntries(entry: string): SourceSpan[] {
   const multi = COLON_MULTILINE_PATTERN.exec(entry);
@@ -201,13 +204,22 @@ function parseSpanEntries(entry: string): SourceSpan[] {
   return single !== undefined ? [single] : [];
 }
 
-/** Expand a comma-separated line-number string into individual single-line spans. */
+/** Expand a comma-separated line-spec string into individual SourceSpans (single-line or range). */
 function parseCommaLines(file: string, linesStr: string): SourceSpan[] {
   const spans: SourceSpan[] = [];
   for (const token of linesStr.split(/,\s*/)) {
-    const lineNum = Number(token);
-    if (isValidLineRange(lineNum, lineNum)) {
-      spans.push({ file, lines: { start: lineNum, end: lineNum } });
+    const rangeMatch = /^(\d+)-(\d+)$/.exec(token);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      if (isValidLineRange(start, end)) {
+        spans.push({ file, lines: { start, end } });
+      }
+    } else {
+      const lineNum = Number(token);
+      if (isValidLineRange(lineNum, lineNum)) {
+        spans.push({ file, lines: { start: lineNum, end: lineNum } });
+      }
     }
   }
   return spans;
@@ -242,12 +254,22 @@ function isValidLineRange(start: number, end: number): boolean {
  * Detect whether a citation entry is malformed: bracket text that contains
  * `:` or `#` characters but does not match the documented span grammar, or
  * contains a semantically invalid line range (line 0 or end before start).
+ * Handles both single-range entries (`file.md:10-20`) and multi-range
+ * colon-form entries (`file.md:10-20,207-208`, `file.md:1, 12`).
  * Used by the linter to flag broken claim-level provenance markers.
  */
 export function isMalformedCitationEntry(entry: string): boolean {
   const trimmed = entry.trim();
   if (trimmed.length === 0) return true;
   if (!trimmed.includes(":") && !trimmed.includes("#")) return false;
+
+  // Try multi-range colon form first (e.g. `file.md:10-20,207-208` or `file.md:1, 12`)
+  const multiMatch = COLON_MULTILINE_PATTERN.exec(trimmed);
+  if (multiMatch?.groups) {
+    return hasInvalidLineSpecs(multiMatch.groups.lines);
+  }
+
+  // Fall through to single-range check (colon or hash form)
   const match = SPAN_SUFFIX_PATTERN.exec(trimmed);
   if (!match || !match.groups) return true;
   const { colonStart, colonEnd, hashStart, hashEnd } = match.groups;
@@ -257,6 +279,18 @@ export function isMalformedCitationEntry(entry: string): boolean {
   const startLine = Number(start);
   const endLine = end === undefined ? startLine : Number(end);
   return !isValidLineRange(startLine, endLine);
+}
+
+/** Returns true when any spec in a comma-separated line-spec string is invalid. */
+function hasInvalidLineSpecs(linesStr: string): boolean {
+  for (const spec of linesStr.split(/,\s*/)) {
+    const rangeMatch = /^(\d+)(?:-(\d+))?$/.exec(spec);
+    if (!rangeMatch) return true;
+    const start = Number(rangeMatch[1]);
+    const end = rangeMatch[2] !== undefined ? Number(rangeMatch[2]) : start;
+    if (!isValidLineRange(start, end)) return true;
+  }
+  return false;
 }
 
 /**
