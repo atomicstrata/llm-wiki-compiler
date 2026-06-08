@@ -67,7 +67,9 @@ async function resolveCollisionFreeFilename(
  * Find the existing source file whose frontmatter `source` matches `source`,
  * regardless of its title-derived filename — the source identity is the key,
  * so re-ingesting under a renamed title updates the same file instead of
- * forking. O(number of sources): reads each file's frontmatter.
+ * forking. O(number of sources) per ingest — reads each existing source, so
+ * bulk ingest is O(n^2); a `source`->filename manifest index is the planned
+ * v1.x remedy for large source sets.
  *
  * Realpath-confined: entries whose resolved path escapes `sourcesDir` (e.g. a
  * planted symlink) are silently skipped, preventing both arbitrary-file-reads
