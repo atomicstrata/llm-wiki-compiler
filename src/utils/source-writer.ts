@@ -14,7 +14,7 @@
  *    `source` field is consulted before suffixing.
  */
 
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
@@ -67,23 +67,58 @@ async function resolveCollisionFreeFilename(
 }
 
 /**
+ * Find the existing source file whose frontmatter `source` matches `source`,
+ * regardless of its title-derived filename — the source identity is the key,
+ * so re-ingesting under a renamed title updates the same file instead of
+ * forking. O(number of sources): reads each file's frontmatter.
+ */
+async function findFileBySourceIdentity(sourcesDir: string, source: string): Promise<string | null> {
+  let names: string[];
+  try {
+    names = (await readdir(sourcesDir)).filter((f) => f.endsWith(".md")).sort();
+  } catch (err) {
+    if ((err as { code?: string }).code === "ENOENT") return null;
+    throw err;
+  }
+  for (const name of names) {
+    const { meta } = parseFrontmatter(await readFile(path.join(sourcesDir, name), "utf-8"));
+    if (typeof meta.source === "string" && meta.source === source) return name;
+  }
+  return null;
+}
+
+/**
+ * Canonical comparison key for a source document: stable frontmatter + body,
+ * excluding volatile fields (`ingestedAt`). So a re-ingest with identical
+ * content but a fresh timestamp is `unchanged`, while a changed title /
+ * sourceType / truncation is `updated`.
+ */
+function stableContent(document: string): string {
+  const { meta, body } = parseFrontmatter(document);
+  const stable: Record<string, unknown> = {};
+  for (const key of Object.keys(meta).sort()) {
+    if (key === "ingestedAt") continue;
+    stable[key] = meta[key];
+  }
+  return `${JSON.stringify(stable)}\n${body}`;
+}
+
+/**
  * Write a markdown document into `sources/` under a slug derived from
  * the title, applying the empty-slug guard and basename-collision
  * disambiguation.
  *
- * The body (content after frontmatter) is compared against any existing
- * file so that volatile frontmatter fields like `ingestedAt` don't cause
- * a phantom write. When the body is unchanged the write is skipped and
- * `writeStatus` is `"unchanged"`, preserving the file's mtime.
+ * The source identity (not the title-derived slug) is the key: if the same
+ * source was previously saved under a different title, the existing file is
+ * updated in place rather than forking a new file. Stable frontmatter fields
+ * (title, sourceType, truncated, originalChars) are included in the
+ * comparison so changed metadata is detected, but volatile fields (`ingestedAt`)
+ * are excluded so a re-ingest with fresh timestamp is still `"unchanged"`.
  *
- * The body comparison is exact, so callers must use a consistent
- * trailing-newline convention — a body differing only by a trailing `\n`
- * counts as `"updated"`. `buildDocument` already appends `\n` consistently.
- *
- * @param title - Human-readable title used to derive the filename.
+ * @param title - Human-readable title used to derive the filename for new sources.
  * @param document - Full markdown content (frontmatter + body) to write.
- * @param source - Source identity (URL, file path, etc.) used both for
- *                 collision disambiguation and idempotency on re-ingest.
+ * @param source - Source identity (URL, file path, etc.) used as the canonical
+ *                 key for finding existing files and collision disambiguation.
  * @returns An object with the resolved destination `path` and a
  *          `writeStatus` of `"created"`, `"updated"`, or `"unchanged"`.
  */
@@ -107,26 +142,19 @@ export async function saveSource(
   const sourcesDir = path.join(root, SOURCES_DIR);
   await mkdir(sourcesDir, { recursive: true });
 
-  const filename = await resolveCollisionFreeFilename(sourcesDir, slug, source);
+  // The source identity (not the title-derived slug) is the key: reuse the
+  // existing file for this source even if the title changed; only allocate a
+  // new (slug-based) filename when this is a genuinely new source.
+  const existingByIdentity = await findFileBySourceIdentity(sourcesDir, source);
+  const filename = existingByIdentity ?? (await resolveCollisionFreeFilename(sourcesDir, slug, source));
   const destPath = path.join(sourcesDir, filename);
 
-  // Decide created/updated/unchanged by comparing the BODY (not full bytes):
-  // buildDocument stamps a fresh `ingestedAt` every call, so a byte compare
-  // would never be "unchanged". On a body match, skip the write entirely so
-  // mtime / freshness surfaces don't see a phantom change.
-  const newBody = parseFrontmatter(document).body;
-  let existingBody: string | null = null;
-  try {
-    existingBody = parseFrontmatter(await readFile(destPath, "utf-8")).body;
-  } catch (err) {
-    if ((err as { code?: string }).code !== "ENOENT") throw err;
-  }
-
-  if (existingBody === null) {
+  if (existingByIdentity === null) {
     await writeFile(destPath, document, "utf-8");
     return { path: destPath, writeStatus: "created" };
   }
-  if (existingBody === newBody) {
+  const existing = await readFile(destPath, "utf-8");
+  if (stableContent(existing) === stableContent(document)) {
     return { path: destPath, writeStatus: "unchanged" };
   }
   await writeFile(destPath, document, "utf-8");
