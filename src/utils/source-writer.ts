@@ -75,9 +75,10 @@ async function resolveCollisionFreeFilename(
  * bulk ingest is O(n^2); a `source`->filename manifest index is the planned
  * v1.x remedy for large source sets.
  *
- * Realpath-confined: entries whose resolved path escapes `sourcesDir` (e.g. a
- * planted symlink) are silently skipped, preventing both arbitrary-file-reads
- * and confused-deputy write-through via `saveSource`.
+ * Regular files only (via `confinedRegularFile`): any symlink entry — whether
+ * escaping `sourcesDir` or an in-tree alias — is skipped, keeping the scan
+ * consistent with list/get/delete and preventing arbitrary-file-reads and
+ * confused-deputy write-through via `saveSource`.
  */
 async function findFileBySourceIdentity(sourcesDir: string, source: string): Promise<string | null> {
   let names: string[];
