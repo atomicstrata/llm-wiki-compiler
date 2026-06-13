@@ -3,21 +3,26 @@
  *
  * Exercises the full in-process recompile path via `resolveStaleRefresh` +
  * `compileAndReport` with a stubbed AnthropicProvider (same convention as
- * compile-delta.test.ts). Proves three guarantees of the v1 implementation:
+ * compile-delta.test.ts). Proves four guarantees of the implementation:
  *
  *  1. A stale page (changed source hash) IS recompiled.
  *  2. A new source (not in state) is skipped — refresh does not compile new sources.
  *  3. A partial-deletion "shared" page has its state REPAIRED (deleted owner
  *     removed from state.sources) but its content byte-for-byte UNCHANGED — the
  *     unchanged live owner is NOT recompiled (v1 limitation: no force-rebuild).
+ *  4. When a review policy is active, a refreshed page that trips policy is held
+ *     as a candidate (not written to wiki/) and the command reports it as held,
+ *     NOT as "refreshed".
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { writeFile, readFile, rm } from "fs/promises";
+import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { compileAndReport } from "../src/compiler/index.js";
 import { resolveStaleRefresh } from "../src/compiler/refresh-plan.js";
+import refreshCommand from "../src/commands/refresh.js";
+import { listCandidates } from "../src/compiler/candidates.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { readStateClassified } from "../src/utils/state.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
@@ -28,14 +33,24 @@ import { writeSourceState, writeSourceFile, sha256Hex } from "./fixtures/state-j
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal extraction JSON for one concept. */
-function extractionFor(title: string): string {
-  return JSON.stringify({
-    concepts: [{ concept: title, summary: `Summary of ${title}.`, is_new: true }],
-  });
+/** Minimal extraction JSON for one concept, optionally with confidence. */
+function extractionFor(title: string, confidence?: number): string {
+  const concept: Record<string, unknown> = { concept: title, summary: `Summary of ${title}.`, is_new: true };
+  if (confidence !== undefined) concept.confidence = confidence;
+  return JSON.stringify({ concepts: [concept] });
 }
 
 const STUB_BODY = "Stub body content. ^[a.md]";
+
+/** Write a low-confidence policy config to .llmwiki/config.json. */
+async function writeLowConfidencePolicy(root: string): Promise<void> {
+  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+  await writeFile(
+    path.join(root, ".llmwiki", "config.json"),
+    JSON.stringify({ version: 1, review: { hold: ["low-confidence"], lowConfidenceThreshold: 0.5 } }),
+    "utf-8",
+  );
+}
 
 /**
  * Build a fresh temp project root with sources/ wiki/concepts/ .llmwiki/ dirs.
@@ -72,11 +87,25 @@ async function writeConceptPage(root: string, slug: string, title: string, sourc
 }
 
 /** Stub extraction and page-body calls on AnthropicProvider. Returns the extraction spy. */
-function stubProviderCalls(extractionTitle: string) {
+function stubProviderCalls(extractionTitle: string, confidence?: number) {
   const spy = vi.spyOn(AnthropicProvider.prototype, "toolCall")
-    .mockResolvedValue(extractionFor(extractionTitle));
+    .mockResolvedValue(extractionFor(extractionTitle, confidence));
   vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue(STUB_BODY);
   return spy;
+}
+
+/**
+ * Seed a stale topic-a project: a.md in sources with a stale state hash,
+ * and an existing wiki page with "Old body.". Returns the actual a.md content.
+ */
+async function setupStaleTopicA(root: string): Promise<string> {
+  const aContent = "# Topic A\n\nAbout A.";
+  await writeSourceFile(root, "a.md", aContent);
+  await writeSourceState(root, {
+    "a.md": { hash: "stale-hash-not-matching-disk", concepts: ["topic-a"] },
+  });
+  await writeConceptPage(root, "topic-a", "Topic A", ["a.md"], "Old body.");
+  return aContent;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,13 +119,7 @@ describe("refresh --stale (real run, stubbed provider)", () => {
     const root = await makeTmpRoot("stale");
 
     try {
-      const aContent = "# Topic A\n\nAbout A.";
-      await writeSourceFile(root, "a.md", aContent);
-      await writeSourceState(root, {
-        "a.md": { hash: "stale-hash-not-matching-disk", concepts: ["topic-a"] },
-      });
-      // Wiki page must exist on disk for resolveStaleRefresh to classify it as stale.
-      await writeConceptPage(root, "topic-a", "Topic A", ["a.md"], "Old body.");
+      const aContent = await setupStaleTopicA(root);
       // new.md on disk but NOT in state — refresh must skip it.
       await writeSourceFile(root, "new.md", "# New Topic\n\nBrand new.");
 
@@ -161,6 +184,57 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       expect(afterContent).toBe(originalContent);
       // a.md NOT extracted — unchanged live owner skipped in v1.
       expect(extractSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+      delete process.env.LLMWIKI_PROVIDER;
+      delete process.env.ANTHROPIC_API_KEY;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // Test 4: refresh + review policy — held pages reported as held, not refreshed
+  // -------------------------------------------------------------------------
+
+  it("reports a policy-held page as held for review, not as refreshed", async () => {
+    process.env.LLMWIKI_PROVIDER = "anthropic";
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    const root = await makeTmpRoot("policy-held");
+
+    try {
+      await setupStaleTopicA(root);
+      // Low-confidence extraction triggers policy hold.
+      await writeLowConfidencePolicy(root);
+      stubProviderCalls("Topic A", 0.1);
+
+      const logLines: string[] = [];
+      vi.spyOn(console, "log").mockImplementation((...args) => {
+        logLines.push(args.join(" "));
+      });
+
+      // refreshCommand reads process.cwd() — chdir into the temp root.
+      const savedCwd = process.cwd();
+      process.chdir(root);
+      let exitCode: number;
+      try {
+        exitCode = await refreshCommand(
+          { stale: true },
+          () => { /* provider already set via env */ },
+        );
+      } finally {
+        process.chdir(savedCwd);
+      }
+
+      expect(exitCode).toBe(0);
+      // (a) page held as candidate — NOT overwritten in wiki/ (old body preserved)
+      const candidates = await listCandidates(root);
+      expect(candidates.some((c) => c.slug === "topic-a")).toBe(true);
+      const livePageContent = await readFile(path.join(root, CONCEPTS_DIR, "topic-a.md"), "utf-8");
+      expect(livePageContent).toContain("Old body.");
+      // (b) output says "held for review", does NOT claim "Refreshed N page(s)"
+      const allOutput = logLines.join("\n");
+      expect(allOutput).toMatch(/held.*for review/i);
+      expect(allOutput).not.toMatch(/Refreshed \d+ page\(s\)/);
     } finally {
       vi.restoreAllMocks();
       delete process.env.LLMWIKI_PROVIDER;

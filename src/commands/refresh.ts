@@ -78,15 +78,15 @@ async function runRefresh(
 }
 
 /**
- * Warn that refresh writes directly to wiki/ (bypassing the review workflow)
- * when pending candidates exist, so a review-workflow user isn't surprised by
- * un-reviewed direct writes. Advisory only — never blocks the recompile.
+ * Warn that pending candidates exist when the project uses a review policy.
+ * Refresh respects the project review policy — pages tripping policy are held
+ * for review rather than written directly. Advisory only — never blocks the recompile.
  */
 async function warnOnReviewBypass(root: string): Promise<void> {
   const pending = await countCandidates(root);
   if (pending > 0) {
     output.status("!", output.warn(
-      `refresh --stale writes directly to wiki/ and does not create review candidates (${pending} pending candidate(s) exist).`,
+      `${pending} pending review candidate(s) exist — refresh respects the project review policy; pages tripping policy are held for review, not written directly.`,
     ));
   }
 }
@@ -95,6 +95,8 @@ async function warnOnReviewBypass(root: string): Promise<void> {
  * Surface the compile result: print any pipeline errors and exit 1 on failure
  * (lock contention, extraction/validation errors), or a one-line success
  * summary and exit 0. Without this, refresh swallowed errors and always exited 0.
+ * When a review policy held pages, those are reported separately as held — only
+ * pages actually written live are counted as "refreshed".
  */
 function reportCompileOutcome(result: CompileResult, plan: RefreshPlan): number {
   if (result.errors.length > 0) {
@@ -102,11 +104,29 @@ function reportCompileOutcome(result: CompileResult, plan: RefreshPlan): number 
     reportNewSkipped(plan.newSkipped);
     return 1;
   }
-  output.status("✓", output.success(
-    `Refreshed ${plan.recompiledPages.length} page(s); cleaned up ${plan.computedOrphanedPages.length} orphaned page(s).`,
-  ));
+  const heldCount = (result.review?.held.length ?? 0) + (result.review?.forced.length ?? 0);
+  const liveRefreshed = plan.recompiledPages.length - heldCount;
+  const orphanedCount = plan.computedOrphanedPages.length;
+  output.status("✓", output.success(buildRefreshSummary(liveRefreshed, heldCount, orphanedCount)));
   reportNewSkipped(plan.newSkipped);
   return 0;
+}
+
+/**
+ * Build the human-readable refresh summary line. Separates live-written pages
+ * from held candidates so the user is never told a page was "refreshed" when
+ * the review policy held it for human review instead.
+ */
+function buildRefreshSummary(liveRefreshed: number, heldCount: number, orphanedCount: number): string {
+  const parts: string[] = [];
+  if (liveRefreshed > 0 || heldCount === 0) {
+    parts.push(`Refreshed ${liveRefreshed} page(s)`);
+  }
+  if (heldCount > 0) {
+    parts.push(`held ${heldCount} for review — run \`llmwiki review list\``);
+  }
+  parts.push(`cleaned up ${orphanedCount} orphaned page(s)`);
+  return parts.join("; ");
 }
 
 /**

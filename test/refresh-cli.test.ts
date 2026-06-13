@@ -153,13 +153,13 @@ describe("llmwiki refresh --stale (live, cleanup-only)", () => {
     expect(result.stdout + result.stderr).toMatch(/could not acquire .*lock/i);
   });
 
-  it("warns that refresh bypasses review when pending candidates exist", async () => {
+  it("warns about pending candidates and review policy when pending candidates exist", async () => {
     const root = await setupCleanupOnlyStale("refresh-bypass");
     await writePendingCandidate(root);
 
     const result = await runCLI(["refresh", "--stale"], root, NO_KEY_ENV);
 
     expectCLIExit(result, 0);
-    expect(result.stdout + result.stderr).toMatch(/writes directly to wiki\/.*does not create review candidates/i);
+    expect(result.stdout + result.stderr).toMatch(/pending review candidate.*refresh respects the project review policy/i);
   });
 });
