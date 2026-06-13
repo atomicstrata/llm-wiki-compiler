@@ -38,6 +38,7 @@ const ERROR_RULES = new Set([
 
 /** Compute the point deduction for a single lint result. */
 function deductionFor(result: LintResult): number {
+  if (result.rule === "pending-target") return 0;
   if (ERROR_RULES.has(result.rule)) return ERROR_DEDUCTION;
   if (result.rule === "contradicted-page") return CONTRADICTED_DEDUCTION;
   return DEFAULT_DEDUCTION;

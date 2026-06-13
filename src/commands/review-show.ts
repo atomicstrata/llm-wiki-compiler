@@ -7,6 +7,25 @@
 
 import { loadCandidateOrFail } from "../compiler/candidates.js";
 import * as output from "../utils/output.js";
+import type { ReviewCandidate } from "../utils/types.js";
+
+/** Reasons to show for legacy candidates that predate heldReasons. */
+function candidateReasons(candidate: ReviewCandidate): string[] {
+  return (candidate.heldReasons ?? [{ code: "manual-review-requested" }])
+    .map((reason) => reason.detail ? `${reason.code} (${reason.detail})` : reason.code);
+}
+
+/** Print review metadata added by policy-aware candidate generation. */
+function printReviewMetadata(candidate: ReviewCandidate): void {
+  output.status("i", output.dim(`review:    ${candidate.reviewMode ?? "forced"}`));
+  output.status("i", output.dim(`reasons:   ${candidateReasons(candidate).join(", ")}`));
+  if (candidate.confidence !== undefined) {
+    output.status("i", output.dim(`confidence: ${candidate.confidence}`));
+  }
+  if (candidate.contradicted !== undefined) {
+    output.status("i", output.dim(`contradicted: ${candidate.contradicted}`));
+  }
+}
 
 /** Print a single candidate's full content to stdout. */
 export default async function reviewShowCommand(id: string): Promise<void> {
@@ -19,6 +38,7 @@ export default async function reviewShowCommand(id: string): Promise<void> {
   output.status("i", output.dim(`summary:    ${candidate.summary}`));
   output.status("i", output.dim(`sources:    ${candidate.sources.join(", ")}`));
   output.status("i", output.dim(`generated:  ${candidate.generatedAt}`));
+  printReviewMetadata(candidate);
 
   console.log();
   console.log(candidate.body);

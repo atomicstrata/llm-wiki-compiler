@@ -221,6 +221,7 @@ describe("compile --review pipeline integration", () => {
     const result = await compileAndReport(root.dir, { review: true });
     expect(callSpy).toHaveBeenCalled();
     expect(result.candidates ?? []).toHaveLength(1);
+    expect(result.pages).toEqual([]);
 
     // Pages on disk: only the candidate, never the wiki page.
     const conceptsDir = path.join(root.dir, CONCEPTS_DIR);

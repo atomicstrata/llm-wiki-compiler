@@ -4,6 +4,7 @@
  */
 
 import type { PageKind } from "../schema/types.js";
+import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -115,8 +116,20 @@ export interface CompileResult {
   concepts: string[];
   pages: string[];
   errors: string[];
-  /** Candidate IDs created when the pipeline runs in --review mode. */
+  /** Candidate IDs created by --review or policy-held compile outputs. */
   candidates?: string[];
+  /** Structured review split for candidates created by the compile run. */
+  review?: {
+    held: ReviewedCandidateRef[];
+    forced: ReviewedCandidateRef[];
+  };
+}
+
+/** Candidate reference returned in CompileResult.review. */
+export interface ReviewedCandidateRef {
+  id: string;
+  slug: string;
+  reasons: HeldReasonCode[];
 }
 
 /** Optional behaviour controls for the compile pipeline. */
@@ -162,6 +175,14 @@ export interface ReviewCandidate {
   body: string;
   /** ISO timestamp recorded when the candidate was generated. */
   generatedAt: string;
+  /** Whether this candidate was policy-held or explicitly forced by --review. */
+  reviewMode?: ReviewMode;
+  /** Structured reasons the candidate is awaiting review. */
+  heldReasons?: HeldReason[];
+  /** Confidence parsed from the generated page frontmatter, for review display. */
+  confidence?: number;
+  /** True when the generated page frontmatter declares contradictions. */
+  contradicted?: boolean;
   /**
    * Per-source incremental-state snapshots captured at compile time.
    *

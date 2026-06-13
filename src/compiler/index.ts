@@ -19,6 +19,7 @@ import {
   atomicWrite,
   buildFrontmatter,
   parseFrontmatter,
+  parseProvenanceMetadata,
   safeReadFile,
   validateWikiPage,
   slugify,
@@ -48,7 +49,7 @@ import { buildBudgetedCombinedContent, type SourceSlice } from "./prompt-budget.
 import { addObsidianMeta, generateMOC } from "./obsidian.js";
 import { addModelProvenanceMeta } from "./provenance.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
-import { writeCandidate } from "./candidates.js";
+import { deleteCandidateBySlug, listCandidates, writeCandidate } from "./candidates.js";
 import { appendLog, formatList, formatWikilinkList } from "../utils/activity-log.js";
 import {
   checkPageBrokenCitations,
@@ -58,6 +59,9 @@ import {
 import type { LintResult } from "../linter/types.js";
 import { renderMergedPageContent } from "./page-renderer.js";
 import * as output from "../utils/output.js";
+import { loadReviewPolicy } from "../review/config.js";
+import { evaluatePolicy, isPolicyOff } from "../review/policy.js";
+import type { HeldReason, ReviewPolicy } from "../review/policy.js";
 import {
   COMPILE_CONCURRENCY,
   CONCEPTS_DIR,
@@ -70,6 +74,7 @@ import type {
   CompileOptions,
   CompileResult,
   ExtractedConcept,
+  ReviewedCandidateRef,
   ReviewCandidate,
   SourceChange,
   SourceState,
@@ -145,10 +150,20 @@ function bucketChanges(changes: SourceChange[]): ChangeBuckets {
 
 /** Result of phase 2: page writes plus any errors collected along the way. */
 interface PageGenerationResult {
+  /** All merged concepts generated this run, including held candidates. */
   pages: MergedConcept[];
+  /** Concept pages actually written into wiki/concepts this run. */
+  writtenPages: MergedConcept[];
   errors: string[];
-  /** Candidate ids written when running in --review mode. Empty otherwise. */
+  /** Candidate ids written by --review or review policy. Empty otherwise. */
   candidates: string[];
+  /** Structured split of candidates created this run. */
+  review: {
+    held: ReviewedCandidateRef[];
+    forced: ReviewedCandidateRef[];
+  };
+  /** Source files that fed at least one held candidate this run. */
+  heldSourceFiles: string[];
   /**
    * Slugs of seed pages written this run (overview / comparison / entity).
    * Concept pages live on `pages`; seed pages don't fit MergedConcept's
@@ -166,34 +181,46 @@ async function generatePagesPhase(
   frozenSlugs: Set<string>,
   schema: SchemaConfig,
   options: CompileOptions,
+  policy: ReviewPolicy,
 ): Promise<PageGenerationResult> {
   const merged = mergeExtractions(extractions, frozenSlugs);
   // Build the per-source state snapshot once so each candidate can carry the
   // exact data needed to mark its sources compiled on approval.
-  const sourceStates = options.review
+  const shouldBuildSourceStates = options.review || !isPolicyOff(policy);
+  const sourceStates = shouldBuildSourceStates
     ? await buildExtractionSourceStates(root, extractions)
     : {};
   const limit = pLimit(COMPILE_CONCURRENCY);
   const errors: string[] = [];
   const candidates: string[] = [];
-  const pages = await Promise.all(
+  const review = { held: [] as ReviewedCandidateRef[], forced: [] as ReviewedCandidateRef[] };
+  const heldSourceFiles = new Set<string>();
+  const outcomes = await Promise.all(
     merged.map((entry) => limit(async () => {
-      const result = await generateMergedPage(root, entry, schema, options, sourceStates);
+      const result = await generateMergedPage(root, entry, schema, options, sourceStates, policy);
       if (result.error) errors.push(result.error);
-      if (result.candidateId) candidates.push(result.candidateId);
-      return entry;
+      if (result.candidate) {
+        candidates.push(result.candidate.id);
+        review[result.candidate.mode].push(result.candidate.ref);
+        for (const source of entry.sourceFiles) heldSourceFiles.add(source);
+      }
+      return { entry, result };
     })),
   );
-  return { pages, errors, candidates, seedSlugs: [] };
+  const pages = outcomes.map(({ entry }) => entry);
+  const writtenPages = outcomes.filter(({ result }) => result.wrotePage).map(({ entry }) => entry);
+  return { pages, writtenPages, errors, candidates, review, heldSourceFiles: [...heldSourceFiles], seedSlugs: [] };
 }
 
 /** Persist source state for every extraction that produced concepts. */
 async function persistExtractionStates(
   root: string,
   extractions: ExtractionResult[],
+  deferredSources: Set<string> = new Set(),
 ): Promise<void> {
   for (const result of extractions) {
     if (result.concepts.length === 0) continue;
+    if (deferredSources.has(result.sourceFile)) continue;
     await persistSourceState(root, result.sourcePath, result.sourceFile, result.concepts);
   }
 }
@@ -231,7 +258,7 @@ async function logCompile(
   existingIds: Set<string>,
 ): Promise<void> {
   if (buckets.toCompile.length === 0 && buckets.deleted.length === 0) return;
-  const produced = [...new Set([...generation.pages.map((entry) => entry.slug), ...generation.seedSlugs])];
+  const produced = [...new Set([...generation.writtenPages.map((entry) => entry.slug), ...generation.seedSlugs])];
   const existed = (slug: string): boolean => existingIds.has(`${CONCEPTS_DIR}/${slug}`);
   const created = produced.filter((slug) => !existed(slug));
   const updated = produced.filter((slug) => existed(slug));
@@ -257,9 +284,9 @@ function summarizeCompile(
   output.status("✓", output.success(
     `${buckets.toCompile.length} compiled, ${buckets.unchanged.length} skipped, ${buckets.deleted.length} deleted`,
   ));
-  if (options.review && generation.candidates.length > 0) {
+  if (generation.candidates.length > 0) {
     output.status("?", output.info(
-      `${generation.candidates.length} candidate(s) awaiting review — run \`llmwiki review list\``,
+      reviewSummaryLine(generation),
     ));
   } else if (buckets.toCompile.length > 0) {
     output.status("→", output.dim('Next: llmwiki query "your question here"'));
@@ -276,7 +303,7 @@ function summarizeCompile(
   // downstream consumers see every page the compile actually produced.
   // Seed pages are deterministic schema-driven writes; before this they
   // landed on disk silently and never appeared on CompileResult.pages.
-  const conceptSlugs = generation.pages.map((entry) => entry.slug);
+  const conceptSlugs = generation.writtenPages.map((entry) => entry.slug);
   const baseResult: CompileResult = {
     compiled: buckets.toCompile.length,
     skipped: buckets.unchanged.length,
@@ -285,10 +312,21 @@ function summarizeCompile(
     pages: [...conceptSlugs, ...generation.seedSlugs],
     errors,
   };
-  if (options.review) {
+  if (generation.candidates.length > 0) {
     baseResult.candidates = generation.candidates;
+    baseResult.review = generation.review;
   }
   return baseResult;
+}
+
+/** Human completion line for candidates created this run. */
+function reviewSummaryLine(generation: PageGenerationResult): string {
+  const held = generation.review.held.length;
+  const forced = generation.review.forced.length;
+  if (held > 0 && forced === 0) {
+    return `Wrote ${generation.writtenPages.length} page(s), held ${held} for review — run \`llmwiki review list\``;
+  }
+  return `${generation.candidates.length} candidate(s) awaiting review — run \`llmwiki review list\``;
 }
 
 /**
@@ -325,10 +363,12 @@ async function runCompilePipeline(
   options: CompileOptions,
 ): Promise<CompileResult> {
   const schema = await loadSchema(root);
+  const reviewPolicy = await loadReviewPolicy(root);
   reportSchemaStatus(schema);
   const state = await readState(root);
   const detected = await detectChanges(root, state);
   const changes = applyChangeFilter(detected, options.changeFilter);
+  await markUnchangedPendingSources(root, changes);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
 
   const buckets = bucketChanges(changes);
@@ -340,14 +380,17 @@ async function runCompilePipeline(
     if (!options.review) {
       const emptyGeneration: PageGenerationResult = {
         pages: [],
+        writtenPages: [],
         errors: [],
         candidates: [],
+        review: { held: [], forced: [] },
+        heldSourceFiles: [],
         seedSlugs: [],
       };
       await maybeSeedPages(root, schema, emptyGeneration, options);
       // Rebuild index/MOC so the newly-written seed pages become discoverable,
       // and propagate any seed-page validation errors into the returned result.
-      await finalizeWiki(root, emptyGeneration.pages, emptyGeneration.seedSlugs);
+      await finalizeWiki(root, emptyGeneration.writtenPages, emptyGeneration.seedSlugs);
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,
@@ -384,10 +427,17 @@ async function runCompilePipeline(
   // Snapshot pages on disk before generation so the journal can tell which
   // produced pages are new (created) versus overwritten (updated).
   const existingIds = await listExistingPageIds(root);
-  const generation = await generatePagesPhase(root, extractions, frozenSlugs, schema, options);
+  const generation = await generatePagesPhase(
+    root,
+    extractions,
+    frozenSlugs,
+    schema,
+    options,
+    reviewPolicy,
+  );
 
   if (!options.review) {
-    await persistExtractionStates(root, extractions);
+    await persistExtractionStates(root, extractions, new Set(generation.heldSourceFiles));
     if (frozenSlugs.size > 0) {
       await orphanUnownedFrozenPages(root, frozenSlugs);
     }
@@ -395,10 +445,34 @@ async function runCompilePipeline(
     // Seed pages write directly into wiki/, so skip them in review mode
     // to honour the "no wiki/ mutation" contract of that mode.
     await maybeSeedPages(root, schema, generation, options);
-    await finalizeWiki(root, generation.pages, generation.seedSlugs);
+    await finalizeWiki(root, generation.writtenPages, generation.seedSlugs);
     await logCompile(root, buckets, generation, existingIds);
   }
   return summarizeCompile(buckets, generation, extractions, options);
+}
+
+/** Treat unchanged pending-candidate sources as skipped to avoid LLM churn. */
+async function markUnchangedPendingSources(root: string, changes: SourceChange[]): Promise<void> {
+  const pendingHashes = await collectPendingSourceHashes(root);
+  if (pendingHashes.size === 0) return;
+  for (const change of changes) {
+    if (change.status !== "new" && change.status !== "changed") continue;
+    const pendingHash = pendingHashes.get(change.file);
+    if (!pendingHash) continue;
+    const currentHash = await hashFile(path.join(root, SOURCES_DIR, change.file));
+    if (currentHash === pendingHash) change.status = "unchanged";
+  }
+}
+
+/** Source hash snapshots currently held inside pending candidates. */
+async function collectPendingSourceHashes(root: string): Promise<Map<string, string>> {
+  const hashes = new Map<string, string>();
+  for (const candidate of await listCandidates(root)) {
+    for (const [source, entry] of Object.entries(candidate.sourceStates ?? {})) {
+      hashes.set(source, entry.hash);
+    }
+  }
+  return hashes;
 }
 
 /** Log where the schema was loaded from so the user can confirm it was picked up. */
@@ -639,7 +713,24 @@ function mergeExtractions(
 /** Outcome of generating a single merged concept page. */
 interface MergedPageOutcome {
   error?: string;
-  candidateId?: string;
+  wrotePage?: boolean;
+  candidate?: {
+    mode: "held" | "forced";
+    id: string;
+    ref: ReviewedCandidateRef;
+  };
+}
+
+/** Review diagnostics computed from the final generated page. */
+interface ReviewDiagnostics {
+  schemaViolations: LintResult[];
+  provenanceViolations: LintResult[];
+}
+
+/** Metadata needed when persisting a candidate. */
+interface ReviewCandidateMeta {
+  reviewMode: "policy" | "forced";
+  heldReasons: HeldReason[];
 }
 
 /**
@@ -655,26 +746,40 @@ async function generateMergedPage(
   schema: SchemaConfig,
   options: CompileOptions,
   sourceStates: SourceStateMap,
+  policy: ReviewPolicy,
 ): Promise<MergedPageOutcome> {
   const fullPage = await renderMergedPageContent(root, entry, schema);
+  const diagnostics = await collectReviewDiagnostics(root, entry, fullPage, schema);
+  const reasons = evaluatePolicy(buildPolicySignals(fullPage, diagnostics), policy);
 
   if (options.review) {
-    return await persistReviewCandidate(root, entry, fullPage, sourceStates, schema);
+    const heldReasons = [{ code: "manual-review-requested" } as HeldReason, ...reasons];
+    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, {
+      reviewMode: "forced",
+      heldReasons,
+    });
+  }
+
+  if (reasons.length > 0) {
+    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, {
+      reviewMode: "policy",
+      heldReasons: reasons,
+    });
   }
 
   const pagePath = path.join(root, CONCEPTS_DIR, `${entry.slug}.md`);
   const error = await writePageIfValid(pagePath, fullPage, entry.concept.concept);
-  return { error: error ?? undefined };
+  if (!error) await deleteCandidateBySlug(root, entry.slug);
+  return { error: error ?? undefined, wrotePage: !error };
 }
 
 /** Persist a candidate JSON record for later review and report it on stdout. */
-async function persistReviewCandidate(
+async function collectReviewDiagnostics(
   root: string,
   entry: MergedConcept,
   fullPage: string,
-  sourceStates: SourceStateMap,
   schema: SchemaConfig,
-): Promise<MergedPageOutcome> {
+): Promise<ReviewDiagnostics> {
   // Run schema-aware AND provenance-aware lint against the candidate body so
   // both classes of violation are visible in `review show` before a reviewer
   // approves the page. The virtual file path uses the slug so diagnostics
@@ -687,6 +792,31 @@ async function persistReviewCandidate(
     fullPage,
     virtualPath,
   );
+  return { schemaViolations, provenanceViolations };
+}
+
+/** Build review-policy signals from final page frontmatter and diagnostics. */
+function buildPolicySignals(fullPage: string, diagnostics: ReviewDiagnostics) {
+  const { meta } = parseFrontmatter(fullPage);
+  const provenance = parseProvenanceMetadata(meta);
+  return {
+    confidence: provenance.confidence,
+    contradicted: (provenance.contradictedBy?.length ?? 0) > 0,
+    schemaViolations: diagnostics.schemaViolations,
+    provenanceViolations: diagnostics.provenanceViolations,
+  };
+}
+
+/** Persist a candidate JSON record for later review and report it on stdout. */
+async function persistReviewCandidate(
+  root: string,
+  entry: MergedConcept,
+  fullPage: string,
+  sourceStates: SourceStateMap,
+  diagnostics: ReviewDiagnostics,
+  meta: ReviewCandidateMeta,
+): Promise<MergedPageOutcome> {
+  const signals = buildPolicySignals(fullPage, diagnostics);
 
   const candidate: ReviewCandidate = await writeCandidate(root, {
     title: entry.concept.concept,
@@ -695,12 +825,23 @@ async function persistReviewCandidate(
     sources: entry.sourceFiles,
     body: fullPage,
     sourceStates: pickStatesForSources(sourceStates, entry.sourceFiles),
-    schemaViolations: schemaViolations.length > 0 ? schemaViolations : undefined,
+    schemaViolations:
+      diagnostics.schemaViolations.length > 0 ? diagnostics.schemaViolations : undefined,
     provenanceViolations:
-      provenanceViolations.length > 0 ? provenanceViolations : undefined,
+      diagnostics.provenanceViolations.length > 0 ? diagnostics.provenanceViolations : undefined,
+    reviewMode: meta.reviewMode,
+    heldReasons: meta.heldReasons,
+    confidence: signals.confidence,
+    contradicted: signals.contradicted,
   });
   output.status("?", output.info(`Candidate ready: ${candidate.id} (${entry.slug})`));
-  return { candidateId: candidate.id };
+  return {
+    candidate: {
+      id: candidate.id,
+      mode: meta.reviewMode === "policy" ? "held" : "forced",
+      ref: { id: candidate.id, slug: entry.slug, reasons: meta.heldReasons.map((r) => r.code) },
+    },
+  };
 }
 
 /**

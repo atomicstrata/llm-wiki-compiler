@@ -27,6 +27,7 @@ import {
   CANDIDATES_ARCHIVE_DIR,
 } from "../utils/constants.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
+import type { HeldReason, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
@@ -60,7 +61,18 @@ interface CandidateDraft {
    * approving.
    */
   provenanceViolations?: LintResult[];
+  /** Whether this candidate was forced by --review or held by policy. */
+  reviewMode?: ReviewMode;
+  /** Structured reasons for holding this candidate. */
+  heldReasons?: HeldReason[];
+  /** Confidence parsed from the generated page frontmatter, for display. */
+  confidence?: number;
+  /** True when the generated page frontmatter declares contradictions. */
+  contradicted?: boolean;
 }
+
+/** Default metadata for legacy `compile --review` callers. */
+const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }];
 
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
 function buildCandidateId(slug: string): string {
@@ -89,21 +101,41 @@ export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
+  const existing = await readCandidateBySlug(root, draft.slug);
   const candidate: ReviewCandidate = {
-    id: buildCandidateId(draft.slug),
+    id: existing?.id ?? buildCandidateId(draft.slug),
     title: draft.title,
     slug: draft.slug,
     summary: draft.summary,
     sources: draft.sources,
     body: draft.body,
     generatedAt: new Date().toISOString(),
+    reviewMode: draft.reviewMode ?? "forced",
+    heldReasons: draft.heldReasons ?? DEFAULT_HELD_REASONS,
     ...(draft.sourceStates ? { sourceStates: draft.sourceStates } : {}),
     ...(draft.schemaViolations ? { schemaViolations: draft.schemaViolations } : {}),
     ...(draft.provenanceViolations ? { provenanceViolations: draft.provenanceViolations } : {}),
+    ...(draft.confidence !== undefined ? { confidence: draft.confidence } : {}),
+    ...(draft.contradicted !== undefined ? { contradicted: draft.contradicted } : {}),
   };
 
   await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
   return candidate;
+}
+
+/** Find the pending candidate for a slug, if one exists. */
+export async function readCandidateBySlug(
+  root: string,
+  slug: string,
+): Promise<ReviewCandidate | null> {
+  const candidates = await listCandidates(root);
+  return candidates.find((candidate) => candidate.slug === slug) ?? null;
+}
+
+/** Collect every slug currently pending review. */
+export async function listPendingCandidateSlugs(root: string): Promise<Set<string>> {
+  const candidates = await listCandidates(root);
+  return new Set(candidates.map((candidate) => candidate.slug));
 }
 
 /**
@@ -221,6 +253,13 @@ export async function deleteCandidate(root: string, id: string): Promise<boolean
   if (!existsSync(filePath)) return false;
   await unlink(filePath);
   return true;
+}
+
+/** Delete the pending candidate for a slug, if one exists. */
+export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
+  const candidate = await readCandidateBySlug(root, slug);
+  if (!candidate) return false;
+  return deleteCandidate(root, candidate.id);
 }
 
 /**

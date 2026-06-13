@@ -33,6 +33,7 @@ import {
 } from "../schema/index.js";
 import { computeFreshness } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
+import { listPendingCandidateSlugs } from "../compiler/candidates.js";
 
 /** Minimum body length (in characters) for a page to be considered non-empty. */
 const MIN_BODY_LENGTH = 50;
@@ -118,13 +119,22 @@ function buildPageSlugSet(
 export async function checkBrokenWikilinks(root: string): Promise<LintResult[]> {
   const pages = await collectAllPages(root);
   const existingSlugs = buildPageSlugSet(pages);
+  const pendingSlugs = await listPendingCandidateSlugs(root);
   const results: LintResult[] = [];
 
   for (const page of pages) {
     for (const { captured, line } of findMatchesInContent(page.content, WIKILINK_PATTERN)) {
       const linkTarget = captured.split("|")[0].trim();
       const linkSlug = slugify(linkTarget);
-      if (!existingSlugs.has(linkSlug)) {
+      if (!existingSlugs.has(linkSlug) && pendingSlugs.has(linkSlug)) {
+        results.push({
+          rule: "pending-target",
+          severity: "info",
+          file: page.filePath,
+          message: `Wikilink [[${captured}]] points to a page awaiting review`,
+          line,
+        });
+      } else if (!existingSlugs.has(linkSlug)) {
         results.push({
           rule: "broken-wikilink",
           severity: "error",

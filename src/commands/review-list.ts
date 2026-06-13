@@ -7,6 +7,18 @@
 
 import { listCandidates } from "../compiler/candidates.js";
 import * as output from "../utils/output.js";
+import type { ReviewCandidate } from "../utils/types.js";
+
+/** Human-readable review mode for old and new candidate records. */
+function formatMode(candidate: ReviewCandidate): string {
+  return candidate.reviewMode ?? "forced";
+}
+
+/** Compact reason summary for review list rows. */
+function formatReasons(candidate: ReviewCandidate): string {
+  const reasons = candidate.heldReasons?.map((r) => r.code) ?? ["manual-review-requested"];
+  return reasons.join(", ");
+}
 
 /** List every pending candidate from .llmwiki/candidates/. */
 export default async function reviewListCommand(): Promise<void> {
@@ -20,7 +32,8 @@ export default async function reviewListCommand(): Promise<void> {
 
   for (const candidate of candidates) {
     const sources = candidate.sources.join(", ");
-    const meta = output.dim(`${candidate.generatedAt} | sources: ${sources}`);
+    const mode = `${formatMode(candidate)}: ${formatReasons(candidate)}`;
+    const meta = output.dim(`${candidate.generatedAt} | ${mode} | sources: ${sources}`);
     output.status("?", `${output.info(candidate.id)} → ${candidate.slug} ${meta}`);
   }
 
