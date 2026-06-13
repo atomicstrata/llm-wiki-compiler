@@ -176,9 +176,9 @@ export interface ReviewCandidate {
   /** ISO timestamp recorded when the candidate was generated. */
   generatedAt: string;
   /** Whether this candidate was policy-held or explicitly forced by --review. */
-  reviewMode?: ReviewMode;
+  reviewMode: ReviewMode;
   /** Structured reasons the candidate is awaiting review. */
-  heldReasons?: HeldReason[];
+  heldReasons: HeldReason[];
   /** Confidence parsed from the generated page frontmatter, for review display. */
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */

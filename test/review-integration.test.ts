@@ -56,6 +56,8 @@ function mergeCandidateDefaults(overrides: Partial<ReviewCandidate>): ReviewCand
     sources: overrides.sources ?? ["source-a.md"],
     body: overrides.body ?? buildValidPageBody(text.title, text.summary),
     generatedAt: overrides.generatedAt ?? new Date().toISOString(),
+    reviewMode: overrides.reviewMode ?? "forced",
+    heldReasons: overrides.heldReasons ?? [{ code: "manual-review-requested" }],
   };
 }
 

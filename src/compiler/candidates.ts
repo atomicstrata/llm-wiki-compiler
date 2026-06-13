@@ -198,10 +198,23 @@ export async function readCandidate(
   try {
     const parsed = JSON.parse(raw) as ReviewCandidate;
     if (!isValidCandidate(parsed)) return null;
-    return parsed;
+    return applyLegacyDefaults(parsed);
   } catch {
     return null;
   }
+}
+
+/**
+ * Apply defaults for legacy candidates written before `reviewMode` and
+ * `heldReasons` were required fields. Called at the IO boundary so every
+ * in-memory candidate always has these fields populated.
+ */
+function applyLegacyDefaults(candidate: ReviewCandidate): ReviewCandidate {
+  return {
+    ...candidate,
+    reviewMode: candidate.reviewMode ?? "forced",
+    heldReasons: candidate.heldReasons ?? DEFAULT_HELD_REASONS,
+  };
 }
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */

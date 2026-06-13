@@ -63,6 +63,35 @@ describe("review policy CLI", () => {
     const candidate = await readFirstCandidate(cwd);
     expect(candidate.slug).toBe("alpha");
     expect(candidate.reviewMode).toBe("policy");
-    expect(candidate.heldReasons?.map((r) => r.code)).toEqual(["low-confidence"]);
+    expect(candidate.heldReasons.map((r) => r.code)).toEqual(["low-confidence"]);
+  }, 30_000);
+
+  // Test #6: subprocess review list / review show surface reviewMode and reasons
+  // Shared setup: run a policy compile and return the cwd + first candidate id.
+  async function setupPolicyCompile(): Promise<{ cwd: string; candidateId: string }> {
+    const handle = await aimock.start();
+    stubPolicyCompile(handle);
+    const cwd = await aimock.makeWorkspace("# Source\n\nAlpha and Beta.\n");
+    await writePolicyConfig(cwd);
+    await runCLI(["compile"], cwd, mockClaudeEnv(handle));
+    const candidate = await readFirstCandidate(cwd);
+    return { cwd, candidateId: candidate.id };
+  }
+
+  it("review list subprocess shows reviewMode and reason codes", async () => {
+    const { cwd } = await setupPolicyCompile();
+    const listResult = await runCLI(["review", "list"], cwd);
+    expectCLIExit(listResult, 0);
+    expect(listResult.stdout).toContain("policy");
+    expect(listResult.stdout).toContain("low-confidence");
+  }, 30_000);
+
+  it("review show subprocess surfaces confidence and reviewMode", async () => {
+    const { cwd, candidateId } = await setupPolicyCompile();
+    const showResult = await runCLI(["review", "show", candidateId], cwd);
+    expectCLIExit(showResult, 0);
+    expect(showResult.stdout).toContain("policy");
+    expect(showResult.stdout).toContain("low-confidence");
+    expect(showResult.stdout).toContain("confidence");
   }, 30_000);
 });

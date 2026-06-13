@@ -89,10 +89,10 @@ function requireRecord(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-/** Validate config version when present. */
+/** Require `version: 1`; a missing or unsupported version is a hard error. */
 function validateVersion(version: unknown): void {
-  if (version === undefined || version === 1) return;
-  throw new ReviewConfigError("Unsupported .llmwiki/config.json version; expected 1");
+  if (version === 1) return;
+  throw new ReviewConfigError('.llmwiki/config.json requires "version": 1');
 }
 
 /** Normalize and validate review.hold. */

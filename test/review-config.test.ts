@@ -58,20 +58,25 @@ describe("normalizeReviewPolicy", () => {
   });
 
   it("rejects unknown modes and bad all/off combinations", () => {
-    expect(() => normalizeReviewPolicy({ review: { hold: ["low_confidence"] } })).toThrow(ReviewConfigError);
-    expect(() => normalizeReviewPolicy({ review: { hold: ["off", "contradicted"] } })).toThrow(ReviewConfigError);
-    expect(() => normalizeReviewPolicy({ review: { hold: ["all", "contradicted"] } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["low_confidence"] } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["off", "contradicted"] } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["all", "contradicted"] } })).toThrow(ReviewConfigError);
   });
 
   it("validates threshold and missing-confidence policy", () => {
-    expect(() => normalizeReviewPolicy({ review: { hold: ["low-confidence"], lowConfidenceThreshold: -0.1 } })).toThrow(ReviewConfigError);
-    expect(() => normalizeReviewPolicy({ review: { hold: ["low-confidence"], lowConfidenceThreshold: Number.NaN } })).toThrow(ReviewConfigError);
-    expect(() => normalizeReviewPolicy({ review: { hold: ["low-confidence"], treatMissingConfidenceAs: "maybe" } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["low-confidence"], lowConfidenceThreshold: -0.1 } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["low-confidence"], lowConfidenceThreshold: Number.NaN } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ version: 1, review: { hold: ["low-confidence"], treatMissingConfidenceAs: "maybe" } })).toThrow(ReviewConfigError);
   });
 
   it("accepts inert threshold and rejects unsupported version", () => {
     expect(normalizeReviewPolicy({ version: 1, review: { hold: ["contradicted"], lowConfidenceThreshold: 0.2 } }).lowConfidenceThreshold).toBe(0.2);
     expect(() => normalizeReviewPolicy({ version: 2, review: { hold: [] } })).toThrow(ReviewConfigError);
+  });
+
+  it("missing version is a hard error", () => {
+    expect(() => normalizeReviewPolicy({ review: { hold: [] } })).toThrow(ReviewConfigError);
+    expect(() => normalizeReviewPolicy({ review: { hold: [] } })).toThrow('"version": 1');
   });
 });
 

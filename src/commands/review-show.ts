@@ -9,15 +9,15 @@ import { loadCandidateOrFail } from "../compiler/candidates.js";
 import * as output from "../utils/output.js";
 import type { ReviewCandidate } from "../utils/types.js";
 
-/** Reasons to show for legacy candidates that predate heldReasons. */
+/** Reasons to show for a candidate (guaranteed non-empty by the IO boundary). */
 function candidateReasons(candidate: ReviewCandidate): string[] {
-  return (candidate.heldReasons ?? [{ code: "manual-review-requested" }])
+  return candidate.heldReasons
     .map((reason) => reason.detail ? `${reason.code} (${reason.detail})` : reason.code);
 }
 
 /** Print review metadata added by policy-aware candidate generation. */
 function printReviewMetadata(candidate: ReviewCandidate): void {
-  output.status("i", output.dim(`review:    ${candidate.reviewMode ?? "forced"}`));
+  output.status("i", output.dim(`review:    ${candidate.reviewMode}`));
   output.status("i", output.dim(`reasons:   ${candidateReasons(candidate).join(", ")}`));
   if (candidate.confidence !== undefined) {
     output.status("i", output.dim(`confidence: ${candidate.confidence}`));

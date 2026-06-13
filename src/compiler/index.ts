@@ -750,18 +750,19 @@ async function generateMergedPage(
 ): Promise<MergedPageOutcome> {
   const fullPage = await renderMergedPageContent(root, entry, schema);
   const diagnostics = await collectReviewDiagnostics(root, entry, fullPage, schema);
-  const reasons = evaluatePolicy(buildPolicySignals(fullPage, diagnostics), policy);
+  const signals = buildPolicySignals(fullPage, diagnostics);
+  const reasons = evaluatePolicy(signals, policy);
 
   if (options.review) {
     const heldReasons = [{ code: "manual-review-requested" } as HeldReason, ...reasons];
-    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, {
+    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, signals, {
       reviewMode: "forced",
       heldReasons,
     });
   }
 
   if (reasons.length > 0) {
-    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, {
+    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, signals, {
       reviewMode: "policy",
       heldReasons: reasons,
     });
@@ -814,10 +815,9 @@ async function persistReviewCandidate(
   fullPage: string,
   sourceStates: SourceStateMap,
   diagnostics: ReviewDiagnostics,
+  signals: ReturnType<typeof buildPolicySignals>,
   meta: ReviewCandidateMeta,
 ): Promise<MergedPageOutcome> {
-  const signals = buildPolicySignals(fullPage, diagnostics);
-
   const candidate: ReviewCandidate = await writeCandidate(root, {
     title: entry.concept.concept,
     slug: entry.slug,

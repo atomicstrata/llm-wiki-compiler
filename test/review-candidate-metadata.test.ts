@@ -41,7 +41,7 @@ describe("review candidate metadata", () => {
     });
     const loaded = await readCandidate(root.dir, candidate.id);
     expect(loaded?.reviewMode).toBe("forced");
-    expect(loaded?.heldReasons?.map((r) => r.code)).toEqual(["manual-review-requested"]);
+    expect(loaded?.heldReasons.map((r) => r.code)).toEqual(["manual-review-requested"]);
   });
 
   it("round-trips policy metadata and displays it in list/show", async () => {

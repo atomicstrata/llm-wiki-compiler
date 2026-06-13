@@ -124,6 +124,8 @@ describe("schema subprocess tests", () => {
         sources: ["source.md"],
         body: buildValidBody("Overview Page"),
         generatedAt: new Date().toISOString(),
+        reviewMode: "forced",
+        heldReasons: [{ code: "manual-review-requested" }],
         schemaViolations: [violation],
       };
 
@@ -152,6 +154,8 @@ describe("schema subprocess tests", () => {
         sources: ["source.md"],
         body: buildValidBody("Clean Page"),
         generatedAt: new Date().toISOString(),
+        reviewMode: "forced",
+        heldReasons: [{ code: "manual-review-requested" }],
         // schemaViolations intentionally omitted — block must not appear
       };
 

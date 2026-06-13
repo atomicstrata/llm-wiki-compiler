@@ -11,13 +11,12 @@ import type { ReviewCandidate } from "../utils/types.js";
 
 /** Human-readable review mode for old and new candidate records. */
 function formatMode(candidate: ReviewCandidate): string {
-  return candidate.reviewMode ?? "forced";
+  return candidate.reviewMode;
 }
 
 /** Compact reason summary for review list rows. */
 function formatReasons(candidate: ReviewCandidate): string {
-  const reasons = candidate.heldReasons?.map((r) => r.code) ?? ["manual-review-requested"];
-  return reasons.join(", ");
+  return candidate.heldReasons.map((r) => r.code).join(", ");
 }
 
 /** List every pending candidate from .llmwiki/candidates/. */
