@@ -77,7 +77,11 @@ describe("compile review policy", () => {
     expect(candidates[0]?.heldReasons.map((r) => r.code)).toEqual(["low-confidence"]);
     expect(existsSync(path.join(ctx.dir, CONCEPTS_DIR, "beta.md"))).toBe(true);
     expect(existsSync(path.join(ctx.dir, CONCEPTS_DIR, "alpha.md"))).toBe(false);
-    expect(state.sources["sample.md"]).toBeUndefined();
+    // New semantics: source is recorded with only live concepts (beta), not undefined.
+    // Alpha is held → excluded from state. Beta is live → included.
+    expect(state.sources["sample.md"]).toBeDefined();
+    expect(state.sources["sample.md"]?.concepts).toContain("beta");
+    expect(state.sources["sample.md"]?.concepts).not.toContain("alpha");
   });
 
   it("approval persists deferred source state and prevents unchanged re-extraction", async () => {
@@ -145,8 +149,12 @@ describe("compile review policy", () => {
     expect(second.candidates![0]).toBe(id1);
   });
 
-  // Test #3: reject → source re-proposes on next compile
-  it("rejected candidate is re-held on next compile when source still trips policy", async () => {
+  // Test #3: reject suppresses until source changes (new semantics)
+  // Reject records no source-state change — the rejected concept is simply not
+  // recorded. Because the source IS recorded (with its live concepts) after the
+  // first compile, the source is seen as unchanged on the next compile and alpha
+  // is NOT re-proposed until the source content changes.
+  it("rejected candidate is suppressed until source content changes", async () => {
     await writeReviewConfig(["low-confidence"]);
     const spy = stubTwoConcepts();
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -163,10 +171,25 @@ describe("compile review policy", () => {
 
     spy.mockRestore();
     stubTwoConcepts();
-    const second = await compileAndReport(ctx.dir);
+    // Source unchanged — alpha is suppressed (not re-held)
+    const secondUnchanged = await compileAndReport(ctx.dir);
+    expect(secondUnchanged.compiled).toBe(0);
+    expect(secondUnchanged.candidates ?? []).toEqual([]);
+
+    // Source changes — alpha re-proposes on the next compile
+    await writeFile(
+      path.join(ctx.dir, "sources", "sample.md"),
+      "# Sample\n\nAlpha and Beta updated content after reject.\n",
+      "utf-8",
+    );
+    spy.mockRestore();
+    vi.restoreAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    stubTwoConcepts();
+    const secondChanged = await compileAndReport(ctx.dir);
 
     const candidates = await listCandidates(ctx.dir);
-    expect(second.candidates!.length).toBeGreaterThan(0);
+    expect(secondChanged.candidates!.length).toBeGreaterThan(0);
     expect(candidates.some((c) => c.slug === "alpha" && c.reviewMode === "policy")).toBe(true);
   });
 

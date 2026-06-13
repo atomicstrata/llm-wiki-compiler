@@ -162,8 +162,6 @@ interface PageGenerationResult {
     held: ReviewedCandidateRef[];
     forced: ReviewedCandidateRef[];
   };
-  /** Source files that fed at least one held candidate this run. */
-  heldSourceFiles: string[];
   /**
    * Slugs of seed pages written this run (overview / comparison / entity).
    * Concept pages live on `pages`; seed pages don't fit MergedConcept's
@@ -194,7 +192,6 @@ async function generatePagesPhase(
   const errors: string[] = [];
   const candidates: string[] = [];
   const review = { held: [] as ReviewedCandidateRef[], forced: [] as ReviewedCandidateRef[] };
-  const heldSourceFiles = new Set<string>();
   const outcomes = await Promise.all(
     merged.map((entry) => limit(async () => {
       const result = await generateMergedPage(root, entry, schema, options, sourceStates, policy);
@@ -202,27 +199,67 @@ async function generatePagesPhase(
       if (result.candidate) {
         candidates.push(result.candidate.id);
         review[result.candidate.mode].push(result.candidate.ref);
-        for (const source of entry.sourceFiles) heldSourceFiles.add(source);
       }
       return { entry, result };
     })),
   );
   const pages = outcomes.map(({ entry }) => entry);
   const writtenPages = outcomes.filter(({ result }) => result.wrotePage).map(({ entry }) => entry);
-  return { pages, writtenPages, errors, candidates, review, heldSourceFiles: [...heldSourceFiles], seedSlugs: [] };
+  return { pages, writtenPages, errors, candidates, review, seedSlugs: [] };
 }
 
-/** Persist source state for every extraction that produced concepts. */
+/** Persist source state for every extraction that produced concepts.
+ *
+ * State records only LIVE concepts per source — slugs that were actually
+ * written to wiki/ this run. Held or rejected concepts are never recorded
+ * as compiled; approval adds the approved slug via persistCandidateSourceStates.
+ * A source whose concepts are all held records hash + empty concepts list.
+ */
 async function persistExtractionStates(
   root: string,
   extractions: ExtractionResult[],
-  deferredSources: Set<string> = new Set(),
+  writtenPages: MergedConcept[],
 ): Promise<void> {
+  // Build a set of live slugs per source: slugs from writtenPages that list
+  // this source as a contributor.
+  const liveSlugsForSource = buildLiveSlugsForSource(writtenPages);
   for (const result of extractions) {
     if (result.concepts.length === 0) continue;
-    if (deferredSources.has(result.sourceFile)) continue;
-    await persistSourceState(root, result.sourcePath, result.sourceFile, result.concepts);
+    const liveSlugs = liveSlugsForSource.get(result.sourceFile) ?? [];
+    await persistSourceStateFiltered(
+      root, result.sourcePath, result.sourceFile, result.concepts, new Set(liveSlugs),
+    );
   }
+}
+
+/** Build a map from source filename to the slugs written live this run. */
+function buildLiveSlugsForSource(writtenPages: MergedConcept[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  for (const page of writtenPages) {
+    for (const sourceFile of page.sourceFiles) {
+      const existing = map.get(sourceFile) ?? [];
+      existing.push(page.slug);
+      map.set(sourceFile, existing);
+    }
+  }
+  return map;
+}
+
+/** Persist source state, filtering concepts to only those in the live set. */
+async function persistSourceStateFiltered(
+  root: string,
+  sourcePath: string,
+  sourceFile: string,
+  concepts: ReturnType<typeof parseConcepts>,
+  liveSlugs: Set<string>,
+): Promise<void> {
+  const hash = await hashFile(sourcePath);
+  const entry: SourceState = {
+    hash,
+    concepts: concepts.map((c) => slugify(c.concept)).filter((s) => liveSlugs.has(s)),
+    compiledAt: new Date().toISOString(),
+  };
+  await updateSourceState(root, sourceFile, entry);
 }
 
 /**
@@ -384,7 +421,6 @@ async function runCompilePipeline(
         errors: [],
         candidates: [],
         review: { held: [], forced: [] },
-        heldSourceFiles: [],
         seedSlugs: [],
       };
       await maybeSeedPages(root, schema, emptyGeneration, options);
@@ -437,7 +473,7 @@ async function runCompilePipeline(
   );
 
   if (!options.review) {
-    await persistExtractionStates(root, extractions, new Set(generation.heldSourceFiles));
+    await persistExtractionStates(root, extractions, generation.writtenPages);
     if (frozenSlugs.size > 0) {
       await orphanUnownedFrozenPages(root, frozenSlugs);
     }
@@ -995,27 +1031,4 @@ async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Pro
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.warn(`Skipped embeddings update: ${message}`));
   }
-}
-
-/**
- * Update the persisted state for a compiled source file.
- * @param root - Project root directory.
- * @param sourcePath - Absolute path to the source file.
- * @param sourceFile - Filename within sources/.
- * @param concepts - Concepts extracted from this source.
- */
-async function persistSourceState(
-  root: string,
-  sourcePath: string,
-  sourceFile: string,
-  concepts: ReturnType<typeof parseConcepts>,
-): Promise<void> {
-  const hash = await hashFile(sourcePath);
-  const entry: SourceState = {
-    hash,
-    concepts: concepts.map((c) => slugify(c.concept)),
-    compiledAt: new Date().toISOString(),
-  };
-
-  await updateSourceState(root, sourceFile, entry);
 }
