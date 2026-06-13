@@ -119,11 +119,16 @@ describe("compile review policy", () => {
     stubTwoConcepts();
 
     const result = await compileAndReport(ctx.dir);
+    const { state } = await readStateClassified(ctx.dir);
 
     expect(result.candidates ?? []).toEqual([]);
     expect(result.review).toBeUndefined();
     expect(existsSync(path.join(ctx.dir, CONCEPTS_DIR, "alpha.md"))).toBe(true);
     expect(existsSync(path.join(ctx.dir, CONCEPTS_DIR, "beta.md"))).toBe(true);
+    // Regression guard: live-concept filter must not drop concepts when nothing is held.
+    // Both alpha and beta must appear in state even with policy off.
+    expect(state.sources["sample.md"]?.concepts).toContain("alpha");
+    expect(state.sources["sample.md"]?.concepts).toContain("beta");
   });
 
   // Test #1: candidate id preserved across a real recompile with changed source
@@ -230,6 +235,21 @@ describe("compile review policy", () => {
       expect(candidate.heldReasons.map((r) => r.code)).toContain("manual-review-requested");
     }
     expect(result.review?.forced.length).toBeGreaterThan(0);
+  });
+
+  // Test #6: held candidate ordering is stable and matches extraction (source) order
+  it("held candidates appear in extraction order, not parallel-completion order", async () => {
+    await writeReviewConfig(["all"]);
+    stubTwoConcepts();
+
+    const result = await compileAndReport(ctx.dir);
+
+    // Both alpha and beta are held. They must appear in the order the LLM extracted them
+    // (alpha first, beta second) — not in parallel-completion order.
+    expect(result.review?.held.map((c) => c.slug)).toEqual(["alpha", "beta"]);
+    expect(result.candidates).toHaveLength(2);
+    expect(result.candidates![0]).toBe(result.review?.held[0]?.id);
+    expect(result.candidates![1]).toBe(result.review?.held[1]?.id);
   });
 });
 

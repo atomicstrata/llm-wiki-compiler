@@ -21,6 +21,7 @@ import {
   checkSchemaCrossLinks,
 } from "../linter/rules.js";
 import { loadSchema } from "../schema/loader.js";
+import { countCandidates } from "../compiler/candidates.js";
 import type { LintResult } from "../linter/types.js";
 import type { HealthResult, HealthRuleResult } from "./types.js";
 
@@ -73,8 +74,8 @@ function aggregateRules(results: LintResult[]): HealthRuleResult[] {
 export async function evaluateHealth(root: string): Promise<HealthResult> {
   const schema = await loadSchema(root);
 
-  const allResults = (
-    await Promise.all([
+  const [allResults, pendingReviews] = await Promise.all([
+    Promise.all([
       checkBrokenWikilinks(root),
       checkBrokenCitations(root),
       checkMalformedClaimCitations(root),
@@ -86,12 +87,13 @@ export async function evaluateHealth(root: string): Promise<HealthResult> {
       checkContradictedPages(root),
       checkInferredWithoutCitations(root),
       checkSchemaCrossLinks(root, schema),
-    ])
-  ).flat();
+    ]).then((results) => results.flat()),
+    countCandidates(root).catch(() => 0),
+  ]);
 
   const rules = aggregateRules(allResults);
   const totalDeduction = rules.reduce((sum, r) => sum + r.deduction, 0);
   const score = Math.max(0, MAX_SCORE - totalDeduction);
 
-  return { score, maxScore: MAX_SCORE, rules };
+  return { score, maxScore: MAX_SCORE, rules, pendingReviews };
 }

@@ -189,20 +189,25 @@ async function generatePagesPhase(
     ? await buildExtractionSourceStates(root, extractions)
     : {};
   const limit = pLimit(COMPILE_CONCURRENCY);
-  const errors: string[] = [];
-  const candidates: string[] = [];
-  const review = { held: [] as ReviewedCandidateRef[], forced: [] as ReviewedCandidateRef[] };
+  // Collect per-outcome errors and candidate info into the ordered outcomes array
+  // AFTER Promise.all, then derive candidates/review by iterating outcomes in source order.
+  // This ensures stable, source-order ordering regardless of parallel completion timing.
   const outcomes = await Promise.all(
     merged.map((entry) => limit(async () => {
       const result = await generateMergedPage(root, entry, schema, options, sourceStates, policy);
-      if (result.error) errors.push(result.error);
-      if (result.candidate) {
-        candidates.push(result.candidate.id);
-        review[result.candidate.mode].push(result.candidate.ref);
-      }
       return { entry, result };
     })),
   );
+  const errors: string[] = [];
+  const candidates: string[] = [];
+  const review = { held: [] as ReviewedCandidateRef[], forced: [] as ReviewedCandidateRef[] };
+  for (const { result } of outcomes) {
+    if (result.error) errors.push(result.error);
+    if (result.candidate) {
+      candidates.push(result.candidate.id);
+      review[result.candidate.mode].push(result.candidate.ref);
+    }
+  }
   const pages = outcomes.map(({ entry }) => entry);
   const writtenPages = outcomes.filter(({ result }) => result.wrotePage).map(({ entry }) => entry);
   return { pages, writtenPages, errors, candidates, review, seedSlugs: [] };

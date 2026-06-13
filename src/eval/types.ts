@@ -21,6 +21,11 @@ export interface HealthResult {
   score: number;
   maxScore: 100;
   rules: HealthRuleResult[];
+  /**
+   * Number of pages currently awaiting review in .llmwiki/candidates/.
+   * Informational only — does not affect the health score.
+   */
+  pendingReviews: number;
 }
 
 export interface CitationPageResult {

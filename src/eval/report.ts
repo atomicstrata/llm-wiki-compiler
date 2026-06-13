@@ -78,6 +78,9 @@ function formatHealth(report: EvalReport, delta: EvalDelta | undefined): string[
     const row = ruleRow(rule);
     if (row) rows.push(row);
   }
+  if (report.health.pendingReviews > 0) {
+    rows.push(line(`    pending review:  ${report.health.pendingReviews} candidate(s) awaiting approval`));
+  }
   return rows;
 }
 

@@ -4,6 +4,7 @@
  */
 
 import { evaluateHealth } from "../src/eval/health.js";
+import { writeCandidate } from "../src/compiler/candidates.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 
 describe("evaluateHealth", () => {
@@ -86,5 +87,21 @@ describe("evaluateHealth", () => {
 
     const result = await evaluateHealth(env.dir);
     expect(result.score).toBe(0);
+  });
+
+  it("surfaces pending-review count without penalising health score", async () => {
+    await writeCandidate(env.dir, {
+      title: "Pending Concept",
+      slug: "pending-concept",
+      summary: "Pending.",
+      sources: [],
+      body: "pending body",
+      reviewMode: "policy",
+      heldReasons: [{ code: "low-confidence" }],
+    });
+
+    const result = await evaluateHealth(env.dir);
+    expect(result.pendingReviews).toBe(1);
+    expect(result.score).toBe(100);
   });
 });

@@ -22,7 +22,7 @@
 import { compileAndReport } from "./index.js";
 import { collectExportPages } from "../export/collect.js";
 import type { ExportPage } from "../export/types.js";
-import type { CompileOptions } from "../utils/types.js";
+import type { CompileOptions, ReviewedCandidateRef } from "../utils/types.js";
 
 /** Options for {@link compileDelta}. Pass-through to the compile pipeline. */
 export type CompileDeltaOptions = CompileOptions;
@@ -45,6 +45,18 @@ export interface CompileDeltaResult {
   deleted: number;
   /** Non-fatal errors collected during the compile. */
   errors: string[];
+  /**
+   * Count of pages held for review this run (policy-held or forced by --review).
+   * Zero when no policy is active or no pages were held. Present so callers can
+   * distinguish "empty delta because nothing changed" from "empty delta because
+   * everything was held for review".
+   */
+  held: number;
+  /**
+   * Structured refs for pages held for review this run. Empty when held is 0.
+   * Carries id, slug, and the reason codes that triggered the hold.
+   */
+  heldCandidates: ReviewedCandidateRef[];
 }
 
 /**
@@ -74,6 +86,10 @@ export async function compileDelta(
     (page) => page.pageDirectory === "concepts" && changedSlugSet.has(page.slug),
   );
 
+  const heldCandidates = [
+    ...(result.review?.held ?? []),
+    ...(result.review?.forced ?? []),
+  ];
   return {
     changedPages,
     changedSlugs: changedPages.map((page) => page.slug),
@@ -81,5 +97,7 @@ export async function compileDelta(
     skipped: result.skipped,
     deleted: result.deleted,
     errors: result.errors,
+    held: heldCandidates.length,
+    heldCandidates,
   };
 }

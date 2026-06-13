@@ -366,6 +366,12 @@ export function summarizeAnswer(answer: string): string {
 /**
  * Save a query answer as a wiki page in the queries/ directory,
  * then regenerate the wiki index so the answer is immediately retrievable.
+ *
+ * NOTE: This path writes directly to wiki/queries/ with NO review-policy evaluation.
+ * Query saves are user-initiated and deliberately out of scope for the compile-time
+ * review gate. This is a known unguarded write path that will be addressed in the
+ * Security cycle. Do not add policy evaluation here without updating the spec.
+ *
  * @param root - Absolute path to the project root directory.
  * @param question - The original question used as the page title.
  * @param answer - The generated answer body.
