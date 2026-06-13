@@ -27,7 +27,7 @@ import {
   CANDIDATES_ARCHIVE_DIR,
 } from "../utils/constants.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
-import type { HeldReason, ReviewMode } from "../review/policy.js";
+import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
@@ -74,6 +74,19 @@ interface CandidateDraft {
 /** Default metadata for legacy `compile --review` callers. */
 const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }];
 
+/** All valid ReviewMode values. */
+const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced"];
+
+/** All valid HeldReasonCode values — mirrors the union in policy.ts. */
+const VALID_HELD_REASON_CODES: HeldReasonCode[] = [
+  "low-confidence",
+  "contradicted",
+  "schema-violating",
+  "provenance-violating",
+  "all",
+  "manual-review-requested",
+];
+
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
 function buildCandidateId(slug: string): string {
   const suffix = randomBytes(ID_SUFFIX_BYTES).toString("hex");
@@ -93,6 +106,10 @@ function archivePath(root: string, id: string): string {
 /**
  * Persist a new candidate record and return it. The id is generated from the
  * slug plus a short random suffix so multiple compile runs can co-exist.
+ *
+ * When multiple candidate files for the same slug already exist (e.g. from a
+ * hand-edited state or a legacy run), this canonicalizes to the earliest id and
+ * deletes all extra duplicate files so at most one file per slug remains.
  * @param root - Project root directory.
  * @param draft - The candidate fields to persist.
  * @returns The full ReviewCandidate (with id + generatedAt populated).
@@ -101,9 +118,9 @@ export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
-  const existing = await readCandidateBySlug(root, draft.slug);
+  const { canonicalId, duplicateIds } = await findSlugDuplicates(root, draft.slug);
   const candidate: ReviewCandidate = {
-    id: existing?.id ?? buildCandidateId(draft.slug),
+    id: canonicalId ?? buildCandidateId(draft.slug),
     title: draft.title,
     slug: draft.slug,
     summary: draft.summary,
@@ -120,7 +137,36 @@ export async function writeCandidate(
   };
 
   await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
+  await deleteDuplicates(root, duplicateIds);
   return candidate;
+}
+
+/**
+ * Collect all candidate ids matching a slug and return the canonical (earliest)
+ * id plus the list of extra duplicate ids to remove.
+ * @param root - Project root directory.
+ * @param slug - The page slug to search for.
+ */
+async function findSlugDuplicates(
+  root: string,
+  slug: string,
+): Promise<{ canonicalId: string | null; duplicateIds: string[] }> {
+  const all = await listCandidates(root);
+  const matching = all.filter((c) => c.slug === slug);
+  if (matching.length === 0) return { canonicalId: null, duplicateIds: [] };
+  // Preserve the first match as canonical (listCandidates sorts by generatedAt).
+  const [canonical, ...extras] = matching;
+  return {
+    canonicalId: canonical!.id,
+    duplicateIds: extras.map((c) => c.id),
+  };
+}
+
+/** Delete a list of candidate files by id, ignoring missing entries. */
+async function deleteDuplicates(root: string, ids: string[]): Promise<void> {
+  for (const id of ids) {
+    await deleteCandidate(root, id);
+  }
 }
 
 /** Find the pending candidate for a slug, if one exists. */
@@ -188,7 +234,12 @@ export async function loadCandidateUnderLockOrFail(
   return candidate;
 }
 
-/** Parse a single candidate JSON file. Returns null when the file is missing or malformed. */
+/**
+ * Parse a single candidate JSON file. Returns null when the file is missing.
+ * Structurally invalid files (unparseable JSON or missing required fields) are
+ * skipped with a warning rather than throwing, so `review list`/`show` never
+ * crash due to a hand-edited or truncated candidate file.
+ */
 export async function readCandidate(
   root: string,
   id: string,
@@ -197,24 +248,54 @@ export async function readCandidate(
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as ReviewCandidate;
-    if (!isValidCandidate(parsed)) return null;
-    return applyLegacyDefaults(parsed);
+    if (!isValidCandidate(parsed)) {
+      output.note(`[llmwiki] Skipping malformed candidate file: ${id}.json (missing required fields)`);
+      return null;
+    }
+    return sanitizeCandidate(parsed);
   } catch {
+    output.note(`[llmwiki] Skipping unparseable candidate file: ${id}.json`);
     return null;
   }
 }
 
 /**
- * Apply defaults for legacy candidates written before `reviewMode` and
- * `heldReasons` were required fields. Called at the IO boundary so every
- * in-memory candidate always has these fields populated.
+ * Sanitize and default every consumed field at the IO boundary. Ensures that
+ * user-edited or legacy candidate files can never crash downstream consumers
+ * (review list, review show, listCandidates).
+ *
+ * Fields that can be safely defaulted are corrected in place:
+ * - `generatedAt`: non-string values are replaced with a sentinel ISO string.
+ * - `reviewMode`: unknown values default to `"forced"` (safe legacy assumption).
+ * - `heldReasons`: non-array, missing, or entries with invalid codes are cleaned;
+ *   if the result is empty after filtering, defaults to `DEFAULT_HELD_REASONS`.
  */
-function applyLegacyDefaults(candidate: ReviewCandidate): ReviewCandidate {
-  return {
-    ...candidate,
-    reviewMode: candidate.reviewMode ?? "forced",
-    heldReasons: candidate.heldReasons ?? DEFAULT_HELD_REASONS,
-  };
+function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
+  const generatedAt =
+    typeof candidate.generatedAt === "string"
+      ? candidate.generatedAt
+      : new Date(0).toISOString();
+
+  const reviewMode: ReviewMode = VALID_REVIEW_MODES.includes(candidate.reviewMode)
+    ? candidate.reviewMode
+    : "forced";
+
+  const heldReasons = sanitizeHeldReasons(candidate.heldReasons);
+
+  return { ...candidate, generatedAt, reviewMode, heldReasons };
+}
+
+/** Filter `heldReasons` to only entries with a valid code shape; default when empty. */
+function sanitizeHeldReasons(raw: unknown): HeldReason[] {
+  if (!Array.isArray(raw)) return DEFAULT_HELD_REASONS;
+  const valid = raw.filter(
+    (r): r is HeldReason =>
+      r !== null &&
+      typeof r === "object" &&
+      typeof (r as Record<string, unknown>).code === "string" &&
+      VALID_HELD_REASON_CODES.includes((r as HeldReason).code),
+  );
+  return valid.length > 0 ? valid : DEFAULT_HELD_REASONS;
 }
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */
