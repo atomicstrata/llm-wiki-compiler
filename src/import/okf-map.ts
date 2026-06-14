@@ -61,7 +61,12 @@ function baseFields(meta: Record<string, unknown>, ctx: OkfMapContext, slug: str
   return {
     title: pickString(meta.title, humanize(slug)),
     summary: typeof meta.description === "string" ? meta.description : "",
-    sources: Array.from(new Set([...asStringArray(x.sources), `okf:${ctx.bundleId}`])),
+    // Strip any PRIOR `okf:` origin tokens before stamping the current bundle's, so a
+    // repeated export->import->export->import cycle keeps exactly one origin token.
+    sources: Array.from(new Set([
+      ...asStringArray(x.sources).filter((s) => !s.startsWith("okf:")),
+      `okf:${ctx.bundleId}`,
+    ])),
     kind: KNOWN_KINDS.has(meta.type as string) ? (meta.type as PageKind) : "concept",
     createdAt: now,
     updatedAt: typeof meta.timestamp === "string" ? meta.timestamp : now,

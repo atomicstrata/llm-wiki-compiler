@@ -26,19 +26,22 @@ async function stageCandidate(root: string, page: MappedOkfPage): Promise<void> 
 }
 
 /**
- * Write mapped pages live (--trusted): validate, then atomic-write into the target dir.
+ * True if a mapped page is writable; warns + returns false otherwise (skip-and-warn, both paths).
  *
  * `validateWikiPage` only confirms a non-empty title + body — it is NOT an origin
  * check. Imported-origin attribution is guaranteed upstream by the mapper, which
  * always stamps `provenanceState: imported` and an `okf:<bundle>` source token.
  */
+function validForWrite(page: MappedOkfPage): boolean {
+  if (validateWikiPage(page.body)) return true;
+  output.status("!", output.warn(`OKF import: ${page.okfPath} failed page validation; skipped.`));
+  return false;
+}
+
+/** Write already-validated mapped pages live (--trusted): atomic-write into the target dir, then refresh. */
 async function writeTrusted(root: string, pages: MappedOkfPage[]): Promise<void> {
   const written: string[] = [];
   for (const page of pages) {
-    if (!validateWikiPage(page.body)) {
-      output.status("!", output.warn(`OKF import: ${page.okfPath} failed page validation; not written.`));
-      continue;
-    }
     const dir = page.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
     await atomicWrite(path.join(root, dir, `${page.slug}.md`), page.body);
     written.push(page.slug);
@@ -47,10 +50,15 @@ async function writeTrusted(root: string, pages: MappedOkfPage[]): Promise<void>
 }
 
 /**
- * Trusted import: collision-read + live write + refresh under `.llmwiki/lock` so a
- * concurrent `compile`/`approve` can't race the index/MOC rebuild we trigger.
+ * Import an OKF bundle into the current project.
+ *
+ * The whole operation runs under `.llmwiki/lock`: BOTH the default staging path
+ * (collision-read + candidate list→write→dedup canonicalization) and `--trusted`
+ * (collision-read + live write + index/MOC refresh) are durable read-modify-writes
+ * that must not race a concurrent `compile`/`approve`.
  */
-async function importTrusted(root: string, okf: string): Promise<void> {
+export default async function importCommand(root: string, options: ImportOptions): Promise<void> {
+  if (!options.okf) throw new Error("import: --okf <dir> is required");
   const locked = await acquireLock(root);
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
@@ -58,22 +66,14 @@ async function importTrusted(root: string, okf: string): Promise<void> {
     return;
   }
   try {
-    const { pages, skipped } = await importOkfBundle(okf, root);
-    await writeTrusted(root, pages);
-    output.status("+", output.success(`OKF import: wrote ${pages.length} page(s); skipped ${skipped.length}.`));
+    const { pages, skipped } = await importOkfBundle(options.okf, root);
+    const valid = pages.filter(validForWrite);
+    if (options.trusted) await writeTrusted(root, valid);
+    else { for (const p of valid) await stageCandidate(root, p); }
+    const verb = options.trusted ? "wrote" : "staged";
+    const dropped = skipped.length + (pages.length - valid.length);
+    output.status("+", output.success(`OKF import: ${verb} ${valid.length} page(s); skipped ${dropped}.`));
   } finally {
     await releaseLock(root);
   }
-}
-
-/** Import an OKF bundle into the current project. */
-export default async function importCommand(root: string, options: ImportOptions): Promise<void> {
-  if (!options.okf) throw new Error("import: --okf <dir> is required");
-  if (options.trusted) {
-    await importTrusted(root, options.okf);
-    return;
-  }
-  const { pages, skipped } = await importOkfBundle(options.okf, root);
-  for (const p of pages) await stageCandidate(root, p);
-  output.status("+", output.success(`OKF import: staged ${pages.length} page(s); skipped ${skipped.length}.`));
 }

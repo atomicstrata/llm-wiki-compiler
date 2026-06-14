@@ -25,6 +25,19 @@ describe("okfDocToPage", () => {
     expect(body).toContain("[[rag]]");
     expect(body).toContain("^[rag-paper.md:1-2]");
   });
+  it("keeps exactly one okf: origin token across repeated round-trips", () => {
+    const doc = {
+      relPath: "concepts/rag.md",
+      meta: { type: "concept", title: "RAG",
+        "x-llmwiki": { schemaVersion: "0.1", contentHash: "h", pageDirectory: "concepts",
+          sources: ["rag-paper.md", "okf:old"] } },
+      body: "Body.\n",
+    };
+    const { meta } = parseFrontmatter(okfDocToPage(doc, ctx).body);
+    const okfTokens = (meta.sources as string[]).filter((s) => s.startsWith("okf:"));
+    expect(okfTokens).toEqual(["okf:demo"]);
+    expect(meta.sources).toContain("rag-paper.md");
+  });
   it("unknown type -> kind concept + x-okf.type, foreign body kept verbatim", () => {
     const doc = { relPath: "t.md", meta: { type: "BigQuery Table", vendorKey: 7 }, body: "See [x](/concepts/missing.md).\n" };
     const page = okfDocToPage(doc, { bundleId: "b", titleOf: () => null });

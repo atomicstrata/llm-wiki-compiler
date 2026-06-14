@@ -3,6 +3,12 @@
  * tolerantly parse each non-reserved markdown doc into a RawOkfDoc. Reserved
  * files (index.md / log.md) and malformed/typeless docs are skipped with a warning;
  * a bundle exceeding a resource cap is rejected outright.
+ *
+ * The `maxFiles` cap bounds the `.md` walk EARLY: the recursion throws as soon as
+ * the accumulated markdown count exceeds the limit, so a hostile deep/wide bundle is
+ * rejected mid-walk rather than fully enumerated first. (Residual: a tree of many
+ * empty dirs / non-`.md` files is still walked unbounded — the spec's "max files"
+ * contract is the `.md` count, which is acceptable for v1.)
  */
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
@@ -14,14 +20,17 @@ import type { OkfImportLimits, RawOkfDoc } from "./types.js";
 
 const RESERVED = new Set(["index.md", "log.md"]);
 
-async function listMarkdown(root: string, dir: string): Promise<string[]> {
-  const out: string[] = [];
+/** Collect bundle-relative `.md` paths, throwing as soon as `limit` markdown files are exceeded. */
+async function listMarkdown(root: string, dir: string, limit: number, acc: string[] = []): Promise<string[]> {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const abs = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await listMarkdown(root, abs)));
-    else if (entry.isFile() && entry.name.endsWith(".md")) out.push(path.relative(root, abs).split(path.sep).join("/"));
+    if (entry.isDirectory()) await listMarkdown(root, abs, limit, acc);
+    else if (entry.isFile() && entry.name.endsWith(".md")) {
+      acc.push(path.relative(root, abs).split(path.sep).join("/"));
+      if (acc.length > limit) throw new Error(`OKF import: bundle exceeds max file count (> ${limit})`);
+    }
   }
-  return out;
+  return acc;
 }
 
 /**
@@ -43,8 +52,7 @@ export async function readOkfBundle(
   const limits = { ...DEFAULT_OKF_LIMITS, ...overrides };
   const realRoot = await safeRealpath(bundleDir);
   if (!realRoot) throw new Error(`OKF import: bundle not found: ${bundleDir}`);
-  const rels = (await listMarkdown(realRoot, realRoot)).sort();
-  if (rels.length > limits.maxFiles) throw new Error(`OKF import: bundle exceeds max file count (${rels.length} > ${limits.maxFiles})`);
+  const rels = (await listMarkdown(realRoot, realRoot, limits.maxFiles)).sort();
   const docs: RawOkfDoc[] = [];
   let total = 0;
   for (const rel of rels) {
