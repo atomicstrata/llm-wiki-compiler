@@ -63,4 +63,9 @@ describe("okfDocToPage", () => {
     expect((meta["x-okf"] as any).originalFrontmatter.vendorKey).toBe(7);
     expect(body).toContain("/concepts/missing.md");
   });
+  it("records the source relPath durably under x-okf.okfPath", () => {
+    const doc = { relPath: "concepts/t.md", meta: { type: "BigQuery Table" }, body: "Body.\n" };
+    const { meta } = parseFrontmatter(okfDocToPage(doc, { bundleId: "b", titleOf: () => null }).body);
+    expect((meta["x-okf"] as any).okfPath).toBe("concepts/t.md");
+  });
 });

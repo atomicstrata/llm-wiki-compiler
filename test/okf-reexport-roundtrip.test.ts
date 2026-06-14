@@ -45,6 +45,7 @@ describe("OKF re-export honesty round-trips", () => {
     expect(meta.title).toBe("Edited");
     expect(meta.description).toBe("edited summary");
     expect(meta["x-llmwiki"]).toBeDefined();
+    expect(meta["x-okf"]).toBeUndefined(); // durable llmwiki-side record, never re-emitted to OKF
   });
 
   it("regenerates exactly one # Citations section across export -> import -> export", async () => {

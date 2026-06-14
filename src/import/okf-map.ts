@@ -80,11 +80,15 @@ function baseFields(meta: Record<string, unknown>, ctx: OkfMapContext, slug: str
   };
 }
 
-/** Verbatim snapshot of the source frontmatter; records the raw `type` only when foreign. */
-function buildXokf(meta: Record<string, unknown>): Record<string, unknown> {
+/**
+ * Verbatim snapshot of the source frontmatter; records the raw `type` only when foreign.
+ * `okfPath` durably records the doc's bundle-relative source path so the original OKF
+ * identity survives review approval (the candidate-only `okfPath` is lost once live).
+ */
+function buildXokf(meta: Record<string, unknown>, okfPath: string): Record<string, unknown> {
   const rawType = typeof meta.type === "string" ? meta.type : "concept";
   const known = KNOWN_KINDS.has(rawType);
-  return { ...(known ? {} : { type: rawType }), originalFrontmatter: meta };
+  return { ...(known ? {} : { type: rawType }), okfPath, originalFrontmatter: meta };
 }
 
 /** Assemble the llmwiki frontmatter fields from OKF standard + x-llmwiki blocks. */
@@ -93,7 +97,7 @@ function buildPageFields(doc: RawOkfDoc, ctx: OkfMapContext, slug: string): Reco
   const fields = baseFields(meta, ctx, slug);
   if (Array.isArray(meta.tags)) fields.tags = asStringArray(meta.tags);
   applyXLlmwiki(fields, (meta["x-llmwiki"] ?? {}) as Record<string, unknown>);
-  fields["x-okf"] = buildXokf(meta);
+  fields["x-okf"] = buildXokf(meta, doc.relPath);
   return fields;
 }
 

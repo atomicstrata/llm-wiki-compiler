@@ -90,6 +90,8 @@ function readXOkf(meta: Record<string, unknown>): XOkfSnapshot | undefined {
   const snap: XOkfSnapshot = { originalFrontmatter: of as Record<string, unknown> };
   const t = (x as Record<string, unknown>).type;
   if (typeof t === "string") snap.type = t;
+  const p = (x as Record<string, unknown>).okfPath;
+  if (typeof p === "string") snap.okfPath = p;
   return snap;
 }
 

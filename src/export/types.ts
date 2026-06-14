@@ -30,6 +30,8 @@ export type ExportCitation = FlatCitation;
 export interface XOkfSnapshot {
   /** Raw OKF `type` when it wasn't a known llmwiki kind (absent for known kinds). */
   type?: string;
+  /** Bundle-relative source path of the original OKF doc; durable across approval, for diagnosis. */
+  okfPath?: string;
   /** Full original OKF frontmatter, verbatim. */
   originalFrontmatter: Record<string, unknown>;
 }
