@@ -350,8 +350,12 @@ program
   .command("import")
   .description("Import an OKF bundle as review candidates (default) or live pages (--trusted)")
   .requiredOption("--okf <dir>", "Path to the OKF bundle directory to import")
-  .option("--trusted", "Write mapped pages directly into wiki/ instead of staging for review")
-  .action(async (options: { okf: string; trusted?: boolean }) => {
+  .option(
+    "--trusted",
+    "Write mapped pages directly into wiki/ instead of staging for review (you vouch for the bundle's contents and its self-declared provenance)",
+  )
+  .option("--dry-run", "Report what would be imported (and skipped) without writing anything")
+  .action(async (options: { okf: string; trusted?: boolean; dryRun?: boolean }) => {
     try {
       await importCommand(process.cwd(), options);
     } catch (err) {

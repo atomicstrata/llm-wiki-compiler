@@ -12,9 +12,10 @@ import { refreshAfterImport } from "../import/okf-refresh.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import * as output from "../utils/output.js";
 import type { MappedOkfPage } from "../import/types.js";
+import type { SkippedOkfPage } from "../import/okf-collision.js";
 
 /** CLI options for `import`. */
-export interface ImportOptions { okf?: string; trusted?: boolean; }
+export interface ImportOptions { okf?: string; trusted?: boolean; dryRun?: boolean; }
 
 /** Stage one mapped page as an imported review candidate. */
 async function stageCandidate(root: string, page: MappedOkfPage): Promise<void> {
@@ -49,16 +50,42 @@ async function writeTrusted(root: string, pages: MappedOkfPage[]): Promise<void>
   if (written.length) await refreshAfterImport(root, written);
 }
 
+/** Print the per-page breakdown of a dry-run: what would be written, what's invalid, what collides. */
+function reportPreview(pages: MappedOkfPage[], skipped: SkippedOkfPage[]): void {
+  for (const p of pages) {
+    if (validateWikiPage(p.body)) {
+      output.status("+", `${p.slug} (${p.targetDirectory}) ← ${p.okfPath}`);
+    } else {
+      output.status("!", output.warn(`invalid (empty/no title): ${p.okfPath}`));
+    }
+  }
+  for (const s of skipped) output.status("!", output.warn(`skip ${s.okfPath} — ${s.reason}`));
+}
+
+/** Report what an import WOULD stage/write and what it would skip, without mutating anything (read-only, no lock). */
+async function previewImport(root: string, okf: string): Promise<void> {
+  const { pages, skipped } = await importOkfBundle(okf, root);
+  const writable = pages.filter((p) => validateWikiPage(p.body)).length;
+  const dropped = skipped.length + (pages.length - writable);
+  output.status("i", output.dim(`Dry run — would import ${writable} page(s); skip ${dropped}.`));
+  reportPreview(pages, skipped);
+}
+
 /**
  * Import an OKF bundle into the current project.
  *
  * The whole operation runs under `.llmwiki/lock`: BOTH the default staging path
  * (collision-read + candidate list→write→dedup canonicalization) and `--trusted`
  * (collision-read + live write + index/MOC refresh) are durable read-modify-writes
- * that must not race a concurrent `compile`/`approve`.
+ * that must not race a concurrent `compile`/`approve`. `--dry-run` is read-only and
+ * takes no lock.
  */
 export default async function importCommand(root: string, options: ImportOptions): Promise<void> {
   if (!options.okf) throw new Error("import: --okf <dir> is required");
+  if (options.dryRun) {
+    await previewImport(root, options.okf);
+    return;
+  }
   const locked = await acquireLock(root);
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
