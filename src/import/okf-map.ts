@@ -46,12 +46,15 @@ function pickString(v: unknown, fallback: string): string {
   return typeof v === "string" && v.trim() ? v : fallback;
 }
 
-/** Copy x-llmwiki passthrough fields onto the page frontmatter under collect.ts's read keys. */
+/**
+ * Copy SAFE x-llmwiki passthrough onto the page frontmatter. An imported bundle's
+ * x-llmwiki is attacker-controllable, so we deliberately do NOT promote `aliases`
+ * (wikilink-resolution vector) or `contradictedBy` (references local slugs a foreign
+ * producer can't legitimately know) to ACTIVE fields — they survive only inside the
+ * `x-okf.originalFrontmatter` snapshot. `confidence` is advisory (not used in ranking).
+ */
 function applyXLlmwiki(fields: Record<string, unknown>, x: Record<string, unknown>): void {
-  const aliases = asStringArray(x.aliases);
-  if (aliases.length) fields.aliases = aliases;
   if (typeof x.confidence === "number") fields.confidence = x.confidence;
-  if (Array.isArray(x.contradictedBy) && x.contradictedBy.length) fields.contradictedBy = x.contradictedBy;
 }
 
 /** Base llmwiki frontmatter every imported page carries, before x-llmwiki passthrough. */

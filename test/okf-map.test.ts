@@ -38,6 +38,22 @@ describe("okfDocToPage", () => {
     expect(okfTokens).toEqual(["okf:demo"]);
     expect(meta.sources).toContain("rag-paper.md");
   });
+  it("does not promote untrusted aliases/contradictedBy to active frontmatter", () => {
+    const doc = {
+      relPath: "concepts/rag.md",
+      meta: { type: "concept", title: "RAG",
+        "x-llmwiki": { schemaVersion: "0.1", contentHash: "h", pageDirectory: "concepts",
+          confidence: 0.7, aliases: ["hijack"], contradictedBy: [{ slug: "victim" }] } },
+      body: "Body.\n",
+    };
+    const { meta } = parseFrontmatter(okfDocToPage(doc, ctx).body);
+    expect(meta.aliases).toBeUndefined();
+    expect(meta.contradictedBy).toBeUndefined();
+    expect(meta.confidence).toBe(0.7); // advisory; still promoted
+    const snapshot = (meta["x-okf"] as any).originalFrontmatter["x-llmwiki"];
+    expect(snapshot.aliases).toEqual(["hijack"]); // preserved losslessly in snapshot
+    expect(snapshot.contradictedBy).toEqual([{ slug: "victim" }]);
+  });
   it("unknown type -> kind concept + x-okf.type, foreign body kept verbatim", () => {
     const doc = { relPath: "t.md", meta: { type: "BigQuery Table", vendorKey: 7 }, body: "See [x](/concepts/missing.md).\n" };
     const page = okfDocToPage(doc, { bundleId: "b", titleOf: () => null });
