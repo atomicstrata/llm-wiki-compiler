@@ -1,16 +1,15 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, stat } from "fs/promises";
-import { tmpdir } from "os";
+import { describe, it, expect } from "vitest";
+import { mkdir, writeFile, stat } from "fs/promises";
 import path from "path";
 import importCommand from "../src/commands/import.js";
 import { listCandidates } from "../src/compiler/candidates.js";
+import { useOkfTempDir } from "./fixtures/okf-temp-dir.js";
 
-let dir: string;
-afterEach(async () => { if (dir) await rm(dir, { recursive: true, force: true }); });
+const { make } = useOkfTempDir();
 
 describe("import (default = stage candidates)", () => {
   it("stages each doc as an imported candidate and leaves wiki/ untouched", async () => {
-    dir = await mkdtemp(path.join(tmpdir(), "okf-cmd-"));
+    const dir = await make("okf-cmd-");
     const b = path.join(dir, "kb"); await mkdir(path.join(b, "concepts"), { recursive: true });
     await writeFile(path.join(b, "concepts", "a.md"), "---\ntype: concept\ntitle: A\n---\n\nBody.\n");
     await importCommand(dir, { okf: b });

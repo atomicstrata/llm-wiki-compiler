@@ -95,7 +95,10 @@ export function okfDocToPage(doc: RawOkfDoc, ctx: OkfMapContext): MappedOkfPage 
   // (symmetric, so round-trip canonical equality holds); an author-written `# Citations`
   // in a native page is likewise dropped. Foreign bodies are kept content-verbatim.
   const body = isNative ? okfLinksToWikilinks(canonicalBody(doc.body), ctx.titleOf) : doc.body;
-  const pageBody = `${buildFrontmatter(fields)}\n\n${body.replace(/\s*$/, "")}\n`;
+  // Join with a SINGLE newline, mirroring the exporter's render-doc convention
+  // (`${frontmatter}\n${body}`). The canonical body already carries its own leading
+  // blank line, so this keeps the export->import round-trip byte-symmetric.
+  const pageBody = `${buildFrontmatter(fields)}\n${body}`;
   return {
     slug,
     title: fields.title as string,
