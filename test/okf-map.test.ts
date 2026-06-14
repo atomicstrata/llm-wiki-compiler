@@ -14,7 +14,7 @@ describe("okfDocToPage", () => {
       body: "Body cites [RAG](/concepts/rag.md). ^[rag-paper.md:1-2]\n",
     };
     const page = okfDocToPage(doc, ctx);
-    expect(page.slug).toBe("concepts-rag");
+    expect(page.slug).toBe("rag");
     expect(page.targetDirectory).toBe("concepts");
     const { meta, body } = parseFrontmatter(page.body);
     expect(meta.kind).toBe("concept");

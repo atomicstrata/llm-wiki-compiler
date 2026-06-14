@@ -15,12 +15,17 @@ export interface OkfMapContext { bundleId: string; titleOf: (slug: string) => st
 const KNOWN_KINDS = new Set<string>(PAGE_KINDS);
 
 /**
- * Derive a single safe slug from a bundle-relative path. `slugify` deletes `/`,
- * so separators are converted to `-` first — `concepts/rag.md` -> `concepts-rag`.
+ * Derive a single safe slug from a bundle-relative path. The repo `slugify` deletes `/`,
+ * so separators become `-` first. A leading `concepts/`|`queries/` page-dir prefix is
+ * stripped so a native doc keeps its flat llmwiki slug (`concepts/rag.md` -> `rag`),
+ * which matches both the original slug and `okfLinksToWikilinks`' bare-slug extraction;
+ * genuinely-nested foreign paths (`tables/customers.md` -> `tables-customers`) stay distinct.
  * MUST be the only slug-derivation path (shared with the import title resolver).
  */
 export function slugFromRelPath(relPath: string): string {
-  return slugify(relPath.replace(/\.md$/i, "").replace(/[/\\]+/g, "-"));
+  const noExt = relPath.replace(/\.md$/i, "");
+  const stripped = noExt.replace(/^(concepts|queries)\//, "");
+  return slugify(stripped.replace(/[/\\]+/g, "-"));
 }
 
 function humanize(slug: string): string {

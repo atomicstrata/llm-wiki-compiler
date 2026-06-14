@@ -14,7 +14,7 @@ describe("importOkfBundle", () => {
     await writeFile(path.join(b, "index.md"), "---\nokf_version: \"0.1\"\n---\n# kb\n");
     await writeFile(path.join(b, "concepts", "a.md"), "---\ntype: concept\ntitle: A\n---\n\nBody.\n");
     const { pages, skipped } = await importOkfBundle(b, dir);
-    expect(pages.map((p) => p.slug)).toEqual(["concepts-a"]);
+    expect(pages.map((p) => p.slug)).toEqual(["a"]);
     expect(pages[0].sources).toContain("okf:kb");
     expect(skipped).toHaveLength(0);
   });
