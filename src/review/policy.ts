@@ -17,7 +17,8 @@ export type HeldReasonCode =
   | "schema-violating"
   | "provenance-violating"
   | "all"
-  | "manual-review-requested";
+  | "manual-review-requested"
+  | "imported-okf";
 
 /** Structured reason a generated page was held for review. */
 export interface HeldReason {
@@ -25,11 +26,13 @@ export interface HeldReason {
   detail?: string;
 }
 
-/** Candidate origin: policy-selected or explicitly forced by compile --review. */
-export type ReviewMode = "policy" | "forced";
+/** Candidate origin: policy-selected, explicitly forced, or imported from OKF. */
+export type ReviewMode = "policy" | "forced" | "imported";
 
 /** Configurable review policy modes. */
-export type ReviewPolicyMode = Exclude<HeldReasonCode, "manual-review-requested"> | "off";
+export type ReviewPolicyMode =
+  | Exclude<HeldReasonCode, "manual-review-requested" | "imported-okf">
+  | "off";
 
 /** How low-confidence policy treats a missing confidence signal. */
 export type MissingConfidencePolicy = "low" | "ok";

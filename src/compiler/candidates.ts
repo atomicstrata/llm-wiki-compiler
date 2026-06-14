@@ -75,7 +75,7 @@ interface CandidateDraft {
 const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }];
 
 /** All valid ReviewMode values. */
-const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced"];
+const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced", "imported"];
 
 /** All valid HeldReasonCode values — mirrors the union in policy.ts. */
 const VALID_HELD_REASON_CODES: HeldReasonCode[] = [
@@ -85,6 +85,7 @@ const VALID_HELD_REASON_CODES: HeldReasonCode[] = [
   "provenance-violating",
   "all",
   "manual-review-requested",
+  "imported-okf",
 ];
 
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
