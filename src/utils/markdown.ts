@@ -37,6 +37,7 @@ const VALID_PROVENANCE_STATES: ReadonlySet<ProvenanceState> = new Set([
   "merged",
   "inferred",
   "ambiguous",
+  "imported",
 ]);
 
 /**

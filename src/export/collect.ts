@@ -51,9 +51,15 @@ function readAdvisoryConfidence(meta: Record<string, unknown>): number | undefin
 }
 
 /** Validate and return a ProvenanceState from frontmatter, or undefined. */
-function readProvenanceState(meta: Record<string, unknown>): ProvenanceState | undefined {
+export function readProvenanceState(meta: Record<string, unknown>): ProvenanceState | undefined {
   const value = meta.provenanceState;
-  if (value === "extracted" || value === "merged" || value === "inferred" || value === "ambiguous") {
+  if (
+    value === "extracted" ||
+    value === "merged" ||
+    value === "inferred" ||
+    value === "ambiguous" ||
+    value === "imported"
+  ) {
     return value;
   }
   return undefined;

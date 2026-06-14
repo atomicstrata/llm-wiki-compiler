@@ -12,8 +12,15 @@ import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js
  * - `merged`: synthesised from multiple sources during compilation.
  * - `inferred`: produced by the model from context, not directly cited.
  * - `ambiguous`: sources disagree or evidence is conflicting.
+ * - `imported`: brought in from an external OKF bundle (durable origin marker
+ *   that survives review approval; never produced by local compilation).
  */
-export type ProvenanceState = "extracted" | "merged" | "inferred" | "ambiguous";
+export type ProvenanceState =
+  | "extracted"
+  | "merged"
+  | "inferred"
+  | "ambiguous"
+  | "imported";
 
 /**
  * Reference to another concept that contradicts the current one.
