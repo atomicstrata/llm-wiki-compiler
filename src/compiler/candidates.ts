@@ -269,6 +269,9 @@ export async function readCandidate(
  * - `reviewMode`: unknown values default to `"forced"` (safe legacy assumption).
  * - `heldReasons`: non-array, missing, or entries with invalid codes are cleaned;
  *   if the result is empty after filtering, defaults to `DEFAULT_HELD_REASONS`.
+ * - `sourceStates`: non-object values are treated as absent; entries with unsafe
+ *   keys (path separators, `..` traversal) or invalid field types are dropped so
+ *   approval can never write malformed state from a bad candidate file.
  */
 function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
   const generatedAt =
@@ -281,8 +284,12 @@ function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
     : "forced";
 
   const heldReasons = sanitizeHeldReasons(candidate.heldReasons);
+  const sourceStates = sanitizeSourceStates(candidate.sourceStates);
 
-  return { ...candidate, generatedAt, reviewMode, heldReasons };
+  const result: ReviewCandidate = { ...candidate, generatedAt, reviewMode, heldReasons };
+  if (sourceStates !== undefined) result.sourceStates = sourceStates;
+  else delete result.sourceStates;
+  return result;
 }
 
 /** Filter `heldReasons` to only entries with a valid code shape; default when empty. */
@@ -296,6 +303,53 @@ function sanitizeHeldReasons(raw: unknown): HeldReason[] {
       VALID_HELD_REASON_CODES.includes((r as HeldReason).code),
   );
   return valid.length > 0 ? valid : DEFAULT_HELD_REASONS;
+}
+
+/**
+ * Return true when a source-state key is a safe plain basename.
+ * Rejects any key containing `/`, `\`, or the sequence `..` to prevent
+ * path-traversal attacks when the key is later used as a state.json entry.
+ */
+function isSourceKeysafe(key: string): boolean {
+  return !key.includes("/") && !key.includes("\\") && !key.includes("..");
+}
+
+/**
+ * Validate and filter a raw `sourceStates` value from disk.
+ *
+ * Rules enforced per entry:
+ * - Key must be a safe plain basename (no path separators, no `..`).
+ * - `hash` must be a non-empty string.
+ * - `concepts` must be a `string[]`.
+ * - `compiledAt` must be a string.
+ *
+ * If `raw` is not a plain object, returns `undefined` (treated as absent).
+ * Valid entries are kept; invalid ones are silently dropped.
+ */
+function sanitizeSourceStates(
+  raw: unknown,
+): Record<string, SourceState> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const result: Record<string, SourceState> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isSourceKeyValid(key, value)) continue;
+    result[key] = value as SourceState;
+  }
+  return result;
+}
+
+/** Return true when both the key is path-safe and the entry fields are valid. */
+function isSourceKeyValid(key: string, value: unknown): boolean {
+  if (!isSourceKeysafe(key)) return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.hash === "string" &&
+    entry.hash.length > 0 &&
+    Array.isArray(entry.concepts) &&
+    (entry.concepts as unknown[]).every((c) => typeof c === "string") &&
+    typeof entry.compiledAt === "string"
+  );
 }
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */
@@ -349,11 +403,21 @@ export async function deleteCandidate(root: string, id: string): Promise<boolean
   return true;
 }
 
-/** Delete the pending candidate for a slug, if one exists. */
+/**
+ * Delete ALL pending candidate files for a slug.
+ *
+ * When duplicates exist (e.g. legacy or hand-dropped files) the direct-write
+ * reconcile path must remove every file matching the slug, not just the first
+ * canonical one, so no stale duplicates remain after a page is written directly.
+ */
 export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
-  const candidate = await readCandidateBySlug(root, slug);
-  if (!candidate) return false;
-  return deleteCandidate(root, candidate.id);
+  const all = await listCandidates(root);
+  const matching = all.filter((c) => c.slug === slug);
+  if (matching.length === 0) return false;
+  for (const candidate of matching) {
+    await deleteCandidate(root, candidate.id);
+  }
+  return true;
 }
 
 /**
