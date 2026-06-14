@@ -270,9 +270,10 @@ describe("runExport", () => {
     );
   });
 
-  it("writes all six artifacts by default", async () => {
+  it("writes all artifacts by default (6 single-file targets + okf bundle files)", async () => {
     const result: ExportResult = await runExport(root);
-    expect(result.written.length).toBe(6);
+    // 6 single-file targets + OKF bundle (index, per-page docs, log) = at least 9 paths
+    expect(result.written.length).toBeGreaterThanOrEqual(9);
     expect(result.pageCount).toBe(2);
   });
 
