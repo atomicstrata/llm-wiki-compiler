@@ -5,7 +5,7 @@ import path from "path";
 import { collectExportPages } from "../src/export/collect.js";
 import { buildOkfBundle } from "../src/export/okf/bundle.js";
 import { importOkfBundle } from "../src/import/okf-import.js";
-import { parseFrontmatter } from "../src/utils/markdown.js";
+import { parseFrontmatter, buildFrontmatter } from "../src/utils/markdown.js";
 
 let dir: string;
 afterEach(async () => { if (dir) await rm(dir, { recursive: true, force: true }); });
@@ -14,6 +14,13 @@ afterEach(async () => { if (dir) await rm(dir, { recursive: true, force: true })
 async function stageImported(root: string, slug: string, body: string): Promise<void> {
   await mkdir(path.join(root, "wiki/concepts"), { recursive: true });
   await writeFile(path.join(root, `wiki/concepts/${slug}.md`), body);
+}
+
+/** Apply a local edit to a staged page's standard frontmatter fields, preserving x-okf. */
+async function editStaged(root: string, slug: string, edits: Record<string, unknown>): Promise<void> {
+  const file = path.join(root, `wiki/concepts/${slug}.md`);
+  const { meta, body } = parseFrontmatter(await readFile(file, "utf-8"));
+  await writeFile(file, `${buildFrontmatter({ ...meta, ...edits })}\n${body}`);
 }
 
 const FOREIGN_DOC = "---\ntype: BigQuery Table\ntitle: Cust\nvendorKey: 7\n---\n\nA table.\n";
@@ -27,6 +34,7 @@ describe("OKF re-export honesty round-trips", () => {
     const proj = path.join(dir, "proj");
     const { pages } = await importOkfBundle(bundleDir, proj);
     await stageImported(proj, pages[0].slug, pages[0].body);
+    await editStaged(proj, pages[0].slug, { title: "Edited", summary: "edited summary" });
     const exp = await collectExportPages(proj);
     const outDir = path.join(dir, "out");
     await buildOkfBundle(proj, exp, outDir);
@@ -34,6 +42,8 @@ describe("OKF re-export honesty round-trips", () => {
     const { meta } = parseFrontmatter(doc);
     expect(meta.type).toBe("BigQuery Table");
     expect(meta.vendorKey).toBe(7);
+    expect(meta.title).toBe("Edited");
+    expect(meta.description).toBe("edited summary");
     expect(meta["x-llmwiki"]).toBeDefined();
   });
 

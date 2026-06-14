@@ -4,7 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { ExportPage, XOkfSnapshot } from "../types.js";
+import type { ExportPage } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
 
@@ -72,23 +72,47 @@ function buildXLlmwiki(page: ExportPage): XLlmwiki {
   return x;
 }
 
-/** Reproduce an imported doc's original OKF frontmatter verbatim; refresh ONLY x-llmwiki; force a non-empty type. */
-function reconstructForeignFrontmatter(xOkf: XOkfSnapshot, x: XLlmwiki): OkfFrontmatter {
-  const of = xOkf.originalFrontmatter;
-  const type = typeof of.type === "string" && of.type.trim() ? of.type : (xOkf.type ?? "concept");
-  return { ...of, type, "x-llmwiki": x } as unknown as OkfFrontmatter;
+// Keys derived fresh from the CURRENT page (or llmwiki-owned), so they are stripped from
+// the captured foreign snapshot before its unknown producer keys are carried through. Note
+// `okfPath` lives on the x-okf block, not here; re-export deliberately omits x-okf entirely.
+const RECONSTRUCT_STRIP = ["type", "title", "description", "tags", "timestamp", "x-llmwiki", "x-okf"];
+
+/** Overlay the OKF standard fields from the CURRENT page so local edits are always reflected. */
+function applyStandardFields(fm: Record<string, unknown>, page: ExportPage): void {
+  if (page.title) fm.title = page.title;
+  if (page.summary) fm.description = page.summary;
+  if (page.tags?.length) fm.tags = page.tags;
+  if (page.updatedAt) fm.timestamp = page.updatedAt;
+}
+
+/**
+ * Re-export an imported page: keep the raw foreign `type` and any unknown producer
+ * keys from the captured snapshot, but derive the OKF standard fields (title,
+ * description, tags, timestamp) from the CURRENT page so local edits are reflected,
+ * and refresh x-llmwiki. (Preserve foreign keys, not stale standard frontmatter.)
+ *
+ * Re-export places every doc at `<pageDirectory>/<slug>.md`: the llmwiki slug is the
+ * identity the OKF link rewriter + index TOC understand. The original bundle path is
+ * preserved durably under `x-okf.okfPath` for diagnosis; faithful reconstruction of
+ * nested original paths is intentionally deferred (it needs a non-slug link/index model).
+ */
+function reconstructForeignFrontmatter(page: ExportPage, x: XLlmwiki): OkfFrontmatter {
+  const of = page.xOkf!.originalFrontmatter;
+  const rawType = typeof of.type === "string" && of.type.trim() ? of.type : (page.xOkf!.type ?? "concept");
+  const extras: Record<string, unknown> = { ...of };
+  for (const k of RECONSTRUCT_STRIP) delete extras[k];
+  const fm: Record<string, unknown> = { ...extras, type: rawType, "x-llmwiki": x };
+  applyStandardFields(fm, page);
+  return fm as unknown as OkfFrontmatter;
 }
 
 /** ExportPage -> OKF frontmatter. `type` is always non-empty (defaults to "concept"). */
 export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
   const x = buildXLlmwiki(page);
-  if (page.xOkf) return reconstructForeignFrontmatter(page.xOkf, x);
-  const fm: OkfFrontmatter = { type: page.kind ?? "concept", "x-llmwiki": x };
-  if (page.title) fm.title = page.title;
-  if (page.summary) fm.description = page.summary;
-  if (page.tags?.length) fm.tags = page.tags;
-  if (page.updatedAt) fm.timestamp = page.updatedAt;
-  return fm;
+  if (page.xOkf) return reconstructForeignFrontmatter(page, x);
+  const fm: Record<string, unknown> = { type: page.kind ?? "concept", "x-llmwiki": x };
+  applyStandardFields(fm, page);
+  return fm as unknown as OkfFrontmatter;
 }
 
 const WIKILINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;

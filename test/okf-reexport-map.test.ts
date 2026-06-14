@@ -28,6 +28,20 @@ describe("mapPageToOkfFrontmatter reconstructs foreign frontmatter", () => {
     expect(fm["x-llmwiki"].pageDirectory).toBe("concepts");
   });
 
+  it("derives standard fields from the CURRENT page, preserving only foreign type + keys", () => {
+    const fm = mapPageToOkfFrontmatter(page({
+      title: "NewTitle", summary: "new",
+      xOkf: {
+        type: "BigQuery Table",
+        originalFrontmatter: { type: "BigQuery Table", title: "OldTitle", description: "old", vendorKey: 7 },
+      },
+    }));
+    expect(fm.type).toBe("BigQuery Table");
+    expect((fm as Record<string, unknown>).vendorKey).toBe(7);
+    expect(fm.title).toBe("NewTitle");
+    expect(fm.description).toBe("new");
+  });
+
   it("falls through to the native path when xOkf is absent", () => {
     expect(mapPageToOkfFrontmatter(page({ kind: undefined })).type).toBe("concept");
   });
