@@ -37,6 +37,27 @@ export function safeRefName(file: string): string {
   return `${stem}-${hash}${ext}`;
 }
 
+/**
+ * Optional x-llmwiki fields, each paired with how to read its value off a page.
+ * Table-driven so {@link buildXLlmwiki} stays a single flat copy loop (no branch
+ * per field) — a non-empty value is copied, everything else is dropped.
+ */
+const OPTIONAL_XLLMWIKI_FIELDS: ReadonlyArray<readonly [keyof XLlmwiki, (p: ExportPage) => unknown]> = [
+  ["sources", (p) => p.sources],
+  ["confidence", (p) => p.advisoryConfidence],
+  ["provenanceState", (p) => p.provenanceState],
+  ["contradictedBy", (p) => p.contradictedBy],
+  ["freshnessStatus", (p) => p.freshnessStatus],
+  ["aliases", (p) => p.aliases],
+  ["citations", (p) => p.citations],
+];
+
+/** True for values worth copying onto x-llmwiki: defined, and non-empty when array. */
+function isPresent(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  return Array.isArray(value) ? value.length > 0 : true;
+}
+
 /** Build the refreshed x-llmwiki provenance block for a page (contentHash recomputed from the current body). */
 function buildXLlmwiki(page: ExportPage): XLlmwiki {
   const x: XLlmwiki = {
@@ -44,13 +65,10 @@ function buildXLlmwiki(page: ExportPage): XLlmwiki {
     contentHash: hashCanonicalBody(page.body),
     pageDirectory: page.pageDirectory,
   };
-  if (page.sources?.length) x.sources = page.sources;
-  if (page.advisoryConfidence !== undefined) x.confidence = page.advisoryConfidence;
-  if (page.provenanceState) x.provenanceState = page.provenanceState;
-  if (page.contradictedBy?.length) x.contradictedBy = page.contradictedBy;
-  if (page.freshnessStatus) x.freshnessStatus = page.freshnessStatus;
-  if (page.aliases?.length) x.aliases = page.aliases;
-  if (page.citations?.length) x.citations = page.citations;
+  for (const [field, read] of OPTIONAL_XLLMWIKI_FIELDS) {
+    const value = read(page);
+    if (isPresent(value)) (x as unknown as Record<string, unknown>)[field] = value;
+  }
   return x;
 }
 
