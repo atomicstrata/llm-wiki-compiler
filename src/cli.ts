@@ -24,6 +24,7 @@ import evalCommand, {
   evalJudgementsCommand,
 } from "./commands/eval.js";
 import exportCommand from "./commands/export.js";
+import importCommand from "./commands/import.js";
 import { schemaInitCommand, schemaShowCommand } from "./commands/schema.js";
 import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
@@ -339,6 +340,20 @@ program
   .action(async (options: { target?: string; source?: string; projectId?: string; out?: string }) => {
     try {
       await exportCommand(process.cwd(), options);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("import")
+  .description("Import an OKF bundle as review candidates (default) or live pages (--trusted)")
+  .requiredOption("--okf <dir>", "Path to the OKF bundle directory to import")
+  .option("--trusted", "Write mapped pages directly into wiki/ instead of staging for review")
+  .action(async (options: { okf: string; trusted?: boolean }) => {
+    try {
+      await importCommand(process.cwd(), options);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
