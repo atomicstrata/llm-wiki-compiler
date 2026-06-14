@@ -4,7 +4,7 @@
  */
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { ExportPage } from "../types.js";
+import type { ExportPage, XOkfSnapshot } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
 
@@ -37,8 +37,8 @@ export function safeRefName(file: string): string {
   return `${stem}-${hash}${ext}`;
 }
 
-/** ExportPage -> OKF frontmatter. `type` is always non-empty (defaults to "concept"). */
-export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
+/** Build the refreshed x-llmwiki provenance block for a page (contentHash recomputed from the current body). */
+function buildXLlmwiki(page: ExportPage): XLlmwiki {
   const x: XLlmwiki = {
     schemaVersion: "0.1",
     contentHash: hashCanonicalBody(page.body),
@@ -51,7 +51,20 @@ export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
   if (page.freshnessStatus) x.freshnessStatus = page.freshnessStatus;
   if (page.aliases?.length) x.aliases = page.aliases;
   if (page.citations?.length) x.citations = page.citations;
+  return x;
+}
 
+/** Reproduce an imported doc's original OKF frontmatter verbatim; refresh ONLY x-llmwiki; force a non-empty type. */
+function reconstructForeignFrontmatter(xOkf: XOkfSnapshot, x: XLlmwiki): OkfFrontmatter {
+  const of = xOkf.originalFrontmatter;
+  const type = typeof of.type === "string" && of.type.trim() ? of.type : (xOkf.type ?? "concept");
+  return { ...of, type, "x-llmwiki": x } as unknown as OkfFrontmatter;
+}
+
+/** ExportPage -> OKF frontmatter. `type` is always non-empty (defaults to "concept"). */
+export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
+  const x = buildXLlmwiki(page);
+  if (page.xOkf) return reconstructForeignFrontmatter(page.xOkf, x);
   const fm: OkfFrontmatter = { type: page.kind ?? "concept", "x-llmwiki": x };
   if (page.title) fm.title = page.title;
   if (page.summary) fm.description = page.summary;
