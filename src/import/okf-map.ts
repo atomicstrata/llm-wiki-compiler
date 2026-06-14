@@ -71,6 +71,9 @@ function baseFields(meta: Record<string, unknown>, ctx: OkfMapContext, slug: str
       `okf:${ctx.bundleId}`,
     ])),
     kind: KNOWN_KINDS.has(meta.type as string) ? (meta.type as PageKind) : "concept",
+    // Lossy across an OKF round-trip: `createdAt` is reset to now (OKF carries only
+    // `timestamp`, mapped to `updatedAt`); `modelId`/`promptVersion` are llmwiki-internal
+    // lineage with no OKF representation, so they are not preserved on re-import.
     createdAt: now,
     updatedAt: typeof meta.timestamp === "string" ? meta.timestamp : now,
     provenanceState: "imported",
