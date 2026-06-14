@@ -60,4 +60,12 @@ describe("buildOkfBundle", () => {
     const out = path.join(root, "bundle");
     await expect(buildOkfBundle(root, [page({ slug: "../escape" })], out)).rejects.toThrow();
   });
+
+  it("rejects a page whose pageDirectory escapes the bundle", async () => {
+    const out = path.join(root, "bundle");
+    await expect(
+      buildOkfBundle(root, [page({ pageDirectory: "../../evil" as ExportPage["pageDirectory"] })], out),
+    ).rejects.toThrow();
+    await expect(access(path.join(root, "..", "evil"))).rejects.toThrow();
+  });
 });
