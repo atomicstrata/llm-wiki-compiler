@@ -38,7 +38,6 @@ export async function confinedInside(realRoot: string, rel: string): Promise<str
 /** Read + parse an OKF bundle. Returns concept docs only (reserved + invalid skipped). */
 export async function readOkfBundle(
   bundleDir: string,
-  _cwdRoot: string,
   overrides: Partial<OkfImportLimits> = {},
 ): Promise<RawOkfDoc[]> {
   const limits = { ...DEFAULT_OKF_LIMITS, ...overrides };

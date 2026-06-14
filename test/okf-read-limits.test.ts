@@ -19,7 +19,7 @@ async function bundle(): Promise<string> {
 describe("readOkfBundle", () => {
   it("returns non-reserved docs, skipping index.md/log.md", async () => {
     const b = await bundle();
-    const docs = await readOkfBundle(b, ctx.dir);
+    const docs = await readOkfBundle(b);
     expect(docs.map((d) => d.relPath)).toEqual(["concepts/a.md"]);
     expect(docs[0].meta.type).toBe("concept");
   });
@@ -28,12 +28,12 @@ describe("readOkfBundle", () => {
     const outside = path.join(ctx.dir, "secret.md");
     await writeFile(outside, "---\ntype: concept\ntitle: S\n---\n\nx\n");
     await symlink(outside, path.join(b, "concepts", "link.md"));
-    const docs = await readOkfBundle(b, ctx.dir);
+    const docs = await readOkfBundle(b);
     expect(docs.map((d) => d.relPath)).toEqual(["concepts/a.md"]);
   });
   it("rejects a bundle exceeding the file cap", async () => {
     const b = await bundle();
     for (let i = 0; i < 5; i++) await writeFile(path.join(b, "concepts", `f${i}.md`), "---\ntype: concept\ntitle: F\n---\n\nx\n");
-    await expect(readOkfBundle(b, ctx.dir, { maxFiles: 3 })).rejects.toThrow(/file/i);
+    await expect(readOkfBundle(b, { maxFiles: 3 })).rejects.toThrow(/file/i);
   });
 });

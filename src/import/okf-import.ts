@@ -32,7 +32,7 @@ export async function importOkfBundle(
   root: string,
   overrides: Partial<OkfImportLimits> = {},
 ): Promise<{ pages: MappedOkfPage[]; skipped: SkippedOkfPage[] }> {
-  const docs = await readOkfBundle(bundleDir, root, overrides);
+  const docs = await readOkfBundle(bundleDir, overrides);
   const ctx = { bundleId: bundleIdFor(bundleDir), titleOf: titleResolver(docs) };
   const mapped = docs.map((d) => okfDocToPage(d, ctx));
   const { kept, skipped } = await filterCollisions(root, mapped);
