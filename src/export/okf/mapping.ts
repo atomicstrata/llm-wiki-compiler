@@ -54,6 +54,8 @@ export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
 const WIKILINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 const OKF_LINK = /\[([^\]]+)\]\(\/(concepts|queries)\/([^)]+?)\.md\)/g;
 const FENCE = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g; // capturing → fenced blocks at odd split indices
+// Only fenced blocks are protected; single-backtick inline code (e.g. `[[x]]`)
+// is NOT — a wikilink inside inline code will still be rewritten. Acceptable for v0.1.
 
 /** Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links, SKIPPING fenced code. */
 export function wikilinksToOkf(body: string, resolve: LinkResolver): string {

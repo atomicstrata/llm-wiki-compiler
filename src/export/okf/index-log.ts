@@ -22,10 +22,23 @@ export function buildOkfIndex(pages: ExportPage[]): string {
   return `---\nokf_version: "0.1"\n---\n\n# Knowledge Bundle\n\n${sections.join("\n\n")}\n`;
 }
 
-/** OKF log.md: ISO-date headings, newest first, bold action prefix. */
+/**
+ * OKF log.md: one `## YYYY-MM-DD` heading per date (newest first) with all of
+ * that day's `* **Action** text` bullets grouped beneath it. Grouping (rather
+ * than one heading per entry) keeps a future importer from dropping entries
+ * that would otherwise sit under duplicate same-day headings.
+ */
 export function buildOkfLog(entries: OkfLogEntry[]): string {
-  const byDate = [...entries].sort((a, b) => (a.date < b.date ? 1 : -1));
-  const body = byDate.map((e) => `## ${e.date}\n\n* **${e.action}** ${e.text}`).join("\n\n");
+  const bulletsByDate = new Map<string, string[]>();
+  for (const e of entries) {
+    const bullets = bulletsByDate.get(e.date) ?? [];
+    bullets.push(`* **${e.action}** ${e.text}`);
+    bulletsByDate.set(e.date, bullets);
+  }
+  const dates = [...bulletsByDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const body = dates
+    .map((date) => `## ${date}\n\n${bulletsByDate.get(date)!.join("\n")}`)
+    .join("\n\n");
   return `# Log\n\n${body}\n`;
 }
 

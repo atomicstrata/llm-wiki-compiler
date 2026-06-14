@@ -2,7 +2,8 @@
  * Commander action for `llmwiki export [--target <name>]`.
  *
  * Transforms existing wiki content into portable export artifacts and writes
- * them into dist/exports/ (relative to the project root). Supports six formats:
+ * them into dist/exports/ (relative to the project root). Six single-file
+ * formats run by default:
  *
  *   llms-txt      — concise index per llmstxt.org spec → llms.txt
  *   llms-full-txt — full content export               → llms-full.txt
@@ -10,6 +11,11 @@
  *   json-ld       — Schema.org JSON-LD graph          → wiki.jsonld
  *   graphml       — directed link graph as XML        → wiki.graphml
  *   marp          — Marp slide deck                   → wiki.md
+ *
+ * A seventh target, OKF, is opt-in via `--target okf`: it writes a directory
+ * bundle (index + per-page docs + references + log) rather than a single file,
+ * defaulting to dist/exports/okf/ (override with `--out`). It is excluded from
+ * the default-all run so a plain `export` never emits a directory.
  *
  * No LLM calls are made — export is a pure transformation of wiki content.
  */
@@ -31,7 +37,7 @@ import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
 import { buildMarp } from "../export/marp.js";
 import { buildOkfBundle } from "../export/okf/bundle.js";
-import { EXPORT_TARGETS, MARP_SOURCES } from "../export/types.js";
+import { EXPORT_TARGETS, DEFAULT_EXPORT_TARGETS, MARP_SOURCES } from "../export/types.js";
 import type { ExportPage, ExportTarget, MarpSource } from "../export/types.js";
 
 const require = createRequire(import.meta.url);
@@ -201,10 +207,11 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
 /**
  * Resolve the list of targets to run.
  * When a specific target is given it is validated; an error is thrown for unknown values.
- * Defaults to all targets.
+ * With no target, defaults to the single-file formats only ({@link DEFAULT_EXPORT_TARGETS}) —
+ * OKF is opt-in via `--target okf` because it writes a directory bundle.
  */
 function resolveTargets(rawTarget: string | undefined): ExportTarget[] {
-  if (!rawTarget) return [...EXPORT_TARGETS];
+  if (!rawTarget) return [...DEFAULT_EXPORT_TARGETS];
 
   if (!isValidTarget(rawTarget)) {
     throw new Error(

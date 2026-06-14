@@ -30,4 +30,10 @@ describe("export --target okf", () => {
     await access(path.join(out, "index.md"));
     await access(path.join(out, "concepts", "rag.md"));
   });
+
+  it("plain export (no --target) does NOT create the okf bundle (opt-in only)", async () => {
+    const res = await runCLI(["export"], root);
+    expectCLIExit(res, 0);
+    await expect(access(path.join(root, "dist", "exports", "okf"))).rejects.toThrow();
+  });
 });

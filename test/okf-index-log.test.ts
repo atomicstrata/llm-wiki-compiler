@@ -19,6 +19,15 @@ describe("OKF index + log", () => {
     expect(log).toContain("## 2026-02-02");
     expect(log).toContain("**Export** 12 docs");
   });
+  it("groups two same-date entries under a single heading with both bullets", () => {
+    const log = buildOkfLog([
+      { date: "2026-02-02", action: "Ingest", text: "Doc A" },
+      { date: "2026-02-02", action: "Compile", text: "1 source(s)" },
+    ]);
+    expect(log.match(/## 2026-02-02/g)).toHaveLength(1);
+    expect(log).toContain("* **Ingest** Doc A");
+    expect(log).toContain("* **Compile** 1 source(s)");
+  });
   it("translates llmwiki log.md headings into OKF entries (newest first, capitalized action)", () => {
     const llmwiki = `## [2026-02-02T09:14:02Z] ingest | "Doc A"\n- detail\n\n## [2026-02-01T08:00:00Z] compile | 1 source(s)\n`;
     const log = buildOkfLog(parseLlmwikiLog(llmwiki));
