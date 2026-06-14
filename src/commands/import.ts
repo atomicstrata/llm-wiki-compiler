@@ -27,15 +27,21 @@ async function stageCandidate(root: string, page: MappedOkfPage): Promise<void> 
 }
 
 /**
- * True if a mapped page is writable; warns + returns false otherwise (skip-and-warn, both paths).
+ * A mapped page is writable iff it has a non-empty slug and passes page validation.
  *
- * `validateWikiPage` only confirms a non-empty title + body — it is NOT an origin
- * check. Imported-origin attribution is guaranteed upstream by the mapper, which
- * always stamps `provenanceState: imported` and an `okf:<bundle>` source token.
+ * The empty-slug guard prevents writing `concepts/.md` for a doc whose path slugifies
+ * to "" (a real title alone passes `validateWikiPage`, which only checks title + body).
+ * `validateWikiPage` is NOT an origin check — imported-origin attribution is guaranteed
+ * upstream by the mapper, which stamps `provenanceState: imported` + an `okf:` source token.
  */
+export function isWritable(page: MappedOkfPage): boolean {
+  return page.slug.length > 0 && validateWikiPage(page.body);
+}
+
+/** True if writable; warns + returns false otherwise (skip-and-warn, used by both write paths). */
 function validForWrite(page: MappedOkfPage): boolean {
-  if (validateWikiPage(page.body)) return true;
-  output.status("!", output.warn(`OKF import: ${page.okfPath} failed page validation; skipped.`));
+  if (isWritable(page)) return true;
+  output.status("!", output.warn(`OKF import: ${page.okfPath} (slug "${page.slug}") failed validation; skipped.`));
   return false;
 }
 
@@ -53,10 +59,10 @@ async function writeTrusted(root: string, pages: MappedOkfPage[]): Promise<void>
 /** Print the per-page breakdown of a dry-run: what would be written, what's invalid, what collides. */
 function reportPreview(pages: MappedOkfPage[], skipped: SkippedOkfPage[]): void {
   for (const p of pages) {
-    if (validateWikiPage(p.body)) {
+    if (isWritable(p)) {
       output.status("+", `${p.slug} (${p.targetDirectory}) ← ${p.okfPath}`);
     } else {
-      output.status("!", output.warn(`invalid (empty/no title): ${p.okfPath}`));
+      output.status("!", output.warn(`invalid (empty slug/title/body): ${p.okfPath}`));
     }
   }
   for (const s of skipped) output.status("!", output.warn(`skip ${s.okfPath} — ${s.reason}`));
@@ -65,7 +71,7 @@ function reportPreview(pages: MappedOkfPage[], skipped: SkippedOkfPage[]): void 
 /** Report what an import WOULD stage/write and what it would skip, without mutating anything (read-only, no lock). */
 async function previewImport(root: string, okf: string): Promise<void> {
   const { pages, skipped } = await importOkfBundle(okf, root);
-  const writable = pages.filter((p) => validateWikiPage(p.body)).length;
+  const writable = pages.filter(isWritable).length;
   const dropped = skipped.length + (pages.length - writable);
   output.status("i", output.dim(`Dry run — would import ${writable} page(s); skip ${dropped}.`));
   reportPreview(pages, skipped);
