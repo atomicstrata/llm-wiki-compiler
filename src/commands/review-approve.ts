@@ -18,10 +18,7 @@ import {
   atomicWrite,
   validateWikiPage,
 } from "../utils/markdown.js";
-import {
-  deleteCandidate,
-  listCandidates,
-} from "../compiler/candidates.js";
+import { deleteCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
 import { resolveLinks } from "../compiler/resolver.js";
@@ -72,11 +69,10 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
  * and approval adds exactly the approved slug. This prevents a rejected sibling
  * from leaking into state when its source's first held candidate is approved.
  *
- * When a single source produced multiple candidates, we defer writing the
- * source's state until no OTHER pending candidate references that source —
- * to keep the source re-detectable until all its candidates are reviewed.
- * The source hash comes from the candidate's sourceStates snapshot so the
- * compile pipeline can later verify the source hasn't changed.
+ * Each approval immediately union-adds its own slug via addApprovedSlugToSourceState
+ * (which reads current state, appends, and deduplicates). No deferral is needed:
+ * the old "wait for last sibling" guard was a leftover from the snapshot-write model
+ * and caused earlier-approved slugs to be silently dropped.
  */
 async function persistCandidateSourceStates(
   root: string,
@@ -84,9 +80,7 @@ async function persistCandidateSourceStates(
 ): Promise<void> {
   const states = candidate.sourceStates;
   if (!states) return;
-  const otherSources = await collectOtherCandidateSources(root, candidate.id);
   for (const [sourceFile, candidateEntry] of Object.entries(states)) {
-    if (otherSources.has(sourceFile)) continue;
     await addApprovedSlugToSourceState(root, sourceFile, candidate.slug, candidateEntry.hash);
   }
 }
@@ -111,24 +105,6 @@ async function addApprovedSlugToSourceState(
     concepts: merged,
     compiledAt: new Date().toISOString(),
   });
-}
-
-/**
- * Build the set of source filenames referenced by every pending candidate
- * other than the one currently being approved. Used to defer source-state
- * persistence until the LAST candidate from a given source is reviewed.
- */
-async function collectOtherCandidateSources(
-  root: string,
-  approvingId: string,
-): Promise<Set<string>> {
-  const pending = await listCandidates(root);
-  const sources = new Set<string>();
-  for (const candidate of pending) {
-    if (candidate.id === approvingId) continue;
-    for (const source of candidate.sources) sources.add(source);
-  }
-  return sources;
 }
 
 /** Refresh interlinks, index, MOC, and embeddings after writing a candidate. */

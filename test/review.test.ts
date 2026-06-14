@@ -272,16 +272,15 @@ describe("compile --review pipeline integration", () => {
   });
 
   /**
-   * Regression test for the multi-candidate-per-source bug.
+   * Regression test for the multi-candidate-per-source scenario.
    *
-   * When a single source yields multiple concepts (and therefore multiple
-   * candidates), approving the first candidate must NOT mark the source as
-   * fully compiled — otherwise the remaining pending candidates can never
-   * be regenerated, because the next compile sees the source as unchanged.
-   * Source-state is only persisted when the LAST candidate from that source
-   * is approved.
+   * When a single source yields multiple candidates, each approval immediately
+   * union-adds its own slug to the source's state entry. A pending sibling does
+   * NOT block the write — addApprovedSlugToSourceState reads current state and
+   * appends, so earlier-approved slugs are preserved when the sibling is later
+   * approved. After all candidates are approved the followup compile is a no-op.
    */
-  it("defers source-state persistence until every candidate from a source is approved", async () => {
+  it("records each approval immediately so no slug is dropped when siblings exist", async () => {
     await writeFile(
       path.join(root.dir, "sources", "topic.md"),
       "# Topic\nA brief article covering two related concepts.",
@@ -294,7 +293,8 @@ describe("compile --review pipeline integration", () => {
 
     const [firstId, secondId] = first.candidates!;
     await reviewApproveCommand(firstId);
-    expect(await readSourceState(root.dir, "topic.md")).toBeUndefined();
+    // First approval immediately records its slug — no longer deferred.
+    expect(await readSourceState(root.dir, "topic.md")).toBeDefined();
 
     await reviewApproveCommand(secondId);
     expect(await readSourceState(root.dir, "topic.md")).toBeDefined();

@@ -194,11 +194,11 @@ describe("review reject — lock discipline", () => {
 describe("sequential approvals — source-state persistence under lock", () => {
   /**
    * Two candidates from the same source approved in sequence (simulating what
-   * concurrent approvals would serialize to under lock). The first approval
-   * must NOT persist source state while the sibling is still pending. The
-   * second approval must persist it.
+   * concurrent approvals would serialize to under lock). Each approval immediately
+   * union-adds its own slug — no deferral until last sibling. Both approvals must
+   * result in a defined source-state entry with the correct hash.
    */
-  it("persists source state only after the last sibling candidate is approved", async () => {
+  it("persists source state immediately on each approval, accumulating both slugs", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
 
     const { default: reviewApproveCommand } = await import(
@@ -216,16 +216,20 @@ describe("sequential approvals — source-state persistence under lock", () => {
     const alpha = await writeSampleCandidate(root.dir, "Alpha", "alpha", sourceStates);
     const beta = await writeSampleCandidate(root.dir, "Beta", "beta", sourceStates);
 
-    // First approval: sibling beta is still pending → source state NOT written.
+    // First approval: immediately union-adds alpha's slug to source state.
     await reviewApproveCommand(alpha.id);
     const stateAfterFirst = await readStateFile(root.dir);
-    expect(stateAfterFirst?.sources[SHARED_SOURCE]).toBeUndefined();
+    expect(stateAfterFirst?.sources[SHARED_SOURCE]).toBeDefined();
+    expect(stateAfterFirst?.sources[SHARED_SOURCE].hash).toBe("abc123");
+    expect(stateAfterFirst?.sources[SHARED_SOURCE].concepts).toContain("alpha");
 
-    // Second approval: no remaining sibling → source state IS written.
+    // Second approval: union-adds beta's slug — both alpha and beta are now recorded.
     await reviewApproveCommand(beta.id);
     const stateAfterSecond = await readStateFile(root.dir);
     expect(stateAfterSecond?.sources[SHARED_SOURCE]).toBeDefined();
     expect(stateAfterSecond?.sources[SHARED_SOURCE].hash).toBe("abc123");
+    expect(stateAfterSecond?.sources[SHARED_SOURCE].concepts).toContain("alpha");
+    expect(stateAfterSecond?.sources[SHARED_SOURCE].concepts).toContain("beta");
   });
 });
 

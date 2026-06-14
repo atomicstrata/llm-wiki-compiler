@@ -1,7 +1,7 @@
 /**
  * Source-state integrity tests for the review-policy feature.
  *
- * Covers two data-integrity bugs in the live-concept recording model:
+ * Covers three data-integrity scenarios in the live-concept recording model:
  *
  *   H1 (merge integrity): a source feeding a held page AND a live merged page
  *   must be recorded in state with the live concept slug so that a later change
@@ -9,6 +9,11 @@
  *
  *   #4 (reject leakage): approving one candidate from a source that had multiple
  *   held concepts must add only the approved slug to state, never the rejected sibling.
+ *
+ *   #5 (sibling drop): when a source produces two held candidates and both are
+ *   approved (in either order), both slugs must appear in state. The old deferral
+ *   model dropped the first-approved slug because addApprovedSlugToSourceState was
+ *   skipped while any sibling was still pending.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -237,5 +242,84 @@ describe("#4 — reject leakage: approving alpha does not record rejected beta",
     expect((second.candidates ?? []).length).toBe(0);
     const afterCandidates = await listCandidates(rootDir);
     expect(afterCandidates.some((c) => c.slug === "beta")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #5: sibling drop — both held candidates approved, both slugs must land in state
+// ---------------------------------------------------------------------------
+
+describe("#5 — sibling drop: approving two siblings from one source records both slugs", () => {
+  let rootDir = "";
+
+  beforeEach(async () => {
+    setupTestEnv();
+    rootDir = await makeProjectRoot("sibling-drop");
+    await writeFile(
+      path.join(rootDir, "sources", "topic.md"),
+      "# Topic\n\nAlpha and Beta content.",
+      "utf-8",
+    );
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    teardownTestEnv();
+    await rm(rootDir, { recursive: true, force: true });
+  });
+
+  /** Stub extraction: topic.md produces alpha + beta, both low-confidence (held). */
+  function stubBothHeld(): void {
+    const extraction = JSON.stringify({
+      concepts: [
+        { concept: "Alpha", summary: "Alpha summary.", is_new: true, confidence: 0.2 },
+        { concept: "Beta", summary: "Beta summary.", is_new: true, confidence: 0.3 },
+      ],
+    });
+    vi.spyOn(AnthropicProvider.prototype, "toolCall").mockResolvedValue(extraction);
+    vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue("Page body. ^[topic.md]");
+  }
+
+  /**
+   * Compile topic.md and return the alpha and beta candidates.
+   * Asserts both are present so callers can proceed without extra guards.
+   */
+  async function compileBothHeld(): Promise<{ alpha: { id: string }; beta: { id: string } }> {
+    await compileAndReport(rootDir);
+    const candidates = await listCandidates(rootDir);
+    const alpha = candidates.find((c) => c.slug === "alpha");
+    const beta = candidates.find((c) => c.slug === "beta");
+    expect(alpha).toBeDefined();
+    expect(beta).toBeDefined();
+    return { alpha: alpha!, beta: beta! };
+  }
+
+  /** Assert that topic.md state contains both alpha and beta slugs. */
+  async function assertBothSlugsInState(): Promise<void> {
+    const { state } = await readStateClassified(rootDir);
+    expect(state.sources["topic.md"]?.concepts).toContain("alpha");
+    expect(state.sources["topic.md"]?.concepts).toContain("beta");
+  }
+
+  it("approve alpha then beta: state contains both slugs", async () => {
+    await writeReviewConfig(rootDir, ["low-confidence"]);
+    stubBothHeld();
+    const { alpha, beta } = await compileBothHeld();
+
+    await runReviewCommand(rootDir, reviewApproveCommand, alpha.id);
+    await runReviewCommand(rootDir, reviewApproveCommand, beta.id);
+
+    await assertBothSlugsInState();
+  });
+
+  it("approve beta then alpha: state contains both slugs", async () => {
+    await writeReviewConfig(rootDir, ["low-confidence"]);
+    stubBothHeld();
+    const { alpha, beta } = await compileBothHeld();
+
+    await runReviewCommand(rootDir, reviewApproveCommand, beta.id);
+    await runReviewCommand(rootDir, reviewApproveCommand, alpha.id);
+
+    await assertBothSlugsInState();
   });
 });
