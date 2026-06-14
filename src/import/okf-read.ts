@@ -24,7 +24,13 @@ async function listMarkdown(root: string, dir: string): Promise<string[]> {
   return out;
 }
 
-async function confinedInside(realRoot: string, rel: string): Promise<string | null> {
+/**
+ * Resolve `realRoot/rel` to its real path IFF that realpath stays within `realRoot`.
+ * Returns null when the entry is missing or its realpath escapes the bundle (e.g. a
+ * symlink pointing outside). Exported so the confinement guard is unit-testable
+ * directly — `listMarkdown`'s `isFile()` filter would otherwise mask this path.
+ */
+export async function confinedInside(realRoot: string, rel: string): Promise<string | null> {
   const real = await safeRealpath(path.join(realRoot, rel));
   return real && isInsideDir(real, realRoot) ? real : null;
 }
