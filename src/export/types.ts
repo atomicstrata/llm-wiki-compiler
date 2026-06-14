@@ -26,6 +26,14 @@ import type { FreshnessStatus } from "../freshness/types.js";
  */
 export type ExportCitation = FlatCitation;
 
+/** Snapshot of an imported doc's original OKF frontmatter, captured at import. Present ONLY on imported pages; drives verbatim re-export of foreign frontmatter. */
+export interface XOkfSnapshot {
+  /** Raw OKF `type` when it wasn't a known llmwiki kind (absent for known kinds). */
+  type?: string;
+  /** Full original OKF frontmatter, verbatim. */
+  originalFrontmatter: Record<string, unknown>;
+}
+
 
 /**
  * Which wiki/ subdirectory a page lives in.
@@ -71,6 +79,8 @@ export interface ExportPage {
    * `kind` was set on the wiki page rather than fabricating a default.
    */
   kind?: PageKind;
+  /** Original OKF frontmatter snapshot when this page was imported from a foreign bundle; absent for native pages. */
+  xOkf?: XOkfSnapshot;
   /**
    * Compiler's confidence estimate at export time. Advisory only —
    * once imported into any downstream store this field is mutable and

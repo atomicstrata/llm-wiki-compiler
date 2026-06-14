@@ -25,7 +25,7 @@ import {
   sourceHashLookupFromSnapshot,
   type SourceHashLookup,
 } from "./provenance.js";
-import type { ExportPage, PageDirectory } from "./types.js";
+import type { ExportPage, PageDirectory, XOkfSnapshot } from "./types.js";
 
 export { extractWikilinkSlugs };
 
@@ -81,6 +81,18 @@ function readContradictedBy(meta: Record<string, unknown>): ContradictionRef[] |
   return refs.length > 0 ? refs : undefined;
 }
 
+/** Read an imported page's `x-okf` snapshot (original OKF frontmatter + raw type), if present and well-formed. */
+function readXOkf(meta: Record<string, unknown>): XOkfSnapshot | undefined {
+  const x = meta["x-okf"];
+  if (!x || typeof x !== "object") return undefined;
+  const of = (x as Record<string, unknown>).originalFrontmatter;
+  if (!of || typeof of !== "object") return undefined;
+  const snap: XOkfSnapshot = { originalFrontmatter: of as Record<string, unknown> };
+  const t = (x as Record<string, unknown>).type;
+  if (typeof t === "string") snap.type = t;
+  return snap;
+}
+
 /** Validate and return PageKind from frontmatter, or undefined. */
 function readPageKind(meta: Record<string, unknown>): PageKind | undefined {
   const value = meta.kind;
@@ -122,6 +134,7 @@ function toExportPage(
     links: extractWikilinkSlugs(raw.body),
     body: raw.body,
     kind: readPageKind(meta),
+    ...(readXOkf(meta) ? { xOkf: readXOkf(meta)! } : {}),
     advisoryConfidence: readAdvisoryConfidence(meta),
     provenanceState: readProvenanceState(meta),
     contradictedBy: readContradictedBy(meta),
