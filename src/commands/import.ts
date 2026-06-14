@@ -45,15 +45,22 @@ function validForWrite(page: MappedOkfPage): boolean {
   return false;
 }
 
-/** Write already-validated mapped pages live (--trusted): atomic-write into the target dir, then refresh. */
+/**
+ * Write already-validated mapped pages live (--trusted): atomic-write into the target
+ * dir, then refresh. If a write throws mid-loop, the already-written subset is still
+ * refreshed (index/MOC stay consistent) before the error propagates.
+ */
 async function writeTrusted(root: string, pages: MappedOkfPage[]): Promise<void> {
   const written: string[] = [];
-  for (const page of pages) {
-    const dir = page.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
-    await atomicWrite(path.join(root, dir, `${page.slug}.md`), page.body);
-    written.push(page.slug);
+  try {
+    for (const page of pages) {
+      const dir = page.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
+      await atomicWrite(path.join(root, dir, `${page.slug}.md`), page.body);
+      written.push(page.slug);
+    }
+  } finally {
+    if (written.length) await refreshAfterImport(root, written);
   }
-  if (written.length) await refreshAfterImport(root, written);
 }
 
 /** Print the per-page breakdown of a dry-run: what would be written, what's invalid, what collides. */
