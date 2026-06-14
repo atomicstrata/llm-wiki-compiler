@@ -186,6 +186,13 @@ export interface ReviewCandidate {
   reviewMode: ReviewMode;
   /** Structured reasons the candidate is awaiting review. */
   heldReasons: HeldReason[];
+  /**
+   * Wiki subdir the approved page is written to; defaults to concepts.
+   * OKF query docs set `queries` to round-trip back into the right subdir.
+   */
+  targetDirectory?: "concepts" | "queries";
+  /** Original OKF bundle-relative path, for imported candidates. */
+  okfPath?: string;
   /** Confidence parsed from the generated page frontmatter, for review display. */
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */

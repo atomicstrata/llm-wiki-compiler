@@ -65,6 +65,13 @@ interface CandidateDraft {
   reviewMode?: ReviewMode;
   /** Structured reasons for holding this candidate. */
   heldReasons?: HeldReason[];
+  /**
+   * Wiki subdir the approved page is written to; defaults to concepts.
+   * OKF query docs set `queries` to round-trip back into the right subdir.
+   */
+  targetDirectory?: "concepts" | "queries";
+  /** Original OKF bundle-relative path, for imported candidates. */
+  okfPath?: string;
   /** Confidence parsed from the generated page frontmatter, for display. */
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */
@@ -135,6 +142,8 @@ export async function writeCandidate(
     ...(draft.provenanceViolations ? { provenanceViolations: draft.provenanceViolations } : {}),
     ...(draft.confidence !== undefined ? { confidence: draft.confidence } : {}),
     ...(draft.contradicted !== undefined ? { contradicted: draft.contradicted } : {}),
+    ...(draft.targetDirectory ? { targetDirectory: draft.targetDirectory } : {}),
+    ...(draft.okfPath ? { okfPath: draft.okfPath } : {}),
   };
 
   await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
