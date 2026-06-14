@@ -36,4 +36,11 @@ describe("readOkfBundle", () => {
     for (let i = 0; i < 5; i++) await writeFile(path.join(b, "concepts", `f${i}.md`), "---\ntype: concept\ntitle: F\n---\n\nx\n");
     await expect(readOkfBundle(b, { maxFiles: 3 })).rejects.toThrow(/file/i);
   });
+  it("rejects (not truncates) a doc exceeding the per-doc byte cap", async () => {
+    const dir = await make("okf-bytes-");
+    const b = path.join(dir, "bundle"); await mkdir(b, { recursive: true });
+    const big = "---\ntype: concept\ntitle: Big\n---\n\n" + "x".repeat(5000) + "\n";
+    await writeFile(path.join(b, "big.md"), big);
+    await expect(readOkfBundle(b, { maxDocBytes: 100 })).rejects.toThrow(/size|limit/i);
+  });
 });
