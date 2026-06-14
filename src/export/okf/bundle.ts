@@ -9,14 +9,13 @@
 import { mkdir, copyFile, rm, readFile } from "fs/promises";
 import path from "path";
 import { atomicWrite } from "../../utils/markdown.js";
+import * as output from "../../utils/output.js";
 import { safeRealpath, isInsideDir } from "../../utils/path-confine.js";
-import { SOURCES_DIR } from "../../utils/constants.js";
 import type { ExportPage } from "../types.js";
 import type { LinkResolver } from "./types.js";
-import { safeRefName } from "./mapping.js";
 import { renderOkfDoc } from "./render-doc.js";
 import { buildOkfIndex, buildOkfLog, parseLlmwikiLog } from "./index-log.js";
-import { collectReferenceFiles } from "./references.js";
+import { collectReferenceFiles, resolveReferences, type ResolvedReference } from "./references.js";
 
 /** A resolver over the export's own pages (title + dir per slug). */
 function makeResolver(pages: ExportPage[]): LinkResolver {
@@ -52,22 +51,30 @@ async function buildLog(root: string, pageCount: number): Promise<string> {
   return buildOkfLog(parsed.length ? parsed : fallback);
 }
 
-/** Write all cited source files into references/, path-confined on both ends. */
-async function writeReferences(root: string, pages: ExportPage[], realOut: string): Promise<string[]> {
+/** Copy the already-resolved references into references/, confined to the bundle. */
+async function copyResolvedReferences(
+  refs: Map<string, ResolvedReference>,
+  realOut: string,
+): Promise<string[]> {
   const written: string[] = [];
-  // Canonicalize sources dir so isInsideDir works correctly on macOS (/private/var/... vs /var/...).
-  const sourcesDir = (await safeRealpath(path.join(root, SOURCES_DIR))) ?? path.join(root, SOURCES_DIR);
-  for (const file of collectReferenceFiles(pages)) {
-    const src = path.join(sourcesDir, file);
-    const realSrc = await safeRealpath(src);
-    if (!realSrc || !isInsideDir(realSrc, sourcesDir)) continue;
-    const dest = path.join(realOut, "references", safeRefName(file));
+  for (const { srcAbs, destName } of refs.values()) {
+    const dest = path.join(realOut, "references", destName);
     if (!isInsideDir(path.normalize(dest), realOut)) continue;
     await mkdir(path.dirname(dest), { recursive: true });
-    await copyFile(realSrc, dest);
+    await copyFile(srcAbs, dest);
     written.push(dest);
   }
   return written;
+}
+
+/** Surface cited sources that were not bundled (missing or outside sources/). */
+function reportSkippedReferences(pages: ExportPage[], refs: Map<string, ResolvedReference>): void {
+  const skipped = collectReferenceFiles(pages).filter((f) => !refs.has(f));
+  if (skipped.length === 0) return;
+  output.status(
+    "!",
+    output.warn(`OKF export: ${skipped.length} cited source(s) not bundled (missing or outside sources/)`),
+  );
 }
 
 /**
@@ -83,6 +90,9 @@ export async function buildOkfBundle(root: string, pages: ExportPage[], out: str
   const realOut = (await safeRealpath(out)) ?? path.normalize(out);
   await clearOkfManaged(realOut);
   const resolve = makeResolver(pages);
+  // Resolve references FIRST so citation links are emitted only for files actually copied.
+  const refs = await resolveReferences(root, pages);
+  const refName = (file: string): string | null => refs.get(file)?.destName ?? null;
   const written: string[] = [];
 
   written.push(await writeConfined(realOut, "index.md", buildOkfIndex(pages)));
@@ -92,9 +102,10 @@ export async function buildOkfBundle(root: string, pages: ExportPage[], out: str
     const pageDir = path.join(realOut, p.pageDirectory);
     // Reject slugs with traversal components (e.g. "../escape") — the doc must stay in its pageDirectory.
     if (!isInsideDir(docAbs, pageDir)) throw new Error(`OKF page slug escapes its directory: ${p.slug}`);
-    written.push(await writeConfined(realOut, docRel, renderOkfDoc(p, resolve)));
+    written.push(await writeConfined(realOut, docRel, renderOkfDoc(p, resolve, refName)));
   }
-  written.push(...(await writeReferences(root, pages, realOut)));
+  written.push(...(await copyResolvedReferences(refs, realOut)));
   written.push(await writeConfined(realOut, "log.md", await buildLog(root, pages.length)));
+  reportSkippedReferences(pages, refs);
   return written;
 }

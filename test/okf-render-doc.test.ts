@@ -13,10 +13,11 @@ const page = {
   citations: [{ file: "a.md", start: 1, end: 3 }], contentHash: "h", sourceHashes: [],
 } as ExportPage;
 const resolve = (s: string) => (s === "other" ? { dir: "concepts" as const, title: "Other" } : null);
+const refName = (f: string) => (f === "a.md" ? "a-deadbeef.md" : null);
 
 describe("renderOkfDoc", () => {
   it("emits conformant frontmatter (non-empty type) + rewritten links + verbatim ^[..] + # Citations + canonical contentHash", () => {
-    const md = renderOkfDoc(page, resolve);
+    const md = renderOkfDoc(page, resolve, refName);
     const { meta, body } = parseFrontmatter(md);
     expect(meta.type).toBe("concept");
     expect(body).toContain("[Other](/concepts/other.md)");

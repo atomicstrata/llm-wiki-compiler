@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { collectReferenceFiles } from "../src/export/okf/references.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import { mkdtemp, mkdir, writeFile } from "fs/promises";
+import { tmpdir } from "os";
+import path from "path";
+import { collectReferenceFiles, resolveReferences } from "../src/export/okf/references.js";
+import { safeRefName } from "../src/export/okf/mapping.js";
 import type { ExportPage } from "../src/export/types.js";
 
 const pages = [
@@ -13,5 +17,23 @@ describe("collectReferenceFiles", () => {
   });
   it("ignores pages without citations", () => {
     expect(collectReferenceFiles([{} as ExportPage])).toEqual([]);
+  });
+});
+
+describe("resolveReferences", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), "okf-refs-"));
+    await mkdir(path.join(root, "sources"), { recursive: true });
+    await writeFile(path.join(root, "sources", "a.md"), "A", "utf-8");
+  });
+
+  it("keeps only cited files that exist inside sources/, mapped to safe dest names", async () => {
+    const refs = await resolveReferences(root, [
+      { citations: [{ file: "a.md" }, { file: "missing.md" }] },
+    ] as ExportPage[]);
+    expect([...refs.keys()]).toEqual(["a.md"]);
+    expect(refs.get("a.md")!.destName).toBe(safeRefName("a.md"));
+    expect(refs.get("a.md")!.srcAbs).toMatch(/sources\/.*a\.md$/);
   });
 });

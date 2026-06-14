@@ -3,6 +3,7 @@
  * later import plan): canonical body + hashing, frontmatter mapping, link rewrite.
  */
 import { createHash } from "node:crypto";
+import path from "node:path";
 import type { ExportPage } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
@@ -20,12 +21,20 @@ function hashCanonicalBody(body: string): string {
 }
 
 /**
- * Encode an arbitrary cited source filename into a SAFE, flat `references/` filename:
- * strips leading traversal/separators and flattens path separators. The SAME function
- * MUST be used for both the citation link and the copied file so they match.
+ * Encode an arbitrary cited source filename into a SAFE, flat, INJECTIVE
+ * `references/` filename: strips leading traversal/separators and flattens path
+ * separators for a readable base, then appends a short stable hash of the
+ * ORIGINAL path before the extension. The hash makes distinct sources that would
+ * otherwise collapse to the same flat base (e.g. `a/b.md` vs `a__b.md`) map to
+ * distinct names, so distinct sources can never overwrite one another. The SAME
+ * function MUST be used for both the citation link and the copied file so they match.
  */
 export function safeRefName(file: string): string {
-  return file.replace(/^[./\\]+/, "").replace(/[/\\]+/g, "__").replace(/[^\w.\-]+/g, "_");
+  const base = file.replace(/^[./\\]+/, "").replace(/[/\\]+/g, "__").replace(/[^\w.\-]+/g, "_");
+  const hash = createHash("sha256").update(file).digest("hex").slice(0, 8);
+  const ext = path.extname(base);
+  const stem = ext ? base.slice(0, -ext.length) : base;
+  return `${stem}-${hash}${ext}`;
 }
 
 /** ExportPage -> OKF frontmatter. `type` is always non-empty (defaults to "concept"). */

@@ -11,6 +11,7 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, access } from "fs/promise
 import { tmpdir } from "os";
 import path from "path";
 import { buildOkfBundle } from "../src/export/okf/bundle.js";
+import { safeRefName } from "../src/export/okf/mapping.js";
 import type { ExportPage } from "../src/export/types.js";
 
 let root: string;
@@ -36,7 +37,7 @@ describe("buildOkfBundle", () => {
     expect(written.some((p) => p.endsWith("index.md"))).toBe(true);
     const doc = await readFile(path.join(out, "concepts", "rag.md"), "utf-8");
     expect(doc).toMatch(/type:\s*concept/);
-    expect(await readdir(path.join(out, "references"))).toContain("a.md");
+    expect(await readdir(path.join(out, "references"))).toContain(safeRefName("a.md"));
   });
 
   it("clears stale files from a prior export (removed page is gone)", async () => {
@@ -53,7 +54,32 @@ describe("buildOkfBundle", () => {
     // A normal citation; the safe-name behavior for odd filenames is unit-tested in Group 1.
     await buildOkfBundle(root, [page()], out);
     const refs = await readdir(path.join(out, "references"));
-    expect(refs).toContain("a.md");
+    expect(refs).toContain(safeRefName("a.md"));
+  });
+
+  it("emits no /references/ link and copies nothing for a cited source that does not exist", async () => {
+    const out = path.join(root, "bundle");
+    await buildOkfBundle(root, [page({ citations: [{ file: "ghost.md", start: 1, end: 2 }] })], out);
+    const doc = await readFile(path.join(out, "concepts", "rag.md"), "utf-8");
+    expect(doc).not.toContain("/references/");
+    expect(doc).toContain("# Citations");
+    const refs = await readdir(path.join(out, "references")).catch(() => [] as string[]);
+    expect(refs.some((r) => r.startsWith("ghost"))).toBe(false);
+  });
+
+  it("bundles both sources whose names collide under the old flat scheme, with distinct resolving links", async () => {
+    await mkdir(path.join(root, "sources", "a"), { recursive: true });
+    await writeFile(path.join(root, "sources", "a", "b.md"), "nested-bytes", "utf-8");
+    await writeFile(path.join(root, "sources", "a__b.md"), "flat-bytes", "utf-8");
+    const out = path.join(root, "bundle");
+    const p = page({ citations: [{ file: "a/b.md" }, { file: "a__b.md" }] });
+    await buildOkfBundle(root, [p], out);
+    const doc = await readFile(path.join(out, "concepts", "rag.md"), "utf-8");
+    const links = [...doc.matchAll(/\(\/references\/([^)]+)\)/g)].map((m) => m[1]);
+    expect(new Set(links).size).toBe(2);
+    const refs = await readdir(path.join(out, "references"));
+    expect(refs.length).toBe(2);
+    for (const link of links) expect(refs).toContain(link);
   });
 
   it("does not write a page outside the bundle dir", async () => {

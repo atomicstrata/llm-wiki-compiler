@@ -16,13 +16,19 @@ import { renderCitationsSection } from "./citations.js";
  *
  * @param page - The fully-resolved wiki page to render.
  * @param resolve - Link resolver that maps a slug to its OKF directory + title.
+ * @param refName - Lookup from a cited filename to its bundled reference name, or
+ *   null when the file was not copied (so the citation is rendered without a link).
  * @returns Fenced YAML frontmatter + rewritten body + derived Citations section.
  */
-export function renderOkfDoc(page: ExportPage, resolve: LinkResolver): string {
+export function renderOkfDoc(
+  page: ExportPage,
+  resolve: LinkResolver,
+  refName: (file: string) => string | null,
+): string {
   const fm = mapPageToOkfFrontmatter(page);
   const canonical = canonicalBody(page.body);
   const rewritten = wikilinksToOkf(canonical, resolve);
-  const citations = renderCitationsSection(page.citations ?? []);
+  const citations = renderCitationsSection(page.citations ?? [], refName);
   // buildFrontmatter already returns fenced YAML (---\n...\n---).
   const frontmatter = buildFrontmatter(fm as unknown as Record<string, unknown>);
   return `${frontmatter}\n${rewritten}${citations}`;
