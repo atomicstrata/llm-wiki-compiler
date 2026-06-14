@@ -32,4 +32,13 @@ export class CopilotProvider extends OpenAIProvider {
       "    export OPENAI_API_KEY=sk-...",
     );
   }
+
+  override async embedBatch(_texts: string[]): Promise<number[][]> {
+    throw new Error(
+      "GitHub Copilot does not support embeddings.\n" +
+      "  For semantic search (llmwiki query), switch to the OpenAI provider:\n" +
+      "    export LLMWIKI_PROVIDER=openai\n" +
+      "    export OPENAI_API_KEY=sk-...",
+    );
+  }
 }

@@ -96,6 +96,8 @@ describe("CLI smoke tests", () => {
           ...process.env,
           ANTHROPIC_API_KEY: "",
           ANTHROPIC_AUTH_TOKEN: "",
+          OPENAI_API_KEY: "",
+          LLMWIKI_PROVIDER: "anthropic",
           LLMWIKI_CLAUDE_SETTINGS_PATH: workspace.settingsPath,
         },
       });
@@ -118,6 +120,8 @@ describe("CLI smoke tests", () => {
           ...process.env,
           ANTHROPIC_API_KEY: "",
           ANTHROPIC_AUTH_TOKEN: "",
+          OPENAI_API_KEY: "",
+          LLMWIKI_PROVIDER: "anthropic",
           LLMWIKI_CLAUDE_SETTINGS_PATH: workspace.settingsPath,
         },
       });

@@ -171,6 +171,28 @@ export class OpenAIProvider implements LLMProvider {
     return vector;
   }
 
+  /** Produce embedding vectors for multiple texts via a single OpenAI API call. */
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+
+    const response = await this.embeddingsClient.embeddings.create({
+      model: this.embeddingModel(),
+      input: texts,
+    });
+
+    const data = response.data;
+    if (!Array.isArray(data)) {
+      throw new Error("OpenAI embeddings response did not include a data array.");
+    }
+    return data.map((item, i) => {
+      const vector = item.embedding;
+      if (!Array.isArray(vector)) {
+        throw new Error(`OpenAI embeddings response item ${i} did not include a vector.`);
+      }
+      return vector;
+    });
+  }
+
   /** Default embedding model for this provider. Subclasses may override. */
   protected embeddingModel(): string {
     return this.configuredEmbeddingModel ?? EMBEDDING_MODELS.openai;

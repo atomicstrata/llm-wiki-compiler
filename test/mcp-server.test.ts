@@ -380,9 +380,13 @@ async function withNoCredentials(root: string, fn: () => Promise<void>): Promise
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN,
     LLMWIKI_CLAUDE_SETTINGS_PATH: process.env.LLMWIKI_CLAUDE_SETTINGS_PATH,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    LLMWIKI_PROVIDER: process.env.LLMWIKI_PROVIDER,
   };
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.LLMWIKI_PROVIDER;
   process.env.LLMWIKI_CLAUDE_SETTINGS_PATH = path.join(root, "no-such-settings.json");
   try {
     await fn();

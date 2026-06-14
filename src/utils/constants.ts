@@ -100,6 +100,9 @@ export const LOG_DESCRIPTION_MAX_CHARS = 200;
  */
 export const LOG_MAX_PAGE_LINKS = 20;
 export const EMBEDDINGS_FILE = ".llmwiki/embeddings.json";
+
+/** Binary vector storage for embedding stores using LLMWIKI_BINARY_EMBEDDINGS. */
+export const EMBEDDINGS_BIN_FILE = ".llmwiki/embeddings.bin";
 export const LAST_LINT_FILE = ".llmwiki/last-lint.json";
 
 /** Supported image file extensions for vision-based ingest. */
@@ -132,6 +135,12 @@ export const RULE_CANDIDATES_ARCHIVE_DIR = ".llmwiki/rule-candidates/archive";
 
 /** Number of most similar pages to return from embedding-based pre-filter. */
 export const EMBEDDING_TOP_K = 15;
+
+/** Max pages per embedding API call when batching. */
+export const EMBEDDING_BATCH_SIZE = 20;
+
+/** Max chunks per embedding API call when batching. Defaults higher than pages since chunks are more numerous and shorter. */
+export const EMBEDDING_CHUNK_BATCH_SIZE = 50;
 
 /** Number of chunk candidates to retain after the semantic-similarity step. */
 export const CHUNK_TOP_K = 30;

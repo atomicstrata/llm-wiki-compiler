@@ -30,9 +30,9 @@ import {
 import {
   findRelevantPages,
   findRelevantChunks,
-  updateEmbeddings,
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
+import { updateEmbeddingsDispatched as updateEmbeddings } from "../utils/embeddings-dispatch.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";

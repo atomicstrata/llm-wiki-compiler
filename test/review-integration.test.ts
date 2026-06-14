@@ -142,6 +142,8 @@ describe("review integration tests", () => {
       const result = await runCLI(["compile", "--review"], cwd, {
         ANTHROPIC_API_KEY: "",
         ANTHROPIC_AUTH_TOKEN: "",
+        OPENAI_API_KEY: "",
+        LLMWIKI_PROVIDER: "anthropic",
       });
       expectCLIFailure(result);
       expect(result.stderr).toContain("Error:");

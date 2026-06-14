@@ -4,9 +4,8 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { mkdtemp, writeFile, mkdir } from "fs/promises";
+import { writeFile } from "fs/promises";
 import path from "path";
-import os from "os";
 import {
   cosineSimilarity,
   findTopK,
@@ -16,49 +15,22 @@ import {
   resolveEmbeddingModel,
   updateEmbeddings,
   writeEmbeddingStore,
-  type EmbeddingStore,
-  type EmbeddingEntry,
 } from "../src/utils/embeddings.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { EMBEDDING_MODELS } from "../src/utils/constants.js";
-
-const STORE_PATH = ".llmwiki/embeddings.json";
-
-function makeEntry(slug: string, vector: number[]): EmbeddingEntry {
-  return {
-    slug,
-    title: slug,
-    summary: `Summary for ${slug}`,
-    vector,
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
-
-function makeStore(entries: EmbeddingEntry[]): EmbeddingStore {
-  return {
-    version: 1,
-    model: "test-model",
-    dimensions: entries[0]?.vector.length ?? 0,
-    entries,
-  };
-}
-
-async function makeRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "llmwiki-embed-"));
-  await mkdir(path.join(root, ".llmwiki"), { recursive: true });
-  return root;
-}
-
-async function writeConceptPage(root: string, slug: string): Promise<void> {
-  await mkdir(path.join(root, "wiki/concepts"), { recursive: true });
-  const content = `---\ntitle: ${slug}\nsummary: Summary for ${slug}\n---\n\nBody`;
-  await writeFile(path.join(root, "wiki/concepts", `${slug}.md`), content);
-}
+import {
+  STORE_PATH,
+  makeEntry,
+  makeStore,
+  makeRoot,
+  writeConceptPage,
+} from "./helpers/embedding-store.js";
 
 afterEach(() => {
   delete process.env.LLMWIKI_PROVIDER;
   delete process.env.LLMWIKI_EMBEDDING_MODEL;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.LLMWIKI_BINARY_EMBEDDINGS;
   resetStaleEmbeddingWarnings();
   vi.restoreAllMocks();
 });

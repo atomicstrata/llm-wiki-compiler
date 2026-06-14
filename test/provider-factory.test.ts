@@ -3,7 +3,7 @@
  * Verifies correct provider instantiation based on env vars.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -49,7 +49,7 @@ function expectClientBaseURL(provider: object, field: string, expected: string):
 }
 
 describe("getProvider", () => {
-  afterEach(() => {
+  function cleanEnv() {
     delete process.env.LLMWIKI_PROVIDER;
     delete process.env.LLMWIKI_MODEL;
     delete process.env.LLMWIKI_EMBEDDING_MODEL;
@@ -63,7 +63,14 @@ describe("getProvider", () => {
     delete process.env.OLLAMA_EMBEDDINGS_HOST;
     delete process.env[TEST_SETTINGS_PATH_ENV];
     delete process.env.MINIMAX_API_KEY;
+  }
 
+  beforeEach(() => {
+    cleanEnv();
+  });
+
+  afterEach(() => {
+    cleanEnv();
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }

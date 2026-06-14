@@ -49,6 +49,8 @@ export interface LLMProvider {
   ): Promise<string>;
   /** Return a single embedding vector for the given text. */
   embed(text: string): Promise<number[]>;
+  /** Return embedding vectors for multiple texts in a single batch call. Providers that don't implement this fall back to sequential embed() calls. */
+  embedBatch?(texts: string[]): Promise<number[][]>;
 }
 
 const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);

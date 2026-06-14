@@ -16,8 +16,9 @@
  *     and reranking before final page selection.
  */
 
-import { readFile, readdir } from "fs/promises";
+import { readFile, readdir, writeFile, rename, rm } from "fs/promises";
 import { existsSync } from "fs";
+import { createHash } from "crypto";
 import path from "path";
 import { getProvider, getActiveProviderName } from "./provider.js";
 import { atomicWrite, safeReadFile, parseFrontmatter } from "./markdown.js";
@@ -25,14 +26,20 @@ import {
   CONCEPTS_DIR,
   QUERIES_DIR,
   EMBEDDINGS_FILE,
+  EMBEDDINGS_BIN_FILE,
   EMBEDDING_TOP_K,
   EMBEDDING_MODELS,
 } from "./constants.js";
-import { hashChunkText, splitIntoChunks } from "./retrieval.js";
+import { serializeBinaryStore, deserializeBinaryStore } from "./embeddings-binary.js";
+import { findTopK, findTopKChunks } from "./embeddings-similarity.js";
+import { refreshChunkEmbeddings } from "./embeddings-chunks.js";
+import type { PageRecord } from "../pages/read.js";
 import * as output from "./output.js";
 
+export { cosineSimilarity, findTopK, findTopKChunks } from "./embeddings-similarity.js";
+
 /** Current store version; bumped from 1 → 2 when chunk entries were added. */
-const STORE_VERSION = 2 as const;
+export const STORE_VERSION = 2 as const;
 
 /** A single embedded page record. */
 export interface EmbeddingEntry {
@@ -41,6 +48,8 @@ export interface EmbeddingEntry {
   summary: string;
   vector: number[];
   updatedAt: string;
+  /** SHA256 hex (first 16 chars) of buildEmbeddingText output; absent in stores built by older versions. */
+  contentHash?: string;
 }
 
 /** A single embedded chunk drawn from a page body. */
@@ -62,76 +71,43 @@ export interface EmbeddingStore {
   entries: EmbeddingEntry[];
   /** Optional in v2 stores; absent in v1 stores. */
   chunks?: ChunkEmbeddingEntry[];
+  /** When true, vectors are stored in .llmwiki/embeddings.bin instead of JSON. */
+  binaryVectors?: boolean;
 }
 
-/** A retrievable page record on disk (concepts/ or queries/). */
-interface PageRecord {
-  slug: string;
-  title: string;
-  summary: string;
-  body: string;
-}
-
-/**
- * Cosine similarity between two equal-length vectors.
- * Returns 0 when either vector has zero magnitude (safer than NaN for ranking).
- */
-export function cosineSimilarity(a: number[], b: number[]): number {
-  if (a.length !== b.length || a.length === 0) return 0;
-
-  let dot = 0;
-  let magA = 0;
-  let magB = 0;
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i];
-    magA += a[i] * a[i];
-    magB += b[i] * b[i];
-  }
-
-  if (magA === 0 || magB === 0) return 0;
-  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
-}
-
-/** Return the top-K entries most similar to the query vector, sorted descending. */
-export function findTopK(
-  queryVec: number[],
-  store: EmbeddingStore,
-  k: number,
-): EmbeddingEntry[] {
-  const scored = store.entries.map((entry) => ({
-    entry,
-    score: cosineSimilarity(queryVec, entry.vector),
-  }));
-  scored.sort((left, right) => right.score - left.score);
-  return scored.slice(0, k).map((item) => item.entry);
-}
-
-/** Score and sort chunk entries by cosine similarity, returning the top-K. */
-export function findTopKChunks(
-  queryVec: number[],
-  chunks: ChunkEmbeddingEntry[],
-  k: number,
-): Array<{ chunk: ChunkEmbeddingEntry; score: number }> {
-  const scored = chunks.map((chunk) => ({
-    chunk,
-    score: cosineSimilarity(queryVec, chunk.vector),
-  }));
-  scored.sort((left, right) => right.score - left.score);
-  return scored.slice(0, k);
-}
+export type { PageRecord };
 
 /** Read .llmwiki/embeddings.json, returning null if it does not exist. */
 export async function readEmbeddingStore(root: string): Promise<EmbeddingStore | null> {
   const filePath = path.join(root, EMBEDDINGS_FILE);
   if (!existsSync(filePath)) return null;
   const raw = await readFile(filePath, "utf-8");
-  return JSON.parse(raw) as EmbeddingStore;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const store: any = JSON.parse(raw);
+  if (store.binaryVectors) {
+    const binPath = path.join(root, EMBEDDINGS_BIN_FILE);
+    if (!existsSync(binPath)) return null;
+    const binBuffer = await readFile(binPath);
+    return deserializeBinaryStore(store, binBuffer);
+  }
+  return store as EmbeddingStore;
 }
 
 /** Atomically persist the embedding store. */
 export async function writeEmbeddingStore(root: string, store: EmbeddingStore): Promise<void> {
   const filePath = path.join(root, EMBEDDINGS_FILE);
-  await atomicWrite(filePath, JSON.stringify(store, null, 2));
+  if (process.env.LLMWIKI_BINARY_EMBEDDINGS === "true") {
+    const binPath = path.join(root, EMBEDDINGS_BIN_FILE);
+    const serialized = serializeBinaryStore(store);
+    await atomicWrite(filePath, JSON.stringify(serialized.store, null, 2));
+    const tmpBinPath = binPath + ".tmp";
+    await writeFile(tmpBinPath, serialized.buffer);
+    await rename(tmpBinPath, binPath);
+  } else {
+    await atomicWrite(filePath, JSON.stringify(store, null, 2));
+    const binPath = path.join(root, EMBEDDINGS_BIN_FILE);
+    await rm(binPath, { force: true });
+  }
 }
 
 /**
@@ -220,11 +196,22 @@ async function readPageRecord(absDir: string, file: string): Promise<PageRecord 
 }
 
 /** Build the text that represents a page in the embedding space. */
-function buildEmbeddingText(record: PageRecord): string {
+export function buildEmbeddingText(record: PageRecord): string {
   return record.summary
     ? `${record.title}\n\n${record.summary}`
     : record.title;
 }
+
+/** Produce a short content hash for embedding text so callers can detect staleness. */
+function hashEmbeddingText(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 16);
+}
+
+/** Hash the text used for page-level embeddings. */
+export function hashPageText(record: PageRecord): string {
+  return hashEmbeddingText(buildEmbeddingText(record));
+}
+
 
 /**
  * Embed every page in `records` whose slug appears in `slugsToEmbed`,
@@ -246,6 +233,7 @@ async function embedPages(
       title: record.title,
       summary: record.summary,
       vector,
+      contentHash: hashPageText(record),
       updatedAt: now,
     });
   }
@@ -285,7 +273,7 @@ export function resolveEmbeddingModel(): string {
 }
 
 /** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */
-function mergeEntries(
+export function mergeEntries(
   existing: EmbeddingEntry[],
   fresh: EmbeddingEntry[],
   liveSlugs: Set<string>,
@@ -300,82 +288,32 @@ function mergeEntries(
   return Array.from(bySlug.values());
 }
 
-/**
- * Refresh chunk embeddings for the given pages, reusing existing chunk vectors
- * whose contentHash still matches. Pages absent from `records` are pruned.
- */
-async function refreshChunkEmbeddings(
-  records: PageRecord[],
-  existing: ChunkEmbeddingEntry[],
-  forceAll: boolean,
-): Promise<ChunkEmbeddingEntry[]> {
+/** Shared state loaded by both updateEmbeddings variants. */
+interface EmbeddingState {
+  records: PageRecord[];
+  liveSlugs: Set<string>;
+  embeddingModel: string;
+  existingStore: EmbeddingStore | null;
+  modelChanged: boolean;
+  previousEntries: EmbeddingEntry[];
+  previousChunks: ChunkEmbeddingEntry[];
+}
+
+export async function resolveEmbeddingState(root: string): Promise<EmbeddingState> {
+  const records = await collectPageRecords(root);
   const liveSlugs = new Set(records.map((r) => r.slug));
-  const existingByKey = indexChunksByKey(existing.filter((c) => liveSlugs.has(c.slug)));
-  const now = new Date().toISOString();
-  const fresh: ChunkEmbeddingEntry[] = [];
-
-  for (const record of records) {
-    const pageChunks = await embedRecordChunks(record, existingByKey, forceAll, now);
-    fresh.push(...pageChunks);
-  }
-  return fresh;
-}
-
-/**
- * Embed (or reuse) every chunk for a single page, in order. Reused chunks have
- * their `title` refreshed so a renamed page propagates to the chunk metadata.
- */
-async function embedRecordChunks(
-  record: PageRecord,
-  existingByKey: Map<string, ChunkEmbeddingEntry>,
-  forceAll: boolean,
-  now: string,
-): Promise<ChunkEmbeddingEntry[]> {
-  const provider = getProvider();
-  const chunkTexts = splitIntoChunks(record.body);
-  const out: ChunkEmbeddingEntry[] = [];
-
-  for (let i = 0; i < chunkTexts.length; i++) {
-    const text = chunkTexts[i];
-    const contentHash = hashChunkText(text);
-    const reused = pickReusableChunk(existingByKey, record.slug, i, contentHash, forceAll);
-    if (reused) {
-      out.push({ ...reused, title: record.title });
-      continue;
-    }
-    const vector = await provider.embed(text);
-    out.push({
-      slug: record.slug, title: record.title, chunkIndex: i,
-      contentHash, text, vector, updatedAt: now,
-    });
-  }
-  return out;
-}
-
-/** Index existing chunks by `${slug}#${chunkIndex}` for O(1) reuse lookup. */
-function indexChunksByKey(chunks: ChunkEmbeddingEntry[]): Map<string, ChunkEmbeddingEntry> {
-  const byKey = new Map<string, ChunkEmbeddingEntry>();
-  for (const chunk of chunks) byKey.set(chunkKey(chunk.slug, chunk.chunkIndex), chunk);
-  return byKey;
-}
-
-/** Compose the index key for a chunk lookup. */
-function chunkKey(slug: string, chunkIndex: number): string {
-  return `${slug}#${chunkIndex}`;
-}
-
-/** Return the existing chunk vector when its hash still matches and reuse is allowed. */
-function pickReusableChunk(
-  byKey: Map<string, ChunkEmbeddingEntry>,
-  slug: string,
-  chunkIndex: number,
-  contentHash: string,
-  forceAll: boolean,
-): ChunkEmbeddingEntry | null {
-  if (forceAll) return null;
-  const existing = byKey.get(chunkKey(slug, chunkIndex));
-  if (!existing) return null;
-  return existing.contentHash === contentHash ? existing : null;
+  const embeddingModel = resolveEmbeddingModel();
+  const existingStore = await readEmbeddingStore(root);
+  const modelChanged = Boolean(existingStore && existingStore.model !== embeddingModel);
+  return {
+    records,
+    liveSlugs,
+    embeddingModel,
+    existingStore,
+    modelChanged,
+    previousEntries: modelChanged ? [] : existingStore?.entries ?? [],
+    previousChunks: modelChanged ? [] : existingStore?.chunks ?? [],
+  };
 }
 
 /**
@@ -383,19 +321,11 @@ function pickReusableChunk(
  * exist on disk. Changed slugs not present as live pages are silently skipped.
  */
 export async function updateEmbeddings(root: string, changedSlugs: string[]): Promise<void> {
-  const records = await collectPageRecords(root);
-  const liveSlugs = new Set(records.map((r) => r.slug));
-  const embeddingModel = resolveEmbeddingModel();
-  const existingStore = await readEmbeddingStore(root);
-  const modelChanged = Boolean(existingStore && existingStore.model !== embeddingModel);
+  const { records, liveSlugs, embeddingModel, existingStore, modelChanged, previousEntries, previousChunks } = await resolveEmbeddingState(root);
+
   const toEmbed = new Set(changedSlugs.filter((slug) => liveSlugs.has(slug)));
-  const previousEntries = modelChanged ? [] : existingStore?.entries ?? [];
-  const previousChunks = modelChanged ? [] : existingStore?.chunks ?? [];
 
   // Cold start: embed every page so the store is immediately useful.
-  // Also treat an empty on-disk store as a cold start so that a project
-  // with no ingested pages yet (or a wiped store) gets populated the next
-  // time `compile` runs without needing an explicit slug change.
   const isEmptyStore = isStoreEmpty(existingStore);
   if (!existingStore || modelChanged || (isEmptyStore && liveSlugs.size > 0)) {
     for (const record of records) toEmbed.add(record.slug);
@@ -435,13 +365,13 @@ async function persistRefreshedStore(
 }
 
 /** Return true when a store exists on disk but has neither page nor chunk entries. */
-function isStoreEmpty(store: EmbeddingStore | null): boolean {
+export function isStoreEmpty(store: EmbeddingStore | null): boolean {
   if (!store) return false;
   return store.entries.length === 0 && (!store.chunks || store.chunks.length === 0);
 }
 
 /** Decide whether updateEmbeddings has work to do beyond a no-op. */
-function shouldRunEmbedding(
+export function shouldRunEmbedding(
   modelChanged: boolean,
   toEmbed: Set<string>,
   previousEntries: EmbeddingEntry[],

@@ -7,7 +7,7 @@
 
 import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { voyageEmbed } from "./voyage-embed.js";
+import { voyageEmbed, voyageEmbedBatch } from "./voyage-embed.js";
 
 /**
  * Builds the client options for the Anthropic SDK.
@@ -138,5 +138,10 @@ export class AnthropicProvider implements LLMProvider {
    */
   async embed(text: string): Promise<number[]> {
     return voyageEmbed(text);
+  }
+
+  /** Produce embedding vectors for multiple texts via a single Voyage API call. */
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    return voyageEmbedBatch(texts);
   }
 }

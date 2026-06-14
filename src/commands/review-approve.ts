@@ -25,7 +25,7 @@ import {
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
 import { resolveLinks } from "../compiler/resolver.js";
-import { updateEmbeddings } from "../utils/embeddings.js";
+import { updateEmbeddingsDispatched as updateEmbeddings } from "../utils/embeddings-dispatch.js";
 import { updateSourceState } from "../utils/state.js";
 import { CONCEPTS_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
