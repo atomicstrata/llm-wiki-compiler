@@ -12,6 +12,7 @@ Inspired by Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914
 - **Hybrid retrieval.** Semantic chunk embeddings (incremental, content-hash-aware) narrow hundreds of pages to a small top-K; BM25 reranking and wikilink-graph expansion build the final evidence pack.
 - **Local web viewer.** `llmwiki view` opens a read-only browser UI with sidebar navigation, search, a force-directed graph, and provenance/citation chips per page.
 - **Eval harness.** `llmwiki eval` measures health score (0–100), citation coverage and precision, optional LLM-as-judge support scoring, regression deltas, and CI-gateable thresholds.
+- **Review policy.** A `.llmwiki/config.json` policy holds risky generated pages (low confidence, contradicted, schema- or provenance-violating) for review instead of writing them live — each held candidate records *why*, and `compile`/`refresh` honor the policy fail-closed.
 - **Source freshness.** `llmwiki lint` flags pages whose sources changed (`stale`) or were deleted (`orphaned`) since the last compile — surfaced across the viewer, MCP, context packs, the JSON export, and `llmwiki next` — and `llmwiki refresh --stale` repairs them with a targeted recompile.
 - **MCP server.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent — including `get_context_pack` for budgeted, citation-aware evidence packs.
 - **In-process SDK.** `createWiki({ root })` drives the whole pipeline programmatically — ingest, compile, query, status/freshness, context packs, export, eval — for embedding llmwiki in your own tooling without shelling out.
@@ -416,9 +417,33 @@ llmwiki review reject <id>   # archive to .llmwiki/candidates/archive/
 A few things to know:
 
 - **Approve and reject acquire `.llmwiki/lock`** so they serialize cleanly against each other and against any concurrent `compile`.
-- **Source state is deferred per-source.** When one source produces multiple candidates, the source isn't marked compiled until the last candidate is approved — so unresolved siblings stay re-detectable on the next `compile --review`.
+- **Source state tracks live concepts.** A source records only the concepts actually written to `wiki/`; approving a held candidate adds just that concept (siblings are approved independently, each recording its own), and rejecting one suppresses it until the source changes. Held candidates for an unchanged source aren't re-extracted on the next compile.
 - **Deletion bookkeeping is deferred.** `compile --review` does not orphan-mark deleted sources; the next non-review `compile` does that. The `--review` help text advertises this.
 - MCP `wiki_status` exposes `pendingCandidates` so agents can see the queue depth.
+
+### Review policy
+
+`--review` is all-or-nothing. A project can instead declare a **review policy** in `.llmwiki/config.json` so a normal `compile` automatically **holds risky pages** for review while writing the rest live:
+
+```json
+{
+  "version": 1,
+  "review": {
+    "hold": ["low-confidence", "contradicted", "schema-violating", "provenance-violating"],
+    "lowConfidenceThreshold": 0.5
+  }
+}
+```
+
+A page is held as a candidate (the live `wiki/` page is left untouched) if it trips **any** enabled mode — union semantics:
+
+- `low-confidence` — page `confidence` below `lowConfidenceThreshold` (default 0.5). A page with **no** confidence is held by default; set `"treatMissingConfidenceAs": "ok"` to let it pass.
+- `contradicted` — the page declares `contradictedBy` entries.
+- `schema-violating` — the page fails a schema cross-link rule.
+- `provenance-violating` — the page has broken or malformed citations.
+- `all` / `off` — hold every page / nothing (each standalone). An absent config, a missing `review` key, or `"hold": []` all mean **off** — today's direct-write behavior.
+
+Each held candidate records **why**: `review list` and `review show` print the reason codes, and `compile` reports the split (`Wrote 8 page(s), held 2 for review — run \`llmwiki review list\``). `refresh --stale` honors the same policy. Configuration is **fail-closed** — an unknown mode or a corrupt config aborts the compile rather than silently disabling review. (`query --save` is not policy-gated in this version.)
 
 ## Page metadata
 
