@@ -24,7 +24,7 @@ import { generateMOC } from "../compiler/obsidian.js";
 import { resolveLinks } from "../compiler/resolver.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
 import { readState, updateSourceState } from "../utils/state.js";
-import { CONCEPTS_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { runReviewUnderLock, readCandidateUnderLock } from "./review-helpers.js";
@@ -51,7 +51,8 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
     return;
   }
 
-  const pagePath = path.join(root, CONCEPTS_DIR, `${candidate.slug}.md`);
+  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
+  const pagePath = path.join(root, dir, `${candidate.slug}.md`);
   await atomicWrite(pagePath, candidate.body);
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
