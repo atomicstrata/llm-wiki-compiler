@@ -19,6 +19,9 @@ function candidateReasons(candidate: ReviewCandidate): string[] {
 function printReviewMetadata(candidate: ReviewCandidate): void {
   output.status("i", output.dim(`review:    ${candidate.reviewMode}`));
   output.status("i", output.dim(`reasons:   ${candidateReasons(candidate).join(", ")}`));
+  if (candidate.okfPath) {
+    output.status("i", output.dim(`okfPath:   ${candidate.okfPath}`));
+  }
   if (candidate.confidence !== undefined) {
     output.status("i", output.dim(`confidence: ${candidate.confidence}`));
   }
