@@ -7,11 +7,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { mkdir, readFile, readdir, writeFile } from "fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { mockClaudeEnv, useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 import type { ReviewCandidate } from "../src/utils/types.js";
+import type { WikiState } from "../src/utils/types.js";
 
 const aimock = useAimockLifecycle("review-policy-cli");
 
@@ -94,4 +95,44 @@ describe("review policy CLI", () => {
     expect(showResult.stdout).toContain("low-confidence");
     expect(showResult.stdout).toContain("confidence");
   }, 30_000);
+
+  // Test: full approve lifecycle — policy compile holds a candidate, then approve lands it.
+  it("approve promotes held candidate to wiki/ and records slug in state", async () => {
+    const handle = await aimock.start();
+    stubPolicyCompile(handle);
+    const cwd = await aimock.makeWorkspace("# Source\n\nAlpha and Beta.\n");
+    await writePolicyConfig(cwd);
+
+    // Step 1: compile with low-confidence policy — alpha should be HELD.
+    const compileResult = await runCLI(["compile"], cwd, mockClaudeEnv(handle));
+    expectCLIExit(compileResult, 0);
+    const candidatesDir = path.join(cwd, ".llmwiki", "candidates");
+    const candidateFiles = (await readdir(candidatesDir)).filter((f) => f.endsWith(".json"));
+    expect(candidateFiles.length).toBeGreaterThanOrEqual(1);
+    const conceptPage = path.join(cwd, "wiki", "concepts", "alpha.md");
+    await expect(access(conceptPage)).rejects.toThrow();
+
+    // Step 2: read the held candidate id.
+    const candidate = await readFirstCandidate(cwd);
+    const { id: candidateId, slug } = candidate;
+
+    // Step 3: approve via subprocess (embeddings may warn but exit 0 is guaranteed).
+    const approveResult = await runCLI(["review", "approve", candidateId], cwd, mockClaudeEnv(handle));
+    expectCLIExit(approveResult, 0);
+
+    // Step 4a: concept page is now live.
+    await expect(access(path.join(cwd, "wiki", "concepts", `${slug}.md`))).resolves.toBeUndefined();
+
+    // Step 4b: candidate file is cleared from the pending area.
+    const remaining = await readdir(candidatesDir).catch(() => [] as string[]);
+    expect(remaining.filter((f) => f === `${candidateId}.json`)).toHaveLength(0);
+
+    // Step 4c: state.sources records the approved slug (requires sourceStates in candidate).
+    if (candidate.sourceStates) {
+      const stateRaw = await readFile(path.join(cwd, ".llmwiki", "state.json"), "utf-8");
+      const state = JSON.parse(stateRaw) as WikiState;
+      const allConcepts = Object.values(state.sources).flatMap((s) => s.concepts);
+      expect(allConcepts).toContain(slug);
+    }
+  }, 60_000);
 });
