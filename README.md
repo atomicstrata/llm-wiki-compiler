@@ -749,6 +749,10 @@ Karpathy described an abstract pattern for turning raw data into compiled knowle
 
 ## Roadmap
 
+Available on main, will ship in 0.9.1:
+
+- ✅ Review policy — a `.llmwiki/config.json` policy holds risky generated pages (low confidence, contradicted, schema- or provenance-violating) for review instead of writing them live; each held candidate records why it was held, `review list`/`show` explain the holds, `compile` reports the split, and `refresh --stale` honors the same policy. Configuration is fail-closed — a malformed config aborts the compile rather than silently disabling review.
+
 Shipped in 0.9.0:
 
 - ✅ Source freshness — `llmwiki lint` flags pages whose sources changed (`stale`) or were all deleted (`orphaned`) since compile, surfaced across MCP (`wiki_status`, `get_context_pack`), context packs, the viewer (badges, a per-axis filter, health counts, a corrupt-state banner), the JSON export, and `llmwiki next`
