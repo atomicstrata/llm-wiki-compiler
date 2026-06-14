@@ -43,4 +43,10 @@ describe("readOkfBundle", () => {
     await writeFile(path.join(b, "big.md"), big);
     await expect(readOkfBundle(b, { maxDocBytes: 100 })).rejects.toThrow(/size|limit/i);
   });
+  it("rejects a bundle exceeding the total-entry cap (deep non-md tree)", async () => {
+    const dir = await make("okf-entries-");
+    const b = path.join(dir, "bundle"); await mkdir(b, { recursive: true });
+    for (let i = 0; i < 5; i++) await writeFile(path.join(b, `note${i}.txt`), "x");
+    await expect(readOkfBundle(b, { maxEntries: 2 })).rejects.toThrow(/entry/i);
+  });
 });

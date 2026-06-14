@@ -31,4 +31,5 @@ export interface OkfImportLimits {
   maxFiles: number;
   maxDocBytes: number;
   maxTotalBytes: number;
+  maxEntries: number;
 }

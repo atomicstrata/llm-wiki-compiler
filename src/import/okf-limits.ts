@@ -13,4 +13,7 @@ export const DEFAULT_OKF_LIMITS: OkfImportLimits = {
   maxFiles: 5000,
   maxDocBytes: 2_000_000,
   maxTotalBytes: 100_000_000,
+  // Total directory entries visited during the walk — bounds deep-empty-dir /
+  // many-non-`.md` trees that wouldn't otherwise count toward maxFiles.
+  maxEntries: 100_000,
 };
