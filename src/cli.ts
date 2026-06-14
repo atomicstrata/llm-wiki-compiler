@@ -335,7 +335,8 @@ program
     "--project-id <id>",
     "Bridge identifier embedded in the JSON export envelope. Must match /^[a-z0-9][a-z0-9-]{0,62}$/.",
   )
-  .action(async (options: { target?: string; source?: string; projectId?: string }) => {
+  .option("--out <dir>", "Output directory for directory-style targets (e.g. okf)")
+  .action(async (options: { target?: string; source?: string; projectId?: string; out?: string }) => {
     try {
       await exportCommand(process.cwd(), options);
     } catch (err) {

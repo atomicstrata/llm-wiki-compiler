@@ -30,6 +30,7 @@ import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
 import { buildMarp } from "../export/marp.js";
+import { buildOkfBundle } from "../export/okf/bundle.js";
 import { EXPORT_TARGETS, MARP_SOURCES } from "../export/types.js";
 import type { ExportPage, ExportTarget, MarpSource } from "../export/types.js";
 
@@ -46,6 +47,9 @@ const TARGET_FILENAMES: Record<ExportTarget, string> = {
   "json-ld": "wiki.jsonld",
   graphml: "wiki.graphml",
   marp: "wiki.md",
+  // okf is a directory target; this entry satisfies the exhaustive Record type
+  // but is never accessed (the OKF branch continues before reaching it).
+  okf: "okf",
 };
 
 /** Options accepted by exportCommand and its programmatic entry point. */
@@ -64,6 +68,11 @@ export interface ExportOptions {
    * file is written.
    */
   projectId?: string;
+  /**
+   * Output directory for directory-style targets (e.g. okf).
+   * When absent defaults to `dist/exports/okf` relative to the project root.
+   */
+  out?: string;
 }
 
 /** Result returned by runExport for testing and MCP consumers. */
@@ -131,6 +140,9 @@ function buildContent(inputs: BuildContentInputs): string {
       return buildGraphml(pages);
     case "marp":
       return buildMarp(pages, projectTitle, marpSource);
+    case "okf":
+      // OKF is a directory target dispatched before buildContent is called.
+      throw new Error("buildContent called for okf — this is a programming error");
   }
 }
 
@@ -169,6 +181,13 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
   const written: string[] = [];
 
   for (const target of targets) {
+    if (target === "okf") {
+      const outDir = options.out ?? path.join(root, EXPORT_DIR, "okf");
+      const writtenPaths = await buildOkfBundle(root, pages, outDir);
+      written.push(...writtenPaths);
+      output.status("+", output.success(`Exported okf bundle → ${output.source(outDir)}`));
+      continue;
+    }
     const content = buildContent({ target, pages, projectTitle, marpSource, projectId });
     const outPath = path.join(root, EXPORT_DIR, TARGET_FILENAMES[target]);
     await atomicWrite(outPath, content);

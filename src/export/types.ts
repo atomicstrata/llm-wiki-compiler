@@ -153,7 +153,8 @@ export type ExportTarget =
   | "json"
   | "json-ld"
   | "graphml"
-  | "marp";
+  | "marp"
+  | "okf";
 
 /** All recognised export target names — used for validation. */
 export const EXPORT_TARGETS: readonly ExportTarget[] = [
@@ -163,4 +164,5 @@ export const EXPORT_TARGETS: readonly ExportTarget[] = [
   "json-ld",
   "graphml",
   "marp",
+  "okf",
 ];
