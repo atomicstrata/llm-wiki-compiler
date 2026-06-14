@@ -7,7 +7,6 @@ import type { ExportPage } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
 
-const PAGE_KINDS = new Set(["concept", "entity", "comparison", "overview"]);
 const DERIVED_CITATIONS = /\n+#\s+Citations\b[\s\S]*$/;
 
 /** Canonical body = body WITHOUT the derived `# Citations` section, single trailing newline. */
@@ -16,7 +15,7 @@ export function canonicalBody(body: string): string {
 }
 
 /** Authoritative contentHash domain: sha256 of the canonical body. */
-export function hashCanonicalBody(body: string): string {
+function hashCanonicalBody(body: string): string {
   return createHash("sha256").update(canonicalBody(body), "utf-8").digest("hex");
 }
 
@@ -80,5 +79,3 @@ export function okfLinksToWikilinks(body: string, titleOf: (slug: string) => str
     return title !== null && text === title ? `[[${slug}]]` : `[[${slug}|${text}]]`;
   });
 }
-
-export { PAGE_KINDS };

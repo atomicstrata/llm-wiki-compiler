@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalBody } from "../src/export/okf/mapping.js";
+import { canonicalBody, safeRefName } from "../src/export/okf/mapping.js";
 import { renderCitationsSection } from "../src/export/okf/citations.js";
 
 describe("canonical body + derived citations", () => {
@@ -16,5 +16,9 @@ describe("canonical body + derived citations", () => {
   });
   it("renderCitationsSection is empty for no citations", () => {
     expect(renderCitationsSection([])).toBe("");
+  });
+  it("safeRefName strips traversal and flattens nested paths", () => {
+    expect(safeRefName("../secret.md")).toBe("secret.md");
+    expect(safeRefName("nested/a.md")).toBe("nested__a.md");
   });
 });
