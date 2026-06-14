@@ -511,6 +511,10 @@ export async function checkBrokenCitations(root: string): Promise<LintResult[]> 
   const lineCountCache = new Map<string, number>();
 
   for (const page of pages) {
+    const { meta } = parseFrontmatter(page.content);
+    // Imported pages cite EXTERNAL bundle sources (not copied into sources/), so
+    // local source-existence does not apply — exempt them from broken-citation.
+    if (meta.provenanceState === "imported") continue;
     const pageFindings = await checkPageBrokenCitations(
       page.content,
       page.filePath,
