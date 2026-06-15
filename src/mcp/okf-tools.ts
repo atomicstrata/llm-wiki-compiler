@@ -25,7 +25,7 @@ export function registerOkfTools(server: McpServer, root: string, maxPending: nu
       try {
         const dest = await confineUnderRoot(out ?? "dist/exports/okf", root, { mustExist: false });
         const report = await runOkfExport(root, { out: dest });
-        return jsonResult({ outDir: report.outDir, fileCount: report.writtenPaths.length, files: report.writtenPaths.slice(0, 20) });
+        return jsonResult({ outDir: report.outDir, fileCount: report.writtenPaths.length, files: report.writtenPaths.slice(0, 20), warnings: report.warnings });
       } catch (err) {
         return errorResult(err instanceof Error ? err.message : String(err));
       }

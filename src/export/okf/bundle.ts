@@ -67,14 +67,15 @@ async function copyResolvedReferences(
   return written;
 }
 
-/** Surface cited sources that were not bundled (missing or outside sources/). */
-function reportSkippedReferences(pages: ExportPage[], refs: Map<string, ResolvedReference>): void {
+/** Surface cited sources that were not bundled (missing or outside sources/) via the warning collector. */
+function reportSkippedReferences(
+  pages: ExportPage[],
+  refs: Map<string, ResolvedReference>,
+  onWarn: (msg: string) => void,
+): void {
   const skipped = collectReferenceFiles(pages).filter((f) => !refs.has(f));
   if (skipped.length === 0) return;
-  output.status(
-    "!",
-    output.warn(`OKF export: ${skipped.length} cited source(s) not bundled (missing or outside sources/)`),
-  );
+  onWarn(`OKF export: ${skipped.length} cited source(s) not bundled (missing or outside sources/)`);
 }
 
 /**
@@ -83,9 +84,17 @@ function reportSkippedReferences(pages: ExportPage[], refs: Map<string, Resolved
  * @param root - llmwiki project root (sources/ lives here).
  * @param pages - All export pages to include in this bundle.
  * @param out - Destination directory for the OKF bundle (created if absent).
+ * @param onWarn - Collector for non-fatal warnings (e.g. cited sources not bundled).
+ *   Defaults to printing via `output.status` so direct callers are unchanged; the
+ *   output-free core (`runOkfExport`) passes a collector so nothing reaches stdout.
  * @returns Absolute paths of every file written (index, docs, references, log).
  */
-export async function buildOkfBundle(root: string, pages: ExportPage[], out: string): Promise<string[]> {
+export async function buildOkfBundle(
+  root: string,
+  pages: ExportPage[],
+  out: string,
+  onWarn: (msg: string) => void = (m) => output.status("!", output.warn(m)),
+): Promise<string[]> {
   await mkdir(out, { recursive: true });
   const realOut = (await safeRealpath(out)) ?? path.normalize(out);
   await clearOkfManaged(realOut);
@@ -106,6 +115,6 @@ export async function buildOkfBundle(root: string, pages: ExportPage[], out: str
   }
   written.push(...(await copyResolvedReferences(refs, realOut)));
   written.push(await writeConfined(realOut, "log.md", await buildLog(root, pages.length)));
-  reportSkippedReferences(pages, refs);
+  reportSkippedReferences(pages, refs, onWarn);
   return written;
 }

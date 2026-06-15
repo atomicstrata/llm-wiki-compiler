@@ -186,8 +186,9 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
 
   for (const target of targets) {
     if (target === "okf") {
-      const { outDir, writtenPaths } = await runOkfExport(root, { out: options.out });
+      const { outDir, writtenPaths, warnings } = await runOkfExport(root, { out: options.out });
       written.push(...writtenPaths);
+      for (const w of warnings) output.status("!", output.warn(w));
       output.status("+", output.success(`Exported okf bundle → ${output.source(outDir)}`));
       continue;
     }
