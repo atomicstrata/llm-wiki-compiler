@@ -106,7 +106,7 @@ When multiple sources merge into one page, all contributing source filenames app
 
 Pages imported from Open Knowledge Format bundles are marked as imported knowledge. The mapped page frontmatter carries `provenanceState: imported`, an `okf:<bundle>` source token, and an `x-okf` provenance snapshot that records the original bundle path and original OKF frontmatter.
 
-This imported provenance is used for honest re-export: `llmwiki export --target okf` preserves foreign producer keys and raw foreign `type` values, while deriving standard OKF fields from the current llmwiki page so local edits are reflected.
+This imported provenance is used for honest re-export: `llmwiki export --target okf` preserves foreign producer keys and raw foreign `type` values, restores safe original bundle paths, and derives standard OKF fields from the current llmwiki page so local edits are reflected.
 
 <Note>
   OKF import is review-gated by default. External bundle content is staged as review candidates and does not become live wiki content until you approve it. Use `llmwiki import --okf <dir> --trusted` only for bundles you already trust.

@@ -49,7 +49,7 @@ For Claude Desktop this goes in `claude_desktop_config.json`. For Cursor, add it
 
 ## MCP tools
 
-The server registers 9 tools. Read-only tools work without credentials; tools that invoke the LLM pipeline validate provider configuration on each call.
+The server registers 11 tools. Read-only tools work without credentials; tools that invoke the LLM pipeline validate provider configuration on each call.
 
 | Tool | What it does | LLM credentials needed? |
 |------|-------------|------------------------|
@@ -62,6 +62,8 @@ The server registers 9 tools. Read-only tools work without credentials; tools th
 | `wiki_status` | Summarize the wiki: page count, source count, last compile time, stale/orphaned pages, `stateStatus`, and `pendingCandidates` queue depth. Lists are capped at 100 entries; `*Count` fields give true totals. | No |
 | `get_context_pack` | Build an agent-ready evidence pack: primary pages, semantic chunks, graph neighbors, citations, per-page freshness, warnings, and suggested actions. Same v1 JSON envelope as `llmwiki context --json`. | No (uses lexical fallback when embeddings are unavailable) |
 | `run_eval` | Score wiki quality. `fast` suite checks health and citation coverage without LLM calls. `full` suite also LLM-judges a sample of citations. Set `record: true` to persist results to eval history. | `full` suite only |
+| `export_okf` | Export the wiki as an Open Knowledge Format bundle. The optional output directory is confined under the project root. | No |
+| `import_okf` | Preview or stage an Open Knowledge Format bundle as review candidates. The bundle directory must be inside the project root; no trusted live-write mode is exposed over MCP. | No |
 
 ### `get_context_pack` vs. `query_wiki`
 
@@ -91,6 +93,10 @@ Path confinement prevents reads outside the `sources/` directory, but only enabl
 ### Checking the review queue
 
 `wiki_status` includes a `pendingCandidates` field with the current count of pages waiting in the review queue. Agents can poll this field to decide whether to prompt the user to run `llmwiki review list` before continuing.
+
+### Importing OKF through MCP
+
+`import_okf` is intentionally staging-only. Agents can preview a bundle with `dryRun`, or stage it for human review, but cannot bypass review and write imported knowledge directly into `wiki/`. Use `llmwiki review list/show/approve` to inspect and approve staged imports.
 
 ---
 

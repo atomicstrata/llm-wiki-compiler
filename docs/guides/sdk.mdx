@@ -169,6 +169,24 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   **Performance note:** same per-call corpus-hashing cost as `status()` and `lint()`. Avoid hot loops.
 </ParamField>
 
+<ParamField body="wiki.exportOkf(options?)" type="Promise<OkfExportReport>">
+  Export the compiled wiki as an Open Knowledge Format bundle - the same bundle written by `llmwiki export --target okf`. No credentials required.
+
+  - `options.out` - optional output directory. Defaults to `dist/exports/okf` under the wiki root.
+
+  The report includes the output directory, written paths, and warnings such as cited sources that could not be bundled. Imported foreign pages re-export at their original safe bundle paths when possible.
+</ParamField>
+
+<ParamField body="wiki.importOkf(dir, options?)" type="Promise<OkfImportReport>">
+  Import an Open Knowledge Format bundle without calling an LLM. By default, imported pages are staged as review candidates, matching `llmwiki import --okf`.
+
+  - `dir` - path to the OKF bundle directory.
+  - `options.dryRun` - preview pages, skips, and warnings without writing.
+  - `options.trusted` - write live pages directly. Use only for bundles whose content and provenance you already trust.
+
+  The report includes `mode`, imported page details, skipped pages, warnings, and a `nextAction` string when review approval is required.
+</ParamField>
+
 ## Error handling
 
 Methods that require an LLM provider throw `ProviderUnavailableError` when no credentials are configured. If the provider name is not recognized, they throw `UnknownProviderError`. Both are exported from the package:
@@ -203,6 +221,8 @@ import type {
   WikiStatus,
   ContextPack,
   EvalReport,
+  OkfExportReport,
+  OkfImportReport,
 } from "llm-wiki-compiler";
 ```
 
@@ -213,6 +233,7 @@ Several methods hash the full source corpus on every call with no cross-call cac
 - `status()` - O(total source bytes) per call
 - `lint()` - O(total source bytes) per call
 - `exportJson()` - O(total source bytes) per call
+- `exportOkf()` - O(total source bytes) per call
 
 Avoid calling these methods in tight loops or on every request in a server. An mtime-keyed cache is planned for a future release.
 

@@ -172,19 +172,21 @@ dist/exports/okf/
   index.md
   concepts/<slug>.md
   queries/<slug>.md
+  <foreign/path>.md
   references/<source-file>.md
   log.md
 ```
 
 - `index.md` is the bundle table of contents and carries `okf_version: "0.1"` in frontmatter.
-- `concepts/` and `queries/` contain one OKF markdown document per exported wiki page.
+- Native llmwiki pages export under `concepts/` and `queries/`.
+- Imported foreign pages re-export at their original bundle-relative `.md` path when that path is safe, URL-safe, non-reserved, and uncontested. Unsafe or colliding paths fall back to the native slug path with a warning.
 - `references/` contains cited source files that still exist under `sources/` and resolve inside that directory. Missing or unsafe references are listed as plain text in citations instead of becoming dangling links.
 - `log.md` translates llmwiki's activity journal into an OKF-style date-grouped log.
 
 Each page document includes standard OKF fields (`type`, `title`, `description`, `tags`, `timestamp`) plus an `x-llmwiki` block with compiler metadata such as source files, citations, freshness, provenance, and a canonical content hash. Imported foreign OKF pages preserve their foreign `type` and producer-specific keys on re-export while refreshing the current llmwiki metadata.
 
 <Note>
-  `export --target okf` writes pages by llmwiki slug under `concepts/` or `queries/`. If a foreign bundle originally used nested paths, the original path is preserved as imported provenance, but re-exported documents are placed by the llmwiki slug.
+  `export --target okf` refuses dangerous output targets such as the filesystem root, the project root, directories inside `.git`, and non-empty directories that are not already OKF bundles. Re-exporting into an existing OKF bundle clears stale bundle files before writing the new bundle.
 </Note>
 
 See [Open Knowledge Format guide](/guides/open-knowledge-format) for the import/export round-trip workflow.

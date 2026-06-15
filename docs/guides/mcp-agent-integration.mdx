@@ -92,7 +92,7 @@ This guide walks you through starting the server, wiring it into Claude Desktop 
 
 ### Tools
 
-The server exposes nine tools. Read-only tools work without provider credentials; tools that invoke the LLM pipeline require a configured provider in the `env` block.
+The server exposes eleven tools. Read-only tools work without provider credentials; tools that invoke the LLM pipeline require a configured provider in the `env` block.
 
 | Tool | What it does | Credentials required |
 |------|--------------|:--------------------:|
@@ -105,6 +105,8 @@ The server exposes nine tools. Read-only tools work without provider credentials
 | `wiki_status` | Page and source counts, stale/orphaned pages, `stateStatus`, `pendingCandidates` | No |
 | `get_context_pack` | Build a token-budgeted evidence pack (primary pages, chunks, graph neighbors, citations, freshness, warnings, suggested actions) | No |
 | `run_eval` | Score wiki quality - fast suite is credential-free; full suite LLM-judges citation samples | Fast: No / Full: Yes |
+| `export_okf` | Export the wiki as an Open Knowledge Format bundle under a project-confined output path | No |
+| `import_okf` | Preview or stage an Open Knowledge Format bundle from a project-confined path as review candidates | No |
 
 **`get_context_pack` vs `query_wiki`:** these tools serve different purposes. `get_context_pack` *packages evidence* - it assembles a structured JSON envelope of relevant pages, semantic chunks, and citations that the agent uses for its own reasoning. `query_wiki` *generates an answer* - it calls the LLM and returns prose. Use `get_context_pack` when the agent needs grounded source material to reason over; use `query_wiki` when you want a finished answer.
 
@@ -126,7 +128,7 @@ Resources are passive read views of the wiki that agents can attach as context w
 
 The server starts without credentials. Provider credentials are read from the `env` block in your MCP config and forwarded to each pipeline call:
 
-- **Read-only tools** (`read_page`, `lint_wiki`, `wiki_status`, `ingest_source`) - always work, no credentials needed.
+- **Read-only and filesystem-only tools** (`read_page`, `lint_wiki`, `wiki_status`, `ingest_source`, `export_okf`, `import_okf`) - always work, no credentials needed.
 - **LLM-dependent tools** (`compile_wiki`, `query_wiki`, `search_pages`) - require a valid provider credential (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) in the environment at call time.
 - **`get_context_pack`** - credential-free by default. When embeddings are available and provider credentials are present, semantic retrieval is used. Without credentials or an embedding store, the tool falls back to lexical ranking and surfaces an `embedding-store-missing` or `query-embedding-unavailable` warning in the response - it does not fail.
 - **`run_eval`** - the `fast` suite (health score, citation coverage, corpus stats) runs without any credentials. The `full` suite adds LLM-judged citation scoring and requires a provider.
@@ -147,6 +149,14 @@ The server starts without credentials. Provider credentials are read from the `e
 ## Using `ingest_source` safely
 
 `ingest_source` accepts a URL or an absolute local file path. Because it performs a server-side fetch and local file read, it is a **trusted-input-only** primitive - pass only URLs and paths you control. For untrusted or user-supplied content, use the SDK's `ingestText` instead (see the [SDK guide](/guides/sdk)).
+
+## OKF tools
+
+`export_okf` and `import_okf` give agents structured Open Knowledge Format access without parsing CLI output.
+
+- `export_okf` writes an OKF bundle. Its optional `out` path is confined under the project root.
+- `import_okf` reads an OKF bundle from a project-confined `dir`. It supports `dryRun` and is always staging-only; MCP does not expose the trusted live-write import path.
+- After `import_okf` stages pages, approve them with `llmwiki review list`, `llmwiki review show`, and `llmwiki review approve`.
 
 <Tip>
   After an agent calls `compile_wiki`, check `wiki_status` and look at the `pendingCandidates` field. If your wiki has a review policy configured in `.llmwiki/config.json`, some pages may be held for human review rather than written directly. A non-zero `pendingCandidates` means the agent has queued work that needs your approval before those pages go live - run `llmwiki review list` to inspect them.

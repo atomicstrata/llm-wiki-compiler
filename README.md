@@ -37,8 +37,8 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **Review policy.** Generated pages can be auto-held for review when confidence, contradiction, schema, or provenance rules trip.
 - **Freshness repair.** `llmwiki lint` and `llmwiki next` surface stale/orphaned pages; `llmwiki refresh --stale` repairs changed knowledge without compiling unrelated new sources.
 - **Eval harness.** `llmwiki eval` reports health score, citation coverage/precision, corpus stats, regression deltas, and optional judge-model citation support.
-- **MCP server.** `llmwiki serve` exposes ingest, compile, query, lint, read, status, eval, and context-pack tools to MCP-compatible agents.
-- **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, and eval from TypeScript without shelling out.
+- **MCP server.** `llmwiki serve` exposes ingest, compile, query, lint, read, status, eval, context-pack, and OKF exchange tools to MCP-compatible agents.
+- **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, eval, and OKF import/export from TypeScript without shelling out.
 - **Open Knowledge Format exchange.** Export and import OKF bundles for portable, markdown-native knowledge exchange. External OKF imports are staged through the review queue by default; trusted bundles can be written live explicitly.
 - **Other portable exports.** Export JSON, JSON-LD, GraphML, Marp slides, and `llms.txt` for downstream systems.
 - **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI-compatible servers, Ollama, GitHub Copilot, and local OpenAI-compatible runtimes.
@@ -135,7 +135,7 @@ llmwiki import --okf ./dist/okf --dry-run
 llmwiki import --okf ./dist/okf
 ```
 
-OKF import is intentionally review-first: untrusted bundles become review candidates, not live wiki pages. The importer preserves foreign OKF metadata, stores llmwiki provenance under `x-llmwiki`, and re-exports imported pages honestly after local edits.
+OKF import is intentionally review-first: untrusted bundles become review candidates, not live wiki pages. The importer preserves foreign OKF metadata, stores llmwiki provenance under `x-llmwiki`, and re-exports imported pages honestly after local edits, including safe original nested paths.
 
 See [`docs/guides/open-knowledge-format.mdx`](docs/guides/open-knowledge-format.mdx), [`docs/cli/export.mdx`](docs/cli/export.mdx), and [`docs/cli/import.mdx`](docs/cli/import.mdx).
 
@@ -171,7 +171,7 @@ Run:
 llmwiki serve --root /path/to/wiki-project
 ```
 
-MCP clients can ingest sources, compile, query, search pages, read pages, lint, run eval, inspect status, and request context packs. Read-only tools work without provider credentials; LLM-backed tools validate provider credentials at call time.
+MCP clients can ingest sources, compile, query, search pages, read pages, lint, run eval, inspect status, request context packs, and exchange OKF bundles. Read-only tools work without provider credentials; LLM-backed tools validate provider credentials at call time.
 
 See [`docs/guides/mcp-agent-integration.mdx`](docs/guides/mcp-agent-integration.mdx).
 

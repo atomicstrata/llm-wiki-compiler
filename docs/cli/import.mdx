@@ -87,9 +87,9 @@ Every non-reserved `.md` file in the bundle is treated as an OKF document if it 
 - Standard OKF `description` maps to llmwiki `summary`.
 - Standard OKF `tags` map to llmwiki `tags`.
 - Imported pages carry `provenanceState: imported` and an `okf:<bundle>` source token.
-- Native llmwiki OKF links are converted back to `[[wikilinks]]` when they resolve to a known imported page.
+- OKF links are converted back to `[[wikilinks]]` when their target path resolves to a known imported page.
 
-Foreign producer-specific frontmatter is preserved under `x-okf.originalFrontmatter`. If you later export with `llmwiki export --target okf`, llmwiki preserves foreign producer keys and raw foreign `type` values while refreshing current standard fields and `x-llmwiki` metadata.
+Foreign producer-specific frontmatter is preserved under `x-okf.originalFrontmatter`, and the original bundle-relative path is preserved under `x-okf.okfPath`. If you later export with `llmwiki export --target okf`, llmwiki preserves foreign producer keys and raw foreign `type` values while refreshing current standard fields and `x-llmwiki` metadata.
 
 ---
 
@@ -132,5 +132,4 @@ Round-trip behavior is designed to be honest rather than magical:
 
 - Page content, citations, imported provenance, and foreign producer keys are preserved.
 - Current llmwiki standard fields (`title`, `description`, `tags`, `timestamp`) are used on re-export, so local edits are reflected.
-- Documents are re-exported under llmwiki slug paths such as `concepts/<slug>.md` or `queries/<slug>.md`. The original OKF path is kept as imported provenance for diagnostics.
-
+- Safe original nested paths are restored on re-export. If the original path is unsafe, non-`.md`, URL-unsafe, reserved, or collides with another page, llmwiki falls back to slug paths such as `concepts/<slug>.md` or `queries/<slug>.md` and reports a warning.

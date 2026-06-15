@@ -10,7 +10,7 @@ description: "llmwiki turns URLs, files, and session exports into a persistent, 
 
 llmwiki is a knowledge compiler. You point it at your sources - research papers, documentation sites, notes, session exports - and it uses an LLM pipeline to compile them into a structured, interlinked wiki that you can browse, search, query, and connect to AI agents. Unlike retrieval-augmented generation (RAG), llmwiki compiles your knowledge once into a durable artifact that compounds over time: concepts get their own typed pages, links form a navigable graph, and every claim traces back to its source.
 
-llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/). You can export a compiled wiki as an OKF bundle, import OKF bundles from other tools through the review queue, and re-export foreign bundles while preserving producer metadata and llmwiki provenance.
+llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/). You can export a compiled wiki as an OKF bundle, import OKF bundles from other tools through the review queue, and re-export foreign bundles while preserving producer metadata, llmwiki provenance, and safe original nested paths.
 
 <CardGroup cols={2}>
   <Card title="Quick Start" icon="rocket" href="/quickstart">
@@ -38,11 +38,11 @@ llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://
 
 **A local web viewer.** `llmwiki view` opens your compiled wiki in a browser - sidebar navigation, full-text search, a force-directed page graph, and provenance chips on every paragraph.
 
-**Agent-ready via MCP.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent. Agents can ingest sources, compile, query, lint, and retrieve context packs without touching the CLI.
+**Agent-ready via MCP.** `llmwiki serve` exposes the full pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent. Agents can ingest sources, compile, query, lint, retrieve context packs, and exchange OKF bundles without touching the CLI.
 
-**Open Knowledge Format round-trip.** `llmwiki export --target okf` writes a Google OKF-style bundle with page docs, references, and an activity log. `llmwiki import --okf` stages external bundles for review by default, so third-party knowledge does not touch your live wiki until you approve it.
+**Open Knowledge Format round-trip.** `llmwiki export --target okf` writes a Google OKF-style bundle with page docs, references, and an activity log. `llmwiki import --okf` stages external bundles for review by default, so third-party knowledge does not touch your live wiki until you approve it. Imported foreign pages re-export at their safe original paths when possible.
 
-**Programmatic control via SDK.** `createWiki({ root })` drives the entire pipeline in-process - no shelling out, no console noise, fully typed.
+**Programmatic control via SDK.** `createWiki({ root })` drives the entire pipeline in-process - no shelling out, no console noise, fully typed, including OKF import/export.
 
 ## Who uses llmwiki
 
