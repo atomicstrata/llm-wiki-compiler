@@ -1,6 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "llmwiki",
+  "description": "llmwiki compiles raw sources into persistent, citation-traceable markdown wikis that agents and humans can browse, query, lint, export, import, and reuse.",
   "theme": "luma",
   "colors": {
     "primary": "#5B6AD0",

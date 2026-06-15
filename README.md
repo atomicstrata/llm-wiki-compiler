@@ -1,6 +1,8 @@
 # llmwiki
 
-![Breaking News: llmwiki 0.10.0 supports Open Knowledge Format](docs/images/okf-readme-banner.svg)
+<p align="center">
+  <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki 0.10.0 supports Open Knowledge Format" width="900">
+</p>
 
 **Breaking News:** llmwiki is now an **Open Knowledge Format (OKF)** producer and consumer, aligning compiled agent knowledge with Google Cloud's emerging standard for portable knowledge sharing. Export compiled wikis with `llmwiki export --target okf`, import external bundles with `llmwiki import --okf`, and stage untrusted knowledge through review before it becomes live agent context.
 
@@ -272,7 +274,7 @@ Use them independently or together. The [`@atomicmemory/llmwiki`](https://github
 
 ## Contributing
 
-Good first contributions are usually docs, provider setup improvements, importer/exporter polish, eval fixtures, or focused CLI ergonomics. Larger feature work should start with an issue or design discussion.
+Contributions are welcome. If llmwiki is missing something you need, open an issue or PR and describe the workflow you are trying to support — need-driven improvements are often the best ones. If you want to contribute more generally, roadmap items are a good place to start. For larger changes to core compile, review, import/export, or retrieval semantics, please start with an issue or design discussion so we can align on the contract first.
 
 Before committing code changes, run:
 
