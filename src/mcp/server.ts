@@ -14,6 +14,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerWikiTools } from "./tools.js";
+import { registerOkfTools } from "./okf-tools.js";
 import { registerWikiResources } from "./resources.js";
 
 interface ServerOptions {
@@ -42,6 +43,7 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
   });
 
   registerWikiTools(server, root);
+  registerOkfTools(server, root);
   registerWikiResources(server, root);
 
   const transport = new StdioServerTransport();
