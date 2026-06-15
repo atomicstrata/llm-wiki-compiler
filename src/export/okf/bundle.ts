@@ -19,6 +19,9 @@ import { buildOkfIndex, buildOkfLog, parseLlmwikiLog } from "./index-log.js";
 import { collectReferenceFiles, resolveReferences, type ResolvedReference } from "./references.js";
 import { resolveOutputPaths } from "./output-paths.js";
 
+/** OS noise files that must not, by themselves, make an output dir count as non-empty. */
+const IGNORED_DIR_ENTRIES = new Set([".DS_Store", "Thumbs.db"]);
+
 /** A resolver over the export's own pages (title + resolved output path per slug). */
 function makeResolver(pages: ExportPage[], paths: Map<ExportPage, string>): LinkResolver {
   const map = new Map(pages.map((p) => [p.slug, { path: paths.get(p)!, title: p.title }] as const));
@@ -28,6 +31,8 @@ function makeResolver(pages: ExportPage[], paths: Map<ExportPage, string>): Link
 /**
  * Write `rel` (a bundle-relative path) under `out`, realpath-confined; returns the abs path.
  * `confineUnderRoot` rejects any `rel` whose resolved target (or a symlinked parent) escapes `out`.
+ * A realpath escape here ABORTS the export (a hard backstop) rather than silently falling back —
+ * unreachable in practice because the wholesale-clear strips bundle symlinks before any write.
  */
 async function writeConfined(out: string, rel: string, content: string): Promise<string> {
   const abs = await confineUnderRoot(rel, out, { mustExist: false });
@@ -86,7 +91,10 @@ async function isRecognizedBundle(realOut: string): Promise<boolean> {
   return typeof meta.okf_version !== "undefined";
 }
 
-/** Throw if any `.git` entry exists anywhere under `realOut` (lstat, no symlink-follow). */
+/**
+ * Throw if any `.git` entry exists anywhere under `realOut` (lstat, no symlink-follow).
+ * A full recursive scan bounded by bundle size, run once before clearing a recognized bundle.
+ */
 async function assertNoNestedGit(realOut: string): Promise<void> {
   for (const e of await readdir(realOut, { withFileTypes: true })) {
     if (e.name === ".git") throw new Error(`OKF export: refusing to clear ${realOut} — it contains a nested .git`);
@@ -150,11 +158,11 @@ export async function buildOkfBundle(
   out: string,
   onWarn: (msg: string) => void = (m) => output.status("!", output.warn(m)),
 ): Promise<string[]> {
-  await assertSafeBundleTarget(out, root);           // BEFORE any write — resolved target inside root, not root/.git/fs-root
+  await assertSafeBundleTarget(out, root);           // BEFORE any write — refuse fs-root, project-root, inside-.git on the resolved target (external out is allowed)
   await mkdir(out, { recursive: true });
   const realOut = (await safeRealpath(out)) ?? path.normalize(out);
   await assertNoTopLevelGit(realOut);                // existing dir holding a top-level .git (mkdir of an existing dir is a no-op)
-  const empty = (await readdir(realOut)).length === 0;
+  const empty = (await readdir(realOut)).filter((e) => !IGNORED_DIR_ENTRIES.has(e)).length === 0;
   const bundle = empty ? false : await isRecognizedBundle(realOut);
   if (!empty && !bundle) throw new Error(`OKF export: ${out} is not empty and not an OKF bundle; export into a fresh directory or an existing OKF bundle.`);
   if (bundle) { await assertNoNestedGit(realOut); await clearContents(realOut); }

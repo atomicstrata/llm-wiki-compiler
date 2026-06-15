@@ -114,6 +114,9 @@ export function okfDocToPage(doc: RawOkfDoc, ctx: OkfMapContext): MappedOkfPage 
     const title = ctx.titleOf(linkSlug);
     return title !== null ? { slug: linkSlug, title } : null;
   };
+  // A foreign body is kept verbatim on FIRST import, but re-export stamps an `x-llmwiki` block, so a
+  // SUBSEQUENT import sees it as native and rewrites its markdown links to [[wikilinks]]. The first
+  // round-trip is faithful; multi-hop "llmwiki-ifies" the link syntax — intentional (it's a llmwiki page by then).
   const body = isNative ? okfLinksToWikilinks(canonicalBody(doc.body), resolveLink) : doc.body;
   // Join with a SINGLE newline, mirroring the exporter's render-doc convention
   // (`${frontmatter}\n${body}`). The canonical body already carries its own leading

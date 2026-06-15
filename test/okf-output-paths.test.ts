@@ -37,7 +37,42 @@ describe("resolveOutputPaths", () => {
     expect(isSafeOkfPath("references/x.md", "/out")).toBe(false);
     expect(isSafeOkfPath("/abs.md", "/out")).toBe(false);
     expect(isSafeOkfPath("a/../../b.md", "/out")).toBe(false);
+    expect(isSafeOkfPath("./index.md", "/out")).toBe(false);
+    expect(isSafeOkfPath("a/./b.md", "/out")).toBe(false);
     expect(isSafeOkfPath("tables/index.md", "/out")).toBe(true);
     expect(isSafeOkfPath("tables/customers.md", "/out")).toBe(true);
+  });
+  it("isSafeOkfPath rejects URL-unsafe characters (spaces/parens would yield malformed links)", () => {
+    expect(isSafeOkfPath("tables/my customers.md", "/out")).toBe(false); // space truncates link URL
+    expect(isSafeOkfPath("report (2024).md", "/out")).toBe(false);       // paren closes link early
+    expect(isSafeOkfPath("tables/customers.md", "/out")).toBe(true);     // still safe
+    expect(isSafeOkfPath("a/../../b.md", "/out")).toBe(false);           // still rejected
+  });
+  it("isSafeOkfPath rejects non-.md / directory-like targets (importer only round-trips .md docs)", () => {
+    expect(isSafeOkfPath("tables/customers", "/out")).toBe(false); // no extension
+    expect(isSafeOkfPath("tables/", "/out")).toBe(false);          // directory-like
+    expect(isSafeOkfPath("tables/customers.md", "/out")).toBe(true);
+  });
+  it("a foreign okfPath that is not a .md document falls back to its slug-path + warns", () => {
+    const pages = [page("customers", "concepts", "tables/customers")];
+    const { paths, warnings } = resolveOutputPaths(pages, "/out");
+    expect(paths.get(pages[0])).toBe("concepts/customers.md");
+    expect(warnings[0]).toMatch(/not restorable/i);
+  });
+  it("a foreign okfPath with URL-unsafe chars falls back to its slug-path + warns", () => {
+    const pages = [page("my-customers", "concepts", "tables/my customers.md")];
+    const { paths, warnings } = resolveOutputPaths(pages, "/out");
+    expect(paths.get(pages[0])).toBe("concepts/my-customers.md");
+    expect(warnings[0]).toMatch(/not restorable/i);
+  });
+  it("two foreign pages sharing an okfPath resolve deterministically regardless of input order", () => {
+    const a = page("a-slug", "concepts", "tables/dup.md");
+    const b = page("b-slug", "concepts", "tables/dup.md");
+    const forward = resolveOutputPaths([a, b], "/out").paths;
+    const reversed = resolveOutputPaths([b, a], "/out").paths;
+    expect(forward.get(a)).toBe("tables/dup.md"); // a wins the okfPath (sorts before b by slug)
+    expect(reversed.get(a)).toBe("tables/dup.md"); // SAME page wins regardless of order
+    expect(forward.get(b)).toBe("concepts/b-slug.md");
+    expect(reversed.get(b)).toBe("concepts/b-slug.md");
   });
 });

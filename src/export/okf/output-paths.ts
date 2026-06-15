@@ -18,10 +18,22 @@ function slugPath(p: ExportPage): string {
 export function isSafeOkfPath(okfPath: unknown, realOut: string): boolean {
   if (typeof okfPath !== "string" || okfPath.length === 0) return false;
   if (path.isAbsolute(okfPath)) return false;
-  if (okfPath.split(/[/\\]+/).includes("..")) return false;
+  if (!/^[A-Za-z0-9._/-]+$/.test(okfPath)) return false; // only URL-safe path chars — spaces/parens/#/? would yield malformed links; fall back to the slug-path
+  const segments = okfPath.split(/[/\\]+/);
+  if (segments.includes("..") || segments.includes(".")) return false; // reject traversal AND current-dir segments (e.g. "./index.md" must not slip past the reserved-name check)
+  if (!okfPath.endsWith(".md")) return false; // only markdown documents are round-trippable; reject non-.md / directory-like targets (e.g. "tables/customers", "tables/")
   if (okfPath === "index.md" || okfPath === "log.md") return false; // ROOT reserved (exact, not basename)
   if (okfPath === "references" || okfPath.startsWith("references/")) return false;
   return isInsideDir(path.normalize(path.join(realOut, okfPath)), realOut);
+}
+
+/** Total order over foreign pages: okfPath, then pageDirectory, then slug (stable, no equal-returns-1). */
+function compareForeign(a: ExportPage, b: ExportPage): number {
+  const ap = a.xOkf!.okfPath!, bp = b.xOkf!.okfPath!;
+  if (ap !== bp) return ap < bp ? -1 : 1;
+  if (a.pageDirectory !== b.pageDirectory) return a.pageDirectory < b.pageDirectory ? -1 : 1;
+  if (a.slug !== b.slug) return a.slug < b.slug ? -1 : 1;
+  return 0;
 }
 
 /** Resolve every page to a bundle-relative output path; returns the map + structured fallback warnings. */
@@ -37,7 +49,7 @@ export function resolveOutputPaths(
   const used = new Set<string>();
 
   // Foreign pages first (deterministic), so a restored okfPath claims before fallbacks fill `used`.
-  const foreign = pages.filter((p) => typeof p.xOkf?.okfPath === "string").sort((a, b) => (a.xOkf!.okfPath! < b.xOkf!.okfPath! ? -1 : 1));
+  const foreign = pages.filter((p) => typeof p.xOkf?.okfPath === "string").sort(compareForeign);
   const native = pages.filter((p) => typeof p.xOkf?.okfPath !== "string");
 
   for (const p of foreign) {

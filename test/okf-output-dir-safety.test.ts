@@ -17,6 +17,13 @@ describe("output-dir safety", () => {
     await expect(buildOkfBundle(dir, [concept("a")], out)).rejects.toThrow(/not an OKF bundle/i);
     expect((await stat(path.join(out, "keep.md"))).isFile()).toBe(true);
   });
+  it("tolerates a stray .DS_Store: a dir holding only OS noise still exports", async () => {
+    const dir = await make("okf-safe-noise-");
+    const out = path.join(dir, "fresh"); await mkdir(out, { recursive: true });
+    await writeFile(path.join(out, ".DS_Store"), "noise");
+    await buildOkfBundle(dir, [concept("a")], out);
+    expect((await stat(path.join(out, "index.md"))).isFile()).toBe(true);
+  });
   it("refuses an out dir containing a top-level .git", async () => {
     const dir = await make("okf-safe2-");
     const out = path.join(dir, "repo"); await mkdir(path.join(out, ".git"), { recursive: true });
