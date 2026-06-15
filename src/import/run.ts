@@ -8,6 +8,7 @@ import { atomicWrite } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { refreshAfterImport } from "./okf-refresh.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
+import { withQuiet } from "../utils/output.js";
 import { LockUnavailableError, QueueFullError } from "./run-errors.js";
 import type { MappedOkfPage } from "./types.js";
 
@@ -66,7 +67,9 @@ export async function runOkfImport(root: string, dir: string, opts: OkfImportOpt
     const { valid, skipped: allSkipped } = partition(pages, skipped as OkfImportSkip[]);
     return { mode: "dry-run", pages: valid.map(toImported), skipped: allSkipped, warnings, nextAction: "Re-run without dryRun to apply." };
   }
-  const locked = await acquireLock(root);
+  // withQuiet: acquireLock prints "Another compilation is running." on contention;
+  // the typed LockUnavailableError is the signal, so the core stays output-free.
+  const locked = await withQuiet(() => acquireLock(root));
   if (!locked) throw new LockUnavailableError();
   try {
     const { pages, skipped } = await importOkfBundle(dir, root, {}, (m) => warnings.push(m));

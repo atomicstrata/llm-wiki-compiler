@@ -1,19 +1,15 @@
 // test/okf-run-import.test.ts
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from "fs/promises";
+import { mkdtemp, rm, readFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { runOkfImport } from "../src/import/run.js";
 import { listCandidates } from "../src/compiler/candidates.js";
 import { assertNoOutput } from "./fixtures/no-output.js";
+import { writeOneDocBundle as bundle } from "./fixtures/okf-bundle-fixture.js";
 
 let dir: string;
 afterEach(async () => { if (dir) await rm(dir, { recursive: true, force: true }); });
-async function bundle(root: string): Promise<string> {
-  const b = path.join(root, "kb"); await mkdir(path.join(b, "concepts"), { recursive: true });
-  await writeFile(path.join(b, "concepts", "a.md"), "---\ntype: concept\ntitle: A\n---\n\nBody.\n");
-  return b;
-}
 
 describe("runOkfImport", () => {
   it("stages by default and returns a staged report (no stdout)", async () => {
