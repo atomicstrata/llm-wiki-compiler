@@ -31,5 +31,5 @@ export interface OkfFrontmatter {
   "x-llmwiki": XLlmwiki;
 }
 
-/** Resolves a wikilink slug to its bundle location + title (or null if unknown). */
-export type LinkResolver = (slug: string) => { dir: "concepts" | "queries"; title: string } | null;
+/** Resolves a wikilink slug to its bundle-relative output path + title (or null if unknown). */
+export type LinkResolver = (slug: string) => { path: string; title: string } | null;

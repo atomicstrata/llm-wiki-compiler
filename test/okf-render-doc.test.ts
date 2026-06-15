@@ -12,7 +12,7 @@ const page = {
   links: ["other"], body: "See [[other]]. ^[a.md:1-3]", kind: "concept",
   citations: [{ file: "a.md", start: 1, end: 3 }], contentHash: "h", sourceHashes: [],
 } as ExportPage;
-const resolve = (s: string) => (s === "other" ? { dir: "concepts" as const, title: "Other" } : null);
+const resolve = (s: string) => (s === "other" ? { path: "concepts/other.md", title: "Other" } : null);
 const refName = (f: string) => (f === "a.md" ? "a-deadbeef.md" : null);
 
 describe("renderOkfDoc", () => {

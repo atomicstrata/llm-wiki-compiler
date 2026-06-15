@@ -12,8 +12,8 @@ import type { ExportPage } from "../types.js";
 export interface OkfLogEntry { date: string; action: string; text: string; }
 
 /** Bundle-root index.md: okf_version frontmatter + a TOC over concepts/ AND queries/. */
-export function buildOkfIndex(pages: ExportPage[]): string {
-  const entry = (p: ExportPage) => `* [${p.title}](/${p.pageDirectory}/${p.slug}.md) - ${p.summary}`;
+export function buildOkfIndex(pages: ExportPage[], paths: Map<ExportPage, string>): string {
+  const entry = (p: ExportPage) => `* [${p.title}](/${paths.get(p)}) - ${p.summary}`;
   const concepts = pages.filter((p) => p.pageDirectory === "concepts").map(entry);
   const queries = pages.filter((p) => p.pageDirectory === "queries").map(entry);
   const sections: string[] = [];

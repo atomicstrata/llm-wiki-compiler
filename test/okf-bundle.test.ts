@@ -84,7 +84,11 @@ describe("buildOkfBundle", () => {
 
   it("does not write a page outside the bundle dir", async () => {
     const out = path.join(root, "bundle");
-    await expect(buildOkfBundle(root, [page({ slug: "../escape" })], out)).rejects.toThrow();
+    // A pathological `../escape` slug normalizes to a path INSIDE the bundle (escape.md at
+    // its root) under bundle-level confinement, so it no longer throws — but the
+    // security property that still holds is that NOTHING is written outside the bundle.
+    await buildOkfBundle(root, [page({ slug: "../escape" })], out);
+    await expect(access(path.join(out, "..", "escape.md"))).rejects.toThrow();
   });
 
   it("rejects a page whose pageDirectory escapes the bundle", async () => {

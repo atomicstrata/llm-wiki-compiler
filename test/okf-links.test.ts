@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { wikilinksToOkf, okfLinksToWikilinks } from "../src/export/okf/mapping.js";
 
 const resolve = (slug: string) =>
-  slug === "rag" ? { dir: "concepts" as const, title: "RAG" } : null;
+  slug === "rag" ? { path: "concepts/rag.md", title: "RAG" } : null;
 // resolveLink: linkPath ("concepts/rag") -> { slug, title } | null for known bundle docs.
 const resolveLink = (linkPath: string) =>
   linkPath === "concepts/rag" ? { slug: "rag", title: "RAG" } : null;

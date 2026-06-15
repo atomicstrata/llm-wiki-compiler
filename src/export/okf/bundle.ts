@@ -16,12 +16,11 @@ import type { LinkResolver } from "./types.js";
 import { renderOkfDoc } from "./render-doc.js";
 import { buildOkfIndex, buildOkfLog, parseLlmwikiLog } from "./index-log.js";
 import { collectReferenceFiles, resolveReferences, type ResolvedReference } from "./references.js";
+import { resolveOutputPaths } from "./output-paths.js";
 
-/** A resolver over the export's own pages (title + dir per slug). */
-function makeResolver(pages: ExportPage[]): LinkResolver {
-  const map = new Map(
-    pages.map((p) => [p.slug, { dir: p.pageDirectory, title: p.title }] as const),
-  );
+/** A resolver over the export's own pages (title + resolved output path per slug). */
+function makeResolver(pages: ExportPage[], paths: Map<ExportPage, string>): LinkResolver {
+  const map = new Map(pages.map((p) => [p.slug, { path: paths.get(p)!, title: p.title }] as const));
   return (slug) => map.get(slug) ?? null;
 }
 
@@ -98,23 +97,21 @@ export async function buildOkfBundle(
   await mkdir(out, { recursive: true });
   const realOut = (await safeRealpath(out)) ?? path.normalize(out);
   await clearOkfManaged(realOut);
-  const resolve = makeResolver(pages);
+  const { paths, warnings: pathWarnings } = resolveOutputPaths(pages, realOut);
+  const resolve = makeResolver(pages, paths);
   // Resolve references FIRST so citation links are emitted only for files actually copied.
   const refs = await resolveReferences(root, pages);
   const refName = (file: string): string | null => refs.get(file)?.destName ?? null;
   const written: string[] = [];
 
-  written.push(await writeConfined(realOut, "index.md", buildOkfIndex(pages)));
+  written.push(await writeConfined(realOut, "index.md", buildOkfIndex(pages, paths)));
   for (const p of pages) {
-    const docRel = `${p.pageDirectory}/${p.slug}.md`;
-    const docAbs = path.normalize(path.join(realOut, docRel));
-    const pageDir = path.join(realOut, p.pageDirectory);
-    // Reject slugs with traversal components (e.g. "../escape") — the doc must stay in its pageDirectory.
-    if (!isInsideDir(docAbs, pageDir)) throw new Error(`OKF page slug escapes its directory: ${p.slug}`);
+    const docRel = paths.get(p)!;
     written.push(await writeConfined(realOut, docRel, renderOkfDoc(p, resolve, refName)));
   }
   written.push(...(await copyResolvedReferences(refs, realOut)));
   written.push(await writeConfined(realOut, "log.md", await buildLog(root, pages.length)));
   reportSkippedReferences(pages, refs, onWarn);
+  for (const w of pathWarnings) onWarn(w);
   return written;
 }

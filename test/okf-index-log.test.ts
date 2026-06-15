@@ -6,10 +6,15 @@ const pages = [
   { title: "RAG", slug: "rag", pageDirectory: "concepts", summary: "Grounded." },
   { title: "Q1", slug: "q1", pageDirectory: "queries", summary: "An answer." },
 ] as ExportPage[];
+// Resolved output paths: native pages keep their <dir>/<slug>.md slug-path.
+const paths = new Map<ExportPage, string>([
+  [pages[0], "concepts/rag.md"],
+  [pages[1], "queries/q1.md"],
+]);
 
 describe("OKF index + log", () => {
   it("index has root okf_version frontmatter and a TOC over BOTH dirs", () => {
-    const idx = buildOkfIndex(pages);
+    const idx = buildOkfIndex(pages, paths);
     expect(idx).toMatch(/^---\n[\s\S]*okf_version:\s*["']?0\.1/m);
     expect(idx).toContain("* [RAG](/concepts/rag.md) - Grounded.");
     expect(idx).toContain("* [Q1](/queries/q1.md) - An answer.");

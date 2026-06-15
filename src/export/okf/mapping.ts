@@ -133,7 +133,7 @@ export function wikilinksToOkf(body: string, resolve: LinkResolver): string {
             const slug = slugify(rawSlug);
             const target = resolve(slug);
             if (!target) return match;
-            return `[${disp ?? target.title}](/${target.dir}/${slug}.md)`;
+            return `[${disp ?? target.title}](/${target.path})`;
           }),
     )
     .join("");
