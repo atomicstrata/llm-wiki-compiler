@@ -37,13 +37,11 @@ import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
 import { buildMarp } from "../export/marp.js";
 import { buildOkfBundle } from "../export/okf/bundle.js";
+import { EXPORT_DIR } from "../utils/constants.js";
 import { EXPORT_TARGETS, DEFAULT_EXPORT_TARGETS, MARP_SOURCES } from "../export/types.js";
 import type { ExportPage, ExportTarget, MarpSource } from "../export/types.js";
 
 const require = createRequire(import.meta.url);
-
-/** Output paths relative to dist/exports/ within the project root. */
-const EXPORT_DIR = "dist/exports";
 
 /** Map each target to its output filename. */
 const TARGET_FILENAMES: Record<ExportTarget, string> = {

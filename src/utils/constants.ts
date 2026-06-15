@@ -72,6 +72,9 @@ export const OPENAI_DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
  */
 export const OLLAMA_DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
 
+/** Output paths relative to the project root for export artifacts. */
+export const EXPORT_DIR = "dist/exports";
+
 /** Directory names relative to the project root. */
 export const SOURCES_DIR = "sources";
 export const CONCEPTS_DIR = "wiki/concepts";
