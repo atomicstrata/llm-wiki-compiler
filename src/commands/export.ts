@@ -36,7 +36,7 @@ import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
 import { buildMarp } from "../export/marp.js";
-import { buildOkfBundle } from "../export/okf/bundle.js";
+import { runOkfExport } from "../export/okf/run.js";
 import { EXPORT_DIR } from "../utils/constants.js";
 import { EXPORT_TARGETS, DEFAULT_EXPORT_TARGETS, MARP_SOURCES } from "../export/types.js";
 import type { ExportPage, ExportTarget, MarpSource } from "../export/types.js";
@@ -186,8 +186,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
 
   for (const target of targets) {
     if (target === "okf") {
-      const outDir = options.out ?? path.join(root, EXPORT_DIR, "okf");
-      const writtenPaths = await buildOkfBundle(root, pages, outDir);
+      const { outDir, writtenPaths } = await runOkfExport(root, { out: options.out });
       written.push(...writtenPaths);
       output.status("+", output.success(`Exported okf bundle → ${output.source(outDir)}`));
       continue;
