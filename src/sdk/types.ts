@@ -18,6 +18,8 @@ import type { Page, PageRef, ListPagesOptions, ListPagesResult } from "../pages/
 import type { PageRecord } from "../pages/read.js";
 import type { JsonExportDocument, BuildJsonExportOptions } from "../export/json-export.js";
 import type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "../sources/store.js";
+import type { OkfExportReport } from "../export/okf/run.js";
+import type { OkfImportReport } from "../import/run.js";
 
 /** Options for `createWiki`. */
 export interface CreateWikiOptions {
@@ -155,4 +157,12 @@ export interface Wiki {
    * progress callback in v1; structured `onLog` event delivery is planned for v1.x.
    */
   runEval(options: { mode: "fast" | "full"; record?: boolean }): Promise<EvalReport>;
+  /** Export the wiki as an OKF v0.1 bundle (default dist/exports/okf). */
+  exportOkf(opts?: { out?: string }): Promise<OkfExportReport>;
+  /**
+   * Import an OKF bundle. Default stages review candidates; `trusted:true` writes live
+   * (and runs the full refresh — links/index/MOC/EMBEDDINGS, which may incur provider
+   * latency/cost); `dryRun:true` writes nothing.
+   */
+  importOkf(dir: string, opts?: { trusted?: boolean; dryRun?: boolean }): Promise<OkfImportReport>;
 }

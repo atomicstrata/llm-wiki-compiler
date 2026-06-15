@@ -36,6 +36,8 @@ import { collectStatus } from "../status/collect.js";
 import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
 import { getPage, listPages } from "../pages/list.js";
 import { listSources, getSource, deleteSource } from "../sources/store.js";
+import { runOkfExport } from "../export/okf/run.js";
+import { runOkfImport } from "../import/run.js";
 import type { CreateWikiOptions, Wiki, SdkCompileOptions } from "./types.js";
 
 /**
@@ -125,5 +127,9 @@ export function createWiki(options: CreateWikiOptions): Wiki {
         if (mode === "full") ensureProviderAvailable();
         return runEval(root, mode, DEFAULT_SAMPLE_SIZE, record);
       }),
+
+    exportOkf: (opts = {}) => runQuiet(() => runOkfExport(root, opts)),
+
+    importOkf: (dir, opts = {}) => runQuiet(() => runOkfImport(root, dir, opts)),
   };
 }

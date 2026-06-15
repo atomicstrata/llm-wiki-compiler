@@ -42,3 +42,8 @@ export type { PageRecord } from "./pages/read.js";
 export type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "./sources/store.js";
 // WriteStatus is part of IngestResult — re-exported so callers needn't deep-import utils/types.
 export type { WriteStatus } from "./utils/types.js";
+
+// OKF export/import — report types and typed errors for SDK consumers.
+export type { OkfExportReport } from "./export/okf/run.js";
+export type { OkfImportReport, OkfImportSkip, OkfImportedPage } from "./import/run.js";
+export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
