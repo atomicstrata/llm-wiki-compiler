@@ -80,7 +80,15 @@ export async function connectMcpClient(root: string): Promise<McpClientHandle> {
   return { client, transport };
 }
 
-/** Build a fresh McpServer with all wiki tools and resources registered. */
+/**
+ * Build a fresh McpServer with the wiki tools and resources registered.
+ *
+ * Intentionally registers ONLY the wiki tools/resources, NOT the OKF tools
+ * (export_okf/import_okf): in-process OKF coverage drives `registerOkfTools`
+ * directly with a fake server, and OKF stdio coverage uses the real `serve`
+ * binary via `connectMcpClient`. A future reader reaching for `buildServer`
+ * to call an OKF tool would get "tool not found" — by design.
+ */
 export function buildServer(root: string): McpServer {
   const server = new McpServer({ name: "llmwiki-test", version: "0.0.0" });
   registerWikiTools(server, root);
