@@ -91,10 +91,9 @@ function applyStandardFields(fm: Record<string, unknown>, page: ExportPage): voi
  * description, tags, timestamp) from the CURRENT page so local edits are reflected,
  * and refresh x-llmwiki. (Preserve foreign keys, not stale standard frontmatter.)
  *
- * Re-export places every doc at `<pageDirectory>/<slug>.md`: the llmwiki slug is the
- * identity the OKF link rewriter + index TOC understand. The original bundle path is
- * preserved durably under `x-okf.okfPath` for diagnosis; faithful reconstruction of
- * nested original paths is intentionally deferred (it needs a non-slug link/index model).
+ * Re-export's output PATH for a foreign doc is decided by `resolveOutputPaths` (restoring
+ * `x-okf.okfPath` when safe); this function governs only the frontmatter reconstruction
+ * (raw foreign type/keys + refreshed x-llmwiki).
  */
 function reconstructForeignFrontmatter(page: ExportPage, x: XLlmwiki): OkfFrontmatter {
   const of = page.xOkf!.originalFrontmatter;

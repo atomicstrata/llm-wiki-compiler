@@ -110,9 +110,9 @@ export function okfDocToPage(doc: RawOkfDoc, ctx: OkfMapContext): MappedOkfPage 
   // (symmetric, so round-trip canonical equality holds); an author-written `# Citations`
   // in a native page is likewise dropped. Foreign bodies are kept content-verbatim.
   const resolveLink = (linkPath: string): { slug: string; title: string } | null => {
-    const slug = slugFromRelPath(linkPath);
-    const title = ctx.titleOf(slug);
-    return title !== null ? { slug, title } : null;
+    const linkSlug = slugFromRelPath(linkPath);
+    const title = ctx.titleOf(linkSlug);
+    return title !== null ? { slug: linkSlug, title } : null;
   };
   const body = isNative ? okfLinksToWikilinks(canonicalBody(doc.body), resolveLink) : doc.body;
   // Join with a SINGLE newline, mirroring the exporter's render-doc convention

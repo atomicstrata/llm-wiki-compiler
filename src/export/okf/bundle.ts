@@ -1,16 +1,17 @@
 /**
  * @file Assemble + write the OKF bundle directory (path-confined).
  *
- * Orchestrates the full export: clears stale managed paths, writes index.md,
- * one doc per page under its pageDirectory/, copies cited source files into
- * references/, and appends a translated log.md. Every write is confined to
- * the bundle output directory; slugs that would escape it are rejected.
+ * Orchestrates the full export: refuses unsafe output dirs (project/fs root,
+ * inside .git, non-empty non-bundle, nested .git), wholesale-clears a recognized
+ * prior bundle, writes index.md, one doc per page at its resolved output path,
+ * copies cited source files into references/, and appends a translated log.md.
+ * Every write is realpath-confined to the bundle output directory.
  */
-import { mkdir, copyFile, rm, readFile } from "fs/promises";
+import { mkdir, copyFile, rm, readFile, readdir, lstat } from "fs/promises";
 import path from "path";
-import { atomicWrite } from "../../utils/markdown.js";
+import { atomicWrite, parseFrontmatterStatus } from "../../utils/markdown.js";
 import * as output from "../../utils/output.js";
-import { safeRealpath, isInsideDir } from "../../utils/path-confine.js";
+import { safeRealpath, isInsideDir, confineUnderRoot } from "../../utils/path-confine.js";
 import type { ExportPage } from "../types.js";
 import type { LinkResolver } from "./types.js";
 import { renderOkfDoc } from "./render-doc.js";
@@ -25,21 +26,77 @@ function makeResolver(pages: ExportPage[], paths: Map<ExportPage, string>): Link
 }
 
 /**
- * Write `rel` (a bundle-relative path) under `out`, confined; returns the abs path.
- * Throws when the normalized destination escapes the bundle directory.
+ * Write `rel` (a bundle-relative path) under `out`, realpath-confined; returns the abs path.
+ * `confineUnderRoot` rejects any `rel` whose resolved target (or a symlinked parent) escapes `out`.
  */
 async function writeConfined(out: string, rel: string, content: string): Promise<string> {
-  const normalized = path.normalize(path.join(out, rel));
-  if (!isInsideDir(normalized, out)) throw new Error(`OKF write escapes bundle: ${rel}`);
-  await atomicWrite(normalized, content);
-  return normalized;
+  const abs = await confineUnderRoot(rel, out, { mustExist: false });
+  await atomicWrite(abs, content);
+  return abs;
 }
 
-/** OKF-managed paths cleared before each export so deleted pages don't linger. */
-async function clearOkfManaged(realOut: string): Promise<void> {
-  for (const rel of ["concepts", "queries", "references", "index.md", "log.md"]) {
-    await rm(path.join(realOut, rel), { recursive: true, force: true });
+/** True if `p` exists (any type) without following a final symlink. */
+async function lexists(p: string): Promise<boolean> {
+  try { await lstat(p); return true; } catch { return false; }
+}
+
+/**
+ * Realpath of the nearest EXISTING ancestor of `p`, plus the not-yet-existing suffix.
+ * Resolves symlinked parents so a fresh `<root>/exports/okf` where `exports` -> elsewhere
+ * yields the REAL location `mkdir` would create — not the lexical path.
+ */
+async function resolveRealTarget(p: string): Promise<string> {
+  let cur = path.resolve(p);
+  const suffix: string[] = [];
+  for (;;) {
+    const real = await safeRealpath(cur);
+    if (real) return suffix.length ? path.join(real, ...suffix.reverse()) : real;
+    const parent = path.dirname(cur);
+    if (parent === cur) return path.resolve(p); // no existing ancestor
+    suffix.push(path.basename(cur));
+    cur = parent;
   }
+}
+
+/**
+ * PRE-mkdir refusal on the SYMLINK-RESOLVED target (must run BEFORE the dir is created).
+ * Refuse the DANGEROUS resolved targets only: the filesystem root, the project root, or
+ * inside `.git`. Resolving symlinked parents first is the point — `<root>/exports -> <root>/.git`
+ * with `--out <root>/exports/okf` looks safe lexically but resolves into `.git` and is refused.
+ * An out dir OUTSIDE the project root is ALLOWED: external export is a supported pattern.
+ */
+async function assertSafeBundleTarget(out: string, root: string): Promise<void> {
+  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  const target = await resolveRealTarget(out);
+  if (target === path.parse(target).root) throw new Error("OKF export: refusing to export to the filesystem root");
+  if (target === realRoot) throw new Error("OKF export: refusing to export to the project root");
+  if (isInsideDir(target, path.join(realRoot, ".git"))) throw new Error("OKF export: refusing to export inside .git");
+}
+
+/** POST-mkdir refusal: an existing out dir that itself holds a top-level `.git` (a nested repo). */
+async function assertNoTopLevelGit(realOut: string): Promise<void> {
+  if (await lexists(path.join(realOut, ".git"))) throw new Error("OKF export: refusing to export to a directory containing .git");
+}
+
+/** True when `realOut` looks like a prior OKF bundle: root index.md is a regular file with okf_version frontmatter. */
+async function isRecognizedBundle(realOut: string): Promise<boolean> {
+  const idx = path.join(realOut, "index.md");
+  try { if (!(await lstat(idx)).isFile()) return false; } catch { return false; }
+  const { meta } = parseFrontmatterStatus(await readFile(idx, "utf-8"));
+  return typeof meta.okf_version !== "undefined";
+}
+
+/** Throw if any `.git` entry exists anywhere under `realOut` (lstat, no symlink-follow). */
+async function assertNoNestedGit(realOut: string): Promise<void> {
+  for (const e of await readdir(realOut, { withFileTypes: true })) {
+    if (e.name === ".git") throw new Error(`OKF export: refusing to clear ${realOut} — it contains a nested .git`);
+    if (e.isDirectory()) await assertNoNestedGit(path.join(realOut, e.name));
+  }
+}
+
+/** Remove every child of `realOut` (the dir itself stays). */
+async function clearContents(realOut: string): Promise<void> {
+  for (const name of await readdir(realOut)) await rm(path.join(realOut, name), { recursive: true, force: true });
 }
 
 /** OKF log translated from llmwiki's activity log.md when present, else a synthetic export entry. */
@@ -57,8 +114,7 @@ async function copyResolvedReferences(
 ): Promise<string[]> {
   const written: string[] = [];
   for (const { srcAbs, destName } of refs.values()) {
-    const dest = path.join(realOut, "references", destName);
-    if (!isInsideDir(path.normalize(dest), realOut)) continue;
+    const dest = await confineUnderRoot(path.join("references", destName), realOut, { mustExist: false });
     await mkdir(path.dirname(dest), { recursive: true });
     await copyFile(srcAbs, dest);
     written.push(dest);
@@ -94,9 +150,14 @@ export async function buildOkfBundle(
   out: string,
   onWarn: (msg: string) => void = (m) => output.status("!", output.warn(m)),
 ): Promise<string[]> {
+  await assertSafeBundleTarget(out, root);           // BEFORE any write — resolved target inside root, not root/.git/fs-root
   await mkdir(out, { recursive: true });
   const realOut = (await safeRealpath(out)) ?? path.normalize(out);
-  await clearOkfManaged(realOut);
+  await assertNoTopLevelGit(realOut);                // existing dir holding a top-level .git (mkdir of an existing dir is a no-op)
+  const empty = (await readdir(realOut)).length === 0;
+  const bundle = empty ? false : await isRecognizedBundle(realOut);
+  if (!empty && !bundle) throw new Error(`OKF export: ${out} is not empty and not an OKF bundle; export into a fresh directory or an existing OKF bundle.`);
+  if (bundle) { await assertNoNestedGit(realOut); await clearContents(realOut); }
   const { paths, warnings: pathWarnings } = resolveOutputPaths(pages, realOut);
   const resolve = makeResolver(pages, paths);
   // Resolve references FIRST so citation links are emitted only for files actually copied.
