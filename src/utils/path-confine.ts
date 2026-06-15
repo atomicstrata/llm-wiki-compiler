@@ -67,3 +67,34 @@ export async function resolveSourcesDir(root: string): Promise<string | null> {
   }
   return sourcesDir;
 }
+
+/**
+ * Confine a caller-supplied path under `root` and return its absolute form, or THROW.
+ * `mustExist:true` (an input dir) requires the realpath to exist inside root.
+ * `mustExist:false` (an output dir that may not exist yet) resolves lexically, then
+ * realpath-checks the nearest existing path AT OR ABOVE the target — starting with the
+ * target itself — so an existing symlinked dir/parent that escapes root is rejected.
+ */
+export async function confineUnderRoot(
+  target: string,
+  root: string,
+  opts: { mustExist: boolean },
+): Promise<string> {
+  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  const abs = path.normalize(path.resolve(realRoot, target));
+  if (!isInsideDir(abs, realRoot)) throw new Error(`path escapes project root: ${target}`);
+  if (opts.mustExist) {
+    const real = await safeRealpath(abs);
+    if (real === null || !isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
+    return real;
+  }
+  for (let cur = abs; ; cur = path.dirname(cur)) {
+    const real = await safeRealpath(cur);
+    if (real !== null) {
+      if (!isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
+      break;
+    }
+    if (path.dirname(cur) === cur) break; // reached filesystem root without an existing ancestor
+  }
+  return abs;
+}
