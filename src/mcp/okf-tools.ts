@@ -3,17 +3,12 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { confineUnderRoot } from "../utils/path-confine.js";
+import { withQuiet } from "../utils/output.js";
 import { runOkfExport } from "../export/okf/run.js";
 import { runOkfImport } from "../import/run.js";
+import { jsonResult, errorResult } from "./result.js";
 
 const MAX_MCP_PENDING_CANDIDATES = 200;
-
-function jsonResult(payload: unknown): { content: Array<{ type: "text"; text: string }>; structuredContent: { result: unknown } } {
-  return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }], structuredContent: { result: payload } };
-}
-function errorResult(message: string): { content: Array<{ type: "text"; text: string }>; isError: true } {
-  return { content: [{ type: "text" as const, text: message }], isError: true };
-}
 
 /** Register the OKF export/import tools. Both confine agent-supplied paths under `root`. `maxPending` is injectable so a test can prove the cap is actually wired into import_okf (default keeps production behavior). */
 export function registerOkfTools(server: McpServer, root: string, maxPending: number = MAX_MCP_PENDING_CANDIDATES): void {
@@ -24,7 +19,9 @@ export function registerOkfTools(server: McpServer, root: string, maxPending: nu
       description: "Export the wiki as an Open Knowledge Format (OKF) v0.1 bundle. `out` defaults to dist/exports/okf and must stay inside the project.",
       inputSchema: { out: z.string().optional().describe("Output dir for the bundle (must resolve inside the project root)") },
     },
-    async ({ out }) => {
+    // withQuiet: the export core can print skipped-reference warnings via output.status;
+    // on the MCP stdio transport those would land on the JSON-RPC stream and corrupt it.
+    async ({ out }) => withQuiet(async () => {
       try {
         const dest = await confineUnderRoot(out ?? "dist/exports/okf", root, { mustExist: false });
         const report = await runOkfExport(root, { out: dest });
@@ -32,7 +29,7 @@ export function registerOkfTools(server: McpServer, root: string, maxPending: nu
       } catch (err) {
         return errorResult(err instanceof Error ? err.message : String(err));
       }
-    },
+    }),
   );
 
   server.registerTool(
@@ -45,7 +42,8 @@ export function registerOkfTools(server: McpServer, root: string, maxPending: nu
         dryRun: z.boolean().optional().describe("Preview only — stage nothing"),
       },
     },
-    async ({ dir, dryRun }) => {
+    // withQuiet: same stdio-stream guard as export_okf (the import core may emit warnings).
+    async ({ dir, dryRun }) => withQuiet(async () => {
       try {
         const bundle = await confineUnderRoot(dir, root, { mustExist: true });
         const report = await runOkfImport(root, bundle, { trusted: false, dryRun, maxNewCandidates: maxPending });
@@ -62,6 +60,6 @@ export function registerOkfTools(server: McpServer, root: string, maxPending: nu
       } catch (err) {
         return errorResult(err instanceof Error ? err.message : String(err));
       }
-    },
+    }),
   );
 }
