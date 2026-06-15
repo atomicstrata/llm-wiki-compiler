@@ -59,6 +59,7 @@ export async function confinedInside(realRoot: string, rel: string): Promise<str
 export async function readOkfBundle(
   bundleDir: string,
   overrides: Partial<OkfImportLimits> = {},
+  onWarn: (msg: string) => void = (m) => output.status("!", output.warn(m)),
 ): Promise<RawOkfDoc[]> {
   const limits = { ...DEFAULT_OKF_LIMITS, ...overrides };
   const realRoot = await safeRealpath(bundleDir);
@@ -69,14 +70,14 @@ export async function readOkfBundle(
   for (const rel of rels) {
     if (RESERVED.has(rel)) continue;
     const real = await confinedInside(realRoot, rel);
-    if (!real) { output.status("!", output.warn(`OKF import: skipped path escaping bundle: ${rel}`)); continue; }
+    if (!real) { onWarn(`OKF import: skipped path escaping bundle: ${rel}`); continue; }
     const size = (await stat(real)).size;
     total += size;
     if (size > limits.maxDocBytes || total > limits.maxTotalBytes) throw new Error(`OKF import: bundle exceeds size limit at ${rel}`);
     const parsed = parseFrontmatterStatus(await readFile(real, "utf-8"));
     const type = parsed.meta.type;
     if (parsed.malformedFrontmatter || typeof type !== "string" || type.trim() === "") {
-      output.status("!", output.warn(`OKF import: skipped doc without a valid type: ${rel}`));
+      onWarn(`OKF import: skipped doc without a valid type: ${rel}`);
       continue;
     }
     docs.push({ relPath: rel, meta: parsed.meta, body: parsed.body });
