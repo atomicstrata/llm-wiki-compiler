@@ -19,19 +19,18 @@ describe("resolveOutputPaths", () => {
     expect(paths.get(pages[0])).toBe("concepts/x.md");
     expect(warnings[0]).toMatch(/not restorable/i);
   });
-  it("a foreign okfPath that is a NATIVE page's slug-path is rejected; neither is lost", () => {
-    const a = page("customers", "concepts");                      // native, slug-path concepts/customers.md
-    const b = page("b", "concepts", "concepts/customers.md");     // foreign, wants A's slug-path
+  // B is foreign and wants concepts/customers.md (A's slug-path); A must keep it, B must fall back.
+  const expectCollisionRejected = (a: ExportPage) => {
+    const b = page("b", "concepts", "concepts/customers.md");
     const { paths } = resolveOutputPaths([a, b], "/out");
-    expect(paths.get(a)).toBe("concepts/customers.md");
-    expect(paths.get(b)).toBe("concepts/b.md");
+    expect(paths.get(a)).toBe("concepts/customers.md"); // A's reserved slug-path is never stolen
+    expect(paths.get(b)).toBe("concepts/b.md");         // B falls back to its own
+  };
+  it("a foreign okfPath that is a NATIVE page's slug-path is rejected; neither is lost", () => {
+    expectCollisionRejected(page("customers", "concepts")); // native owner of concepts/customers.md
   });
   it("a foreign okfPath equal to ANOTHER FOREIGN page's fallback slug-path is rejected; both keep a path", () => {
-    const a = page("customers", "concepts", "../bad.md");         // foreign, unsafe okfPath → falls back to concepts/customers.md
-    const b = page("b", "concepts", "concepts/customers.md");     // foreign, wants A's (fallback) slug-path
-    const { paths } = resolveOutputPaths([a, b], "/out");
-    expect(paths.get(a)).toBe("concepts/customers.md");          // A's reserved slug-path is never stolen
-    expect(paths.get(b)).toBe("concepts/b.md");                  // B falls back to its own
+    expectCollisionRejected(page("customers", "concepts", "../bad.md")); // foreign, unsafe okfPath → falls back to concepts/customers.md
   });
   it("isSafeOkfPath rejects reserved/escape/absolute, allows nested index.md", () => {
     expect(isSafeOkfPath("index.md", "/out")).toBe(false);
