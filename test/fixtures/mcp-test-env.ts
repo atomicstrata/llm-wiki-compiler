@@ -25,8 +25,11 @@ import path from "path";
 import os from "os";
 import { afterEach, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { registerWikiTools } from "../../src/mcp/tools.js";
 import { registerWikiResources } from "../../src/mcp/resources.js";
+import { CLI } from "./run-cli.js";
 
 /** Live container for the current test's temp root path. */
 export interface McpRootHandle {
@@ -54,6 +57,27 @@ export function useMcpRoot(prefix: string): McpRootHandle {
     await rm(handle.value, { recursive: true, force: true });
   });
   return handle;
+}
+
+/** A connected SDK Client + its transport, spawned over real stdio. */
+export interface McpClientHandle {
+  client: Client;
+  transport: StdioClientTransport;
+}
+
+/**
+ * Spawn `llmwiki serve --root <root>` over stdio and connect an SDK Client
+ * through the full JSON-RPC stack. Shared by every MCP stdio integration test.
+ */
+export async function connectMcpClient(root: string): Promise<McpClientHandle> {
+  const transport = new StdioClientTransport({
+    command: "node",
+    args: [CLI, "serve", "--root", root],
+    stderr: "ignore",
+  });
+  const client = new Client({ name: "test-client", version: "0.0.0" });
+  await client.connect(transport);
+  return { client, transport };
 }
 
 /** Build a fresh McpServer with all wiki tools and resources registered. */

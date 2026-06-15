@@ -15,9 +15,7 @@ import { describe, it, expect } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CLI } from "./fixtures/run-cli.js";
-import { useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { useMcpRoot, connectMcpClient } from "./fixtures/mcp-test-env.js";
 
 const rootHandle = useMcpRoot("mcp-stdio");
 
@@ -42,18 +40,6 @@ async function seedPendingCandidate(root: string): Promise<void> {
     JSON.stringify(candidate, null, 2),
     "utf-8",
   );
-}
-
-/** Connect an SDK Client to a freshly spawned llmwiki MCP server. */
-async function connectMcpClient(root: string): Promise<{ client: Client; transport: StdioClientTransport }> {
-  const transport = new StdioClientTransport({
-    command: "node",
-    args: [CLI, "serve", "--root", root],
-    stderr: "ignore",
-  });
-  const client = new Client({ name: "test-client", version: "0.0.0" });
-  await client.connect(transport);
-  return { client, transport };
 }
 
 /** Parse the JSON status payload from a wiki_status tool response. */
