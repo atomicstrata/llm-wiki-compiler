@@ -20,21 +20,7 @@ import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import { readPageRecord } from "../pages/read.js";
 import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
-
-/**
- * Wrap an arbitrary JSON value as the standard MCP CallToolResult.
- * MCP requires content blocks even for structured payloads, so we mirror
- * the JSON in a text block for clients that don't read structuredContent.
- */
-function jsonResult(payload: unknown): {
-  content: Array<{ type: "text"; text: string }>;
-  structuredContent: { result: unknown };
-} {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
-    structuredContent: { result: payload },
-  };
-}
+import { jsonResult } from "./result.js";
 
 /** Register all 9 wiki tools on the given MCP server instance. */
 export function registerWikiTools(server: McpServer, root: string): void {
