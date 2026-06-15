@@ -116,7 +116,8 @@ export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
 }
 
 const WIKILINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
-const OKF_LINK = /\[([^\]]+)\]\(\/(concepts|queries)\/([^)]+?)\.md\)/g;
+// any bundle-relative markdown link to a `.md` doc: captures display text + path (no leading slash, no .md)
+const OKF_LINK = /\[([^\]]+)\]\(\/([^)]+?)\.md\)/g;
 const FENCE = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g; // capturing → fenced blocks at odd split indices
 // Only fenced blocks are protected; single-backtick inline code (e.g. `[[x]]`)
 // is NOT — a wikilink inside inline code will still be rewritten. Acceptable for v0.1.
@@ -138,10 +139,18 @@ export function wikilinksToOkf(body: string, resolve: LinkResolver): string {
     .join("");
 }
 
-/** Reverse: OKF link -> [[slug]] when text == target title, else [[slug|text]]. */
-export function okfLinksToWikilinks(body: string, titleOf: (slug: string) => string | null): string {
-  return body.replace(OKF_LINK, (_m, text: string, _dir: string, slug: string) => {
-    const title = titleOf(slug);
-    return title !== null && text === title ? `[[${slug}]]` : `[[${slug}|${text}]]`;
+/**
+ * Reverse: OKF link -> [[slug]] when `resolveLink(path)` maps the link's path to a known
+ * bundle doc; an unknown/external path is left verbatim. `[[slug]]` when text === title,
+ * else `[[slug|text]]`.
+ */
+export function okfLinksToWikilinks(
+  body: string,
+  resolveLink: (linkPath: string) => { slug: string; title: string } | null,
+): string {
+  return body.replace(OKF_LINK, (match, text: string, linkPath: string) => {
+    const r = resolveLink(linkPath);
+    if (!r) return match;
+    return r.title === text ? `[[${r.slug}]]` : `[[${r.slug}|${text}]]`;
   });
 }
