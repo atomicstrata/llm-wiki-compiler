@@ -1,10 +1,10 @@
 ---
-title: "llmwiki ingest — Add Sources to Your Wiki Project"
+title: "llmwiki ingest - Add Sources to Your Wiki Project"
 sidebarTitle: "Ingest"
 description: "llmwiki ingest fetches a URL or copies a local file into sources/. Also covers ingest-session for AI session exports and quickstart for one-step setup."
 ---
 
-Before you can compile a wiki, you need raw material. Ingesting a source means pulling external content — a web page, a PDF, a YouTube video transcript, a local Markdown file — into your project's `sources/` directory, where it becomes available for the compile pipeline. Every ingest produces a single Markdown file with YAML frontmatter recording the source URL or path, the detected source type, the ingest timestamp, and a truncation flag if the content exceeded the character limit. That file is the stable, content-addressed record the compiler reads.
+Before you can compile a wiki, you need raw material. Ingesting a source means pulling external content - a web page, a PDF, a YouTube video transcript, a local Markdown file - into your project's `sources/` directory, where it becomes available for the compile pipeline. Every ingest produces a single Markdown file with YAML frontmatter recording the source URL or path, the detected source type, the ingest timestamp, and a truncation flag if the content exceeded the character limit. That file is the stable, content-addressed record the compiler reads.
 
 You typically ingest first and compile second. If you're just getting started and want to do both in a single step, see [`llmwiki quickstart`](#llmwiki-quickstart) below.
 
@@ -61,7 +61,7 @@ llmwiki ingest ./diagrams/system-architecture.png
 
 ### SSRF considerations
 
-`llmwiki ingest` is a server-side fetch primitive — it follows the URL you give it and reads files from disk. **Only pass trusted input to `llmwiki ingest`.** If you're building a tool that ingests user-supplied URLs or untrusted strings, use the SDK's `ingestText()` method instead. `ingestText` accepts raw text without making any network requests or filesystem reads, so it is safe for untrusted content.
+`llmwiki ingest` is a server-side fetch primitive - it follows the URL you give it and reads files from disk. **Only pass trusted input to `llmwiki ingest`.** If you're building a tool that ingests user-supplied URLs or untrusted strings, use the SDK's `ingestText()` method instead. `ingestText` accepts raw text without making any network requests or filesystem reads, so it is safe for untrusted content.
 
 ---
 
@@ -88,7 +88,7 @@ llmwiki ingest-session ./exports/
 llmwiki compile
 ```
 
-Session files land in `sources/` just like any other ingest result. The compile pipeline treats them identically to web or file sources — concepts are extracted from the conversation text and turned into wiki pages.
+Session files land in `sources/` just like any other ingest result. The compile pipeline treats them identically to web or file sources - concepts are extracted from the conversation text and turned into wiki pages.
 
 ---
 
@@ -98,7 +98,7 @@ Session files land in `sources/` just like any other ingest result. The compile 
 llmwiki quickstart <source>
 ```
 
-`quickstart` is a first-run convenience wrapper that ingests a source, compiles the wiki, and opens the local viewer — all in one command. It is the fastest way to go from zero to a browsable wiki.
+`quickstart` is a first-run convenience wrapper that ingests a source, compiles the wiki, and opens the local viewer - all in one command. It is the fastest way to go from zero to a browsable wiki.
 
 Under the hood, `quickstart` runs `ingest` then `compile`. Compile requires LLM credentials; if credentials are missing, the source is still saved to disk before quickstart reports the compile failure, so your content is preserved and you can run `llmwiki compile` manually once credentials are configured.
 
@@ -132,5 +132,5 @@ llmwiki quickstart ./brief.md --json
 ```
 
 <Tip>
-After ingesting sources, run `llmwiki next` to get a recommended next action tailored to your project's current state — it reads your `sources/`, `wiki/`, and candidate queue to suggest whether you should compile, review candidates, run lint, or query.
+After ingesting sources, run `llmwiki next` to get a recommended next action tailored to your project's current state - it reads your `sources/`, `wiki/`, and candidate queue to suggest whether you should compile, review candidates, run lint, or query.
 </Tip>

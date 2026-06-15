@@ -4,7 +4,7 @@ sidebarTitle: "Wiki Model"
 description: "Learn how llmwiki organizes compiled wiki pages, wikilinks, the activity journal, and the .llmwiki directory for embeddings and state."
 ---
 
-When llmwiki compiles your sources, it writes everything into a predictable, file-system-native layout. The compiled wiki lives in `wiki/`, the compiler's internal state lives in `.llmwiki/`, and every operation — ingest, compile, query — appends a timestamped entry to `log.md`. All of these are plain text or JSON files you can read, version-control, and open in any tool, including Obsidian.
+When llmwiki compiles your sources, it writes everything into a predictable, file-system-native layout. The compiled wiki lives in `wiki/`, the compiler's internal state lives in `.llmwiki/`, and every operation - ingest, compile, query - appends a timestamped entry to `log.md`. All of these are plain text or JSON files you can read, version-control, and open in any tool, including Obsidian.
 
 ## Output Directory Structure
 
@@ -34,7 +34,7 @@ wiki/
     One Markdown file per compiled concept. Each file has YAML frontmatter with title, summary, kind, sources, timestamps, and optional epistemic metadata. The file body contains prose paragraphs with `^[source.md]` citation markers and `[[wikilinks]]` to related concepts.
   </Card>
   <Card title="wiki/queries/" icon="magnifying-glass">
-    Saved answers from `llmwiki query --save`. Query pages are full wiki pages and participate in retrieval — future queries use them as context, compounding the wiki's usefulness over time.
+    Saved answers from `llmwiki query --save`. Query pages are full wiki pages and participate in retrieval - future queries use them as context, compounding the wiki's usefulness over time.
   </Card>
   <Card title="wiki/index.md" icon="list">
     An auto-generated table of contents rebuilt after every compile. Lists every concept page with its summary, grouped for navigation. Both the CLI and the local viewer use this as the primary entry point.
@@ -48,10 +48,10 @@ wiki/
     Tracks per-source SHA-256 content hashes and the concept slugs each source owns. On every compile, llmwiki compares live file hashes against this state to determine what needs reprocessing. This is what makes incremental compilation possible.
   </Card>
   <Card title="embeddings.json" icon="vector-square">
-    The v2 embedding store. Carries page-level and chunk-level vectors used by `llmwiki query` and `llmwiki context` for cosine-similarity retrieval. Updated incrementally alongside source changes — only chunks whose content changed are re-embedded.
+    The v2 embedding store. Carries page-level and chunk-level vectors used by `llmwiki query` and `llmwiki context` for cosine-similarity retrieval. Updated incrementally alongside source changes - only chunks whose content changed are re-embedded.
   </Card>
   <Card title="candidates/" icon="clock">
-    JSON records for pages held for review — either via `llmwiki compile --review`, triggered automatically by a review policy in `config.json`, or staged by `llmwiki import --okf`. Each candidate records exactly why it was held (low confidence, contradicted, schema-violating, provenance-violating, or imported from OKF). Rejected candidates move to `candidates/archive/` for audit.
+    JSON records for pages held for review - either via `llmwiki compile --review`, triggered automatically by a review policy in `config.json`, or staged by `llmwiki import --okf`. Each candidate records exactly why it was held (low confidence, contradicted, schema-violating, provenance-violating, or imported from OKF). Rejected candidates move to `candidates/archive/` for audit.
   </Card>
   <Card title="schema.json" icon="sitemap">
     An optional file you create with `llmwiki schema init`. Defines which page kinds are permitted, per-kind minimum wikilink counts, and seed pages the compiler should materialize (such as domain-level overview pages). Projects without a schema file fall back to the `concept` kind for all pages.
@@ -79,7 +79,7 @@ aliases:
 Any `[[multi-head self-attention]]` or `[[MHA]]` link in the wiki resolves to this page, even if the slug is `multi-head-attention`. Alias resolution is honored by the local viewer, the MCP `read_page` tool, and `llmwiki query`.
 
 <Note>
-  The wiki is fully Obsidian-compatible. Open the `wiki/` directory as an Obsidian vault to browse compiled pages, follow wikilinks, and view the knowledge graph — no additional configuration required.
+  The wiki is fully Obsidian-compatible. Open the `wiki/` directory as an Obsidian vault to browse compiled pages, follow wikilinks, and view the knowledge graph - no additional configuration required.
 </Note>
 
 ## Source Attribution
@@ -98,7 +98,7 @@ updatedAt: "2026-04-05T12:00:00Z"
 ---
 ```
 
-The `sources` field lists the filenames from `sources/` that contributed to this page. These filenames — combined with the content hashes recorded in `.llmwiki/state.json` — are what llmwiki compares on subsequent runs to determine whether a page is fresh, stale, or orphaned.
+The `sources` field lists the filenames from `sources/` that contributed to this page. These filenames - combined with the content hashes recorded in `.llmwiki/state.json` - are what llmwiki compares on subsequent runs to determine whether a page is fresh, stale, or orphaned.
 
 When multiple sources merge into one page, all contributing source filenames appear in the `sources` array.
 
@@ -114,7 +114,7 @@ This imported provenance is used for honest re-export: `llmwiki export --target 
 
 ## The Activity Journal (`log.md`)
 
-Every ingest, compile, and query operation appends a timestamped entry to `log.md` at the project root. Entries use a fixed heading format — `## [YYYY-MM-DDThh:mm:ssZ] operation | description` — followed by a short bullet body carrying page wikilinks and counts:
+Every ingest, compile, and query operation appends a timestamped entry to `log.md` at the project root. Entries use a fixed heading format - `## [YYYY-MM-DDThh:mm:ssZ] operation | description` - followed by a short bullet body carrying page wikilinks and counts:
 
 ```markdown
 ## [2026-06-05T09:14:02Z] ingest | Attention Is All You Need
@@ -137,7 +137,7 @@ Because only headings start with `## [`, you can reliably extract recent operati
 grep "^## \[" log.md | tail -5
 ```
 
-`log.md` tracks temporal progression — when things were compiled and in what order. `wiki/index.md` organizes content for discovery. Both are human-readable and machine-parseable.
+`log.md` tracks temporal progression - when things were compiled and in what order. `wiki/index.md` organizes content for discovery. Both are human-readable and machine-parseable.
 
 <Tip>
   `log.md` is a useful audit trail when running llmwiki through the MCP server or SDK. Agents can read it to understand what has already been compiled, what was recently updated, and which pages were created from a given source.

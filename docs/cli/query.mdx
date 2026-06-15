@@ -1,10 +1,10 @@
 ---
-title: "llmwiki query — Ask Questions Against Your Compiled Wiki"
+title: "llmwiki query - Ask Questions Against Your Compiled Wiki"
 sidebarTitle: "Query"
 description: "llmwiki query answers questions using hybrid semantic search and BM25 reranking over compiled wiki pages. Use --save to persist answers as new pages."
 ---
 
-Once you've compiled a wiki, `llmwiki query` lets you ask natural language questions and get grounded, cited answers drawn from your compiled pages. Unlike sending a question directly to an LLM, `query` retrieves the most relevant content from your own wiki first and uses that as the grounding context — so answers cite specific pages and trace back to your original sources.
+Once you've compiled a wiki, `llmwiki query` lets you ask natural language questions and get grounded, cited answers drawn from your compiled pages. Unlike sending a question directly to an LLM, `query` retrieves the most relevant content from your own wiki first and uses that as the grounding context - so answers cite specific pages and trace back to your original sources.
 
 The query pipeline runs in two steps: first it identifies the most relevant pages or chunks for your question using hybrid retrieval, then it generates a grounded answer using only the content those pages contain. If the wiki doesn't have enough information to answer your question, the model says so.
 
@@ -38,7 +38,7 @@ llmwiki query "What is multi-head attention and how does it differ from self-att
 
 The final evidence pack is the full content of the selected pages, loaded and passed to the LLM as grounding context. When no embedding store is present, the command falls back to sending the full `wiki/index.md` to the LLM for page selection.
 
-If you need wikilink-graph expansion — pulling in pages directly referenced by the top results — use [`llmwiki context`](#llmwiki-context-prompt---json) instead. `context` packages an extended evidence pack with graph neighbors and citation metadata, designed for agent pipelines that build their own prompts.
+If you need wikilink-graph expansion - pulling in pages directly referenced by the top results - use [`llmwiki context`](#llmwiki-context-prompt---json) instead. `context` packages an extended evidence pack with graph neighbors and citation metadata, designed for agent pipelines that build their own prompts.
 
 ### Example session
 
@@ -71,12 +71,12 @@ llmwiki context "<prompt>" --json
 
 `llmwiki context` and `llmwiki query` both perform hybrid retrieval, but they produce different outputs:
 
-- **`llmwiki context`** packages the evidence — primary pages, semantic chunks, graph neighbors, citations, per-page freshness warnings, and suggested next actions — into a structured evidence pack without generating an answer. The pack is designed to be fed directly to an LLM agent or MCP tool as a token-budgeted context window.
+- **`llmwiki context`** packages the evidence - primary pages, semantic chunks, graph neighbors, citations, per-page freshness warnings, and suggested next actions - into a structured evidence pack without generating an answer. The pack is designed to be fed directly to an LLM agent or MCP tool as a token-budgeted context window.
 - **`llmwiki query`** generates a grounded answer using that same retrieved evidence.
 
 Use `llmwiki context` when you want to build your own prompt around the retrieved evidence, or when you're integrating wiki retrieval into an agent pipeline. Use `llmwiki query` when you want a ready-to-read answer.
 
-`--json` emits the same `v1` JSON envelope as the MCP `get_context_pack` tool — stable format suitable for agent consumption.
+`--json` emits the same `v1` JSON envelope as the MCP `get_context_pack` tool - stable format suitable for agent consumption.
 
 ### `--include-sources`
 
@@ -84,7 +84,7 @@ Use `llmwiki context` when you want to build your own prompt around the retrieve
 llmwiki context "<prompt>" --include-sources
 ```
 
-The `--include-sources` flag is opt-in and appends raw text windows from the ingested source files alongside the compiled wiki page content. Source windows are path-confined to the `sources/` directory — the flag cannot be used to read files outside that boundary. Only enable source windows for agents and pipelines you trust with the full text of your ingested sources.
+The `--include-sources` flag is opt-in and appends raw text windows from the ingested source files alongside the compiled wiki page content. Source windows are path-confined to the `sources/` directory - the flag cannot be used to read files outside that boundary. Only enable source windows for agents and pipelines you trust with the full text of your ingested sources.
 
 ## Compounding queries with `--save`
 
@@ -101,7 +101,7 @@ llmwiki query "What are the training techniques used for large language models?"
 llmwiki query "How does RLHF relate to the training techniques we documented?"
 ```
 
-Over time, a wiki that accumulates saved query answers becomes progressively richer — later questions can build on earlier ones, and the evidence pack grows to include synthesized knowledge alongside raw source-derived pages.
+Over time, a wiki that accumulates saved query answers becomes progressively richer - later questions can build on earlier ones, and the evidence pack grows to include synthesized knowledge alongside raw source-derived pages.
 
 ### Example with `--debug`
 
@@ -120,7 +120,7 @@ $ llmwiki query "How does positional encoding work?" --debug
 ```
 
 <Note>
-`llmwiki query` uses semantic search when an embedding store exists at `.llmwiki/embeddings.json`. If no embedding store is present — for example, when using a provider that doesn't support embeddings, such as GitHub Copilot — query falls back to lexical (full-index) ranking and surfaces a warning. Compile your wiki first to build the embedding store; it is generated automatically during `llmwiki compile`.
+`llmwiki query` uses semantic search when an embedding store exists at `.llmwiki/embeddings.json`. If no embedding store is present - for example, when using a provider that doesn't support embeddings, such as GitHub Copilot - query falls back to lexical (full-index) ranking and surfaces a warning. Compile your wiki first to build the embedding store; it is generated automatically during `llmwiki compile`.
 </Note>
 
 For using `query` and `context` via an AI agent, see [MCP Agent Integration](/guides/mcp-agent-integration).

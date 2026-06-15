@@ -1,12 +1,12 @@
 ---
-title: "llmwiki serve — MCP Server for AI Agent Integration"
+title: "llmwiki serve - MCP Server for AI Agent Integration"
 sidebarTitle: "Serve"
 description: "llmwiki serve starts an MCP server exposing the full compile pipeline to Claude Desktop, Cursor, Claude Code, and any MCP-compatible agent."
 ---
 
 `llmwiki serve` turns your compiled wiki into a live capability for AI agents. It starts an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server over stdio, exposing the full llmwiki pipeline as structured tools and read-only resources that any MCP-compatible client can call.
 
-With the server running, an agent can ingest new sources, trigger a compile, query the wiki for grounded answers, retrieve citation-aware context packs, run quality checks, and read individual pages — all without touching the CLI or parsing terminal output. Read-only tools work immediately with no credentials; tools that call an LLM check for a configured provider on each invocation.
+With the server running, an agent can ingest new sources, trigger a compile, query the wiki for grounded answers, retrieve citation-aware context packs, run quality checks, and read individual pages - all without touching the CLI or parsing terminal output. Read-only tools work immediately with no credentials; tools that call an LLM check for a configured provider on each invocation.
 
 ---
 
@@ -17,7 +17,7 @@ llmwiki serve                        # serve the current directory
 llmwiki serve --root /path/to/wiki   # serve a specific project root
 ```
 
-The server uses stdio transport. It starts immediately and doesn't require LLM credentials at startup — only tools that make LLM calls validate credentials lazily when they're invoked.
+The server uses stdio transport. It starts immediately and doesn't require LLM credentials at startup - only tools that make LLM calls validate credentials lazily when they're invoked.
 
 ---
 
@@ -39,7 +39,7 @@ To connect Claude Desktop, Cursor, or Claude Code, add llmwiki to your MCP clien
 }
 ```
 
-For Claude Desktop this goes in `claude_desktop_config.json`. For Cursor, add it to your MCP settings file. The `env` block is where you supply your LLM provider credentials — the server process inherits them from there.
+For Claude Desktop this goes in `claude_desktop_config.json`. For Cursor, add it to your MCP settings file. The `env` block is where you supply your LLM provider credentials - the server process inherits them from there.
 
 <Tip>
   If you're using the `claude-agent` provider with a local Claude Code login, you can omit `ANTHROPIC_API_KEY` from the `env` block. Set `LLMWIKI_PROVIDER=claude-agent` instead and the server will authenticate through your existing Claude Code session.
@@ -100,12 +100,12 @@ The server exposes 7 read-only resources under the `llmwiki://` URI scheme. MCP 
 
 | URI | Returns |
 |-----|---------|
-| `llmwiki://index` | Full content of `wiki/index.md` — the auto-generated table of contents. |
-| `llmwiki://concept/{slug}` | A single concept page from `wiki/concepts/` — parsed frontmatter plus body. |
-| `llmwiki://query/{slug}` | A single saved query page from `wiki/queries/` — parsed frontmatter plus body. |
+| `llmwiki://index` | Full content of `wiki/index.md` - the auto-generated table of contents. |
+| `llmwiki://concept/{slug}` | A single concept page from `wiki/concepts/` - parsed frontmatter plus body. |
+| `llmwiki://query/{slug}` | A single saved query page from `wiki/queries/` - parsed frontmatter plus body. |
 | `llmwiki://sources` | List of ingested source files with frontmatter metadata (filename, truncation flag, source URL, etc.). |
-| `llmwiki://state` | Compilation state from `.llmwiki/state.json` — per-source content hashes, live concept slugs, and last compile times. |
-| `llmwiki://eval/report` | The most recent eval report — health score, citation coverage, corpus stats. |
+| `llmwiki://state` | Compilation state from `.llmwiki/state.json` - per-source content hashes, live concept slugs, and last compile times. |
+| `llmwiki://eval/report` | The most recent eval report - health score, citation coverage, corpus stats. |
 | `llmwiki://eval/history` | Trend of past eval runs from `history.jsonl`. |
 
 ---
@@ -119,7 +119,7 @@ llmwiki next           # print a human-readable recommendation
 llmwiki next --json    # emit a stable JSON envelope for agent consumption
 ```
 
-`llmwiki next` reads the current project state — including the lint cache, pending source changes, and review queue depth — and recommends the single most useful next action. With `--json`, the output is a stable envelope with a `command` field, an `args` array, and a `reason` string, so an agent can execute the recommendation programmatically without parsing prose.
+`llmwiki next` reads the current project state - including the lint cache, pending source changes, and review queue depth - and recommends the single most useful next action. With `--json`, the output is a stable envelope with a `command` field, an `args` array, and a `reason` string, so an agent can execute the recommendation programmatically without parsing prose.
 
 <Note>
   `llmwiki next` is read-only. It never modifies the workspace. It's safe to call as a status check at any point in an agent workflow.
@@ -127,4 +127,4 @@ llmwiki next --json    # emit a stable JSON envelope for agent consumption
 
 ---
 
-For a full walkthrough of connecting llmwiki to Claude Desktop, Cursor, and Claude Code — including multi-project setups and agent workflow patterns — see the [MCP Agent Integration guide](/guides/mcp-agent-integration).
+For a full walkthrough of connecting llmwiki to Claude Desktop, Cursor, and Claude Code - including multi-project setups and agent workflow patterns - see the [MCP Agent Integration guide](/guides/mcp-agent-integration).

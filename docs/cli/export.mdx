@@ -1,12 +1,12 @@
 ---
-title: "llmwiki export — Export Your Wiki to Portable Formats"
+title: "llmwiki export - Export Your Wiki to Portable Formats"
 sidebarTitle: "Export"
 description: "llmwiki export converts your compiled wiki to llms.txt, JSON, JSON-LD, GraphML, Marp slides, or an Open Knowledge Format bundle."
 ---
 
-Your compiled wiki lives on disk as markdown files, but the knowledge inside it is useful beyond the local viewer and CLI. `llmwiki export` transforms your wiki into portable formats — a compact llms.txt file that fits in an LLM context window, a structured JSON envelope for programmatic consumers, a JSON-LD graph for semantic tooling, a GraphML file for graph visualization, a Marp slide deck for presentations, or an Open Knowledge Format bundle for exchange with other knowledge tools.
+Your compiled wiki lives on disk as markdown files, but the knowledge inside it is useful beyond the local viewer and CLI. `llmwiki export` transforms your wiki into portable formats - a compact llms.txt file that fits in an LLM context window, a structured JSON envelope for programmatic consumers, a JSON-LD graph for semantic tooling, a GraphML file for graph visualization, a Marp slide deck for presentations, or an Open Knowledge Format bundle for exchange with other knowledge tools.
 
-Export is a pure transformation of existing wiki content. It makes no LLM calls and doesn't modify any files in `wiki/` or `sources/` — only writing artifacts under `dist/exports/` or the `--out` directory you choose for directory-style targets.
+Export is a pure transformation of existing wiki content. It makes no LLM calls and doesn't modify any files in `wiki/` or `sources/` - only writing artifacts under `dist/exports/` or the `--out` directory you choose for directory-style targets.
 
 ---
 
@@ -27,12 +27,12 @@ When you omit `--target`, the single-file formats are exported in one pass. The 
 
 | Target | Flag value | Output file | What it produces |
 |--------|-----------|-------------|-----------------|
-| llms.txt | `llms-txt` | `dist/exports/llms.txt` | Concise index per the [llmstxt.org](https://llmstxt.org) spec — page titles, summaries, and links. Compact enough to paste into an LLM context window. |
-| llms-full.txt | `llms-full-txt` | `dist/exports/llms-full.txt` | Full content version of llms.txt — every page's complete body included. Larger but self-contained. |
+| llms.txt | `llms-txt` | `dist/exports/llms.txt` | Concise index per the [llmstxt.org](https://llmstxt.org) spec - page titles, summaries, and links. Compact enough to paste into an LLM context window. |
+| llms-full.txt | `llms-full-txt` | `dist/exports/llms-full.txt` | Full content version of llms.txt - every page's complete body included. Larger but self-contained. |
 | JSON | `json` | `dist/exports/wiki.json` | Structured JSON envelope with per-page metadata (kind, confidence, provenance, citations, aliases, freshness). See [JSON export structure](#json-export-structure) below. |
 | JSON-LD | `json-ld` | `dist/exports/wiki.jsonld` | Schema.org JSON-LD graph for semantic web and knowledge graph tooling. |
 | GraphML | `graphml` | `dist/exports/wiki.graphml` | Directed wikilink graph as XML. Import into [Gephi](https://gephi.org), Cytoscape, or any GraphML-compatible tool. |
-| Marp | `marp` | `dist/exports/wiki.md` | [Marp](https://marp.app) presentation slide deck — one slide per concept page. |
+| Marp | `marp` | `dist/exports/wiki.md` | [Marp](https://marp.app) presentation slide deck - one slide per concept page. |
 | Open Knowledge Format | `okf` | `dist/exports/okf/` | Directory bundle with `index.md`, per-page OKF docs, copied references, and `log.md`. Use this when another tool expects OKF-style markdown bundles. |
 
 ### Examples
@@ -70,16 +70,16 @@ llmwiki export
 
 ## `--project-id <id>`
 
-The `--project-id` flag embeds a stable identifier in the JSON export envelope. Downstream importers use this ID to derive deterministic external IDs for each page — so if you re-export and re-import, pages map to the same records rather than creating duplicates.
+The `--project-id` flag embeds a stable identifier in the JSON export envelope. Downstream importers use this ID to derive deterministic external IDs for each page - so if you re-export and re-import, pages map to the same records rather than creating duplicates.
 
 ```bash
 llmwiki export --target json --project-id my-research-wiki
 ```
 
-Valid project IDs match the pattern `/^[a-z0-9][a-z0-9-]{0,62}$/` — lowercase letters, digits, and hyphens, starting with a letter or digit, up to 63 characters. The export is aborted before writing any files if the ID is invalid.
+Valid project IDs match the pattern `/^[a-z0-9][a-z0-9-]{0,62}$/` - lowercase letters, digits, and hyphens, starting with a letter or digit, up to 63 characters. The export is aborted before writing any files if the ID is invalid.
 
 <Note>
-  If you're using the [Atomic Memory bridge](/guides/atomic-memory-bridge), always pass the same `--project-id` value on every export. The bridge derives stable memory record IDs from the project ID and page path — changing the ID will create duplicate records on re-import.
+  If you're using the [Atomic Memory bridge](/guides/atomic-memory-bridge), always pass the same `--project-id` value on every export. The bridge derives stable memory record IDs from the project ID and page path - changing the ID will create duplicate records on re-import.
 </Note>
 
 ---

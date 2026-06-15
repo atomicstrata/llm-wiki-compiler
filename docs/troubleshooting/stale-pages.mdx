@@ -4,7 +4,7 @@ sidebarTitle: "Stale Pages"
 description: "llmwiki tracks source freshness and flags stale and orphaned pages. Learn how to detect them with lint and repair them with refresh --stale."
 ---
 
-Every wiki page llmwiki generates records the source files — and their content hashes — that produced it. At compile time, those hashes are written to `.llmwiki/state.json`. On any subsequent command, llmwiki compares the recorded hashes against the current state of `sources/` on disk. This comparison is **source freshness tracking**: a lightweight, on-demand signal that tells you whether each page still accurately reflects the sources it was built from, without requiring a full recompile to find out.
+Every wiki page llmwiki generates records the source files - and their content hashes - that produced it. At compile time, those hashes are written to `.llmwiki/state.json`. On any subsequent command, llmwiki compares the recorded hashes against the current state of `sources/` on disk. This comparison is **source freshness tracking**: a lightweight, on-demand signal that tells you whether each page still accurately reflects the sources it was built from, without requiring a full recompile to find out.
 
 When sources drift out of sync with the compiled wiki, llmwiki surfaces the issue clearly so you can repair it deliberately rather than discovering it through stale query results.
 
@@ -14,19 +14,19 @@ When sources drift out of sync with the compiled wiki, llmwiki surfaces the issu
 
 A page is **stale** when at least one of its owning sources still exists on disk but its content has changed since the last compile. The recorded hash in `.llmwiki/state.json` no longer matches the file's current content hash. The page exists and is readable, but it may no longer accurately represent the current state of the source material.
 
-A page with multiple contributing sources is also marked stale when a subset of those sources was deleted — the surviving sources are still present, but the page can no longer be fully regenerated without them.
+A page with multiple contributing sources is also marked stale when a subset of those sources was deleted - the surviving sources are still present, but the page can no longer be fully regenerated without them.
 
 ### Orphaned
 
 A page is **orphaned** when every source that produced it has been deleted from `sources/`. The page exists on disk but has no living source to regenerate it from. Orphaned pages are flagged by `llmwiki lint` and are candidates for cleanup.
 
 <Note>
-Query pages (saved answers written by `llmwiki query --save`) are never marked stale or orphaned — they are generated answers, not source projections. Their freshness status is always `unverified`.
+Query pages (saved answers written by `llmwiki query --save`) are never marked stale or orphaned - they are generated answers, not source projections. Their freshness status is always `unverified`.
 </Note>
 
 ## How llmwiki detects freshness
 
-Freshness is derived on demand. There is no background watcher or daemon involved. When you run a command that checks freshness — `llmwiki lint`, `llmwiki status`, or `llmwiki refresh --stale` — llmwiki:
+Freshness is derived on demand. There is no background watcher or daemon involved. When you run a command that checks freshness - `llmwiki lint`, `llmwiki status`, or `llmwiki refresh --stale` - llmwiki:
 
 1. Reads `.llmwiki/state.json`, which records the per-source content hashes from the last compile along with each source's ownership map (which concept slugs it produced).
 2. For each source in the state file, checks whether the file still exists on disk and hashes its current content if so.
@@ -37,7 +37,7 @@ Freshness is derived on demand. There is no background watcher or daemon involve
    - If any owning source was deleted, or any live owning source has a changed hash → `stale`
    - If all live owning sources match their recorded hashes → `fresh`
 
-This hashing pass happens once per command and is shared by every consumer — lint, export, MCP tools, the viewer — so freshness is never computed redundantly in a single run.
+This hashing pass happens once per command and is shared by every consumer - lint, export, MCP tools, the viewer - so freshness is never computed redundantly in a single run.
 
 ## Where staleness is surfaced
 
@@ -47,7 +47,7 @@ You don't need to run a dedicated freshness check to know about stale pages. The
 
 **`llmwiki status`** (and the MCP `wiki_status` tool) returns a structured snapshot that includes stale and orphaned page counts, the full list of affected slugs, and a `stateStatus` field that reports whether `.llmwiki/state.json` is `ok`, `missing`, or `corrupt`.
 
-**Local viewer** (`llmwiki view`): each page card displays a badge for its freshness status — **STALE**, **ORPHANED**, **CONTRADICTED**, or **ARCHIVED**. The sidebar health pane shows aggregate counts. You can filter the page list by freshness axis. If `.llmwiki/state.json` is missing or corrupt, a corrupt-state banner appears at the top of the viewer.
+**Local viewer** (`llmwiki view`): each page card displays a badge for its freshness status - **STALE**, **ORPHANED**, **CONTRADICTED**, or **ARCHIVED**. The sidebar health pane shows aggregate counts. You can filter the page list by freshness axis. If `.llmwiki/state.json` is missing or corrupt, a corrupt-state banner appears at the top of the viewer.
 
 **MCP `get_context_pack`**: the evidence pack includes a `freshnessStatus` field per page, so agents consuming the pack know which pages may be outdated before reasoning over them.
 
@@ -61,9 +61,9 @@ You don't need to run a dedicated freshness check to know about stale pages. The
 
 `llmwiki refresh --stale` is the targeted repair command. It does three things:
 
-1. **Recompiles the changed owning sources** — only the sources that changed and own stale pages are sent back through the two-phase LLM pipeline. Sources that are new and have never been compiled are deliberately skipped.
-2. **Cleans up orphaned pages** — pages whose every source was deleted are removed from `wiki/`. This cleanup requires no LLM calls and no API key.
-3. **Leaves unrelated pages untouched** — pages whose sources haven't changed are not reprocessed, even if other pages in the project are stale.
+1. **Recompiles the changed owning sources** - only the sources that changed and own stale pages are sent back through the two-phase LLM pipeline. Sources that are new and have never been compiled are deliberately skipped.
+2. **Cleans up orphaned pages** - pages whose every source was deleted are removed from `wiki/`. This cleanup requires no LLM calls and no API key.
+3. **Leaves unrelated pages untouched** - pages whose sources haven't changed are not reprocessed, even if other pages in the project are stale.
 
 <Warning>
 `llmwiki refresh --stale` does **not** pick up new source files that have never been compiled. If you've added new files to `sources/` since the last compile, run `llmwiki compile` to ingest them. Use `refresh --stale` specifically for repairing pages whose sources changed or were deleted.
@@ -77,15 +77,15 @@ Before committing to a repair, preview exactly what `refresh --stale` would do:
 llmwiki refresh --stale --dry-run
 ```
 
-`--dry-run` prints the repair plan — which sources will be recompiled, which orphaned pages will be cleaned up — without making any LLM calls or writing anything to disk. Use this to verify the scope of the repair before running it for real.
+`--dry-run` prints the repair plan - which sources will be recompiled, which orphaned pages will be cleaned up - without making any LLM calls or writing anything to disk. Use this to verify the scope of the repair before running it for real.
 
 ### Cleanup-only refreshes
 
-When all stale pages are orphaned (every affected source was deleted, no sources merely changed), the repair requires no LLM calls — it's a filesystem cleanup only. You can run `llmwiki refresh --stale` in this case **without any provider credentials configured**.
+When all stale pages are orphaned (every affected source was deleted, no sources merely changed), the repair requires no LLM calls - it's a filesystem cleanup only. You can run `llmwiki refresh --stale` in this case **without any provider credentials configured**.
 
 ## Review policy and refresh
 
-If your project has a review policy declared in `.llmwiki/config.json`, `llmwiki refresh --stale` honors it the same way `llmwiki compile` does. Pages that trip a hold condition (low confidence, contradicted, schema-violating, or provenance-violating) are queued as candidates in `.llmwiki/candidates/` rather than written directly to `wiki/`. Configuration is fail-closed — a malformed config aborts the refresh rather than silently disabling the policy.
+If your project has a review policy declared in `.llmwiki/config.json`, `llmwiki refresh --stale` honors it the same way `llmwiki compile` does. Pages that trip a hold condition (low confidence, contradicted, schema-violating, or provenance-violating) are queued as candidates in `.llmwiki/candidates/` rather than written directly to `wiki/`. Configuration is fail-closed - a malformed config aborts the refresh rather than silently disabling the policy.
 
 ```json
 {
@@ -158,7 +158,7 @@ This regenerates `.llmwiki/state.json` from the current `sources/` directory and
 </Steps>
 
 <Tip>
-The best way to avoid accumulating stale pages is to keep `llmwiki watch` running during active editing sessions. It monitors `sources/` for changes and triggers an incremental recompile automatically whenever a file is saved — so pages stay fresh as you work rather than drifting until you notice.
+The best way to avoid accumulating stale pages is to keep `llmwiki watch` running during active editing sessions. It monitors `sources/` for changes and triggers an incremental recompile automatically whenever a file is saved - so pages stay fresh as you work rather than drifting until you notice.
 
 ```bash
 llmwiki watch
@@ -167,5 +167,5 @@ llmwiki watch
 
 ## Related reference pages
 
-- [CLI reference: lint and eval](/cli/lint-eval) — full documentation for `llmwiki lint` rules and `llmwiki eval` thresholds
-- [CLI reference: compile and refresh](/cli/compile) — incremental compilation and the `--review` flag
+- [CLI reference: lint and eval](/cli/lint-eval) - full documentation for `llmwiki lint` rules and `llmwiki eval` thresholds
+- [CLI reference: compile and refresh](/cli/compile) - incremental compilation and the `--review` flag

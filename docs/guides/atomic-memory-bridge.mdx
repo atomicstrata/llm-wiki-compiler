@@ -4,7 +4,7 @@ sidebarTitle: "Atomic Memory"
 description: "Use llmwiki export --target json with @atomicmemory/llmwiki to import compiled wiki pages as durable Atomic Memory records with full metadata."
 ---
 
-llmwiki and [Atomic Memory](https://github.com/atomicstrata/atomicmemory) are two complementary layers of open context infrastructure. llmwiki is a persistent, disk-backed knowledge base — you compile sources into typed, citation-traced markdown pages that accumulate over time and are browsable without any agent involved. Atomic Memory is a runtime memory layer for agents — searchable, correctable, scoped records that agents read and write during their work sessions.
+llmwiki and [Atomic Memory](https://github.com/atomicstrata/atomicmemory) are two complementary layers of open context infrastructure. llmwiki is a persistent, disk-backed knowledge base - you compile sources into typed, citation-traced markdown pages that accumulate over time and are browsable without any agent involved. Atomic Memory is a runtime memory layer for agents - searchable, correctable, scoped records that agents read and write during their work sessions.
 
 These tools are independently valuable, and you do not need both. But when you are building agent workflows that need structured, cited knowledge as grounded context, the bridge between them closes the gap: `llmwiki export --target json` produces a typed envelope that `@atomicmemory/llmwiki` ingests as one Atomic Memory record per wiki page, with all advisory metadata preserved.
 
@@ -13,10 +13,10 @@ These tools are independently valuable, and you do not need both. But when you a
 | | llmwiki | Atomic Memory |
 |--|---------|---------------|
 | **Primary artifact** | Compiled markdown wiki on disk | Runtime memory records |
-| **Browsable by humans** | Yes — local viewer, Obsidian-compatible | Via inspection tools |
-| **Citation-traced** | Yes — paragraph and claim-level | Preserved from llmwiki via bridge |
-| **Durable across sessions** | Yes — lives on disk, version-controllable | Yes — durable store |
-| **Agent-writable at runtime** | Via MCP tools or SDK | Yes — agents update records directly |
+| **Browsable by humans** | Yes - local viewer, Obsidian-compatible | Via inspection tools |
+| **Citation-traced** | Yes - paragraph and claim-level | Preserved from llmwiki via bridge |
+| **Durable across sessions** | Yes - lives on disk, version-controllable | Yes - durable store |
+| **Agent-writable at runtime** | Via MCP tools or SDK | Yes - agents update records directly |
 | **Best for** | Notebook, RAG index, CI knowledge base, domain pack source | Agent working memory, correctable context, scoped per-project |
 
 The bridge flows one direction: llmwiki compiles and exports → Atomic Memory ingests. On re-export with the same `--project-id`, the bridge updates existing records rather than creating duplicates.
@@ -37,7 +37,7 @@ The bridge flows one direction: llmwiki compiles and exports → Atomic Memory i
   </Step>
 
   <Step title="Export to JSON with a project ID">
-    Run `llmwiki export` with `--target json` and a stable `--project-id`. The project ID pins a consistent identifier inside the JSON envelope so the bridge can derive deterministic external IDs for each page — re-exporting with the same ID updates existing Atomic Memory records rather than duplicating them.
+    Run `llmwiki export` with `--target json` and a stable `--project-id`. The project ID pins a consistent identifier inside the JSON envelope so the bridge can derive deterministic external IDs for each page - re-exporting with the same ID updates existing Atomic Memory records rather than duplicating them.
 
     ```bash
     llmwiki export --target json --project-id my-project
@@ -63,9 +63,9 @@ The bridge flows one direction: llmwiki compiles and exports → Atomic Memory i
 
 When you pass `--project-id my-project`, llmwiki embeds that string in the JSON export envelope alongside each page. The bridge uses the project ID and the page slug together to derive a deterministic external ID for each Atomic Memory record.
 
-This means re-exporting after a recompile and re-importing will **update** the existing records rather than insert duplicates — provided you use the same `--project-id` value each time. Without a project ID, the bridge cannot guarantee stable external IDs across exports.
+This means re-exporting after a recompile and re-importing will **update** the existing records rather than insert duplicates - provided you use the same `--project-id` value each time. Without a project ID, the bridge cannot guarantee stable external IDs across exports.
 
-Choose a short, stable, slug-like value — something that describes the project and does not change between runs. For example: `engineering-handbook`, `ml-research-q4`, `onboarding-docs`.
+Choose a short, stable, slug-like value - something that describes the project and does not change between runs. For example: `engineering-handbook`, `ml-research-q4`, `onboarding-docs`.
 
 ## JSON envelope shape
 
@@ -74,14 +74,14 @@ The JSON export preserves the full per-page advisory metadata that llmwiki track
 | Field | Description |
 |-------|-------------|
 | `path` | Relative path to the wiki page file (e.g. `wiki/concepts/knowledge-compilation.md`) |
-| `kind` | Page type — `concept`, `entity`, `comparison`, or `overview` |
+| `kind` | Page type - `concept`, `entity`, `comparison`, or `overview` |
 | `confidence` | LLM-reported confidence in the synthesized page (0–1), if present |
-| `provenanceState` | How the page was produced — `extracted`, `merged`, `inferred`, or `ambiguous` |
-| `citations` | Flattened list of citations — each with `file`, and optionally `start`/`end` line numbers |
+| `provenanceState` | How the page was produced - `extracted`, `merged`, `inferred`, or `ambiguous` |
+| `citations` | Flattened list of citations - each with `file`, and optionally `start`/`end` line numbers |
 | `aliases` | Array of alternative titles declared in the page's frontmatter |
 | `freshnessStatus` | Whether the page is `fresh`, `stale`, or `orphaned` relative to its sources at export time |
 
-This metadata is advisory — it reflects the state of the wiki at the time of export and is not re-checked by Atomic Memory at query time.
+This metadata is advisory - it reflects the state of the wiki at the time of export and is not re-checked by Atomic Memory at query time.
 
 ## When to use each tool
 

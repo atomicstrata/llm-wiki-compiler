@@ -1,10 +1,10 @@
 ---
-title: "llmwiki view — Browse Your Wiki in a Local Web Viewer"
+title: "llmwiki view - Browse Your Wiki in a Local Web Viewer"
 sidebarTitle: "View"
 description: "llmwiki view starts a private local web server for browsing, searching, and inspecting your compiled wiki with provenance chips and a graph view."
 ---
 
-After compiling your wiki, `llmwiki view` gives you a private local web interface for browsing, searching, and inspecting what was generated. The viewer renders your compiled Markdown pages with their frontmatter metadata, shows citation and provenance chips for each claim, provides a full-text search across all pages, and includes a force-directed graph at `#/graph` for exploring how concepts link to each other. Everything runs locally — no data leaves your machine.
+After compiling your wiki, `llmwiki view` gives you a private local web interface for browsing, searching, and inspecting what was generated. The viewer renders your compiled Markdown pages with their frontmatter metadata, shows citation and provenance chips for each claim, provides a full-text search across all pages, and includes a force-directed graph at `#/graph` for exploring how concepts link to each other. Everything runs locally - no data leaves your machine.
 
 ## Starting the viewer
 
@@ -41,7 +41,7 @@ Press `Ctrl+C` to stop the server.
 
 **Markdown rendering.** Pages are rendered with full Markdown formatting, including headers, code blocks, tables, and `[[wikilink]]` resolution. Wikilinks are clickable and resolve to any page that matches either the linked title or an entry in the page's `aliases` frontmatter.
 
-**Page metadata.** Each page shows its frontmatter fields — kind, contributing sources, confidence score, provenance state, creation and update timestamps — in a collapsible metadata panel.
+**Page metadata.** Each page shows its frontmatter fields - kind, contributing sources, confidence score, provenance state, creation and update timestamps - in a collapsible metadata panel.
 
 **Health counts.** The sidebar header shows the current count of `STALE`, `ORPHANED`, `CONTRADICTED`, and `ARCHIVED` pages from the most recent lint run, giving you an at-a-glance freshness signal without leaving the viewer.
 
@@ -53,7 +53,7 @@ Press `Ctrl+C` to stop the server.
 
 ## Security model
 
-The viewer is **read-only by design** — it renders compiled wiki pages but cannot write to `sources/`, `wiki/`, or `.llmwiki/`. All write operations go through the CLI or the MCP server.
+The viewer is **read-only by design** - it renders compiled wiki pages but cannot write to `sources/`, `wiki/`, or `.llmwiki/`. All write operations go through the CLI or the MCP server.
 
 By default, the server binds exclusively to `127.0.0.1` (loopback), so it is only accessible from your local machine. Viewer responses use a strict local-asset Content Security Policy that prevents the UI from loading resources from external origins.
 
@@ -75,7 +75,7 @@ bind beyond loopback, or neither to keep the viewer on 127.0.0.1.
 Wildcard hosts (`0.0.0.0`, `::`, `*`) are rejected regardless of `--allow-lan`. Use a specific interface IP instead.
 
 <Warning>
-LAN mode exposes your compiled wiki — including all page content, citations, and source references — to every device that can reach the specified IP on your network. Only enable LAN mode for devices and agents you trust with the contents of your wiki. If you need to share a wiki externally, export it with `llmwiki export` instead and serve the static output through a controlled channel.
+LAN mode exposes your compiled wiki - including all page content, citations, and source references - to every device that can reach the specified IP on your network. Only enable LAN mode for devices and agents you trust with the contents of your wiki. If you need to share a wiki externally, export it with `llmwiki export` instead and serve the static output through a controlled channel.
 </Warning>
 
 ## Example workflow
@@ -93,7 +93,7 @@ llmwiki lint
 # Repair stale pages
 llmwiki refresh --stale
 
-# Reload the viewer — it serves the latest compiled state on each page load
+# Reload the viewer - it serves the latest compiled state on each page load
 ```
 
 <Note>

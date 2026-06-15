@@ -1,10 +1,10 @@
 ---
-title: "Review Queue — Inspect and Approve Generated Wiki Pages"
+title: "Review Queue - Inspect and Approve Generated Wiki Pages"
 sidebarTitle: "Review"
 description: "Use llmwiki compile --review and the review subcommands to inspect, approve, or reject generated pages before they land in your wiki."
 ---
 
-By default, `llmwiki compile` writes pages directly to `wiki/`. That's fine for a personal knowledge base where you trust the compiler's output — but when you're building something authoritative, populating a shared wiki, or working with sources that contain conflicting or uncertain information, you may want to review each generated page before it goes live.
+By default, `llmwiki compile` writes pages directly to `wiki/`. That's fine for a personal knowledge base where you trust the compiler's output - but when you're building something authoritative, populating a shared wiki, or working with sources that contain conflicting or uncertain information, you may want to review each generated page before it goes live.
 
 The review queue gives you that control. Instead of writing pages, compile deposits them as JSON candidate records in `.llmwiki/candidates/`. You inspect each one, then either approve it (which writes it to `wiki/` and refreshes the index) or reject it (which archives it without touching the wiki). The wiki only changes when you say so.
 
@@ -21,13 +21,13 @@ llmwiki compile --review
 When the compile finishes, it reports how many pages were written and how many were held:
 
 ```
-Wrote 8 page(s), held 2 for review — run `llmwiki review list`
+Wrote 8 page(s), held 2 for review - run `llmwiki review list`
 ```
 
 Pages that were already live and haven't changed are not affected. Only newly generated or updated candidates are held.
 
 <Note>
-  `--review` is all-or-nothing on the command line — every generated page goes to the queue. For more granular control (e.g. automatically hold only low-confidence or contradicted pages while writing the rest live), see [Review Policy](/configuration/review-policy).
+  `--review` is all-or-nothing on the command line - every generated page goes to the queue. For more granular control (e.g. automatically hold only low-confidence or contradicted pages while writing the rest live), see [Review Policy](/configuration/review-policy).
 </Note>
 
 ---
@@ -42,7 +42,7 @@ List all pending candidates:
 llmwiki review list
 ```
 
-Each row shows the candidate ID, slug, review mode, reason codes, generation timestamp, and contributing sources. The reason codes tell you why the page was held — useful when you're using a review policy that holds pages selectively.
+Each row shows the candidate ID, slug, review mode, reason codes, generation timestamp, and contributing sources. The reason codes tell you why the page was held - useful when you're using a review policy that holds pages selectively.
 
 ### `llmwiki review show <id>`
 
@@ -54,14 +54,14 @@ llmwiki review show <id>
 
 The output includes:
 
-- **Title, slug, and summary** — the page's metadata
-- **Sources** — which source files contributed to this page
-- **Review mode and reason codes** — why the page was held, with detail where available
-- **Confidence** — the LLM-reported confidence score, if present
-- **Contradiction flag** — whether the page declares `contradictedBy` entries
-- **Full page body** — the complete markdown content, exactly as it would be written to `wiki/`
-- **Schema violations** — any cross-link rules the page fails, if a schema is configured
-- **Provenance violations** — any broken or malformed citation markers
+- **Title, slug, and summary** - the page's metadata
+- **Sources** - which source files contributed to this page
+- **Review mode and reason codes** - why the page was held, with detail where available
+- **Confidence** - the LLM-reported confidence score, if present
+- **Contradiction flag** - whether the page declares `contradictedBy` entries
+- **Full page body** - the complete markdown content, exactly as it would be written to `wiki/`
+- **Schema violations** - any cross-link rules the page fails, if a schema is configured
+- **Provenance violations** - any broken or malformed citation markers
 
 Use `review show` to read the proposed page before deciding to approve or reject it.
 
@@ -83,10 +83,10 @@ Approval does the following in order:
 6. Removes the candidate file from `.llmwiki/candidates/`
 7. Records the approved slug in state so future compiles track it correctly
 
-The page body stored in the candidate is written verbatim — approval never re-invokes the LLM.
+The page body stored in the candidate is written verbatim - approval never re-invokes the LLM.
 
 <Warning>
-  Embeddings refresh may fail if no provider credentials are configured at approval time. When that happens, a warning is printed but the approval still succeeds — the page is written and the index is updated. Re-run `llmwiki compile` or `llmwiki refresh --stale` later to pick up the missing embeddings.
+  Embeddings refresh may fail if no provider credentials are configured at approval time. When that happens, a warning is printed but the approval still succeeds - the page is written and the index is updated. Re-run `llmwiki compile` or `llmwiki refresh --stale` later to pick up the missing embeddings.
 </Warning>
 
 ### `llmwiki review reject <id>`
@@ -97,7 +97,7 @@ Archive a candidate without touching the wiki:
 llmwiki review reject <id>
 ```
 
-Rejected candidates are moved to `.llmwiki/candidates/archive/`. They no longer appear in `review list`, but they remain on disk for audit purposes. A rejected candidate for an unchanged source won't be re-extracted on the next `compile` — the rejection is sticky until the source itself changes.
+Rejected candidates are moved to `.llmwiki/candidates/archive/`. They no longer appear in `review list`, but they remain on disk for audit purposes. A rejected candidate for an unchanged source won't be re-extracted on the next `compile` - the rejection is sticky until the source itself changes.
 
 ---
 
@@ -113,7 +113,7 @@ Every candidate records **why** it was held. The reason codes surface in `review
 | `schema-violating` | Page fails a schema cross-link rule |
 | `provenance-violating` | Page has broken or malformed citations |
 
-When you're using a [review policy](/configuration/review-policy), only pages that trip an enabled reason code are held — the rest are written live.
+When you're using a [review policy](/configuration/review-policy), only pages that trip an enabled reason code are held - the rest are written live.
 
 ---
 

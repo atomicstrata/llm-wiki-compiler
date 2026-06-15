@@ -4,7 +4,7 @@ sidebarTitle: "CI Quality Gates"
 description: "Use llmwiki eval with threshold configuration to fail CI when wiki health, citation coverage, or citation quality drops below your defined minimums."
 ---
 
-A compiled wiki is a living artifact. Every time you ingest new sources and recompile, you introduce changes — new pages, updated content, shifted citations. Without a quality gate, a recompile can silently degrade your wiki: citation precision can drop, health score can fall, and stale provenance can creep in unnoticed.
+A compiled wiki is a living artifact. Every time you ingest new sources and recompile, you introduce changes - new pages, updated content, shifted citations. Without a quality gate, a recompile can silently degrade your wiki: citation precision can drop, health score can fall, and stale provenance can creep in unnoticed.
 
 `llmwiki eval` gives you a quantitative score for each of these dimensions and exits non-zero when any configured threshold is breached. Wire it into CI and you get the same protection for your knowledge base that lint and tests give you for your code.
 
@@ -20,7 +20,7 @@ The report always prints regardless of exit code, so you can read exactly which 
 
 ## Threshold configuration
 
-Create `.llmwiki/eval/thresholds.yaml` in your project to configure minimum acceptable scores. All fields are optional — omit any field to skip checking that metric.
+Create `.llmwiki/eval/thresholds.yaml` in your project to configure minimum acceptable scores. All fields are optional - omit any field to skip checking that metric.
 
 ```yaml
 health_score: 85
@@ -35,7 +35,7 @@ claim_level_citation_rate: 0.5
 ### Field reference
 
 <ParamField body="health_score" type="number (0–100)">
-  Composite lint health score. Aggregates all lint rules — errors (broken citations, broken wikilinks, duplicate concepts) cost more than warnings. A freshly compiled, well-cited wiki with no broken links typically scores above 90.
+  Composite lint health score. Aggregates all lint rules - errors (broken citations, broken wikilinks, duplicate concepts) cost more than warnings. A freshly compiled, well-cited wiki with no broken links typically scores above 90.
 </ParamField>
 
 <ParamField body="citation_coverage_percent" type="number (0–100)">
@@ -47,15 +47,15 @@ claim_level_citation_rate: 0.5
 </ParamField>
 
 <ParamField body="citation_support_mean" type="number (0–2)">
-  Average LLM-judged support score across a sample of `(claim, source span)` pairs. The judge scores each pair 0 (unsupported), 1 (partially supported), or 2 (fully supported). **This threshold is only checked when you run `--suite full`** — it is silently skipped on the fast suite.
+  Average LLM-judged support score across a sample of `(claim, source span)` pairs. The judge scores each pair 0 (unsupported), 1 (partially supported), or 2 (fully supported). **This threshold is only checked when you run `--suite full`** - it is silently skipped on the fast suite.
 </ParamField>
 
 <ParamField body="source_utilization_rate" type="number (0–1)">
-  Fraction of valid ingested sources that are actually cited by at least one wiki page. A value below 1.0 means some sources were compiled but none of the resulting pages cite them — which may indicate orphaned content or extraction gaps.
+  Fraction of valid ingested sources that are actually cited by at least one wiki page. A value below 1.0 means some sources were compiled but none of the resulting pages cite them - which may indicate orphaned content or extraction gaps.
 </ParamField>
 
 <ParamField body="source_warnings_max" type="number">
-  Maximum number of excluded sources permitted. Sources are excluded from compilation when they cannot be safely processed — for example, out-of-tree symlinks that fall outside `sources/`. Setting this to `0` fails the build if any such sources exist.
+  Maximum number of excluded sources permitted. Sources are excluded from compilation when they cannot be safely processed - for example, out-of-tree symlinks that fall outside `sources/`. Setting this to `0` fails the build if any such sources exist.
 </ParamField>
 
 <ParamField body="claim_level_citation_rate" type="number (0–1)">
@@ -94,7 +94,7 @@ jobs:
 ```
 
 <Note>
-  `--suite fast` checks health score, citation coverage, citation precision, source utilization, source warnings, and claim-level citation rate without any LLM API calls. If you include `citation_support_mean` in your thresholds, switch to `--suite full` — but be aware it will use your LLM provider and incur token costs proportional to the number of citations sampled.
+  `--suite fast` checks health score, citation coverage, citation precision, source utilization, source warnings, and claim-level citation rate without any LLM API calls. If you include `citation_support_mean` in your thresholds, switch to `--suite full` - but be aware it will use your LLM provider and incur token costs proportional to the number of citations sampled.
 </Note>
 
 ## Tracking history
@@ -106,11 +106,11 @@ llmwiki eval history        # shows all recorded runs
 llmwiki eval history --n 10 # limit to the last 10 entries
 ```
 
-The trend table shows health score, citation coverage, citation precision, and corpus stats (page count, source count, wiki character count) for each run — making it easy to spot regressions after a recompile.
+The trend table shows health score, citation coverage, citation precision, and corpus stats (page count, source count, wiki character count) for each run - making it easy to spot regressions after a recompile.
 
 ## Regression deltas
 
-Each eval report is automatically diffed against the previous entry in `history.jsonl`. The report prints delta values — for example `health_score: 91 (−4)` — so you can see at a glance whether a recompile improved or degraded your wiki quality. Deltas are also available in the structured `EvalReport.delta` field when using the SDK.
+Each eval report is automatically diffed against the previous entry in `history.jsonl`. The report prints delta values - for example `health_score: 91 (−4)` - so you can see at a glance whether a recompile improved or degraded your wiki quality. Deltas are also available in the structured `EvalReport.delta` field when using the SDK.
 
 ## Re-printing the latest report
 
@@ -123,7 +123,7 @@ llmwiki eval report
 This is useful for reviewing results in CI logs or sharing the current state of a wiki without triggering another eval run.
 
 <Tip>
-  Start with lenient thresholds and tighten them over time as you improve your wiki's citation hygiene. A reasonable starting point for a new wiki might be `health_score: 70` and `citation_coverage_percent: 50` — enough to catch severe regressions without blocking every early commit. As your corpus matures and citations stabilize, raise the thresholds toward your target quality bar.
+  Start with lenient thresholds and tighten them over time as you improve your wiki's citation hygiene. A reasonable starting point for a new wiki might be `health_score: 70` and `citation_coverage_percent: 50` - enough to catch severe regressions without blocking every early commit. As your corpus matures and citations stabilize, raise the thresholds toward your target quality bar.
 </Tip>
 
 ## Next steps

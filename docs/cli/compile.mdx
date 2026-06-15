@@ -1,10 +1,10 @@
 ---
-title: "llmwiki compile — Generate Wiki Pages from Sources"
+title: "llmwiki compile - Generate Wiki Pages from Sources"
 sidebarTitle: "Compile"
 description: "llmwiki compile runs the incremental two-phase LLM pipeline to extract concepts and generate wiki pages. Key flags: --review and --lang."
 ---
 
-Compiling is the step that turns raw source files into a structured, interlinked wiki. When you run `llmwiki compile`, the pipeline runs in two phases: **Phase 1** reads every changed source in `sources/` and asks the LLM to extract all concepts, entities, and topics it finds. **Phase 2** takes those extracted concepts and generates typed wiki pages — one Markdown file per concept, with YAML frontmatter, paragraph-level citations back to source line ranges, and `[[wikilinks]]` connecting related concepts.
+Compiling is the step that turns raw source files into a structured, interlinked wiki. When you run `llmwiki compile`, the pipeline runs in two phases: **Phase 1** reads every changed source in `sources/` and asks the LLM to extract all concepts, entities, and topics it finds. **Phase 2** takes those extracted concepts and generates typed wiki pages - one Markdown file per concept, with YAML frontmatter, paragraph-level citations back to source line ranges, and `[[wikilinks]]` connecting related concepts.
 
 Splitting into two phases matters: by completing all extraction before any pages are written, the compiler can merge concepts that appear across multiple sources into a single page, catch extraction failures before anything is committed to disk, and resolve cross-references that would be impossible to wire up in a single pass.
 
@@ -25,7 +25,7 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 
 ## Incremental behaviour
 
-Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. Sources that haven't changed are skipped entirely — no API calls, no rewrites. This means re-running `llmwiki compile` after editing a single source touches only the pages that source contributed to, even in a large wiki.
+Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. Sources that haven't changed are skipped entirely - no API calls, no rewrites. This means re-running `llmwiki compile` after editing a single source touches only the pages that source contributed to, even in a large wiki.
 
 The same incremental logic applies to embeddings: chunk-level embeddings are updated only for pages whose underlying content changed.
 
@@ -68,7 +68,7 @@ If sources have changed since the last compile, affected pages are marked `stale
 llmwiki refresh --stale
 ```
 
-This recompiles only the sources that own stale pages and cleans up pages whose sources were all deleted (orphaned pages). Unrelated new sources that haven't been compiled yet are deliberately skipped — use `llmwiki compile` to bring those in separately.
+This recompiles only the sources that own stale pages and cleans up pages whose sources were all deleted (orphaned pages). Unrelated new sources that haven't been compiled yet are deliberately skipped - use `llmwiki compile` to bring those in separately.
 
 ### `--dry-run`
 
@@ -76,7 +76,7 @@ This recompiles only the sources that own stale pages and cleans up pages whose 
 llmwiki refresh --stale --dry-run
 ```
 
-Prints the plan — which pages would be recompiled, which sources are involved, how many orphaned pages would be cleaned up — without making any LLM calls or writing any files. Use this to verify the plan before committing.
+Prints the plan - which pages would be recompiled, which sources are involved, how many orphaned pages would be cleaned up - without making any LLM calls or writing any files. Use this to verify the plan before committing.
 
 ## `llmwiki watch`
 
@@ -100,7 +100,7 @@ llmwiki review approve <id>
 llmwiki review reject <id>
 ```
 
-**Review policy (selective):** Add a `.llmwiki/config.json` to hold only pages that trip specific risk conditions — low confidence, contradictions, schema violations, or broken provenance — while writing the rest live. See [Review Policy](/configuration/review-policy) for the full configuration reference.
+**Review policy (selective):** Add a `.llmwiki/config.json` to hold only pages that trip specific risk conditions - low confidence, contradictions, schema violations, or broken provenance - while writing the rest live. See [Review Policy](/configuration/review-policy) for the full configuration reference.
 
 <Note>
 `llmwiki compile` sends source content to your configured LLM provider. Make sure your provider credentials are set before running compile. For Anthropic, set `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`. For other providers, see the [Configuration](/configuration) reference.

@@ -1,10 +1,10 @@
 ---
 title: "Wiki Page Kinds: concept, entity, comparison, overview"
 sidebarTitle: "Page Types"
-description: "Learn the four page kinds — concept, entity, comparison, overview — their lint expectations, and the epistemic metadata every compiled page can carry."
+description: "Learn the four page kinds - concept, entity, comparison, overview - their lint expectations, and the epistemic metadata every compiled page can carry."
 ---
 
-Without typed pages, a compiled wiki quickly becomes a flat list of topics with no signal about what role each page plays. A page about "Transformer" could be a conceptual explanation, a specific model card for GPT-4, a side-by-side of Transformer vs. RNN, or a domain map tying together all attention-related pages. llmwiki's four page kinds give the compiler — and you — a vocabulary for these distinctions. Each kind carries different linting expectations (such as minimum wikilink counts you can configure in `schema.json`), surfaces differently in the local viewer, and participates differently in the review policy.
+Without typed pages, a compiled wiki quickly becomes a flat list of topics with no signal about what role each page plays. A page about "Transformer" could be a conceptual explanation, a specific model card for GPT-4, a side-by-side of Transformer vs. RNN, or a domain map tying together all attention-related pages. llmwiki's four page kinds give the compiler - and you - a vocabulary for these distinctions. Each kind carries different linting expectations (such as minimum wikilink counts you can configure in `schema.json`), surfaces differently in the local viewer, and participates differently in the review policy.
 
 ## The Four Page Kinds
 
@@ -15,7 +15,7 @@ Without typed pages, a compiled wiki quickly becomes a flat list of topics with 
     **Examples:** `self-attention`, `knowledge-compilation`, `incremental-compilation`
   </Card>
   <Card title="entity" icon="building">
-    A specific, named thing that exists in the world — a person, organization, product, model, or artifact. Entity pages are about *particular instances* rather than abstract patterns. They carry unique identifying information and often link outward to the concepts they instantiate.
+    A specific, named thing that exists in the world - a person, organization, product, model, or artifact. Entity pages are about *particular instances* rather than abstract patterns. They carry unique identifying information and often link outward to the concepts they instantiate.
 
     **Examples:** `andrej-karpathy`, `gpt-4`, `anthropic`, `attention-is-all-you-need`
   </Card>
@@ -59,15 +59,15 @@ updatedAt: "2026-04-05T12:00:00Z"
 
 <CardGroup cols={2}>
   <Card title="confidence" icon="gauge">
-    A number between `0` and `1` representing the LLM's reported confidence in the synthesized page. Higher values indicate the page is well-supported by its sources with minimal ambiguity. Lower values — by default, below `0.5` — cause `llmwiki lint` to flag the page with a `low-confidence` warning and, if the review policy is active, hold the page for review rather than writing it to `wiki/`.
+    A number between `0` and `1` representing the LLM's reported confidence in the synthesized page. Higher values indicate the page is well-supported by its sources with minimal ambiguity. Lower values - by default, below `0.5` - cause `llmwiki lint` to flag the page with a `low-confidence` warning and, if the review policy is active, hold the page for review rather than writing it to `wiki/`.
   </Card>
   <Card title="provenanceState" icon="route">
     A categorical label describing how the page's content was produced:
 
-    - `extracted` — derived directly from one source
-    - `merged` — synthesized from multiple sources
-    - `inferred` — the LLM drew a conclusion not stated explicitly in any source
-    - `ambiguous` — sources gave conflicting signals; the page reflects the compiler's best synthesis
+    - `extracted` - derived directly from one source
+    - `merged` - synthesized from multiple sources
+    - `inferred` - the LLM drew a conclusion not stated explicitly in any source
+    - `ambiguous` - sources gave conflicting signals; the page reflects the compiler's best synthesis
 
     When multiple sources merge into one slug, the reconciled state is always `merged`.
   </Card>
@@ -90,16 +90,16 @@ The review policy in `.llmwiki/config.json` uses epistemic metadata to decide wh
 
 <Tabs>
   <Tab title="low-confidence">
-    Pages with `confidence` below `lowConfidenceThreshold` (default `0.5`) are held. Pages with no `confidence` field are also held by default — set `"treatMissingConfidenceAs": "ok"` in `config.json` to let them pass.
+    Pages with `confidence` below `lowConfidenceThreshold` (default `0.5`) are held. Pages with no `confidence` field are also held by default - set `"treatMissingConfidenceAs": "ok"` in `config.json` to let them pass.
   </Tab>
   <Tab title="contradicted">
     Pages with a non-empty `contradictedBy` array are held, regardless of their confidence score.
   </Tab>
   <Tab title="schema-violating">
-    Pages that fail a schema cross-link rule — for example, a `concept` page with fewer wikilinks than the schema's `minWikilinks` requires — are held.
+    Pages that fail a schema cross-link rule - for example, a `concept` page with fewer wikilinks than the schema's `minWikilinks` requires - are held.
   </Tab>
   <Tab title="provenance-violating">
-    Pages with broken or malformed citations — source files that don't exist, line ranges that are impossible or out of bounds — are held.
+    Pages with broken or malformed citations - source files that don't exist, line ranges that are impossible or out of bounds - are held.
   </Tab>
 </Tabs>
 

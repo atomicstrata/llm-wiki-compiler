@@ -1,12 +1,12 @@
 ---
-title: "llmwiki lint and eval — Wiki Quality Checks and Metrics"
+title: "llmwiki lint and eval - Wiki Quality Checks and Metrics"
 sidebarTitle: "Lint & Eval"
 description: "llmwiki lint finds broken links, stale pages, and citation errors. llmwiki eval measures health scores and citation quality with CI-gateable thresholds."
 ---
 
 A compiled wiki is only as useful as it is accurate. Over time, sources change, pages accumulate broken citations, and the gap between your wiki and your source material widens. `llmwiki lint` gives you an immediate, no-LLM-required report on what's wrong; `llmwiki eval` goes further, producing a quantitative health score you can gate on in CI.
 
-Running both regularly — especially after a `compile` or `refresh` — keeps your wiki trustworthy and prevents quality debt from quietly building up.
+Running both regularly - especially after a `compile` or `refresh` - keeps your wiki trustworthy and prevents quality debt from quietly building up.
 
 ---
 
@@ -38,8 +38,8 @@ llmwiki lint
 
 These two states are often confused:
 
-- **Stale** — the source file still exists, but its content has changed since the last compile. The page may be out of date.
-- **Orphaned** — every source that contributed to the page has been deleted. The page has no living owner.
+- **Stale** - the source file still exists, but its content has changed since the last compile. The page may be out of date.
+- **Orphaned** - every source that contributed to the page has been deleted. The page has no living owner.
 
 Both are surfaced by `llmwiki lint` and are also visible in the local viewer, JSON export, and MCP tools. Use `llmwiki refresh --stale` to repair stale and orphaned pages with a targeted recompile.
 
@@ -53,7 +53,7 @@ After every run, lint writes a summary to `.llmwiki/last-lint.json`. The local v
 
 ### Recommendations
 
-`llmwiki next` reads the lint output to surface actionable recommendations — for example, suggesting `llmwiki refresh --stale` when stale pages are detected, or pointing you toward a specific broken citation to fix.
+`llmwiki next` reads the lint output to surface actionable recommendations - for example, suggesting `llmwiki refresh --stale` when stale pages are detected, or pointing you toward a specific broken citation to fix.
 
 ---
 
@@ -74,7 +74,7 @@ llmwiki eval --suite full      # fast + LLM-as-judge citation support
 | `full` | Everything in `fast`, plus LLM-as-judge citation support scoring for a sample of claim/source pairs | Yes |
 
 <Note>
-  The `fast` suite is safe to run in any environment — including CI pipelines with no API key configured. Reserve `--suite full` for periodic deep checks where you want LLM-judged support scores.
+  The `fast` suite is safe to run in any environment - including CI pipelines with no API key configured. Reserve `--suite full` for periodic deep checks where you want LLM-judged support scores.
 </Note>
 
 ### What eval measures
@@ -98,7 +98,7 @@ The fraction of a page's valid sources that are actually cited somewhere in the 
 The fraction of citations that are pinned to specific line ranges (e.g. `^[source.md:42-58]`) rather than citing a whole file. Higher means tighter, more verifiable provenance.
 
 **Corpus stats**
-Page count, source count, total wiki characters, and embedding counts — appended to `.llmwiki/eval/history.jsonl` for trend tracking.
+Page count, source count, total wiki characters, and embedding counts - appended to `.llmwiki/eval/history.jsonl` for trend tracking.
 
 **Regression deltas**
 The current run is diffed against the previous entry in `history.jsonl`. Improvements and regressions in every metric are displayed in the report.
@@ -119,7 +119,7 @@ llmwiki eval cache clear                    # wipe the citation judgement cache
 
 ### CI thresholds
 
-Add `.llmwiki/eval/thresholds.yaml` to your project to define minimum acceptable scores. When any threshold is violated, `llmwiki eval` exits with a non-zero code and lists the violations in the report — making it suitable for CI gating.
+Add `.llmwiki/eval/thresholds.yaml` to your project to define minimum acceptable scores. When any threshold is violated, `llmwiki eval` exits with a non-zero code and lists the violations in the report - making it suitable for CI gating.
 
 ```yaml
 # .llmwiki/eval/thresholds.yaml
@@ -155,7 +155,7 @@ Eval writes the following files under `.llmwiki/eval/`:
 
 ## llmwiki rules
 
-The `rules` subcommands let you extract and manage machine-actionable rule candidates from your sources. Rule candidates are structured records that can be exported for a downstream rule importer — separate from the prose wiki pages produced by `compile`.
+The `rules` subcommands let you extract and manage machine-actionable rule candidates from your sources. Rule candidates are structured records that can be exported for a downstream rule importer - separate from the prose wiki pages produced by `compile`.
 
 ```bash
 llmwiki rules extract          # extract rule candidates from changed sources (requires LLM)
@@ -167,7 +167,7 @@ llmwiki rules export --scope all       # include proposed candidates too
 llmwiki rules export --scope proposed  # only proposed candidates
 ```
 
-`rules extract` runs the LLM over your changed sources to identify rule-like statements — constraints, invariants, policies, and similar structured knowledge. Candidates land in `.llmwiki/rule-candidates/` as JSON records. `rules list` shows pending candidates with their confidence score and proposed title so you can decide what to approve.
+`rules extract` runs the LLM over your changed sources to identify rule-like statements - constraints, invariants, policies, and similar structured knowledge. Candidates land in `.llmwiki/rule-candidates/` as JSON records. `rules list` shows pending candidates with their confidence score and proposed title so you can decide what to approve.
 
 All mutations (`approve`, `reject`, `extract`) run under `.llmwiki/lock` to serialize cleanly against concurrent operations.
 

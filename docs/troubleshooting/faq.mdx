@@ -1,10 +1,10 @@
 ---
-title: "llmwiki FAQ — Frequently Asked Questions and Answers"
+title: "llmwiki FAQ - Frequently Asked Questions and Answers"
 sidebarTitle: "FAQ"
 description: "Answers to common llmwiki questions: provider setup, compilation errors, query quality, Obsidian compatibility, and scale considerations."
 ---
 
-Whether you're hitting your first `ProviderUnavailableError` or fine-tuning a large corpus workflow, this page covers the questions that come up most often. Each answer links out to deeper reference pages where relevant. If your question isn't here, check the [GitHub Issues](https://github.com/atomicstrata/llm-wiki-compiler/issues) tracker — it's the best place to surface new problems and search prior reports.
+Whether you're hitting your first `ProviderUnavailableError` or fine-tuning a large corpus workflow, this page covers the questions that come up most often. Each answer links out to deeper reference pages where relevant. If your question isn't here, check the [GitHub Issues](https://github.com/atomicstrata/llm-wiki-compiler/issues) tracker - it's the best place to surface new problems and search prior reports.
 
 <AccordionGroup>
 
@@ -48,7 +48,7 @@ Yes. llmwiki supports three keyless or non-Anthropic providers:
 
 | Provider | How to activate | Notes |
 |---|---|---|
-| `claude-agent` | `LLMWIKI_PROVIDER=claude-agent` | Uses your local Claude Code login (OAuth/subscription). No `ANTHROPIC_API_KEY` needed — if `claude` runs in your terminal, this works. |
+| `claude-agent` | `LLMWIKI_PROVIDER=claude-agent` | Uses your local Claude Code login (OAuth/subscription). No `ANTHROPIC_API_KEY` needed - if `claude` runs in your terminal, this works. |
 | `ollama` | `LLMWIKI_PROVIDER=ollama` | Runs entirely against a local Ollama instance. Set `LLMWIKI_MODEL` and `OLLAMA_HOST`. |
 | `copilot` | `LLMWIKI_PROVIDER=copilot` | Uses your GitHub Copilot subscription. Requires an OAuth token with the `copilot` scope (`gh auth refresh --scopes copilot`). Classic PATs are not supported. |
 
@@ -63,7 +63,7 @@ Review the [provider terms of service](https://www.anthropic.com/legal/consumer-
 </Accordion>
 
 <Accordion title="How do I switch providers mid-project?">
-Set `LLMWIKI_PROVIDER` (and any required credentials for the new provider) and re-run compile. llmwiki's incremental hash-based change detection means **only sources whose content has changed since the last compile are sent through the LLM pipeline again** — your existing pages are not lost or regenerated wholesale.
+Set `LLMWIKI_PROVIDER` (and any required credentials for the new provider) and re-run compile. llmwiki's incremental hash-based change detection means **only sources whose content has changed since the last compile are sent through the LLM pipeline again** - your existing pages are not lost or regenerated wholesale.
 
 ```bash
 # Switch from Anthropic to Ollama
@@ -88,7 +88,7 @@ If the first compile is still slower than expected, consider:
 - **Starting smaller:** use `llmwiki quickstart <source>` to ingest and compile a single source first, then add the rest incrementally.
 </Accordion>
 
-<Accordion title="The query isn't finding relevant pages — what can I do?">
+<Accordion title="The query isn't finding relevant pages - what can I do?">
 `llmwiki query` uses a hybrid retrieval stack: semantic chunk embeddings narrow the candidate set, BM25 reranks it, and wikilink-graph expansion adds neighbors. If semantic retrieval isn't working, results fall back to lexical (full-index BM25) selection.
 
 Check whether an embedding store exists:
@@ -113,7 +113,7 @@ llmwiki eval
 Yes. The `wiki/` directory produced by llmwiki is Obsidian-compatible by design.
 
 - **`[[wikilinks]]`** are generated in slug-based form (`[[slug|Display Title]]`) so Obsidian resolves the file directly, even when the display title differs from the slug.
-- **Alias-aware resolution:** a `[[term]]` link resolves to any page that declares `term` in its `aliases` frontmatter, not just the page whose slug matches. This means links survive renames and synonyms — rename a page and declare the old name as an alias, and all existing links continue to work.
+- **Alias-aware resolution:** a `[[term]]` link resolves to any page that declares `term` in its `aliases` frontmatter, not just the page whose slug matches. This means links survive renames and synonyms - rename a page and declare the old name as an alias, and all existing links continue to work.
 - **Tags and Map of Content:** compiled pages carry LLM-extracted tags, and `wiki/MOC.md` groups concept pages by tag for Obsidian's graph view.
 
 Simply open `wiki/` (or the project root) as an Obsidian vault.
@@ -139,7 +139,7 @@ The `--lang` flag wins over `LLMWIKI_OUTPUT_LANG` when both are set. The flag al
 </Accordion>
 
 <Accordion title="What happens if I delete a source file from sources/?">
-When a source file is deleted, any wiki pages that were produced exclusively from that source become **orphaned** — their source is gone and they can no longer be updated. Pages that had multiple contributing sources are marked **stale** if at least one owner is still present.
+When a source file is deleted, any wiki pages that were produced exclusively from that source become **orphaned** - their source is gone and they can no longer be updated. Pages that had multiple contributing sources are marked **stale** if at least one owner is still present.
 
 llmwiki detects this automatically by comparing the hashes recorded in `.llmwiki/state.json` against the current state of `sources/` on disk. No recompile is needed to detect it.
 
@@ -178,11 +178,11 @@ export LLMWIKI_PROMPT_BUDGET_CHARS=400000
 llmwiki compile
 ```
 
-Lexical fallback kicks in automatically when no embedding store is present, so even before embeddings are built, query still works — just without semantic ranking.
+Lexical fallback kicks in automatically when no embedding store is present, so even before embeddings are built, query still works - just without semantic ranking.
 </Accordion>
 
-<Accordion title="The viewer won't open on a remote server — how do I access it?">
-By default, `llmwiki view` binds to `127.0.0.1` (loopback only). This is intentional — the viewer renders your local source files and wiki pages, and exposing it on a network interface requires an explicit opt-in.
+<Accordion title="The viewer won't open on a remote server - how do I access it?">
+By default, `llmwiki view` binds to `127.0.0.1` (loopback only). This is intentional - the viewer renders your local source files and wiki pages, and exposing it on a network interface requires an explicit opt-in.
 
 To allow access from another machine on your local network, you must provide **both** flags together:
 
@@ -229,7 +229,7 @@ They serve different downstream use cases:
 | Command | What it does |
 |---|---|
 | `llmwiki query "question"` | Runs the full retrieval pipeline and then **generates a grounded natural-language answer** using an LLM. Optionally saves the answer as a wiki page with `--save`. Requires provider credentials. |
-| `llmwiki context "prompt"` | Builds and returns an **evidence pack** — primary pages, semantic chunk hits, graph neighbors, citations, warnings, and suggested actions — but **does not generate an answer**. The pack is ready for you or an agent to reason over directly. Falls back to lexical retrieval when no embeddings exist. |
+| `llmwiki context "prompt"` | Builds and returns an **evidence pack** - primary pages, semantic chunk hits, graph neighbors, citations, warnings, and suggested actions - but **does not generate an answer**. The pack is ready for you or an agent to reason over directly. Falls back to lexical retrieval when no embeddings exist. |
 
 Use `llmwiki query` when you want a direct answer. Use `llmwiki context` (or MCP `get_context_pack`) when you want to supply structured evidence to an agent or build your own reasoning layer on top.
 
@@ -246,7 +246,7 @@ llmwiki watch
 Watch mode uses the same hash-based change detection as `llmwiki compile`, so only the files that actually changed are sent through the LLM pipeline. It's useful during active research or writing sessions where you're frequently updating or adding source files.
 
 <Tip>
-Running `llmwiki watch` continuously prevents stale pages from accumulating — each source edit is recompiled immediately rather than discovered later by `llmwiki lint`. See [Detecting and Repairing Stale Pages](/troubleshooting/stale-pages) for more on the stale-page lifecycle.
+Running `llmwiki watch` continuously prevents stale pages from accumulating - each source edit is recompiled immediately rather than discovered later by `llmwiki lint`. See [Detecting and Repairing Stale Pages](/troubleshooting/stale-pages) for more on the stale-page lifecycle.
 </Tip>
 </Accordion>
 

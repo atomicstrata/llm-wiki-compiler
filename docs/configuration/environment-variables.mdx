@@ -6,7 +6,7 @@ description: "Complete reference for all llmwiki environment variables: provider
 
 llmwiki reads configuration from environment variables and an optional `.env` file placed in your project directory (alongside `sources/` and `wiki/`). Variables set in your shell take precedence over those in `.env`, which in turn take precedence over the Claude Code settings fallback (`~/.claude/settings.json` → `env` block) and built-in defaults.
 
-You don't need to set everything — only the variables relevant to your chosen provider are required. Most projects need only two or three exports before running `llmwiki compile`.
+You don't need to set everything - only the variables relevant to your chosen provider are required. Most projects need only two or three exports before running `llmwiki compile`.
 
 ---
 
@@ -28,7 +28,7 @@ You don't need to set everything — only the variables relevant to your chosen 
 | `ANTHROPIC_AUTH_TOKEN` | One of the two | Alternative auth token accepted by Anthropic-compatible gateways |
 | `ANTHROPIC_BASE_URL` | No | Custom base URL for proxies or alternate Claude endpoints. Accepts HTTP(S) URLs including Claude-style path endpoints |
 
-Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication — you do not need both. If neither is set in your environment or `.env`, llmwiki attempts to read these values from `~/.claude/settings.json`.
+Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - you do not need both. If neither is set in your environment or `.env`, llmwiki attempts to read these values from `~/.claude/settings.json`.
 
 ---
 
@@ -102,7 +102,7 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 Place this file in your project root (the same directory that contains `sources/` and `wiki/`):
 
 ```bash
-# .env — llmwiki project configuration
+# .env - llmwiki project configuration
 
 # Provider
 LLMWIKI_PROVIDER=anthropic

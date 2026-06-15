@@ -14,13 +14,13 @@ Internal refactors do not need docs unless they change an observable contract.
 
 ## Where changes belong
 
-- `introduction.mdx` and `quickstart.mdx` — only for first-run or top-level positioning changes.
-- `cli/*.mdx` — command syntax, flags, examples, output semantics, and command-specific safety notes.
-- `configuration/*.mdx` — environment variables, providers, project config, schema, review policy, and defaults.
-- `concepts/*.mdx` — durable concepts such as the wiki model, page types, citations, freshness, provenance, and review lifecycle.
-- `guides/*.mdx` — end-to-end workflows and integrations.
-- `troubleshooting/*.mdx` — common failure modes, recovery steps, and diagnostics.
-- `docs.json` — navigation only. Add new pages here or they are effectively unpublished.
+- `introduction.mdx` and `quickstart.mdx` - only for first-run or top-level positioning changes.
+- `cli/*.mdx` - command syntax, flags, examples, output semantics, and command-specific safety notes.
+- `configuration/*.mdx` - environment variables, providers, project config, schema, review policy, and defaults.
+- `concepts/*.mdx` - durable concepts such as the wiki model, page types, citations, freshness, provenance, and review lifecycle.
+- `guides/*.mdx` - end-to-end workflows and integrations.
+- `troubleshooting/*.mdx` - common failure modes, recovery steps, and diagnostics.
+- `docs.json` - navigation only. Add new pages here or they are effectively unpublished.
 
 ## Feature PR checklist
 

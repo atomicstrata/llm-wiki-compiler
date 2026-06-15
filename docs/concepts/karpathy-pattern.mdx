@@ -40,12 +40,12 @@ llmwiki makes the pattern operational with a two-phase compile pipeline:
 
 Compiling first creates leverage that raw retrieval does not naturally provide:
 
-- **Durability** — pages remain on disk, can be inspected, reviewed, edited, exported, and versioned.
-- **Accumulation** — saved query answers and newly ingested sources enrich the wiki over time.
-- **Citation tracing** — paragraphs and claims point back to source files and line ranges.
-- **Reviewability** — risky pages can be held as candidates before they become live context.
-- **Freshness tracking** — source changes can mark compiled pages stale or orphaned.
-- **Interoperability** — compiled knowledge can be exported to JSON, JSON-LD, GraphML, Marp, `llms.txt`, and Open Knowledge Format.
+- **Durability** - pages remain on disk, can be inspected, reviewed, edited, exported, and versioned.
+- **Accumulation** - saved query answers and newly ingested sources enrich the wiki over time.
+- **Citation tracing** - paragraphs and claims point back to source files and line ranges.
+- **Reviewability** - risky pages can be held as candidates before they become live context.
+- **Freshness tracking** - source changes can mark compiled pages stale or orphaned.
+- **Interoperability** - compiled knowledge can be exported to JSON, JSON-LD, GraphML, Marp, `llms.txt`, and Open Knowledge Format.
 
 <Note>
   llmwiki still uses retrieval. The difference is that retrieval runs over the compiled wiki: semantic chunk search, BM25 reranking, and wikilink-graph expansion select evidence from a structured artifact.

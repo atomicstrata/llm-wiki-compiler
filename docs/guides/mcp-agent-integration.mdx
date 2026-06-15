@@ -4,7 +4,7 @@ sidebarTitle: "MCP Integration"
 description: "Set up the llmwiki MCP server to let Claude Desktop, Cursor, Claude Code, and other MCP agents ingest, compile, and query your wiki directly."
 ---
 
-The llmwiki MCP server turns any MCP-compatible agent into a first-class wiki collaborator. Instead of scripting CLI calls and parsing stdout, agents can call structured tools — `compile_wiki`, `query_wiki`, `get_context_pack`, and more — and receive typed JSON results they can reason over. Read-only tools work without credentials, so an agent can browse, lint, and inspect your wiki before ever touching the LLM pipeline.
+The llmwiki MCP server turns any MCP-compatible agent into a first-class wiki collaborator. Instead of scripting CLI calls and parsing stdout, agents can call structured tools - `compile_wiki`, `query_wiki`, `get_context_pack`, and more - and receive typed JSON results they can reason over. Read-only tools work without credentials, so an agent can browse, lint, and inspect your wiki before ever touching the LLM pipeline.
 
 This guide walks you through starting the server, wiring it into Claude Desktop and Cursor, and understanding exactly what your agents can do once connected.
 
@@ -18,7 +18,7 @@ This guide walks you through starting the server, wiring it into Claude Desktop 
 
 <Steps>
   <Step title="Start the MCP server">
-    Run `llmwiki serve` from anywhere, pointing `--root` at your wiki project directory. The server uses stdio transport and requires no credentials at startup — read-only tools work immediately.
+    Run `llmwiki serve` from anywhere, pointing `--root` at your wiki project directory. The server uses stdio transport and requires no credentials at startup - read-only tools work immediately.
 
     ```bash
     llmwiki serve --root /path/to/wiki-project
@@ -28,7 +28,7 @@ This guide walks you through starting the server, wiring it into Claude Desktop 
   </Step>
 
   <Step title="Add to Claude Desktop">
-    Open your Claude Desktop MCP configuration file (`claude_desktop_config.json`) and add an `llmwiki` entry under `mcpServers`. The `npx` invocation launches the server on demand — you do not need to keep a separate terminal session open.
+    Open your Claude Desktop MCP configuration file (`claude_desktop_config.json`) and add an `llmwiki` entry under `mcpServers`. The `npx` invocation launches the server on demand - you do not need to keep a separate terminal session open.
 
     ```json
     {
@@ -48,7 +48,7 @@ This guide walks you through starting the server, wiring it into Claude Desktop 
   </Step>
 
   <Step title="Add to Cursor">
-    Cursor uses the same MCP config format. Add the same JSON block to your Cursor MCP settings file. The `env` block is where you supply provider credentials — Cursor passes them through to the server process.
+    Cursor uses the same MCP config format. Add the same JSON block to your Cursor MCP settings file. The `env` block is where you supply provider credentials - Cursor passes them through to the server process.
 
     ```json
     {
@@ -104,9 +104,9 @@ The server exposes nine tools. Read-only tools work without provider credentials
 | `lint_wiki` | Run quality checks; returns structured diagnostics | No |
 | `wiki_status` | Page and source counts, stale/orphaned pages, `stateStatus`, `pendingCandidates` | No |
 | `get_context_pack` | Build a token-budgeted evidence pack (primary pages, chunks, graph neighbors, citations, freshness, warnings, suggested actions) | No |
-| `run_eval` | Score wiki quality — fast suite is credential-free; full suite LLM-judges citation samples | Fast: No / Full: Yes |
+| `run_eval` | Score wiki quality - fast suite is credential-free; full suite LLM-judges citation samples | Fast: No / Full: Yes |
 
-**`get_context_pack` vs `query_wiki`:** these tools serve different purposes. `get_context_pack` *packages evidence* — it assembles a structured JSON envelope of relevant pages, semantic chunks, and citations that the agent uses for its own reasoning. `query_wiki` *generates an answer* — it calls the LLM and returns prose. Use `get_context_pack` when the agent needs grounded source material to reason over; use `query_wiki` when you want a finished answer.
+**`get_context_pack` vs `query_wiki`:** these tools serve different purposes. `get_context_pack` *packages evidence* - it assembles a structured JSON envelope of relevant pages, semantic chunks, and citations that the agent uses for its own reasoning. `query_wiki` *generates an answer* - it calls the LLM and returns prose. Use `get_context_pack` when the agent needs grounded source material to reason over; use `query_wiki` when you want a finished answer.
 
 ### MCP resources
 
@@ -115,10 +115,10 @@ Resources are passive read views of the wiki that agents can attach as context w
 | URI | Returns |
 |-----|---------|
 | `llmwiki://index` | Full `wiki/index.md` (auto-generated table of contents) |
-| `llmwiki://concept/{slug}` | A single concept page — frontmatter and body |
+| `llmwiki://concept/{slug}` | A single concept page - frontmatter and body |
 | `llmwiki://query/{slug}` | A single saved query page |
 | `llmwiki://sources` | List of ingested source files with metadata |
-| `llmwiki://state` | Compilation state — per-source hashes and last compile times |
+| `llmwiki://state` | Compilation state - per-source hashes and last compile times |
 | `llmwiki://eval/report` | The most recent eval report |
 | `llmwiki://eval/history` | Trend table of past eval runs |
 
@@ -126,30 +126,30 @@ Resources are passive read views of the wiki that agents can attach as context w
 
 The server starts without credentials. Provider credentials are read from the `env` block in your MCP config and forwarded to each pipeline call:
 
-- **Read-only tools** (`read_page`, `lint_wiki`, `wiki_status`, `ingest_source`) — always work, no credentials needed.
-- **LLM-dependent tools** (`compile_wiki`, `query_wiki`, `search_pages`) — require a valid provider credential (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) in the environment at call time.
-- **`get_context_pack`** — credential-free by default. When embeddings are available and provider credentials are present, semantic retrieval is used. Without credentials or an embedding store, the tool falls back to lexical ranking and surfaces an `embedding-store-missing` or `query-embedding-unavailable` warning in the response — it does not fail.
-- **`run_eval`** — the `fast` suite (health score, citation coverage, corpus stats) runs without any credentials. The `full` suite adds LLM-judged citation scoring and requires a provider.
+- **Read-only tools** (`read_page`, `lint_wiki`, `wiki_status`, `ingest_source`) - always work, no credentials needed.
+- **LLM-dependent tools** (`compile_wiki`, `query_wiki`, `search_pages`) - require a valid provider credential (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.) in the environment at call time.
+- **`get_context_pack`** - credential-free by default. When embeddings are available and provider credentials are present, semantic retrieval is used. Without credentials or an embedding store, the tool falls back to lexical ranking and surfaces an `embedding-store-missing` or `query-embedding-unavailable` warning in the response - it does not fail.
+- **`run_eval`** - the `fast` suite (health score, citation coverage, corpus stats) runs without any credentials. The `full` suite adds LLM-judged citation scoring and requires a provider.
 
 ## `get_context_pack` details
 
 `get_context_pack` accepts several optional parameters for tuning the evidence pack:
 
-- `prompt` *(required)* — the task or question to assemble context for
-- `budget` — approximate output token budget (default 8 000)
-- `depth` — graph neighborhood traversal depth, `0`–`2` (default `1`; `0` disables graph expansion)
-- `topPages` — maximum primary pages to include (default `5`, max `20`)
-- `topChunks` — maximum semantic chunks to surface (default `8`, max `50`)
-- `includeSources` *(opt-in)* — when `true`, materializes raw source line windows from claim-level citations
+- `prompt` *(required)* - the task or question to assemble context for
+- `budget` - approximate output token budget (default 8 000)
+- `depth` - graph neighborhood traversal depth, `0`–`2` (default `1`; `0` disables graph expansion)
+- `topPages` - maximum primary pages to include (default `5`, max `20`)
+- `topChunks` - maximum semantic chunks to surface (default `8`, max `50`)
+- `includeSources` *(opt-in)* - when `true`, materializes raw source line windows from claim-level citations
 
 **`includeSources` is opt-in** because it returns raw content from files under `sources/`. Path confinement prevents reads outside `sources/`, but only enable source windows for agents you trust with the ingested source text.
 
 ## Using `ingest_source` safely
 
-`ingest_source` accepts a URL or an absolute local file path. Because it performs a server-side fetch and local file read, it is a **trusted-input-only** primitive — pass only URLs and paths you control. For untrusted or user-supplied content, use the SDK's `ingestText` instead (see the [SDK guide](/guides/sdk)).
+`ingest_source` accepts a URL or an absolute local file path. Because it performs a server-side fetch and local file read, it is a **trusted-input-only** primitive - pass only URLs and paths you control. For untrusted or user-supplied content, use the SDK's `ingestText` instead (see the [SDK guide](/guides/sdk)).
 
 <Tip>
-  After an agent calls `compile_wiki`, check `wiki_status` and look at the `pendingCandidates` field. If your wiki has a review policy configured in `.llmwiki/config.json`, some pages may be held for human review rather than written directly. A non-zero `pendingCandidates` means the agent has queued work that needs your approval before those pages go live — run `llmwiki review list` to inspect them.
+  After an agent calls `compile_wiki`, check `wiki_status` and look at the `pendingCandidates` field. If your wiki has a review policy configured in `.llmwiki/config.json`, some pages may be held for human review rather than written directly. A non-zero `pendingCandidates` means the agent has queued work that needs your approval before those pages go live - run `llmwiki review list` to inspect them.
 </Tip>
 
 ## Next steps

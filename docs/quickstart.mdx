@@ -4,7 +4,7 @@ sidebarTitle: "Quickstart"
 description: "Install llmwiki, set your API key, and run llmwiki quickstart to compile a URL or local file into a browsable, interlinked wiki in minutes."
 ---
 
-This quickstart walks you through installing llmwiki, setting your API key, and running `llmwiki quickstart` against a real source — a URL or a local file — to produce a browsable, interlinked wiki in a single command. By the end you'll have a compiled wiki you can query with natural language and explore in a local browser UI.
+This quickstart walks you through installing llmwiki, setting your API key, and running `llmwiki quickstart` against a real source - a URL or a local file - to produce a browsable, interlinked wiki in a single command. By the end you'll have a compiled wiki you can query with natural language and explore in a local browser UI.
 
 <Note>
   llmwiki requires **Node.js >= 24**. Run `node --version` to check. If you're on an older version, update via [nodejs.org](https://nodejs.org) or a version manager such as `nvm` or `fnm` before continuing.
@@ -35,7 +35,7 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
     export ANTHROPIC_API_KEY=sk-ant-...
     ```
 
-    If your Anthropic-compatible gateway expects a different header, use `ANTHROPIC_AUTH_TOKEN` instead — either variable satisfies Anthropic authentication. You only need one.
+    If your Anthropic-compatible gateway expects a different header, use `ANTHROPIC_AUTH_TOKEN` instead - either variable satisfies Anthropic authentication. You only need one.
 
     ```bash
     # Alternative: use ANTHROPIC_AUTH_TOKEN
@@ -46,7 +46,7 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
   </Step>
 
   <Step title="Run llmwiki quickstart">
-    Create a new directory for your wiki, then run `llmwiki quickstart` with any supported source — a URL, a local markdown file, a PDF, or even a YouTube link:
+    Create a new directory for your wiki, then run `llmwiki quickstart` with any supported source - a URL, a local markdown file, a PDF, or even a YouTube link:
 
     ```bash
     mkdir my-wiki && cd my-wiki
@@ -99,13 +99,13 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
     llmwiki view --open
     ```
 
-    The viewer binds to `127.0.0.1` and is private by default. It renders `wiki/` without mutating any files — all writes go through the CLI.
+    The viewer binds to `127.0.0.1` and is private by default. It renders `wiki/` without mutating any files - all writes go through the CLI.
   </Step>
 
 </Steps>
 
 <Tip>
-  Not sure what to do next after setup? Run `llmwiki next` from your project directory. It inspects the current project state and recommends the single most useful follow-up command — whether that's adding more sources, recompiling after a file change, running `llmwiki lint`, or reviewing pending candidates.
+  Not sure what to do next after setup? Run `llmwiki next` from your project directory. It inspects the current project state and recommends the single most useful follow-up command - whether that's adding more sources, recompiling after a file change, running `llmwiki lint`, or reviewing pending candidates.
 </Tip>
 
 ## What's next

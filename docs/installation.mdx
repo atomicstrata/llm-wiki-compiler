@@ -1,20 +1,20 @@
 ---
 title: "Installing llmwiki: npm Setup and Provider Configuration"
 sidebarTitle: "Installation"
-description: "Install llmwiki globally with npm and configure your LLM provider — Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, or Claude Agent SDK."
+description: "Install llmwiki globally with npm and configure your LLM provider - Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, or Claude Agent SDK."
 ---
 
-llmwiki is a Node.js CLI that you install once globally with npm. After installation, you point it at an LLM provider by setting a handful of environment variables — or in some cases, no variables at all if you're already logged into Claude Code. This page covers the full installation process and every supported provider.
+llmwiki is a Node.js CLI that you install once globally with npm. After installation, you point it at an LLM provider by setting a handful of environment variables - or in some cases, no variables at all if you're already logged into Claude Code. This page covers the full installation process and every supported provider.
 
 ## Requirements
 
 <Warning>
-  llmwiki requires **Node.js >= 24**. This is a hard minimum — the package will not run on earlier versions. Check your current version with `node --version` and update via [nodejs.org](https://nodejs.org) or a version manager (`nvm`, `fnm`) if needed.
+  llmwiki requires **Node.js >= 24**. This is a hard minimum - the package will not run on earlier versions. Check your current version with `node --version` and update via [nodejs.org](https://nodejs.org) or a version manager (`nvm`, `fnm`) if needed.
 </Warning>
 
 - **Node.js >= 24** (see warning above)
 - **npm** (bundled with Node.js)
-- **Provider credentials** — required for compile and query; ingest is credential-free (see [Provider Setup](#provider-setup) below)
+- **Provider credentials** - required for compile and query; ingest is credential-free (see [Provider Setup](#provider-setup) below)
 
 ## Install llmwiki
 
@@ -34,11 +34,11 @@ llmwiki --help
 
 ## Provider Setup
 
-llmwiki calls an LLM during the compile and query phases. It does **not** require credentials for `ingest`, `view`, `lint`, `status`, or any other read-only operation. Configure your provider by setting the environment variables below — or place them in a `.env` file in your project directory and llmwiki will load them automatically.
+llmwiki calls an LLM during the compile and query phases. It does **not** require credentials for `ingest`, `view`, `lint`, `status`, or any other read-only operation. Configure your provider by setting the environment variables below - or place them in a `.env` file in your project directory and llmwiki will load them automatically.
 
 <Tabs>
   <Tab title="Anthropic (default)">
-    Anthropic is the default provider — no `LLMWIKI_PROVIDER` variable is needed. Set either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`; one is sufficient.
+    Anthropic is the default provider - no `LLMWIKI_PROVIDER` variable is needed. Set either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`; one is sufficient.
 
     ```bash
     export ANTHROPIC_API_KEY=sk-ant-...
@@ -90,7 +90,7 @@ llmwiki calls an LLM during the compile and query phases. It does **not** requir
     export OPENAI_BASE_URL=http://localhost:8080/v1
     ```
 
-    To use a separate endpoint for embeddings (optional — defaults to the same base URL as chat):
+    To use a separate endpoint for embeddings (optional - defaults to the same base URL as chat):
 
     ```bash
     export LLMWIKI_PROVIDER=openai
@@ -124,7 +124,7 @@ llmwiki calls an LLM during the compile and query phases. It does **not** requir
   </Tab>
 
   <Tab title="GitHub Copilot">
-    The `copilot` provider uses the GitHub Copilot API (`https://api.githubcopilot.com`), an OpenAI-compatible endpoint available to Copilot subscribers. It requires a GitHub OAuth token with the `copilot` scope — **classic personal access tokens (PATs) are not supported**.
+    The `copilot` provider uses the GitHub Copilot API (`https://api.githubcopilot.com`), an OpenAI-compatible endpoint available to Copilot subscribers. It requires a GitHub OAuth token with the `copilot` scope - **classic personal access tokens (PATs) are not supported**.
 
     First, refresh your `gh` CLI token to include the required scope:
 
@@ -140,7 +140,7 @@ llmwiki calls an LLM during the compile and query phases. It does **not** requir
     export LLMWIKI_MODEL=gpt-4o            # optional; gpt-4o is the default
     ```
 
-    Available models (use dots, not dashes in names): `gpt-4o`, `gpt-4o-mini`, `claude-sonnet-4.5`, `claude-sonnet-4.6`, `claude-opus-4.5`, `gemini-2.5-pro`, and others — availability depends on your Copilot plan.
+    Available models (use dots, not dashes in names): `gpt-4o`, `gpt-4o-mini`, `claude-sonnet-4.5`, `claude-sonnet-4.6`, `claude-opus-4.5`, `gemini-2.5-pro`, and others - availability depends on your Copilot plan.
 
     <Note>
       The GitHub Copilot API does not expose an embeddings endpoint. `llmwiki query` will fall back to full-index lexical selection without semantic ranking. For embedding-dependent workflows, switch to the `openai` provider and supply `OPENAI_API_KEY`.

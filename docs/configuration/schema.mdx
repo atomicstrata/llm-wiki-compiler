@@ -4,7 +4,7 @@ sidebarTitle: "Schema"
 description: "Define .llmwiki/schema.json to enforce page kinds, minimum wikilinks per kind, and seed pages that compile materializes automatically."
 ---
 
-The schema layer is entirely optional. Without a schema file, llmwiki compiles every page as a `concept` and applies no cross-link minimums — existing wikis continue to work exactly as they did before the schema layer existed. You only need a schema when you want to enforce structure: typed page kinds, minimum wikilink counts per kind, or seed pages that the compiler should materialize automatically.
+The schema layer is entirely optional. Without a schema file, llmwiki compiles every page as a `concept` and applies no cross-link minimums - existing wikis continue to work exactly as they did before the schema layer existed. You only need a schema when you want to enforce structure: typed page kinds, minimum wikilink counts per kind, or seed pages that the compiler should materialize automatically.
 
 ## Initializing a schema
 
@@ -15,7 +15,7 @@ llmwiki schema init   # writes a starter .llmwiki/schema.json
 llmwiki schema show   # prints the resolved schema for the current project
 ```
 
-`schema init` writes a template file you can edit. `schema show` always prints the fully-resolved schema, merging your file onto built-in defaults — useful for confirming what the compiler is actually using.
+`schema init` writes a template file you can edit. `schema show` always prints the fully-resolved schema, merging your file onto built-in defaults - useful for confirming what the compiler is actually using.
 
 ## Schema file location
 
@@ -36,7 +36,7 @@ llmwiki supports four page kinds. The compiler uses the kind as context when gen
 | Kind | Description | Default `minWikilinks` |
 |---|---|---|
 | `concept` | A standalone idea, technique, or pattern worth documenting | `0` |
-| `entity` | A specific thing — a person, product, organization, or named artifact | `1` |
+| `entity` | A specific thing - a person, product, organization, or named artifact | `1` |
 | `comparison` | A side-by-side analysis weighing two or more concepts or entities | `2` |
 | `overview` | A top-down map page that situates several concepts within a domain | `3` |
 
@@ -79,7 +79,7 @@ A schema file is a JSON (or YAML) document with the following shape:
 }
 ```
 
-Every field is optional — you only need to specify what you want to override. Missing fields inherit their built-in defaults, so a minimal schema that only raises `minWikilinks` for `overview` pages is perfectly valid.
+Every field is optional - you only need to specify what you want to override. Missing fields inherit their built-in defaults, so a minimal schema that only raises `minWikilinks` for `overview` pages is perfectly valid.
 
 ## Seed pages
 
@@ -90,7 +90,7 @@ Every field is optional — you only need to specify what you want to override. 
 | `title` | Yes | Display title; also used to derive the page slug |
 | `kind` | Yes | One of `concept`, `entity`, `comparison`, `overview` |
 | `summary` | No | One-line summary written into frontmatter |
-| `relatedSlugs` | No | For `overview` and `comparison` kinds — slugs of pages the compiler should weave together as source material |
+| `relatedSlugs` | No | For `overview` and `comparison` kinds - slugs of pages the compiler should weave together as source material |
 
 ## How the schema affects compile
 
@@ -112,7 +112,7 @@ When you run `llmwiki compile`:
 When a review policy is active with `schema-violating` in the `hold` array, any page that fails a schema cross-link rule is automatically held for review instead of written live. See [Review Policy](/configuration/review-policy) for how to configure that behavior.
 
 <Tip>
-  A schema is most useful for **large wikis**, **domain templates**, and **structured knowledge bases** where you want consistent page structure enforced over time. For a personal notebook or exploratory wiki, you likely don't need one — start without a schema and add one when you find yourself wanting to enforce cross-link density or generate overview pages automatically.
+  A schema is most useful for **large wikis**, **domain templates**, and **structured knowledge bases** where you want consistent page structure enforced over time. For a personal notebook or exploratory wiki, you likely don't need one - start without a schema and add one when you find yourself wanting to enforce cross-link density or generate overview pages automatically.
 </Tip>
 
 ---

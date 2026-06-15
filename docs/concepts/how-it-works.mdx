@@ -4,7 +4,7 @@ sidebarTitle: "How It Works"
 description: "Understand llmwiki's two-phase LLM pipeline: concept extraction, page generation, incremental change detection, and hybrid retrieval."
 ---
 
-Most knowledge management tools retrieve information at query time — every question re-discovers the same relationships from scratch, and the structure never accumulates. llmwiki takes the opposite approach: it compiles your sources into a persistent, interlinked wiki artifact **before** any query runs. Concepts get their own typed pages. Content shared across multiple sources is merged into one page rather than competing as duplicate chunks. Pages link to each other via `[[wikilinks]]`. When you query with `--save`, the answer becomes a new page and future queries use it as context. Embeddings, BM25 reranking, and wikilink-graph expansion then run over this compiled artifact, narrowing hundreds of pages to a tight, citation-traceable evidence pack.
+Most knowledge management tools retrieve information at query time - every question re-discovers the same relationships from scratch, and the structure never accumulates. llmwiki takes the opposite approach: it compiles your sources into a persistent, interlinked wiki artifact **before** any query runs. Concepts get their own typed pages. Content shared across multiple sources is merged into one page rather than competing as duplicate chunks. Pages link to each other via `[[wikilinks]]`. When you query with `--save`, the answer becomes a new page and future queries use it as context. Embeddings, BM25 reranking, and wikilink-graph expansion then run over this compiled artifact, narrowing hundreds of pages to a tight, citation-traceable evidence pack.
 
 ## The Compile Pipeline
 
@@ -25,10 +25,10 @@ sources/  →  hash check  →  LLM concept extraction  →  page generation  �
 llmwiki splits compilation into two distinct phases rather than processing each source end-to-end.
 
 <Steps>
-  <Step title="Phase 1 — Concept Extraction">
-    Every changed source is sent to the LLM, which identifies and extracts the key concepts each source contains. All extractions complete before any page is written. This means the compiler knows the full concept universe — including which concepts appear in multiple sources — before it commits to writing a single file.
+  <Step title="Phase 1 - Concept Extraction">
+    Every changed source is sent to the LLM, which identifies and extracts the key concepts each source contains. All extractions complete before any page is written. This means the compiler knows the full concept universe - including which concepts appear in multiple sources - before it commits to writing a single file.
   </Step>
-  <Step title="Phase 2 — Page Generation">
+  <Step title="Phase 2 - Page Generation">
     For each extracted concept, the LLM generates a structured wiki page with YAML frontmatter, prose body, and `[[wikilinks]]` to related pages. Concepts claimed by more than one source are merged into a single page at this stage instead of producing duplicate files.
   </Step>
 </Steps>
@@ -41,7 +41,7 @@ llmwiki avoids re-processing unchanged work at every layer of the pipeline.
 
 <CardGroup cols={3}>
   <Card title="Source hashing" icon="fingerprint">
-    Every file in `sources/` is SHA-256 hashed and compared against `.llmwiki/state.json`. Only sources whose hash changed — or that are brand new — flow through the LLM pipeline.
+    Every file in `sources/` is SHA-256 hashed and compared against `.llmwiki/state.json`. Only sources whose hash changed - or that are brand new - flow through the LLM pipeline.
   </Card>
   <Card title="Embedding updates" icon="database">
     Chunk embeddings in `.llmwiki/embeddings.json` are content-hash-aware. Re-running on an unchanged corpus skips all embedding work.
@@ -70,15 +70,15 @@ Retrieval runs over the compiled wiki, not raw source chunks.
 </Steps>
 
 <Note>
-  When no embedding store is present — for example, when using the GitHub Copilot provider, which has no embeddings endpoint — llmwiki automatically falls back to lexical (index-based) ranking and surfaces a stable warning code rather than hard-failing.
+  When no embedding store is present - for example, when using the GitHub Copilot provider, which has no embeddings endpoint - llmwiki automatically falls back to lexical (index-based) ranking and surfaces a stable warning code rather than hard-failing.
 </Note>
 
 ## Source Freshness
 
-Every compiled page records the sources — and their SHA-256 content hashes — that produced it. On any later command, llmwiki compares those recorded hashes against `sources/` on disk:
+Every compiled page records the sources - and their SHA-256 content hashes - that produced it. On any later command, llmwiki compares those recorded hashes against `sources/` on disk:
 
-- **Stale** — a page whose recorded source hashes no longer match the files on disk. The source still exists, but its content changed since the last compile.
-- **Orphaned** — a page whose recorded sources were all deleted from `sources/`.
+- **Stale** - a page whose recorded source hashes no longer match the files on disk. The source still exists, but its content changed since the last compile.
+- **Orphaned** - a page whose recorded sources were all deleted from `sources/`.
 
 `llmwiki lint`, `llmwiki status`, the local viewer, the JSON export, and the MCP `wiki_status` tool all surface stale and orphaned pages without triggering a recompile. To repair them, run `llmwiki refresh --stale`: it recompiles only the changed sources that own stale pages and cleans up orphaned pages, deliberately leaving unrelated new sources for a full `llmwiki compile`. Use `--dry-run` to preview the repair plan with no LLM calls or writes.
 

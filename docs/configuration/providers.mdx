@@ -4,14 +4,14 @@ sidebarTitle: "Providers"
 description: "Configure llmwiki to use Anthropic, OpenAI-compatible endpoints, Ollama, GitHub Copilot, or the Claude Agent SDK provider for local login."
 ---
 
-llmwiki is provider-portable. Whether you have an Anthropic API key, a GitHub Copilot subscription, a locally-running Ollama server, or just a Claude Code login, you can point llmwiki at the right backend with a handful of environment variables — no config files required for most setups. Choose the provider that matches your existing credentials and infrastructure.
+llmwiki is provider-portable. Whether you have an Anthropic API key, a GitHub Copilot subscription, a locally-running Ollama server, or just a Claude Code login, you can point llmwiki at the right backend with a handful of environment variables - no config files required for most setups. Choose the provider that matches your existing credentials and infrastructure.
 
 ## Configuration precedence
 
 When you use the Anthropic provider (the default), llmwiki resolves credentials in this order:
 
 1. Shell environment variables or a `.env` file in your project directory
-2. Claude Code settings fallback — `~/.claude/settings.json` → `env` block
+2. Claude Code settings fallback - `~/.claude/settings.json` → `env` block
 3. Built-in provider defaults (where applicable)
 
 This means that if you already have Claude Code configured on your machine, you can run `llmwiki compile` without exporting a single variable.
@@ -25,13 +25,13 @@ The Anthropic provider uses the official `@anthropic-ai/sdk` to call Claude dire
 
 **Authentication**
 
-Set either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` — either one satisfies authentication. You do not need both.
+Set either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` - either one satisfies authentication. You do not need both.
 
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_API_KEY` | Standard Anthropic API key |
 | `ANTHROPIC_AUTH_TOKEN` | Alternative auth token (accepted by Anthropic-compatible gateways) |
-| `ANTHROPIC_BASE_URL` | Optional — custom endpoint for proxies or alternate Claude gateways |
+| `ANTHROPIC_BASE_URL` | Optional - custom endpoint for proxies or alternate Claude gateways |
 
 `ANTHROPIC_BASE_URL` accepts any valid HTTP or HTTPS URL. Claude-style path endpoints such as `https://api.example.com/coding/` are supported; trailing slashes are normalized automatically.
 
@@ -65,7 +65,7 @@ llmwiki compile
   </Tab>
   <Tab title="Claude Agent SDK">
 
-The `claude-agent` provider routes calls through the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript) instead of the raw Messages API. It authenticates using your **local Claude Code login** (OAuth/subscription) — no `ANTHROPIC_API_KEY` is required. If you can run `claude` in your terminal, this provider works.
+The `claude-agent` provider routes calls through the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk-typescript) instead of the raw Messages API. It authenticates using your **local Claude Code login** (OAuth/subscription) - no `ANTHROPIC_API_KEY` is required. If you can run `claude` in your terminal, this provider works.
 
 **Setup**
 
@@ -228,10 +228,10 @@ A truncation warning prints to stderr when the cap fires, naming the concept tha
 
 ## Output language
 
-Generated wiki content defaults to whatever language the model produces from the source material — typically English. You can override this two ways:
+Generated wiki content defaults to whatever language the model produces from the source material - typically English. You can override this two ways:
 
-- `LLMWIKI_OUTPUT_LANG` — applies to every prompt the compile and query pipelines make. For example: `zh-CN`, `Chinese`, `ja`, `Japanese`.
-- `--lang <code>` on `llmwiki compile` or `llmwiki query` — same effect, scoped to one invocation. Wins over the env var.
+- `LLMWIKI_OUTPUT_LANG` - applies to every prompt the compile and query pipelines make. For example: `zh-CN`, `Chinese`, `ja`, `Japanese`.
+- `--lang <code>` on `llmwiki compile` or `llmwiki query` - same effect, scoped to one invocation. Wins over the env var.
 
 ```bash
 export LLMWIKI_OUTPUT_LANG=zh-CN

@@ -274,7 +274,7 @@ Use them independently or together. The [`@atomicmemory/llmwiki`](https://github
 
 ## Contributing
 
-Contributions are welcome. If llmwiki is missing something you need, open an issue or PR and describe the workflow you are trying to support — need-driven improvements are often the best ones. If you want to contribute more generally, roadmap items are a good place to start. For larger changes to core compile, review, import/export, or retrieval semantics, please start with an issue or design discussion so we can align on the contract first.
+Contributions are welcome. If llmwiki is missing something you need, open an issue or PR and describe the workflow you are trying to support - need-driven improvements are often the best ones. If you want to contribute more generally, roadmap items are a good place to start. For larger changes to core compile, review, import/export, or retrieval semantics, please start with an issue or design discussion so we can align on the contract first.
 
 Before committing code changes, run:
 

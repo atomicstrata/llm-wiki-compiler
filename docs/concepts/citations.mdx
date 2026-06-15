@@ -4,7 +4,7 @@ sidebarTitle: "Citations"
 description: "llmwiki traces every paragraph and claim back to the source file and line range. Learn how paragraph and claim-level citations work."
 ---
 
-When you compile a wiki, you are trusting an LLM to synthesize knowledge from your sources. That trust is only well-placed if you can trace every claim back to where it came from. llmwiki builds provenance tracing into the page format itself: paragraphs carry lightweight citation markers pointing back to the source file that contributed them, and specific claims can pin to exact line ranges within that file. This means you can open any compiled page, see a citation marker, and know precisely which source — and which lines of that source — the content derives from. `llmwiki lint` validates every citation on every run, and `llmwiki eval` measures how thoroughly and accurately your pages are cited.
+When you compile a wiki, you are trusting an LLM to synthesize knowledge from your sources. That trust is only well-placed if you can trace every claim back to where it came from. llmwiki builds provenance tracing into the page format itself: paragraphs carry lightweight citation markers pointing back to the source file that contributed them, and specific claims can pin to exact line ranges within that file. This means you can open any compiled page, see a citation marker, and know precisely which source - and which lines of that source - the content derives from. `llmwiki lint` validates every citation on every run, and `llmwiki eval` measures how thoroughly and accurately your pages are cited.
 
 ## Paragraph-Level Citations
 
@@ -18,11 +18,11 @@ The two-phase compile pipeline separates concept extraction from page
 generation so that cross-source merges happen deterministically. ^[architecture-notes.md]
 ```
 
-The filename inside `^[...]` is relative to the `sources/` directory. You do not include the `sources/` prefix — just the bare filename as it appears in the `sources` frontmatter field.
+The filename inside `^[...]` is relative to the `sources/` directory. You do not include the `sources/` prefix - just the bare filename as it appears in the `sources` frontmatter field.
 
 ## Claim-Level Citations
 
-For claims that require tighter verification — specific numbers, precise technical assertions, direct quotations — you can pin a citation to a line range within the source file. llmwiki supports two equivalent syntaxes:
+For claims that require tighter verification - specific numbers, precise technical assertions, direct quotations - you can pin a citation to a line range within the source file. llmwiki supports two equivalent syntaxes:
 
 <CodeGroup>
 ```markdown Colon range syntax
@@ -34,7 +34,7 @@ The system uses a two-phase compile pipeline. ^[architecture-notes.md#L42-L58]
 ```
 </CodeGroup>
 
-Both forms identify the same span: lines 42 through 58 (inclusive) of `architecture-notes.md` in the `sources/` directory. Use whichever form your team prefers — llmwiki's linter and eval harness treat them identically.
+Both forms identify the same span: lines 42 through 58 (inclusive) of `architecture-notes.md` in the `sources/` directory. Use whichever form your team prefers - llmwiki's linter and eval harness treat them identically.
 
 <Tip>
   Claim-level citations are tracked by `llmwiki eval` as the `claim_level_citation_rate` metric: the fraction of all citations in the wiki that pin to a specific line range rather than a whole file. Higher rates mean tighter, more verifiable provenance. You can set a minimum threshold in `.llmwiki/eval/thresholds.yaml`.
@@ -49,7 +49,7 @@ Both forms identify the same span: lines 42 through 58 (inclusive) of `architect
     The filename inside `^[...]` does not exist in `sources/`. This happens when a source is deleted after compilation or when the LLM hallucinated a filename. Treated as an **error**.
   </Card>
   <Card title="Malformed citation" icon="triangle-exclamation">
-    The citation syntax is not parseable — for example, `^[file.md:abc]` where the range is not a pair of integers. Treated as an **error**.
+    The citation syntax is not parseable - for example, `^[file.md:abc]` where the range is not a pair of integers. Treated as an **error**.
   </Card>
   <Card title="Impossible range" icon="ban">
     A line range where the start line is `0` (lines are 1-indexed), or where the end line is less than the start line (e.g. `^[file.md:8-3]`). Treated as an **error**.
@@ -115,10 +115,10 @@ Related concepts: [[Compilation Pipeline]], [[Incremental Compilation]], [[Wikil
 
 `llmwiki eval` measures citation quality across the entire wiki as part of its health score:
 
-- **Citation coverage** — the fraction of prose paragraphs in `wiki/concepts/` that carry at least one `^[...]` marker. Low coverage means paragraphs are floating without provenance.
-- **Citation precision** — the fraction of `^[...]` markers that point to a source file that actually exists in `sources/`. A precision below 100% indicates hallucinated or deleted source references.
-- **Citation support** (`--suite full`) — samples up to N `(claim, source span)` pairs and asks a judge model to score each 0–2 (unsupported → fully supported). Results are cached in `.llmwiki/eval/citation-cache.jsonl` so re-runs only judge new pairs.
-- **Claim-level citation rate** — the fraction of all citations that use a line-range form rather than a bare filename.
+- **Citation coverage** - the fraction of prose paragraphs in `wiki/concepts/` that carry at least one `^[...]` marker. Low coverage means paragraphs are floating without provenance.
+- **Citation precision** - the fraction of `^[...]` markers that point to a source file that actually exists in `sources/`. A precision below 100% indicates hallucinated or deleted source references.
+- **Citation support** (`--suite full`) - samples up to N `(claim, source span)` pairs and asks a judge model to score each 0–2 (unsupported → fully supported). Results are cached in `.llmwiki/eval/citation-cache.jsonl` so re-runs only judge new pairs.
+- **Claim-level citation rate** - the fraction of all citations that use a line-range form rather than a bare filename.
 
 You can set minimum thresholds for all of these in `.llmwiki/eval/thresholds.yaml` to gate CI pipelines on citation quality.
 
