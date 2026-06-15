@@ -1,10 +1,11 @@
 // test/okf-run-import.test.ts
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { runOkfImport } from "../src/import/run.js";
 import { listCandidates } from "../src/compiler/candidates.js";
+import { assertNoOutput } from "./fixtures/no-output.js";
 
 let dir: string;
 afterEach(async () => { if (dir) await rm(dir, { recursive: true, force: true }); });
@@ -18,14 +19,7 @@ describe("runOkfImport", () => {
   it("stages by default and returns a staged report (no stdout)", async () => {
     dir = await mkdtemp(path.join(tmpdir(), "rii-"));
     const b = await bundle(dir);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    const report = await runOkfImport(dir, b, {});
-    expect(log).not.toHaveBeenCalled(); // output-free core: no stdout
-    expect(warn).not.toHaveBeenCalled(); // ...and no stderr (output.note → console.warn)
-    expect(error).not.toHaveBeenCalled();
-    log.mockRestore(); warn.mockRestore(); error.mockRestore();
+    const report = await assertNoOutput(() => runOkfImport(dir, b, {}));
     expect(report.mode).toBe("staged");
     expect(report.pages).toEqual([{ slug: "a", okfPath: "concepts/a.md", targetDirectory: "concepts" }]);
     expect(await listCandidates(dir)).toHaveLength(1);
