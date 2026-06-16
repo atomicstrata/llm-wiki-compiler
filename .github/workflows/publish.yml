@@ -1,0 +1,222 @@
+name: Publish llm-wiki-compiler
+
+# Token-less npm publish via OIDC Trusted Publishing.
+#
+# Primary trigger is `repository_dispatch` (an operator/agent release script
+# sends an explicit release payload); `workflow_dispatch` is a manual fallback.
+# The workflow checks out the EXACT `public_sha` from the payload — never the
+# ambient branch HEAD — verifies package.json matches the requested version,
+# refuses to republish an existing version, then publishes and verifies that the
+# registry's gitHead matches the released SHA.
+#
+# One-time setup (account-level, not in this repo): configure the npm Trusted
+# Publisher for `llm-wiki-compiler` to trust repo `atomicstrata/llm-wiki-compiler`,
+# workflow `publish.yml`, environment `npm-release`. No NPM_TOKEN is used.
+run-name: >-
+  Publish ${{ github.event.client_payload.version || inputs.version }}
+  @ ${{ github.event.client_payload.public_sha || inputs.public_sha }}
+  [${{ github.event.client_payload.correlation_id || 'manual' }}]
+
+on:
+  repository_dispatch:
+    types:
+      - llmwiki-package-release
+  workflow_dispatch:
+    inputs:
+      public_sha:
+        description: "Exact 40-char commit SHA to publish"
+        required: true
+        type: string
+      version:
+        description: "Version to publish (must equal package.json at public_sha)"
+        required: true
+        type: string
+      publish:
+        description: "Actually publish (false = run preflight only)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.event.client_payload.public_sha || inputs.public_sha }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve:
+    name: resolve release payload
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      public_sha: ${{ steps.payload.outputs.public_sha }}
+      version: ${{ steps.payload.outputs.version }}
+      publish: ${{ steps.payload.outputs.publish }}
+    steps:
+      - name: Resolve and validate payload
+        id: payload
+        env:
+          DISPATCH: ${{ toJSON(github.event.client_payload) }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PUBLIC_SHA: ${{ inputs.public_sha }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT_NAME}" == "repository_dispatch" ]]; then
+            public_sha="$(jq -r '.public_sha // ""' <<<"${DISPATCH}")"
+            version="$(jq -r '.version // ""' <<<"${DISPATCH}")"
+            publish="$(jq -r '.publish // true' <<<"${DISPATCH}")"
+          else
+            public_sha="${INPUT_PUBLIC_SHA}"
+            version="${INPUT_VERSION}"
+            publish="${INPUT_PUBLISH}"
+          fi
+          if [[ -z "${public_sha}" || "${public_sha}" == "null" ]]; then
+            echo "::error::payload is missing public_sha"; exit 1
+          fi
+          if [[ ! "${public_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::public_sha must be a full 40-char commit SHA, got '${public_sha}'"; exit 1
+          fi
+          if [[ -z "${version}" || "${version}" == "null" ]]; then
+            echo "::error::payload is missing version"; exit 1
+          fi
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::version must be semver, got '${version}'"; exit 1
+          fi
+          {
+            echo "public_sha=${public_sha}"
+            echo "version=${version}"
+            echo "publish=${publish}"
+          } >>"${GITHUB_OUTPUT}"
+          {
+            echo "### Release payload"
+            echo ""
+            echo "- public_sha: \`${public_sha}\`"
+            echo "- version: \`${version}\`"
+            echo "- publish: \`${publish}\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+  preflight:
+    name: preflight (build, test, pack dry-run)
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout public_sha
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.public_sha }}
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Verify package.json version matches payload
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          actual="$(node -p "require('./package.json').version")"
+          if [[ "${actual}" != "${WANT}" ]]; then
+            echo "::error::package.json at this SHA is ${actual}, payload says ${WANT}"; exit 1
+          fi
+          echo "ok: package.json is ${actual}"
+      - name: Refuse to republish an existing version
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          if npm view "llm-wiki-compiler@${WANT}" version >/dev/null 2>&1; then
+            echo "::error::llm-wiki-compiler@${WANT} is already published; npm versions are immutable"; exit 1
+          fi
+          echo "ok: ${WANT} is not yet on the registry"
+      - name: Install, validate docs, build, test, pack
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run release:check-docs:current
+          npm run build
+          npm test
+          npm pack --dry-run
+
+  publish:
+    name: publish npm (Trusted Publishing)
+    needs: [resolve, preflight]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout public_sha
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.public_sha }}
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org/"
+          cache: npm
+      - name: Require npm >= 11.5.1 for Trusted Publishing
+        run: |
+          set -euo pipefail
+          npm install -g npm@latest
+          npm --version
+      - name: Install and build
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+      - name: Publish (OIDC, no token)
+        run: npm publish --access public
+
+  verify:
+    name: verify registry visibility
+    needs: [resolve, publish]
+    if: needs.resolve.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Verify published version + gitHead pinned to public_sha
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          version=""
+          head=""
+          for attempt in $(seq 1 10); do
+            metadata="$(npm view "llm-wiki-compiler@${WANT}" version gitHead --json 2>/dev/null || echo '{}')"
+            version="$(jq -r '.version // ""' <<<"${metadata}")"
+            head="$(jq -r '.gitHead // ""' <<<"${metadata}")"
+            if [[ "${version}" == "${WANT}" ]]; then
+              break
+            fi
+            echo "registry not yet showing ${WANT} (attempt ${attempt}); waiting..."
+            sleep 15
+          done
+          if [[ "${version}" != "${WANT}" ]]; then
+            echo "::error::llm-wiki-compiler@${WANT} not visible on the registry"; exit 1
+          fi
+          if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
+            echo "::error::published gitHead=${head}, expected public_sha=${PUBLIC_SHA}"; exit 1
+          fi
+          echo "verified llm-wiki-compiler@${version} (gitHead=${head})"
