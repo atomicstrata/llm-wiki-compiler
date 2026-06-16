@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-06-16
+
+Extends Open Knowledge Format support beyond the CLI: in-process SDK and MCP access to the OKF round-trip, and faithful reconstruction of an imported foreign bundle's original nested paths on re-export.
+
+### Added
+
+- **OKF SDK access** — `createWiki().exportOkf({ out? })` and `importOkf(dir, { dryRun?, trusted? })` run the OKF export/import round-trip in-process and return structured reports, with warnings and skips surfaced as data rather than console output. `OkfExportReport` and `OkfImportReport` are exported from the package types.
+- **OKF MCP tools** — `llmwiki serve` now registers `export_okf` and a staging-only `import_okf`, bringing the server to 11 tools. `import_okf` previews a bundle with `dryRun` or stages it as review candidates; it exposes no trusted live-write path to agents, and its bundle path is confined under the project root.
+- **Nested-path reconstruction on OKF re-export** — imported foreign OKF pages re-export at their original bundle-relative path (for example `tables/customers.md`) instead of `concepts/<slug>.md`, and native-to-foreign links round-trip. Paths that are unsafe, URL-unsafe, non-`.md`, reserved, escaping, or contested fall back to the slug path with a warning.
+
+### Changed
+
+- OKF link reversal now restores `[[wikilinks]]` from any bundle-relative `.md` link that resolves to a known imported page, not only `concepts/` and `queries/` slug links.
+- OKF export refuses dangerous output targets — the filesystem root, the project root, directories inside `.git`, and non-empty directories that are not already OKF bundles — before writing, and wholesale-clears a recognized prior bundle while refusing any nested `.git`. All bundle writes are realpath-confined to the output directory.
+
+### Contributors
+
+No external contributors in this release.
+
 ## [0.10.0] - 2026-06-14
 
 Adds a review-policy gate for generated knowledge, a full Open Knowledge Format (OKF) export/import round-trip, and a Mintlify documentation site.

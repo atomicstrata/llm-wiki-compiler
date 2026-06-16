@@ -1,7 +1,7 @@
 # llmwiki
 
 <p align="center">
-  <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki 0.10.0 supports Open Knowledge Format" width="900">
+  <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki supports Open Knowledge Format" width="900">
 </p>
 
 **Breaking News:** llmwiki is now an **Open Knowledge Format (OKF)** producer and consumer, aligning compiled agent knowledge with Google Cloud's emerging standard for portable knowledge sharing. Export compiled wikis with `llmwiki export --target okf`, import external bundles with `llmwiki import --okf`, and stage untrusted knowledge through review before it becomes live agent context.
@@ -261,7 +261,7 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-Version `0.10.0` includes review policy, source-freshness repair, Open Knowledge Format import/export/re-export support, the Claude Agent SDK provider, and the Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+Version `0.11.0` adds in-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the Open Knowledge Format round-trip, plus faithful nested-path reconstruction when re-exporting imported foreign bundles. It builds on the 0.10.0 review policy, source-freshness repair, OKF CLI round-trip, and Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Companion: Atomic Memory
 
