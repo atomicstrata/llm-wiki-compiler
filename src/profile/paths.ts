@@ -26,14 +26,20 @@ export class ProfilePathError extends Error {
   }
 }
 
-/** True when a path segment is empty, `..`, or contains a NUL byte. */
+/** True when a path segment is `..` or contains a NUL byte (never traversable). */
 function isUnsafeSegment(segment: string): boolean {
-  return segment === "" || segment === ".." || segment.includes("\0");
+  return segment === ".." || segment.includes("\0");
 }
 
 /**
- * Normalize a declared directory to a clean POSIX-relative form for comparison,
- * or throw if it is absolute, contains a NUL byte, or has an unsafe segment.
+ * Normalize a declared directory to a clean, canonical POSIX-relative form, or
+ * throw if it is absolute, contains a NUL byte, or has a `..` segment.
+ *
+ * `.` and empty (trailing-slash / doubled-slash) segments carry no meaning and
+ * are DROPPED so equivalent spellings collapse to one canonical directory —
+ * e.g. `wiki/papers` and `wiki/papers/.` both yield `wiki/papers`. This makes
+ * the canonical form the single value used for both uniqueness and scanning, so
+ * two entities can't bypass directory uniqueness with a `.`-padded alias.
  */
 function normalizeDeclaredDir(dir: string): string {
   if (dir.includes("\0")) throw new ProfilePathError(`directory contains a NUL byte: ${JSON.stringify(dir)}`);
@@ -41,10 +47,10 @@ function normalizeDeclaredDir(dir: string): string {
   const segments = dir.split(/[\\/]/);
   for (const segment of segments) {
     if (isUnsafeSegment(segment)) {
-      throw new ProfilePathError(`directory has an empty, '..', or NUL segment: ${dir}`);
+      throw new ProfilePathError(`directory has a '..' or NUL segment: ${dir}`);
     }
   }
-  return segments.join(path.posix.sep);
+  return segments.filter((s) => s !== "" && s !== ".").join(path.posix.sep);
 }
 
 /** True when `a` and `b` overlap: either is at or beneath the other. */
@@ -54,14 +60,17 @@ function pathsOverlap(a: string, b: string): boolean {
 
 /**
  * Validate the DECLARED directory for an entity type. Throws ProfilePathError
- * on any violation; returns void when the path is structurally sound.
+ * on any violation; returns the CANONICAL normalized directory when the path is
+ * structurally sound. Callers must use the returned canonical value for both
+ * uniqueness and scanning so equivalent spellings can't diverge.
  *
  * @param dir - the repo-relative directory declared for the entity type.
  * @param reservedRoots - repo-relative roots an entity dir may not overlap
  *   (e.g. `sources`, `.llmwiki`, `.git`, `node_modules`, build output, the OKF
  *   export dir, `wiki/graph`).
+ * @returns The canonical, normalized repo-relative directory.
  */
-export function validateEntityDirectory(dir: string, reservedRoots: string[]): void {
+export function validateEntityDirectory(dir: string, reservedRoots: string[]): string {
   const clean = normalizeDeclaredDir(dir);
   if (!isInsideDir(clean, WIKI_ROOT)) {
     throw new ProfilePathError(`entity directory must be under '${WIKI_ROOT}/': ${dir}`);
@@ -72,4 +81,5 @@ export function validateEntityDirectory(dir: string, reservedRoots: string[]): v
       throw new ProfilePathError(`entity directory overlaps reserved root '${reserved}': ${dir}`);
     }
   }
+  return clean;
 }

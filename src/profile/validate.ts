@@ -22,7 +22,6 @@
 
 import type { ProfilePack, EntityTypeDef, FieldDef, FieldType, LifecycleDef } from "./types.js";
 import { isSlugSafe } from "./identity.js";
-import { isDefaultProfile } from "./default.js";
 import { validateEntityDirectory } from "./paths.js";
 import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR } from "../utils/constants.js";
 
@@ -41,8 +40,22 @@ const ALLOWED_FIELD_TYPES = new Set<FieldType>([
   "string[]",
 ]);
 
-/** Profile ids reserved by the system; only the built-in default may use one. */
+/**
+ * Profile ids reserved by the system. `default` names the in-memory built-in
+ * profile, which never loads from disk through this validator — so a disk
+ * profile claiming it is always rejected (no exception).
+ */
 const RESERVED_PROFILE_IDS = new Set(["default"]);
+
+/** Allowed keys at each level — anything else is rejected (schema-parity). */
+const ALLOWED_TOP_KEYS = new Set([
+  "schemaVersion", "profileId", "profileVersion", "displayName", "extends", "entities",
+]);
+const ALLOWED_ENTITY_KEYS = new Set([
+  "directory", "titleField", "requiredFields", "fields", "retrieval", "lifecycle", "export",
+]);
+const ALLOWED_FIELD_KEYS = new Set(["type", "required", "default", "enum", "min", "max"]);
+const ALLOWED_READ_EXPOSURE = new Set(["agent-readable", "local-only"]);
 
 /** Repo-relative roots an entity directory may not overlap. */
 const RESERVED_ROOTS = [
@@ -79,26 +92,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Reject any key of `obj` not present in `allowed` (allowlist, fail-closed). */
+function rejectUnknownKeys(obj: Record<string, unknown>, allowed: Set<string>, where: string): void {
+  for (const key of Object.keys(obj)) {
+    assert(allowed.has(key), `${where}: unknown key '${key}'`);
+  }
+}
+
 /**
- * Validate `schemaVersion`, `extends` (fail-closed: inheritance unsupported),
- * and `profileId` (slug-safe, and reserved only for the built-in default).
+ * Validate the top-level header: only allowlisted keys, `schemaVersion`,
+ * `extends` (fail-closed — inheritance unsupported), and `profileId` (slug-safe
+ * and NOT a reserved id; `default` is reserved for the in-memory built-in,
+ * which never loads through this validator).
  */
 function validateHeader(raw: Record<string, unknown>): void {
+  rejectUnknownKeys(raw, ALLOWED_TOP_KEYS, "profile");
   assert(raw.schemaVersion === SUPPORTED_SCHEMA_VERSION, `unsupported schemaVersion (expected ${SUPPORTED_SCHEMA_VERSION})`);
   const ext = raw.extends;
   assert(ext === undefined || Array.isArray(ext), "extends must be an array when present");
   assert(!Array.isArray(ext) || ext.length === 0, "profile inheritance (extends) is not supported in this release");
   const profileId = raw.profileId;
   assert(typeof profileId === "string" && isSlugSafe(profileId), "profileId must be a slug-safe string");
-  const isDefault = isDefaultProfile(raw as unknown as ProfilePack);
-  assert(!RESERVED_PROFILE_IDS.has(profileId) || isDefault, `profileId '${profileId}' is reserved`);
+  assert(!RESERVED_PROFILE_IDS.has(profileId), `profileId '${profileId}' is reserved`);
 }
 
-/** Validate one field definition: type in the allowlist, defaults finite. */
-function validateField(name: string, field: FieldDef): void {
-  assert(ALLOWED_FIELD_TYPES.has(field.type), `field '${name}' has unsupported type '${field.type}'`);
-  if ((field.type === "number" || field.type === "integer") && typeof field.default === "number") {
-    assert(Number.isFinite(field.default), `field '${name}' has a non-finite numeric default`);
+/** Assert that the named numeric field-def value, when present, is finite. */
+function assertFiniteNumber(name: string, key: string, value: unknown): void {
+  if (typeof value === "number") {
+    assert(Number.isFinite(value), `field '${name}' has a non-finite ${key}`);
+  }
+}
+
+/**
+ * Validate one field definition: only allowlisted keys, a type in the v0
+ * allowlist, finite numeric `default`/`min`/`max`, and a string[] `enum`.
+ */
+function validateField(name: string, field: Record<string, unknown>): void {
+  rejectUnknownKeys(field, ALLOWED_FIELD_KEYS, `field '${name}'`);
+  assert(ALLOWED_FIELD_TYPES.has(field.type as FieldType), `field '${name}' has unsupported type '${field.type}'`);
+  assertFiniteNumber(name, "default", field.default);
+  assertFiniteNumber(name, "min", field.min);
+  assertFiniteNumber(name, "max", field.max);
+  if (field.enum !== undefined) {
+    assert(Array.isArray(field.enum) && field.enum.every((v) => typeof v === "string"), `field '${name}' enum must be a string[]`);
   }
 }
 
@@ -108,6 +144,36 @@ function validateFields(entityType: string, fields: Record<string, FieldDef> | u
   for (const [name, field] of Object.entries(fields)) {
     assert(isRecord(field), `entity '${entityType}' field '${name}' must be an object`);
     validateField(`${entityType}.${name}`, field);
+  }
+}
+
+/** Validate a retrieval block: object, readExposure in the set, finite weight. */
+function validateRetrieval(entityType: string, retrieval: unknown): void {
+  const where = `entity '${entityType}' retrieval`;
+  assert(isRecord(retrieval), `${where} must be an object`);
+  const { readExposure, defaultWeight } = retrieval;
+  if (readExposure !== undefined) {
+    assert(typeof readExposure === "string" && ALLOWED_READ_EXPOSURE.has(readExposure), `${where}: readExposure '${String(readExposure)}' is not allowed`);
+  }
+  if (defaultWeight !== undefined) {
+    assert(typeof defaultWeight === "number" && Number.isFinite(defaultWeight), `${where}: defaultWeight must be a finite number`);
+  }
+}
+
+/** Every requiredFields entry must reference a declared field. */
+function validateRequiredFields(entityType: string, required: string[] | undefined, fields?: Record<string, FieldDef>): void {
+  if (!required) return;
+  for (const name of required) {
+    assert(fields?.[name] !== undefined, `entity '${entityType}' requiredFields entry '${name}' is not a declared field`);
+  }
+}
+
+/** Validate the optional export block: only `okfType`, a string when present. */
+function validateExport(entityType: string, exp: { okfType?: unknown }): void {
+  assert(isRecord(exp), `entity '${entityType}' export must be an object`);
+  rejectUnknownKeys(exp, new Set(["okfType"]), `entity '${entityType}' export`);
+  if (exp.okfType !== undefined) {
+    assert(typeof exp.okfType === "string", `entity '${entityType}' export.okfType must be a string`);
   }
 }
 
@@ -168,25 +234,47 @@ function unreachableStates(lc: LifecycleDef, states: Set<string>): string[] {
   return [...states].filter((s) => !reached.has(s));
 }
 
-/** Validate one entity type's directory, fields, and lifecycle. */
-function validateEntity(entityType: string, def: EntityTypeDef): string[] {
-  assert(isRecord(def), `entity '${entityType}' must be an object`);
-  assert(typeof def.directory === "string", `entity '${entityType}' is missing a directory`);
-  validateEntityDirectory(def.directory, RESERVED_ROOTS);
-  validateFields(entityType, def.fields);
-  return def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
+/** The result of validating one entity: its canonical dir plus any warnings. */
+interface EntityValidation {
+  canonicalDirectory: string;
+  warnings: string[];
 }
 
-/** Validate all entities, enforcing directory uniqueness, returning warnings. */
+/**
+ * Validate one entity type. Allowlists its keys, structurally validates the
+ * directory (returning the canonical form), and validates fields, retrieval,
+ * requiredFields, export, and lifecycle.
+ */
+function validateEntity(entityType: string, def: EntityTypeDef): EntityValidation {
+  assert(isRecord(def), `entity '${entityType}' must be an object`);
+  rejectUnknownKeys(def, ALLOWED_ENTITY_KEYS, `entity '${entityType}'`);
+  assert(typeof def.directory === "string", `entity '${entityType}' is missing a directory`);
+  const canonicalDirectory = validateEntityDirectory(def.directory, RESERVED_ROOTS);
+  validateFields(entityType, def.fields);
+  if (def.retrieval !== undefined) validateRetrieval(entityType, def.retrieval);
+  validateRequiredFields(entityType, def.requiredFields, def.fields);
+  if (def.export !== undefined) validateExport(entityType, def.export);
+  const warnings = def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
+  return { canonicalDirectory, warnings };
+}
+
+/**
+ * Validate all entities, enforcing slug-safe type keys and CANONICAL directory
+ * uniqueness, writing each canonical directory back so downstream scanning uses
+ * the same path uniqueness was checked against. Returns lifecycle warnings.
+ */
 function validateEntities(entities: Record<string, EntityTypeDef>): string[] {
   assert(Object.keys(entities).length > 0, "profile must declare at least one entity");
   const warnings: string[] = [];
   const dirs = new Map<string, string>();
   for (const [entityType, def] of Object.entries(entities)) {
-    warnings.push(...validateEntity(entityType, def));
-    const prior = dirs.get(def.directory);
-    assert(prior === undefined, `entities '${prior}' and '${entityType}' share the same directory '${def.directory}'`);
-    dirs.set(def.directory, entityType);
+    assert(isSlugSafe(entityType), `entity type key '${entityType}' must be slug-safe`);
+    const { canonicalDirectory, warnings: entityWarnings } = validateEntity(entityType, def);
+    warnings.push(...entityWarnings);
+    const prior = dirs.get(canonicalDirectory);
+    assert(prior === undefined, `entities '${prior}' and '${entityType}' share the same directory '${canonicalDirectory}'`);
+    dirs.set(canonicalDirectory, entityType);
+    def.directory = canonicalDirectory;
   }
   return warnings;
 }

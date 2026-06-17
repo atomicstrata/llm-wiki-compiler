@@ -31,7 +31,7 @@ export const RESEARCH_LITE_PROFILE = {
     papers: {
       directory: "wiki/papers",
       requiredFields: ["title"],
-      fields: { venue: { type: "string" } },
+      fields: { title: { type: "string" }, venue: { type: "string" } },
     },
     ideas: {
       directory: "wiki/ideas",

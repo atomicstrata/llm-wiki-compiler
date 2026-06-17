@@ -14,7 +14,6 @@ import path from "path";
 import { describe, it, expect } from "vitest";
 import { validateProfile, ProfileValidationError } from "../src/profile/validate.js";
 import { ProfilePathError } from "../src/profile/paths.js";
-import { DEFAULT_PROFILE } from "../src/profile/default.js";
 import type { ProfilePack } from "../src/profile/types.js";
 
 /** A minimal valid two-entity profile used as a base for negative cases. */
@@ -75,6 +74,72 @@ describe("validateProfile — directories", () => {
     raw.entities.papers.directory = "wiki/graph";
     expect(() => validateProfile(raw)).toThrow(ProfilePathError);
     expect(() => validateProfile(raw)).toThrow(/reserved root 'wiki\/graph'/);
+  });
+
+  it("rejects equivalent directories that normalize to the same dir", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/papers";
+    raw.entities.notes.directory = "wiki/papers/.";
+    expect(() => validateProfile(raw)).toThrow(/share|same directory/i);
+  });
+
+  it("canonicalizes the returned entity directory (strips '.')", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/papers/.";
+    const result = validateProfile(raw);
+    expect(result.profile.entities.papers.directory).toBe("wiki/papers");
+  });
+});
+
+describe("validateProfile — entity-type keys", () => {
+  it("rejects an uppercase entity-type key", () => {
+    const raw = baseProfile();
+    raw.entities = { Papers: { directory: "wiki/papers" } };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects an entity-type key with a space", () => {
+    const raw = baseProfile();
+    raw.entities = { "research papers": { directory: "wiki/papers" } };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+});
+
+describe("validateProfile — schema-parity rejection", () => {
+  it("rejects an unknown top-level key", () => {
+    const raw = { ...baseProfile(), surprise: true };
+    expect(() => validateProfile(raw)).toThrow(/unknown|unexpected/i);
+  });
+
+  it("rejects an unknown per-entity key", () => {
+    const raw = baseProfile();
+    (raw.entities.papers as Record<string, unknown>).bogus = 1;
+    expect(() => validateProfile(raw)).toThrow(/unknown|unexpected/i);
+  });
+
+  it("rejects an unknown field-def key", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { w: { type: "number", weird: 1 } as never };
+    expect(() => validateProfile(raw)).toThrow(/unknown|unexpected/i);
+  });
+
+  it("rejects a retrieval.readExposure outside the allowed set", () => {
+    const raw = baseProfile();
+    raw.entities.papers.retrieval = { readExposure: "public" as never };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a non-finite retrieval.defaultWeight", () => {
+    const raw = baseProfile();
+    raw.entities.papers.retrieval = { defaultWeight: Infinity };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a requiredFields entry not declared in fields", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { title: { type: "string" } };
+    raw.entities.papers.requiredFields = ["title", "missing"];
+    expect(() => validateProfile(raw)).toThrow(/requiredFields|missing/i);
   });
 });
 
@@ -141,8 +206,9 @@ describe("validateProfile — happy paths", () => {
     expect(Object.keys(result.profile.entities)).toEqual(["papers", "notes"]);
   });
 
-  it("accepts the built-in DEFAULT_PROFILE", () => {
-    expect(() => validateProfile(DEFAULT_PROFILE)).not.toThrow();
+  it("rejects a disk profile that claims the reserved 'default' id", () => {
+    const raw = { ...baseProfile(), profileId: "default" };
+    expect(() => validateProfile(raw)).toThrow(/reserved/);
   });
 
   it("returns unreachable lifecycle states as warnings, not errors", () => {

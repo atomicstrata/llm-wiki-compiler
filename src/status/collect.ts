@@ -20,7 +20,8 @@ import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js"
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
 import { loadProfile } from "../profile/load.js";
 import { collectEntityPages } from "../profile/collect.js";
-import { isDefaultProfile } from "../profile/default.js";
+import { DEFAULT_PROFILE } from "../profile/default.js";
+import { profileDigest } from "../profile/digest.js";
 import type { ProfilePack } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
@@ -200,14 +201,21 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
 /**
  * Resolve the active profile and, for a NON-DEFAULT profile only, build the
  * status `profile` block (profileId, digest, per-type entity counts). Returns
- * `undefined` for the default profile so the default envelope is unchanged —
+ * `undefined` for the built-in default so the default envelope is unchanged —
  * the caller omits the `profile` key entirely in that case.
+ *
+ * The built-in is identified by `loadedFrom === null` (the loader sets null
+ * ONLY for the no-file/default path) — never by `profileId === "default"`,
+ * which a disk profile can no longer claim but which must not be the gate.
+ * The digest comparison is defense-in-depth against a future loader change.
  */
 async function collectProfileBlock(
   root: string,
 ): Promise<WikiStatus["profile"] | undefined> {
   const loaded = await loadProfile(root);
-  if (isDefaultProfile(loaded.profile)) return undefined;
+  const isBuiltInDefault =
+    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
+  if (isBuiltInDefault) return undefined;
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
