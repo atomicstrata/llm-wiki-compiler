@@ -17,6 +17,64 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { expect } from "vitest";
+import { PROFILE_FILE } from "../../src/utils/constants.js";
+import type { ProfilePack, EntityPage } from "../../src/profile/types.js";
+
+/**
+ * A minimal NON-DEFAULT profile: a single `notes` entity type at `wiki/notes`
+ * requiring a `title` field. Shared by the additive read-surface tests
+ * (listPages / export / viewer) so they assert against one fixed shape.
+ */
+export const SAMPLE_PROFILE: ProfilePack = {
+  schemaVersion: 1,
+  profileId: "sample",
+  entities: {
+    notes: {
+      directory: "wiki/notes",
+      requiredFields: ["title"],
+      fields: { title: { type: "string" } },
+    },
+  },
+};
+
+/** Write a profile.json into the project's `.llmwiki/` dir. */
+export async function writeProfileFile(root: string, pack: ProfilePack): Promise<void> {
+  await mkdir(path.join(root, path.dirname(PROFILE_FILE)), { recursive: true });
+  await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(pack));
+}
+
+/** Write a markdown page at `<root>/<dir>/<slug>.md`, creating the dir. */
+export async function writeMarkdownPage(
+  root: string,
+  dir: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  await mkdir(path.join(root, dir), { recursive: true });
+  await writeFile(path.join(root, dir, `${slug}.md`), content);
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with one valid `notes` page (`first-note`,
+ * body "Note body.") — the shared baseline the additive read-surface tests use
+ * before adding their own contract-violation cases.
+ */
+export async function seedSampleNotesProject(root: string): Promise<void> {
+  await writeProfileFile(root, SAMPLE_PROFILE);
+  await writeMarkdownPage(root, "wiki/notes", "first-note", "---\ntitle: First\n---\nNote body.");
+}
+
+/**
+ * Assert an entity page is the seeded `first-note` from
+ * {@link seedSampleNotesProject}: the `notes` type, `first-note` slug, and the
+ * full "Note body." body (so a body-stripping bug would fail this).
+ */
+export function expectFirstNotePage(page: EntityPage): void {
+  expect(page.entityType).toBe("notes");
+  expect(page.slug).toBe("first-note");
+  expect(page.body).toBe("Note body.");
+}
 
 /**
  * The research-lite profile pack written to `.llmwiki/profile.json`. Three

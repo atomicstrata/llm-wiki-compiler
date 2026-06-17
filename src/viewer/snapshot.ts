@@ -28,6 +28,7 @@ import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
+import { collectProfileSummary } from "../profile/block.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type {
   ViewerCounts,
@@ -75,6 +76,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     .map((page) => attachFreshness(page, freshnessSnapshot));
   const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, classified.state);
   const graph = buildGraphData(annotatedPages);
+  const profile = await collectProfileSummary(root);
   return {
     root,
     generatedAt: new Date().toISOString(),
@@ -86,6 +88,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     pages: annotatedPages,
     sourceFilenames,
     graph,
+    ...(profile ? { profile } : {}),
   };
 }
 

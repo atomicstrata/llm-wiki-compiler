@@ -25,10 +25,7 @@ import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
-import { loadProfile } from "../profile/load.js";
-import { collectEntityPages } from "../profile/collect.js";
-import { DEFAULT_PROFILE } from "../profile/default.js";
-import { profileDigest } from "../profile/digest.js";
+import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
 import type { EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
@@ -181,8 +178,8 @@ export async function listPages(
 /**
  * For a NON-DEFAULT profile only, build the additive `profile` block from the
  * content-carrying entity collector. Returns `undefined` for the built-in
- * default so the legacy envelope is unchanged — the built-in is identified by
- * `loadedFrom === null` (never by profileId), exactly as `status` does.
+ * default so the legacy envelope is unchanged — gated through the shared
+ * {@link loadNonDefaultProfile} primitive, exactly as `status` does.
  *
  * Honors `includeBody`: each entity page's `body` is stripped when bodies are
  * not requested, mirroring how the legacy `pages` block omits bodies.
@@ -191,13 +188,10 @@ async function collectProfileBlock(
   root: string,
   includeBody: boolean,
 ): Promise<ListPagesProfileBlock | undefined> {
-  const loaded = await loadProfile(root);
-  const isBuiltInDefault =
-    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
-  if (isBuiltInDefault) return undefined;
-  const { pages, problems } = await collectEntityPages(root, loaded.profile);
+  const loaded = await loadNonDefaultProfile(root);
+  if (loaded === undefined) return undefined;
+  const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
   const entityPages = includeBody ? pages : pages.map(stripBody);
-  const messages = problems.map((p) => p.message);
   return {
     entityPages,
     ...(messages.length > 0 ? { problems: messages } : {}),

@@ -18,11 +18,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
-import { loadProfile } from "../profile/load.js";
-import { collectEntityPages } from "../profile/collect.js";
-import { DEFAULT_PROFILE } from "../profile/default.js";
-import { profileDigest } from "../profile/digest.js";
-import type { ProfilePack, EntityPage } from "../profile/types.js";
+import { collectProfileSummary } from "../profile/block.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /**
@@ -155,20 +151,6 @@ function capPendingChanges(
   return changes.slice().sort((a, b) => a.file.localeCompare(b.file)).slice(0, MAX_STATUS_LIST);
 }
 
-/**
- * Tally entity pages per declared entity type for a non-default profile.
- *
- * Seeds every declared entity type at zero so a declared-but-empty type still
- * reports `0` (rather than being absent), then tallies the content-carrying
- * `EntityPage`s collected from disk.
- */
-function countByEntityType(profile: ProfilePack, pages: EntityPage[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const entityType of Object.keys(profile.entities)) counts[entityType] = 0;
-  for (const page of pages) counts[page.entityType] = (counts[page.entityType] ?? 0) + 1;
-  return counts;
-}
-
 /** Build a read-only status snapshot used by the `wiki_status` MCP tool. */
 export async function collectStatus(root: string): Promise<WikiStatus> {
   const classified = await readStateClassified(root);
@@ -183,7 +165,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
   ]);
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
-  const profileBlock = await collectProfileBlock(root);
+  const profileBlock = await collectProfileSummary(root);
 
   // Suppress pendingChanges only on corrupt state: comparing against an empty snapshot
   // on corrupt state would classify every source file as "new", which is false precision.
@@ -205,33 +187,5 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     pendingChanges: capPendingChanges(pendingChanges),
     pendingChangesCount: pendingChanges.length,
     ...(profileBlock ? { profile: profileBlock } : {}),
-  };
-}
-
-/**
- * Resolve the active profile and, for a NON-DEFAULT profile only, build the
- * status `profile` block (profileId, digest, per-type entity counts). Returns
- * `undefined` for the built-in default so the default envelope is unchanged —
- * the caller omits the `profile` key entirely in that case.
- *
- * The built-in is identified by `loadedFrom === null` (the loader sets null
- * ONLY for the no-file/default path) — never by `profileId === "default"`,
- * which a disk profile can no longer claim but which must not be the gate.
- * The digest comparison is defense-in-depth against a future loader change.
- */
-async function collectProfileBlock(
-  root: string,
-): Promise<WikiStatus["profile"] | undefined> {
-  const loaded = await loadProfile(root);
-  const isBuiltInDefault =
-    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
-  if (isBuiltInDefault) return undefined;
-  const { pages, problems } = await collectEntityPages(root, loaded.profile);
-  const messages = problems.map((p) => p.message);
-  return {
-    profileId: loaded.profile.profileId,
-    digest: loaded.digest,
-    entityCounts: countByEntityType(loaded.profile, pages),
-    ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }

@@ -5,14 +5,11 @@
  * default profile this returns `undefined` so the default export envelope is
  * byte-identical, and ONLY for a non-default profile does it assemble a
  * `JsonExportProfileBlock` carrying the content-bearing `EntityPage`s from the
- * shared collector. The built-in is detected by `loadedFrom === null` (never by
- * profileId), with a digest cross-check as defense-in-depth.
+ * shared collector. The built-in is gated through the shared
+ * {@link loadNonDefaultProfile} primitive.
  */
 
-import { loadProfile } from "../profile/load.js";
-import { collectEntityPages } from "../profile/collect.js";
-import { DEFAULT_PROFILE } from "../profile/default.js";
-import { profileDigest } from "../profile/digest.js";
+import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
 import type { JsonExportProfileBlock } from "./json-export.js";
 
 /**
@@ -25,12 +22,9 @@ import type { JsonExportProfileBlock } from "./json-export.js";
 export async function buildExportProfileBlock(
   root: string,
 ): Promise<JsonExportProfileBlock | undefined> {
-  const loaded = await loadProfile(root);
-  const isBuiltInDefault =
-    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
-  if (isBuiltInDefault) return undefined;
-  const { pages, problems } = await collectEntityPages(root, loaded.profile);
-  const messages = problems.map((p) => p.message);
+  const loaded = await loadNonDefaultProfile(root);
+  if (loaded === undefined) return undefined;
+  const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
   return {
     profileId: loaded.profile.profileId,
     entityPages: pages,

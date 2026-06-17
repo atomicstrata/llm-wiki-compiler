@@ -9,39 +9,18 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { listPages } from "../src/pages/list.js";
-import { CONCEPTS_DIR, PROFILE_FILE } from "../src/utils/constants.js";
-import type { ProfilePack } from "../src/profile/types.js";
+import { CONCEPTS_DIR } from "../src/utils/constants.js";
+import {
+  writeMarkdownPage,
+  seedSampleNotesProject,
+  expectFirstNotePage,
+} from "./fixtures/profile-fixtures.js";
 
 let root = "";
-
-/** A non-default profile: `notes` requires a `title`, lives at wiki/notes. */
-const PROFILE: ProfilePack = {
-  schemaVersion: 1,
-  profileId: "sample",
-  entities: {
-    notes: {
-      directory: "wiki/notes",
-      requiredFields: ["title"],
-      fields: { title: { type: "string" } },
-    },
-  },
-};
-
-/** Write the profile.json into the project's .llmwiki/ dir. */
-async function writeProfile(pack: ProfilePack): Promise<void> {
-  await mkdir(path.join(root, path.dirname(PROFILE_FILE)), { recursive: true });
-  await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(pack));
-}
-
-/** Write a markdown page with the given relative dir, slug, and content. */
-async function writePage(dir: string, slug: string, content: string): Promise<void> {
-  await mkdir(path.join(root, dir), { recursive: true });
-  await writeFile(path.join(root, dir, `${slug}.md`), content);
-}
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "profile-listpages-"));
@@ -53,7 +32,7 @@ afterEach(async () => {
 
 describe("listPages — default profile", () => {
   it("has no profile block and lists concept pages legacily", async () => {
-    await writePage(CONCEPTS_DIR, "alpha", "---\ntitle: Alpha\n---\nBody alpha.");
+    await writeMarkdownPage(root, CONCEPTS_DIR, "alpha", "---\ntitle: Alpha\n---\nBody alpha.");
     const result = await listPages(root, { includeBody: true });
     expect(result.profile).toBeUndefined();
     expect(result.pages.map((p) => p.slug)).toEqual(["alpha"]);
@@ -63,18 +42,14 @@ describe("listPages — default profile", () => {
 
 describe("listPages — non-default profile", () => {
   beforeEach(async () => {
-    await writeProfile(PROFILE);
-    await writePage("wiki/notes", "first-note", "---\ntitle: First\n---\nNote body.");
+    await seedSampleNotesProject(root);
   });
 
   it("surfaces entity pages with body when includeBody is true", async () => {
     const result = await listPages(root, { includeBody: true });
     expect(result.pages).toHaveLength(0);
     expect(result.profile?.entityPages).toHaveLength(1);
-    const page = result.profile!.entityPages[0];
-    expect(page.entityType).toBe("notes");
-    expect(page.slug).toBe("first-note");
-    expect(page.body).toBe("Note body.");
+    expectFirstNotePage(result.profile!.entityPages[0]);
   });
 
   it("strips entity-page body when includeBody is false", async () => {
@@ -83,7 +58,7 @@ describe("listPages — non-default profile", () => {
   });
 
   it("surfaces collector problems for a contract violation", async () => {
-    await writePage("wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title here.");
+    await writeMarkdownPage(root, "wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title here.");
     const result = await listPages(root, {});
     expect(result.profile?.problems?.length).toBeGreaterThan(0);
     expect(result.profile!.problems!.some((m) => m.includes("title"))).toBe(true);
