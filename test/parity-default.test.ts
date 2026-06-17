@@ -42,12 +42,26 @@ const DETERMINISTIC_SURFACES = [
 const DEFERRED_LLM_SURFACES: Array<{ surface: string; reason: string }> = [];
 
 /**
- * Truly volatile field names stripped from every snapshot wherever they
+ * Truly volatile field names stripped from EVERY snapshot wherever they
  * occur: wall-clock timestamps whose value cannot be pinned. Absolute paths
  * are NOT in this list — they are normalized to `<ROOT>`-relative form by
  * `replaceRoot` so the (load-bearing) relative remainder is still asserted.
+ *
+ * The generic key name `at` is deliberately NOT global: stripping any field
+ * named `at` tree-wide would mask drift in meaningful `at` fields. The only
+ * volatile `at` is the lint last-run cache timestamp (`summary.lint.at`),
+ * which surfaces solely through `cli.next`; it is scoped there via
+ * {@link NEXT_VOLATILE} instead of being deleted everywhere.
  */
-const VOLATILE = ["exportedAt", "generatedAt", "at"];
+const VOLATILE = ["exportedAt", "generatedAt"];
+
+/**
+ * Volatile fields for the `cli.next` surface only: the global set plus the
+ * lint-cache wall-clock timestamp `at` (the run-time of `llmwiki lint`, which
+ * cannot be pinned). Scoped here so `at` is masked at exactly its one volatile
+ * site rather than across the whole tree.
+ */
+const NEXT_VOLATILE = [...VOLATILE, "at"];
 
 let root = "";
 /** Realpath of `root` — macOS resolves temp dirs through the /private symlink. */
@@ -190,7 +204,7 @@ describe("CLI deterministic surfaces", () => {
     const lint = await runCLI(["lint"], root);
     capture("cli.lint", { code: lint.code, stdout: normalizeCliText(lint.stdout) });
     const next = await runCLI(["next", "--json"], root);
-    capture("cli.next", { code: next.code, json: JSON.parse(next.stdout) }, { volatile: VOLATILE });
+    capture("cli.next", { code: next.code, json: JSON.parse(next.stdout) }, { volatile: NEXT_VOLATILE });
     const review = await runCLI(["review", "list"], root);
     capture("cli.review.list", { code: review.code, stdout: normalizeCliText(review.stdout) });
   });

@@ -97,7 +97,11 @@ export function assertGolden(name: string, value: unknown, opts: GoldenOptions =
   const file = path.join(GOLDEN_DIR, `${name}.json`);
   const serialized = `${JSON.stringify(normalized, null, 2)}\n`;
 
-  if (process.env.UPDATE_GOLDEN) {
+  // Regeneration is honored ONLY outside CI. A CI run with UPDATE_GOLDEN set
+  // (env leak, misconfigured job) must never silently rewrite the frozen
+  // baseline — it falls through to the assertion below and fails loudly on
+  // drift instead of overwriting the very oracle it is meant to protect.
+  if (process.env.UPDATE_GOLDEN && !process.env.CI) {
     if (!existsSync(GOLDEN_DIR)) mkdirSync(GOLDEN_DIR, { recursive: true });
     writeFileSync(file, serialized, "utf-8");
     return;
