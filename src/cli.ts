@@ -26,6 +26,7 @@ import evalCommand, {
 import exportCommand from "./commands/export.js";
 import importCommand from "./commands/import.js";
 import { schemaInitCommand, schemaShowCommand } from "./commands/schema.js";
+import { profileShow, profileValidate, profileDiff } from "./commands/profile.js";
 import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
@@ -323,6 +324,39 @@ schemaCmd
       process.exit(1);
     }
   });
+
+const profileCmd = program
+  .command("profile")
+  .description("Inspect the active wiki profile (read-only: show, validate, diff)");
+
+profileCmd
+  .command("show")
+  .description("Print the active profile's id, digest, and source file")
+  .action(async () => {
+    try {
+      await profileShow();
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+profileCmd
+  .command("validate")
+  .description("Validate the active profile; exit non-zero with a message if invalid")
+  .action(async () => runExitCodeCommand(() => profileValidate()));
+
+profileCmd
+  .command("diff")
+  .description(
+    "Classify on-disk pages over the disposition lattice for an explicit old → new profile pair (read-only; writes nothing)",
+  )
+  .option("--candidate <file>", "Diff the active profile (old) against an uninstalled candidate file (new)")
+  .option("--from <file>", "Old profile for a pure offline diff (requires --to)")
+  .option("--to <file>", "New profile for a pure offline diff (requires --from)")
+  .action(async (options: { candidate?: string; from?: string; to?: string }) =>
+    runExitCodeCommand(() => profileDiff(options)),
+  );
 
 program
   .command("export")
