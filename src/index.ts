@@ -47,3 +47,12 @@ export type { WriteStatus } from "./utils/types.js";
 export type { OkfExportReport } from "./export/okf/run.js";
 export type { OkfImportReport, OkfImportSkip, OkfImportedPage } from "./import/run.js";
 export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
+
+// Profile pack TYPES only — the loader stays internal (no `loadProfile` export).
+export type {
+  ProfilePack,
+  EntityId,
+  EntityPageRef,
+  LoadedProfile,
+  SlugSafe,
+} from "./profile/types.js";

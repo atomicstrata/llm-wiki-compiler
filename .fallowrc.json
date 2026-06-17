@@ -11,8 +11,7 @@
   ],
   "ignoreExports": [
     { "file": "src/utils/output.ts", "exports": ["getQuiet"] },
-    { "file": "src/utils/constants.ts", "exports": ["PROFILE_FILE", "ADAPTATION_DIR"] },
-    { "file": "src/profile/types.ts", "exports": ["LoadedProfile", "EntityPageRef"] }
+    { "file": "src/utils/constants.ts", "exports": ["ADAPTATION_DIR"] }
   ],
   "overrides": [
     {
