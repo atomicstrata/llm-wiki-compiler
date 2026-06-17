@@ -26,7 +26,7 @@
  *     pages in the UI.
  */
 
-import { readdir, readFile } from "fs/promises";
+import { readdir, readFile, lstat } from "fs/promises";
 import path from "path";
 import { parseFrontmatterStatus, slugify } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
@@ -156,46 +156,83 @@ async function readEntityScan(filePath: string, stem: string): Promise<RawEntity
 }
 
 /**
+ * Confinement classification of an entity directory:
+ *   - `ok`      — the directory resolves to its exact expected canonical path;
+ *   - `missing` — the directory does not exist (readdir ENOENT);
+ *   - `invalid` — the root realpath failed, OR the directory's realpath differs
+ *     from its expected path (a symlinked / confinement-failed directory).
+ *
+ * The default collector ignores this and treats `missing`/`invalid` as empty;
+ * the non-default collector surfaces `invalid` as a problem so a partial
+ * project is never presented as healthy.
+ */
+export type EntityDirStatus = "ok" | "missing" | "invalid";
+
+/** Result of one entity-directory scan: the readable scans plus dir status. */
+export interface EntityDirScan {
+  scans: RawEntityScan[];
+  dirStatus: EntityDirStatus;
+}
+
+/**
  * The SINGLE raw directory scanner shared by the default and profile-aware
  * collectors. Walks one entity directory and returns one `RawEntityScan` per
- * readable `.md` file with its stem VERBATIM (no slugify, no grammar check).
+ * readable `.md` file (stem VERBATIM, no slugify), plus a `dirStatus` that
+ * distinguishes an INVALID (symlinked / confinement-failed) directory from a
+ * benignly ABSENT one.
  *
  * Confinement is stricter than "stays under project root": `root` is
  * canonicalized via `realpath`, the directory itself must resolve to the exact
- * expected path under that canonical root (so a symlinked entity dir is skipped
- * wholesale even when its target is in-root), and each `.md` entry must resolve
+ * expected path under that canonical root (so a symlinked entity dir is flagged
+ * `invalid` even when its target is in-root), and each `.md` entry must resolve
  * under that canonical directory (so a symlinked `x.md` pointing elsewhere is
- * dropped). Unreadable roots/dirs yield an empty array.
+ * dropped). A root realpath failure or a mismatched directory realpath is
+ * `invalid` (empty scans); an ENOENT readdir is `missing` (empty scans).
  *
  * @param root - Project root (raw; canonicalized internally).
- * @param entityType - Entity type name, for caller context only (not used in scanning).
  * @param dir - Repo-relative directory for this entity type (e.g. `wiki/concepts`).
  */
-export async function scanEntityDir(
-  root: string,
-  entityType: string,
-  dir: string,
-): Promise<RawEntityScan[]> {
-  void entityType;
+export async function scanEntityDir(root: string, dir: string): Promise<EntityDirScan> {
   const canonicalRoot = await safeRealpath(root);
-  if (!canonicalRoot) return [];
+  if (!canonicalRoot) return { scans: [], dirStatus: "invalid" };
   const expectedDir = path.join(canonicalRoot, dir);
-  const realDir = await safeRealpath(expectedDir);
-  if (realDir !== expectedDir) return [];
+  const dirStatus = await classifyEntityDir(expectedDir);
+  if (dirStatus !== "ok") return { scans: [], dirStatus };
   let files: string[];
   try {
-    files = await readdir(realDir);
+    files = await readdir(expectedDir);
   } catch {
-    return [];
+    return { scans: [], dirStatus: "missing" };
   }
   const scans: RawEntityScan[] = [];
   for (const file of files.filter((f) => f.endsWith(".md"))) {
-    const resolved = await safeRealpath(path.join(realDir, file));
-    if (!resolved || !isInsideDir(resolved, realDir)) continue;
+    const resolved = await safeRealpath(path.join(expectedDir, file));
+    if (!resolved || !isInsideDir(resolved, expectedDir)) continue;
     const scan = await readEntityScan(resolved, file.replace(/\.md$/, ""));
     if (scan) scans.push(scan);
   }
-  return scans;
+  return { scans, dirStatus: "ok" };
+}
+
+/**
+ * Classify an entity directory at its EXPECTED canonical path:
+ *   - the path does not exist at all (lstat ENOENT) → `missing` (benign);
+ *   - it exists but its realpath differs from the expected path (a symlink, or
+ *     a confinement failure) → `invalid`;
+ *   - otherwise → `ok`.
+ *
+ * Distinguishing absent from invalid lets the non-default collector surface a
+ * symlinked directory as a problem while treating a missing directory as an
+ * empty (but healthy) entity type.
+ */
+async function classifyEntityDir(expectedDir: string): Promise<EntityDirStatus> {
+  try {
+    await lstat(expectedDir);
+  } catch {
+    return "missing";
+  }
+  const realDir = await safeRealpath(expectedDir);
+  return realDir === expectedDir ? "ok" : "invalid";
 }
 
 /**
@@ -228,11 +265,13 @@ function scanToRawWikiPage(scan: RawEntityScan, pageDirectory: PageDirectory): R
  */
 export async function collectRawWikiPages(root: string): Promise<RawWikiPage[]> {
   const [concepts, queries] = await Promise.all([
-    scanEntityDir(root, "concepts", CONCEPTS_DIR),
-    scanEntityDir(root, "queries", QUERIES_DIR),
+    scanEntityDir(root, CONCEPTS_DIR),
+    scanEntityDir(root, QUERIES_DIR),
   ]);
+  // The default path ignores dirStatus: a missing OR invalid dir is treated as
+  // empty, exactly as before the refactor (the parity golden proves this).
   return [
-    ...concepts.map((s) => scanToRawWikiPage(s, "concepts")),
-    ...queries.map((s) => scanToRawWikiPage(s, "queries")),
+    ...concepts.scans.map((s) => scanToRawWikiPage(s, "concepts")),
+    ...queries.scans.map((s) => scanToRawWikiPage(s, "queries")),
   ];
 }

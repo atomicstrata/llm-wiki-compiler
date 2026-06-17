@@ -124,9 +124,9 @@ describe("validateProfile — schema-parity rejection", () => {
     expect(() => validateProfile(raw)).toThrow(/unknown|unexpected/i);
   });
 
-  it("rejects a retrieval.readExposure outside the allowed set", () => {
+  it("rejects retrieval.readExposure entirely (inert v0 control removed)", () => {
     const raw = baseProfile();
-    raw.entities.papers.retrieval = { readExposure: "public" as never };
+    raw.entities.papers.retrieval = { readExposure: "agent-readable" as never };
     expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
   });
 

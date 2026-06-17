@@ -53,8 +53,7 @@
       "properties": {
         "includeInSearch": { "type": "boolean" },
         "includeInContext": { "type": "boolean" },
-        "defaultWeight": { "type": "number" },
-        "readExposure": { "enum": ["agent-readable", "local-only"] }
+        "defaultWeight": { "type": "number" }
       }
     },
     "lifecycleDef": {

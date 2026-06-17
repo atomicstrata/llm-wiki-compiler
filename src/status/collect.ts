@@ -22,7 +22,7 @@ import { loadProfile } from "../profile/load.js";
 import { collectEntityPages } from "../profile/collect.js";
 import { DEFAULT_PROFILE } from "../profile/default.js";
 import { profileDigest } from "../profile/digest.js";
-import type { ProfilePack } from "../profile/types.js";
+import type { ProfilePack, EntityPageRef } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /**
@@ -68,7 +68,18 @@ export interface WikiStatus {
    * is the per-entity-type page count; the legacy `pages` block above stays
    * scoped to the literal wiki/concepts + wiki/queries dirs only.
    */
-  profile?: { profileId: string; digest: string; entityCounts: Record<string, number> };
+  profile?: {
+    profileId: string;
+    digest: string;
+    entityCounts: Record<string, number>;
+    /**
+     * Human-readable problem messages from the non-default read path (invalid
+     * directories, non-slug-safe filenames, slug mismatches, field-contract
+     * violations). Present ONLY when non-empty, so a non-default project with a
+     * bad directory or page is never reported as silently healthy.
+     */
+    problems?: string[];
+  };
 }
 
 /** Classify scanned concept pages into stale/orphaned arrays using the freshness snapshot. */
@@ -145,16 +156,15 @@ function capPendingChanges(
 }
 
 /**
- * Count entity pages per declared entity type for a non-default profile.
+ * Tally entity-page refs per declared entity type for a non-default profile.
  *
  * Seeds every declared entity type at zero so a declared-but-empty type still
  * reports `0` (rather than being absent), then tallies the strict
- * `EntityPageRef`s from `collectEntityPages`.
+ * `EntityPageRef`s collected from disk.
  */
-async function countByEntityType(root: string, profile: ProfilePack): Promise<Record<string, number>> {
+function countByEntityType(profile: ProfilePack, refs: EntityPageRef[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const entityType of Object.keys(profile.entities)) counts[entityType] = 0;
-  const refs = await collectEntityPages(root, profile);
   for (const ref of refs) counts[ref.entityType] = (counts[ref.entityType] ?? 0) + 1;
   return counts;
 }
@@ -216,9 +226,12 @@ async function collectProfileBlock(
   const isBuiltInDefault =
     loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
   if (isBuiltInDefault) return undefined;
+  const { refs, problems } = await collectEntityPages(root, loaded.profile);
+  const messages = problems.map((p) => p.message);
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
-    entityCounts: await countByEntityType(root, loaded.profile),
+    entityCounts: countByEntityType(loaded.profile, refs),
+    ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }

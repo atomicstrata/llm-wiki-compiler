@@ -67,9 +67,21 @@ const SEED_PAGES: Record<string, string[]> = {
   "wiki/experiments": ["ablation-batch-size"],
 };
 
-/** Write a minimal slug-safe markdown page (no frontmatter slug) under `dir`. */
+/**
+ * Frontmatter satisfying each entity type's declared required-field contract,
+ * so the seeded pages collect cleanly (no `field-violation` problems): `papers`
+ * requires `title`, `ideas` requires `status` (a valid lifecycle state).
+ */
+const SEED_FRONTMATTER: Record<string, string> = {
+  "wiki/papers": "title: Seed Paper",
+  "wiki/ideas": "status: proposed",
+};
+
+/** Write a contract-satisfying slug-safe markdown page (no frontmatter slug). */
 async function writeSeedPage(root: string, dir: string, slug: string): Promise<void> {
-  await writeFile(path.join(root, dir, `${slug}.md`), `# ${slug}\n`, "utf8");
+  const fields = SEED_FRONTMATTER[dir];
+  const fm = fields ? `---\n${fields}\n---\n\n` : "";
+  await writeFile(path.join(root, dir, `${slug}.md`), `${fm}# ${slug}\n`, "utf8");
 }
 
 /**

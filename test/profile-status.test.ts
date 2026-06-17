@@ -14,7 +14,7 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { collectStatus } from "../src/status/collect.js";
@@ -88,5 +88,33 @@ describe("collectStatus — non-default profile", () => {
     const result = await collectStatus(root);
     expect(result.profile?.entityCounts).toEqual({ notes: 0, tasks: 0 });
     expect(result.pages.total).toBe(0);
+  });
+
+  it("omits the problems key when every entity page is clean", async () => {
+    await writeProfile(SAMPLE_PROFILE);
+    await writePage(path.join(root, "wiki/notes"), "first-note");
+    const result = await collectStatus(root);
+    expect(result.profile && "problems" in result.profile).toBe(false);
+  });
+});
+
+describe("collectStatus — surfaces non-default problems (never silent)", () => {
+  it("reports a symlinked entity dir as a problem instead of a silent 0", async () => {
+    await writeProfile(SAMPLE_PROFILE);
+    await mkdir(path.join(root, "elsewhere"), { recursive: true });
+    await mkdir(path.join(root, "wiki"), { recursive: true });
+    await symlink(path.join(root, "elsewhere"), path.join(root, "wiki/notes"));
+    const result = await collectStatus(root);
+    expect(result.profile?.problems?.some((m) => /invalid/i.test(m))).toBe(true);
+    expect(result.profile?.entityCounts.notes).toBe(0);
+  });
+
+  it("does not crash and still collects siblings when one page is non-slug-safe", async () => {
+    await writeProfile(SAMPLE_PROFILE);
+    await writePage(path.join(root, "wiki/notes"), "Bad Name");
+    await writePage(path.join(root, "wiki/notes"), "good-note");
+    const result = await collectStatus(root);
+    expect(result.profile?.entityCounts.notes).toBe(1);
+    expect(result.profile?.problems).toHaveLength(1);
   });
 });

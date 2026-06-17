@@ -111,7 +111,7 @@ async function classifyDirectory(
   ctx: DiffContext,
   pages: PageDisposition[],
 ): Promise<void> {
-  const scans = await scanEntityDir(root, directory, directory);
+  const { scans } = await scanEntityDir(root, directory);
   for (const scan of scans) {
     pages.push({ directory, stem: scan.stem, disposition: classifyPage(scan, directory, ctx) });
   }

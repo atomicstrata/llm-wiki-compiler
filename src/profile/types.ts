@@ -39,12 +39,18 @@ export interface FieldDef {
   max?: number;
 }
 
-/** How an entity type participates in search and context retrieval. */
+/**
+ * How an entity type participates in search and context retrieval.
+ *
+ * NOTE: a read-confidentiality control (`readExposure`) was intentionally
+ * removed for v0 — nothing enforces it this slice, and shipping an unenforced
+ * confidentiality field is false assurance. It returns in the phase that
+ * actually enforces read-confidentiality.
+ */
 export interface RetrievalDef {
   includeInSearch?: boolean;
   includeInContext?: boolean;
   defaultWeight?: number;
-  readExposure?: "agent-readable" | "local-only";
 }
 
 /** A state-machine lifecycle defined over one frontmatter field. */
