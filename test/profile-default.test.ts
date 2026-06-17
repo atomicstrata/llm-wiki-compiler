@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { DEFAULT_PROFILE, isDefaultProfile } from "../src/profile/default.js";
+import { validateProfileShape, validateProfile } from "../src/profile/validate.js";
 
 describe("DEFAULT_PROFILE", () => {
   it("declares the concepts entity at wiki/concepts", () => {
@@ -20,5 +21,13 @@ describe("DEFAULT_PROFILE", () => {
 
   it("is recognised as the default profile", () => {
     expect(isDefaultProfile(DEFAULT_PROFILE)).toBe(true);
+  });
+
+  it("satisfies the structural contract (ajv schema + FSM + dir checks)", () => {
+    expect(() => validateProfileShape(DEFAULT_PROFILE)).not.toThrow();
+  });
+
+  it("is still rejected by validateProfile (disk reserved-id gate)", () => {
+    expect(() => validateProfile(DEFAULT_PROFILE)).toThrow(/reserved/);
   });
 });

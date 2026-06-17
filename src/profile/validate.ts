@@ -1,61 +1,47 @@
 /**
- * Fail-closed v0 profile validator.
+ * Fail-closed v0 profile validator — schema-first, two-phase.
  *
  * `validateProfile` is the single enforcing gate between an untrusted raw
- * profile object and a typed `ProfilePack`. It is all-or-nothing: ANY
- * structural violation throws `ProfileValidationError` and nothing is
- * returned. The complementary JSON Schema at
- * `./schema/profile.v1.schema.json` (draft 2020-12) is the canonical
- * AUTHORING schema — it documents the v0 shape for editors and tooling — but
- * this function, not the schema, is the runtime enforcer.
+ * profile object and a typed `ProfilePack`. It is all-or-nothing: ANY violation
+ * throws `ProfileValidationError` and nothing is returned.
  *
- * v0 scope, fail-closed by design:
- *  - schemaVersion must be exactly 1;
- *  - profile inheritance (`extends`) is rejected, not silently ignored;
- *  - reserved profile ids are refused unless the profile IS the built-in default;
- *  - every entity directory is structurally validated and must be unique;
- *  - field types are restricted to the v0 allowlist and numeric defaults must
- *    be finite (NaN/Infinity rejected; finite decimals allowed);
- *  - any declared lifecycle must be a well-formed FSM (see validateLifecycle).
+ * Validation runs in two phases:
+ *  1. STRUCTURAL (ajv): the published JSON Schema at
+ *     `./schema/profile.v1.schema.json` (draft 2020-12) is the runtime enforcer
+ *     for structure, types, enums, and `additionalProperties` — compiled once in
+ *     `schema-validator.ts`. The schema is the single source of truth here; the
+ *     hand validator used to drift from it, so that responsibility now lives in
+ *     the schema.
+ *  2. SEMANTIC (post-ajv): the checks JSON Schema cannot express — directory
+ *     canonicalization + uniqueness + reserved-root confinement, requiredFields
+ *     references, lifecycle FSM well-formedness, slug-safe entity-type keys,
+ *     defensive non-finite-number rejection, the unsupported `extends`
+ *     inheritance, and (in `validateProfile` only) reserved profile ids.
+ *
+ * Validation NEVER mutates the caller's input: the raw object is cloned up
+ * front and only the clone is canonicalized and returned. `validateProfileShape`
+ * runs both phases EXCEPT the reserved-id rejection, so the built-in default
+ * profile (`profileId: "default"`) can be proven to satisfy the same structural
+ * contract that disk profiles claiming `"default"` are rejected against.
  * Unreachable lifecycle states are collected as warnings, not errors.
  */
 
-import type { ProfilePack, EntityTypeDef, FieldDef, FieldType, LifecycleDef } from "./types.js";
+import type { ProfilePack, EntityTypeDef, FieldDef, LifecycleDef } from "./types.js";
 import { isSlugSafe } from "./identity.js";
 import { validateEntityDirectory } from "./paths.js";
+import { assertStructurallyValid } from "./schema-validator.js";
+import { ProfileValidationError } from "./errors.js";
 import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR } from "../utils/constants.js";
 
-/** The schema version this validator enforces. */
-const SUPPORTED_SCHEMA_VERSION = 1;
-
-/** The v0 field-type allowlist. */
-const ALLOWED_FIELD_TYPES = new Set<FieldType>([
-  "string",
-  "number",
-  "integer",
-  "boolean",
-  "date",
-  "slug",
-  "enum",
-  "string[]",
-]);
+export { ProfileValidationError } from "./errors.js";
 
 /**
  * Profile ids reserved by the system. `default` names the in-memory built-in
- * profile, which never loads from disk through this validator — so a disk
- * profile claiming it is always rejected (no exception).
+ * profile, which never loads from disk through `validateProfile` — so a disk
+ * profile claiming it is always rejected. `validateProfileShape` skips this gate
+ * so the built-in default can be proven structurally well-formed.
  */
 const RESERVED_PROFILE_IDS = new Set(["default"]);
-
-/** Allowed keys at each level — anything else is rejected (schema-parity). */
-const ALLOWED_TOP_KEYS = new Set([
-  "schemaVersion", "profileId", "profileVersion", "displayName", "extends", "entities",
-]);
-const ALLOWED_ENTITY_KEYS = new Set([
-  "directory", "titleField", "requiredFields", "fields", "retrieval", "lifecycle", "export",
-]);
-const ALLOWED_FIELD_KEYS = new Set(["type", "required", "default", "enum", "min", "max"]);
-const ALLOWED_READ_EXPOSURE = new Set(["agent-readable", "local-only"]);
 
 /** Repo-relative roots an entity directory may not overlap. */
 const RESERVED_ROOTS = [
@@ -74,106 +60,44 @@ export interface ProfileValidationResult {
   warnings: string[];
 }
 
-/** Error raised when a raw profile violates any v0 invariant. */
-export class ProfileValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ProfileValidationError";
-  }
-}
-
 /** Throw a ProfileValidationError unless `condition` holds. */
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ProfileValidationError(message);
 }
 
-/** True for a non-null plain object value. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Reject any key of `obj` not present in `allowed` (allowlist, fail-closed). */
-function rejectUnknownKeys(obj: Record<string, unknown>, allowed: Set<string>, where: string): void {
-  for (const key of Object.keys(obj)) {
-    assert(allowed.has(key), `${where}: unknown key '${key}'`);
-  }
-}
-
 /**
- * Validate the top-level header: only allowlisted keys, `schemaVersion`,
- * `extends` (fail-closed — inheritance unsupported), and `profileId` (slug-safe
- * and NOT a reserved id; `default` is reserved for the in-memory built-in,
- * which never loads through this validator).
+ * Reject the unsupported `extends` inheritance with a clear message. ajv already
+ * rejects a non-empty `extends` via `maxItems: 0`, but the semantic message
+ * names inheritance explicitly (the schema's wording is generic).
  */
-function validateHeader(raw: Record<string, unknown>): void {
-  rejectUnknownKeys(raw, ALLOWED_TOP_KEYS, "profile");
-  assert(raw.schemaVersion === SUPPORTED_SCHEMA_VERSION, `unsupported schemaVersion (expected ${SUPPORTED_SCHEMA_VERSION})`);
+function rejectInheritance(raw: ProfilePack): void {
   const ext = raw.extends;
-  assert(ext === undefined || Array.isArray(ext), "extends must be an array when present");
-  assert(!Array.isArray(ext) || ext.length === 0, "profile inheritance (extends) is not supported in this release");
-  const profileId = raw.profileId;
-  assert(typeof profileId === "string" && isSlugSafe(profileId), "profileId must be a slug-safe string");
-  assert(!RESERVED_PROFILE_IDS.has(profileId), `profileId '${profileId}' is reserved`);
+  assert(
+    ext === undefined || ext.length === 0,
+    "profile inheritance (extends) is not supported in this release",
+  );
 }
 
-/** Assert that the named numeric field-def value, when present, is finite. */
-function assertFiniteNumber(name: string, key: string, value: unknown): void {
-  if (typeof value === "number") {
-    assert(Number.isFinite(value), `field '${name}' has a non-finite ${key}`);
+/** Reject any non-finite numeric field-def or retrieval value defensively. */
+function assertFiniteNumbers(entityType: string, def: EntityTypeDef): void {
+  for (const [name, field] of Object.entries(def.fields ?? {})) {
+    for (const key of ["default", "min", "max"] as const) {
+      const value = field[key];
+      if (typeof value === "number") {
+        assert(Number.isFinite(value), `entity '${entityType}' field '${name}' has a non-finite ${key}`);
+      }
+    }
   }
-}
-
-/**
- * Validate one field definition: only allowlisted keys, a type in the v0
- * allowlist, finite numeric `default`/`min`/`max`, and a string[] `enum`.
- */
-function validateField(name: string, field: Record<string, unknown>): void {
-  rejectUnknownKeys(field, ALLOWED_FIELD_KEYS, `field '${name}'`);
-  assert(ALLOWED_FIELD_TYPES.has(field.type as FieldType), `field '${name}' has unsupported type '${field.type}'`);
-  assertFiniteNumber(name, "default", field.default);
-  assertFiniteNumber(name, "min", field.min);
-  assertFiniteNumber(name, "max", field.max);
-  if (field.enum !== undefined) {
-    assert(Array.isArray(field.enum) && field.enum.every((v) => typeof v === "string"), `field '${name}' enum must be a string[]`);
-  }
-}
-
-/** Validate every field definition declared on an entity type. */
-function validateFields(entityType: string, fields: Record<string, FieldDef> | undefined): void {
-  if (!fields) return;
-  for (const [name, field] of Object.entries(fields)) {
-    assert(isRecord(field), `entity '${entityType}' field '${name}' must be an object`);
-    validateField(`${entityType}.${name}`, field);
-  }
-}
-
-/** Validate a retrieval block: object, readExposure in the set, finite weight. */
-function validateRetrieval(entityType: string, retrieval: unknown): void {
-  const where = `entity '${entityType}' retrieval`;
-  assert(isRecord(retrieval), `${where} must be an object`);
-  const { readExposure, defaultWeight } = retrieval;
-  if (readExposure !== undefined) {
-    assert(typeof readExposure === "string" && ALLOWED_READ_EXPOSURE.has(readExposure), `${where}: readExposure '${String(readExposure)}' is not allowed`);
-  }
-  if (defaultWeight !== undefined) {
-    assert(typeof defaultWeight === "number" && Number.isFinite(defaultWeight), `${where}: defaultWeight must be a finite number`);
+  const weight = def.retrieval?.defaultWeight;
+  if (typeof weight === "number") {
+    assert(Number.isFinite(weight), `entity '${entityType}' retrieval.defaultWeight must be finite`);
   }
 }
 
 /** Every requiredFields entry must reference a declared field. */
-function validateRequiredFields(entityType: string, required: string[] | undefined, fields?: Record<string, FieldDef>): void {
-  if (!required) return;
-  for (const name of required) {
-    assert(fields?.[name] !== undefined, `entity '${entityType}' requiredFields entry '${name}' is not a declared field`);
-  }
-}
-
-/** Validate the optional export block: only `okfType`, a string when present. */
-function validateExport(entityType: string, exp: { okfType?: unknown }): void {
-  assert(isRecord(exp), `entity '${entityType}' export must be an object`);
-  rejectUnknownKeys(exp, new Set(["okfType"]), `entity '${entityType}' export`);
-  if (exp.okfType !== undefined) {
-    assert(typeof exp.okfType === "string", `entity '${entityType}' export.okfType must be a string`);
+function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
+  for (const name of def.requiredFields ?? []) {
+    assert(def.fields?.[name] !== undefined, `entity '${entityType}' requiredFields entry '${name}' is not a declared field`);
   }
 }
 
@@ -185,8 +109,7 @@ function validateExport(entityType: string, exp: { okfType?: unknown }): void {
  * states; terminal states have no outgoing transitions; every transition
  * endpoint ∈ states; every transitionRequirements key ∈ states; and if the
  * lifecycle `field` maps to a declared field, that field must be an enum whose
- * values equal the state set. Unreachable states (no path from initial) are
- * returned, not thrown.
+ * values equal the state set. Unreachable states are returned, not thrown.
  */
 function validateLifecycle(entityType: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): string[] {
   const where = `entity '${entityType}' lifecycle`;
@@ -241,30 +164,24 @@ interface EntityValidation {
 }
 
 /**
- * Validate one entity type. Allowlists its keys, structurally validates the
- * directory (returning the canonical form), and validates fields, retrieval,
- * requiredFields, export, and lifecycle.
+ * Validate one entity type's SEMANTICS (structure is already ajv-checked).
+ * Canonicalizes and confines its directory (returning the canonical form), and
+ * validates finite numbers, requiredFields references, and lifecycle.
  */
 function validateEntity(entityType: string, def: EntityTypeDef): EntityValidation {
-  assert(isRecord(def), `entity '${entityType}' must be an object`);
-  rejectUnknownKeys(def, ALLOWED_ENTITY_KEYS, `entity '${entityType}'`);
-  assert(typeof def.directory === "string", `entity '${entityType}' is missing a directory`);
   const canonicalDirectory = validateEntityDirectory(def.directory, RESERVED_ROOTS);
-  validateFields(entityType, def.fields);
-  if (def.retrieval !== undefined) validateRetrieval(entityType, def.retrieval);
-  validateRequiredFields(entityType, def.requiredFields, def.fields);
-  if (def.export !== undefined) validateExport(entityType, def.export);
+  assertFiniteNumbers(entityType, def);
+  validateRequiredFields(entityType, def);
   const warnings = def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
   return { canonicalDirectory, warnings };
 }
 
 /**
  * Validate all entities, enforcing slug-safe type keys and CANONICAL directory
- * uniqueness, writing each canonical directory back so downstream scanning uses
- * the same path uniqueness was checked against. Returns lifecycle warnings.
+ * uniqueness, writing each canonical directory back ON THE CLONE so downstream
+ * scanning uses the same path uniqueness was checked against. Returns warnings.
  */
 function validateEntities(entities: Record<string, EntityTypeDef>): string[] {
-  assert(Object.keys(entities).length > 0, "profile must declare at least one entity");
   const warnings: string[] = [];
   const dirs = new Map<string, string>();
   for (const [entityType, def] of Object.entries(entities)) {
@@ -280,17 +197,30 @@ function validateEntities(entities: Record<string, EntityTypeDef>): string[] {
 }
 
 /**
+ * Validate a raw profile's SHAPE: the ajv structural gate plus every semantic
+ * check, EXCEPT the reserved profileId rejection. The built-in default profile
+ * passes this; disk profiles claiming `"default"` are still rejected by
+ * `validateProfile`. Non-mutating: clones the input and returns the canonical
+ * clone.
+ */
+export function validateProfileShape(raw: unknown): ProfileValidationResult {
+  assertStructurallyValid(raw);
+  const profile = structuredClone(raw) as ProfilePack;
+  rejectInheritance(profile);
+  const warnings = validateEntities(profile.entities);
+  return { profile, warnings };
+}
+
+/**
  * Validate a raw, untrusted profile object into a typed `ProfilePack`.
  *
- * Fail-closed and all-or-nothing: throws `ProfileValidationError` on the first
- * violation and returns the validated pack with any (non-fatal) warnings
- * otherwise. The canonical authoring schema is
- * `./schema/profile.v1.schema.json`; this function is the runtime enforcer.
+ * Two-phase and fail-closed: the ajv schema gate runs first, then the semantic
+ * checks. Adds the disk-only reserved-id rejection on top of
+ * `validateProfileShape`. Never mutates the caller's input; returns the
+ * canonical clone with any (non-fatal) warnings.
  */
 export function validateProfile(raw: unknown): ProfileValidationResult {
-  assert(isRecord(raw), "profile must be an object");
-  validateHeader(raw);
-  assert(isRecord(raw.entities), "profile must declare an 'entities' object");
-  const warnings = validateEntities(raw.entities as Record<string, EntityTypeDef>);
-  return { profile: raw as unknown as ProfilePack, warnings };
+  const result = validateProfileShape(raw);
+  assert(!RESERVED_PROFILE_IDS.has(result.profile.profileId), `profileId '${result.profile.profileId}' is reserved`);
+  return result;
 }

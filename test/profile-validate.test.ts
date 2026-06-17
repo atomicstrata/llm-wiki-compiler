@@ -34,14 +34,15 @@ describe("validateProfile — schema gate and inheritance", () => {
     expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
   });
 
-  it("rejects a non-empty extends with a clear message", () => {
+  it("rejects a non-empty extends (schema maxItems:0 gate)", () => {
     const raw = { ...baseProfile(), extends: ["base"] };
-    expect(() => validateProfile(raw)).toThrow(/inheritance \(extends\) is not supported/);
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+    expect(() => validateProfile(raw)).toThrow(/extends|0 items/i);
   });
 
   it("rejects extends:['default'] (inheritance still unsupported)", () => {
     const raw = { ...baseProfile(), extends: ["default"] };
-    expect(() => validateProfile(raw)).toThrow(/inheritance \(extends\) is not supported/);
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
   });
 
   it("accepts an absent / empty extends", () => {
@@ -50,11 +51,11 @@ describe("validateProfile — schema gate and inheritance", () => {
 });
 
 describe("validateProfile — directories", () => {
-  it("rejects an entity directory outside wiki/", () => {
+  it("rejects an entity directory outside wiki/ (schema pattern gate)", () => {
     const raw = baseProfile();
     raw.entities.papers.directory = "outside/papers";
-    expect(() => validateProfile(raw)).toThrow(ProfilePathError);
-    expect(() => validateProfile(raw)).toThrow(/must be under 'wiki\/'/);
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+    expect(() => validateProfile(raw)).toThrow(/directory|wiki/i);
   });
 
   it("rejects two entities sharing a directory", () => {
@@ -66,7 +67,7 @@ describe("validateProfile — directories", () => {
   it("rejects a directory overlapping a reserved root (sources/)", () => {
     const raw = baseProfile();
     raw.entities.papers.directory = "sources/papers";
-    expect(() => validateProfile(raw)).toThrow(/reserved root|must be under 'wiki\/'/);
+    expect(() => validateProfile(raw)).toThrow(/reserved root|must be under 'wiki\/'|pattern/i);
   });
 
   it("rejects a directory overlapping wiki/graph", () => {
@@ -140,6 +141,70 @@ describe("validateProfile — schema-parity rejection", () => {
     raw.entities.papers.fields = { title: { type: "string" } };
     raw.entities.papers.requiredFields = ["title", "missing"];
     expect(() => validateProfile(raw)).toThrow(/requiredFields|missing/i);
+  });
+});
+
+describe("validateProfile — ajv structural gate (codex fail-closed cases)", () => {
+  it("rejects an unknown retrieval key (retrieval.bogus)", () => {
+    const raw = baseProfile();
+    raw.entities.papers.retrieval = { bogus: true } as never;
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a non-boolean retrieval.includeInSearch ('yes')", () => {
+    const raw = baseProfile();
+    raw.entities.papers.retrieval = { includeInSearch: "yes" } as never;
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a non-number field min (score.min = 'low')", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { score: { type: "number", min: "low" } as never };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a non-boolean field required (title.required = 'yes')", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { title: { type: "string", required: "yes" } as never };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects an unknown lifecycle key (lifecycle.bogus)", () => {
+    const raw = baseProfile();
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: ["done"],
+      transitions: { draft: ["done"] }, bogus: true,
+    } as never;
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+
+  it("rejects a non-array lifecycle.terminal ('done')", () => {
+    const raw = baseProfile();
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: "done",
+      transitions: { draft: ["done"] },
+    } as never;
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+  });
+});
+
+describe("validateProfile — non-mutating (all-or-nothing)", () => {
+  it("leaves the caller's input unchanged when a later entity is invalid", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/papers/.";
+    raw.entities.notes.directory = "sources/secret"; // later entity is invalid
+    expect(() => validateProfile(raw)).toThrow();
+    // The earlier entity's directory must NOT have been canonicalized in place.
+    expect(raw.entities.papers.directory).toBe("wiki/papers/.");
+  });
+
+  it("does not mutate the input on the happy path; returns a canonical clone", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/papers/.";
+    const result = validateProfile(raw);
+    expect(raw.entities.papers.directory).toBe("wiki/papers/.");
+    expect(result.profile.entities.papers.directory).toBe("wiki/papers");
+    expect(result.profile).not.toBe(raw);
   });
 });
 
