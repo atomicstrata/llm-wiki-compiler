@@ -28,12 +28,28 @@
 
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
+import type { EntityPage } from "../profile/types.js";
 
 /**
  * Monotonically-incremented envelope version.
  * Bump when a breaking field change lands; additive additions do not require a bump.
  */
 export const EXPORT_SCHEMA_VERSION = 1;
+
+/**
+ * Additive, non-default-profile entity block for the JSON export.
+ *
+ * Present ONLY for a non-default profile; ABSENT for the built-in default so
+ * the default export is byte-identical. `entityPages` carries the
+ * content-bearing `EntityPage` shape directly — NOT the freshness/hash-decorated
+ * `ExportPage`. The legacy `pages` array stays scoped to concepts/queries.
+ */
+export interface JsonExportProfileBlock {
+  profileId: string;
+  entityPages: EntityPage[];
+  /** Human-readable collector problems; present ONLY when non-empty. */
+  problems?: string[];
+}
 
 /** Top-level shape of the JSON export file. */
 export interface JsonExportDocument {
@@ -47,6 +63,11 @@ export interface JsonExportDocument {
   /** Optional bridge identifier. See `src/export/project-id.ts` for the validation rule. */
   projectId?: string;
   pages: ExportPage[];
+  /**
+   * Non-default profile entity pages, ADDITIVELY. ABSENT (undefined) for the
+   * built-in default so the default envelope is byte-identical.
+   */
+  profile?: JsonExportProfileBlock;
 }
 
 /** Options accepted by {@link buildJsonExportDocument}. */
@@ -56,6 +77,12 @@ export interface BuildJsonExportOptions {
    * regex; throws if invalid so a malformed value never reaches disk.
    */
   projectId?: string;
+  /**
+   * Pre-computed non-default profile entity block. Supplied by the caller
+   * (which holds `root`); ABSENT for the built-in default so the default
+   * envelope gains no `profile` key.
+   */
+  profile?: JsonExportProfileBlock;
 }
 
 /**
@@ -76,6 +103,9 @@ export function buildJsonExportDocument(
   };
   if (options.projectId !== undefined) {
     doc.projectId = validateProjectId(options.projectId);
+  }
+  if (options.profile !== undefined) {
+    doc.profile = options.profile;
   }
   return doc;
 }
