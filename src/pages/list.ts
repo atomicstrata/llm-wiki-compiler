@@ -25,6 +25,11 @@ import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { loadProfile } from "../profile/load.js";
+import { collectEntityPages } from "../profile/collect.js";
+import { DEFAULT_PROFILE } from "../profile/default.js";
+import { profileDigest } from "../profile/digest.js";
+import type { EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
 export type { PageDirectory };
@@ -63,11 +68,34 @@ export interface ListPagesOptions {
   includeOrphaned?: boolean;
 }
 
+/**
+ * Additive, non-default-profile entity-page block for `listPages`.
+ *
+ * Present ONLY for a non-default profile; for the built-in default it is
+ * ABSENT (`result.profile === undefined`) so the default envelope is unchanged.
+ * `entityPages` carries the content-bearing `EntityPage`s; each page's `body`
+ * is stripped when `includeBody` is false (mirroring the legacy `pages` block).
+ *
+ * Entity-section pagination is deferred — every entity page is returned in one
+ * block, regardless of the legacy `cursor`/`limit` (which still scope `pages`).
+ */
+export interface ListPagesProfileBlock {
+  entityPages: EntityPage[];
+  /** Human-readable collector problems; present ONLY when non-empty. */
+  problems?: string[];
+}
+
 /** Result returned by `listPages`. */
 export interface ListPagesResult {
   pages: Page[];
   /** Opaque cursor for the next page; absent when the listing is exhausted. */
   cursor?: string;
+  /**
+   * Non-default profile entity pages, ADDITIVELY. ABSENT (undefined) for the
+   * built-in default so the default envelope is byte-identical; the legacy
+   * `pages` block stays scoped to concepts/queries in both cases.
+   */
+  profile?: ListPagesProfileBlock;
 }
 
 /** Maps each PageDirectory to its project-relative path. */
@@ -145,7 +173,40 @@ export async function listPages(
     (a, b) =>
       a.pageDirectory.localeCompare(b.pageDirectory) || a.slug.localeCompare(b.slug),
   );
-  return paginate(all, options);
+  const result = paginate(all, options);
+  const profile = await collectProfileBlock(root, options.includeBody === true);
+  return profile ? { ...result, profile } : result;
+}
+
+/**
+ * For a NON-DEFAULT profile only, build the additive `profile` block from the
+ * content-carrying entity collector. Returns `undefined` for the built-in
+ * default so the legacy envelope is unchanged — the built-in is identified by
+ * `loadedFrom === null` (never by profileId), exactly as `status` does.
+ *
+ * Honors `includeBody`: each entity page's `body` is stripped when bodies are
+ * not requested, mirroring how the legacy `pages` block omits bodies.
+ */
+async function collectProfileBlock(
+  root: string,
+  includeBody: boolean,
+): Promise<ListPagesProfileBlock | undefined> {
+  const loaded = await loadProfile(root);
+  const isBuiltInDefault =
+    loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
+  if (isBuiltInDefault) return undefined;
+  const { pages, problems } = await collectEntityPages(root, loaded.profile);
+  const entityPages = includeBody ? pages : pages.map(stripBody);
+  const messages = problems.map((p) => p.message);
+  return {
+    entityPages,
+    ...(messages.length > 0 ? { problems: messages } : {}),
+  };
+}
+
+/** Return a copy of an entity page with its `body` replaced by an empty string. */
+function stripBody(page: EntityPage): EntityPage {
+  return { ...page, body: "" };
 }
 
 /**
