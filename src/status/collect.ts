@@ -18,6 +18,10 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
+import { loadProfile } from "../profile/load.js";
+import { collectEntityPages } from "../profile/collect.js";
+import { isDefaultProfile } from "../profile/default.js";
+import type { ProfilePack } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /**
@@ -57,6 +61,13 @@ export interface WikiStatus {
   pendingChanges: Array<{ file: string; status: string }>;
   /** True total of pending changes (may exceed pendingChanges.length when capped). */
   pendingChangesCount: number;
+  /**
+   * Active non-default profile summary. ABSENT (undefined) for the default
+   * profile so default envelopes are unchanged. When present, `entityCounts`
+   * is the per-entity-type page count; the legacy `pages` block above stays
+   * scoped to the literal wiki/concepts + wiki/queries dirs only.
+   */
+  profile?: { profileId: string; digest: string; entityCounts: Record<string, number> };
 }
 
 /** Classify scanned concept pages into stale/orphaned arrays using the freshness snapshot. */
@@ -132,6 +143,21 @@ function capPendingChanges(
   return changes.slice().sort((a, b) => a.file.localeCompare(b.file)).slice(0, MAX_STATUS_LIST);
 }
 
+/**
+ * Count entity pages per declared entity type for a non-default profile.
+ *
+ * Seeds every declared entity type at zero so a declared-but-empty type still
+ * reports `0` (rather than being absent), then tallies the strict
+ * `EntityPageRef`s from `collectEntityPages`.
+ */
+async function countByEntityType(root: string, profile: ProfilePack): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const entityType of Object.keys(profile.entities)) counts[entityType] = 0;
+  const refs = await collectEntityPages(root, profile);
+  for (const ref of refs) counts[ref.entityType] = (counts[ref.entityType] ?? 0) + 1;
+  return counts;
+}
+
 /** Build a read-only status snapshot used by the `wiki_status` MCP tool. */
 export async function collectStatus(root: string): Promise<WikiStatus> {
   const classified = await readStateClassified(root);
@@ -146,6 +172,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
   ]);
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
+  const profileBlock = await collectProfileBlock(root);
 
   // Suppress pendingChanges only on corrupt state: comparing against an empty snapshot
   // on corrupt state would classify every source file as "new", which is false precision.
@@ -166,5 +193,24 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     pendingCandidates,
     pendingChanges: capPendingChanges(pendingChanges),
     pendingChangesCount: pendingChanges.length,
+    ...(profileBlock ? { profile: profileBlock } : {}),
+  };
+}
+
+/**
+ * Resolve the active profile and, for a NON-DEFAULT profile only, build the
+ * status `profile` block (profileId, digest, per-type entity counts). Returns
+ * `undefined` for the default profile so the default envelope is unchanged —
+ * the caller omits the `profile` key entirely in that case.
+ */
+async function collectProfileBlock(
+  root: string,
+): Promise<WikiStatus["profile"] | undefined> {
+  const loaded = await loadProfile(root);
+  if (isDefaultProfile(loaded.profile)) return undefined;
+  return {
+    profileId: loaded.profile.profileId,
+    digest: loaded.digest,
+    entityCounts: await countByEntityType(root, loaded.profile),
   };
 }
