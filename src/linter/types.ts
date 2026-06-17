@@ -10,6 +10,13 @@ export interface LintResult {
   file: string;
   message: string;
   line?: number;
+  /**
+   * Declared entity type a finding belongs to, set only by profile-aware
+   * checks over non-default entity pages. Default-profile findings omit it,
+   * so the field is absent (not `undefined`) on the default lint output and
+   * the frozen parity golden stays byte-identical.
+   */
+  entityType?: string;
 }
 
 export interface LintSummary {

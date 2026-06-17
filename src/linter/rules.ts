@@ -269,20 +269,39 @@ export async function checkEmptyPages(root: string): Promise<LintResult[]> {
 
   for (const page of pages) {
     const { meta, body } = parseFrontmatter(page.content);
-    const hasTitle = typeof meta.title === "string" && meta.title.trim() !== "";
-    const isBodyEmpty = body.trim().length < MIN_BODY_LENGTH;
-
-    if (hasTitle && isBodyEmpty) {
-      results.push({
-        rule: "empty-page",
-        severity: "warning",
-        file: page.filePath,
-        message: `Page body is empty or too short (< ${MIN_BODY_LENGTH} chars)`,
-      });
-    }
+    const title = typeof meta.title === "string" ? meta.title : undefined;
+    results.push(...checkPageEmpty({ title, body, filePath: page.filePath }));
   }
 
   return results;
+}
+
+/**
+ * Pure per-page variant of {@link checkEmptyPages}: flag a titled page whose
+ * body is empty or shorter than {@link MIN_BODY_LENGTH}. Operates on an
+ * already-parsed `{ title, body, filePath }` so callers that hold a page's
+ * content in memory (e.g. the profile-aware entity-page linter) can reuse the
+ * exact same rule without re-reading or re-parsing frontmatter.
+ *
+ * @param page - The page's frontmatter title (if any), markdown body, and path.
+ * @returns A single `empty-page` warning, or an empty array when not empty.
+ */
+export function checkPageEmpty(page: {
+  title?: string;
+  body: string;
+  filePath: string;
+}): LintResult[] {
+  const hasTitle = typeof page.title === "string" && page.title.trim() !== "";
+  const isBodyEmpty = page.body.trim().length < MIN_BODY_LENGTH;
+  if (!hasTitle || !isBodyEmpty) return [];
+  return [
+    {
+      rule: "empty-page",
+      severity: "warning",
+      file: page.filePath,
+      message: `Page body is empty or too short (< ${MIN_BODY_LENGTH} chars)`,
+    },
+  ];
 }
 
 /** Strip an optional `:start-end` or `#Lstart-Lend` span suffix from a citation entry. */
