@@ -12,7 +12,7 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readFile, readdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { runCLI } from "./fixtures/run-cli.js";
@@ -118,6 +118,41 @@ describe("profile diff --candidate — no data loss", () => {
     expect(result.stdout).toMatch(/newly-supported\twiki\/experiments\/ablation-batch-size/);
     expect(after).toEqual(before);
     expect(await readFile(path.join(root, PROFILE_FILE), "utf8")).toBe(`${JSON.stringify(PROFILE_A, null, 2)}\n`);
+  });
+});
+
+describe("profile diff — invalid (symlinked) entity directory", () => {
+  let outsideRoot = "";
+
+  afterEach(async () => {
+    if (outsideRoot) await rm(outsideRoot, { recursive: true, force: true });
+    outsideRoot = "";
+  });
+
+  /** Install profile A but make `wiki/papers` a symlink (confinement failure). */
+  async function setupSymlinkedEntityDir(): Promise<void> {
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    await writeFile(path.join(root, PROFILE_FILE), `${JSON.stringify(PROFILE_A, null, 2)}\n`, "utf8");
+    await writePage("wiki/ideas", "sparse-routing");
+    await writePage("wiki/legacy-notes", "old-meeting");
+    outsideRoot = await mkdtemp(path.join(os.tmpdir(), "profile-cli-outside-"));
+    await mkdir(path.join(root, "wiki"), { recursive: true });
+    await symlink(outsideRoot, path.join(root, "wiki/papers"));
+  }
+
+  it("surfaces the invalid directory, exits non-zero, and writes nothing", async () => {
+    await setupSymlinkedEntityDir();
+    const candidate = path.join(root, "candidate-b.json");
+    await writeFile(candidate, JSON.stringify(PROFILE_B), "utf8");
+
+    const before = await snapshotTree(path.join(root, "wiki/ideas"));
+    const result = await runCLI(["profile", "diff", "--candidate", candidate], root);
+    const after = await snapshotTree(path.join(root, "wiki/ideas"));
+
+    expect(result.code).not.toBe(0);
+    expect(result.stdout).not.toContain("no profile changes");
+    expect(result.stdout + result.stderr).toMatch(/wiki\/papers.*invalid/);
+    expect(after).toEqual(before);
   });
 });
 

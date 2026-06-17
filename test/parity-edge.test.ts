@@ -121,12 +121,18 @@ async function addConfinementCases(): Promise<{ outsideTarget: string }> {
 describe("collector confinement contract", () => {
   let outsideRoot = "";
 
+  // Add the confinement symlinks once for this describe so each test is
+  // self-contained and order-independent (no test relies on a sibling having
+  // created the symlinks first).
+  beforeAll(async () => {
+    await addConfinementCases();
+  });
+
   afterAll(async () => {
     if (outsideRoot) await rm(outsideRoot, { recursive: true, force: true });
   });
 
   it("excludes a symlinked .md file whose target is outside its directory", async () => {
-    await addConfinementCases();
     const slugs = (await collectRawWikiPages(root)).map((p) => p.slug);
     expect(slugs).not.toContain("leak");
   });

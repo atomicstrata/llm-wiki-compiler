@@ -13,6 +13,11 @@
  * A page receives the highest-priority disposition that applies. Classification
  * is scoped to entity directories, frontmatter, and the profile digest only —
  * no source hashing, no LLM, no compile.
+ *
+ * An entity directory that is INVALID (symlinked / confinement-failed) under
+ * either profile cannot be read, so it is surfaced as a blocking
+ * `ProfileDiffProblem` instead of being silently skipped — mirroring
+ * `collectEntityPages`. A diff you cannot trust must not look clean.
  */
 
 import { scanEntityDir, type RawEntityScan } from "../wiki/collect.js";
@@ -33,6 +38,21 @@ export const DISPOSITIONS = [
 /** A single on-disk page's classification under the old → new diff. */
 export type Disposition = (typeof DISPOSITIONS)[number];
 
+/**
+ * A blocking, directory-level problem found while diffing. Mirrors the
+ * collect-side `invalid-directory` problem: an entity directory that is a
+ * symlink or fails confinement cannot be read, so the diff against it cannot
+ * be trusted. The presence of any problem means the report is NOT clean.
+ */
+export interface ProfileDiffProblem {
+  /** The declared entity type whose directory is invalid. */
+  entityType: string;
+  /** The repo-relative directory that could not be assessed. */
+  directory: string;
+  /** Human-readable description, safe to surface to agents/users. */
+  message: string;
+}
+
 /** One classified page in the diff report. */
 export interface PageDisposition {
   /** Repo-relative directory the page lives in. */
@@ -51,6 +71,12 @@ export interface ProfileDiffReport {
   unchanged: boolean;
   counts: Record<Disposition, number>;
   pages: PageDisposition[];
+  /**
+   * Blocking directory-level problems (invalid/symlinked entity directories).
+   * Non-empty means the diff could not assess every directory and must not be
+   * presented as clean.
+   */
+  problems: ProfileDiffProblem[];
 }
 
 /** Map a repo-relative directory to the entity type that claims it, if any. */
@@ -104,14 +130,41 @@ function unionDirectories(oldOwners: Map<string, string>, newOwners: Map<string,
   return [...new Set([...oldOwners.keys(), ...newOwners.keys()])];
 }
 
-/** Scan one directory and classify each page, appending to `pages`. */
+/**
+ * Resolve the entity type that owns `directory` for the problem message,
+ * preferring the OLD profile's owner (the active one the user is diffing FROM)
+ * and falling back to the NEW (candidate) owner. One of the two always exists
+ * because `directory` came from {@link unionDirectories}.
+ */
+function ownerOf(directory: string, ctx: DiffContext): string {
+  return ctx.oldOwners.get(directory) ?? ctx.newOwners.get(directory) ?? "(unknown)";
+}
+
+/**
+ * Scan one directory and classify each page, appending to `pages`. An INVALID
+ * (symlinked / confinement-failed) directory is surfaced as a blocking problem
+ * instead — mirroring `collectEntityPages` — because a diff that silently skips
+ * an unreadable directory would look clean when it is not.
+ */
 async function classifyDirectory(
   root: string,
   directory: string,
   ctx: DiffContext,
   pages: PageDisposition[],
+  problems: ProfileDiffProblem[],
 ): Promise<void> {
-  const { scans } = await scanEntityDir(root, directory);
+  const { scans, dirStatus } = await scanEntityDir(root, directory);
+  if (dirStatus === "invalid") {
+    const entityType = ownerOf(directory, ctx);
+    problems.push({
+      entityType,
+      directory,
+      message:
+        `entity ${JSON.stringify(entityType)} directory ${JSON.stringify(directory)} is invalid ` +
+        `(symlinked or escapes the project) — cannot assess changes against it`,
+    });
+    return;
+  }
   for (const scan of scans) {
     pages.push({ directory, stem: scan.stem, disposition: classifyPage(scan, directory, ctx) });
   }
@@ -143,11 +196,12 @@ export async function diffProfiles(
   const newTypeToDir = new Map([...newOwners].map(([dir, type]) => [type, dir]));
   const ctx: DiffContext = { oldOwners, newOwners, newTypeToDir };
   const pages: PageDisposition[] = [];
+  const problems: ProfileDiffProblem[] = [];
   for (const directory of unionDirectories(oldOwners, newOwners)) {
-    await classifyDirectory(root, directory, ctx, pages);
+    await classifyDirectory(root, directory, ctx, pages, problems);
   }
   pages.sort((a, b) => a.directory.localeCompare(b.directory) || a.stem.localeCompare(b.stem));
   const oldDigest = profileDigest(oldProfile);
   const newDigest = profileDigest(newProfile);
-  return { oldDigest, newDigest, unchanged: oldDigest === newDigest, counts: tally(pages), pages };
+  return { oldDigest, newDigest, unchanged: oldDigest === newDigest, counts: tally(pages), pages, problems };
 }

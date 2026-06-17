@@ -12,7 +12,10 @@
  *
  * Every handler WRITES NOTHING — no `.llmwiki/adaptation/` writes, no profile
  * installation. `profile diff` reads NO persisted previous-profile state: the
- * OLD pack is always the active file or an explicit `--from`.
+ * OLD pack is always the active file or an explicit `--from`. When `profile
+ * diff` finds an INVALID (symlinked / confinement-failed) entity directory it
+ * prints the blocking problem and exits NON-ZERO — a diff it cannot trust must
+ * not look clean — while still writing nothing.
  */
 
 import { readFile } from "node:fs/promises";
@@ -111,10 +114,35 @@ function printDiffBody(report: ProfileDiffReport): void {
   }
 }
 
-/** Print the diff report header, then either "no profile changes" or the body. */
+/**
+ * Print blocking directory-level problems prominently to stderr. A diff with
+ * any problem could not assess every directory and must not look clean.
+ */
+function printDiffProblems(report: ProfileDiffReport): void {
+  console.error(`\x1b[31m${report.problems.length} blocking problem(s) — diff cannot be trusted:\x1b[0m`);
+  for (const problem of report.problems) {
+    console.error(`  ${problem.message}`);
+  }
+}
+
+/**
+ * A report is "clean" only when the packs are identical, no pages were
+ * classified, AND no blocking problems were found. A diff with any problem is
+ * never clean — that is the whole point of surfacing invalid directories.
+ */
+function isCleanDiff(report: ProfileDiffReport): boolean {
+  return report.unchanged && report.pages.length === 0 && report.problems.length === 0;
+}
+
+/**
+ * Print the diff report. When there are blocking problems, surface them and
+ * never print "no profile changes". Otherwise print "no profile changes" for a
+ * clean diff, or the full body.
+ */
 function printDiffReport(report: ProfileDiffReport): void {
   output.header(`Profile diff (${report.oldDigest.slice(0, 12)} → ${report.newDigest.slice(0, 12)})`);
-  if (report.unchanged && report.pages.length === 0) {
+  if (report.problems.length > 0) printDiffProblems(report);
+  if (isCleanDiff(report)) {
     console.log("no profile changes");
     return;
   }
@@ -136,6 +164,8 @@ export async function profileDiff(options: ProfileDiffOptions): Promise<number> 
     }
     throw new Error("profile diff requires --candidate, or --from with --to");
   }
-  printDiffReport(await diffProfiles(root, pair.old, pair.next));
-  return 0;
+  const report = await diffProfiles(root, pair.old, pair.next);
+  printDiffReport(report);
+  // A diff with an unreadable (invalid) directory cannot be trusted: fail loud.
+  return report.problems.length > 0 ? 1 : 0;
 }
