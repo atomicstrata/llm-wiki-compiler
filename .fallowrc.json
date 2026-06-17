@@ -9,7 +9,11 @@
     "src/viewer/assets/index.html",
     "src/viewer/assets/viewer.css"
   ],
-  "ignoreExports": [{ "file": "src/utils/output.ts", "exports": ["getQuiet"] }],
+  "ignoreExports": [
+    { "file": "src/utils/output.ts", "exports": ["getQuiet"] },
+    { "file": "src/utils/constants.ts", "exports": ["PROFILE_FILE", "ADAPTATION_DIR"] },
+    { "file": "src/profile/types.ts", "exports": ["LoadedProfile", "EntityPageRef"] }
+  ],
   "overrides": [
     {
       "files": ["src/providers/*.ts", "src/utils/provider-guard.ts"],
