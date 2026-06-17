@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llmwiki.dev/schema/profile.v1.schema.json",
+  "title": "llmwiki Profile Pack (schemaVersion 1, v0)",
+  "description": "Canonical authoring schema for a v0 profile pack. This documents the shape for editors and tooling; the runtime enforcer is validateProfile() in src/profile/validate.ts, which adds fail-closed checks the schema cannot express (directory confinement, lifecycle FSM well-formedness, reserved-id and inheritance rejection).",
+  "type": "object",
+  "required": ["schemaVersion", "profileId", "entities"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Must be exactly 1 for this release."
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Slug-safe identifier. 'default' is reserved for the built-in profile."
+    },
+    "profileVersion": { "type": "string" },
+    "displayName": { "type": "string" },
+    "extends": {
+      "type": "array",
+      "maxItems": 0,
+      "items": { "type": "string" },
+      "description": "Profile inheritance is NOT supported in this release; only an absent or empty array is accepted."
+    },
+    "entities": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/entityTypeDef" }
+    }
+  },
+  "$defs": {
+    "fieldType": {
+      "enum": ["string", "number", "integer", "boolean", "date", "slug", "enum", "string[]"]
+    },
+    "fieldDef": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/fieldType" },
+        "required": { "type": "boolean" },
+        "default": {},
+        "enum": { "type": "array", "items": { "type": "string" } },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "retrievalDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "includeInSearch": { "type": "boolean" },
+        "includeInContext": { "type": "boolean" },
+        "defaultWeight": { "type": "number" },
+        "readExposure": { "enum": ["agent-readable", "local-only"] }
+      }
+    },
+    "lifecycleDef": {
+      "type": "object",
+      "required": ["field", "initial", "terminal", "transitions"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "initial": { "type": "string" },
+        "terminal": { "type": "array", "items": { "type": "string" } },
+        "transitions": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
+        "transitionRequirements": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "entityTypeDef": {
+      "type": "object",
+      "required": ["directory"],
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "type": "string",
+          "pattern": "^wiki/",
+          "description": "Repo-relative directory under wiki/. Must not overlap a reserved root; enforced by validateEntityDirectory()."
+        },
+        "titleField": { "type": "string" },
+        "requiredFields": { "type": "array", "items": { "type": "string" } },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/fieldDef" }
+        },
+        "retrieval": { "$ref": "#/$defs/retrievalDef" },
+        "lifecycle": { "$ref": "#/$defs/lifecycleDef" },
+        "export": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "okfType": { "type": "string" } }
+        }
+      }
+    }
+  }
+}
