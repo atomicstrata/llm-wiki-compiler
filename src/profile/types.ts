@@ -105,3 +105,17 @@ export interface EntityPageRef {
   id: EntityId;
   filePath: string;
 }
+
+/**
+ * A non-default profile entity page: identity (`EntityPageRef`) plus content.
+ *
+ * Where `EntityPageRef` is identity-only, `EntityPage` additionally carries the
+ * page's parsed `frontmatter`, its markdown `body`, and a convenience `title`
+ * (the frontmatter title when present). It is produced by the content-carrying
+ * collector so downstream read surfaces can render a page without re-reading it.
+ */
+export interface EntityPage extends EntityPageRef {
+  frontmatter: Record<string, unknown>;
+  body: string;
+  title?: string;
+}

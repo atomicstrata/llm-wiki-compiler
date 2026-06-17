@@ -22,7 +22,7 @@ import { loadProfile } from "../profile/load.js";
 import { collectEntityPages } from "../profile/collect.js";
 import { DEFAULT_PROFILE } from "../profile/default.js";
 import { profileDigest } from "../profile/digest.js";
-import type { ProfilePack, EntityPageRef } from "../profile/types.js";
+import type { ProfilePack, EntityPage } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 
 /**
@@ -156,16 +156,16 @@ function capPendingChanges(
 }
 
 /**
- * Tally entity-page refs per declared entity type for a non-default profile.
+ * Tally entity pages per declared entity type for a non-default profile.
  *
  * Seeds every declared entity type at zero so a declared-but-empty type still
- * reports `0` (rather than being absent), then tallies the strict
- * `EntityPageRef`s collected from disk.
+ * reports `0` (rather than being absent), then tallies the content-carrying
+ * `EntityPage`s collected from disk.
  */
-function countByEntityType(profile: ProfilePack, refs: EntityPageRef[]): Record<string, number> {
+function countByEntityType(profile: ProfilePack, pages: EntityPage[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const entityType of Object.keys(profile.entities)) counts[entityType] = 0;
-  for (const ref of refs) counts[ref.entityType] = (counts[ref.entityType] ?? 0) + 1;
+  for (const page of pages) counts[page.entityType] = (counts[page.entityType] ?? 0) + 1;
   return counts;
 }
 
@@ -226,12 +226,12 @@ async function collectProfileBlock(
   const isBuiltInDefault =
     loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
   if (isBuiltInDefault) return undefined;
-  const { refs, problems } = await collectEntityPages(root, loaded.profile);
+  const { pages, problems } = await collectEntityPages(root, loaded.profile);
   const messages = problems.map((p) => p.message);
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
-    entityCounts: countByEntityType(loaded.profile, refs),
+    entityCounts: countByEntityType(loaded.profile, pages),
     ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }
