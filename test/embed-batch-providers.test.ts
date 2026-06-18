@@ -9,6 +9,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { voyageEmbedBatch } from "../src/providers/voyage-embed.js";
+import { CopilotProvider } from "../src/providers/copilot.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
 function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvider {
@@ -61,5 +62,12 @@ describe("voyageEmbedBatch", () => {
     process.env.VOYAGE_API_KEY = "vk";
     globalThis.fetch = (async () => ({ ok: false, status: 429, text: async () => "slow down" })) as any;
     await expect(voyageEmbedBatch(["a"])).rejects.toMatchObject({ status: 429 });
+  });
+});
+
+describe("CopilotProvider.embedBatch", () => {
+  it("throws the not-supported error", async () => {
+    const p = new CopilotProvider("gpt-4o", "ghp_test");
+    await expect(p.embedBatch!(["a"])).rejects.toThrow(/does not support embeddings/i);
   });
 });
