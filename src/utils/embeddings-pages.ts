@@ -10,6 +10,7 @@ import { getProvider } from "./provider.js";
 import { safeReadFile, parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
+import { embedTextBatch } from "./embeddings-batch.js";
 
 /** A retrievable page record on disk (concepts/ or queries/). */
 export interface PageRecord {
@@ -59,29 +60,28 @@ function buildEmbeddingText(record: PageRecord): string {
 }
 
 /**
- * Embed every page in `records` whose slug appears in `slugsToEmbed`,
- * returning the new entries. Failures bubble up to the caller.
+ * Embed every page in `records` whose slug is in `slugsToEmbed`, batched.
+ * Vectors come back in input order, so zip them onto the selected records.
  */
 export async function embedPages(
   records: PageRecord[],
   slugsToEmbed: Set<string>,
+  batchSize: number,
+  expectedDim?: number,
 ): Promise<EmbeddingEntry[]> {
   const provider = getProvider();
   const now = new Date().toISOString();
-  const fresh: EmbeddingEntry[] = [];
+  const selected = records.filter((r) => slugsToEmbed.has(r.slug));
+  if (selected.length === 0) return [];
 
-  for (const record of records) {
-    if (!slugsToEmbed.has(record.slug)) continue;
-    const vector = await provider.embed(buildEmbeddingText(record));
-    fresh.push({
-      slug: record.slug,
-      title: record.title,
-      summary: record.summary,
-      vector,
-      updatedAt: now,
-    });
-  }
-  return fresh;
+  const vectors = await embedTextBatch(provider, selected.map(buildEmbeddingText), batchSize, expectedDim);
+  return selected.map((record, i) => ({
+    slug: record.slug,
+    title: record.title,
+    summary: record.summary,
+    vector: vectors[i],
+    updatedAt: now,
+  }));
 }
 
 /** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */

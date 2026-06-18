@@ -238,6 +238,9 @@ describe("v1 → v2 store upgrade (programmatic)", () => {
     process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
     process.env.OPENAI_API_KEY = "test-key";
     vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue([0.5, 0.5]);
+    vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+      async (texts: string[]) => texts.map(() => [0.5, 0.5]),
+    );
 
     // Write a v1 store + matching concept page so updateEmbeddings has content.
     await writeEmbeddingStore(root, makeV1Store());
@@ -292,6 +295,10 @@ async function setupEmptyStore(label: string, version: 1 | 2): Promise<string> {
   process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
   process.env.OPENAI_API_KEY = "test-key";
   vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue([0.5, 0.5]);
+  // Mock embedBatch so the page-embedding pass (which now uses batch) returns valid vectors.
+  vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+    async (texts: string[]) => texts.map(() => [0.5, 0.5]),
+  );
   const emptyStore: EmbeddingStore = {
     version,
     model: "test-embed",

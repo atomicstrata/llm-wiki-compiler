@@ -198,6 +198,9 @@ describe("embedding model selection", () => {
     const root = await setupOpenAIWithStaleStore();
     process.env.OPENAI_API_KEY = "test-key";
     vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue([0.9, 0.1]);
+    vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+      async (texts: string[]) => texts.map(() => [0.9, 0.1]),
+    );
     await writeConceptPage(root, "alpha");
 
     await updateEmbeddings(root, []);

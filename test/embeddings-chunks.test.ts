@@ -39,6 +39,10 @@ function setupOpenAI(vector: number[]): { embed: ReturnType<typeof vi.fn> } {
   process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
   const embed = vi.fn().mockResolvedValue(vector);
   vi.spyOn(OpenAIProvider.prototype, "embed").mockImplementation(embed);
+  // Mock embedBatch so the page-embedding pass (which now uses batch) returns valid vectors.
+  vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+    async (texts: string[]) => texts.map(() => vector),
+  );
   return { embed };
 }
 
@@ -91,8 +95,8 @@ describe("updateEmbeddings (chunk path)", () => {
     expect(store?.chunks?.length).toBeGreaterThan(0);
     expect(store?.chunks?.[0].slug).toBe("alpha");
     expect(store?.chunks?.[0].contentHash).toMatch(/^[a-f0-9]+$/);
-    // 1 page + N chunks, so embed gets called more than once.
-    expect(embed.mock.calls.length).toBeGreaterThanOrEqual(2);
+    // Chunks are embedded via sequential embed(); the page uses embedBatch.
+    expect(embed.mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it("reuses chunk vectors whose contentHash still matches", async () => {
@@ -117,9 +121,8 @@ describe("updateEmbeddings (chunk path)", () => {
     const betaChunks = afterStore?.chunks?.filter((c) => c.slug === "beta") ?? [];
     expect(alphaChunks.length).toBe(initialChunkCount);
     expect(betaChunks.length).toBeGreaterThan(0);
-    // Only beta page (1) + beta chunk(s) should have been embedded — alpha is reused.
-    const betaEmbedCount = 1 + betaChunks.length;
-    expect(embedAfter).toHaveBeenCalledTimes(betaEmbedCount);
+    // Only beta chunk(s) should use embed — the page uses embedBatch; alpha is reused.
+    expect(embedAfter).toHaveBeenCalledTimes(betaChunks.length);
   });
 
   it("re-embeds a chunk when its body content changes", async () => {

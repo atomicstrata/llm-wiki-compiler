@@ -34,6 +34,8 @@ import {
   mergeEntries,
 } from "./embeddings-pages.js";
 import { refreshChunkEmbeddings } from "./embeddings-chunks.js";
+import { resolveEmbedBatchSize } from "./embeddings-batch.js";
+import { getActiveProviderName } from "./provider.js";
 
 /**
  * Re-embed the given changed slugs and prune any entries whose pages no longer
@@ -62,7 +64,13 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
     return;
   }
 
-  const freshEntries = await embedPages(records, toEmbed);
+  const batchSize = resolveEmbedBatchSize(getActiveProviderName()); // explicit name — no cycle
+  const expectedDim =
+    !modelChanged && existingStore && existingStore.dimensions > 0
+      ? existingStore.dimensions
+      : undefined;
+
+  const freshEntries = await embedPages(records, toEmbed, batchSize, expectedDim);
   const mergedEntries = mergeEntries(previousEntries, freshEntries, liveSlugs);
   const mergedChunks = await refreshChunkEmbeddings(records, previousChunks, modelChanged);
 
