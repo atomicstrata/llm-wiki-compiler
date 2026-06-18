@@ -134,14 +134,39 @@ export class StagedWriteOverflowError extends Error {
 }
 
 /**
- * Fail-closed staged-write volume bound. Passes only when the request fits BOTH
- * the per-call cap (`requested <= perCall`) AND the per-session cap
+ * Thrown when a staged-write count is not a non-negative integer. A negative,
+ * NaN, or fractional count would slip past the pure `>` cap comparisons and
+ * defeat the flood guard (fail OPEN), so it is rejected up front by name.
+ */
+export class StagedWriteInputError extends Error {
+  constructor(field: "existingCount" | "requested", value: number) {
+    super(`staged-write ${field} must be a non-negative integer, got ${value}`);
+    this.name = "StagedWriteInputError";
+  }
+}
+
+/** Assert a staged-write count is a non-negative integer, else throw by name. */
+function assertNonNegativeInteger(
+  field: "existingCount" | "requested",
+  value: number,
+): void {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new StagedWriteInputError(field, value);
+  }
+}
+
+/**
+ * Fail-closed staged-write volume bound. First validates both counts are
+ * non-negative integers (a negative/NaN/fractional input would otherwise slip
+ * past the `>` comparisons and fail OPEN). Then passes only when the request
+ * fits BOTH the per-call cap (`requested <= perCall`) AND the per-session cap
  * (`existingCount + requested <= perSession`); otherwise throws a typed
  * {@link StagedWriteOverflowError} naming the breached cap. Never clamps.
  *
  * @param existingCount - Staged writes already held this session.
  * @param requested - Staged writes this call wants to add.
  * @param caps - The per-call and per-session ceilings to enforce.
+ * @throws {StagedWriteInputError} When either count is not a non-negative integer.
  * @throws {StagedWriteOverflowError} When either ceiling would be exceeded.
  */
 export function assertStagedWriteBudget(
@@ -149,6 +174,8 @@ export function assertStagedWriteBudget(
   requested: number,
   caps: StagedWriteCaps,
 ): void {
+  assertNonNegativeInteger("existingCount", existingCount);
+  assertNonNegativeInteger("requested", requested);
   if (requested > caps.perCall) {
     throw new StagedWriteOverflowError("per-call", requested, caps.perCall);
   }

@@ -91,6 +91,15 @@ describe("checkResourceLimit", () => {
     const res = await checkResourceLimit(ctx(`${WIKI}/small.md`, "x".repeat(MAX_SOURCE_CHARS)));
     expect(res.verdict).toBe("pass");
   });
+
+  it("uses the CHARACTER cap (matches ingest), not byte length", async () => {
+    // Exactly MAX_SOURCE_CHARS multi-byte chars: well over the cap in BYTES, but
+    // at the cap in CHARS. Ingest gates on `content.length`, so this must pass.
+    const multibyte = "é".repeat(MAX_SOURCE_CHARS);
+    expect(Buffer.byteLength(multibyte, "utf-8")).toBeGreaterThan(MAX_SOURCE_CHARS);
+    const res = await checkResourceLimit(ctx(`${WIKI}/multibyte.md`, multibyte));
+    expect(res.verdict).toBe("pass");
+  });
 });
 
 describe("checkFrontmatter", () => {

@@ -90,6 +90,22 @@ describe("applyApprovedMutations — clean batch", () => {
   });
 });
 
+describe("applyApprovedMutations — create-collision re-probe under lock", () => {
+  it("aborts and does NOT clobber a target created after planning", async () => {
+    // Plan a create while the target is free (collision check passes here).
+    const create = await plannedFor("late");
+    // A concurrent actor creates the target AFTER planning, BEFORE apply.
+    const target = path.join(root, WIKI, "late.md");
+    await writeFile(target, "CONCURRENT");
+
+    // Apply must re-probe under the lock and abort before any write lands.
+    await expect(applyApprovedMutations(root, [create])).rejects.toThrow(/create-collision/);
+
+    // The pre-existing file is untouched — never overwritten by the create.
+    expect(await readFile(target, "utf-8")).toBe("CONCURRENT");
+  });
+});
+
 describe("applyApprovedMutations — atomicity under fault injection", () => {
   it("reverts to FULL pre-state when the second write throws", async () => {
     const t1 = `${WIKI}/exists.md`; // pre-existing → must revert to prior bytes

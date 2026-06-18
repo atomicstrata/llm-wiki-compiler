@@ -81,6 +81,25 @@ describe("migrateStateToV2 — determinism", () => {
   });
 });
 
+describe("migrateStateToV2 — dedup", () => {
+  it("dedups duplicate concept slugs into a single typed entity", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["rag", "rag", "x"];
+    v1.frozenSlugs = ["rag", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/rag", "concepts/x"]);
+    expect(v2.frozenEntities).toEqual(["concepts/rag"]);
+  });
+});
+
+describe("migrateStateToV2 — idempotency gate >= 2", () => {
+  it("returns a v2 state unchanged even if its version reads higher than 2", () => {
+    const v2 = migrateStateToV2(v1Fixture());
+    const future = { ...v2, version: 3 as unknown as 2 };
+    expect(migrateStateToV2(future)).toBe(future);
+  });
+});
+
 describe("migrateStateToV2 — fail-closed", () => {
   it("throws on a bare slug with spaces rather than silently dropping it", () => {
     const v1 = v1Fixture();

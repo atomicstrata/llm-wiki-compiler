@@ -50,6 +50,12 @@ async function openTwoTargetBatch(t1: string, t2: string): Promise<JournalBatch>
   return batch;
 }
 
+/** Open a batch, record one target's pre-state, then write `bytes` to it (no commit). */
+async function recordThenWrite(batch: JournalBatch, rel: string, bytes: string): Promise<void> {
+  await recordPreState(batch, path.join(root, rel));
+  await writeFile(path.join(root, rel), bytes);
+}
+
 describe("replayJournal — committed batch", () => {
   it("leaves files in place and is a no-op", async () => {
     const t1 = `${WIKI}/a.md`;
@@ -85,11 +91,27 @@ describe("replayJournal — pending (crashed) batch", () => {
   it("deletes a file that was absent pre-batch but got written before the crash", async () => {
     const t1 = `${WIKI}/c.md`;
     const batch = await openBatch(root);
-    await recordPreState(batch, path.join(root, t1));
-    await writeFile(path.join(root, t1), "PARTIAL"); // written, never committed
+    await recordThenWrite(batch, t1, "PARTIAL"); // written, never committed
 
     await replayJournal(root);
 
+    expect(await exists(t1)).toBe(false);
+  });
+});
+
+describe("recordPreState — duplicate target in one batch", () => {
+  it("reverts an absent-pre-batch path to ABSENT despite two writes to it", async () => {
+    const t1 = `${WIKI}/dup-target.md`; // absent pre-batch
+    const batch = await openBatch(root);
+    // First mutation records pre-state (absent), then writes.
+    await recordThenWrite(batch, t1, "FIRST");
+    // Second mutation to the SAME path: a naive impl would now snapshot "FIRST"
+    // (a partial post-state). The dedup must keep the first (absent) observation.
+    await recordThenWrite(batch, t1, "SECOND"); // crash before commit
+
+    await replayJournal(root);
+
+    // The true pre-batch state was ABSENT; revert must delete, not re-create.
     expect(await exists(t1)).toBe(false);
   });
 });

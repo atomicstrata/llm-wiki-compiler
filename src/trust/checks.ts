@@ -17,8 +17,8 @@
  * - collision/no-overwrite → existence probe under the confined path (creates
  *   block on an existing target);
  * - resource-limit → the per-file content cap {@link MAX_SOURCE_CHARS}, decided
- *   on raw byte length BEFORE any parsing so an oversized body never gets heavy
- *   processing;
+ *   on raw character length BEFORE any parsing so an oversized body never gets
+ *   heavy processing;
  * - frontmatter-parse → {@link parseFrontmatterStatus} (rejects malformed YAML
  *   frontmatter).
  *
@@ -94,18 +94,20 @@ export const checkTargetCollision: MandatoryPageCheck = async (ctx) => {
 };
 
 /**
- * Block a body whose raw byte length exceeds the per-file content cap
- * ({@link MAX_SOURCE_CHARS}), the same bound applied to ingested source bodies.
- * The decision is made on `Buffer.byteLength` alone — no parsing — so an
- * oversized payload is rejected before any heavy processing runs.
+ * Block a body whose character length exceeds the per-file content cap
+ * ({@link MAX_SOURCE_CHARS}). This matches the ingest character bound exactly:
+ * `src/commands/ingest.ts` gates on `content.length <= MAX_SOURCE_CHARS` (the
+ * same UTF-16 code-unit length used here), so the trust floor and ingest agree.
+ * The decision is made on `length` alone — no parsing — so an oversized payload
+ * is rejected before any heavy processing runs.
  */
 export const checkResourceLimit: MandatoryPageCheck = async (ctx) => {
   const code = "resource-limit";
-  const bytes = Buffer.byteLength(ctx.body, "utf-8");
-  if (bytes > MAX_SOURCE_CHARS) {
-    return { code, verdict: "block", message: `body ${bytes} bytes exceeds cap of ${MAX_SOURCE_CHARS}` };
+  const chars = ctx.body.length;
+  if (chars > MAX_SOURCE_CHARS) {
+    return { code, verdict: "block", message: `body ${chars} chars exceeds cap of ${MAX_SOURCE_CHARS}` };
   }
-  return pass(code, `body within the ${MAX_SOURCE_CHARS}-byte cap`);
+  return pass(code, `body within the ${MAX_SOURCE_CHARS}-char cap`);
 };
 
 /**

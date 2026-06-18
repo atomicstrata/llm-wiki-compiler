@@ -20,6 +20,7 @@ import {
   type HeldReasonCode,
   assertStagedWriteBudget,
   StagedWriteOverflowError,
+  StagedWriteInputError,
   DEFAULT_STAGED_WRITE_PER_CALL,
   DEFAULT_STAGED_WRITE_PER_SESSION,
 } from "../src/trust/staged-change.js";
@@ -104,5 +105,23 @@ describe("assertStagedWriteBudget", () => {
   it("fails closed exactly at the per-session boundary + 1 (never clamps)", () => {
     expect(() => assertStagedWriteBudget(150, 50, caps)).not.toThrow();
     expect(() => assertStagedWriteBudget(151, 50, caps)).toThrow(StagedWriteOverflowError);
+  });
+
+  it("rejects a negative requested rather than failing open", () => {
+    expect(() => assertStagedWriteBudget(0, -50, caps)).toThrow(StagedWriteInputError);
+  });
+
+  it("rejects a NaN requested rather than failing open", () => {
+    expect(() => assertStagedWriteBudget(0, Number.NaN, caps)).toThrow(StagedWriteInputError);
+  });
+
+  it("rejects a non-integer requested rather than failing open", () => {
+    expect(() => assertStagedWriteBudget(0, 49.9, caps)).toThrow(StagedWriteInputError);
+  });
+
+  it("rejects a negative or non-integer existingCount", () => {
+    expect(() => assertStagedWriteBudget(-1, 1, caps)).toThrow(StagedWriteInputError);
+    expect(() => assertStagedWriteBudget(10.5, 1, caps)).toThrow(StagedWriteInputError);
+    expect(() => assertStagedWriteBudget(Number.NaN, 1, caps)).toThrow(StagedWriteInputError);
   });
 });

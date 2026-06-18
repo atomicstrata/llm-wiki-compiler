@@ -109,10 +109,18 @@ export async function openBatch(root: string): Promise<JournalBatch> {
  * be called for EVERY target before that target is written, so a crash can
  * always restore the pre-batch world.
  *
+ * De-duplicated per DISTINCT target path: the FIRST observation of a path (the
+ * true pre-batch state, captured before any write in this batch) is the one
+ * kept. A second call for the same path is a no-op, so two mutations to one
+ * target cannot record a mid-batch post-state that revert would restore.
+ *
  * @param batch - The open pending batch.
  * @param targetPath - Absolute path of the target about to be written.
  */
 export async function recordPreState(batch: JournalBatch, targetPath: string): Promise<void> {
+  if (batch.entries.some((entry) => entry.targetPath === targetPath)) {
+    return;
+  }
   const prior = await readOrNull(targetPath);
   const preState: PreState = prior === null ? ABSENT : { absent: false, content: prior };
   batch.entries.push({ targetPath, preState });

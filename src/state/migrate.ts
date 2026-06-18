@@ -31,7 +31,7 @@ const CONCEPT_ENTITY_TYPE = "concepts";
  */
 function mintConceptEntities(slugs: string[]): EntityId[] {
   const ids = slugs.map((slug) => entityId(CONCEPT_ENTITY_TYPE, assertSlugSafe(slug)));
-  return [...ids].sort();
+  return [...new Set(ids)].sort();
 }
 
 /** Upgrade a single source entry, adding its typed `entities` mirror. */
@@ -53,10 +53,11 @@ function migrateSources(
 /**
  * Migrate a WikiState to v2, adding the typed-ownership mirror to every source
  * and to the frozen-slug set while carrying all v1 fields through unchanged.
- * Returns the state untouched when it is already v2 (idempotent).
+ * Returns the state untouched when it is already v2-or-newer (idempotent): the
+ * `>= 2` gate is defensive against re-typing an already-typed state.
  */
 export function migrateStateToV2(state: WikiState): WikiState {
-  if (state.version === 2) {
+  if (state.version >= 2) {
     return state;
   }
   return {

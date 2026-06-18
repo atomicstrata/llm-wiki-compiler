@@ -23,6 +23,7 @@
  */
 
 import path from "path";
+import { lstat } from "fs/promises";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { confineUnderRoot } from "../utils/path-confine.js";
@@ -50,6 +51,29 @@ class NotImplementedMutationError extends Error {
   }
 }
 
+/**
+ * Thrown when a `create` target — free at plan time — has appeared on disk by
+ * the time the batch runs under the lock. Aborting before any write closes the
+ * plan→apply TOCTOU so a create never clobbers a concurrently-created file.
+ * Callers match on the typed `create-collision:` message prefix.
+ */
+class CreateCollisionError extends Error {
+  constructor(targetPath: string) {
+    super(`create-collision: target already exists, refusing to overwrite: ${targetPath}`);
+    this.name = "CreateCollisionError";
+  }
+}
+
+/** True when something exists at `abs` (regular file, dir, or symlink). */
+async function targetExists(abs: string): Promise<boolean> {
+  try {
+    await lstat(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The wiki-relative page path for a page mutation's target. */
 function pageRelPath(mutation: PlannedMutation): string {
   const { entityType, slug } = mutation.target;
@@ -60,6 +84,11 @@ function pageRelPath(mutation: PlannedMutation): string {
  * Apply every page mutation in the batch under an already-open journal: record
  * each target's pre-state, then write it. Throws on the first non-page kind or
  * the first failing write, leaving the journal uncommitted for replay.
+ *
+ * A `create` target is RE-PROBED under the lock (the planner's collision check
+ * runs before the lock): if it now exists, abort with {@link CreateCollisionError}
+ * BEFORE any write lands, so a create never overwrites a file that appeared
+ * after planning. `update` operations may legitimately overwrite.
  */
 async function applyBatch(
   root: string,
@@ -70,6 +99,9 @@ async function applyBatch(
   for (const mutation of planned) {
     if (mutation.kind !== "page") throw new NotImplementedMutationError(mutation.kind);
     const abs = await confineUnderRoot(pageRelPath(mutation), root, { mustExist: false });
+    if (mutation.operation === "create" && (await targetExists(abs))) {
+      throw new CreateCollisionError(abs);
+    }
     await recordPreState(batch, abs);
     await writeOne(abs, mutation.body);
   }
