@@ -6,6 +6,7 @@
 import type { PageKind } from "../schema/types.js";
 import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
 import type { EntityId } from "../profile/types.js";
+import type { TrustDecision } from "../trust/decision.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -206,6 +207,18 @@ export interface ReviewCandidate {
    * OKF query docs set `queries` to round-trip back into the right subdir.
    */
   targetDirectory?: "concepts" | "queries";
+  /**
+   * Typed entity directory the approved page routes to under a configurable
+   * profile (e.g. `"papers"`). Phase-2 typed-target metadata; OMITTED for
+   * default-profile candidates.
+   */
+  targetEntityType?: string;
+  /**
+   * Trust Guard decision attached to this candidate at generation time, so
+   * reviewers see how the write was routed. Phase-2 typed-target metadata;
+   * OMITTED for default-profile candidates.
+   */
+  trustDecision?: TrustDecision;
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
   /** Confidence parsed from the generated page frontmatter, for review display. */
