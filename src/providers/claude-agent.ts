@@ -16,7 +16,7 @@
 
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { voyageEmbed } from "./voyage-embed.js";
+import { voyageEmbed, voyageEmbedBatch } from "./voyage-embed.js";
 import { jsonSchemaToZodShape } from "./json-schema-to-zod.js";
 
 /** Name for the throwaway in-process MCP server used to host a tool. */
@@ -211,6 +211,11 @@ export class ClaudeAgentProvider implements LLMProvider {
   /** Produce a single embedding vector via Voyage (Anthropic has no endpoint). */
   async embed(text: string): Promise<number[]> {
     return voyageEmbed(text);
+  }
+
+  /** Embed many texts via Voyage in one request. */
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    return voyageEmbedBatch(texts);
   }
 }
 

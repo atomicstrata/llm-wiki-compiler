@@ -8,6 +8,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
+import { voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
 function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvider {
@@ -37,5 +38,28 @@ describe("OpenAIProvider.embedBatch", () => {
   it("single embed rejects an empty vector", async () => {
     const p = providerWithEmbeddings(async () => ({ data: [{ embedding: [] }] }));
     await expect(p.embed("a")).rejects.toThrow();
+  });
+});
+
+describe("voyageEmbedBatch", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => { globalThis.fetch = realFetch; delete process.env.VOYAGE_API_KEY; });
+
+  it("posts array input and returns index-ordered vectors", async () => {
+    process.env.VOYAGE_API_KEY = "vk";
+    let body: any;
+    globalThis.fetch = (async (_url: string, init: any) => {
+      body = JSON.parse(init.body);
+      return { ok: true, json: async () => ({ data: [{ index: 1, embedding: [2] }, { index: 0, embedding: [1] }] }) };
+    }) as any;
+    const out = await voyageEmbedBatch(["a", "b"]);
+    expect(body.input).toEqual(["a", "b"]);
+    expect(out).toEqual([[1], [2]]);
+  });
+
+  it("tags HTTP failures with status for the taxonomy", async () => {
+    process.env.VOYAGE_API_KEY = "vk";
+    globalThis.fetch = (async () => ({ ok: false, status: 429, text: async () => "slow down" })) as any;
+    await expect(voyageEmbedBatch(["a"])).rejects.toMatchObject({ status: 429 });
   });
 });
