@@ -33,6 +33,7 @@ import {
   updateEmbeddings,
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
@@ -405,7 +406,7 @@ async function saveQueryPage(root: string, question: string, answer: string): Pr
     await updateEmbeddings(root, [slug]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 
   return slug;

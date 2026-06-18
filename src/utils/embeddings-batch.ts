@@ -20,6 +20,7 @@ import {
   EMBED_BATCH_CAPS,
   EMBED_BATCH_CAP_FALLBACK,
   ENV_EMBED_BATCH_SIZE,
+  ENV_EMBED_STRICT,
 } from "./constants.js";
 import * as output from "./output.js";
 import { EmbeddingIntegrityError, assertVectorValid, assertEveryVectorValid } from "./embeddings-validate.js";
@@ -193,4 +194,47 @@ export async function embedTextBatch(
     }
   }
   return out;
+}
+
+export type EmbeddingErrorClass = "integrity" | "auth" | "request-too-large" | "transient" | "unknown";
+
+/** Map any embedding error onto a stable, user-facing class label. */
+export function classifyEmbeddingError(err: unknown): EmbeddingErrorClass {
+  if (isIntegrityError(err)) return "integrity";
+  if (isAuthError(err)) return "auth";
+  if (isRequestTooLarge(err)) return "request-too-large";
+  if (isTransient(err)) return "transient";
+  return "unknown";
+}
+
+/**
+ * Wrap a failed-batch error into a reportable one naming the pass, the failure
+ * class, and the slug at the failing index (from embedTextBatch's `failedIndex`
+ * annotation). Preserves the original error as `cause` so downstream code can
+ * still classify it.
+ */
+export function enrichEmbedError(
+  err: unknown,
+  pass: "page" | "chunk",
+  slugAt: (index: number) => string | undefined,
+): Error {
+  const index = (err as { failedIndex?: number })?.failedIndex ?? 0;
+  const slug = slugAt(index) ?? "?";
+  const cls = classifyEmbeddingError(err);
+  const detail = err instanceof Error ? err.message : String(err);
+  return Object.assign(new Error(`${pass} embedding failed [${cls}] at "${slug}": ${detail}`), { cause: err });
+}
+
+/** True when LLMWIKI_EMBED_STRICT is set — any embedding failure should exit non-zero. */
+export function shouldRethrowEmbeddingFailure(): boolean {
+  return Boolean(process.env[ENV_EMBED_STRICT]?.trim());
+}
+
+/**
+ * Shared catch handler for the safelyUpdateEmbeddings wrappers. Logs the
+ * warning and re-throws when strict mode is active.
+ */
+export function handleSafeEmbeddingFailure(err: unknown, warningLine: string): void {
+  output.status("!", output.warn(warningLine));
+  if (shouldRethrowEmbeddingFailure()) throw err;
 }

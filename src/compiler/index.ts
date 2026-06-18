@@ -49,6 +49,7 @@ import { buildBudgetedCombinedContent, type SourceSlice } from "./prompt-budget.
 import { addObsidianMeta, generateMOC } from "./obsidian.js";
 import { addModelProvenanceMeta } from "./provenance.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { deleteCandidateBySlug, listCandidates, writeCandidate } from "./candidates.js";
 import { appendLog, formatList, formatWikilinkList } from "../utils/activity-log.js";
 import {
@@ -1034,6 +1035,6 @@ async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Pro
     await updateEmbeddings(root, changedSlugs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 }

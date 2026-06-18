@@ -6,6 +6,9 @@ import {
   isRequestTooLarge,
   isTransient,
   resolveEmbedBatchSize,
+  classifyEmbeddingError,
+  enrichEmbedError,
+  shouldRethrowEmbeddingFailure,
 } from "../src/utils/embeddings-batch.js";
 import {
   assertVectorValid,
@@ -101,5 +104,30 @@ describe("error taxonomy", () => {
     expect(isTransient(new Error("fetch failed"))).toBe(true);
     // a plain 400 with no size hint is NOT oversized — treat as caller error
     expect(isRequestTooLarge(withStatus(400, "bad input"))).toBe(false);
+  });
+});
+
+describe("failure reporting helpers", () => {
+  it("classifies each error into a stable label", () => {
+    expect(classifyEmbeddingError(new EmbeddingIntegrityError("x"))).toBe("integrity");
+    expect(classifyEmbeddingError(Object.assign(new Error(), { status: 401 }))).toBe("auth");
+    expect(classifyEmbeddingError(Object.assign(new Error(), { status: 413 }))).toBe("request-too-large");
+    expect(classifyEmbeddingError(Object.assign(new Error(), { status: 429 }))).toBe("transient");
+    expect(classifyEmbeddingError(new Error("???"))).toBe("unknown");
+  });
+
+  it("enriches with pass, class, and the slug at failedIndex", () => {
+    const err = Object.assign(new EmbeddingIntegrityError("cardinality"), { failedIndex: 1 });
+    const out = enrichEmbedError(err, "page", (i) => ["a", "b", "c"][i]);
+    expect(out.message).toMatch(/page embedding failed \[integrity\] at "b"/);
+    expect((out as { cause?: unknown }).cause).toBe(err); // preserves the original for classification
+  });
+
+  it("strict gate keys off LLMWIKI_EMBED_STRICT", () => {
+    delete process.env.LLMWIKI_EMBED_STRICT;
+    expect(shouldRethrowEmbeddingFailure()).toBe(false);
+    process.env.LLMWIKI_EMBED_STRICT = "1";
+    expect(shouldRethrowEmbeddingFailure()).toBe(true);
+    delete process.env.LLMWIKI_EMBED_STRICT;
   });
 });

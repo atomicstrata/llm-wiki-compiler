@@ -75,29 +75,31 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
   const { chunks: mergedChunks, embedded: chunksEmbedded } =
     await refreshChunkEmbeddings(records, previousChunks, modelChanged, batchSize, expectedDim);
 
-  await persistRefreshedStore(root, embeddingModel, mergedEntries, mergedChunks, chunksEmbedded);
+  await persistRefreshedStore(root, embeddingModel, mergedEntries, mergedChunks, {
+    pagesEmbedded: freshEntries.length,
+    pagesTotal: records.length,
+    chunksEmbedded,
+    chunksTotal: mergedChunks.length,
+  });
 }
 
-/** Persist a freshly merged store and emit a friendly status line. */
+/** Persist a freshly merged store and emit a structured embeddings report. */
 async function persistRefreshedStore(
   root: string,
   embeddingModel: string,
   entries: EmbeddingEntry[],
   chunks: ChunkEmbeddingEntry[],
-  _chunksEmbedded: number,
+  report: { pagesEmbedded: number; pagesTotal: number; chunksEmbedded: number; chunksTotal: number },
 ): Promise<void> {
   const dimensions = entries[0]?.vector.length ?? chunks[0]?.vector.length ?? 0;
-  const store: EmbeddingStore = {
-    version: STORE_VERSION,
-    model: embeddingModel,
-    dimensions,
-    entries,
-    chunks,
-  };
+  const store: EmbeddingStore = { version: STORE_VERSION, model: embeddingModel, dimensions, entries, chunks };
   await writeEmbeddingStore(root, store);
   output.status(
     "*",
-    output.dim(`Embeddings updated (${entries.length} pages, ${chunks.length} chunks).`),
+    output.dim(
+      `Embeddings: ${report.pagesEmbedded}/${report.pagesTotal} pages, ` +
+      `${report.chunksEmbedded}/${report.chunksTotal} chunks embedded.`,
+    ),
   );
 }
 

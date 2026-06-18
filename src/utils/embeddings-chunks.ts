@@ -9,7 +9,7 @@ import { getProvider } from "./provider.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import { type ChunkEmbeddingEntry } from "./embeddings-store.js";
 import { type PageRecord } from "./embeddings-pages.js";
-import { embedTextBatch } from "./embeddings-batch.js";
+import { embedTextBatch, enrichEmbedError } from "./embeddings-batch.js";
 
 /** One output position: a reused entry, or a pending one awaiting a fresh vector. */
 type ChunkSlot =
@@ -59,7 +59,12 @@ export async function refreshChunkEmbeddings(
   }
 
   const provider = getProvider();
-  const vectors = await embedTextBatch(provider, work.map((w) => w.text), batchSize, expectedDim);
+  let vectors: number[][];
+  try {
+    vectors = await embedTextBatch(provider, work.map((w) => w.text), batchSize, expectedDim);
+  } catch (err) {
+    throw enrichEmbedError(err, "chunk", (i) => work[i]?.slug);
+  }
 
   const chunks = slots.map((slot) => {
     if (slot.kind === "reused") return slot.entry;

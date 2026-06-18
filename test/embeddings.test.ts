@@ -212,6 +212,25 @@ describe("embedding model selection", () => {
   });
 });
 
+describe("structured embeddings report", () => {
+  it("emits a structured embedded X/N pages, Y/M chunks report", async () => {
+    const root = await makeRoot();
+    process.env.LLMWIKI_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "test-key";
+    process.env.LLMWIKI_EMBEDDING_MODEL = "test-model";
+    vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+      async (texts: string[]) => texts.map(() => [0.5, 0.5]),
+    );
+    await writeConceptPage(root, "alpha");
+
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await updateEmbeddings(root, ["alpha"]);
+
+    const lines = log.mock.calls.map(([line]) => (typeof line === "string" ? line : "")).join("\n");
+    expect(lines).toMatch(/\d+\/\d+ pages, \d+\/\d+ chunks/);
+  });
+});
+
 /** Set up an OpenAI provider with an embedding store whose model is now stale. */
 async function setupOpenAIWithStaleStore(): Promise<string> {
   const root = await makeRoot();

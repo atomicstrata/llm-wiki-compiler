@@ -100,6 +100,17 @@ function makeV1Store(): EmbeddingStore {
   };
 }
 
+/** Stub OpenAI env + provider embed methods for programmatic embedding tests. */
+function stubOpenAIProvider(vector = [0.5, 0.5]): void {
+  process.env.LLMWIKI_PROVIDER = "openai";
+  process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
+  process.env.OPENAI_API_KEY = "test-key";
+  vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue(vector);
+  vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
+    async (texts: string[]) => texts.map(() => vector),
+  );
+}
+
 /**
  * Stub the OpenAI provider and write a v2 store to disk.
  * Returns the root and its cleanup function.
@@ -234,13 +245,7 @@ describe("chunk ranking over v2 fixture (programmatic)", () => {
 describe("v1 → v2 store upgrade (programmatic)", () => {
   it("upgrades a v1 store to version 2 and adds chunks", async () => {
     const root = await makeTempRoot("v1-upgrade");
-    process.env.LLMWIKI_PROVIDER = "openai";
-    process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
-    process.env.OPENAI_API_KEY = "test-key";
-    vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue([0.5, 0.5]);
-    vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
-      async (texts: string[]) => texts.map(() => [0.5, 0.5]),
-    );
+    stubOpenAIProvider();
 
     // Write a v1 store + matching concept page so updateEmbeddings has content.
     await writeEmbeddingStore(root, makeV1Store());
@@ -291,14 +296,7 @@ describe("v1 → v2 store upgrade (programmatic)", () => {
 /** Shared setup: stub OpenAI and write an empty store of the given version. */
 async function setupEmptyStore(label: string, version: 1 | 2): Promise<string> {
   const root = await makeTempRoot(label);
-  process.env.LLMWIKI_PROVIDER = "openai";
-  process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
-  process.env.OPENAI_API_KEY = "test-key";
-  vi.spyOn(OpenAIProvider.prototype, "embed").mockResolvedValue([0.5, 0.5]);
-  // Mock embedBatch so the page-embedding pass (which now uses batch) returns valid vectors.
-  vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(
-    async (texts: string[]) => texts.map(() => [0.5, 0.5]),
-  );
+  stubOpenAIProvider();
   const emptyStore: EmbeddingStore = {
     version,
     model: "test-embed",

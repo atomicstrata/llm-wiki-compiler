@@ -10,7 +10,7 @@ import { getProvider } from "./provider.js";
 import { safeReadFile, parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
-import { embedTextBatch } from "./embeddings-batch.js";
+import { embedTextBatch, enrichEmbedError } from "./embeddings-batch.js";
 
 /** A retrievable page record on disk (concepts/ or queries/). */
 export interface PageRecord {
@@ -74,7 +74,12 @@ export async function embedPages(
   const selected = records.filter((r) => slugsToEmbed.has(r.slug));
   if (selected.length === 0) return [];
 
-  const vectors = await embedTextBatch(provider, selected.map(buildEmbeddingText), batchSize, expectedDim);
+  let vectors: number[][];
+  try {
+    vectors = await embedTextBatch(provider, selected.map(buildEmbeddingText), batchSize, expectedDim);
+  } catch (err) {
+    throw enrichEmbedError(err, "page", (i) => selected[i]?.slug);
+  }
   return selected.map((record, i) => ({
     slug: record.slug,
     title: record.title,
