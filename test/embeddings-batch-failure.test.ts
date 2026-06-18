@@ -80,6 +80,23 @@ describe("embedTextBatch fallback policy", () => {
     await assertSingleResult(p, counts, 2, 1); // initial + one retry, then sequential
   });
 
+  it("retries a transient sequential fallback item once", async () => {
+    const counts = { batchCalls: 0, embedCalls: 0 };
+    const p = makeProvider({
+      embed: async () => {
+        counts.embedCalls++;
+        if (counts.embedCalls === 1) throw withStatus(429);
+        return VEC;
+      },
+      embedBatch: async () => { counts.batchCalls++; throw withStatus(429); },
+    });
+
+    const out = await embedTextBatch(p, ["a"], 2);
+
+    expect(out).toEqual([VEC]);
+    expect(counts).toEqual({ batchCalls: 2, embedCalls: 2 });
+  });
+
   it("transient that succeeds on retry does not fall back", async () => {
     const counts = { batchCalls: 0, embedCalls: 0 };
     const p = makeProvider({

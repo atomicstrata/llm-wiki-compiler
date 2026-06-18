@@ -13,7 +13,7 @@
  * batch sizing is passed in explicitly by the orchestrator.
  */
 
-import type { LLMProvider } from "./provider.js";
+import type { EmbeddingInputType, LLMProvider } from "./provider.js";
 import {
   EMBED_BATCH_SIZES,
   EMBED_BATCH_SIZE_FALLBACK,
@@ -98,8 +98,9 @@ async function validatedBatch(
   provider: LLMProvider,
   sub: string[],
   expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
 ): Promise<number[][]> {
-  const vecs = await provider.embedBatch!(sub); // already index-normalized by the provider
+  const vecs = await provider.embedBatch!(sub, inputType); // already index-normalized by the provider
   if (vecs.length !== sub.length) {
     throw new EmbeddingIntegrityError(`cardinality: got ${vecs.length} for ${sub.length} inputs`);
   }
@@ -112,14 +113,32 @@ async function sequentialEmbed(
   provider: LLMProvider,
   sub: string[],
   expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
 ): Promise<number[][]> {
   const out: number[][] = [];
   for (const text of sub) {
-    const v = await provider.embed(text);
-    assertVectorValid(v, expectedDim);
-    out.push(v);
+    out.push(await embedOneSequential(provider, text, expectedDim, inputType));
   }
   return out;
+}
+
+/** Embed one item, retrying one transient single-item failure. */
+async function embedOneSequential(
+  provider: LLMProvider,
+  text: string,
+  expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
+): Promise<number[]> {
+  try {
+    const v = await provider.embed(text, inputType);
+    assertVectorValid(v, expectedDim);
+    return v;
+  } catch (err) {
+    if (!isTransient(err)) throw err;
+    const retried = await provider.embed(text, inputType);
+    assertVectorValid(retried, expectedDim);
+    return retried;
+  }
 }
 
 /**
@@ -130,12 +149,13 @@ async function retryThenFallback(
   provider: LLMProvider,
   sub: string[],
   expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
 ): Promise<number[][]> {
   try {
-    return await validatedBatch(provider, sub, expectedDim);
+    return await validatedBatch(provider, sub, expectedDim, inputType);
   } catch (retryErr) {
     if (isTransient(retryErr) || isRequestTooLarge(retryErr)) {
-      return sequentialEmbed(provider, sub, expectedDim);
+      return sequentialEmbed(provider, sub, expectedDim, inputType);
     }
     throw retryErr; // integrity / auth / unknown — surface it
   }
@@ -155,14 +175,15 @@ async function embedSubBatch(
   provider: LLMProvider,
   sub: string[],
   expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
 ): Promise<number[][]> {
-  if (!provider.embedBatch) return sequentialEmbed(provider, sub, expectedDim);
+  if (!provider.embedBatch) return sequentialEmbed(provider, sub, expectedDim, inputType);
   try {
-    return await validatedBatch(provider, sub, expectedDim);
+    return await validatedBatch(provider, sub, expectedDim, inputType);
   } catch (err) {
     if (isIntegrityError(err) || isAuthError(err)) throw err;
-    if (isRequestTooLarge(err)) return sequentialEmbed(provider, sub, expectedDim);
-    if (isTransient(err)) return retryThenFallback(provider, sub, expectedDim);
+    if (isRequestTooLarge(err)) return sequentialEmbed(provider, sub, expectedDim, inputType);
+    if (isTransient(err)) return retryThenFallback(provider, sub, expectedDim, inputType);
     throw err; // unknown — surface it
   }
 }
@@ -179,13 +200,14 @@ export async function embedTextBatch(
   texts: string[],
   batchSize: number,
   expectedDim?: number,
+  inputType: EmbeddingInputType = "document",
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
   const out: number[][] = [];
   for (const sub of chunked(texts, batchSize)) {
     const startIndex = out.length;
     try {
-      out.push(...(await embedSubBatch(provider, sub, expectedDim)));
+      out.push(...(await embedSubBatch(provider, sub, expectedDim, inputType)));
     } catch (err) {
       if (err && typeof err === "object" && (err as { failedIndex?: number }).failedIndex === undefined) {
         (err as { failedIndex?: number }).failedIndex = startIndex;
@@ -227,7 +249,8 @@ export function enrichEmbedError(
 
 /** True when LLMWIKI_EMBED_STRICT is set — any embedding failure should exit non-zero. */
 export function shouldRethrowEmbeddingFailure(): boolean {
-  return Boolean(process.env[ENV_EMBED_STRICT]?.trim());
+  const value = process.env[ENV_EMBED_STRICT]?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
 /**

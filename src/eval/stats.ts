@@ -26,6 +26,19 @@ async function countFiles(dir: string): Promise<number> {
 }
 
 /**
+ * Read the embedding store for a stats snapshot, treating a missing OR invalid
+ * store as "no embeddings". `readEmbeddingStore` now validates the store and
+ * throws on corruption; a corpus-size snapshot must degrade, not crash.
+ */
+async function safeReadEmbeddingStore(root: string) {
+  try {
+    return await readEmbeddingStore(root);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Collect a corpus size snapshot for the current project state.
  * @param root - Absolute path to the project root.
  */
@@ -33,7 +46,7 @@ export async function collectStats(root: string): Promise<StatsResult> {
   const [sourceCount, pages, embeddingStore] = await Promise.all([
     countFiles(path.join(root, SOURCES_DIR)),
     collectAllPages(root),
-    readEmbeddingStore(root),
+    safeReadEmbeddingStore(root),
   ]);
 
   let totalWikiChars = 0;

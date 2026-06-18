@@ -36,6 +36,7 @@ import {
 import { refreshChunkEmbeddings } from "./embeddings-chunks.js";
 import { resolveEmbedBatchSize } from "./embeddings-batch.js";
 import { getActiveProviderName } from "./provider.js";
+import { EmbeddingIntegrityError } from "./embeddings-validate.js";
 
 /**
  * Re-embed the given changed slugs and prune any entries whose pages no longer
@@ -45,7 +46,7 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
   const records = await collectPageRecords(root);
   const liveSlugs = new Set(records.map((r) => r.slug));
   const embeddingModel = resolveEmbeddingModel();
-  const existingStore = await readEmbeddingStore(root);
+  const existingStore = await readExistingStoreForUpdate(root);
   const modelChanged = Boolean(existingStore && existingStore.model !== embeddingModel);
   const toEmbed = new Set(changedSlugs.filter((slug) => liveSlugs.has(slug)));
   const previousEntries = modelChanged ? [] : existingStore?.entries ?? [];
@@ -81,6 +82,23 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
     chunksEmbedded,
     chunksTotal: mergedChunks.length,
   });
+}
+
+/** Read the existing store, treating local corruption as a cold rebuild. */
+async function readExistingStoreForUpdate(root: string): Promise<EmbeddingStore | null> {
+  try {
+    return await readEmbeddingStore(root);
+  } catch (err) {
+    if (!isStoreCorruptionError(err)) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    output.status("!", output.warn(`Embedding store is invalid; rebuilding from live pages (${message}).`));
+    return null;
+  }
+}
+
+/** Store JSON/vector corruption is repairable by rebuilding embeddings. */
+function isStoreCorruptionError(err: unknown): boolean {
+  return err instanceof EmbeddingIntegrityError || err instanceof SyntaxError;
 }
 
 /** Persist a freshly merged store and emit a structured embeddings report. */

@@ -7,7 +7,7 @@
 
 import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { voyageEmbed, voyageEmbedBatch } from "./voyage-embed.js";
+import { VoyageEmbeddingProvider } from "./voyage-embed.js";
 
 /**
  * Builds the client options for the Anthropic SDK.
@@ -52,11 +52,12 @@ export function buildAnthropicClientOptions(
 
 
 /** Anthropic-backed LLM provider using the official SDK. */
-export class AnthropicProvider implements LLMProvider {
+export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMProvider {
   private readonly client: Anthropic;
   private readonly model: string;
 
   constructor(model: string, options: AnthropicProviderOptions = {}) {
+    super();
     this.model = model;
     this.client = new Anthropic(buildAnthropicClientOptions(options));
   }
@@ -128,20 +129,5 @@ export class AnthropicProvider implements LLMProvider {
 
     const textBlock = response.content.find((block) => block.type === "text");
     return textBlock?.type === "text" ? textBlock.text : "";
-  }
-
-  /**
-   * Produce a single embedding vector via the Voyage API.
-   *
-   * Anthropic does not ship a first-party embeddings endpoint, so we delegate
-   * to Voyage (their recommended partner). Requires VOYAGE_API_KEY.
-   */
-  async embed(text: string): Promise<number[]> {
-    return voyageEmbed(text);
-  }
-
-  /** Embed many texts via Voyage in one request. */
-  async embedBatch(texts: string[]): Promise<number[][]> {
-    return voyageEmbedBatch(texts);
   }
 }

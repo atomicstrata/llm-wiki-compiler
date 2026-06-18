@@ -15,6 +15,7 @@ import { EMBEDDING_MODELS } from "../src/utils/constants.js";
 interface StubCall {
   model: string;
   input: string;
+  encodingFormat?: string;
 }
 
 function stubOpenAIClient(provider: OpenAIProvider, vector: number[]): StubCall[] {
@@ -37,8 +38,10 @@ function stubSplitClients(provider: OpenAIProvider): { chatCalls: StubCall[]; em
 function makeEmbeddingStub(calls: StubCall[], vector: number[]): unknown {
   return {
     embeddings: {
-      create: async ({ model, input }: { model: string; input: string }) => {
-        calls.push({ model, input });
+      create: async ({ model, input, encoding_format }: { model: string; input: string; encoding_format?: string }) => {
+        const call: StubCall = { model, input };
+        if (encoding_format) call.encodingFormat = encoding_format;
+        calls.push(call);
         return { data: [{ embedding: vector }] };
       },
     },
@@ -57,6 +60,7 @@ describe("OpenAIProvider.embed", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0].model).toBe(EMBEDDING_MODELS.openai);
     expect(calls[0].input).toBe("hello world");
+    expect(calls[0].encodingFormat).toBe("float");
   });
 
   it("reuses the primary client when no embeddings URL is configured", () => {
@@ -76,7 +80,7 @@ describe("OpenAIProvider.embed", () => {
     expect(result).toEqual([1, 2, 3]);
     expect(chatCalls).toEqual([]);
     expect(embedCalls).toEqual([
-      { model: EMBEDDING_MODELS.openai, input: "separate endpoint" },
+      { model: EMBEDDING_MODELS.openai, input: "separate endpoint", encodingFormat: "float" },
     ]);
   });
 

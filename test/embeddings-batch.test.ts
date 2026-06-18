@@ -134,6 +134,10 @@ describe("failure reporting helpers", () => {
     expect(shouldRethrowEmbeddingFailure()).toBe(false);
     process.env.LLMWIKI_EMBED_STRICT = "1";
     expect(shouldRethrowEmbeddingFailure()).toBe(true);
+    process.env.LLMWIKI_EMBED_STRICT = "false";
+    expect(shouldRethrowEmbeddingFailure()).toBe(false);
+    process.env.LLMWIKI_EMBED_STRICT = "0";
+    expect(shouldRethrowEmbeddingFailure()).toBe(false);
     delete process.env.LLMWIKI_EMBED_STRICT;
   });
 });

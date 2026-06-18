@@ -14,6 +14,7 @@ import {
   readEmbeddingStore,
   resolveEmbeddingModel,
 } from "./embeddings-store.js";
+import { EmbeddingIntegrityError, assertVectorValid } from "./embeddings-validate.js";
 
 /**
  * Cosine similarity between two equal-length vectors.
@@ -74,7 +75,8 @@ export async function findRelevantPages(
   const store = await loadActiveStore(root, (s) => s.entries.length > 0);
   if (!store) return [];
 
-  const queryVec = await getProvider().embed(question);
+  const queryVec = await getProvider().embed(question, "query");
+  assertVectorValid(queryVec, store.dimensions);
   return findTopK(queryVec, store, EMBEDDING_TOP_K).map((entry) => ({
     slug: entry.slug,
     title: entry.title,
@@ -93,7 +95,8 @@ export async function findRelevantChunks(
 ): Promise<Array<{ chunk: ChunkEmbeddingEntry; score: number }>> {
   const store = await loadActiveStore(root, (s) => Boolean(s.chunks && s.chunks.length > 0));
   if (!store) return [];
-  const queryVec = await getProvider().embed(question);
+  const queryVec = await getProvider().embed(question, "query");
+  assertVectorValid(queryVec, store.dimensions);
   return findTopKChunks(queryVec, store.chunks ?? [], k);
 }
 
@@ -106,7 +109,7 @@ async function loadActiveStore(
   root: string,
   hasContent: (store: EmbeddingStore) => boolean,
 ): Promise<EmbeddingStore | null> {
-  const store = await readEmbeddingStore(root);
+  const store = await readActiveStore(root);
   if (!store || !hasContent(store)) return null;
   const activeModel = resolveEmbeddingModel();
   if (store.model !== activeModel) {
@@ -114,6 +117,25 @@ async function loadActiveStore(
     return null;
   }
   return store;
+}
+
+/** Read a store for retrieval; invalid local state behaves like no store. */
+async function readActiveStore(root: string): Promise<EmbeddingStore | null> {
+  try {
+    return await readEmbeddingStore(root);
+  } catch (err) {
+    if (!(err instanceof EmbeddingIntegrityError)) throw err;
+    warnInvalidEmbeddingStore(err);
+    return null;
+  }
+}
+
+/** Warn once for invalid embedding state so repeated queries stay readable. */
+function warnInvalidEmbeddingStore(err: Error): void {
+  const key = `invalid:${err.message}`;
+  if (warnedStaleModels.has(key)) return;
+  warnedStaleModels.add(key);
+  output.status("!", output.warn(`Embedding store is invalid; semantic lookup skipped (${err.message}).`));
 }
 
 /** Tracks which (stored, active) model pairs have already been warned about. */

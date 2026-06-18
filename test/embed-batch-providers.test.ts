@@ -10,6 +10,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { voyageEmbed, voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 import { CopilotProvider } from "../src/providers/copilot.js";
+import { MiniMaxProvider } from "../src/providers/minimax.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
 function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvider {
@@ -19,15 +20,27 @@ function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvi
   return p;
 }
 
+function mockVoyageSuccess(json: unknown): () => any {
+  let body: any;
+  globalThis.fetch = (async (_url: string, init: any) => {
+    body = JSON.parse(init.body);
+    return { ok: true, json: async () => json };
+  }) as any;
+  return () => body;
+}
+
 describe("OpenAIProvider.embedBatch", () => {
   it("sends array input and returns vectors in index order", async () => {
     let sentInput: unknown;
+    let sentEncoding: unknown;
     const p = providerWithEmbeddings(async (args: any) => {
       sentInput = args.input;
+      sentEncoding = args.encoding_format;
       return { data: [{ index: 1, embedding: [2, 2] }, { index: 0, embedding: [1, 1] }] };
     });
     const out = await p.embedBatch!(["a", "b"]);
     expect(sentInput).toEqual(["a", "b"]);
+    expect(sentEncoding).toBe("float");
     expect(out).toEqual([[1, 1], [2, 2]]);
   });
 
@@ -48,14 +61,21 @@ describe("voyageEmbedBatch", () => {
 
   it("posts array input and returns index-ordered vectors", async () => {
     process.env.VOYAGE_API_KEY = "vk";
-    let body: any;
-    globalThis.fetch = (async (_url: string, init: any) => {
-      body = JSON.parse(init.body);
-      return { ok: true, json: async () => ({ data: [{ index: 1, embedding: [2] }, { index: 0, embedding: [1] }] }) };
-    }) as any;
+    const readBody = mockVoyageSuccess({ data: [{ index: 1, embedding: [2] }, { index: 0, embedding: [1] }] });
     const out = await voyageEmbedBatch(["a", "b"]);
+    const body = readBody();
     expect(body.input).toEqual(["a", "b"]);
+    expect(body.input_type).toBe("document");
     expect(out).toEqual([[1], [2]]);
+  });
+
+  it("posts query input_type for query embeddings", async () => {
+    process.env.VOYAGE_API_KEY = "vk";
+    const readBody = mockVoyageSuccess({ data: [{ embedding: [1] }] });
+    const out = await (voyageEmbed as any)("question", undefined, "query");
+    const body = readBody();
+    expect(body.input_type).toBe("query");
+    expect(out).toEqual([1]);
   });
 
   it("tags HTTP failures with status for the taxonomy", async () => {
@@ -77,5 +97,17 @@ describe("CopilotProvider.embedBatch", () => {
   it("throws the not-supported error", async () => {
     const p = new CopilotProvider("gpt-4o", "ghp_test");
     await expect(p.embedBatch!(["a"])).rejects.toThrow(/does not support embeddings/i);
+  });
+});
+
+describe("MiniMaxProvider embeddings", () => {
+  it("throws explicit unsupported errors instead of inheriting OpenAI embeddings", async () => {
+    const p = new MiniMaxProvider("MiniMax-M2.7", "test-key");
+    Reflect.set(p, "embeddingsClient", {
+      embeddings: { create: async () => ({ data: [{ embedding: [1] }] }) },
+    });
+
+    await expect(p.embed("a")).rejects.toThrow(/MiniMax.*does not support embeddings/i);
+    await expect(p.embedBatch!(["a"])).rejects.toThrow(/MiniMax.*does not support embeddings/i);
   });
 });

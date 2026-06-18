@@ -13,6 +13,7 @@ import path from "path";
 import { getActiveProviderName } from "./provider.js";
 import { atomicWrite } from "./markdown.js";
 import { EMBEDDINGS_FILE, EMBEDDING_MODELS } from "./constants.js";
+import { assertEmbeddingStoreValid } from "./embeddings-validate.js";
 
 /** Current store version; bumped from 1 → 2 when chunk entries were added. */
 export const STORE_VERSION = 2 as const;
@@ -52,12 +53,15 @@ export async function readEmbeddingStore(root: string): Promise<EmbeddingStore |
   const filePath = path.join(root, EMBEDDINGS_FILE);
   if (!existsSync(filePath)) return null;
   const raw = await readFile(filePath, "utf-8");
-  return JSON.parse(raw) as EmbeddingStore;
+  const parsed = JSON.parse(raw) as unknown;
+  assertEmbeddingStoreValid(parsed);
+  return parsed as EmbeddingStore;
 }
 
 /** Atomically persist the embedding store. */
 export async function writeEmbeddingStore(root: string, store: EmbeddingStore): Promise<void> {
   const filePath = path.join(root, EMBEDDINGS_FILE);
+  assertEmbeddingStoreValid(store);
   await atomicWrite(filePath, JSON.stringify(store, null, 2));
 }
 

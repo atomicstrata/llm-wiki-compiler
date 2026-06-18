@@ -160,6 +160,7 @@ export class OpenAIProvider implements LLMProvider {
     const response = await this.embeddingsClient.embeddings.create({
       model: this.embeddingModel(),
       input: text,
+      encoding_format: "float",
     });
     const vector = response.data[0]?.embedding;
     assertVectorValid(vector); // non-empty + finite (replaces the Array.isArray-only check)
@@ -172,6 +173,7 @@ export class OpenAIProvider implements LLMProvider {
     const response = await this.embeddingsClient.embeddings.create({
       model: this.embeddingModel(),
       input: texts,
+      encoding_format: "float",
     });
     return normalizeEmbeddingData(response.data, texts.length);
   }

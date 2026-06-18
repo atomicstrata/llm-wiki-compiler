@@ -39,6 +39,37 @@ export function assertEveryVectorValid(vectors: unknown[], expectedDim?: number)
   for (const v of vectors) assertVectorValid(v, dim);
 }
 
+/** Return true for plain non-null objects whose fields can be inspected. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * Validate an on-disk embeddings store before search or reuse. The store is
+ * local mutable state, so old or hand-edited poisoned vectors must not survive
+ * just because the current provider write path is stricter.
+ */
+export function assertEmbeddingStoreValid(store: unknown): void {
+  if (!isRecord(store)) throw new EmbeddingIntegrityError("store is not an object");
+  const dimensions = store.dimensions;
+  if (!Number.isInteger(dimensions) || (dimensions as number) < 0) {
+    throw new EmbeddingIntegrityError("store dimensions must be a non-negative integer");
+  }
+  if (!Array.isArray(store.entries)) throw new EmbeddingIntegrityError("store entries must be an array");
+  const chunks = store.chunks;
+  if (chunks !== undefined && !Array.isArray(chunks)) {
+    throw new EmbeddingIntegrityError("store chunks must be an array when present");
+  }
+  const vectors = [...store.entries, ...((chunks as unknown[] | undefined) ?? [])];
+  if (vectors.length > 0 && dimensions === 0) {
+    throw new EmbeddingIntegrityError("store dimensions is 0 but vectors are present");
+  }
+  for (const item of vectors) {
+    if (!isRecord(item)) throw new EmbeddingIntegrityError("store entry is not an object");
+    assertVectorValid(item.vector, dimensions as number);
+  }
+}
+
 /** Fill output slots by explicit index field; throws on out-of-range or duplicate index. */
 function fillIndexedSlots(
   data: Array<{ index?: number; embedding?: unknown }>,
