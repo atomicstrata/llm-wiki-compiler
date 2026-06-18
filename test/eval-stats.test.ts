@@ -2,7 +2,7 @@
  * Tests for src/eval/stats.ts — corpus size tracking and history append.
  */
 
-import { readFile } from "fs/promises";
+import { readFile, mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { collectStats, appendHistory, loadHistory, loadLastFullReport } from "../src/eval/stats.js";
@@ -44,6 +44,29 @@ describe("collectStats", () => {
 
     const result = await collectStats(env.dir);
     expect(result.pageCount).toBe(2);
+  });
+
+  it("degrades to zero embedding counts when the store is corrupt (regression)", async () => {
+    // Stricter store validation makes readEmbeddingStore throw on a corrupt
+    // store; stats must degrade, not crash (the one caller the validation
+    // change initially left unguarded).
+    const storeDir = path.join(env.dir, ".llmwiki");
+    await mkdir(storeDir, { recursive: true });
+    await writeFile(
+      path.join(storeDir, "embeddings.json"),
+      JSON.stringify({
+        version: 2,
+        model: "text-embedding-3-small",
+        dimensions: 3, // claims dim 3 but the entry vector is empty -> integrity error
+        entries: [{ slug: "a", title: "A", summary: "", vector: [], updatedAt: "2024-01-01" }],
+        chunks: [],
+      }),
+      "utf-8",
+    );
+
+    const result = await collectStats(env.dir); // must not throw
+    expect(result.embeddingCount).toBe(0);
+    expect(result.chunkEmbeddingCount).toBe(0);
   });
 });
 
