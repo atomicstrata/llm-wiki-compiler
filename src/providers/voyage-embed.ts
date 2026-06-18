@@ -17,6 +17,27 @@ function voyageError(status: number, detail: string): Error {
   return Object.assign(new Error(`Voyage embeddings request failed (${status}): ${detail}`), { status });
 }
 
+/** Resolve and validate the Voyage API key from the environment. */
+function resolveVoyageApiKey(): string {
+  const apiKey = process.env.VOYAGE_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error(
+      "VOYAGE_API_KEY is not set. Anthropic embeddings use Voyage — set VOYAGE_API_KEY to enable semantic search.",
+    );
+  }
+  return apiKey;
+}
+
+/** Execute a POST request to the Voyage embeddings endpoint. */
+async function voyagePost(input: string | string[], model: string): Promise<Response> {
+  const apiKey = resolveVoyageApiKey();
+  return fetch(VOYAGE_EMBEDDINGS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ input, model }),
+  });
+}
+
 /**
  * Produce a single embedding vector for the given text via the Voyage API.
  *
@@ -29,26 +50,10 @@ export async function voyageEmbed(
   text: string,
   model: string = EMBEDDING_MODELS.anthropic,
 ): Promise<number[]> {
-  const apiKey = process.env.VOYAGE_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "VOYAGE_API_KEY is not set. Anthropic embeddings use Voyage — set VOYAGE_API_KEY to enable semantic search.",
-    );
-  }
-
-  const response = await fetch(VOYAGE_EMBEDDINGS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ input: text, model }),
-  });
-
+  const response = await voyagePost(text, model);
   if (!response.ok) {
     throw voyageError(response.status, await response.text());
   }
-
   const json = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
   const vector = json.data?.[0]?.embedding;
   if (!Array.isArray(vector)) {
@@ -70,17 +75,7 @@ export async function voyageEmbedBatch(
   model: string = EMBEDDING_MODELS.anthropic,
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const apiKey = process.env.VOYAGE_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error(
-      "VOYAGE_API_KEY is not set. Anthropic embeddings use Voyage — set VOYAGE_API_KEY to enable semantic search.",
-    );
-  }
-  const response = await fetch(VOYAGE_EMBEDDINGS_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ input: texts, model }),
-  });
+  const response = await voyagePost(texts, model);
   if (!response.ok) {
     throw voyageError(response.status, await response.text());
   }
