@@ -100,7 +100,7 @@ describe("OpenAIProvider.embed", () => {
       },
     });
 
-    await expect(provider.embed("anything")).rejects.toThrow(/did not include a vector/);
+    await expect(provider.embed("anything")).rejects.toThrow();
   });
 });
 

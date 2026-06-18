@@ -8,6 +8,7 @@
 import OpenAI from "openai";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
+import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -154,21 +155,25 @@ export class OpenAIProvider implements LLMProvider {
     return response.choices[0]?.message?.content ?? "";
   }
 
-  /**
-   * Produce a single embedding vector via the OpenAI embeddings API.
-   * Subclasses (e.g. Ollama) override embeddingModel() to pick a different model.
-   */
+  /** Produce a single embedding vector via the OpenAI embeddings API. */
   async embed(text: string): Promise<number[]> {
     const response = await this.embeddingsClient.embeddings.create({
       model: this.embeddingModel(),
       input: text,
     });
-
     const vector = response.data[0]?.embedding;
-    if (!Array.isArray(vector)) {
-      throw new Error("OpenAI embeddings response did not include a vector.");
-    }
+    assertVectorValid(vector); // non-empty + finite (replaces the Array.isArray-only check)
     return vector;
+  }
+
+  /** Embed many texts in one request; vectors returned in input order. */
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const response = await this.embeddingsClient.embeddings.create({
+      model: this.embeddingModel(),
+      input: texts,
+    });
+    return normalizeEmbeddingData(response.data, texts.length);
   }
 
   /** Default embedding model for this provider. Subclasses may override. */
