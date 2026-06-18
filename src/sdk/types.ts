@@ -16,7 +16,7 @@ import type { EvalReport } from "../eval/types.js";
 import type { WikiStatus } from "../status/collect.js";
 import type { Page, PageRef, ListPagesOptions, ListPagesResult } from "../pages/list.js";
 import type { PageRecord } from "../pages/read.js";
-import type { JsonExportDocument, BuildJsonExportOptions } from "../export/json-export.js";
+import type { JsonExportDocument, ExportJsonOptions } from "../export/json-export.js";
 import type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "../sources/store.js";
 import type { OkfExportReport } from "../export/okf/run.js";
 import type { OkfImportReport } from "../import/run.js";
@@ -148,7 +148,7 @@ export interface Wiki {
    * O(total source bytes) — with no cross-call caching. Avoid calling this in a
    * hot loop; an mtime-keyed cache is planned for v1.x.
    */
-  exportJson(options?: BuildJsonExportOptions): Promise<JsonExportDocument>;
+  exportJson(options?: ExportJsonOptions): Promise<JsonExportDocument>;
   /**
    * Run the eval harness. "fast" mode is credential-free; "full" mode
    * requires LLM credentials for citation-support judging.

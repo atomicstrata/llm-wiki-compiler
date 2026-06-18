@@ -4,8 +4,10 @@
  *
  * Covers: (a) a DEFAULT project's result has NO `profile` key and the legacy
  * `pages` block reflects only concepts/queries; (b) a NON-default project
- * surfaces `profile.entityPages` with content, honors `includeBody` (body
- * present when true, empty when false), and surfaces collector `problems`.
+ * surfaces `profile.entityPages` with content as the public `EntityPageView`
+ * (project-relative `path`, never an absolute `filePath`), honors `includeBody`
+ * (body present when true, OMITTED when false), and surfaces collector
+ * `problems`.
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
@@ -52,9 +54,17 @@ describe("listPages — non-default profile", () => {
     expectFirstNotePage(result.profile!.entityPages[0]);
   });
 
-  it("strips entity-page body when includeBody is false", async () => {
+  it("OMITS entity-page body when includeBody is false", async () => {
     const result = await listPages(root, { includeBody: false });
-    expect(result.profile?.entityPages[0].body).toBe("");
+    const page = result.profile!.entityPages[0];
+    expect("body" in page).toBe(false);
+  });
+
+  it("never leaks an absolute filePath in entity pages", async () => {
+    const result = await listPages(root, { includeBody: true });
+    const json = JSON.stringify(result.profile!.entityPages);
+    expect(json).not.toContain("filePath");
+    expect(json).not.toContain(root);
   });
 
   it("surfaces collector problems for a contract violation", async () => {

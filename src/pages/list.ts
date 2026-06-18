@@ -26,7 +26,8 @@ import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
-import type { EntityPage } from "../profile/types.js";
+import { toEntityPageView } from "../profile/types.js";
+import type { EntityPageView } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
 export type { PageDirectory };
@@ -70,14 +71,15 @@ export interface ListPagesOptions {
  *
  * Present ONLY for a non-default profile; for the built-in default it is
  * ABSENT (`result.profile === undefined`) so the default envelope is unchanged.
- * `entityPages` carries the content-bearing `EntityPage`s; each page's `body`
- * is stripped when `includeBody` is false (mirroring the legacy `pages` block).
+ * `entityPages` carries the PUBLIC `EntityPageView`s (project-relative `path`,
+ * never an absolute `filePath`); each view's `body` is OMITTED when
+ * `includeBody` is false (mirroring how the legacy `pages` block omits bodies).
  *
  * Entity-section pagination is deferred — every entity page is returned in one
  * block, regardless of the legacy `cursor`/`limit` (which still scope `pages`).
  */
 export interface ListPagesProfileBlock {
-  entityPages: EntityPage[];
+  entityPages: EntityPageView[];
   /** Human-readable collector problems; present ONLY when non-empty. */
   problems?: string[];
 }
@@ -181,8 +183,10 @@ export async function listPages(
  * default so the legacy envelope is unchanged — gated through the shared
  * {@link loadNonDefaultProfile} primitive, exactly as `status` does.
  *
- * Honors `includeBody`: each entity page's `body` is stripped when bodies are
- * not requested, mirroring how the legacy `pages` block omits bodies.
+ * Honors `includeBody`: each view's `body` is OMITTED (key absent) when bodies
+ * are not requested, mirroring how the legacy `pages` block omits bodies. Maps
+ * the internal `EntityPage` to the public `EntityPageView` so the absolute
+ * `filePath` never reaches the surface.
  */
 async function collectProfileBlock(
   root: string,
@@ -191,16 +195,11 @@ async function collectProfileBlock(
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
   const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
-  const entityPages = includeBody ? pages : pages.map(stripBody);
+  const entityPages = pages.map((page) => toEntityPageView(page, includeBody));
   return {
     entityPages,
     ...(messages.length > 0 ? { problems: messages } : {}),
   };
-}
-
-/** Return a copy of an entity page with its `body` replaced by an empty string. */
-function stripBody(page: EntityPage): EntityPage {
-  return { ...page, body: "" };
 }
 
 /**

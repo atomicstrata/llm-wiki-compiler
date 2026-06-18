@@ -10,6 +10,7 @@
  */
 
 import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
+import { toEntityPageView } from "../profile/types.js";
 import type { JsonExportProfileBlock } from "./json-export.js";
 
 /**
@@ -27,7 +28,7 @@ export async function buildExportProfileBlock(
   const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
   return {
     profileId: loaded.profile.profileId,
-    entityPages: pages,
+    entityPages: pages.map((page) => toEntityPageView(page, true)),
     ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }

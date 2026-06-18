@@ -30,6 +30,7 @@ import {
   buildJsonExport,
   buildJsonExportDocument,
   type BuildJsonExportOptions,
+  type ExportJsonOptions,
   type JsonExportDocument,
   type JsonExportProfileBlock,
 } from "../export/json-export.js";
@@ -249,11 +250,18 @@ function resolveTargets(rawTarget: string | undefined): ExportTarget[] {
  */
 export async function exportJson(
   root: string,
-  options: BuildJsonExportOptions = {},
+  options: ExportJsonOptions = {},
 ): Promise<JsonExportDocument> {
   const pages = await collectExportPages(root);
   const profile = await buildExportProfileBlock(root);
-  return buildJsonExportDocument(pages, profile ? { ...options, profile } : options);
+  // Reconstruct build options from ONLY the public knob so a forged `profile`
+  // on the caller's object can never reach the document; the pipeline-computed
+  // `profile` is the sole source of the block.
+  const buildOptions: BuildJsonExportOptions = {
+    ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
+    ...(profile !== undefined ? { profile } : {}),
+  };
+  return buildJsonExportDocument(pages, buildOptions);
 }
 
 /**

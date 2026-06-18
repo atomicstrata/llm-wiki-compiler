@@ -19,7 +19,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "vitest";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
-import type { ProfilePack, EntityPage } from "../../src/profile/types.js";
+import type { ProfilePack, EntityPageView } from "../../src/profile/types.js";
 
 /**
  * A minimal NON-DEFAULT profile: a single `notes` entity type at `wiki/notes`
@@ -66,14 +66,17 @@ export async function seedSampleNotesProject(root: string): Promise<void> {
 }
 
 /**
- * Assert an entity page is the seeded `first-note` from
- * {@link seedSampleNotesProject}: the `notes` type, `first-note` slug, and the
- * full "Note body." body (so a body-stripping bug would fail this).
+ * Assert an entity-page VIEW is the seeded `first-note` from
+ * {@link seedSampleNotesProject}: the `notes` type, `first-note` slug, the full
+ * "Note body." body (so a body-stripping bug would fail this), a
+ * project-relative `path`, and NO leaked absolute `filePath`.
  */
-export function expectFirstNotePage(page: EntityPage): void {
+export function expectFirstNotePage(page: EntityPageView): void {
   expect(page.entityType).toBe("notes");
   expect(page.slug).toBe("first-note");
   expect(page.body).toBe("Note body.");
+  expect(page.path).toBe("wiki/notes/first-note.md");
+  expect("filePath" in page).toBe(false);
 }
 
 /**

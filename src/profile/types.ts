@@ -113,9 +113,62 @@ export interface EntityPageRef {
  * page's parsed `frontmatter`, its markdown `body`, and a convenience `title`
  * (the frontmatter title when present). It is produced by the content-carrying
  * collector so downstream read surfaces can render a page without re-reading it.
+ *
+ * This is the INTERNAL collector output: it carries an ABSOLUTE `filePath`
+ * (inherited from `EntityPageRef`). Never expose it directly on a public read
+ * surface — map it through {@link toEntityPageView} first so the machine-local
+ * path is dropped in favour of a project-relative one.
  */
 export interface EntityPage extends EntityPageRef {
   frontmatter: Record<string, unknown>;
   body: string;
   title?: string;
+}
+
+/**
+ * The PUBLIC surface DTO for a non-default profile entity page.
+ *
+ * Unlike the internal {@link EntityPage}, this NEVER carries an absolute
+ * `filePath` — only a PROJECT-RELATIVE `path` (`${directory}/${slug}.md`) — so
+ * read surfaces (`listPages`, JSON export) cannot leak machine-local paths. The
+ * `body` is OPTIONAL and OMITTED entirely (not blanked to `""`) when the caller
+ * did not request it, so an absent body is distinguishable from a genuinely
+ * empty page.
+ */
+export interface EntityPageView {
+  entityType: string;
+  directory: string;
+  slug: string;
+  id: string;
+  /** Project-relative page path (`${directory}/${slug}.md`); never absolute. */
+  path: string;
+  title?: string;
+  frontmatter: Record<string, unknown>;
+  /** Markdown body; OMITTED (key absent) when bodies were not requested. */
+  body?: string;
+}
+
+/**
+ * Map an internal {@link EntityPage} to its public {@link EntityPageView}.
+ *
+ * Drops the absolute `filePath` in favour of the project-relative `path`, and
+ * OMITS `body` entirely when `includeBody` is false (mirroring how the legacy
+ * `Page` shape omits — rather than blanks — an unrequested body).
+ *
+ * @param page - The internal collector entity page.
+ * @param includeBody - When true, carry the markdown body into the view.
+ * @returns The public, path-safe entity-page view.
+ */
+export function toEntityPageView(page: EntityPage, includeBody: boolean): EntityPageView {
+  const view: EntityPageView = {
+    entityType: page.entityType,
+    directory: page.directory,
+    slug: page.slug,
+    id: page.id,
+    path: `${page.directory}/${page.slug}.md`,
+    frontmatter: page.frontmatter,
+    ...(page.title !== undefined ? { title: page.title } : {}),
+    ...(includeBody ? { body: page.body } : {}),
+  };
+  return view;
 }

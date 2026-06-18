@@ -14,6 +14,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { exportJson } from "../src/commands/export.js";
+import { createWiki } from "../src/index.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import {
   writeMarkdownPage,
@@ -61,5 +62,21 @@ describe("exportJson — non-default profile", () => {
     await writeMarkdownPage(root, "wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title.");
     const doc = await exportJson(root);
     expect(doc.profile?.problems?.some((m) => m.includes("title"))).toBe(true);
+  });
+
+  it("never leaks an absolute filePath in the profile block", async () => {
+    const doc = await exportJson(root);
+    const json = JSON.stringify(doc.profile);
+    expect(json).not.toContain("filePath");
+    expect(json).not.toContain(root);
+  });
+});
+
+describe("exportJson — forge-proof public options", () => {
+  it("ignores a forged profile block on a default project", async () => {
+    await writeMarkdownPage(root, CONCEPTS_DIR, "alpha", "---\ntitle: Alpha\n---\nBody.");
+    const wiki = createWiki({ root });
+    const doc = await wiki.exportJson({ profile: { profileId: "forged" } } as never);
+    expect("profile" in doc).toBe(false);
   });
 });

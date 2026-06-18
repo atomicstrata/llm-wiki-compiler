@@ -28,7 +28,7 @@
 
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
-import type { EntityPage } from "../profile/types.js";
+import type { EntityPageView } from "../profile/types.js";
 
 /**
  * Monotonically-incremented envelope version.
@@ -40,13 +40,15 @@ export const EXPORT_SCHEMA_VERSION = 1;
  * Additive, non-default-profile entity block for the JSON export.
  *
  * Present ONLY for a non-default profile; ABSENT for the built-in default so
- * the default export is byte-identical. `entityPages` carries the
- * content-bearing `EntityPage` shape directly — NOT the freshness/hash-decorated
- * `ExportPage`. The legacy `pages` array stays scoped to concepts/queries.
+ * the default export is byte-identical. `entityPages` carries the PUBLIC
+ * `EntityPageView` shape (project-relative `path`, never an absolute
+ * `filePath`) with its `body` INCLUDED — export wants page content — NOT the
+ * freshness/hash-decorated `ExportPage`. The legacy `pages` array stays scoped
+ * to concepts/queries.
  */
 export interface JsonExportProfileBlock {
   profileId: string;
-  entityPages: EntityPage[];
+  entityPages: EntityPageView[];
   /** Human-readable collector problems; present ONLY when non-empty. */
   problems?: string[];
 }
@@ -70,17 +72,36 @@ export interface JsonExportDocument {
   profile?: JsonExportProfileBlock;
 }
 
-/** Options accepted by {@link buildJsonExportDocument}. */
-export interface BuildJsonExportOptions {
+/**
+ * PUBLIC options for the JSON export, exposing ONLY the legitimate caller knob.
+ *
+ * Deliberately omits `profile`: the profile block is computed and injected by
+ * the export PIPELINE after it resolves the active profile, never accepted from
+ * caller input — otherwise a default-project caller could FORGE a `profile`
+ * block into the document. Callers (SDK `Wiki.exportJson`, the CLI export
+ * command) accept this type, not the internal {@link BuildJsonExportOptions}.
+ */
+export interface ExportJsonOptions {
   /**
    * Optional project identifier. Validated against the bridge contract
    * regex; throws if invalid so a malformed value never reaches disk.
    */
   projectId?: string;
+}
+
+/**
+ * INTERNAL build options for {@link buildJsonExportDocument}.
+ *
+ * Extends the public {@link ExportJsonOptions} with the pipeline-only `profile`
+ * block. The `profile` field is injected by the export pipeline (which holds
+ * `root` and computes the active profile); it is ABSENT for the built-in
+ * default so the default envelope gains no `profile` key. Never expose this
+ * type at a caller boundary — see {@link ExportJsonOptions}.
+ */
+export interface BuildJsonExportOptions extends ExportJsonOptions {
   /**
-   * Pre-computed non-default profile entity block. Supplied by the caller
-   * (which holds `root`); ABSENT for the built-in default so the default
-   * envelope gains no `profile` key.
+   * Pre-computed non-default profile entity block, injected by the pipeline;
+   * ABSENT for the built-in default.
    */
   profile?: JsonExportProfileBlock;
 }
