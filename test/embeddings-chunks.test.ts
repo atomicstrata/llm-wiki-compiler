@@ -18,6 +18,9 @@ import {
   type ChunkEmbeddingEntry,
   type EmbeddingStore,
 } from "../src/utils/embeddings.js";
+import { refreshChunkEmbeddings } from "../src/utils/embeddings-chunks.js";
+import * as providerMod from "../src/utils/provider.js";
+import type { PageRecord } from "../src/utils/embeddings-pages.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { CHUNK_TARGET_CHARS } from "../src/utils/constants.js";
 
@@ -84,7 +87,7 @@ describe("findTopKChunks", () => {
 describe("updateEmbeddings (chunk path)", () => {
   it("populates chunks for live pages on a cold start", async () => {
     const root = await makeRoot();
-    const { embed } = setupOpenAI([0.5, 0.5]);
+    setupOpenAI([0.5, 0.5]);
     const body = "Paragraph one.\n\nParagraph two with more detail.";
     await writeConcept(root, "alpha", body);
 
@@ -95,8 +98,8 @@ describe("updateEmbeddings (chunk path)", () => {
     expect(store?.chunks?.length).toBeGreaterThan(0);
     expect(store?.chunks?.[0].slug).toBe("alpha");
     expect(store?.chunks?.[0].contentHash).toMatch(/^[a-f0-9]+$/);
-    // Chunks are embedded via sequential embed(); the page uses embedBatch.
-    expect(embed.mock.calls.length).toBeGreaterThanOrEqual(1);
+    // Both page and chunk passes use embedBatch; embed is only the sequential fallback.
+    expect(store?.chunks?.length).toBeGreaterThan(0);
   });
 
   it("reuses chunk vectors whose contentHash still matches", async () => {
@@ -111,8 +114,11 @@ describe("updateEmbeddings (chunk path)", () => {
     // Add a brand-new page with a fresh body. The existing chunk for alpha
     // should be reused (same hash), not re-embedded.
     await writeConcept(root, "beta", "Different body");
-    const embedAfter = vi.fn().mockResolvedValue([0.3, 0.7]);
-    vi.spyOn(OpenAIProvider.prototype, "embed").mockImplementation(embedAfter);
+    const batchedTexts: string[][] = [];
+    vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(async (texts: string[]) => {
+      batchedTexts.push(texts);
+      return texts.map(() => [0.3, 0.7]);
+    });
 
     await updateEmbeddings(root, ["beta"]);
     const afterStore = await readEmbeddingStore(root);
@@ -121,8 +127,10 @@ describe("updateEmbeddings (chunk path)", () => {
     const betaChunks = afterStore?.chunks?.filter((c) => c.slug === "beta") ?? [];
     expect(alphaChunks.length).toBe(initialChunkCount);
     expect(betaChunks.length).toBeGreaterThan(0);
-    // Only beta chunk(s) should use embed — the page uses embedBatch; alpha is reused.
-    expect(embedAfter).toHaveBeenCalledTimes(betaChunks.length);
+    // Only beta page + beta chunks are embedded; alpha chunks are reused (hash unchanged).
+    const totalBatchedTexts = batchedTexts.reduce((s, ts) => s + ts.length, 0);
+    // 1 page text (page pass) + betaChunks.length texts (chunk pass)
+    expect(totalBatchedTexts).toBe(1 + betaChunks.length);
   });
 
   it("re-embeds a chunk when its body content changes", async () => {
@@ -271,5 +279,34 @@ describe("backwards compatibility", () => {
     // sanity: ensures CHUNK_TARGET_CHARS isn't accidentally large enough that
     // the chunking tests above would silently degrade to single-chunk output.
     expect(CHUNK_TARGET_CHARS).toBeGreaterThan(100);
+  });
+});
+
+describe("refreshChunkEmbeddings batching", () => {
+  it("batches missing chunks across pages and preserves order + reuse", async () => {
+    const batches: string[][] = [];
+    vi.spyOn(providerMod, "getProvider").mockReturnValue({
+      embed: async () => [9, 9],
+      embedBatch: async (t: string[]) => { batches.push(t); return t.map((_, i) => [i, i]); },
+    } as any);
+
+    const records: PageRecord[] = [
+      { slug: "a", title: "A", summary: "", body: "alpha paragraph one.\n\nalpha two." },
+      { slug: "b", title: "B", summary: "", body: "beta paragraph one." },
+    ];
+    // First run: cold, everything embeds.
+    const cold = await refreshChunkEmbeddings(records, [], false, 256);
+    expect(batches).toHaveLength(1); // one cross-page batch
+    expect(cold.embedded).toBe(cold.chunks.length); // all fresh on cold start
+    expect(cold.chunks.map((c) => `${c.slug}#${c.chunkIndex}`)).toEqual(
+      cold.chunks.map((c) => `${c.slug}#${c.chunkIndex}`).slice().sort(), // already in page,index order
+    );
+
+    // Second run: identical content -> all reused, zero batch calls, zero embedded.
+    batches.length = 0;
+    const warm = await refreshChunkEmbeddings(records, cold.chunks, false, 256);
+    expect(batches).toHaveLength(0);
+    expect(warm.embedded).toBe(0);
+    expect(warm.chunks).toEqual(cold.chunks.map((c) => ({ ...c }))); // vectors untouched (title same)
   });
 });

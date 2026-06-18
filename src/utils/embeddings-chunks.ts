@@ -9,57 +9,67 @@ import { getProvider } from "./provider.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import { type ChunkEmbeddingEntry } from "./embeddings-store.js";
 import { type PageRecord } from "./embeddings-pages.js";
+import { embedTextBatch } from "./embeddings-batch.js";
+
+/** One output position: a reused entry, or a pending one awaiting a fresh vector. */
+type ChunkSlot =
+  | { kind: "reused"; entry: ChunkEmbeddingEntry }
+  | { kind: "pending"; workIndex: number };
+
+interface ChunkWorkItem {
+  text: string;
+  slug: string;
+  title: string;
+  chunkIndex: number;
+  contentHash: string;
+}
 
 /**
- * Refresh chunk embeddings for the given pages, reusing existing chunk vectors
- * whose contentHash still matches. Pages absent from `records` are pruned.
+ * Refresh chunk embeddings for all live pages. Build ordered slots (page order,
+ * then chunkIndex), reuse unchanged chunks by hash, batch only the missing ones
+ * across all pages, then reconstruct from slots so order never depends on the
+ * provider response order.
  */
 export async function refreshChunkEmbeddings(
   records: PageRecord[],
   existing: ChunkEmbeddingEntry[],
   forceAll: boolean,
-): Promise<ChunkEmbeddingEntry[]> {
+  batchSize: number,
+  expectedDim?: number,
+): Promise<{ chunks: ChunkEmbeddingEntry[]; embedded: number }> {
   const liveSlugs = new Set(records.map((r) => r.slug));
   const existingByKey = indexChunksByKey(existing.filter((c) => liveSlugs.has(c.slug)));
   const now = new Date().toISOString();
-  const fresh: ChunkEmbeddingEntry[] = [];
+
+  const slots: ChunkSlot[] = [];
+  const work: ChunkWorkItem[] = [];
 
   for (const record of records) {
-    const pageChunks = await embedRecordChunks(record, existingByKey, forceAll, now);
-    fresh.push(...pageChunks);
-  }
-  return fresh;
-}
-
-/**
- * Embed (or reuse) every chunk for a single page, in order. Reused chunks have
- * their `title` refreshed so a renamed page propagates to the chunk metadata.
- */
-async function embedRecordChunks(
-  record: PageRecord,
-  existingByKey: Map<string, ChunkEmbeddingEntry>,
-  forceAll: boolean,
-  now: string,
-): Promise<ChunkEmbeddingEntry[]> {
-  const provider = getProvider();
-  const chunkTexts = splitIntoChunks(record.body);
-  const out: ChunkEmbeddingEntry[] = [];
-
-  for (let i = 0; i < chunkTexts.length; i++) {
-    const text = chunkTexts[i];
-    const contentHash = hashChunkText(text);
-    const reused = pickReusableChunk(existingByKey, record.slug, i, contentHash, forceAll);
-    if (reused) {
-      out.push({ ...reused, title: record.title });
-      continue;
+    const texts = splitIntoChunks(record.body);
+    for (let i = 0; i < texts.length; i++) {
+      const contentHash = hashChunkText(texts[i]);
+      const reused = pickReusableChunk(existingByKey, record.slug, i, contentHash, forceAll);
+      if (reused) {
+        slots.push({ kind: "reused", entry: { ...reused, title: record.title } });
+      } else {
+        slots.push({ kind: "pending", workIndex: work.length });
+        work.push({ text: texts[i], slug: record.slug, title: record.title, chunkIndex: i, contentHash });
+      }
     }
-    const vector = await provider.embed(text);
-    out.push({
-      slug: record.slug, title: record.title, chunkIndex: i,
-      contentHash, text, vector, updatedAt: now,
-    });
   }
-  return out;
+
+  const provider = getProvider();
+  const vectors = await embedTextBatch(provider, work.map((w) => w.text), batchSize, expectedDim);
+
+  const chunks = slots.map((slot) => {
+    if (slot.kind === "reused") return slot.entry;
+    const w = work[slot.workIndex];
+    return {
+      slug: w.slug, title: w.title, chunkIndex: w.chunkIndex,
+      contentHash: w.contentHash, text: w.text, vector: vectors[slot.workIndex], updatedAt: now,
+    };
+  });
+  return { chunks, embedded: work.length };
 }
 
 /** Index existing chunks by `${slug}#${chunkIndex}` for O(1) reuse lookup. */

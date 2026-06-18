@@ -72,9 +72,10 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
 
   const freshEntries = await embedPages(records, toEmbed, batchSize, expectedDim);
   const mergedEntries = mergeEntries(previousEntries, freshEntries, liveSlugs);
-  const mergedChunks = await refreshChunkEmbeddings(records, previousChunks, modelChanged);
+  const { chunks: mergedChunks, embedded: chunksEmbedded } =
+    await refreshChunkEmbeddings(records, previousChunks, modelChanged, batchSize, expectedDim);
 
-  await persistRefreshedStore(root, embeddingModel, mergedEntries, mergedChunks);
+  await persistRefreshedStore(root, embeddingModel, mergedEntries, mergedChunks, chunksEmbedded);
 }
 
 /** Persist a freshly merged store and emit a friendly status line. */
@@ -83,6 +84,7 @@ async function persistRefreshedStore(
   embeddingModel: string,
   entries: EmbeddingEntry[],
   chunks: ChunkEmbeddingEntry[],
+  _chunksEmbedded: number,
 ): Promise<void> {
   const dimensions = entries[0]?.vector.length ?? chunks[0]?.vector.length ?? 0;
   const store: EmbeddingStore = {
