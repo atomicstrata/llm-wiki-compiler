@@ -87,12 +87,28 @@ function declaredSlug(frontmatter: Record<string, unknown>): string | undefined 
 }
 
 /**
+ * Compute the de-duplicated set of required field names for an entity type: the
+ * UNION of the entity-level `requiredFields` array and every field whose own
+ * `FieldDef.required === true`. Returned as a `Set` so a field declared required
+ * BOTH ways yields exactly one missing-field problem, never two.
+ */
+function requiredFieldNames(def: EntityTypeDef): Set<string> {
+  const names = new Set<string>(def.requiredFields ?? []);
+  for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
+    if (fieldDef.required === true) names.add(name);
+  }
+  return names;
+}
+
+/**
  * Validate a slug-safe page against its entity type's declared field contract,
  * pushing a `field-violation` problem for each missing required field and, for
- * each PRESENT field value, every declared-type / enum / min-max mismatch. The
- * page is NOT dropped — a contract violation is surfaced, not fatal — and this
- * NEVER throws. Messages are PATH-FREE (the offending path lives only on the
- * structured `filePath` field).
+ * each PRESENT field value, every declared-type / enum / min-max mismatch. A
+ * field is required when it is in `def.requiredFields` OR carries
+ * `FieldDef.required === true` (the union, de-duplicated). The page is NOT
+ * dropped — a contract violation is surfaced, not fatal — and this NEVER throws.
+ * Messages are PATH-FREE (the offending path lives only on the structured
+ * `filePath` field).
  */
 function checkFieldContract(
   entityType: string,
@@ -101,7 +117,7 @@ function checkFieldContract(
   problems: EntityProblem[],
 ): void {
   const fm = scan.frontmatter;
-  for (const field of def.requiredFields ?? []) {
+  for (const field of requiredFieldNames(def)) {
     if (!(field in fm)) {
       problems.push({
         kind: "field-violation",
@@ -179,7 +195,7 @@ function isValidDate(value: unknown): boolean {
  */
 const TYPE_PREDICATES: Record<Exclude<FieldType, "enum">, (value: unknown) => boolean> = {
   string: (v) => typeof v === "string",
-  slug: (v) => typeof v === "string",
+  slug: (v) => typeof v === "string" && isSlugSafe(v),
   integer: (v) => Number.isInteger(v),
   number: (v) => typeof v === "number" && Number.isFinite(v),
   boolean: (v) => typeof v === "boolean",

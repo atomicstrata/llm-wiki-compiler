@@ -123,6 +123,77 @@ describe("field-violation messages are PATH-FREE", () => {
   });
 });
 
+/** A profile whose `notes` type marks `title` required via per-field `required`. */
+const PER_FIELD_REQUIRED_PROFILE: ProfilePack = {
+  schemaVersion: 1,
+  profileId: "per-field-required",
+  entities: {
+    notes: { directory: "wiki/notes", fields: { title: { type: "string", required: true } } },
+  },
+};
+
+/** A profile that declares `title` required BOTH via array AND per-field flag. */
+const DOUBLY_REQUIRED_PROFILE: ProfilePack = {
+  schemaVersion: 1,
+  profileId: "doubly-required",
+  entities: {
+    notes: {
+      directory: "wiki/notes",
+      requiredFields: ["title"],
+      fields: { title: { type: "string", required: true } },
+    },
+  },
+};
+
+/** Collect `profile` and return only the `field-violation` problem messages. */
+async function violationsFor(profile: ProfilePack): Promise<string[]> {
+  const { problems } = await collectEntityPages(root, profile);
+  return problems.filter((p) => p.kind === "field-violation").map((p) => p.message);
+}
+
+describe("checkFieldContract — per-field required: true enforced", () => {
+  it("flags a missing field declared required via per-field flag exactly once", async () => {
+    await writeNote("no-title", "year: 2026");
+    const messages = await violationsFor(PER_FIELD_REQUIRED_PROFILE);
+    expect(messages).toEqual([expect.stringMatching(/Required field "title" is missing/)]);
+  });
+
+  it("does not flag a present per-field-required field", async () => {
+    await writeNote("has-title", 'title: "Hello"');
+    expect(await violationsFor(PER_FIELD_REQUIRED_PROFILE)).toEqual([]);
+  });
+
+  it("yields ONE problem when a field is required both via array and per-field", async () => {
+    await writeNote("no-title", "year: 2026");
+    const messages = await violationsFor(DOUBLY_REQUIRED_PROFILE);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatch(/Required field "title" is missing/);
+  });
+});
+
+/** A profile whose `notes` type declares an `owner` field of type `slug`. */
+const SLUG_FIELD_PROFILE: ProfilePack = {
+  schemaVersion: 1,
+  profileId: "slug-field",
+  entities: { notes: { directory: "wiki/notes", fields: { owner: { type: "slug" } } } },
+};
+
+describe("checkFieldContract — slug type validates slug-safety", () => {
+  it("accepts a slug-safe owner value with no problems", async () => {
+    await writeNote("ok", 'owner: "ok-slug"');
+    expect(await violationsFor(SLUG_FIELD_PROFILE)).toEqual([]);
+  });
+
+  it.each([["Bad Slug!"], ["UPPER"], [" leading"]])(
+    "flags a non-slug-safe owner value %j as a field-violation",
+    async (value) => {
+      await writeNote("bad", `owner: ${JSON.stringify(value)}`);
+      const messages = await violationsFor(SLUG_FIELD_PROFILE);
+      expect(messages).toEqual([expect.stringMatching(/"owner".*not a valid slug/)]);
+    },
+  );
+});
+
 describe("collectEntitySummary — count-only, no bodies retained", () => {
   it("rejects the default profile (programming-error guard)", async () => {
     await expect(collectEntitySummary(root, DEFAULT_PROFILE)).rejects.toBeInstanceOf(EntityCollectError);

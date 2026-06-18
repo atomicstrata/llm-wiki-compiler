@@ -26,7 +26,7 @@
  *     pages in the UI.
  */
 
-import { readdir, readFile, lstat } from "fs/promises";
+import { readdir, readFile, lstat, open } from "fs/promises";
 import path from "path";
 import { parseFrontmatterStatus, slugify } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
@@ -132,35 +132,99 @@ export interface RawEntityScan {
 }
 
 /**
+ * The maximum number of leading bytes the metadata-only path reads when probing
+ * for a complete `---\n…\n---` frontmatter block. 64 KiB comfortably holds any
+ * realistic frontmatter; a block whose closing fence falls beyond this cap is
+ * rare enough to justify the full-read fallback rather than a larger buffer.
+ */
+const FRONTMATTER_PREFIX_CAP_BYTES = 64 * 1024;
+
+/** Build a `RawEntityScan` from already-parsed frontmatter status + a body. */
+function scanFromParsed(
+  filePath: string,
+  stem: string,
+  parsed: ReturnType<typeof parseFrontmatterStatus>,
+  body: string,
+): RawEntityScan {
+  const { meta, hasFrontmatterBlock, malformedFrontmatter } = parsed;
+  const title = typeof meta.title === "string" && meta.title.length > 0;
+  return {
+    stem,
+    filePath,
+    frontmatter: meta,
+    body,
+    parseStatus: { hasFrontmatterBlock, malformedFrontmatter, hasTitle: title, orphaned: meta.orphaned === true },
+  };
+}
+
+/**
+ * Read only a bounded leading PREFIX of `filePath` (up to
+ * {@link FRONTMATTER_PREFIX_CAP_BYTES}) via a single `fs.open` + bounded read,
+ * returning its UTF-8 decoding alongside whether the whole file fit in the cap.
+ * The metadata-only path uses this to avoid paying full-body I/O on every poll.
+ */
+async function readBoundedPrefix(filePath: string): Promise<{ text: string; complete: boolean }> {
+  const handle = await open(filePath, "r");
+  try {
+    const buffer = Buffer.allocUnsafe(FRONTMATTER_PREFIX_CAP_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, FRONTMATTER_PREFIX_CAP_BYTES, 0);
+    return { text: buffer.toString("utf-8", 0, bytesRead), complete: bytesRead < FRONTMATTER_PREFIX_CAP_BYTES };
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Metadata-only read: parse frontmatter from a bounded prefix WITHOUT reading
+ * the whole file. Returns a body-less scan when a COMPLETE frontmatter block
+ * (or no block at all) is decided within the prefix; returns `null` when the
+ * closing fence is not yet visible AND the file exceeds the cap, signalling the
+ * caller to fall back to a full read so behaviour is never wrong.
+ */
+async function readMetadataOnlyScan(filePath: string, stem: string): Promise<RawEntityScan | null> {
+  const { text, complete } = await readBoundedPrefix(filePath);
+  const parsed = parseFrontmatterStatus(text);
+  // A complete prefix is authoritative. A truncated prefix is only trustworthy
+  // when a closing fence was already found — otherwise the real block may close
+  // past the cap, so we must fall back to the full read.
+  if (complete || parsed.hasFrontmatterBlock) return scanFromParsed(filePath, stem, parsed, "");
+  return null;
+}
+
+/**
  * Read one confirmed-confined `.md` file into a `RawEntityScan`. Returns null
  * only when the file cannot be read; every parse-level problem (missing
  * frontmatter, malformed YAML, missing title, orphaned flag) is preserved as
  * a `parseStatus` flag so callers decide. The `stem` is passed through raw.
  *
- * The frontmatter is ALWAYS parsed (slug/field-contract checks need it); the
- * body is retained only when `includeBody` is true. A count-only caller passes
- * `false` so a large project's bodies are never held in memory just to tally.
+ * When `includeBody` is true the whole file is read. When false (count-only
+ * callers), a bounded frontmatter-only prefix read is attempted first so a large
+ * project's bodies are never read or held in memory just to tally; the produced
+ * `meta`/`parseStatus` are BYTE-IDENTICAL to the full-read path, and a file
+ * whose frontmatter exceeds the prefix cap transparently falls back to a full
+ * read so behaviour is never wrong.
  */
 async function readEntityScan(
   filePath: string,
   stem: string,
   includeBody: boolean,
 ): Promise<RawEntityScan | null> {
+  if (!includeBody) {
+    try {
+      const metadataScan = await readMetadataOnlyScan(filePath, stem);
+      if (metadataScan) return metadataScan;
+    } catch {
+      return null;
+    }
+  }
   let raw: string;
   try {
     raw = await readFile(filePath, "utf-8");
   } catch {
     return null;
   }
-  const { meta, body, hasFrontmatterBlock, malformedFrontmatter } = parseFrontmatterStatus(raw);
-  const title = typeof meta.title === "string" && meta.title.length > 0;
-  return {
-    stem,
-    filePath,
-    frontmatter: meta,
-    body: includeBody ? body : "",
-    parseStatus: { hasFrontmatterBlock, malformedFrontmatter, hasTitle: title, orphaned: meta.orphaned === true },
-  };
+  const parsed = parseFrontmatterStatus(raw);
+  return scanFromParsed(filePath, stem, parsed, includeBody ? parsed.body : "");
 }
 
 /**
