@@ -15,10 +15,10 @@
  */
 
 import { loadProfile } from "./load.js";
-import { collectEntityPages } from "./collect.js";
+import { collectEntityPages, collectEntitySummary } from "./collect.js";
 import { DEFAULT_PROFILE } from "./default.js";
 import { profileDigest } from "./digest.js";
-import type { ProfilePack, EntityPage, LoadedProfile } from "./types.js";
+import type { EntityPage, LoadedProfile } from "./types.js";
 
 /**
  * Load the active profile and return it ONLY when it is a non-default profile;
@@ -56,19 +56,6 @@ export interface ProfileSummaryBlock {
 }
 
 /**
- * Tally entity pages per declared entity type for a non-default profile.
- *
- * Seeds every declared entity type at zero so a declared-but-empty type still
- * reports `0` (rather than being absent), then tallies the collected pages.
- */
-function countByEntityType(profile: ProfilePack, pages: EntityPage[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const entityType of Object.keys(profile.entities)) counts[entityType] = 0;
-  for (const page of pages) counts[page.entityType] = (counts[page.entityType] ?? 0) + 1;
-  return counts;
-}
-
-/**
  * Collect a loaded non-default profile's entity pages alongside its problems
  * already flattened to human-readable messages — the shared read-side step
  * every additive profile block performs before shaping its own envelope.
@@ -89,6 +76,11 @@ export async function collectEntityPagesWithMessages(
  * Resolve the active profile and, for a NON-DEFAULT profile only, build the
  * shared summary block (profileId, digest, per-type entity counts, problems).
  *
+ * Uses the COUNT-ONLY {@link collectEntitySummary} so the status/viewer surfaces
+ * never build or retain content `EntityPage`s (with bodies) just to tally — the
+ * counts and problem messages are identical to the content path, which shares
+ * the same per-scan validation.
+ *
  * @param root - Absolute project root directory.
  * @returns The summary block for a non-default profile, or `undefined` for the
  *   built-in default so the caller omits the `profile` key entirely.
@@ -98,11 +90,12 @@ export async function collectProfileSummary(
 ): Promise<ProfileSummaryBlock | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
-  const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
+  const { counts, problems } = await collectEntitySummary(root, loaded.profile);
+  const messages = problems.map((p) => p.message);
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
-    entityCounts: countByEntityType(loaded.profile, pages),
+    entityCounts: counts,
     ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }

@@ -136,8 +136,16 @@ export interface RawEntityScan {
  * only when the file cannot be read; every parse-level problem (missing
  * frontmatter, malformed YAML, missing title, orphaned flag) is preserved as
  * a `parseStatus` flag so callers decide. The `stem` is passed through raw.
+ *
+ * The frontmatter is ALWAYS parsed (slug/field-contract checks need it); the
+ * body is retained only when `includeBody` is true. A count-only caller passes
+ * `false` so a large project's bodies are never held in memory just to tally.
  */
-async function readEntityScan(filePath: string, stem: string): Promise<RawEntityScan | null> {
+async function readEntityScan(
+  filePath: string,
+  stem: string,
+  includeBody: boolean,
+): Promise<RawEntityScan | null> {
   let raw: string;
   try {
     raw = await readFile(filePath, "utf-8");
@@ -150,7 +158,7 @@ async function readEntityScan(filePath: string, stem: string): Promise<RawEntity
     stem,
     filePath,
     frontmatter: meta,
-    body,
+    body: includeBody ? body : "",
     parseStatus: { hasFrontmatterBlock, malformedFrontmatter, hasTitle: title, orphaned: meta.orphaned === true },
   };
 }
@@ -174,6 +182,16 @@ export interface EntityDirScan {
   dirStatus: EntityDirStatus;
 }
 
+/** Options for {@link scanEntityDir}. */
+export interface ScanEntityDirOptions {
+  /**
+   * When true (the default), each scan retains its markdown body. When false,
+   * frontmatter is still parsed but the body is dropped (`body: ""`) so a
+   * count-only caller never holds O(total bytes) of page content in memory.
+   */
+  includeBody?: boolean;
+}
+
 /**
  * The SINGLE raw directory scanner shared by the default and profile-aware
  * collectors. Walks one entity directory and returns one `RawEntityScan` per
@@ -191,8 +209,15 @@ export interface EntityDirScan {
  *
  * @param root - Project root (raw; canonicalized internally).
  * @param dir - Repo-relative directory for this entity type (e.g. `wiki/concepts`).
+ * @param opts - When `includeBody` is false, bodies are dropped for a count-only
+ *   scan; defaults to retaining bodies so existing callers are byte-unchanged.
  */
-export async function scanEntityDir(root: string, dir: string): Promise<EntityDirScan> {
+export async function scanEntityDir(
+  root: string,
+  dir: string,
+  opts: ScanEntityDirOptions = {},
+): Promise<EntityDirScan> {
+  const includeBody = opts.includeBody ?? true;
   const canonicalRoot = await safeRealpath(root);
   if (!canonicalRoot) return { scans: [], dirStatus: "invalid" };
   const expectedDir = path.join(canonicalRoot, dir);
@@ -208,7 +233,7 @@ export async function scanEntityDir(root: string, dir: string): Promise<EntityDi
   for (const file of files.filter((f) => f.endsWith(".md"))) {
     const resolved = await safeRealpath(path.join(expectedDir, file));
     if (!resolved || !isInsideDir(resolved, expectedDir)) continue;
-    const scan = await readEntityScan(resolved, file.replace(/\.md$/, ""));
+    const scan = await readEntityScan(resolved, file.replace(/\.md$/, ""), includeBody);
     if (scan) scans.push(scan);
   }
   return { scans, dirStatus: "ok" };
