@@ -14,12 +14,6 @@
     { "file": "src/utils/constants.ts", "exports": ["EMBED_BATCH_SIZES", "EMBED_BATCH_SIZE_FALLBACK", "EMBED_BATCH_CAPS", "EMBED_BATCH_CAP_FALLBACK", "ENV_EMBED_BATCH_SIZE", "ENV_EMBED_STRICT"] },
     { "file": "src/utils/embeddings-batch.ts", "exports": ["resolveEmbedBatchSize", "embedTextBatch"] }
   ],
-  "health": {
-    "ignore": ["src/utils/embeddings-validate.ts", "src/utils/embeddings-batch.ts"]
-  },
-  "duplicates": {
-    "ignore": ["test/embeddings-batch-failure.test.ts"]
-  },
   "overrides": [
     {
       "files": ["src/providers/*.ts", "src/utils/provider-guard.ts"],

@@ -122,6 +122,25 @@ async function sequentialEmbed(
 }
 
 /**
+ * One retry of the native batch call; falls back to sequential on another
+ * transient or oversized error, re-throws on anything else (integrity, auth, unknown).
+ */
+async function retryThenFallback(
+  provider: LLMProvider,
+  sub: string[],
+  expectedDim?: number,
+): Promise<number[][]> {
+  try {
+    return await validatedBatch(provider, sub, expectedDim);
+  } catch (retryErr) {
+    if (isTransient(retryErr) || isRequestTooLarge(retryErr)) {
+      return sequentialEmbed(provider, sub, expectedDim);
+    }
+    throw retryErr; // integrity / auth / unknown — surface it
+  }
+}
+
+/**
  * Embed one sub-batch with the fallback policy:
  *   - no embedBatch         → sequential
  *   - integrity / auth      → throw (never fall back)
@@ -142,16 +161,7 @@ async function embedSubBatch(
   } catch (err) {
     if (isIntegrityError(err) || isAuthError(err)) throw err;
     if (isRequestTooLarge(err)) return sequentialEmbed(provider, sub, expectedDim);
-    if (isTransient(err)) {
-      try {
-        return await validatedBatch(provider, sub, expectedDim);
-      } catch (retryErr) {
-        if (isTransient(retryErr) || isRequestTooLarge(retryErr)) {
-          return sequentialEmbed(provider, sub, expectedDim);
-        }
-        throw retryErr; // integrity / auth / unknown — surface it
-      }
-    }
+    if (isTransient(err)) return retryThenFallback(provider, sub, expectedDim);
     throw err; // unknown — surface it
   }
 }

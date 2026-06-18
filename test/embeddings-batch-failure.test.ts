@@ -14,6 +14,19 @@ function makeProvider(over: Partial<LLMProvider>): LLMProvider {
   } as LLMProvider;
 }
 
+/** Assert a single-item batch returned one VEC and call counts match expectations. */
+async function assertSingleResult(
+  p: LLMProvider,
+  counts: { batchCalls: number; embedCalls: number },
+  expectedBatch: number,
+  expectedEmbed: number,
+): Promise<void> {
+  const out = await embedTextBatch(p, ["a"], 2);
+  expect(out).toEqual([VEC]);
+  expect(counts.batchCalls).toBe(expectedBatch);
+  expect(counts.embedCalls).toBe(expectedEmbed);
+}
+
 describe("embedTextBatch fallback policy", () => {
   it("sub-batches and preserves order", async () => {
     const seen: string[][] = [];
@@ -59,27 +72,21 @@ describe("embedTextBatch fallback policy", () => {
   });
 
   it("transient -> one retry, then sequential", async () => {
-    let batchCalls = 0, embedCalls = 0;
+    const counts = { batchCalls: 0, embedCalls: 0 };
     const p = makeProvider({
-      embed: async () => { embedCalls++; return VEC; },
-      embedBatch: async () => { batchCalls++; throw withStatus(429); },
+      embed: async () => { counts.embedCalls++; return VEC; },
+      embedBatch: async () => { counts.batchCalls++; throw withStatus(429); },
     });
-    const out = await embedTextBatch(p, ["a"], 2);
-    expect(out).toEqual([VEC]);
-    expect(batchCalls).toBe(2); // initial + one retry
-    expect(embedCalls).toBe(1); // then sequential
+    await assertSingleResult(p, counts, 2, 1); // initial + one retry, then sequential
   });
 
   it("transient that succeeds on retry does not fall back", async () => {
-    let batchCalls = 0, embedCalls = 0;
+    const counts = { batchCalls: 0, embedCalls: 0 };
     const p = makeProvider({
-      embed: async () => { embedCalls++; return VEC; },
-      embedBatch: async (t) => { batchCalls++; if (batchCalls === 1) throw withStatus(503); return t.map(() => VEC); },
+      embed: async () => { counts.embedCalls++; return VEC; },
+      embedBatch: async (t) => { counts.batchCalls++; if (counts.batchCalls === 1) throw withStatus(503); return t.map(() => VEC); },
     });
-    const out = await embedTextBatch(p, ["a"], 2);
-    expect(out).toEqual([VEC]);
-    expect(batchCalls).toBe(2);
-    expect(embedCalls).toBe(0);
+    await assertSingleResult(p, counts, 2, 0); // retry succeeds, no sequential fallback
   });
 
   it("transient then an UNKNOWN error on retry throws (no fallback)", async () => {

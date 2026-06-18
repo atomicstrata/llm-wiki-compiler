@@ -39,6 +39,44 @@ export function assertEveryVectorValid(vectors: unknown[], expectedDim?: number)
   for (const v of vectors) assertVectorValid(v, dim);
 }
 
+/** Fill output slots by explicit index field; throws on out-of-range or duplicate index. */
+function fillIndexedSlots(
+  data: Array<{ index?: number; embedding?: unknown }>,
+  out: (number[] | undefined)[],
+  n: number,
+): void {
+  for (const d of data) {
+    const i = d.index as number;
+    if (!Number.isInteger(i) || i < 0 || i >= n) {
+      throw new EmbeddingIntegrityError(`response index out of range: ${i}`);
+    }
+    if (out[i] !== undefined) {
+      throw new EmbeddingIntegrityError(`duplicate response index: ${i}`);
+    }
+    assertVectorValid(d.embedding);
+    out[i] = d.embedding as number[];
+  }
+}
+
+/** Fill output slots in positional order (no index field present). */
+function fillPositionalSlots(
+  data: Array<{ index?: number; embedding?: unknown }>,
+  out: (number[] | undefined)[],
+  n: number,
+): void {
+  for (let i = 0; i < n; i++) {
+    assertVectorValid(data[i].embedding);
+    out[i] = data[i].embedding as number[];
+  }
+}
+
+/** Throw if any slot is still unfilled (explicit loop avoids sparse-hole blindspot). */
+function assertAllSlotsFilled(out: (number[] | undefined)[], n: number): void {
+  for (let i = 0; i < n; i++) {
+    if (out[i] === undefined) throw new EmbeddingIntegrityError(`response did not fill slot ${i}`);
+  }
+}
+
 /**
  * Reorder provider response items into input order and validate each embedding.
  * OpenAI/Voyage return `{ index, embedding }`. Rules:
@@ -62,28 +100,8 @@ export function normalizeEmbeddingData(
   }
 
   const out: (number[] | undefined)[] = new Array(n);
-
-  if (indexed === n) {
-    for (const d of data) {
-      const i = d.index as number;
-      if (!Number.isInteger(i) || i < 0 || i >= n) {
-        throw new EmbeddingIntegrityError(`response index out of range: ${i}`);
-      }
-      if (out[i] !== undefined) {
-        throw new EmbeddingIntegrityError(`duplicate response index: ${i}`);
-      }
-      assertVectorValid(d.embedding);
-      out[i] = d.embedding as number[];
-    }
-  } else {
-    for (let i = 0; i < n; i++) {
-      assertVectorValid(data[i].embedding);
-      out[i] = data[i].embedding as number[];
-    }
-  }
-
-  for (let i = 0; i < n; i++) {
-    if (out[i] === undefined) throw new EmbeddingIntegrityError(`response did not fill slot ${i}`);
-  }
+  if (indexed === n) fillIndexedSlots(data, out, n);
+  else fillPositionalSlots(data, out, n);
+  assertAllSlotsFilled(out, n);
   return out as number[][];
 }
