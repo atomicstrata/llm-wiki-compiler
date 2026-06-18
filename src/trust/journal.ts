@@ -31,6 +31,9 @@ import { LLMWIKI_DIR } from "../utils/constants.js";
 /** Sentinel recorded when a target did not exist before the batch. */
 const ABSENT = { absent: true } as const;
 
+/** How many base-36 random characters to append to a batch id for uniqueness. */
+const BATCH_ID_RANDOM_CHARS = 6;
+
 /** The pre-state of one target: prior file bytes, or the absent marker. */
 export type PreState = { absent: true } | { absent: false; content: string };
 
@@ -98,7 +101,8 @@ async function persist(batch: JournalBatch): Promise<void> {
  * @returns The opened, persisted {@link JournalBatch}.
  */
 export async function openBatch(root: string): Promise<JournalBatch> {
-  const batchId = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  const random = Math.random().toString(36).slice(2, 2 + BATCH_ID_RANDOM_CHARS);
+  const batchId = `${Date.now()}-${process.pid}-${random}`;
   const batch: JournalBatch = { batchId, root, status: "pending", entries: [] };
   await persist(batch);
   return batch;
@@ -179,6 +183,12 @@ async function resolvePending(batch: JournalBatch): Promise<void> {
  * Idempotent: reverting a pending batch deletes its journal file, so a second
  * call finds no pending batches and does nothing. A missing journal directory
  * is treated as "nothing pending".
+ *
+ * LOCKING: this function does NOT acquire the project lock — the CALLER must
+ * already hold it so replay runs under the same mutual exclusion as the batch it
+ * recovers (see {@link applyApprovedMutations}, which calls replay under the
+ * held lock). A future standalone startup hook must acquire the lock itself
+ * before calling this.
  *
  * @param root - Absolute project root whose journal directory is replayed.
  */

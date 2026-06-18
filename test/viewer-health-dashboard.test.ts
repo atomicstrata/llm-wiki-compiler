@@ -40,6 +40,51 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** Build a /api/pages responder carrying a given stateStatus, plus /api/health. */
+function pagesResponder(stateStatus: string): FetchResponder {
+  return (url) => {
+    if (url.endsWith("/api/pages")) {
+      return jsonResponse({
+        project: { title: "demo" },
+        counts: {},
+        pages: [],
+        recentPages: [],
+        index: { available: false },
+        stateStatus,
+      });
+    }
+    if (url.endsWith("/api/health")) return jsonResponse({ stateStatus });
+    return null;
+  };
+}
+
+/** Mount the viewer with a given bootstrap stateStatus and return its document. */
+async function mountWithStateStatus(stateStatus: string): Promise<Document> {
+  const { dom } = await mountViewerDom(EMPTY_PAGES, pagesResponder(stateStatus));
+  return dom.window.document;
+}
+
+describe("state-status banner — corrupt and too-new", () => {
+  it("renders the corrupt banner when stateStatus is corrupt", async () => {
+    const doc = await mountWithStateStatus("corrupt");
+    const banner = doc.querySelector(".corrupt-state-banner");
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain("corrupt");
+  });
+
+  it("renders the too-new banner when stateStatus is too-new", async () => {
+    const doc = await mountWithStateStatus("too-new");
+    const banner = doc.querySelector(".corrupt-state-banner");
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain("newer version of llmwiki");
+  });
+
+  it("renders no banner when stateStatus is ok", async () => {
+    const doc = await mountWithStateStatus("ok");
+    expect(doc.querySelector(".corrupt-state-banner")).toBeNull();
+  });
+});
+
 describe("health dashboard — stale and orphaned counts", () => {
   it("renders the 'Stale pages' row with the count from /api/health", async () => {
     const main = await renderHealthPane({ stale: 3, orphaned: 0 });

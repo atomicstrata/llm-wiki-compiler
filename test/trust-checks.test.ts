@@ -123,17 +123,18 @@ describe("runMandatoryPageChecks (Invariant-3 floor)", () => {
     expect(results.every((r) => typeof r.code === "string")).toBe(true);
   });
 
-  it("runs ALL checks even when a profile tries to disable some", async () => {
-    // A profile-shaped object asking to drop checks is structurally inert: the
-    // runner accepts ONLY PageWriteContext, so there is no parameter through
-    // which the profile could remove a core check. We attach it to the context
-    // and confirm every mandatory check still ran on the failing input.
-    const profileTryingToDisable = { disableChecks: ["path-escape", "resource-limit"] };
-    const failing = { ...ctx("../escape.md", "x".repeat(MAX_SOURCE_CHARS + 1)), profileTryingToDisable };
+  it("runs EVERY mandatory check — no profile parameter can remove one", async () => {
+    // The Invariant-3 floor is enforced by TYPE, not convention:
+    // `runMandatoryPageChecks(ctx: PageWriteContext)` takes ONLY the page-write
+    // context — there is no predicate, allow/deny list, or profile argument in
+    // its signature through which a profile could gate or drop a core check.
+    // So the proof is simply that ALL mandatory checks always run, even on an
+    // input that fails several of them at once.
+    const failing = ctx("../escape.md", "x".repeat(MAX_SOURCE_CHARS + 1));
     const results = await runMandatoryPageChecks(failing);
+    expect(results).toHaveLength(mandatoryPageChecks.length);
     const blocked = results.filter((r) => r.verdict === "block").map((r) => r.code);
     expect(blocked).toContain("path-escape");
     expect(blocked).toContain("resource-limit");
-    expect(results).toHaveLength(mandatoryPageChecks.length);
   });
 });

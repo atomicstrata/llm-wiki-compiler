@@ -51,21 +51,14 @@ function enumerateVerdictSets(maxSize: number): TrustVerdict[][] {
 const ALL_SETS = enumerateVerdictSets(3);
 
 describe("composeTrustDecision totality", () => {
-  it("returns a defined decision for every verdict set × routing", () => {
+  it("returns a defined decision (never throwing) for every verdict set × routing", () => {
+    // Totality: across the full ALL_SETS × ROUTINGS product the function always
+    // resolves to a DECISIONS member. A returned, defined decision also proves
+    // it did not throw, so the two properties fold into this one enumeration.
     for (const set of ALL_SETS) {
       for (const reviewRouted of ROUTINGS) {
         const decision = composeTrustDecision(set.map(check), { reviewRouted });
         expect(DECISIONS).toContain(decision);
-      }
-    }
-  });
-
-  it("never throws across the full enumeration", () => {
-    for (const set of ALL_SETS) {
-      for (const reviewRouted of ROUTINGS) {
-        expect(() =>
-          composeTrustDecision(set.map(check), { reviewRouted })
-        ).not.toThrow();
       }
     }
   });

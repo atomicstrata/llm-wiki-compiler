@@ -21,8 +21,15 @@ import { writeFile, readFile } from "fs/promises";
 import path from "path";
 import { planPageMutation, type PlannedMutation } from "../src/trust/planner.js";
 import { applyApprovedMutations } from "../src/trust/executor.js";
-import { replayJournal } from "../src/trust/journal.js";
-import { WIKI, makeTrustRoot, cleanupTrustRoot, expectRevertedToPreState } from "./trust/fixture.js";
+import { replayJournal, openBatch, recordPreState } from "../src/trust/journal.js";
+import { entityId } from "../src/profile/identity.js";
+import {
+  WIKI,
+  makeTrustRoot,
+  cleanupTrustRoot,
+  expectRevertedToPreState,
+  existsUnder,
+} from "./trust/fixture.js";
 
 let root: string;
 const GOOD_BODY = "---\ntitle: Ok\n---\n\nbody\n";
@@ -118,7 +125,7 @@ describe("applyApprovedMutations — atomicity under fault injection", () => {
     const update1: PlannedMutation = {
       ...create2,
       operation: "update",
-      target: { entityType: "concepts", slug: "exists", id: create2.target.id },
+      target: { entityType: "concepts", slug: "exists", id: entityId("concepts", "exists") },
     };
 
     // Fault seam: a writeOne hook that throws on the SECOND target only.
@@ -136,5 +143,43 @@ describe("applyApprovedMutations — atomicity under fault injection", () => {
     await replayJournal(root);
 
     await expectRevertedToPreState(root, t1, "OLD-1", t2);
+  });
+});
+
+describe("applyApprovedMutations — self-enforcing replay on startup", () => {
+  it("reverts a dangling pending batch from a prior crash before the new batch", async () => {
+    // Simulate a prior crash: open a pending batch, record a target's pre-state,
+    // then "write" a post-state without committing — exactly a dangling journal.
+    const danglingRel = `${WIKI}/crashed.md`;
+    const danglingAbs = path.join(root, danglingRel);
+    await writeFile(danglingAbs, "PRE-CRASH");
+    const stale = await openBatch(root);
+    await recordPreState(stale, danglingAbs);
+    await writeFile(danglingAbs, "MID-CRASH-POST-STATE"); // uncommitted post-state
+
+    // A fresh, UNRELATED clean batch must trigger replay under the lock first.
+    const clean = await plannedFor("unrelated");
+    await applyApprovedMutations(root, [clean]);
+
+    // Replay ran: the dangling target was reverted to its pre-crash bytes...
+    expect(await readFile(danglingAbs, "utf-8")).toBe("PRE-CRASH");
+    // ...and the new batch applied and committed normally.
+    expect(await readFile(path.join(root, WIKI, "unrelated.md"), "utf-8")).toBe(GOOD_BODY);
+  });
+});
+
+describe("applyApprovedMutations — executor re-asserts slug safety", () => {
+  it("throws invalid-identity and writes nothing for a hand-built `..` slug", async () => {
+    const base = await plannedFor("safe");
+    // Hand-built mutation whose id carries a traversal slug — bypasses the
+    // planner's checkIdentitySafe guard, so the executor must re-validate.
+    const evil: PlannedMutation = {
+      ...base,
+      target: { entityType: "concepts", slug: "../escape", id: "concepts/../escape" as never },
+    };
+    await expect(applyApprovedMutations(root, [evil])).rejects.toThrow(/invalid-identity/);
+    // Nothing escaped the root: no file was created outside wiki/concepts.
+    expect(await existsUnder(root, "escape.md")).toBe(false);
+    expect(await existsUnder(root, "wiki/escape.md")).toBe(false);
   });
 });

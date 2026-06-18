@@ -131,8 +131,10 @@ function checkIdentitySafe(entityType: string, slug: string): TrustCheckResult {
 }
 
 /**
- * Build the single live-write mutation for an approved page. Chooses `create`
- * for a free target and `update` when the target already exists on disk.
+ * Build the single live-write mutation for an approved page. Phase 2 page
+ * mutations are CREATE-ONLY: a colliding (already-existing) target is blocked
+ * upstream by `checkTargetCollision`, so an approved page is always a fresh
+ * `create`. In-place `update` of an existing page is a later phase.
  */
 async function buildPageMutation(input: PlanPageInput, decision: TrustDecision): Promise<PlannedMutation> {
   const id = entityId(input.entityType, input.slug);

@@ -27,7 +27,14 @@ import { lstat } from "fs/promises";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { confineUnderRoot } from "../utils/path-confine.js";
-import { openBatch, recordPreState, commitBatch, type JournalBatch } from "./journal.js";
+import {
+  openBatch,
+  recordPreState,
+  commitBatch,
+  replayJournal,
+  type JournalBatch,
+} from "./journal.js";
+import { parseEntityId } from "../profile/identity.js";
 import type { PlannedMutation } from "./planner.js";
 
 /** A single page write. Injectable so tests can fault-inject a failure. */
@@ -64,6 +71,19 @@ class CreateCollisionError extends Error {
   }
 }
 
+/**
+ * Thrown when a mutation's target identity is not slug-safe. The planner's
+ * `checkIdentitySafe` guard only protects the planner path; a hand-built
+ * {@link PlannedMutation} bypasses it, so the executor re-asserts the identity
+ * before deriving a path. Callers match on the typed `invalid-identity:` prefix.
+ */
+class InvalidIdentityError extends Error {
+  constructor(message: string) {
+    super(`invalid-identity: ${message}`);
+    this.name = "InvalidIdentityError";
+  }
+}
+
 /** True when something exists at `abs` (regular file, dir, or symlink). */
 async function targetExists(abs: string): Promise<boolean> {
   try {
@@ -74,9 +94,23 @@ async function targetExists(abs: string): Promise<boolean> {
   }
 }
 
-/** The wiki-relative page path for a page mutation's target. */
+/**
+ * The wiki-relative page path for a page mutation's target.
+ *
+ * Defense-in-depth: the entityType/slug are re-validated by re-parsing the
+ * branded `target.id` (which throws on a non-slug-safe slug half), so a
+ * hand-built mutation carrying a `..` slug is rejected with a typed
+ * {@link InvalidIdentityError} BEFORE `path.join` could collapse it into a wrong
+ * in-root location — the planner's `checkIdentitySafe` guard is not on this path.
+ */
 function pageRelPath(mutation: PlannedMutation): string {
-  const { entityType, slug } = mutation.target;
+  let entityType: string;
+  let slug: string;
+  try {
+    ({ entityType, slug } = parseEntityId(mutation.target.id));
+  } catch (err) {
+    throw new InvalidIdentityError((err as Error).message);
+  }
   return path.join("wiki", entityType, `${slug}.md`);
 }
 
@@ -114,6 +148,11 @@ async function applyBatch(
  * `not-implemented`. A mid-batch failure leaves a `pending` journal for
  * {@link replayJournal} to revert to the full pre-state.
  *
+ * Self-recovery: BEFORE opening the new batch (but AFTER the lock is held), it
+ * runs {@link replayJournal}, so a `pending` journal left dangling by a prior
+ * crash is reverted under the same lock before this batch begins — the atomicity
+ * guarantee no longer depends on an external caller invoking replay.
+ *
  * @param root - Absolute project root.
  * @param planned - The approved mutations to apply.
  * @param opts - Optional injectable write primitive (for fault injection).
@@ -127,6 +166,8 @@ export async function applyApprovedMutations(
   const acquired = await acquireLock(root);
   if (!acquired) throw new Error("could not acquire project lock for mutation batch");
   try {
+    // Recover any dangling pending batch from a prior crash under the held lock.
+    await replayJournal(root);
     const batch = await openBatch(root);
     await applyBatch(root, planned, batch, writeOne);
     await commitBatch(batch);

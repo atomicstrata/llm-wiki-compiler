@@ -5,6 +5,17 @@
  *
  * Uses atomic writes (write to .tmp, then rename) to prevent corruption
  * from interrupted compiles.
+ *
+ * VERSION GUARD (Phase 2, v2-aware reads): {@link KNOWN_STATE_VERSION} is the
+ * highest schema version this build understands. {@link readStateClassified}
+ * classifies a read into a {@link StateStatus} — `ok` / `missing` / `corrupt` /
+ * `too-new` — without side effects, so read-only surfaces (freshness, lint,
+ * view, export) can branch on the outcome. A `too-new` file (one whose `version`
+ * exceeds the known version) is the FAIL-CLOSED case: the parsed state is carried
+ * intact, nothing is written, and the recovering {@link readState} throws
+ * {@link StateTooNewError} rather than starting fresh — which would clobber the
+ * forward-incompatible layout on the next write. A `corrupt` (unparseable) file
+ * is backed up to `.bak` and recovered as empty state instead.
  */
 
 import { readFile, writeFile, rename, mkdir, copyFile } from "fs/promises";
