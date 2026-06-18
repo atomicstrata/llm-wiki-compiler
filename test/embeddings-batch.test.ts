@@ -67,6 +67,12 @@ describe("normalizeEmbeddingData", () => {
     expect(() => normalizeEmbeddingData([{ index: 0, embedding: [NaN] }, { index: 1, embedding: [2] }], 2))
       .toThrow(EmbeddingIntegrityError);
   });
+  it("classifies a null/non-object response item as integrity, not a raw TypeError", () => {
+    expect(() => normalizeEmbeddingData([null as unknown as { embedding?: unknown }], 1))
+      .toThrow(EmbeddingIntegrityError);
+    expect(() => normalizeEmbeddingData([{ index: 0, embedding: [1] }, null as unknown as { embedding?: unknown }], 2))
+      .toThrow(EmbeddingIntegrityError);
+  });
 });
 
 describe("resolveEmbedBatchSize", () => {

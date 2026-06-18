@@ -78,6 +78,22 @@ function assertAllSlotsFilled(out: (number[] | undefined)[], n: number): void {
 }
 
 /**
+ * Validate that every response item is a non-null object and return how many
+ * carry an `index`. Done before any field access so a malformed item (e.g.
+ * `null`) is classified as an integrity error, not a raw TypeError (unknown).
+ */
+function countIndexedItems(data: Array<{ index?: number; embedding?: unknown }>): number {
+  let indexed = 0;
+  for (const d of data) {
+    if (d === null || typeof d !== "object") {
+      throw new EmbeddingIntegrityError("response item is not an object");
+    }
+    if (d.index !== undefined) indexed++;
+  }
+  return indexed;
+}
+
+/**
  * Reorder provider response items into input order and validate each embedding.
  * OpenAI/Voyage return `{ index, embedding }`. Rules:
  *   - cardinality must equal n;
@@ -94,7 +110,7 @@ export function normalizeEmbeddingData(
   if (!Array.isArray(data) || data.length !== n) {
     throw new EmbeddingIntegrityError(`cardinality: got ${data?.length} vectors for ${n} inputs`);
   }
-  const indexed = data.filter((d) => d.index !== undefined).length;
+  const indexed = countIndexedItems(data);
   if (indexed !== 0 && indexed !== n) {
     throw new EmbeddingIntegrityError("mixed indexed/unindexed response items");
   }
