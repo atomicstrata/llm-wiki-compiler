@@ -16,53 +16,27 @@
  *     and reranking before final page selection.
  */
 
-import { readFile, readdir } from "fs/promises";
-import { existsSync } from "fs";
+import { readdir } from "fs/promises";
 import path from "path";
-import { getProvider, getActiveProviderName } from "./provider.js";
-import { atomicWrite, safeReadFile, parseFrontmatter } from "./markdown.js";
+import { getProvider } from "./provider.js";
+import { safeReadFile, parseFrontmatter } from "./markdown.js";
 import {
   CONCEPTS_DIR,
   QUERIES_DIR,
-  EMBEDDINGS_FILE,
   EMBEDDING_TOP_K,
-  EMBEDDING_MODELS,
 } from "./constants.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import * as output from "./output.js";
-
-/** Current store version; bumped from 1 → 2 when chunk entries were added. */
-const STORE_VERSION = 2 as const;
-
-/** A single embedded page record. */
-export interface EmbeddingEntry {
-  slug: string;
-  title: string;
-  summary: string;
-  vector: number[];
-  updatedAt: string;
-}
-
-/** A single embedded chunk drawn from a page body. */
-export interface ChunkEmbeddingEntry {
-  slug: string;
-  title: string;
-  chunkIndex: number;
-  contentHash: string;
-  text: string;
-  vector: number[];
-  updatedAt: string;
-}
-
-/** Root shape of .llmwiki/embeddings.json. */
-export interface EmbeddingStore {
-  version: 1 | 2;
-  model: string;
-  dimensions: number;
-  entries: EmbeddingEntry[];
-  /** Optional in v2 stores; absent in v1 stores. */
-  chunks?: ChunkEmbeddingEntry[];
-}
+import {
+  STORE_VERSION,
+  type EmbeddingEntry,
+  type ChunkEmbeddingEntry,
+  type EmbeddingStore,
+  readEmbeddingStore,
+  writeEmbeddingStore,
+  isStoreEmpty,
+  resolveEmbeddingModel,
+} from "./embeddings-store.js";
 
 /** A retrievable page record on disk (concepts/ or queries/). */
 interface PageRecord {
@@ -118,20 +92,6 @@ export function findTopKChunks(
   }));
   scored.sort((left, right) => right.score - left.score);
   return scored.slice(0, k);
-}
-
-/** Read .llmwiki/embeddings.json, returning null if it does not exist. */
-export async function readEmbeddingStore(root: string): Promise<EmbeddingStore | null> {
-  const filePath = path.join(root, EMBEDDINGS_FILE);
-  if (!existsSync(filePath)) return null;
-  const raw = await readFile(filePath, "utf-8");
-  return JSON.parse(raw) as EmbeddingStore;
-}
-
-/** Atomically persist the embedding store. */
-export async function writeEmbeddingStore(root: string, store: EmbeddingStore): Promise<void> {
-  const filePath = path.join(root, EMBEDDINGS_FILE);
-  await atomicWrite(filePath, JSON.stringify(store, null, 2));
 }
 
 /**
@@ -272,16 +232,6 @@ function warnStaleEmbeddingStore(storedModel: string, activeModel: string): void
 /** Test-only hook: clear the warned-pair cache so each test sees a fresh warning. */
 export function resetStaleEmbeddingWarnings(): void {
   warnedStaleModels.clear();
-}
-
-/** Choose the active embedding model name, defaulting to anthropic's voyage model. */
-export function resolveEmbeddingModel(): string {
-  const providerName = getActiveProviderName();
-  const configuredModel = process.env.LLMWIKI_EMBEDDING_MODEL?.trim();
-  if (configuredModel && (providerName === "openai" || providerName === "ollama")) {
-    return configuredModel;
-  }
-  return EMBEDDING_MODELS[providerName] ?? EMBEDDING_MODELS.anthropic;
 }
 
 /** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */
@@ -434,12 +384,6 @@ async function persistRefreshedStore(
   );
 }
 
-/** Return true when a store exists on disk but has neither page nor chunk entries. */
-function isStoreEmpty(store: EmbeddingStore | null): boolean {
-  if (!store) return false;
-  return store.entries.length === 0 && (!store.chunks || store.chunks.length === 0);
-}
-
 /** Decide whether updateEmbeddings has work to do beyond a no-op. */
 function shouldRunEmbedding(
   modelChanged: boolean,
@@ -456,3 +400,12 @@ function shouldRunEmbedding(
   if (previousEntries.length > 0 && previousChunks.length === 0 && liveSlugs.size > 0) return true;
   return false;
 }
+
+export {
+  readEmbeddingStore,
+  writeEmbeddingStore,
+  resolveEmbeddingModel,
+  type EmbeddingEntry,
+  type ChunkEmbeddingEntry,
+  type EmbeddingStore,
+} from "./embeddings-store.js";
