@@ -49,6 +49,8 @@ export interface LLMProvider {
   ): Promise<string>;
   /** Return a single embedding vector for the given text. */
   embed(text: string): Promise<number[]>;
+  /** Embed multiple texts in a single provider-native request (optional). */
+  embedBatch?(texts: string[]): Promise<number[][]>;
 }
 
 const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);

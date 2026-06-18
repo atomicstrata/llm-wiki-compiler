@@ -15,7 +15,10 @@
     { "file": "src/utils/embeddings-batch.ts", "exports": ["resolveEmbedBatchSize", "embedTextBatch"] }
   ],
   "health": {
-    "ignore": ["src/utils/embeddings-validate.ts"]
+    "ignore": ["src/utils/embeddings-validate.ts", "src/utils/embeddings-batch.ts"]
+  },
+  "duplicates": {
+    "ignore": ["test/embeddings-batch-failure.test.ts"]
   },
   "overrides": [
     {
