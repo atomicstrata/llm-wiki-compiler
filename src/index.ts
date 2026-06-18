@@ -18,9 +18,14 @@ export type {
   PageDirectory,
   ListPagesOptions,
   ListPagesResult,
+  ListPagesProfileBlock,
 } from "./pages/list.js";
 
-export type { JsonExportDocument } from "./export/json-export.js";
+export type {
+  JsonExportDocument,
+  ExportJsonOptions,
+  JsonExportProfileBlock,
+} from "./export/json-export.js";
 
 export {
   ProviderUnavailableError,
@@ -53,6 +58,7 @@ export type {
   ProfilePack,
   EntityId,
   EntityPageRef,
+  EntityPageView,
   LoadedProfile,
   SlugSafe,
 } from "./profile/types.js";
