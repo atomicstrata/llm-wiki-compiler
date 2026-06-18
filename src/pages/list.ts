@@ -27,7 +27,7 @@ import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
 import { toEntityPageView } from "../profile/types.js";
-import type { EntityPageView } from "../profile/types.js";
+import type { EntityPageView, EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
 export type { PageDirectory };
@@ -64,6 +64,13 @@ export interface ListPagesOptions {
   includeBody?: boolean;
   includeArchived?: boolean;
   includeOrphaned?: boolean;
+  /**
+   * Opaque continuation cursor for the ADDITIVE profile entity section ONLY.
+   * Drives the entity window independently of the legacy `cursor` (which scopes
+   * `pages`), so the entity batch is never re-sliced or re-sent by legacy
+   * paging. Uses the SAME `limit` as the legacy section.
+   */
+  profileCursor?: string;
 }
 
 /**
@@ -75,16 +82,35 @@ export interface ListPagesOptions {
  * never an absolute `filePath`); each view's `body` is OMITTED when
  * `includeBody` is false (mirroring how the legacy `pages` block omits bodies).
  *
- * Entity-section pagination is deferred — every entity page is returned in one
- * block, regardless of the legacy `cursor`/`limit` (which still scope `pages`).
+ * The entity section is BOUNDED by `limit`: it returns at most `limit` views,
+ * deterministically sorted by `id`, with `total` reporting the full entity-page
+ * count and `cursor` carrying the offset of the NEXT batch (absent when
+ * exhausted). Drive the next batch via {@link ListPagesOptions.profileCursor},
+ * which is independent of the legacy `pages` cursor.
+ *
+ * @experimental Shape may change in a future release.
  */
 export interface ListPagesProfileBlock {
   entityPages: EntityPageView[];
+  /** Full count of entity pages across the whole non-default profile. */
+  total: number;
+  /**
+   * Opaque continuation cursor for the NEXT entity batch; absent when the
+   * entity section is exhausted. Pass back via `profileCursor`.
+   */
+  cursor?: string;
   /** Human-readable collector problems; present ONLY when non-empty. */
   problems?: string[];
 }
 
-/** Result returned by `listPages`. */
+/**
+ * Result returned by `listPages`.
+ *
+ * DX note: for a NON-DEFAULT profile the legacy `pages` array is scoped to
+ * concepts/queries (typically EMPTY for an entity-only project); the entity
+ * content lives in `profile.entityPages`. Read the entity section there, not
+ * from `pages`.
+ */
 export interface ListPagesResult {
   pages: Page[];
   /** Opaque cursor for the next page; absent when the listing is exhausted. */
@@ -92,7 +118,9 @@ export interface ListPagesResult {
   /**
    * Non-default profile entity pages, ADDITIVELY. ABSENT (undefined) for the
    * built-in default so the default envelope is byte-identical; the legacy
-   * `pages` block stays scoped to concepts/queries in both cases.
+   * `pages` block stays scoped to concepts/queries in both cases. For a
+   * non-default profile this is where the entity content lives — the legacy
+   * `pages` array is typically empty.
    */
   profile?: ListPagesProfileBlock;
 }
@@ -173,8 +201,21 @@ export async function listPages(
       a.pageDirectory.localeCompare(b.pageDirectory) || a.slug.localeCompare(b.slug),
   );
   const result = paginate(all, options);
-  const profile = await collectProfileBlock(root, options.includeBody === true);
+  const profile = await collectProfileBlock(root, options);
   return profile ? { ...result, profile } : result;
+}
+
+/**
+ * Resolve the entity-window offset from `profileCursor`. A non-integer or
+ * negative cursor is rejected rather than silently recycled (mirroring the
+ * legacy {@link paginate} cursor guard).
+ */
+function profileOffset(cursor: string | undefined): number {
+  const offset = cursor !== undefined ? Number(cursor) : 0;
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error(`invalid listPages profileCursor: ${cursor}`);
+  }
+  return offset;
 }
 
 /**
@@ -187,17 +228,46 @@ export async function listPages(
  * are not requested, mirroring how the legacy `pages` block omits bodies. Maps
  * the internal `EntityPage` to the public `EntityPageView` so the absolute
  * `filePath` never reaches the surface.
+ *
+ * BOUNDED + PAGINATED: entity pages are deterministically sorted by `id` (entity
+ * collection order is filesystem-dependent and unstable), then windowed by the
+ * SAME `limit` as the legacy section, offset by `profileCursor`. `total` reports
+ * the full count and `cursor` carries the next offset (absent when exhausted) —
+ * so a large profile no longer returns an unbounded, body-bearing payload.
  */
 async function collectProfileBlock(
   root: string,
-  includeBody: boolean,
+  options: ListPagesOptions,
 ): Promise<ListPagesProfileBlock | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
   const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
-  const entityPages = pages.map((page) => toEntityPageView(page, includeBody));
+  pages.sort((a, b) => a.id.localeCompare(b.id));
+  const includeBody = options.includeBody === true;
+  return windowEntityPages(pages, options, includeBody, messages);
+}
+
+/**
+ * Slice an already-sorted entity-page list into a bounded, cursor-paged block.
+ * A non-positive or absent limit is treated as unbounded (mirroring the legacy
+ * {@link paginate} contract); the next-batch `cursor` is the offset past the
+ * returned window, absent once the entity section is exhausted.
+ */
+function windowEntityPages(
+  pages: EntityPage[],
+  options: ListPagesOptions,
+  includeBody: boolean,
+  messages: string[],
+): ListPagesProfileBlock {
+  const offset = profileOffset(options.profileCursor);
+  const limit = options.limit && options.limit > 0 ? options.limit : pages.length;
+  const window = pages.slice(offset, offset + limit);
+  const nextOffset = offset + window.length;
+  const cursor = nextOffset < pages.length ? String(nextOffset) : undefined;
   return {
-    entityPages,
+    entityPages: window.map((page) => toEntityPageView(page, includeBody)),
+    total: pages.length,
+    ...(cursor !== undefined ? { cursor } : {}),
     ...(messages.length > 0 ? { problems: messages } : {}),
   };
 }

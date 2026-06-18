@@ -134,6 +134,8 @@ export interface EntityPage extends EntityPageRef {
  * `body` is OPTIONAL and OMITTED entirely (not blanked to `""`) when the caller
  * did not request it, so an absent body is distinguishable from a genuinely
  * empty page.
+ *
+ * @experimental Shape may change in a future release.
  */
 export interface EntityPageView {
   entityType: string;

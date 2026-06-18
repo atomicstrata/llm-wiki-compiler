@@ -53,6 +53,12 @@ describe("exportJson — non-default profile", () => {
     expectFirstNotePage(doc.profile!.entityPages[0]);
   });
 
+  it("stamps the experimental block version (distinct from schemaVersion)", async () => {
+    const doc = await exportJson(root);
+    expect(doc.profile?.version).toBe(1);
+    expect(doc.schemaVersion).toBe(1);
+  });
+
   it("leaves the legacy pages array scoped to concepts/queries", async () => {
     const doc = await exportJson(root);
     expect(doc.pages).toHaveLength(0);

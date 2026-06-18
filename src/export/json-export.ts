@@ -37,6 +37,13 @@ import type { EntityPageView } from "../profile/types.js";
 export const EXPORT_SCHEMA_VERSION = 1;
 
 /**
+ * Contract version of the additive `JsonExportProfileBlock`. Bump when the
+ * profile block's shape changes; independent of the document `schemaVersion` so
+ * a profile-block change never breaks the default (block-less) envelope.
+ */
+export const PROFILE_BLOCK_VERSION = 1;
+
+/**
  * Additive, non-default-profile entity block for the JSON export.
  *
  * Present ONLY for a non-default profile; ABSENT for the built-in default so
@@ -45,8 +52,17 @@ export const EXPORT_SCHEMA_VERSION = 1;
  * `filePath`) with its `body` INCLUDED — export wants page content — NOT the
  * freshness/hash-decorated `ExportPage`. The legacy `pages` array stays scoped
  * to concepts/queries.
+ *
+ * @experimental Shape may change in a future release.
  */
 export interface JsonExportProfileBlock {
+  /**
+   * Block-level contract version (a literal `1`). Distinct from the document
+   * `schemaVersion`: lets consumers detect future profile-block shape changes
+   * without a default-breaking document bump. Only appears for a non-default
+   * profile (the whole block is absent for the built-in default).
+   */
+  version: 1;
   profileId: string;
   entityPages: EntityPageView[];
   /** Human-readable collector problems; present ONLY when non-empty. */

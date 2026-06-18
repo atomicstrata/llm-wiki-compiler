@@ -80,6 +80,22 @@ export function expectFirstNotePage(page: EntityPageView): void {
 }
 
 /**
+ * Seed a `SAMPLE_PROFILE` project with `count` valid `notes` pages named
+ * `note-00`, `note-01`, … so the additive entity section has more pages than a
+ * small `limit`. Zero-padded so lexical `id` order is stable and predictable.
+ *
+ * @param root - Absolute project root directory.
+ * @param count - How many `notes` pages to seed.
+ */
+export async function seedManyNotesProject(root: string, count: number): Promise<void> {
+  await writeProfileFile(root, SAMPLE_PROFILE);
+  for (let i = 0; i < count; i++) {
+    const slug = `note-${String(i).padStart(2, "0")}`;
+    await writeMarkdownPage(root, "wiki/notes", slug, `---\ntitle: Note ${i}\n---\nBody ${i}.`);
+  }
+}
+
+/**
  * The research-lite profile pack written to `.llmwiki/profile.json`. Three
  * entity types under `wiki/`; `ideas` carries a lifecycle FSM whose enum field
  * values exactly equal its state set (required by the validator).
