@@ -98,7 +98,21 @@ function registerStateResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri) => {
-      const { state } = await readStateClassified(root);
+      const { status, state } = await readStateClassified(root);
+      // Fail closed on a too-new state: every sibling surface branches on
+      // `status`, so the resource must too rather than streaming a body written
+      // by a newer llmwiki as if it were healthy. "ok"/"missing"/"corrupt" keep
+      // their current byte-identical output (the carried state body).
+      if (status === "too-new") {
+        return {
+          contents: [
+            jsonContent(uri, {
+              stateStatus: "too-new",
+              error: "written by a newer llmwiki version",
+            }),
+          ],
+        };
+      }
       return { contents: [jsonContent(uri, state)] };
     },
   );

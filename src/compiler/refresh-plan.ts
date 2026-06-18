@@ -16,6 +16,7 @@ import { scanWikiPages } from "./indexgen.js";
 import { CONCEPTS_DIR, SOURCES_DIR } from "../utils/constants.js";
 import type { SourceChange, WikiState } from "../utils/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
+import type { StateStatus } from "../utils/state.js";
 
 export interface RefreshPlan {
   /** Stale pages with a changed live owner — recompiled. Disjoint from the other outcome lists. */
@@ -42,8 +43,12 @@ export interface RefreshPlan {
   changeFilter: (change: SourceChange) => boolean;
 }
 
-/** Classified outcome of reading .llmwiki/state.json for a refresh run. */
-export type RefreshStateStatus = "ok" | "missing" | "corrupt";
+/**
+ * Classified outcome of reading .llmwiki/state.json for a refresh run.
+ * A non-"ok" status (missing/corrupt/too-new) yields a null plan: refresh is
+ * skipped, so a too-new project is never silently treated as compilable.
+ */
+export type RefreshStateStatus = StateStatus;
 
 export interface RefreshResolution {
   stateStatus: RefreshStateStatus;

@@ -27,7 +27,7 @@ import {
   CANDIDATES_ARCHIVE_DIR,
 } from "../utils/constants.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
-import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
@@ -84,8 +84,8 @@ const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }]
 /** All valid ReviewMode values. */
 const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced", "imported"];
 
-/** All valid HeldReasonCode values — mirrors the union in policy.ts. */
-const VALID_HELD_REASON_CODES: HeldReasonCode[] = [
+/** All valid PolicyHeldReasonCode values — mirrors the closed union in policy.ts. */
+const VALID_HELD_REASON_CODES: PolicyHeldReasonCode[] = [
   "low-confidence",
   "contradicted",
   "schema-violating",

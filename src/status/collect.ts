@@ -16,6 +16,7 @@ import { readdir } from "fs/promises";
 import { collectPageSummaries, scanWikiPages } from "../compiler/indexgen.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified } from "../utils/state.js";
+import type { StateStatus } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
 import { collectProfileSummary } from "../profile/block.js";
@@ -48,8 +49,11 @@ export interface WikiStatus {
   orphanedPages: string[];
   /** True total of orphaned pages (may exceed orphanedPages.length when capped). */
   orphanedCount: number;
-  /** Readability of .llmwiki/state.json — surfaced so corrupt state is never silent. */
-  stateStatus: "ok" | "missing" | "corrupt";
+  /**
+   * Readability of .llmwiki/state.json — surfaced so corrupt OR too-new state
+   * (written by a newer llmwiki) is never silently reported as healthy.
+   */
+  stateStatus: StateStatus;
   /** Number of compile candidates awaiting human review. */
   pendingCandidates: number;
   /**
@@ -172,10 +176,12 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);
   const profileBlock = await collectProfileSummary(root);
 
-  // Suppress pendingChanges only on corrupt state: comparing against an empty snapshot
-  // on corrupt state would classify every source file as "new", which is false precision.
+  // Suppress pendingChanges when state is corrupt OR too-new: comparing against an
+  // empty snapshot would classify every source file as "new", which is false precision
+  // (and would make a too-new project look like an ordinary fresh checkout).
   // On missing state the snapshot is legitimately empty, so every on-disk source is "new" — correct.
-  const pendingChanges = classified.status === "corrupt"
+  const stateUnusable = classified.status === "corrupt" || classified.status === "too-new";
+  const pendingChanges = stateUnusable
     ? []
     : pendingChangesFromSnapshot(snapshot, sourceFilesOnDisk);
 

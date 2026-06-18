@@ -249,6 +249,14 @@ describe("error handling", () => {
 
 type ResourceMap = Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>;
 
+/** Read a static resource and return its first content block's raw text. */
+async function readStaticResourceText(uri: string): Promise<string> {
+  const server = buildServer();
+  const resource = (getRegisteredResources(server) as ResourceMap)[uri];
+  const result = await resource.readCallback(new URL(uri));
+  return result.contents[0].text;
+}
+
 describe("MCP resources", () => {
   it("resolves the wiki-index static resource", async () => {
     await writeFile(path.join(root, "wiki/index.md"), "# Test Index\n");
@@ -259,11 +267,24 @@ describe("MCP resources", () => {
   });
 
   it("resolves the wiki-state static resource", async () => {
-    const server = buildServer();
-    const resource = (getRegisteredResources(server) as ResourceMap)["llmwiki://state"];
-    const result = await resource.readCallback(new URL("llmwiki://state"));
-    const parsed = JSON.parse(result.contents[0].text);
+    const parsed = JSON.parse(await readStaticResourceText("llmwiki://state"));
     expect(parsed).toMatchObject({ version: 1, sources: expect.any(Object) });
+  });
+
+  it("fails closed on a too-new state — does NOT stream the raw body", async () => {
+    // A version-3 state was written by a newer llmwiki; the resource must not
+    // serialize the body verbatim as if healthy (every sibling surface branches
+    // on status). It surfaces the too-new condition and omits the real state.
+    await writeFile(
+      path.join(root, ".llmwiki/state.json"),
+      JSON.stringify({ version: 3, indexHash: "secret", sources: { "leak.md": {} } }),
+    );
+    const text = await readStaticResourceText("llmwiki://state");
+    const parsed = JSON.parse(text);
+    expect(parsed.stateStatus).toBe("too-new");
+    expect(parsed.error).toMatch(/newer llmwiki version/);
+    expect(parsed).not.toHaveProperty("sources");
+    expect(text).not.toContain("secret");
   });
 
   it("resolves the wiki-sources static resource", async () => {

@@ -4,7 +4,9 @@
  */
 
 import type { PageKind } from "../schema/types.js";
-import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { EntityId } from "../profile/types.js";
+import type { TrustDecision } from "../trust/decision.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -72,15 +74,29 @@ export interface SourceState {
   hash: string;
   concepts: string[];
   compiledAt: string;
+  /**
+   * v2 typed-ownership mirror of {@link concepts}: each bare concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `concepts` list (never replacing it) so a v2 state stays losslessly
+   * downgradeable. Present only after migration to `version: 2`.
+   */
+  entities?: EntityId[];
 }
 
 /** Root shape of .llmwiki/state.json. */
 export interface WikiState {
-  version: 1;
+  version: 1 | 2;
   indexHash: string;
   sources: Record<string, SourceState>;
   /** Concept slugs frozen across batches to preserve content from deleted sources. */
   frozenSlugs?: string[];
+  /**
+   * v2 typed-ownership mirror of {@link frozenSlugs}: each frozen concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `frozenSlugs` list (never replacing it). Present only after
+   * migration to `version: 2`.
+   */
+  frozenEntities?: EntityId[];
 }
 
 /** Change detection result for a single source file. */
@@ -136,7 +152,7 @@ export interface CompileResult {
 export interface ReviewedCandidateRef {
   id: string;
   slug: string;
-  reasons: HeldReasonCode[];
+  reasons: PolicyHeldReasonCode[];
 }
 
 /** Optional behaviour controls for the compile pipeline. */
@@ -191,6 +207,18 @@ export interface ReviewCandidate {
    * OKF query docs set `queries` to round-trip back into the right subdir.
    */
   targetDirectory?: "concepts" | "queries";
+  /**
+   * Typed entity directory the approved page routes to under a configurable
+   * profile (e.g. `"papers"`). Phase-2 typed-target metadata; OMITTED for
+   * default-profile candidates.
+   */
+  targetEntityType?: string;
+  /**
+   * Trust Guard decision attached to this candidate at generation time, so
+   * reviewers see how the write was routed. Phase-2 typed-target metadata;
+   * OMITTED for default-profile candidates.
+   */
+  trustDecision?: TrustDecision;
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
   /** Confidence parsed from the generated page frontmatter, for review display. */
