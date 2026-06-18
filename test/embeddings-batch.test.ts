@@ -66,6 +66,29 @@ describe("normalizeEmbeddingData", () => {
   });
 });
 
+describe("resolveEmbedBatchSize", () => {
+  const run = (env: string | undefined, provider = "openai") => {
+    if (env === undefined) delete process.env.LLMWIKI_EMBED_BATCH_SIZE;
+    else process.env.LLMWIKI_EMBED_BATCH_SIZE = env;
+    return resolveEmbedBatchSize(provider);
+  };
+  afterEach(() => { delete process.env.LLMWIKI_EMBED_BATCH_SIZE; });
+
+  it("uses the per-provider default when unset", () => {
+    expect(run(undefined, "openai")).toBe(256);
+    expect(run(undefined, "ollama")).toBe(64);
+    expect(run(undefined, "minimax")).toBe(64); // fallback
+  });
+  it("honors a valid override", () => { expect(run("32")).toBe(32); });
+  it("clamps an over-cap override to the provider cap", () => { expect(run("99999", "openai")).toBe(2048); });
+  it("rejects non-positive / non-integer and falls back to default", () => {
+    expect(run("0")).toBe(256);
+    expect(run("-5")).toBe(256);
+    expect(run("abc")).toBe(256);
+    expect(run("1.5")).toBe(256);
+  });
+});
+
 describe("error taxonomy", () => {
   it("classifies each error class", () => {
     expect(isIntegrityError(new EmbeddingIntegrityError("cardinality"))).toBe(true);
