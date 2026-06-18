@@ -30,8 +30,11 @@ import {
   buildJsonExport,
   buildJsonExportDocument,
   type BuildJsonExportOptions,
+  type ExportJsonOptions,
   type JsonExportDocument,
+  type JsonExportProfileBlock,
 } from "../export/json-export.js";
+import { buildExportProfileBlock } from "../export/profile-block.js";
 import { validateProjectId } from "../export/project-id.js";
 import { buildJsonLd } from "../export/json-ld.js";
 import { buildGraphml } from "../export/graphml.js";
@@ -126,18 +129,35 @@ interface BuildContentInputs {
   marpSource: MarpSource;
   /** Optional bridge identifier; only consumed by the json target. */
   projectId?: string;
+  /** Pre-computed non-default profile block; only consumed by the json target. */
+  profile?: JsonExportProfileBlock;
+}
+
+/**
+ * Assemble the JSON-export options from the optional bridge id and the
+ * pre-computed profile block, omitting each key when absent so the default
+ * envelope is unchanged.
+ */
+function buildJsonOptions(
+  projectId: string | undefined,
+  profile: JsonExportProfileBlock | undefined,
+): BuildJsonExportOptions {
+  return {
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(profile !== undefined ? { profile } : {}),
+  };
 }
 
 /** Build the content string for a single target. */
 function buildContent(inputs: BuildContentInputs): string {
-  const { target, pages, projectTitle, marpSource, projectId } = inputs;
+  const { target, pages, projectTitle, marpSource, projectId, profile } = inputs;
   switch (target) {
     case "llms-txt":
       return buildLlmsTxt(pages, projectTitle);
     case "llms-full-txt":
       return buildLlmsFullTxt(pages, projectTitle);
     case "json":
-      return buildJsonExport(pages, projectId !== undefined ? { projectId } : {});
+      return buildJsonExport(pages, buildJsonOptions(projectId, profile));
     case "json-ld":
       return buildJsonLd(pages);
     case "graphml":
@@ -179,6 +199,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
     options.projectId !== undefined ? validateProjectId(options.projectId) : undefined;
   const pages = await collectExportPages(root);
   const projectTitle = resolveProjectTitle(root);
+  const profile = await buildExportProfileBlock(root);
 
   const targets = resolveTargets(options.target);
   const marpSource = resolveMarpSource(options.source);
@@ -192,7 +213,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
       output.status("+", output.success(`Exported okf bundle → ${output.source(outDir)}`));
       continue;
     }
-    const content = buildContent({ target, pages, projectTitle, marpSource, projectId });
+    const content = buildContent({ target, pages, projectTitle, marpSource, projectId, profile });
     const outPath = path.join(root, EXPORT_DIR, TARGET_FILENAMES[target]);
     await atomicWrite(outPath, content);
     written.push(outPath);
@@ -229,10 +250,18 @@ function resolveTargets(rawTarget: string | undefined): ExportTarget[] {
  */
 export async function exportJson(
   root: string,
-  options: BuildJsonExportOptions = {},
+  options: ExportJsonOptions = {},
 ): Promise<JsonExportDocument> {
   const pages = await collectExportPages(root);
-  return buildJsonExportDocument(pages, options);
+  const profile = await buildExportProfileBlock(root);
+  // Reconstruct build options from ONLY the public knob so a forged `profile`
+  // on the caller's object can never reach the document; the pipeline-computed
+  // `profile` is the sole source of the block.
+  const buildOptions: BuildJsonExportOptions = {
+    ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
+    ...(profile !== undefined ? { profile } : {}),
+  };
+  return buildJsonExportDocument(pages, buildOptions);
 }
 
 /**

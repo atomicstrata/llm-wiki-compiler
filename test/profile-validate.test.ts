@@ -12,8 +12,9 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
 import { describe, it, expect } from "vitest";
-import { validateProfile, ProfileValidationError } from "../src/profile/validate.js";
+import { validateProfile, validateProfileShape, ProfileValidationError } from "../src/profile/validate.js";
 import { ProfilePathError } from "../src/profile/paths.js";
+import { DEFAULT_PROFILE } from "../src/profile/default.js";
 import type { ProfilePack } from "../src/profile/types.js";
 
 /** A minimal valid two-entity profile used as a base for negative cases. */
@@ -89,6 +90,24 @@ describe("validateProfile — directories", () => {
     raw.entities.papers.directory = "wiki/papers/.";
     const result = validateProfile(raw);
     expect(result.profile.entities.papers.directory).toBe("wiki/papers");
+  });
+});
+
+describe("validateProfile — legacy default dirs (disk path only)", () => {
+  it("rejects a disk entity directory of wiki/concepts", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/concepts";
+    expect(() => validateProfile(raw)).toThrow(/reserved for the default profile/);
+  });
+
+  it("rejects a disk entity directory of wiki/queries (even '.'-padded)", () => {
+    const raw = baseProfile();
+    raw.entities.papers.directory = "wiki/queries/.";
+    expect(() => validateProfile(raw)).toThrow(/reserved for the default profile/);
+  });
+
+  it("still accepts DEFAULT_PROFILE through validateProfileShape", () => {
+    expect(() => validateProfileShape(DEFAULT_PROFILE)).not.toThrow();
   });
 });
 

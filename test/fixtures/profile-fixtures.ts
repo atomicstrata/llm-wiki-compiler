@@ -17,6 +17,111 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { expect } from "vitest";
+import { PROFILE_FILE } from "../../src/utils/constants.js";
+import type { ProfilePack, EntityPageView } from "../../src/profile/types.js";
+
+/**
+ * A minimal NON-DEFAULT profile: a single `notes` entity type at `wiki/notes`
+ * requiring a `title` field. Shared by the additive read-surface tests
+ * (listPages / export / viewer) so they assert against one fixed shape.
+ */
+export const SAMPLE_PROFILE: ProfilePack = {
+  schemaVersion: 1,
+  profileId: "sample",
+  entities: {
+    notes: {
+      directory: "wiki/notes",
+      requiredFields: ["title"],
+      fields: { title: { type: "string" } },
+    },
+  },
+};
+
+/** Write a profile.json into the project's `.llmwiki/` dir. */
+export async function writeProfileFile(root: string, pack: ProfilePack): Promise<void> {
+  await mkdir(path.join(root, path.dirname(PROFILE_FILE)), { recursive: true });
+  await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(pack));
+}
+
+/** Write a markdown page at `<root>/<dir>/<slug>.md`, creating the dir. */
+export async function writeMarkdownPage(
+  root: string,
+  dir: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  await mkdir(path.join(root, dir), { recursive: true });
+  await writeFile(path.join(root, dir, `${slug}.md`), content);
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with one valid `notes` page (`first-note`,
+ * body "Note body.") — the shared baseline the additive read-surface tests use
+ * before adding their own contract-violation cases.
+ */
+export async function seedSampleNotesProject(root: string): Promise<void> {
+  await writeProfileFile(root, SAMPLE_PROFILE);
+  await writeMarkdownPage(root, "wiki/notes", "first-note", "---\ntitle: First\n---\nNote body.");
+}
+
+/**
+ * Assert an entity-page VIEW is the seeded `first-note` from
+ * {@link seedSampleNotesProject}: the `notes` type, `first-note` slug, the full
+ * "Note body." body (so a body-stripping bug would fail this), a
+ * project-relative `path`, and NO leaked absolute `filePath`.
+ */
+export function expectFirstNotePage(page: EntityPageView): void {
+  expect(page.entityType).toBe("notes");
+  expect(page.slug).toBe("first-note");
+  expect(page.body).toBe("Note body.");
+  expect(page.path).toBe("wiki/notes/first-note.md");
+  expect("filePath" in page).toBe(false);
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with `count` `notes` pages whose slug is
+ * `<prefix>-NN` (zero-padded so lexical `id` order is stable), each built from
+ * `content(slug, i)`. The shared loop behind both the valid and broken seeders
+ * so their paging/bounding setup never drifts.
+ */
+async function seedNotesProject(
+  root: string,
+  count: number,
+  prefix: string,
+  content: (slug: string, index: number) => string,
+): Promise<void> {
+  await writeProfileFile(root, SAMPLE_PROFILE);
+  for (let i = 0; i < count; i++) {
+    const slug = `${prefix}-${String(i).padStart(2, "0")}`;
+    await writeMarkdownPage(root, "wiki/notes", slug, content(slug, i));
+  }
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with `count` VALID `notes` pages named
+ * `note-00`, `note-01`, … so the additive entity section has more pages than a
+ * small `limit`.
+ *
+ * @param root - Absolute project root directory.
+ * @param count - How many `notes` pages to seed.
+ */
+export async function seedManyNotesProject(root: string, count: number): Promise<void> {
+  await seedNotesProject(root, count, "note", (_slug, i) => `---\ntitle: Note ${i}\n---\nBody ${i}.`);
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with `count` INVALID `notes` pages, each
+ * missing the required `title` field so every page yields exactly one
+ * `field-violation` problem (`broken-00`, …). Used to exercise per-surface
+ * problem bounding (windowing / capping).
+ *
+ * @param root - Absolute project root directory.
+ * @param count - How many broken `notes` pages to seed.
+ */
+export async function seedBrokenNotesProject(root: string, count: number): Promise<void> {
+  await seedNotesProject(root, count, "broken", (slug, i) => `---\nslug: ${slug}\n---\nNo title ${i}.`);
+}
 
 /**
  * The research-lite profile pack written to `.llmwiki/profile.json`. Three

@@ -15,6 +15,7 @@
 import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { PageFreshness } from "../freshness/types.js";
+import type { ProfileSummaryBlock } from "../profile/block.js";
 
 /**
  * Canonical page identifier: `concepts/<slug>` or `queries/<slug>`. Bare
@@ -185,4 +186,13 @@ export interface ViewerSnapshot {
   sourceFilenames: string[];
   /** Adjacency data for the `#/graph` route. Built once at snapshot time. */
   graph: GraphData;
+  /**
+   * Active non-default profile summary (profileId, digest, per-type entity
+   * counts, problems), MIRRORING the `status` profile block. ABSENT (undefined)
+   * for the built-in default so the default snapshot is byte-identical. This is
+   * a counts/problems block only — no entity-page rendering, routes, or
+   * navigation. The legacy `counts.concepts`/`counts.queries` stay scoped to the
+   * literal wiki/concepts + wiki/queries dirs in both cases.
+   */
+  profile?: ProfileSummaryBlock;
 }

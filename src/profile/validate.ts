@@ -31,7 +31,7 @@ import { isSlugSafe } from "./identity.js";
 import { validateEntityDirectory } from "./paths.js";
 import { assertStructurallyValid } from "./schema-validator.js";
 import { ProfileValidationError } from "./errors.js";
-import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR } from "../utils/constants.js";
+import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR, CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 
 export { ProfileValidationError } from "./errors.js";
 
@@ -42,6 +42,16 @@ export { ProfileValidationError } from "./errors.js";
  * so the built-in default can be proven structurally well-formed.
  */
 const RESERVED_PROFILE_IDS = new Set(["default"]);
+
+/**
+ * Entity directories reserved for the built-in DEFAULT profile. A disk profile
+ * may not declare an entity at either, otherwise one physical file would carry
+ * two identities — a legacy `pages: concepts/<slug>` AND a
+ * `profile.entityPages: <type>/<slug>`. `DEFAULT_PROFILE` legitimately uses
+ * these, so this gate lives in `validateProfile` (disk) only, NOT
+ * `validateProfileShape`.
+ */
+const RESERVED_DEFAULT_DIRS = new Set([CONCEPTS_DIR, QUERIES_DIR]);
 
 /** Repo-relative roots an entity directory may not overlap. */
 const RESERVED_ROOTS = [
@@ -222,5 +232,21 @@ export function validateProfileShape(raw: unknown): ProfileValidationResult {
 export function validateProfile(raw: unknown): ProfileValidationResult {
   const result = validateProfileShape(raw);
   assert(!RESERVED_PROFILE_IDS.has(result.profile.profileId), `profileId '${result.profile.profileId}' is reserved`);
+  rejectReservedDefaultDirs(result.profile);
   return result;
+}
+
+/**
+ * Reject any entity whose canonical directory is one of the default profile's
+ * reserved dirs (`wiki/concepts` / `wiki/queries`). Operates on the canonical
+ * directory written back by {@link validateProfileShape}, so `.`-padded aliases
+ * are caught too.
+ */
+function rejectReservedDefaultDirs(profile: ProfilePack): void {
+  for (const [entityType, def] of Object.entries(profile.entities)) {
+    assert(
+      !RESERVED_DEFAULT_DIRS.has(def.directory),
+      `entity '${entityType}' directory '${def.directory}' is reserved for the default profile`,
+    );
+  }
 }

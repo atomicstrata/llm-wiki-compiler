@@ -28,12 +28,54 @@
 
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
+import type { EntityPageView, EntityProblemView } from "../profile/types.js";
 
 /**
  * Monotonically-incremented envelope version.
  * Bump when a breaking field change lands; additive additions do not require a bump.
  */
 export const EXPORT_SCHEMA_VERSION = 1;
+
+/**
+ * Contract version of the additive `JsonExportProfileBlock`. Bump when the
+ * profile block's shape changes; independent of the document `schemaVersion` so
+ * a profile-block change never breaks the default (block-less) envelope.
+ */
+export const PROFILE_BLOCK_VERSION = 1;
+
+/**
+ * Additive, non-default-profile entity block for the JSON export.
+ *
+ * Present ONLY for a non-default profile; ABSENT for the built-in default so
+ * the default export is byte-identical. `entityPages` carries the PUBLIC
+ * `EntityPageView` shape (project-relative `path`, never an absolute
+ * `filePath`) with its `body` INCLUDED — export wants page content — NOT the
+ * freshness/hash-decorated `ExportPage`. The legacy `pages` array stays scoped
+ * to concepts/queries.
+ *
+ * @experimental Shape may change in a future release.
+ */
+export interface JsonExportProfileBlock {
+  /**
+   * Block-level contract version (a literal `1`). Distinct from the document
+   * `schemaVersion`: lets consumers detect future profile-block shape changes
+   * without a default-breaking document bump. Only appears for a non-default
+   * profile (the whole block is absent for the built-in default).
+   */
+  version: 1;
+  profileId: string;
+  entityPages: EntityPageView[];
+  /**
+   * Structured collector problems, present ONLY when non-empty. An export is a
+   * COMPLETE snapshot, so this list is NEVER capped — every problem is retained
+   * (each `path` project-relative, never absolute; absent for directory-level
+   * problems). `problemTotal` mirrors `problems.length` for symmetry with the
+   * capped status/viewer surfaces.
+   */
+  problems?: EntityProblemView[];
+  /** Full problem count; equals `problems.length` (export is never capped). */
+  problemTotal?: number;
+}
 
 /** Top-level shape of the JSON export file. */
 export interface JsonExportDocument {
@@ -47,15 +89,45 @@ export interface JsonExportDocument {
   /** Optional bridge identifier. See `src/export/project-id.ts` for the validation rule. */
   projectId?: string;
   pages: ExportPage[];
+  /**
+   * Non-default profile entity pages, ADDITIVELY. ABSENT (undefined) for the
+   * built-in default so the default envelope is byte-identical.
+   */
+  profile?: JsonExportProfileBlock;
 }
 
-/** Options accepted by {@link buildJsonExportDocument}. */
-export interface BuildJsonExportOptions {
+/**
+ * PUBLIC options for the JSON export, exposing ONLY the legitimate caller knob.
+ *
+ * Deliberately omits `profile`: the profile block is computed and injected by
+ * the export PIPELINE after it resolves the active profile, never accepted from
+ * caller input — otherwise a default-project caller could FORGE a `profile`
+ * block into the document. Callers (SDK `Wiki.exportJson`, the CLI export
+ * command) accept this type, not the internal {@link BuildJsonExportOptions}.
+ */
+export interface ExportJsonOptions {
   /**
    * Optional project identifier. Validated against the bridge contract
    * regex; throws if invalid so a malformed value never reaches disk.
    */
   projectId?: string;
+}
+
+/**
+ * INTERNAL build options for {@link buildJsonExportDocument}.
+ *
+ * Extends the public {@link ExportJsonOptions} with the pipeline-only `profile`
+ * block. The `profile` field is injected by the export pipeline (which holds
+ * `root` and computes the active profile); it is ABSENT for the built-in
+ * default so the default envelope gains no `profile` key. Never expose this
+ * type at a caller boundary — see {@link ExportJsonOptions}.
+ */
+export interface BuildJsonExportOptions extends ExportJsonOptions {
+  /**
+   * Pre-computed non-default profile entity block, injected by the pipeline;
+   * ABSENT for the built-in default.
+   */
+  profile?: JsonExportProfileBlock;
 }
 
 /**
@@ -76,6 +148,9 @@ export function buildJsonExportDocument(
   };
   if (options.projectId !== undefined) {
     doc.projectId = validateProjectId(options.projectId);
+  }
+  if (options.profile !== undefined) {
+    doc.profile = options.profile;
   }
   return doc;
 }

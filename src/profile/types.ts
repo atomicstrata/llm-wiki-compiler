@@ -12,6 +12,9 @@
  * constructors in `./identity.js`.
  */
 
+import path from "path";
+import type { EntityProblem, EntityProblemKind } from "./collect.js";
+
 /** A string proven to match the slug-safe grammar (`^[a-z0-9][a-z0-9-]*$`). */
 export type SlugSafe = string & { readonly __slugSafe: unique symbol };
 
@@ -104,4 +107,114 @@ export interface EntityPageRef {
   slug: SlugSafe;
   id: EntityId;
   filePath: string;
+}
+
+/**
+ * A non-default profile entity page: identity (`EntityPageRef`) plus content.
+ *
+ * Where `EntityPageRef` is identity-only, `EntityPage` additionally carries the
+ * page's parsed `frontmatter`, its markdown `body`, and a convenience `title`
+ * (the frontmatter title when present). It is produced by the content-carrying
+ * collector so downstream read surfaces can render a page without re-reading it.
+ *
+ * This is the INTERNAL collector output: it carries an ABSOLUTE `filePath`
+ * (inherited from `EntityPageRef`). Never expose it directly on a public read
+ * surface — map it through {@link toEntityPageView} first so the machine-local
+ * path is dropped in favour of a project-relative one.
+ */
+export interface EntityPage extends EntityPageRef {
+  frontmatter: Record<string, unknown>;
+  body: string;
+  title?: string;
+}
+
+/**
+ * The PUBLIC surface DTO for a non-default profile entity page.
+ *
+ * Unlike the internal {@link EntityPage}, this NEVER carries an absolute
+ * `filePath` — only a PROJECT-RELATIVE `path` (`${directory}/${slug}.md`) — so
+ * read surfaces (`listPages`, JSON export) cannot leak machine-local paths. The
+ * `body` is OPTIONAL and OMITTED entirely (not blanked to `""`) when the caller
+ * did not request it, so an absent body is distinguishable from a genuinely
+ * empty page.
+ *
+ * @experimental Shape may change in a future release.
+ */
+export interface EntityPageView {
+  entityType: string;
+  directory: string;
+  slug: string;
+  id: string;
+  /** Project-relative page path (`${directory}/${slug}.md`); never absolute. */
+  path: string;
+  title?: string;
+  frontmatter: Record<string, unknown>;
+  /** Markdown body; OMITTED (key absent) when bodies were not requested. */
+  body?: string;
+}
+
+/**
+ * Map an internal {@link EntityPage} to its public {@link EntityPageView}.
+ *
+ * Drops the absolute `filePath` in favour of the project-relative `path`, and
+ * OMITS `body` entirely when `includeBody` is false (mirroring how the legacy
+ * `Page` shape omits — rather than blanks — an unrequested body).
+ *
+ * @param page - The internal collector entity page.
+ * @param includeBody - When true, carry the markdown body into the view.
+ * @returns The public, path-safe entity-page view.
+ */
+export function toEntityPageView(page: EntityPage, includeBody: boolean): EntityPageView {
+  const view: EntityPageView = {
+    entityType: page.entityType,
+    directory: page.directory,
+    slug: page.slug,
+    id: page.id,
+    path: `${page.directory}/${page.slug}.md`,
+    frontmatter: page.frontmatter,
+    ...(page.title !== undefined ? { title: page.title } : {}),
+    ...(includeBody ? { body: page.body } : {}),
+  };
+  return view;
+}
+
+/**
+ * The PUBLIC surface DTO for a structured non-default-profile collector problem.
+ *
+ * Unlike the internal {@link EntityProblem}, this NEVER carries an absolute
+ * `filePath` — only a PROJECT-RELATIVE `path` (`path.relative(root, filePath)`),
+ * which is OMITTED entirely (key absent) for directory-level problems that have
+ * no file. Carrying the structured `kind`/`entityType` (rather than a flattened
+ * message string) lets a surface group, count, or filter problems, and keeps
+ * repeated field violations distinguishable.
+ *
+ * @experimental Shape may change in a future release.
+ */
+export interface EntityProblemView {
+  kind: EntityProblemKind;
+  entityType: string;
+  /** Project-relative offending page path; ABSENT for directory-level problems. Never absolute. */
+  path?: string;
+  message: string;
+}
+
+/**
+ * Map an internal {@link EntityProblem} to its public {@link EntityProblemView}.
+ *
+ * Drops the absolute `filePath` in favour of a project-relative `path`
+ * (`path.relative(root, filePath)`), OMITTING the key entirely when the problem
+ * is directory-level (no `filePath`) so an absent path is never a misleading
+ * empty string and an absolute path can never leak.
+ *
+ * @param problem - The internal structured collector problem.
+ * @param root - Absolute project root, used to relativize `filePath`.
+ * @returns The public, path-safe problem view.
+ */
+export function toEntityProblemView(problem: EntityProblem, root: string): EntityProblemView {
+  return {
+    kind: problem.kind,
+    entityType: problem.entityType,
+    ...(problem.filePath !== undefined ? { path: path.relative(root, problem.filePath) } : {}),
+    message: problem.message,
+  };
 }

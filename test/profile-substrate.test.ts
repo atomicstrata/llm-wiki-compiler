@@ -67,9 +67,9 @@ describe("research-lite substrate — read surfaces agree", () => {
 
   it("collectEntityPages finds the seeded pages", async () => {
     const loaded = await loadProfile(root);
-    const { refs, problems } = await collectEntityPages(root, loaded.profile);
+    const { pages, problems } = await collectEntityPages(root, loaded.profile);
     expect(problems).toEqual([]);
-    const ids = refs.map((r) => r.id).sort();
+    const ids = pages.map((r) => r.id).sort();
     expect(ids).toContain("papers/scaling-laws");
     expect(ids).toContain("ideas/sparse-routing");
     expect(ids).toContain("experiments/ablation-batch-size");

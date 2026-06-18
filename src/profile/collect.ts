@@ -10,7 +10,7 @@
  *
  * Honest, graceful read path (problems, not throws):
  *   - the collector NEVER throws on page data — a bad page yields a problem
- *     record and is skipped, while its valid siblings still become refs;
+ *     record and is skipped, while its valid siblings still become pages;
  *   - an INVALID (symlinked / confinement-failed) entity directory is surfaced
  *     as an `invalid-directory` problem — never silently skipped, because the
  *     spec forbids presenting a partial project as healthy;
@@ -20,7 +20,7 @@
  *     `slug-mismatch` problem;
  *   - a valid page that violates the declared field contract (a missing
  *     required field, or an enum value outside its declared set) →
- *     `field-violation` problem; the ref is STILL produced.
+ *     `field-violation` problem; the page is STILL produced.
  *
  * The only thrown error is the `isDefaultProfile` guard — that is a programming
  * error (wrong collector), not page data. Default-profile collection NEVER comes
@@ -29,12 +29,13 @@
 
 import { scanEntityDir, type RawEntityScan } from "../wiki/collect.js";
 import { isDefaultProfile } from "./default.js";
-import { isSlugSafe, entityId, suggestSlugFromBasename } from "./identity.js";
+import { isSlugSafe, assertSlugSafe, entityId, suggestSlugFromBasename } from "./identity.js";
 import type {
   ProfilePack,
-  EntityPageRef,
+  EntityPage,
   EntityTypeDef,
   FieldDef,
+  FieldType,
 } from "./types.js";
 
 /** Error raised only for the programming-error default-profile guard. */
@@ -65,7 +66,17 @@ export interface EntityProblem {
 
 /** The graceful result of collecting one profile's entity pages. */
 export interface EntityCollectResult {
-  refs: EntityPageRef[];
+  pages: EntityPage[];
+  problems: EntityProblem[];
+}
+
+/**
+ * The count-only result of summarizing a profile's entity pages: per-type
+ * counts plus problems, with NO content `EntityPage[]` retained. Produced by
+ * {@link collectEntitySummary} for surfaces (status, viewer) that only tally.
+ */
+export interface EntitySummaryResult {
+  counts: Record<string, number>;
   problems: EntityProblem[];
 }
 
@@ -76,11 +87,28 @@ function declaredSlug(frontmatter: Record<string, unknown>): string | undefined 
 }
 
 /**
+ * Compute the de-duplicated set of required field names for an entity type: the
+ * UNION of the entity-level `requiredFields` array and every field whose own
+ * `FieldDef.required === true`. Returned as a `Set` so a field declared required
+ * BOTH ways yields exactly one missing-field problem, never two.
+ */
+function requiredFieldNames(def: EntityTypeDef): Set<string> {
+  const names = new Set<string>(def.requiredFields ?? []);
+  for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
+    if (fieldDef.required === true) names.add(name);
+  }
+  return names;
+}
+
+/**
  * Validate a slug-safe page against its entity type's declared field contract,
- * pushing a `field-violation` problem for each missing required field and each
- * enum field whose present value is outside its declared set. Basic by design:
- * required-present + enum-membership only (no deep type coercion). The ref is
- * NOT dropped — a contract violation is surfaced, not fatal.
+ * pushing a `field-violation` problem for each missing required field and, for
+ * each PRESENT field value, every declared-type / enum / min-max mismatch. A
+ * field is required when it is in `def.requiredFields` OR carries
+ * `FieldDef.required === true` (the union, de-duplicated). The page is NOT
+ * dropped — a contract violation is surfaced, not fatal — and this NEVER throws.
+ * Messages are PATH-FREE (the offending path lives only on the structured
+ * `filePath` field).
  */
 function checkFieldContract(
   entityType: string,
@@ -89,7 +117,7 @@ function checkFieldContract(
   problems: EntityProblem[],
 ): void {
   const fm = scan.frontmatter;
-  for (const field of def.requiredFields ?? []) {
+  for (const field of requiredFieldNames(def)) {
     if (!(field in fm)) {
       problems.push({
         kind: "field-violation",
@@ -100,45 +128,120 @@ function checkFieldContract(
     }
   }
   for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
-    checkEnumMembership(entityType, name, fieldDef, scan, problems);
+    checkFieldValue(entityType, name, fieldDef, scan, problems);
   }
 }
 
-/** Push a `field-violation` when an enum field's present value is out of set. */
-function checkEnumMembership(
+/**
+ * Validate one present field value against its declared type, enum membership,
+ * and numeric min/max. A missing value is not validated here (required-presence
+ * is handled separately). Each mismatch becomes one PATH-FREE `field-violation`.
+ */
+function checkFieldValue(
   entityType: string,
   name: string,
   fieldDef: FieldDef,
   scan: RawEntityScan,
   problems: EntityProblem[],
 ): void {
-  if (fieldDef.type !== "enum" || !fieldDef.enum) return;
   const value = scan.frontmatter[name];
   if (value === undefined) return;
-  if (typeof value !== "string" || !fieldDef.enum.includes(value)) {
-    problems.push({
-      kind: "field-violation",
-      entityType,
-      filePath: scan.filePath,
-      message:
-        `Field ${JSON.stringify(name)} value ${JSON.stringify(value)} is not one of ` +
-        `${JSON.stringify(fieldDef.enum)}.`,
-    });
+  const typeError = describeTypeMismatch(name, fieldDef, value);
+  if (typeError) {
+    pushFieldViolation(entityType, scan.filePath, typeError, problems);
+    return;
   }
+  const rangeError = describeRangeViolation(name, fieldDef, value);
+  if (rangeError) pushFieldViolation(entityType, scan.filePath, rangeError, problems);
+}
+
+/** Append a `field-violation` problem carrying a PATH-FREE message. */
+function pushFieldViolation(
+  entityType: string,
+  filePath: string,
+  message: string,
+  problems: EntityProblem[],
+): void {
+  problems.push({ kind: "field-violation", entityType, filePath, message });
 }
 
 /**
- * Validate one scanned page. Returns an `EntityPageRef` for a valid (slug-safe,
- * slug-matching) page — and, when the page violates the declared field contract,
- * still returns the ref but appends `field-violation` problems. Returns `null`
- * (and appends a problem) for a non-slug-safe stem or a slug mismatch.
+ * Return a PATH-FREE message when `value` does not match `fieldDef.type`
+ * (including enum membership), or `undefined` when the type is satisfied.
  */
-function refFromScan(
+function describeTypeMismatch(name: string, fieldDef: FieldDef, value: unknown): string | undefined {
+  if (matchesDeclaredType(fieldDef, value)) return undefined;
+  if (fieldDef.type === "enum") {
+    return (
+      `Field ${JSON.stringify(name)} value ${JSON.stringify(value)} is not one of ` +
+      `${JSON.stringify(fieldDef.enum ?? [])}.`
+    );
+  }
+  return `Field ${JSON.stringify(name)} value ${JSON.stringify(value)} is not a valid ${fieldDef.type}.`;
+}
+
+/** True when `value` is a string parseable as a date, or a valid `Date`. */
+function isValidDate(value: unknown): boolean {
+  // YAML parses an unquoted ISO date into a JS `Date`; a quoted value stays a
+  // string. Accept either, provided it denotes a valid instant.
+  if (value instanceof Date) return !Number.isNaN(value.getTime());
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+/**
+ * Per-field-type value predicates (enum excluded — it needs the `FieldDef`).
+ * A lookup table keeps {@link matchesDeclaredType} flat instead of a wide
+ * switch that would trip the complexity gate.
+ */
+const TYPE_PREDICATES: Record<Exclude<FieldType, "enum">, (value: unknown) => boolean> = {
+  string: (v) => typeof v === "string",
+  slug: (v) => typeof v === "string" && isSlugSafe(v),
+  integer: (v) => Number.isInteger(v),
+  number: (v) => typeof v === "number" && Number.isFinite(v),
+  boolean: (v) => typeof v === "boolean",
+  date: isValidDate,
+  "string[]": (v) => Array.isArray(v) && v.every((item) => typeof item === "string"),
+};
+
+/** True when `value` satisfies the declared `FieldDef.type` (enum included). */
+function matchesDeclaredType(fieldDef: FieldDef, value: unknown): boolean {
+  if (fieldDef.type === "enum") {
+    return typeof value === "string" && (fieldDef.enum?.includes(value) ?? false);
+  }
+  return TYPE_PREDICATES[fieldDef.type](value);
+}
+
+/**
+ * Return a PATH-FREE message when a numeric `value` falls outside the declared
+ * `[min, max]`, or `undefined` when in range or when no bound applies. Only
+ * meaningful after the value has passed its numeric type check.
+ */
+function describeRangeViolation(name: string, fieldDef: FieldDef, value: unknown): string | undefined {
+  if (typeof value !== "number") return undefined;
+  if (fieldDef.min !== undefined && value < fieldDef.min) {
+    return `Field ${JSON.stringify(name)} value ${value} is below min ${fieldDef.min}.`;
+  }
+  if (fieldDef.max !== undefined && value > fieldDef.max) {
+    return `Field ${JSON.stringify(name)} value ${value} exceeds max ${fieldDef.max}.`;
+  }
+  return undefined;
+}
+
+/**
+ * Validate one scanned page's IDENTITY and field contract, appending problems.
+ * Returns the validated stem for a slug-safe, slug-matching page (still
+ * returned even when it carries `field-violation` problems), or `null` (with a
+ * `non-slug-safe-filename` or `slug-mismatch` problem) for an invalid identity.
+ *
+ * This is the SINGLE per-scan validation used by both the content collector
+ * ({@link pageFromScan}) and the count-only summary, so the two never drift.
+ */
+function validateScan(
   def: EntityTypeDef,
   entityType: string,
   scan: RawEntityScan,
   problems: EntityProblem[],
-): EntityPageRef | null {
+): string | null {
   const stem = scan.stem;
   if (!isSlugSafe(stem)) {
     problems.push({
@@ -163,45 +266,109 @@ function refFromScan(
     return null;
   }
   checkFieldContract(entityType, def, scan, problems);
-  return { entityType, directory: def.directory, slug: stem, id: entityId(entityType, stem), filePath: scan.filePath };
+  return stem;
 }
 
-/** Collect one entity type's pages, appending refs and problems in place. */
+/**
+ * Build a content-carrying `EntityPage` (identity PLUS the scan's
+ * `frontmatter`/`body`/`title`) for a valid page, or `null` (with a problem)
+ * for an invalid identity. Field-contract violations are surfaced but the page
+ * is still produced. Shares all validation with {@link validateScan}.
+ *
+ * The `title` is the frontmatter title only when the scan flagged one present
+ * (`parseStatus.hasTitle`); otherwise it is `undefined`.
+ */
+function pageFromScan(
+  def: EntityTypeDef,
+  entityType: string,
+  scan: RawEntityScan,
+  problems: EntityProblem[],
+): EntityPage | null {
+  const stem = validateScan(def, entityType, scan, problems);
+  if (stem === null) return null;
+  const title = scan.parseStatus.hasTitle ? (scan.frontmatter.title as string) : undefined;
+  return {
+    entityType,
+    directory: def.directory,
+    slug: assertSlugSafe(stem),
+    id: entityId(entityType, stem),
+    filePath: scan.filePath,
+    frontmatter: scan.frontmatter,
+    body: scan.body,
+    title,
+  };
+}
+
+/** Push the shared `invalid-directory` problem for a symlinked/confined-out dir. */
+function pushInvalidDirectory(
+  entityType: string,
+  def: EntityTypeDef,
+  problems: EntityProblem[],
+): void {
+  problems.push({
+    kind: "invalid-directory",
+    entityType,
+    message:
+      `Entity directory ${JSON.stringify(def.directory)} is invalid ` +
+      `(a symlink or confinement failure) and was not read.`,
+  });
+}
+
+/** Collect one entity type's pages, appending pages and problems in place. */
 async function collectOneEntity(
   root: string,
   entityType: string,
   def: EntityTypeDef,
-  refs: EntityPageRef[],
+  pages: EntityPage[],
   problems: EntityProblem[],
 ): Promise<void> {
   const { scans, dirStatus } = await scanEntityDir(root, def.directory);
   if (dirStatus === "invalid") {
-    problems.push({
-      kind: "invalid-directory",
-      entityType,
-      message:
-        `Entity directory ${JSON.stringify(def.directory)} is invalid ` +
-        `(a symlink or confinement failure) and was not read.`,
-    });
+    pushInvalidDirectory(entityType, def, problems);
     return;
   }
   for (const scan of scans) {
-    const ref = refFromScan(def, entityType, scan, problems);
-    if (ref) refs.push(ref);
+    const page = pageFromScan(def, entityType, scan, problems);
+    if (page) pages.push(page);
   }
 }
 
 /**
- * Collect every entity page for a NON-DEFAULT profile as strict
- * `EntityPageRef`s with branded `EntityId`s, alongside any structured problems.
- * Iterates the profile's declared entity types, scanning each through the shared
- * `scanEntityDir`. One bad page or directory never stops the others.
+ * Summarize one entity type metadata-only: scan WITHOUT bodies, validate each
+ * scan through the SHARED {@link validateScan} (so problems match the content
+ * path exactly), and return this type's valid-page count plus problems. No
+ * content `EntityPage` is ever built or retained.
+ */
+async function summarizeOneEntity(
+  root: string,
+  entityType: string,
+  def: EntityTypeDef,
+  problems: EntityProblem[],
+): Promise<number> {
+  const { scans, dirStatus } = await scanEntityDir(root, def.directory, { includeBody: false });
+  if (dirStatus === "invalid") {
+    pushInvalidDirectory(entityType, def, problems);
+    return 0;
+  }
+  let count = 0;
+  for (const scan of scans) {
+    if (validateScan(def, entityType, scan, problems) !== null) count += 1;
+  }
+  return count;
+}
+
+/**
+ * Collect every entity page for a NON-DEFAULT profile as content-carrying
+ * `EntityPage`s (branded `EntityId` identity PLUS frontmatter/body/title),
+ * alongside any structured problems. Iterates the profile's declared entity
+ * types, scanning each through the shared `scanEntityDir`. One bad page or
+ * directory never stops the others.
  *
  * @param root - Absolute project root directory.
  * @param profile - A non-default profile pack. Passing the default profile is a
  *   programming error and throws (the only thrown case).
- * @returns `{ refs, problems }` — one ref per valid page, plus a problem per
- *   invalid directory / bad page / field-contract violation.
+ * @returns `{ pages, problems }` — one page per valid page (with its content),
+ *   plus a problem per invalid directory / bad page / field-contract violation.
  * @throws {EntityCollectError} ONLY when the default profile is passed.
  */
 export async function collectEntityPages(
@@ -213,10 +380,44 @@ export async function collectEntityPages(
       "collectEntityPages is for non-default profiles only; use collectRawWikiPages for the default profile.",
     );
   }
-  const refs: EntityPageRef[] = [];
+  const pages: EntityPage[] = [];
   const problems: EntityProblem[] = [];
   for (const [entityType, def] of Object.entries(profile.entities) as [string, EntityTypeDef][]) {
-    await collectOneEntity(root, entityType, def, refs, problems);
+    await collectOneEntity(root, entityType, def, pages, problems);
   }
-  return { refs, problems };
+  return { pages, problems };
+}
+
+/**
+ * Summarize a NON-DEFAULT profile's entity pages metadata-only: per-entity-type
+ * valid-page counts plus the same structured problems {@link collectEntityPages}
+ * would surface — WITHOUT building or retaining any content `EntityPage`. Used
+ * by count-only read surfaces (status, viewer) so they no longer hold every
+ * page's body in memory just to tally and validate.
+ *
+ * Counts seed every declared entity type at zero (a declared-but-empty type
+ * still reports `0`), then add one per valid page. Problems are identical to the
+ * content path because both share {@link validateScan}.
+ *
+ * @param root - Absolute project root directory.
+ * @param profile - A non-default profile pack. Passing the default profile is a
+ *   programming error and throws (the only thrown case).
+ * @returns `{ counts, problems }` — no page objects, no bodies.
+ * @throws {EntityCollectError} ONLY when the default profile is passed.
+ */
+export async function collectEntitySummary(
+  root: string,
+  profile: ProfilePack,
+): Promise<EntitySummaryResult> {
+  if (isDefaultProfile(profile)) {
+    throw new EntityCollectError(
+      "collectEntitySummary is for non-default profiles only; use collectRawWikiPages for the default profile.",
+    );
+  }
+  const counts: Record<string, number> = {};
+  const problems: EntityProblem[] = [];
+  for (const [entityType, def] of Object.entries(profile.entities) as [string, EntityTypeDef][]) {
+    counts[entityType] = await summarizeOneEntity(root, entityType, def, problems);
+  }
+  return { counts, problems };
 }

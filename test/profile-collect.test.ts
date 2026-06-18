@@ -5,8 +5,8 @@
  *
  * Covers: (a) the default profile is REJECTED by `collectEntityPages`;
  * (b) `collectRawWikiPages` preserves non-slug-safe stems (`Foo Bar`, `研究`)
- * VERBATIM as slug values; (c) a small non-default profile yields strict
- * branded `EntityPageRef`s; (d) a non-slug-safe stem under a non-default entity
+ * VERBATIM as slug values; (c) a small non-default profile yields content-carrying
+ * branded `EntityPage`s; (d) a non-slug-safe stem under a non-default entity
  * dir fails closed with a rename hint (never silently slugified or skipped).
  */
 
@@ -45,15 +45,15 @@ async function makeSampleDirs(): Promise<void> {
 }
 
 /**
- * Collect SAMPLE_PROFILE and assert it yielded no refs and exactly one problem
+ * Collect SAMPLE_PROFILE and assert it yielded no pages and exactly one problem
  * of `kind` under `entityType`. Returns the lone problem for further checks.
  */
 async function expectSoleProblem(
   kind: string,
   entityType: string,
 ): Promise<{ message: string }> {
-  const { refs, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
-  expect(refs).toEqual([]);
+  const { pages, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
+  expect(pages).toEqual([]);
   expect(problems).toHaveLength(1);
   expect(problems[0]).toMatchObject({ kind, entityType });
   return problems[0];
@@ -88,14 +88,14 @@ describe("collectRawWikiPages — verbatim raw stems", () => {
   });
 });
 
-describe("collectEntityPages — strict EntityPageRefs", () => {
+describe("collectEntityPages — content-carrying EntityPages", () => {
   beforeEach(makeSampleDirs);
 
   it("mints branded ids for slug-safe stems across entity types", async () => {
     await writePage(path.join(root, "wiki/notes"), "first-note", "first-note");
     await writePage(path.join(root, "wiki/tasks"), "do-thing");
-    const { refs, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
-    const byId = Object.fromEntries(refs.map((r) => [r.id, r]));
+    const { pages, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
+    const byId = Object.fromEntries(pages.map((r) => [r.id, r]));
     expect(Object.keys(byId).sort()).toEqual(["notes/first-note", "tasks/do-thing"]);
     expect(byId["notes/first-note"]).toMatchObject({ entityType: "notes", slug: "first-note", directory: "wiki/notes" });
     expect(problems).toEqual([]);
@@ -104,8 +104,8 @@ describe("collectEntityPages — strict EntityPageRefs", () => {
   it("records a slug-mismatch problem (does not throw, drops only the bad ref)", async () => {
     await writePage(path.join(root, "wiki/notes"), "first-note", "other-slug");
     await writePage(path.join(root, "wiki/tasks"), "do-thing");
-    const { refs, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
-    expect(refs.map((r) => r.id)).toEqual(["tasks/do-thing"]);
+    const { pages, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
+    expect(pages.map((r) => r.id)).toEqual(["tasks/do-thing"]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatchObject({ kind: "slug-mismatch", entityType: "notes" });
     expect(problems[0].message).toMatch(/does not match file stem/);
@@ -124,8 +124,8 @@ describe("collectEntityPages — non-slug-safe stems become problems", () => {
   it("collects valid siblings even when one page is non-slug-safe", async () => {
     await writePage(path.join(root, "wiki/notes"), "Foo Bar");
     await writePage(path.join(root, "wiki/notes"), "good-note");
-    const { refs, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
-    expect(refs.map((r) => r.id)).toEqual(["notes/good-note"]);
+    const { pages, problems } = await collectEntityPages(root, SAMPLE_PROFILE);
+    expect(pages.map((r) => r.id)).toEqual(["notes/good-note"]);
     expect(problems).toHaveLength(1);
     expect(problems[0].kind).toBe("non-slug-safe-filename");
   });
@@ -162,8 +162,8 @@ describe("collectEntityPages — field contract enforced as problems", () => {
 
   it("records a field-violation for a missing required field, keeping the ref", async () => {
     await writeFile(path.join(root, "wiki/notes/no-title.md"), "# no-title\n");
-    const { refs, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
-    expect(refs.map((r) => r.id)).toEqual(["notes/no-title"]);
+    const { pages, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
+    expect(pages.map((r) => r.id)).toEqual(["notes/no-title"]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toMatchObject({ kind: "field-violation", entityType: "notes" });
     expect(problems[0].message).toMatch(/title/);
@@ -171,8 +171,8 @@ describe("collectEntityPages — field contract enforced as problems", () => {
 
   it("records a field-violation for an out-of-set enum value", async () => {
     await writeFile(path.join(root, "wiki/notes/bad-status.md"), "---\ntitle: T\nstatus: nope\n---\n");
-    const { refs, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
-    expect(refs.map((r) => r.id)).toEqual(["notes/bad-status"]);
+    const { pages, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
+    expect(pages.map((r) => r.id)).toEqual(["notes/bad-status"]);
     expect(problems).toHaveLength(1);
     expect(problems[0].kind).toBe("field-violation");
     expect(problems[0].message).toMatch(/status/);
@@ -180,8 +180,8 @@ describe("collectEntityPages — field contract enforced as problems", () => {
 
   it("produces no problems for a contract-satisfying page", async () => {
     await writeFile(path.join(root, "wiki/notes/good.md"), "---\ntitle: T\nstatus: open\n---\n");
-    const { refs, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
-    expect(refs.map((r) => r.id)).toEqual(["notes/good"]);
+    const { pages, problems } = await collectEntityPages(root, CONTRACT_PROFILE);
+    expect(pages.map((r) => r.id)).toEqual(["notes/good"]);
     expect(problems).toEqual([]);
   });
 });
