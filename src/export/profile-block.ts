@@ -26,11 +26,11 @@ export async function buildExportProfileBlock(
 ): Promise<JsonExportProfileBlock | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
-  const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
+  const { pages, problems } = await collectEntityPagesWithMessages(root, loaded);
   return {
     version: PROFILE_BLOCK_VERSION,
     profileId: loaded.profile.profileId,
     entityPages: pages.map((page) => toEntityPageView(page, true)),
-    ...(messages.length > 0 ? { problems: messages } : {}),
+    ...(problems.length > 0 ? { problems, problemTotal: problems.length } : {}),
   };
 }

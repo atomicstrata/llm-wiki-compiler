@@ -20,6 +20,7 @@ import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js"
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
 import { collectProfileSummary } from "../profile/block.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
+import type { EntityProblemView } from "../profile/types.js";
 
 /**
  * Maximum number of items returned in each agent-facing list (stalePages,
@@ -69,12 +70,16 @@ export interface WikiStatus {
     digest: string;
     entityCounts: Record<string, number>;
     /**
-     * Human-readable problem messages from the non-default read path (invalid
-     * directories, non-slug-safe filenames, slug mismatches, field-contract
-     * violations). Present ONLY when non-empty, so a non-default project with a
-     * bad directory or page is never reported as silently healthy.
+     * Structured problems from the non-default read path (invalid directories,
+     * non-slug-safe filenames, slug mismatches, field-contract violations),
+     * CAPPED at PROFILE_PROBLEM_CAP; each `path` is project-relative (never
+     * absolute) and absent for directory-level problems. Present ONLY when
+     * non-empty, so a non-default project with a bad directory or page is never
+     * reported as silently healthy; see `problemTotal` for the full count.
      */
-    problems?: string[];
+    problems?: EntityProblemView[];
+    /** Full problem count (may exceed `problems.length` when capped). */
+    problemTotal?: number;
   };
 }
 

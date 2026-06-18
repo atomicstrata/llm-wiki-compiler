@@ -27,7 +27,7 @@ import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
 import { toEntityPageView } from "../profile/types.js";
-import type { EntityPageView, EntityPage } from "../profile/types.js";
+import type { EntityPageView, EntityProblemView, EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
 export type { PageDirectory };
@@ -71,6 +71,13 @@ export interface ListPagesOptions {
    * paging. Uses the SAME `limit` as the legacy section.
    */
   profileCursor?: string;
+  /**
+   * Opaque continuation cursor for the ADDITIVE profile `problems` section ONLY.
+   * Windows collector problems independently of `cursor`/`profileCursor`, using
+   * the SAME `limit`, so a partially-invalid profile never returns thousands of
+   * problems per page. Drive the next batch via {@link ListPagesProfileBlock.problemCursor}.
+   */
+  problemCursor?: string;
 }
 
 /**
@@ -99,8 +106,20 @@ export interface ListPagesProfileBlock {
    * entity section is exhausted. Pass back via `profileCursor`.
    */
   cursor?: string;
-  /** Human-readable collector problems; present ONLY when non-empty. */
-  problems?: string[];
+  /**
+   * Structured collector problems, WINDOWED by `limit` independently of
+   * `entityPages` (its own `problemCursor` offset). Present ONLY when the window
+   * is non-empty; each `path` is project-relative (never absolute) and absent
+   * for directory-level problems. See `problemTotal` for the full count.
+   */
+  problems?: EntityProblemView[];
+  /** Full count of collector problems across the profile; present ONLY when non-empty. */
+  problemTotal?: number;
+  /**
+   * Opaque continuation cursor for the NEXT `problems` batch; absent when the
+   * problem section is exhausted. Pass back via `problemCursor`.
+   */
+  problemCursor?: string;
 }
 
 /**
@@ -206,14 +225,15 @@ export async function listPages(
 }
 
 /**
- * Resolve the entity-window offset from `profileCursor`. A non-integer or
- * negative cursor is rejected rather than silently recycled (mirroring the
- * legacy {@link paginate} cursor guard).
+ * Resolve a window offset from an opaque cursor for an additive profile section.
+ * A non-integer or negative cursor is rejected rather than silently recycled
+ * (mirroring the legacy {@link paginate} cursor guard). `name` identifies the
+ * offending cursor option in the error so callers can tell which one was bad.
  */
-function profileOffset(cursor: string | undefined): number {
+function profileOffset(cursor: string | undefined, name: string): number {
   const offset = cursor !== undefined ? Number(cursor) : 0;
   if (!Number.isInteger(offset) || offset < 0) {
-    throw new Error(`invalid listPages profileCursor: ${cursor}`);
+    throw new Error(`invalid listPages ${name}: ${cursor}`);
   }
   return offset;
 }
@@ -241,34 +261,54 @@ async function collectProfileBlock(
 ): Promise<ListPagesProfileBlock | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
-  const { pages, messages } = await collectEntityPagesWithMessages(root, loaded);
+  const { pages, problems } = await collectEntityPagesWithMessages(root, loaded);
   pages.sort((a, b) => a.id.localeCompare(b.id));
   const includeBody = options.includeBody === true;
-  return windowEntityPages(pages, options, includeBody, messages);
+  return windowEntityPages(pages, options, includeBody, problems);
+}
+
+/** An offset window over a list: the slice plus the next-batch offset (absent when exhausted). */
+interface OffsetWindow<T> {
+  items: T[];
+  cursor?: string;
 }
 
 /**
- * Slice an already-sorted entity-page list into a bounded, cursor-paged block.
- * A non-positive or absent limit is treated as unbounded (mirroring the legacy
- * {@link paginate} contract); the next-batch `cursor` is the offset past the
- * returned window, absent once the entity section is exhausted.
+ * Slice an already-ordered list into a bounded window at `offset`, sized by the
+ * SAME `limit` contract as the legacy {@link paginate} (non-positive/absent limit
+ * = unbounded). The returned `cursor` is the offset past the window, absent once
+ * the list is exhausted. Shared by the entity-page and problem windows so the two
+ * never drift.
+ */
+function sliceWindow<T>(items: T[], offset: number, limit: number | undefined): OffsetWindow<T> {
+  const effectiveLimit = limit && limit > 0 ? limit : items.length;
+  const window = items.slice(offset, offset + effectiveLimit);
+  const nextOffset = offset + window.length;
+  return { items: window, ...(nextOffset < items.length ? { cursor: String(nextOffset) } : {}) };
+}
+
+/**
+ * Slice an already-sorted entity-page list into a bounded, cursor-paged block,
+ * windowing `problems` by the SAME `limit` under an INDEPENDENT `problemCursor`
+ * offset (with `problemTotal`/`problemCursor`) so a partially-invalid profile
+ * never returns thousands of problems per page. Entity `cursor` and problem
+ * `problemCursor` advance separately; the next-batch cursors are absent once
+ * each section is exhausted.
  */
 function windowEntityPages(
   pages: EntityPage[],
   options: ListPagesOptions,
   includeBody: boolean,
-  messages: string[],
+  problems: EntityProblemView[],
 ): ListPagesProfileBlock {
-  const offset = profileOffset(options.profileCursor);
-  const limit = options.limit && options.limit > 0 ? options.limit : pages.length;
-  const window = pages.slice(offset, offset + limit);
-  const nextOffset = offset + window.length;
-  const cursor = nextOffset < pages.length ? String(nextOffset) : undefined;
+  const pageWindow = sliceWindow(pages, profileOffset(options.profileCursor, "profileCursor"), options.limit);
+  const problemWindow = sliceWindow(problems, profileOffset(options.problemCursor, "problemCursor"), options.limit);
   return {
-    entityPages: window.map((page) => toEntityPageView(page, includeBody)),
+    entityPages: pageWindow.items.map((page) => toEntityPageView(page, includeBody)),
     total: pages.length,
-    ...(cursor !== undefined ? { cursor } : {}),
-    ...(messages.length > 0 ? { problems: messages } : {}),
+    ...(pageWindow.cursor !== undefined ? { cursor: pageWindow.cursor } : {}),
+    ...(problems.length > 0 ? { problems: problemWindow.items, problemTotal: problems.length } : {}),
+    ...(problemWindow.cursor !== undefined ? { problemCursor: problemWindow.cursor } : {}),
   };
 }
 

@@ -12,6 +12,9 @@
  * constructors in `./identity.js`.
  */
 
+import path from "path";
+import type { EntityProblem, EntityProblemKind } from "./collect.js";
+
 /** A string proven to match the slug-safe grammar (`^[a-z0-9][a-z0-9-]*$`). */
 export type SlugSafe = string & { readonly __slugSafe: unique symbol };
 
@@ -173,4 +176,45 @@ export function toEntityPageView(page: EntityPage, includeBody: boolean): Entity
     ...(includeBody ? { body: page.body } : {}),
   };
   return view;
+}
+
+/**
+ * The PUBLIC surface DTO for a structured non-default-profile collector problem.
+ *
+ * Unlike the internal {@link EntityProblem}, this NEVER carries an absolute
+ * `filePath` — only a PROJECT-RELATIVE `path` (`path.relative(root, filePath)`),
+ * which is OMITTED entirely (key absent) for directory-level problems that have
+ * no file. Carrying the structured `kind`/`entityType` (rather than a flattened
+ * message string) lets a surface group, count, or filter problems, and keeps
+ * repeated field violations distinguishable.
+ *
+ * @experimental Shape may change in a future release.
+ */
+export interface EntityProblemView {
+  kind: EntityProblemKind;
+  entityType: string;
+  /** Project-relative offending page path; ABSENT for directory-level problems. Never absolute. */
+  path?: string;
+  message: string;
+}
+
+/**
+ * Map an internal {@link EntityProblem} to its public {@link EntityProblemView}.
+ *
+ * Drops the absolute `filePath` in favour of a project-relative `path`
+ * (`path.relative(root, filePath)`), OMITTING the key entirely when the problem
+ * is directory-level (no `filePath`) so an absent path is never a misleading
+ * empty string and an absolute path can never leak.
+ *
+ * @param problem - The internal structured collector problem.
+ * @param root - Absolute project root, used to relativize `filePath`.
+ * @returns The public, path-safe problem view.
+ */
+export function toEntityProblemView(problem: EntityProblem, root: string): EntityProblemView {
+  return {
+    kind: problem.kind,
+    entityType: problem.entityType,
+    ...(problem.filePath !== undefined ? { path: path.relative(root, problem.filePath) } : {}),
+    message: problem.message,
+  };
 }

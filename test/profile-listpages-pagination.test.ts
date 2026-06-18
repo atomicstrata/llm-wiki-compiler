@@ -20,6 +20,7 @@ import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import {
   writeMarkdownPage,
   seedManyNotesProject,
+  seedBrokenNotesProject,
 } from "./fixtures/profile-fixtures.js";
 
 let root = "";
@@ -80,5 +81,37 @@ describe("listPages entity section — bounded + paginated", () => {
     // A legacy `cursor` paginates `pages` only; the entity window must be stable.
     const withLegacyCursor = await listPages(root, { limit: PAGE_LIMIT, cursor: "0" });
     expect(withLegacyCursor.profile!.entityPages.map((p) => p.id)).toEqual(firstIds);
+  });
+});
+
+describe("listPages problems — bounded by limit with own problemCursor", () => {
+  beforeEach(async () => {
+    await seedBrokenNotesProject(root, TOTAL_NOTES);
+  });
+
+  it("returns at most `limit` problems with the full problemTotal and a problemCursor", async () => {
+    const result = await listPages(root, { limit: PAGE_LIMIT });
+    expect(result.profile!.problems!.length).toBeLessThanOrEqual(PAGE_LIMIT);
+    expect(result.profile!.problemTotal).toBe(TOTAL_NOTES);
+    expect(result.profile!.problemCursor).toBeDefined();
+  });
+
+  it("walks every problem via problemCursor, last batch has no problemCursor", async () => {
+    let seen = 0;
+    let problemCursor: string | undefined;
+    do {
+      const result = await listPages(root, { limit: PAGE_LIMIT, problemCursor });
+      seen += result.profile!.problems!.length;
+      problemCursor = result.profile!.problemCursor;
+    } while (problemCursor !== undefined);
+    expect(seen).toBe(TOTAL_NOTES);
+  });
+
+  it("paginates problems independently of the entity-page window", async () => {
+    const result = await listPages(root, { limit: PAGE_LIMIT, profileCursor: "4" });
+    // entity window is exhausted (offset 4 of 5) but problems restart at offset 0.
+    expect(result.profile!.entityPages).toHaveLength(1);
+    expect(result.profile!.problems!.length).toBe(PAGE_LIMIT);
+    expect(result.profile!.problemTotal).toBe(TOTAL_NOTES);
   });
 });

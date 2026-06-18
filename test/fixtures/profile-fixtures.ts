@@ -80,19 +80,47 @@ export function expectFirstNotePage(page: EntityPageView): void {
 }
 
 /**
- * Seed a `SAMPLE_PROFILE` project with `count` valid `notes` pages named
+ * Seed a `SAMPLE_PROFILE` project with `count` `notes` pages whose slug is
+ * `<prefix>-NN` (zero-padded so lexical `id` order is stable), each built from
+ * `content(slug, i)`. The shared loop behind both the valid and broken seeders
+ * so their paging/bounding setup never drifts.
+ */
+async function seedNotesProject(
+  root: string,
+  count: number,
+  prefix: string,
+  content: (slug: string, index: number) => string,
+): Promise<void> {
+  await writeProfileFile(root, SAMPLE_PROFILE);
+  for (let i = 0; i < count; i++) {
+    const slug = `${prefix}-${String(i).padStart(2, "0")}`;
+    await writeMarkdownPage(root, "wiki/notes", slug, content(slug, i));
+  }
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with `count` VALID `notes` pages named
  * `note-00`, `note-01`, … so the additive entity section has more pages than a
- * small `limit`. Zero-padded so lexical `id` order is stable and predictable.
+ * small `limit`.
  *
  * @param root - Absolute project root directory.
  * @param count - How many `notes` pages to seed.
  */
 export async function seedManyNotesProject(root: string, count: number): Promise<void> {
-  await writeProfileFile(root, SAMPLE_PROFILE);
-  for (let i = 0; i < count; i++) {
-    const slug = `note-${String(i).padStart(2, "0")}`;
-    await writeMarkdownPage(root, "wiki/notes", slug, `---\ntitle: Note ${i}\n---\nBody ${i}.`);
-  }
+  await seedNotesProject(root, count, "note", (_slug, i) => `---\ntitle: Note ${i}\n---\nBody ${i}.`);
+}
+
+/**
+ * Seed a `SAMPLE_PROFILE` project with `count` INVALID `notes` pages, each
+ * missing the required `title` field so every page yields exactly one
+ * `field-violation` problem (`broken-00`, …). Used to exercise per-surface
+ * problem bounding (windowing / capping).
+ *
+ * @param root - Absolute project root directory.
+ * @param count - How many broken `notes` pages to seed.
+ */
+export async function seedBrokenNotesProject(root: string, count: number): Promise<void> {
+  await seedNotesProject(root, count, "broken", (slug, i) => `---\nslug: ${slug}\n---\nNo title ${i}.`);
 }
 
 /**

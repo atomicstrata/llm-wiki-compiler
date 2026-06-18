@@ -174,16 +174,37 @@ async function readBoundedPrefix(filePath: string): Promise<{ text: string; comp
   }
 }
 
+/** The two byte sequences a frontmatter block can open with (LF and CRLF). */
+const FRONTMATTER_OPENINGS = ["---\n", "---\r\n"] as const;
+
+/**
+ * True when `text` begins with a frontmatter opening fence (`---\n`/`---\r\n`).
+ * A prefix that does NOT begin with one cannot contain a frontmatter block at
+ * all — the opening must be the very first bytes — so this alone is decisive.
+ */
+function startsWithFrontmatterOpening(text: string): boolean {
+  return FRONTMATTER_OPENINGS.some((opening) => text.startsWith(opening));
+}
+
 /**
  * Metadata-only read: parse frontmatter from a bounded prefix WITHOUT reading
- * the whole file. Returns a body-less scan when a COMPLETE frontmatter block
- * (or no block at all) is decided within the prefix; returns `null` when the
- * closing fence is not yet visible AND the file exceeds the cap, signalling the
- * caller to fall back to a full read so behaviour is never wrong.
+ * the whole file. Returns a body-less scan when the file CANNOT have frontmatter
+ * (the prefix does not open with `---\n`/`---\r\n`), when a COMPLETE frontmatter
+ * block is decided within the prefix, or when the prefix is complete; returns
+ * `null` only when the closing fence is not yet visible AND the file exceeds the
+ * cap, signalling the caller to fall back to a full read so behaviour is never wrong.
+ *
+ * The no-frontmatter early return reuses the same `parseFrontmatterStatus`
+ * builder as every other path, so its `meta`/`parseStatus` are BYTE-IDENTICAL to
+ * a full read of a file with no leading frontmatter — and a multi-MB body that
+ * does not open with a fence is summarized from the small prefix, never read whole.
  */
 async function readMetadataOnlyScan(filePath: string, stem: string): Promise<RawEntityScan | null> {
   const { text, complete } = await readBoundedPrefix(filePath);
   const parsed = parseFrontmatterStatus(text);
+  // Not opening with a fence is already decisive: there is no frontmatter, so
+  // the rest of the file is irrelevant and need not be read.
+  if (!startsWithFrontmatterOpening(text)) return scanFromParsed(filePath, stem, parsed, "");
   // A complete prefix is authoritative. A truncated prefix is only trustworthy
   // when a closing fence was already found — otherwise the real block may close
   // past the cap, so we must fall back to the full read.

@@ -71,6 +71,6 @@ describe("listPages — non-default profile", () => {
     await writeMarkdownPage(root, "wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title here.");
     const result = await listPages(root, {});
     expect(result.profile?.problems?.length).toBeGreaterThan(0);
-    expect(result.profile!.problems!.some((m) => m.includes("title"))).toBe(true);
+    expect(result.profile!.problems!.some((p) => p.message.includes("title"))).toBe(true);
   });
 });

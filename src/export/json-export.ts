@@ -28,7 +28,7 @@
 
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
-import type { EntityPageView } from "../profile/types.js";
+import type { EntityPageView, EntityProblemView } from "../profile/types.js";
 
 /**
  * Monotonically-incremented envelope version.
@@ -65,8 +65,16 @@ export interface JsonExportProfileBlock {
   version: 1;
   profileId: string;
   entityPages: EntityPageView[];
-  /** Human-readable collector problems; present ONLY when non-empty. */
-  problems?: string[];
+  /**
+   * Structured collector problems, present ONLY when non-empty. An export is a
+   * COMPLETE snapshot, so this list is NEVER capped — every problem is retained
+   * (each `path` project-relative, never absolute; absent for directory-level
+   * problems). `problemTotal` mirrors `problems.length` for symmetry with the
+   * capped status/viewer surfaces.
+   */
+  problems?: EntityProblemView[];
+  /** Full problem count; equals `problems.length` (export is never capped). */
+  problemTotal?: number;
 }
 
 /** Top-level shape of the JSON export file. */

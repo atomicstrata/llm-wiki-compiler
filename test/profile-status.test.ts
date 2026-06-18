@@ -18,6 +18,7 @@ import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { collectStatus } from "../src/status/collect.js";
+import { PROFILE_PROBLEM_CAP } from "../src/profile/block.js";
 import { PROFILE_FILE, CONCEPTS_DIR, QUERIES_DIR } from "../src/utils/constants.js";
 
 let root = "";
@@ -49,6 +50,13 @@ async function writePage(dir: string, stem: string, withTitle = false): Promise<
   await mkdir(dir, { recursive: true });
   const fm = withTitle ? `---\ntitle: ${stem}\n---\n\n` : "";
   await writeFile(path.join(dir, `${stem}.md`), `${fm}# ${stem}\n`);
+}
+
+/** Make `wiki/notes` a symlink to an out-of-tree dir so the collector flags it invalid. */
+async function symlinkNotesDirOutOfTree(): Promise<void> {
+  await mkdir(path.join(root, "elsewhere"), { recursive: true });
+  await mkdir(path.join(root, "wiki"), { recursive: true });
+  await symlink(path.join(root, "elsewhere"), path.join(root, "wiki/notes"));
 }
 
 beforeEach(async () => {
@@ -101,11 +109,9 @@ describe("collectStatus — non-default profile", () => {
 describe("collectStatus — surfaces non-default problems (never silent)", () => {
   it("reports a symlinked entity dir as a problem instead of a silent 0", async () => {
     await writeProfile(SAMPLE_PROFILE);
-    await mkdir(path.join(root, "elsewhere"), { recursive: true });
-    await mkdir(path.join(root, "wiki"), { recursive: true });
-    await symlink(path.join(root, "elsewhere"), path.join(root, "wiki/notes"));
+    await symlinkNotesDirOutOfTree();
     const result = await collectStatus(root);
-    expect(result.profile?.problems?.some((m) => /invalid/i.test(m))).toBe(true);
+    expect(result.profile?.problems?.some((p) => /invalid/i.test(p.message))).toBe(true);
     expect(result.profile?.entityCounts.notes).toBe(0);
   });
 
@@ -116,5 +122,37 @@ describe("collectStatus — surfaces non-default problems (never silent)", () =>
     const result = await collectStatus(root);
     expect(result.profile?.entityCounts.notes).toBe(1);
     expect(result.profile?.problems).toHaveLength(1);
+  });
+
+  it("caps problems at PROFILE_PROBLEM_CAP while problemTotal reports the full count", async () => {
+    const overCap = PROFILE_PROBLEM_CAP + 5;
+    await writeProfile({ ...SAMPLE_PROFILE, entities: { notes: { directory: "wiki/notes", requiredFields: ["title"], fields: { title: { type: "string" } } } } });
+    await mkdir(path.join(root, "wiki/notes"), { recursive: true });
+    for (let i = 0; i < overCap; i++) {
+      const slug = `n-${String(i).padStart(3, "0")}`;
+      await writeFile(path.join(root, "wiki/notes", `${slug}.md`), `---\nslug: ${slug}\n---\nNo title.`);
+    }
+    const result = await collectStatus(root);
+    expect(result.profile?.problems).toHaveLength(PROFILE_PROBLEM_CAP);
+    expect(result.profile?.problemTotal).toBe(overCap);
+  });
+
+  it("gives field-violation problems a project-relative path (never absolute)", async () => {
+    await writeProfile({ ...SAMPLE_PROFILE, entities: { notes: { directory: "wiki/notes", requiredFields: ["title"], fields: { title: { type: "string" } } } } });
+    await mkdir(path.join(root, "wiki/notes"), { recursive: true });
+    await writeFile(path.join(root, "wiki/notes", "untitled.md"), "---\nslug: untitled\n---\nNo title.");
+    const result = await collectStatus(root);
+    const problem = result.profile!.problems![0];
+    expect(problem.path).toBe("wiki/notes/untitled.md");
+    expect(problem.path?.startsWith("/")).toBe(false);
+  });
+
+  it("omits path on a directory-level (invalid-directory) problem", async () => {
+    await writeProfile(SAMPLE_PROFILE);
+    await symlinkNotesDirOutOfTree();
+    const result = await collectStatus(root);
+    const dirProblem = result.profile!.problems!.find((p) => p.kind === "invalid-directory");
+    expect(dirProblem).toBeDefined();
+    expect("path" in dirProblem!).toBe(false);
   });
 });

@@ -60,6 +60,6 @@ describe("viewer snapshot — non-default profile", () => {
   it("surfaces collector problems for a contract violation", async () => {
     await writeMarkdownPage(root, "wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title.");
     const snapshot = await buildViewerSnapshot(root);
-    expect(snapshot.profile?.problems?.some((m) => m.includes("title"))).toBe(true);
+    expect(snapshot.profile?.problems?.some((p) => p.message.includes("title"))).toBe(true);
   });
 });

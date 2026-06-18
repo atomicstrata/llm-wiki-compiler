@@ -116,4 +116,18 @@ describe("scanEntityDir metadata-only — bounded prefix avoids full-body I/O", 
     expect(meta.scans[0].parseStatus).toEqual(full.scans[0].parseStatus);
     expect(meta.scans[0].frontmatter.title).toBe("Late");
   });
+
+  it("summarizes a large NO-leading-frontmatter file reading only the bounded prefix", async () => {
+    const bodyBytes = 2 * 1024 * 1024;
+    await writeRaw("no-leading-fm.md", `# Heading\n\n${"z".repeat(bodyBytes)}\n`);
+    bytesReadViaOpen = 0;
+    const full = await scanEntityDir(root, DIR, { includeBody: true });
+    const meta = await scanEntityDir(root, DIR, { includeBody: false });
+    // Decisive: a file not opening with a fence never triggers the full read.
+    expect(bytesReadViaOpen).toBeLessThanOrEqual(64 * 1024);
+    expect(bytesReadViaOpen).toBeLessThan(bodyBytes);
+    expect(meta.scans[0].frontmatter).toEqual(full.scans[0].frontmatter);
+    expect(meta.scans[0].parseStatus).toEqual(full.scans[0].parseStatus);
+    expect(meta.scans[0].parseStatus.hasFrontmatterBlock).toBe(false);
+  });
 });

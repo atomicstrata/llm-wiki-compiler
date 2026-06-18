@@ -67,7 +67,18 @@ describe("exportJson — non-default profile", () => {
   it("surfaces collector problems for a contract violation", async () => {
     await writeMarkdownPage(root, "wiki/notes", "no-title", "---\nslug: no-title\n---\nNo title.");
     const doc = await exportJson(root);
-    expect(doc.profile?.problems?.some((m) => m.includes("title"))).toBe(true);
+    expect(doc.profile?.problems?.some((p) => p.message.includes("title"))).toBe(true);
+  });
+
+  it("keeps ALL problems uncapped with problemTotal equal to the full count", async () => {
+    for (let i = 0; i < 3; i++) {
+      await writeMarkdownPage(root, "wiki/notes", `bad-${i}`, `---\nslug: bad-${i}\n---\nNo title.`);
+    }
+    const doc = await exportJson(root);
+    expect(doc.profile?.problems).toHaveLength(doc.profile!.problemTotal!);
+    expect(doc.profile?.problemTotal).toBeGreaterThanOrEqual(3);
+    const problem = doc.profile!.problems![0];
+    expect(problem.path?.startsWith("/")).toBe(false);
   });
 
   it("never leaks an absolute filePath in the profile block", async () => {
