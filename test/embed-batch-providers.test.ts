@@ -8,7 +8,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
-import { voyageEmbedBatch } from "../src/providers/voyage-embed.js";
+import { voyageEmbed, voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 import { CopilotProvider } from "../src/providers/copilot.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
@@ -62,6 +62,14 @@ describe("voyageEmbedBatch", () => {
     process.env.VOYAGE_API_KEY = "vk";
     globalThis.fetch = (async () => ({ ok: false, status: 429, text: async () => "slow down" })) as any;
     await expect(voyageEmbedBatch(["a"])).rejects.toMatchObject({ status: 429 });
+  });
+
+  it("single voyageEmbed rejects an empty/non-finite vector (C1, protects the query path)", async () => {
+    process.env.VOYAGE_API_KEY = "vk";
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({ data: [{ embedding: [] }] }) })) as any;
+    await expect(voyageEmbed("q")).rejects.toThrow();
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({ data: [{ embedding: [NaN] }] }) })) as any;
+    await expect(voyageEmbed("q")).rejects.toThrow();
   });
 });
 

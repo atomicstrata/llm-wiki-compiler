@@ -8,7 +8,7 @@
  */
 
 import { EMBEDDING_MODELS } from "../utils/constants.js";
-import { normalizeEmbeddingData } from "../utils/embeddings-validate.js";
+import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 
 const VOYAGE_EMBEDDINGS_URL = "https://api.voyageai.com/v1/embeddings";
 
@@ -56,9 +56,7 @@ export async function voyageEmbed(
   }
   const json = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
   const vector = json.data?.[0]?.embedding;
-  if (!Array.isArray(vector)) {
-    throw new Error("Voyage embeddings response did not include a vector.");
-  }
+  assertVectorValid(vector); // reject [], NaN, ±Infinity (spec C1) — protects the query path too
   return vector;
 }
 
