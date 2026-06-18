@@ -5,6 +5,7 @@
 
 import type { PageKind } from "../schema/types.js";
 import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { EntityId } from "../profile/types.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -72,15 +73,29 @@ export interface SourceState {
   hash: string;
   concepts: string[];
   compiledAt: string;
+  /**
+   * v2 typed-ownership mirror of {@link concepts}: each bare concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `concepts` list (never replacing it) so a v2 state stays losslessly
+   * downgradeable. Present only after migration to `version: 2`.
+   */
+  entities?: EntityId[];
 }
 
 /** Root shape of .llmwiki/state.json. */
 export interface WikiState {
-  version: 1;
+  version: 1 | 2;
   indexHash: string;
   sources: Record<string, SourceState>;
   /** Concept slugs frozen across batches to preserve content from deleted sources. */
   frozenSlugs?: string[];
+  /**
+   * v2 typed-ownership mirror of {@link frozenSlugs}: each frozen concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `frozenSlugs` list (never replacing it). Present only after
+   * migration to `version: 2`.
+   */
+  frozenEntities?: EntityId[];
 }
 
 /** Change detection result for a single source file. */
