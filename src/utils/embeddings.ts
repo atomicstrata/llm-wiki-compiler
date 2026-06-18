@@ -108,6 +108,8 @@ function shouldRunEmbedding(
   return false;
 }
 
+// Public surface preserved across the module split. Consumers import these from
+// "./embeddings.js" today; keep that contract.
 export {
   readEmbeddingStore,
   writeEmbeddingStore,
@@ -124,3 +126,4 @@ export {
   findRelevantChunks,
   resetStaleEmbeddingWarnings,
 } from "./embeddings-search.js";
+// updateEmbeddings is declared locally and exported inline.
