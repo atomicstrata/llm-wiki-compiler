@@ -18,9 +18,44 @@ function emptyState(): WikiState {
   return { version: 1, indexHash: "", sources: {} };
 }
 
-/** State file read outcome: ok = parsed, missing = no file, corrupt = unparseable. */
+/**
+ * Highest state.json schema version this build understands. A state file whose
+ * `version` exceeds this was written by a newer llmwiki; we fail closed rather
+ * than risk misinterpreting (or clobbering) a forward-incompatible layout.
+ */
+export const KNOWN_STATE_VERSION = 2;
+
+/**
+ * Thrown by {@link readState} when state.json was written by a newer-than-known
+ * llmwiki version. Carries a distinct `.name` so callers can branch on the type
+ * rather than string-matching the message.
+ */
+export class StateTooNewError extends Error {
+  constructor(version: number) {
+    super(
+      `.llmwiki/state.json (version ${version}) was written by a newer llmwiki version ` +
+        `(this build understands up to version ${KNOWN_STATE_VERSION}). ` +
+        `Upgrade llmwiki to read this project.`,
+    );
+    this.name = "StateTooNewError";
+  }
+}
+
+/**
+ * Readability classification of `.llmwiki/state.json`, shared by every
+ * read-only surface so the fail-closed `too-new` outcome is represented
+ * uniformly:
+ * - ok = parsed and within the known schema range
+ * - missing = no file
+ * - corrupt = unparseable
+ * - too-new = parsed but `version` exceeds {@link KNOWN_STATE_VERSION}; the
+ *   parsed state is carried (never reset) and nothing is written to disk.
+ */
+export type StateStatus = "ok" | "missing" | "corrupt" | "too-new";
+
+/** State file read outcome plus the carried (parsed or empty) state. */
 export interface ClassifiedState {
-  status: "ok" | "missing" | "corrupt";
+  status: StateStatus;
   state: WikiState;
 }
 
@@ -34,15 +69,32 @@ export async function readStateClassified(root: string): Promise<ClassifiedState
   if (!existsSync(filePath)) return { status: "missing", state: emptyState() };
   try {
     const raw = await readFile(filePath, "utf-8");
-    return { status: "ok", state: JSON.parse(raw) as WikiState };
+    return classifyParsedState(JSON.parse(raw) as WikiState);
   } catch {
     return { status: "corrupt", state: emptyState() };
   }
 }
 
+/**
+ * Classify a successfully parsed state. Fails closed on a newer-than-known
+ * `version` by returning `too-new` with the parsed state carried intact — no
+ * reset and no disk write, so read-only callers can surface the condition.
+ */
+function classifyParsedState(state: WikiState): ClassifiedState {
+  if ((state.version as number) > KNOWN_STATE_VERSION) {
+    return { status: "too-new", state };
+  }
+  return { status: "ok", state };
+}
+
 /** Read .llmwiki/state.json, recovering from corruption gracefully (writes a .bak). */
 export async function readState(root: string): Promise<WikiState> {
   const classified = await readStateClassified(root);
+  if (classified.status === "too-new") {
+    // Fail closed: never start fresh (which would clobber a forward-incompatible
+    // file on the next write) and never copy a .bak.
+    throw new StateTooNewError(classified.state.version as number);
+  }
   if (classified.status === "corrupt") {
     const filePath = path.join(root, STATE_FILE);
     const bakPath = filePath + ".bak";

@@ -53,3 +53,14 @@ export async function writeTestStateJson(root: string, state: WikiState): Promis
 export async function writeCorruptTestStateJson(root: string): Promise<void> {
   await writeRawTestStateJson(root, "{ not valid json");
 }
+
+/**
+ * Canonical valid version:1 state fixture shared by state-read tests so the
+ * "reports ok and carries the parsed source" assertion isn't re-declared per
+ * file. One tracked source with a known hash.
+ */
+export const SAMPLE_OK_STATE_V1: WikiState = {
+  version: 1,
+  indexHash: "",
+  sources: { "a.md": { hash: "h", concepts: ["x"], compiledAt: "t" } },
+};

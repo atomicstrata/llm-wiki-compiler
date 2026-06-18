@@ -16,6 +16,7 @@ import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { PageFreshness } from "../freshness/types.js";
 import type { ProfileSummaryBlock } from "../profile/block.js";
+import type { StateStatus } from "../utils/state.js";
 
 /**
  * Canonical page identifier: `concepts/<slug>` or `queries/<slug>`. Bare
@@ -165,8 +166,8 @@ export interface ViewerSnapshot {
   root: string;
   /** ISO-8601 timestamp the snapshot was built at. */
   generatedAt: string;
-  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt-state banner. */
-  stateStatus: "ok" | "missing" | "corrupt";
+  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt/too-new-state banner. */
+  stateStatus: StateStatus;
   /** Project metadata for the dashboard header. */
   project: ViewerProject;
   /** Frozen counts for `/api/pages` and `/api/health`. */
