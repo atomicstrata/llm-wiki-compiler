@@ -9,7 +9,10 @@
     "src/viewer/assets/index.html",
     "src/viewer/assets/viewer.css"
   ],
-  "ignoreExports": [{ "file": "src/utils/output.ts", "exports": ["getQuiet"] }],
+  "ignoreExports": [
+    { "file": "src/utils/output.ts", "exports": ["getQuiet"] },
+    { "file": "src/utils/constants.ts", "exports": ["EMBED_BATCH_SIZES", "EMBED_BATCH_SIZE_FALLBACK", "EMBED_BATCH_CAPS", "EMBED_BATCH_CAP_FALLBACK", "ENV_EMBED_BATCH_SIZE", "ENV_EMBED_STRICT"] }
+  ],
   "overrides": [
     {
       "files": ["src/providers/*.ts", "src/utils/provider-guard.ts"],
