@@ -4,7 +4,7 @@
  */
 
 import type { PageKind } from "../schema/types.js";
-import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
 import type { EntityId } from "../profile/types.js";
 
 /**
@@ -151,7 +151,7 @@ export interface CompileResult {
 export interface ReviewedCandidateRef {
   id: string;
   slug: string;
-  reasons: HeldReasonCode[];
+  reasons: PolicyHeldReasonCode[];
 }
 
 /** Optional behaviour controls for the compile pipeline. */
