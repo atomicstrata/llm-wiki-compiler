@@ -109,6 +109,7 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 | Variable | Values | Description |
 |---|---|---|
 | `LLMWIKI_DEBUG` | `1` or `verbose` | Debug tracing for the `claude-agent` provider only. `1` prints a concise one-line trace per SDK message plus subprocess errors. `verbose` additionally enables the Agent SDK's full verbose logging |
+| `LLMWIKI_VERBOSE` | any non-empty value | Enable verbose progress output for all commands. Equivalent to passing `--verbose` on the command line. Prints dimmed `  · ` detail lines for each source parsed, concept merged, page written, embedding batch, and total compile time |
 
 ---
 

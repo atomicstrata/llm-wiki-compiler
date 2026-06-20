@@ -190,3 +190,6 @@ export const ENV_EMBED_BATCH_SIZE = "LLMWIKI_EMBED_BATCH_SIZE";
 
 /** Env var: when set, a failed embedding refresh exits non-zero (for CI). */
 export const ENV_EMBED_STRICT = "LLMWIKI_EMBED_STRICT";
+
+/** Env var: when set to any non-empty value, enables verbose progress output. */
+export const ENV_VERBOSE = "LLMWIKI_VERBOSE";

@@ -24,6 +24,7 @@ import path from "path";
 import { createRequire } from "module";
 import { atomicWrite } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import { collectExportPages } from "../export/collect.js";
 import { buildLlmsTxt, buildLlmsFullTxt } from "../export/llms-txt.js";
 import {
@@ -179,6 +180,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
     options.projectId !== undefined ? validateProjectId(options.projectId) : undefined;
   const pages = await collectExportPages(root);
   const projectTitle = resolveProjectTitle(root);
+  verbose(`export: ${pages.length} pages collected`);
 
   const targets = resolveTargets(options.target);
   const marpSource = resolveMarpSource(options.source);
@@ -196,6 +198,7 @@ export async function runExport(root: string, options: ExportOptions = {}): Prom
     const outPath = path.join(root, EXPORT_DIR, TARGET_FILENAMES[target]);
     await atomicWrite(outPath, content);
     written.push(outPath);
+    verbose(`target ${target}: ${content.length} chars → ${outPath}`);
     output.status("+", output.success(`Exported ${target} → ${output.source(outPath)}`));
   }
 
