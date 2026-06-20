@@ -55,6 +55,8 @@ export interface QuickstartOptions {
   lang?: string;
   /** Emit the JSON envelope instead of human output (implies --no-open). */
   json?: boolean;
+  /** Max concurrent LLM calls during the compile step (forwarded to CompileOptions). */
+  concurrency?: number;
 }
 
 /** Versioned JSON envelope shape — incremented independently from `next`. */
@@ -164,7 +166,7 @@ async function runQuickstart(
     return finalizeFailure({ source, ingest, jsonMode });
   }
 
-  const compile = await runCompileStep(root, options.review === true);
+  const compile = await runCompileStep(root, options.review === true, options.concurrency);
   const viewer = buildViewerEnvelope();
   const run: QuickstartRun = { source, ingest, compile, viewer };
   return await finalizeSuccess(run, options, jsonMode, root);
@@ -299,14 +301,18 @@ async function buildCompileFailureEnvelope(
 }
 
 /** Run compile after ingest. Translates throws into a structured envelope. */
-async function runCompileStep(root: string, review: boolean): Promise<CompileEnvelope> {
+async function runCompileStep(
+  root: string,
+  review: boolean,
+  concurrency?: number,
+): Promise<CompileEnvelope> {
   try {
     ensureProviderAvailable();
   } catch (err) {
     return await buildCompileFailureEnvelope(root, "provider_unavailable", err);
   }
   try {
-    const result = await compileAndReport(root, { review });
+    const result = await compileAndReport(root, { review, concurrency });
     return await buildCompileEnvelopeFromResult(root, result);
   } catch (err) {
     return await buildCompileFailureEnvelope(root, "compile_failed", err);

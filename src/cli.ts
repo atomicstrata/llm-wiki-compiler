@@ -33,12 +33,13 @@ import reviewRejectCommand from "./commands/review-reject.js";
 import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
 import refreshCommand from "./commands/refresh.js";
-import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
+import quickstartCommand from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
+import { parseConcurrencyFlag } from "./compiler/concurrency.js";
 import { ENV_VERBOSE } from "./utils/constants.js";
 
 const require = createRequire(import.meta.url);
@@ -115,13 +116,17 @@ program
     "--lang <code>",
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { review?: boolean; lang?: string; verbose?: boolean }) => {
+  .action(async (options: { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
     try {
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       requireProvider();
-      await compileCommand({ review: options.review });
+      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -133,11 +138,18 @@ program
   .description("Recompile only stale/changed pages without touching unrelated new sources")
   .option("--stale", "Resolve stale/orphaned pages and recompile them")
   .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { stale?: boolean; dryRun?: boolean; verbose?: boolean }) => {
+  .action(async (options: { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
     try {
       setVerbose(verboseEnabled(options.verbose));
-      const code = await refreshCommand(options, requireProvider);
+      const code = await refreshCommand(
+        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
+        requireProvider,
+      );
       process.exit(code);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -229,10 +241,14 @@ program
 program
   .command("watch")
   .description("Watch sources/ and auto-recompile on changes")
-  .action(async () => {
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls per recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .action(async (options: { concurrency?: string }) => {
     try {
       requireProvider();
-      await watchCommand();
+      await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -438,10 +454,27 @@ program
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
   .option("--json", "Emit the quickstart JSON envelope instead of human output (implies --no-open)")
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during the compile step (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (source: string, options: QuickstartOptions & { verbose?: boolean }) => {
+  .action(async (
+    source: string,
+    options: {
+      review?: boolean; open?: boolean; provider?: string;
+      lang?: string; json?: boolean; concurrency?: string; verbose?: boolean;
+    },
+  ) => {
     setVerbose(verboseEnabled(options.verbose));
-    return runExitCodeCommand(() => quickstartCommand(source, options));
+    return runExitCodeCommand(() => quickstartCommand(source, {
+      review: options.review,
+      open: options.open,
+      provider: options.provider,
+      lang: options.lang,
+      json: options.json,
+      concurrency: parseConcurrencyFlag(options.concurrency),
+    }));
   });
 
 program

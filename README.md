@@ -233,8 +233,10 @@ See [`docs/configuration/review-policy.mdx`](docs/configuration/review-policy.md
 llmwiki is still early software, but it is no longer a toy pipeline for a handful of notes.
 
 - **Incremental compilation** means unchanged sources do not flow back through the LLM.
+- **Parallel compile** runs concept extraction and page generation concurrently under a configurable cap (`--concurrency` / `LLMWIKI_COMPILE_CONCURRENCY`), cutting wall-clock on large compiles.
 - **Chunk-level embeddings** narrow large wikis before BM25 reranking and graph expansion.
 - **Content-hash-aware embedding updates** avoid recomputing vectors for unchanged pages and chunks.
+- **Batch embedding** sends page and chunk vectors to the provider in batches rather than one request at a time, cutting latency on cold starts and large refreshes.
 - **Cached citation judgements** make repeated `eval --suite full` runs cheaper.
 - **Lexical fallback** keeps query/context workflows usable when the active provider has no embedding endpoint.
 - **Prompt budgeting and ingest truncation metadata** make large sources explicit instead of silently pretending they fit.
@@ -269,6 +271,7 @@ volta run --node 24 npx mint dev --port 3001
 **On main, ships in `0.12.0`:**
 
 - Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
+- Parallel compile — concept extraction and page generation run concurrently under a configurable cap (`--concurrency`), cutting wall-clock on large compiles.
 
 **Released `0.11.0`:**
 

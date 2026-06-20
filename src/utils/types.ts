@@ -161,6 +161,12 @@ export interface CompileOptions {
    * write seed pages unrelated to the repair.
    */
   skipSeedPages?: boolean;
+  /**
+   * Maximum concurrent LLM calls during compile (extraction + page generation).
+   * Set by the `--concurrency` flag; overrides LLMWIKI_COMPILE_CONCURRENCY and
+   * the built-in default. Out-of-range values are clamped with a warning.
+   */
+  concurrency?: number;
 }
 
 /**
