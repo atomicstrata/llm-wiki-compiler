@@ -23,10 +23,34 @@ interface OverrideSource {
   label: string;
 }
 
-/** Pick the highest-precedence override: explicit flag, then env var. */
+/** Pick the highest-precedence override: explicit option, then env var. */
 function pickOverride(override: number | undefined): OverrideSource {
-  if (override !== undefined) return { raw: String(override), label: "--concurrency" };
+  // Neutral label, not "--concurrency": a numeric override can also arrive from
+  // the SDK (createWiki().compile({concurrency})), which never used the flag.
+  if (override !== undefined) return { raw: String(override), label: "compile concurrency" };
   return { raw: process.env[ENV_COMPILE_CONCURRENCY]?.trim(), label: ENV_COMPILE_CONCURRENCY };
+}
+
+/**
+ * Parse a raw `--concurrency` flag string into the numeric CompileOptions value.
+ * An absent flag yields undefined (so the env var / default applies). A
+ * non-integer or non-positive value is rejected here — echoing the user's raw
+ * input so a typo like `--concurrency eight` reports "eight", not "NaN" — and
+ * yields undefined so resolution falls through to the env var / default. A
+ * valid integer is returned as-is; out-of-range clamping is the resolver's job.
+ * @param raw - The flag value Commander parsed, or undefined when not passed.
+ * @returns A positive integer, or undefined to defer to env/default.
+ */
+export function parseConcurrencyFlag(raw?: string): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    output.status("!", output.warn(
+      `--concurrency value "${raw}" is not a positive integer; ignoring it.`,
+    ));
+    return undefined;
+  }
+  return n;
 }
 
 /**

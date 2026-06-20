@@ -559,15 +559,39 @@ function reportFrozenSlugs(frozenSlugs: Set<string>): void {
 }
 
 /**
+ * Extract a batch of sources in parallel under a shared concurrency limit.
+ *
+ * Promise.all preserves input order, so the result matches the old serial
+ * order that mergeExtractions relies on when reconciling same-slug concepts.
+ * On the first hard failure a shared `aborted` flag short-circuits every
+ * not-yet-started source: pLimit keeps draining its queue after Promise.all
+ * rejects, and without this guard those queued sources would still issue their
+ * (now-pointless) LLM calls — wasted cost/quota exactly when the provider is
+ * already failing. In-flight sources still finish; only the queue is skipped.
+ */
+async function extractSourcesLimited(
+  root: string,
+  files: string[],
+  limit: ReturnType<typeof pLimit>,
+): Promise<ExtractionResult[]> {
+  let aborted = false;
+  return Promise.all(files.map((file) => limit(async () => {
+    if (aborted) throw new Error(`extraction skipped for ${file}: a prior source failed`);
+    try {
+      return await extractForSource(root, file);
+    } catch (err) {
+      aborted = true;
+      throw err;
+    }
+  })));
+}
+
+/**
  * Phase 1: extract concepts for the directly-changed batch, then expand to
  * any unchanged sources whose concepts overlap with newly extracted slugs.
- *
- * Both the direct batch and the late-affected batch run their per-source LLM
- * extractions in parallel under a shared `pLimit(concurrency)` cap. Promise.all
- * preserves input order, so the returned list matches the old serial order —
- * which mergeExtractions relies on when reconciling same-slug concepts. The
- * late-affected set is computed only after the whole direct batch resolves,
- * since findLateAffectedSources reads every direct extraction.
+ * Both batches share one `pLimit(concurrency)` cap; the late-affected set is
+ * computed only after the whole direct batch resolves, since
+ * findLateAffectedSources reads every direct extraction.
  */
 async function runExtractionPhases(
   root: string,
@@ -577,18 +601,14 @@ async function runExtractionPhases(
   concurrency: number,
 ): Promise<ExtractionResult[]> {
   const limit = pLimit(concurrency);
-  const extractions = await Promise.all(
-    toCompile.map((change) => limit(() => extractForSource(root, change.file))),
-  );
+  const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
 
   const lateAffected = findLateAffectedSources(extractions, state, allChanges);
   for (const file of lateAffected) {
     output.status("~", output.info(`${file} [shares concept with new source]`));
   }
-  const lateExtractions = await Promise.all(
-    lateAffected.map((file) => limit(() => extractForSource(root, file))),
-  );
-  extractions.push(...lateExtractions);
+  const lateExtractions = await extractSourcesLimited(root, lateAffected, limit);
+  for (const result of lateExtractions) extractions.push(result);
 
   return extractions;
 }

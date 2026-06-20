@@ -16,11 +16,18 @@ import * as output from "../utils/output.js";
 
 const DEBOUNCE_MS = 500;
 
+/** Options forwarded from the CLI to each auto-recompile pass. */
+interface WatchCommandOptions {
+  /** Max concurrent LLM calls per recompile (forwarded to CompileOptions). */
+  concurrency?: number;
+}
+
 /**
  * Start watching sources/ for changes and auto-recompile.
  * Runs until the process is killed (Ctrl+C).
+ * @param options - Forwarded to each compile pass (e.g. concurrency cap).
  */
-export default async function watchCommand(): Promise<void> {
+export default async function watchCommand(options: WatchCommandOptions = {}): Promise<void> {
   const sourcesPath = path.resolve(SOURCES_DIR);
 
   if (!existsSync(sourcesPath)) {
@@ -41,7 +48,7 @@ export default async function watchCommand(): Promise<void> {
 
   const runCompileOnce = async (): Promise<void> => {
     try {
-      await compile(process.cwd());
+      await compile(process.cwd(), { concurrency: options.concurrency });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       output.status("!", output.error(`Compile failed: ${msg}`));

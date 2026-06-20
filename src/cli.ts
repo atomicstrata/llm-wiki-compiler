@@ -39,6 +39,7 @@ import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
+import { parseConcurrencyFlag } from "./compiler/concurrency.js";
 import { ENV_VERBOSE } from "./utils/constants.js";
 
 const require = createRequire(import.meta.url);
@@ -51,16 +52,6 @@ const { version } = require("../package.json") as { version: string };
  */
 function verboseEnabled(flag?: boolean): boolean {
   return Boolean(flag) || Boolean(process.env[ENV_VERBOSE]?.trim());
-}
-
-/**
- * Convert the raw `--concurrency` flag string to a number for CompileOptions.
- * An unset flag stays undefined (so the env var / default applies); a
- * non-numeric value becomes NaN, which resolveCompileConcurrency rejects with
- * a warning and falls back to the default — matching env-var handling.
- */
-function parseConcurrency(raw?: string): number | undefined {
-  return raw === undefined ? undefined : Number(raw);
 }
 
 const program = new Command();
@@ -135,7 +126,7 @@ program
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       requireProvider();
-      await compileCommand({ review: options.review, concurrency: parseConcurrency(options.concurrency) });
+      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -147,11 +138,18 @@ program
   .description("Recompile only stale/changed pages without touching unrelated new sources")
   .option("--stale", "Resolve stale/orphaned pages and recompile them")
   .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { stale?: boolean; dryRun?: boolean; verbose?: boolean }) => {
+  .action(async (options: { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
     try {
       setVerbose(verboseEnabled(options.verbose));
-      const code = await refreshCommand(options, requireProvider);
+      const code = await refreshCommand(
+        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
+        requireProvider,
+      );
       process.exit(code);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -243,10 +241,14 @@ program
 program
   .command("watch")
   .description("Watch sources/ and auto-recompile on changes")
-  .action(async () => {
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls per recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .action(async (options: { concurrency?: string }) => {
     try {
       requireProvider();
-      await watchCommand();
+      await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

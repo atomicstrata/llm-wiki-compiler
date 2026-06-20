@@ -13,12 +13,27 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { rm, writeFile, readFile, readdir } from "fs/promises";
 import path from "path";
 import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
-import { resolveCompileConcurrency } from "../src/compiler/concurrency.js";
+import { trackToolCallConcurrency } from "./fixtures/concurrency-probe.js";
+import { resolveCompileConcurrency, parseConcurrencyFlag } from "../src/compiler/concurrency.js";
 import {
   COMPILE_CONCURRENCY,
   COMPILE_CONCURRENCY_MAX,
   ENV_COMPILE_CONCURRENCY,
 } from "../src/utils/constants.js";
+
+/** Run fn while capturing console.log (output.status writes there) and return the joined text. */
+function captureStatus(fn: () => void): string {
+  const logs: string[] = [];
+  const spy = vi.spyOn(console, "log").mockImplementation((m?: unknown) => {
+    logs.push(String(m));
+  });
+  try {
+    fn();
+  } finally {
+    spy.mockRestore();
+  }
+  return logs.join("\n");
+}
 import { compileAndReport } from "../src/compiler/index.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
@@ -62,6 +77,33 @@ describe("resolveCompileConcurrency", () => {
     expect(resolveCompileConcurrency(0)).toBe(COMPILE_CONCURRENCY);
     expect(resolveCompileConcurrency(Number.NaN)).toBe(COMPILE_CONCURRENCY);
   });
+
+  it("uses a provider-neutral label for an out-of-range override, not the --concurrency flag name", () => {
+    const out = captureStatus(() =>
+      expect(resolveCompileConcurrency(COMPILE_CONCURRENCY_MAX + 1)).toBe(COMPILE_CONCURRENCY_MAX),
+    );
+    expect(out).toContain("compile concurrency");
+    expect(out).not.toContain("--concurrency");
+  });
+});
+
+describe("parseConcurrencyFlag", () => {
+  it("returns undefined when the flag is absent", () => {
+    expect(parseConcurrencyFlag(undefined)).toBeUndefined();
+  });
+
+  it("parses a valid positive integer", () => {
+    expect(parseConcurrencyFlag("8")).toBe(8);
+  });
+
+  it("passes an out-of-range value through (the resolver clamps it)", () => {
+    expect(parseConcurrencyFlag("999")).toBe(999);
+  });
+
+  it("rejects a non-integer flag and echoes the raw input the user typed", () => {
+    const out = captureStatus(() => expect(parseConcurrencyFlag("eight")).toBeUndefined());
+    expect(out).toContain('"eight"');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -101,23 +143,11 @@ async function makeMultiSourceRoot(
   return root;
 }
 
-/**
- * Stub the provider so each extraction sleeps briefly while tracking how many
- * extractions are in flight at once. The returned getter reports the peak.
- */
+/** Probe extraction concurrency and stub page generation. Returns the peak getter. */
 function trackExtractionPeak(): () => number {
-  let inFlight = 0;
-  let peak = 0;
-  let n = 0;
-  vi.spyOn(AnthropicProvider.prototype, "toolCall").mockImplementation(async () => {
-    inFlight++;
-    peak = Math.max(peak, inFlight);
-    await new Promise((resolve) => setTimeout(resolve, 25));
-    inFlight--;
-    return JSON.stringify({ concepts: [conceptRecord(`Concept ${n++}`)] });
-  });
+  const peak = trackToolCallConcurrency((n) => JSON.stringify({ concepts: [conceptRecord(`Concept ${n}`)] }));
   vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue("A generated page body.\n");
-  return () => peak;
+  return peak;
 }
 
 describe("compile extraction concurrency", () => {
@@ -147,6 +177,26 @@ describe("compile extraction concurrency", () => {
 
     // Serial extraction would peak at 1; the cap of 2 must hold across 4 sources.
     expect(peak()).toBe(2);
+  });
+
+  it("stops issuing extractions once a source fails, instead of draining the queue", async () => {
+    root = await makeMultiSourceRoot("abort", {
+      "a.md": "# A\n\na", "b.md": "# B\n\nb", "c.md": "# C\n\nc", "d.md": "# D\n\nd",
+    });
+    let calls = 0;
+    vi.spyOn(AnthropicProvider.prototype, "toolCall").mockImplementation(async () => {
+      calls++;
+      if (calls === 2) throw new Error("401 unauthorized"); // non-retriable: no backoff
+      return JSON.stringify({ concepts: [conceptRecord(`C${calls}`)] });
+    });
+    vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue("body\n");
+
+    await expect(compileAndReport(root, { concurrency: 1 })).rejects.toThrow();
+    // Drain any still-queued pool tasks while the mock is active, so the count
+    // is deterministic. Without short-circuiting, the pLimit pool runs all 4
+    // sources even though the compile is already doomed; the guard skips the rest.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls).toBeLessThan(4);
   });
 
   it("runs every source at once when the cap exceeds the source count", async () => {
