@@ -45,10 +45,11 @@ import {
 import { markOrphaned, orphanUnownedFrozenPages } from "./orphan.js";
 import { resolveLinks } from "./resolver.js";
 import { generateIndex } from "./indexgen.js";
-import { buildBudgetedCombinedContent, type SourceSlice } from "./prompt-budget.js";
+import { buildBudgetedCombinedContent, resolvePromptBudgetChars, type SourceSlice } from "./prompt-budget.js";
 import { addObsidianMeta, generateMOC } from "./obsidian.js";
 import { addModelProvenanceMeta } from "./provenance.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { deleteCandidateBySlug, listCandidates, writeCandidate } from "./candidates.js";
 import { appendLog, formatList, formatWikilinkList } from "../utils/activity-log.js";
 import {
@@ -59,6 +60,7 @@ import {
 import type { LintResult } from "../linter/types.js";
 import { renderMergedPageContent } from "./page-renderer.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import { loadReviewPolicy } from "../review/config.js";
 import { evaluatePolicy, isPolicyOff } from "../review/policy.js";
 import type { HeldReason, ReviewPolicy } from "../review/policy.js";
@@ -404,6 +406,7 @@ async function runCompilePipeline(
   root: string,
   options: CompileOptions,
 ): Promise<CompileResult> {
+  const startMs = Date.now();
   const schema = await loadSchema(root);
   const reviewPolicy = await loadReviewPolicy(root);
   reportSchemaStatus(schema);
@@ -489,6 +492,7 @@ async function runCompilePipeline(
     await finalizeWiki(root, generation.writtenPages, generation.seedSlugs);
     await logCompile(root, buckets, generation, existingIds);
   }
+  verbose(`compile finished in ${Date.now() - startMs} ms`);
   return summarizeCompile(buckets, generation, extractions, options);
 }
 
@@ -631,6 +635,9 @@ async function extractForSource(
 
   const sourcePath = path.join(root, SOURCES_DIR, sourceFile);
   const sourceContent = await readFile(sourcePath, "utf-8");
+  const lines = sourceContent.split("\n").length;
+  const chars = sourceContent.length;
+  verbose(`source ${sourceFile}: ${lines} lines, ${chars} chars`);
   const existingIndex = await safeReadFile(path.join(root, INDEX_FILE));
   const concepts = await extractConcepts(sourceContent, existingIndex);
 
@@ -740,11 +747,16 @@ function mergeExtractions(
     }
   }
 
+  const budget = resolvePromptBudgetChars();
   for (const merged of bySlug.values()) {
     const slices = slicesBySlug.get(merged.slug) ?? [];
     merged.combinedContent = buildBudgetedCombinedContent(
       merged.concept.concept,
       slices,
+    );
+    verbose(
+      `concept ${merged.slug}: ${slices.length} source(s), ` +
+      `${merged.combinedContent.length} chars combined (budget ${budget})`,
     );
   }
 
@@ -1021,6 +1033,8 @@ async function writePageIfValid(
   }
 
   await atomicWrite(pagePath, content);
+  const slug = path.basename(pagePath, ".md");
+  verbose(`page ${slug}: ${content.length} chars`);
   return null;
 }
 
@@ -1031,9 +1045,10 @@ async function writePageIfValid(
  */
 async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Promise<void> {
   try {
+    verbose(`embeddings: refreshing ${changedSlugs.length} slug(s)`);
     await updateEmbeddings(root, changedSlugs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 }

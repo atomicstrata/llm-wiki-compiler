@@ -1,5 +1,10 @@
 # llmwiki
 
+[![CI](https://img.shields.io/github/actions/workflow/status/atomicstrata/llm-wiki-compiler/ci.yml?branch=main&logo=github&label=CI)](https://github.com/atomicstrata/llm-wiki-compiler/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/llm-wiki-compiler?logo=npm&label=npm)](https://www.npmjs.com/package/llm-wiki-compiler)
+[![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 <p align="center">
   <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki supports Open Knowledge Format" width="900">
 </p>
@@ -261,7 +266,16 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-Version `0.11.0` adds in-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the Open Knowledge Format round-trip, plus faithful nested-path reconstruction when re-exporting imported foreign bundles. It builds on the 0.10.0 review policy, source-freshness repair, OKF CLI round-trip, and Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+**On main, ships in `0.12.0`:**
+
+- Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
+
+**Released `0.11.0`:**
+
+- In-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the OKF round-trip.
+- Faithful nested-path reconstruction when re-exporting imported foreign bundles.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Companion: Atomic Memory
 
@@ -290,3 +304,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 ## License
 
 MIT
+
+## Disclaimer
+
+No LLMs were harmed in the making of this repo.

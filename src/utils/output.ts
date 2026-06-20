@@ -9,6 +9,11 @@
  * is preserved for the `quickstart --json` code path that calls `setQuiet`
  * directly; `isQuiet()` checks the scoped value first and falls back to the
  * global flag.
+ *
+ * Verbose-mode mirrors the quiet pattern: a process-wide `verboseMode` flag
+ * plus an AsyncLocalStorage `verboseScope` for per-call-tree scoping. When
+ * verbose is active, `verbose()` emits dimmed detail lines. Quiet always wins
+ * — even if verbose is on, `isQuiet()` suppresses all output.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -113,4 +118,43 @@ export function note(message: string): void {
 /** Read the current process-wide quiet flag. */
 export function getQuiet(): boolean {
   return quietMode;
+}
+
+/**
+ * Process-wide verbose flag. Toggled by `--verbose` or `LLMWIKI_VERBOSE=1`.
+ * SDK callers should use `withVerbose` instead of mutating this flag directly.
+ */
+let verboseMode = false;
+
+/** ALS store scopes verbose to a single async call tree. */
+const verboseScope = new AsyncLocalStorage<boolean>();
+
+/**
+ * Run `fn` with verbose mode scoped to the current async call tree.
+ * Concurrent calls are fully isolated — no global flag is mutated.
+ */
+export function withVerbose<T>(fn: () => T): T {
+  return verboseScope.run(true, fn);
+}
+
+/**
+ * Returns true if the current async context is verbose (via ALS scope)
+ * or the process-wide verbose flag is set. The scoped value takes priority.
+ */
+export function isVerbose(): boolean {
+  return verboseScope.getStore() ?? verboseMode;
+}
+
+/** Toggle the process-wide verbose flag. */
+export function setVerbose(v: boolean): void {
+  verboseMode = v;
+}
+
+/**
+ * Print a dimmed detail line when verbose mode is on. No-op when quiet or
+ * verbose is off. Quiet always wins over verbose.
+ */
+export function verbose(message: string): void {
+  if (!isVerbose() || isQuiet()) return;
+  console.log(dim(`  · ${message}`));
 }

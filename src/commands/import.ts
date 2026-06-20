@@ -10,6 +10,7 @@
 import { runOkfImport } from "../import/run.js";
 import { LockUnavailableError } from "../import/run-errors.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import type { OkfImportReport } from "../import/run.js";
 export { isWritable } from "./import-core.js"; // preserve existing importers
 
@@ -30,6 +31,7 @@ export default async function importCommand(root: string, options: ImportOptions
   if (!options.okf) throw new Error("import: --okf <dir> is required");
   try {
     const report = await runOkfImport(root, options.okf, { trusted: options.trusted, dryRun: options.dryRun });
+    verbose(`import: ${report.pages.length} page(s) processed, ${report.skipped.length} skipped`);
     printReport(report);
   } catch (err) {
     if (err instanceof LockUnavailableError) {
