@@ -269,6 +269,7 @@ volta run --node 24 npx mint dev --port 3001
 **On main, ships in `0.12.0`:**
 
 - Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
+- Parallel compile — concept extraction and page generation run concurrently under a configurable cap (`--concurrency`), cutting wall-clock on large compiles.
 
 **Released `0.11.0`:**
 
