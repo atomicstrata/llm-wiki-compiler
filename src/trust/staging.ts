@@ -32,13 +32,25 @@ import {
   type StagedChange,
 } from "./staged-change.js";
 import { applyApprovedMutations } from "./executor.js";
-import { isSlugSafe } from "../profile/identity.js";
 import { writeCandidate, readCandidate, deleteCandidate } from "../compiler/candidates.js";
 import type { EntityId, ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
 
 /** Decisions under which the planner emitted a live-write mutation. */
 const LIVE_WRITE_DECISIONS: ReadonlySet<TrustDecision> = new Set(["allow", "allow-with-warning"]);
+
+/**
+ * Thrown when a caller tries to stage a page under an `entityType` that the
+ * supplied {@link ProfilePack} does not declare. Staging fails CLOSED before any
+ * planning or I/O so an unknown type can never land `wiki/<type>/<slug>.md`
+ * outside the profile schema.
+ */
+export class UnknownEntityTypeError extends Error {
+  constructor(entityType: string) {
+    super(`entity type "${entityType}" is not declared by the profile`);
+    this.name = "UnknownEntityTypeError";
+  }
+}
 
 /** Inputs to {@link stageEntityPage}; the body is caller-provided (no LLM). */
 export interface StageEntityPageInput {
@@ -78,15 +90,24 @@ function heldReasonsFor(decision: TrustDecision): HeldReasonCode[] {
 }
 
 /**
- * Stage a NON-DEFAULT entity page for review. Enforces the fail-closed staged
- * write budget FIRST (so an overflow writes nothing), plans the write through the
- * typed planner, captures it as a {@link StagedChange}, and persists it as a
- * typed candidate carrying `targetEntityType` + `trustDecision`.
+ * Stage a NON-DEFAULT entity page for review. Fails CLOSED before any I/O: it
+ * first enforces the staged-write volume bound, then verifies `input.entityType`
+ * is declared by `input.profile` (throwing {@link UnknownEntityTypeError} if
+ * not), so an overflow or an unknown type writes nothing. It then plans the
+ * write through the typed planner, captures it as a {@link StagedChange}, and
+ * persists it as a typed candidate carrying `targetEntityType` + `trustDecision`.
+ *
+ * Volume bound: the PER-CALL cap (requested vs {@link DEFAULT_STAGED_WRITE_PER_CALL})
+ * is self-contained and self-enforced here. The PER-SESSION cap, however, is
+ * enforced against the caller-supplied `input.existingStagedCount` — there is no
+ * on-disk source of truth for a running session total, so keeping that count
+ * accurate across calls is the CALLER's responsibility.
  *
  * @param root - Absolute project root.
  * @param input - The entity page to stage (caller-provided body).
  * @returns The persisted {@link StagedChange}.
  * @throws {StagedWriteOverflowError} When the staged-write volume bound is hit.
+ * @throws {UnknownEntityTypeError} When `entityType` is not declared by the profile.
  */
 export async function stageEntityPage(
   root: string,
@@ -96,6 +117,9 @@ export async function stageEntityPage(
     perCall: DEFAULT_STAGED_WRITE_PER_CALL,
     perSession: DEFAULT_STAGED_WRITE_PER_SESSION,
   });
+  if (!(input.entityType in input.profile.entities)) {
+    throw new UnknownEntityTypeError(input.entityType);
+  }
   const plan = await planPageMutation({
     root,
     entityType: input.entityType,

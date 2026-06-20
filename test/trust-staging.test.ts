@@ -23,6 +23,7 @@ import os from "node:os";
 import {
   stageEntityPage,
   promoteStagedEntityPage,
+  UnknownEntityTypeError,
 } from "../src/trust/staging.js";
 import {
   DEFAULT_STAGED_WRITE_PER_SESSION,
@@ -96,6 +97,19 @@ describe("non-default entity page staging", () => {
         existingStagedCount: DEFAULT_STAGED_WRITE_PER_SESSION,
       }),
     ).rejects.toBeInstanceOf(StagedWriteOverflowError);
+    expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
+  });
+
+  it("rejects an entityType not declared by the profile, writing no candidate", async () => {
+    await expect(
+      stageEntityPage(root, {
+        entityType: "bogus",
+        slug: SLUG,
+        body: BODY,
+        profile: RESEARCH_LITE_PROFILE,
+        existingStagedCount: 0,
+      }),
+    ).rejects.toBeInstanceOf(UnknownEntityTypeError);
     expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
   });
 
