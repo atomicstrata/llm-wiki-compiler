@@ -100,3 +100,17 @@ describe("buildViewerSnapshot — sources/ confinement", () => {
     expect(snapshot.sourceFilenames).toEqual(["ok.md"]);
   });
 });
+
+describe("buildViewerSnapshot — too-new state handling", () => {
+  it("builds a snapshot (no throw) over a too-new state with no v1-shaped sources", async () => {
+    const root = await makeTempRoot("snapshot-toonew");
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    // A future format need not carry a v1 `sources` map; buildCounts must
+    // fail closed (compiledSources:0) instead of crashing on Object.keys.
+    await writeFile(path.join(root, ".llmwiki", "state.json"), JSON.stringify({ version: 3 }));
+
+    const snapshot = await buildViewerSnapshot(root);
+    expect(snapshot.stateStatus).toBe("too-new");
+    expect(snapshot.counts.compiledSources).toBe(0);
+  });
+});

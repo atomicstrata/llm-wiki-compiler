@@ -3,8 +3,9 @@
  * source file hashes and their compiled concepts. Enables incremental
  * compilation by detecting which sources have changed since last compile.
  *
- * Uses atomic writes (write to .tmp, then rename) to prevent corruption
- * from interrupted compiles.
+ * Uses atomic writes (write to .tmp, then rename) to prevent corruption from
+ * interrupted processes (crash-consistent; not guaranteed durable across power
+ * loss, as there is no fsync before the rename).
  *
  * VERSION GUARD (Phase 2, v2-aware reads): {@link KNOWN_STATE_VERSION} is the
  * highest schema version this build understands. {@link readStateClassified}
@@ -92,7 +93,7 @@ function isStringArray(value: unknown): boolean {
 }
 
 /** True when `value` is a non-null, non-array plain object. */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 

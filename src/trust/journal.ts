@@ -1,8 +1,12 @@
 /**
  * @file src/trust/journal.ts
  * @description The single-store INTENT JOURNAL for the PAGE store — the
- * durability record that realizes the CLP atomicity contract: "partial
- * application of an approved mutation batch is a bug."
+ * crash-recovery record that realizes the CLP atomicity contract: "partial
+ * application of an approved mutation batch is a bug." The write-temp-then-rename
+ * idiom used here is crash-consistent within a single running kernel (a torn
+ * batch replays cleanly), but it is NOT power-loss durable: there is no `fsync`,
+ * so an unflushed rename can be lost on power failure. Durability across power
+ * loss is future work.
  *
  * A batch is journalled under `.llmwiki/journal/<batchId>.json` in two phases:
  *
@@ -140,8 +144,10 @@ export async function recordPreState(batch: JournalBatch, targetPath: string): P
 }
 
 /**
- * Mark a batch `committed` and persist it: every write has landed, so the
- * batch's intent is now durable and replay will leave it untouched.
+ * Mark a batch `committed` and persist it: every write has landed, so replay
+ * will leave it untouched. The persisted commit is crash-consistent within a
+ * running kernel but not power-loss durable (no `fsync`); durability across
+ * power loss is future work.
  *
  * @param batch - The batch whose writes have all succeeded.
  */

@@ -34,6 +34,29 @@ describe("entityId / parseEntityId", () => {
   it("throws when a slug half is not slug-safe", () => {
     expect(() => entityId("Papers", "x")).toThrow(EntityIdError);
   });
+
+  it("parses a well-formed type/slug id", () => {
+    expect(parseEntityId("concepts/rag" as EntityId)).toEqual({
+      entityType: "concepts",
+      slug: "rag",
+    });
+  });
+
+  it("rejects a traversal entityType so a hand-built id cannot escape the namespace", () => {
+    expect(() => parseEntityId("../evil" as EntityId)).toThrow(EntityIdError);
+  });
+
+  it("rejects a leading-slash id (empty entityType)", () => {
+    expect(() => parseEntityId("/evil" as EntityId)).toThrow(EntityIdError);
+  });
+
+  it("rejects an id with no slash (not <type>/<slug>)", () => {
+    expect(() => parseEntityId("noslash" as EntityId)).toThrow(EntityIdError);
+  });
+
+  it("rejects an uppercase (non-slug-safe) entityType", () => {
+    expect(() => parseEntityId("Concepts/rag" as EntityId)).toThrow(EntityIdError);
+  });
 });
 
 describe("stemFromBasename", () => {

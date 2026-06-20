@@ -22,7 +22,7 @@ import { readdir, readFile, realpath } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { countCandidates } from "../compiler/candidates.js";
-import { readStateClassified } from "../utils/state.js";
+import { readStateClassified, isPlainObject } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
@@ -74,7 +74,11 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   const annotatedPages = pages
     .map((page) => annotateCitationWarnings(page, sourceFileSet))
     .map((page) => attachFreshness(page, freshnessSnapshot));
-  const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, classified.state);
+  // A too-new/corrupt state carries the RAW parsed object, which need not be
+  // v1-shaped (its `sources` may be absent). Feed buildCounts an empty map for
+  // any non-ok state so `compiledSources` fails closed instead of crashing.
+  const countableState = classified.status === "ok" ? classified.state : { sources: {} };
+  const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, countableState);
   const graph = buildGraphData(annotatedPages);
   const profile = await collectProfileSummary(root);
   return {
@@ -120,6 +124,9 @@ function annotateCitationWarnings(page: ViewerPage, sourceFiles: ReadonlySet<str
  * Derive the frozen counts from the annotated page list, source filenames,
  * candidates count, and state. Concept/query counts are derived from pages
  * (the already-confined collector list) so symlinked drops don't inflate them.
+ *
+ * Belt-and-suspenders: a non-plain-object `state.sources` (e.g. a too-new state
+ * with no v1-shaped map) is coerced to `{}` so `compiledSources` cannot crash.
  */
 function buildCounts(
   pages: ViewerPage[],
@@ -127,12 +134,13 @@ function buildCounts(
   pendingReviews: number,
   state: { sources: Record<string, unknown> },
 ): ViewerCounts {
+  const sources = isPlainObject(state.sources) ? state.sources : {};
   return {
     concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
     queries: pages.filter((p) => p.pageDirectory === "queries").length,
     sourceFiles: sourceFilenames.length,
     pendingReviews,
-    compiledSources: Object.keys(state.sources).length,
+    compiledSources: Object.keys(sources).length,
     stale: pages.filter((p) => p.freshness.freshnessStatus === "stale").length,
     orphaned: pages.filter((p) => p.freshness.freshnessStatus === "orphaned").length,
   };
