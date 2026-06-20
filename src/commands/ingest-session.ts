@@ -66,6 +66,12 @@ export async function ingestSessionFile(root: string, filePath: string): Promise
   output.status("*", output.info(`Ingesting session: ${filePath}`));
 
   const session = await parseSessionFile(filePath);
+  output.verbose(`adapter: ${session.adapter}`);
+  output.verbose(`turns parsed: ${session.turns.length}`);
+
+  const body = formatSessionAsMarkdown(session);
+  output.verbose(`content extracted: ${body.length} chars`);
+
   const savedPath = await saveSessionSource(root, session, filePath);
 
   output.status(
@@ -74,6 +80,7 @@ export async function ingestSessionFile(root: string, filePath: string): Promise
       `Saved ${output.bold(path.basename(savedPath))} [${session.adapter}] → ${output.source(savedPath)}`
     )
   );
+  output.verbose(`output file: ${savedPath}`);
 
   return {
     filename: path.basename(savedPath),

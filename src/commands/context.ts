@@ -27,6 +27,7 @@ import {
   DEFAULT_TOP_PAGES,
 } from "../context/types.js";
 import type { RecommendedAction } from "../project/recommendations.js";
+import { verbose } from "../utils/output.js";
 
 /** CLI-supplied options for `llmwiki context`. */
 export interface ContextCommandOptions {
@@ -80,6 +81,12 @@ export default async function contextCommand(
     neighbors: options.neighbors,
     includeSources: options.includeSources === true,
   });
+  verbose(`primary pages: ${pack.primary.length}`);
+  verbose(`graph neighbors: ${pack.neighbors.length}`);
+  const totalCitations = pack.primary.reduce((sum, p) => sum + p.citations.length, 0);
+  verbose(`citations gathered: ${totalCitations}`);
+  const serialized = JSON.stringify(pack);
+  verbose(`pack size: ${serialized.length} chars`);
   emit(pack, resolveFormat(options));
   return 0;
 }
