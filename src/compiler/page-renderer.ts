@@ -19,6 +19,7 @@ import { callClaude } from "../utils/llm.js";
 import { buildPagePrompt } from "./prompts.js";
 import { addObsidianMeta } from "./obsidian.js";
 import { addModelProvenanceMeta, addProvenanceMeta, reportContradictionWarnings } from "./provenance.js";
+import { normalizeCitationsInBody } from "./citation-normalize.js";
 import { CONCEPTS_DIR } from "../utils/constants.js";
 import type { SchemaConfig } from "../schema/index.js";
 import type { ExtractedConcept } from "../utils/types.js";
@@ -58,12 +59,14 @@ export async function renderMergedPageContent(
     relatedPages,
   );
 
-  const pageBody = await callClaude({
+  const rawPageBody = await callClaude({
     system,
     messages: [
       { role: "user", content: `Write the wiki page for "${entry.concept.concept}".` },
     ],
   });
+
+  const pageBody = normalizeCitationsInBody(rawPageBody, entry.sourceFiles, entry.combinedContent);
 
   const frontmatter = buildMergedFrontmatter(entry, existingPage, schema);
   reportContradictionWarnings(entry.concept.concept, entry.concept);
