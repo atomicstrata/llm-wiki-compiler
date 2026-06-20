@@ -32,7 +32,7 @@ import { readFile, writeFile, mkdir, readdir, unlink, rename } from "fs/promises
 import path from "path";
 import { LLMWIKI_DIR } from "../utils/constants.js";
 import { realpath } from "fs/promises";
-import { confineUnderRoot } from "../utils/path-confine.js";
+import { confineUnderRoot, safeRealpath, isInsideDir } from "../utils/path-confine.js";
 import { note } from "../utils/output.js";
 
 /** Sentinel recorded when a target did not exist before the batch. */
@@ -211,9 +211,40 @@ async function loadBatch(root: string, batchId: string): Promise<JournalBatch | 
   return { ...parsed, root };
 }
 
-/** Move an untrusted journal file into the quarantine subdir and warn. */
+/**
+ * Remove an untrusted journal file in place via its confined journal path when
+ * the quarantine destination cannot be safely confined (the `quarantine/` subdir
+ * is a symlink escaping root). The journal is malformed/untrusted anyway; the
+ * invariant is NEVER to write or move outside the project root, so we delete it
+ * rather than follow the escaping symlink.
+ */
+async function removeUntrustedInPlace(root: string, batchId: string): Promise<void> {
+  try {
+    const rel = await targetRelativeToRoot(journalPath(root, batchId), root);
+    const confinedJournal = await confineUnderRoot(rel, root, { mustExist: false });
+    await unlink(confinedJournal);
+  } catch {
+    // Journal path itself escapes/cannot be confined — touch nothing outside root.
+  }
+  note(`⚠ Untrusted journal ${batchId}.json could not be safely quarantined — removed.`);
+}
+
+/**
+ * Move an untrusted journal file into the quarantine subdir and warn. The
+ * destination is confined under root BEFORE any `mkdir`/`rename`, so a symlinked
+ * `quarantine/` escaping root can never receive (and thus overwrite) a moved
+ * file outside the project. If confinement fails, the journal is removed in
+ * place instead via {@link removeUntrustedInPlace}.
+ */
 async function quarantineBatch(root: string, batchId: string): Promise<void> {
-  const dest = quarantinePath(root, batchId);
+  let dest: string;
+  try {
+    const rel = await targetRelativeToRoot(quarantinePath(root, batchId), root);
+    dest = await confineUnderRoot(rel, root, { mustExist: false });
+  } catch {
+    await removeUntrustedInPlace(root, batchId);
+    return;
+  }
   await mkdir(path.dirname(dest), { recursive: true });
   await rename(journalPath(root, batchId), dest);
   note(`⚠ Untrusted journal ${batchId}.json quarantined to ${dest} — not replayed.`);
@@ -299,10 +330,30 @@ async function replayPending(root: string, batchId: string): Promise<void> {
  *
  * @param root - Absolute project root whose journal directory is replayed.
  */
+/**
+ * Resolve the journal directory's realpath and confirm it stays inside the
+ * project root's realpath. Returns the confined real dir to replay, or null to
+ * skip: null when the directory is absent (nothing pending) OR when it exists
+ * but is a symlink escaping root (filesystem tampering → fail closed). A null
+ * caused by escape is announced via {@link note} before returning.
+ */
+async function resolveConfinedJournalDir(root: string): Promise<string | null> {
+  const realDir = await safeRealpath(journalDir(root));
+  if (realDir === null) return null; // absent → nothing pending
+  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  if (!isInsideDir(realDir, realRoot)) {
+    note(`⚠ Journal directory escapes project root — refusing to replay (tampering).`);
+    return null;
+  }
+  return realDir;
+}
+
 export async function replayJournal(root: string): Promise<void> {
+  const confinedDir = await resolveConfinedJournalDir(root);
+  if (confinedDir === null) return; // absent or escaping → nothing safe to replay
   let files: string[];
   try {
-    files = await readdir(journalDir(root));
+    files = await readdir(confinedDir);
   } catch {
     return; // no journal directory → nothing pending
   }

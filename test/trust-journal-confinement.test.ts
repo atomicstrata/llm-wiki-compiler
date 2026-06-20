@@ -15,12 +15,14 @@
  * its pre-state, and replay stays idempotent.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { writeFile, readFile, mkdir, access } from "fs/promises";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { writeFile, readFile, mkdir, access, symlink, rm, mkdtemp } from "fs/promises";
+import { tmpdir } from "os";
 import path from "path";
 import { replayJournal } from "../src/trust/journal.js";
 import { LLMWIKI_DIR } from "../src/utils/constants.js";
 import { WIKI, makeTrustRoot, cleanupTrustRoot, existsUnder } from "./trust/fixture.js";
+import * as output from "../src/utils/output.js";
 
 let root: string;
 
@@ -31,6 +33,11 @@ beforeEach(async () => {
 afterEach(async () => {
   await cleanupTrustRoot(root);
 });
+
+/** Absolute path to the project's journal directory. */
+function journalDir(): string {
+  return path.join(root, LLMWIKI_DIR, "journal");
+}
 
 /** Absolute path to a journal file under the root's journal dir. */
 function journalFile(batchId: string): string {
@@ -150,5 +157,67 @@ describe("replayJournal — valid confined pending batch", () => {
     expect(await readFile(t1, "utf-8")).toBe("OLD-D");
     await replayJournal(root);
     expect(await readFile(t1, "utf-8")).toBe("OLD-D");
+  });
+});
+
+describe("replayJournal — symlinked journal directories (filesystem tampering)", () => {
+  let outsideDir: string;
+
+  beforeEach(async () => {
+    outsideDir = await mkdtemp(path.join(tmpdir(), "trust-journal-outside-"));
+  });
+
+  afterEach(async () => {
+    await rm(outsideDir, { recursive: true, force: true });
+  });
+
+  it("(a) quarantine subdir is a symlink escaping root → outside file untouched, warns", async () => {
+    const evilOutside = path.join(outsideDir, "evil.json");
+    await writeFile(evilOutside, "OUTSIDE-PRECIOUS", "utf-8");
+    await mkdir(journalDir(), { recursive: true });
+    await symlink(outsideDir, path.join(journalDir(), "quarantine"), "dir");
+    await writeFile(path.join(journalDir(), "evil.json"), "not json {{{", "utf-8");
+    const noteSpy = vi.spyOn(output, "note").mockImplementation(() => undefined);
+
+    await expect(replayJournal(root)).resolves.toBeUndefined();
+
+    expect(await readFile(evilOutside, "utf-8")).toBe("OUTSIDE-PRECIOUS");
+    expect(await exists(path.join(journalDir(), "evil.json"))).toBe(false);
+    expect(noteSpy).toHaveBeenCalled();
+    noteSpy.mockRestore();
+  });
+
+  it("(b) journal dir itself is a symlink escaping root → fails closed, touches nothing", async () => {
+    const outsideJournalFile = path.join(outsideDir, "victim.json");
+    await writeFile(outsideJournalFile, "OUTSIDE-DATA", "utf-8");
+    await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+    await symlink(outsideDir, journalDir(), "dir");
+    const noteSpy = vi.spyOn(output, "note").mockImplementation(() => undefined);
+
+    await expect(replayJournal(root)).resolves.toBeUndefined();
+
+    expect(await readFile(outsideJournalFile, "utf-8")).toBe("OUTSIDE-DATA");
+    expect(await exists(outsideJournalFile)).toBe(true);
+    noteSpy.mockRestore();
+  });
+
+  it("(c) regression: normal journal dir still quarantines malformed + reverts pending", async () => {
+    await writeJournal("malformed", "not json at all");
+    const t1 = path.join(root, WIKI, "reg.md");
+    await writeFile(t1, "OLD-REG", "utf-8");
+    await writeFile(t1, "NEW-REG", "utf-8");
+    await writeJournal(
+      "pending",
+      JSON.stringify({
+        batchId: "pending",
+        status: "pending",
+        entries: [{ targetPath: t1, preState: { absent: false, content: "OLD-REG" } }],
+      }),
+    );
+
+    await replayJournal(root);
+
+    expect(await exists(quarantineFile("malformed"))).toBe(true);
+    expect(await readFile(t1, "utf-8")).toBe("OLD-REG");
   });
 });
