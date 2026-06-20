@@ -30,6 +30,24 @@ export function isSlugSafe(s: string): s is SlugSafe {
 }
 
 /**
+ * The DEFAULT-page identity floor: is `s` a single safe path component for a
+ * default wiki page filename?
+ *
+ * Distinct from the slug-safe EntityId grammar ({@link isSlugSafe}): default
+ * pages keep their Unicode `slugify` stems (e.g. `café-society`, `机器学习`)
+ * and, per the Phase-1 invariant, NEVER become EntityIds — so this floor allows
+ * Unicode letters/digits/hyphens (whatever `slugify` produces) while still
+ * rejecting anything that could escape or hide the file: path separators
+ * (`/`, `\`), spaces, the dot-only names `.`/`..`, and a leading-dot (hidden)
+ * name. NUL and any other separator-bearing string is rejected by the same
+ * separator test (a NUL embeds no separator but a traversal/segment always
+ * does); the dot-prefix and empty-string guards cover the remainder.
+ */
+export function isSafeFilenameComponent(s: string): boolean {
+  return s.length > 0 && !/[/\\ \0]/.test(s) && s !== "." && s !== ".." && !s.startsWith(".");
+}
+
+/**
  * Assert that `s` is slug-safe, returning it branded as SlugSafe. This is the
  * ONLY way to obtain a SlugSafe value. Throws EntityIdError otherwise.
  */

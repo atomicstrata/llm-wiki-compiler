@@ -48,10 +48,10 @@ import {
   replayJournal,
   type JournalBatch,
 } from "./journal.js";
-import { parseEntityId } from "../profile/identity.js";
+import { parseEntityId, isSafeFilenameComponent } from "../profile/identity.js";
 import { checkResourceLimit, checkFrontmatter, type PageWriteContext } from "./checks.js";
 import { composeTrustDecision } from "./decision.js";
-import type { PlannedMutation } from "./planner.js";
+import type { PlannedMutation, EntityRef, RawPageRef } from "./planner.js";
 
 /** Decisions under which the executor is cleared to write bytes to disk. */
 const APPLY_ALLOWED_DECISIONS = new Set(["allow", "allow-with-warning"]);
@@ -128,7 +128,24 @@ async function targetExists(abs: string): Promise<boolean> {
 }
 
 /**
- * The wiki-relative page path for a page mutation's target.
+ * The wiki-relative page path for a DEFAULT page's {@link RawPageRef} target.
+ *
+ * Defense-in-depth: the executor does not trust the caller, so it RE-ASSERTS the
+ * {@link isSafeFilenameComponent} floor on both the directory and the raw slug —
+ * a hand-built mutation carrying a `..`/separator slug is rejected with a typed
+ * {@link InvalidIdentityError} BEFORE `path.join` could collapse it into a wrong
+ * in-root location (the planner's `checkDefaultIdentitySafe` guard is not on this
+ * path).
+ */
+function rawPageRelPath(target: RawPageRef): string {
+  if (!isSafeFilenameComponent(target.directory) || !isSafeFilenameComponent(target.slug)) {
+    throw new InvalidIdentityError(`directory/slug is not a safe filename component: ${target.directory}/${target.slug}`);
+  }
+  return path.join("wiki", target.directory, `${target.slug}.md`);
+}
+
+/**
+ * The wiki-relative page path for a PROFILE entity's {@link EntityRef} target.
  *
  * Defense-in-depth: the entityType/slug are re-validated by re-parsing the
  * branded `target.id` (which throws on a non-slug-safe slug half), so a
@@ -136,15 +153,27 @@ async function targetExists(abs: string): Promise<boolean> {
  * {@link InvalidIdentityError} BEFORE `path.join` could collapse it into a wrong
  * in-root location — the planner's `checkIdentitySafe` guard is not on this path.
  */
-function pageRelPath(mutation: PlannedMutation): string {
+function entityPageRelPath(target: EntityRef): string {
   let entityType: string;
   let slug: string;
   try {
-    ({ entityType, slug } = parseEntityId(mutation.target.id));
+    ({ entityType, slug } = parseEntityId(target.id));
   } catch (err) {
     throw new InvalidIdentityError((err as Error).message);
   }
   return path.join("wiki", entityType, `${slug}.md`);
+}
+
+/**
+ * The wiki-relative page path for a page mutation's target, discriminating the
+ * union: a DEFAULT page ({@link RawPageRef}, no `id`) takes the raw-component
+ * path; a PROFILE entity ({@link EntityRef}) takes the typed-id path. Both
+ * re-assert their identity floor as defense-in-depth.
+ */
+function pageRelPath(mutation: PlannedMutation): string {
+  const target = mutation.target;
+  if ("id" in target) return entityPageRelPath(target);
+  return rawPageRelPath(target);
 }
 
 /**
