@@ -113,3 +113,17 @@ describe("evaluatePageHealthDistribution", () => {
     expect(result.distribution.healthy).toBe(3);
   });
 });
+
+describe("deductionFor handles stale pages", () => {
+  it("deducts 1 point per stale-page (not classified as error)", async () => {
+    // Import deductionFor directly — same function used by page-health scoring
+    const { deductionFor } = await import("../src/eval/health.js");
+    const result = deductionFor({
+      rule: "stale-page",
+      severity: "warning",
+      file: "wiki/concepts/some-page.md",
+      message: "Page is stale",
+    });
+    expect(result).toBe(1);
+  });
+});
