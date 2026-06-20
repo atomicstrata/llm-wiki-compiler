@@ -95,6 +95,14 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 
 ---
 
+## Compile
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLMWIKI_COMPILE_CONCURRENCY` | `5` | Maximum LLM calls run in parallel during a compile, across both concept extraction and page generation. Raise it to cut wall-clock on cold starts and large refreshes; lower it to ease a provider's rate limits. Non-positive or non-integer values fall back to the default, and any value above `50` is clamped down with a warning. The `--concurrency` flag on `llmwiki compile` overrides this for a single run |
+
+---
+
 ## Output
 
 | Variable | Default | Description |
@@ -137,6 +145,9 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional: raise prompt budget for large-context models
 # LLMWIKI_PROMPT_BUDGET_CHARS=400000
+
+# Optional: raise compile parallelism (or lower it to ease provider rate limits)
+# LLMWIKI_COMPILE_CONCURRENCY=10
 ```
 
 <Note>

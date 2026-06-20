@@ -53,6 +53,16 @@ function verboseEnabled(flag?: boolean): boolean {
   return Boolean(flag) || Boolean(process.env[ENV_VERBOSE]?.trim());
 }
 
+/**
+ * Convert the raw `--concurrency` flag string to a number for CompileOptions.
+ * An unset flag stays undefined (so the env var / default applies); a
+ * non-numeric value becomes NaN, which resolveCompileConcurrency rejects with
+ * a warning and falls back to the default — matching env-var handling.
+ */
+function parseConcurrency(raw?: string): number | undefined {
+  return raw === undefined ? undefined : Number(raw);
+}
+
 const program = new Command();
 
 program
@@ -115,13 +125,17 @@ program
     "--lang <code>",
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { review?: boolean; lang?: string; verbose?: boolean }) => {
+  .action(async (options: { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
     try {
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       requireProvider();
-      await compileCommand({ review: options.review });
+      await compileCommand({ review: options.review, concurrency: parseConcurrency(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

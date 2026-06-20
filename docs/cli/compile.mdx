@@ -22,6 +22,7 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 |------|-------------|
 | `--review` | Write generated pages to `.llmwiki/candidates/` instead of `wiki/`. Pages are held for human review and don't appear in the live wiki until you approve them with `llmwiki review approve <id>`. |
 | `--lang <code>` | Override the output language for this compile run (e.g. `zh-CN`, `Chinese`, `ja`, `Japanese`). Wins over the `LLMWIKI_OUTPUT_LANG` environment variable. Unset preserves the model's default behaviour. |
+| `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
 ## Incremental behaviour
@@ -29,6 +30,8 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. Sources that haven't changed are skipped entirely - no API calls, no rewrites. This means re-running `llmwiki compile` after editing a single source touches only the pages that source contributed to, even in a large wiki.
 
 The same incremental logic applies to embeddings: chunk-level embeddings are updated only for pages whose underlying content changed.
+
+Within a single run, both phases call the LLM in parallel: concept extraction across changed sources and page generation across merged concepts both run under one shared concurrency cap. The default is 5 simultaneous calls. On a cold start or a large refresh, raise it with `--concurrency` or [`LLMWIKI_COMPILE_CONCURRENCY`](/configuration/environment-variables#compile) to cut wall-clock; lower it if your provider rate-limits the run.
 
 Compile sends page and chunk embeddings to the provider in batches rather than one request at a time, which cuts compile time on cold starts and large refreshes. The embeddings summary reports how many requests this took, for example `Embeddings: 12/12 pages, 84/84 chunks embedded (3 batched requests)`. Tune the request size with [`LLMWIKI_EMBED_BATCH_SIZE`](/configuration/environment-variables#embeddings), or set [`LLMWIKI_EMBED_STRICT`](/configuration/environment-variables#embeddings) to fail the run when an embedding provider is broken or misconfigured.
 

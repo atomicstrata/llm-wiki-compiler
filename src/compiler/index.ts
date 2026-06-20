@@ -65,12 +65,12 @@ import { loadReviewPolicy } from "../review/config.js";
 import { evaluatePolicy, isPolicyOff } from "../review/policy.js";
 import type { HeldReason, ReviewPolicy } from "../review/policy.js";
 import {
-  COMPILE_CONCURRENCY,
   CONCEPTS_DIR,
   INDEX_FILE,
   QUERIES_DIR,
   SOURCES_DIR,
 } from "../utils/constants.js";
+import { resolveCompileConcurrency } from "./concurrency.js";
 import pLimit from "p-limit";
 import type {
   CompileOptions,
@@ -182,6 +182,7 @@ async function generatePagesPhase(
   schema: SchemaConfig,
   options: CompileOptions,
   policy: ReviewPolicy,
+  concurrency: number,
 ): Promise<PageGenerationResult> {
   const merged = mergeExtractions(extractions, frozenSlugs);
   // Build the per-source state snapshot once so each candidate can carry the
@@ -190,7 +191,7 @@ async function generatePagesPhase(
   const sourceStates = shouldBuildSourceStates
     ? await buildExtractionSourceStates(root, extractions)
     : {};
-  const limit = pLimit(COMPILE_CONCURRENCY);
+  const limit = pLimit(concurrency);
   // Collect per-outcome errors and candidate info into the ordered outcomes array
   // AFTER Promise.all, then derive candidates/review by iterating outcomes in source order.
   // This ensures stable, source-order ordering regardless of parallel completion timing.
@@ -463,7 +464,10 @@ async function runCompilePipeline(
   const frozenSlugs = findFrozenSlugs(state, changes);
   reportFrozenSlugs(frozenSlugs);
 
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes);
+  // Resolve once so an invalid override warns a single time, then cap both the
+  // extraction and page-generation fan-outs identically.
+  const concurrency = resolveCompileConcurrency(options.concurrency);
+  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
   if (!options.review) {
     await freezeFailedExtractions(root, extractions, frozenSlugs);
   }
@@ -478,6 +482,7 @@ async function runCompilePipeline(
     schema,
     options,
     reviewPolicy,
+    concurrency,
   );
 
   if (!options.review) {
@@ -556,23 +561,34 @@ function reportFrozenSlugs(frozenSlugs: Set<string>): void {
 /**
  * Phase 1: extract concepts for the directly-changed batch, then expand to
  * any unchanged sources whose concepts overlap with newly extracted slugs.
+ *
+ * Both the direct batch and the late-affected batch run their per-source LLM
+ * extractions in parallel under a shared `pLimit(concurrency)` cap. Promise.all
+ * preserves input order, so the returned list matches the old serial order —
+ * which mergeExtractions relies on when reconciling same-slug concepts. The
+ * late-affected set is computed only after the whole direct batch resolves,
+ * since findLateAffectedSources reads every direct extraction.
  */
 async function runExtractionPhases(
   root: string,
   toCompile: SourceChange[],
   state: WikiState,
   allChanges: SourceChange[],
+  concurrency: number,
 ): Promise<ExtractionResult[]> {
-  const extractions: ExtractionResult[] = [];
-  for (const change of toCompile) {
-    extractions.push(await extractForSource(root, change.file));
-  }
+  const limit = pLimit(concurrency);
+  const extractions = await Promise.all(
+    toCompile.map((change) => limit(() => extractForSource(root, change.file))),
+  );
 
   const lateAffected = findLateAffectedSources(extractions, state, allChanges);
   for (const file of lateAffected) {
     output.status("~", output.info(`${file} [shares concept with new source]`));
-    extractions.push(await extractForSource(root, file));
   }
+  const lateExtractions = await Promise.all(
+    lateAffected.map((file) => limit(() => extractForSource(root, file))),
+  );
+  extractions.push(...lateExtractions);
 
   return extractions;
 }

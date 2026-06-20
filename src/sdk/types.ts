@@ -27,10 +27,16 @@ export interface CreateWikiOptions {
   root: string;
 }
 
-/** Compile options exposed through the SDK. Mirrors the core CompileOptions shape. */
+/** Compile options exposed through the SDK. A public subset of the core CompileOptions shape. */
 export interface SdkCompileOptions {
   /** Write generated pages as candidates for review instead of mutating wiki/. */
   review?: boolean;
+  /**
+   * Maximum concurrent LLM calls during compile (extraction + page generation).
+   * Overrides LLMWIKI_COMPILE_CONCURRENCY and the built-in default of 5;
+   * out-of-range values are clamped with a warning.
+   */
+  concurrency?: number;
 }
 
 /** Options for `getContextPack`. Maps onto the subset of BuildContextPackOptions needed externally. */

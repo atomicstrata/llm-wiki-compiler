@@ -31,8 +31,14 @@ export const PROMPT_BUDGET_ENV_VAR = "LLMWIKI_PROMPT_BUDGET_CHARS";
 /** Number of most relevant wiki pages to load for query context. */
 export const QUERY_PAGE_LIMIT = 5;
 
-/** Maximum concurrent API calls during page generation. */
+/** Default maximum concurrent LLM calls during compile (extraction + page generation). */
 export const COMPILE_CONCURRENCY = 5;
+
+/** Upper clamp for LLMWIKI_COMPILE_CONCURRENCY / --concurrency, to bound provider rate-limit pressure. */
+export const COMPILE_CONCURRENCY_MAX = 50;
+
+/** Env var: override the compile concurrency (positive integer, clamped to COMPILE_CONCURRENCY_MAX). */
+export const ENV_COMPILE_CONCURRENCY = "LLMWIKI_COMPILE_CONCURRENCY";
 
 /** API retry configuration. */
 export const RETRY_COUNT = 3;
