@@ -4,6 +4,7 @@
 
 import { evaluatePageHealthDistribution } from "../src/eval/page-health-distribution.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
+import { sha256Hex, writeSourceState, writeSourceFile } from "./fixtures/state-json.js";
 
 function fm(title: string, extra = ""): string {
   return `---
@@ -114,6 +115,31 @@ describe("evaluatePageHealthDistribution", () => {
   });
 });
 
+
+  
+  describe("evaluateHealth with stale pages", function() {
+    var env = useLintTempRoot("eval-stale");
+
+    it("deducts points for stale pages when freshness data exists", async function() {
+      await writeSourceFile(env.dir, "src.md", "original content");
+      await writeSourceState(env.dir, {
+        "src.md": {
+          hash: sha256Hex("modified content"),
+          concepts: ["stale-concept"],
+        },
+      });
+      await env.writeConcept("stale-concept", fm("Stale Concept") +
+        `This page was compiled from a source that has since been modified.^[src.md]
+`);
+
+      var evaluateHealth = (await import("../src/eval/health.js")).evaluateHealth;
+      var result = await evaluateHealth(env.dir);
+      var staleRule = result.rules.find(function(r) { return r.rule === "stale-page"; });
+      expect(staleRule).toBeDefined();
+      expect(staleRule.count).toBeGreaterThanOrEqual(1);
+      expect(result.score).toBeLessThan(100);
+    });
+  });
 describe("deductionFor handles stale pages", () => {
   it("deducts 1 point per stale-page (not classified as error)", async () => {
     // Import deductionFor directly — same function used by page-health scoring

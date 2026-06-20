@@ -57,7 +57,7 @@ export async function runEval(root: string, suite: "fast" | "full", sampleSize: 
     evaluateCitationCoverage(root),
     evaluateSourceUtilization(root),
     evaluateCitationDepth(root),
-    evaluatePageHealthDistribution(root).catch(() => undefined),
+    evaluatePageHealthDistribution(root),
     collectStats(root),
     loadPreviousReport(root),
     suite === "full" ? loadLastFullReport(root) : Promise.resolve(null),

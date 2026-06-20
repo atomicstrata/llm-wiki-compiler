@@ -77,7 +77,7 @@ export async function evaluatePageHealthDistribution(
     perPage.push({ slug, score, tier: tierFor(score), topIssues: topIssues(findings) });
   }
 
-  perPage.sort((a, b) => a.score - b.score);
+  perPage.sort((a, b) => a.score - b.score || a.slug.localeCompare(b.slug));
 
   const distribution = {
     healthy: perPage.filter((p) => p.tier === "healthy").length,

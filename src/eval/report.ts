@@ -177,7 +177,8 @@ function formatSourceUtilization(report: EvalReport): string[] {
 
 function formatPageHealthDistribution(report: EvalReport): string[] {
   const d = report.pageHealthDistribution;
-  if (!d || d.perPage.length === 0) {
+  if (!d) return [];
+  if (d.perPage.length === 0) {
     return [line(), line("Page Health:  (no pages)")];
   }
   const rows = [
@@ -185,7 +186,9 @@ function formatPageHealthDistribution(report: EvalReport): string[] {
     line(bold("Page Health:")),
     line(
       "  healthy: " + d.distribution.healthy +
-      "  adequate: " + d.distribution.adequate +
+      "  adequate: " + d.distribution.adequate
+    ),
+    line(
       "  needs_work: " + d.distribution.needs_work +
       "  broken: " + d.distribution.broken
     ),
@@ -194,10 +197,10 @@ function formatPageHealthDistribution(report: EvalReport): string[] {
     rows.push(line("  Worst pages:"));
     for (let i = 0; i < d.worstPages.length; i++) {
       const p = d.worstPages[i];
-      rows.push(line(dim(
-        "    " + p.slug + "  score:" + p.score +
-        (p.topIssues.length > 0 ? "  (" + p.topIssues.join(", ") + ")" : "")
-      )));
+      rows.push(line(dim("    " + p.slug + "  score:" + p.score)));
+      if (p.topIssues.length > 0) {
+        rows.push(line(dim("      " + p.topIssues.join(", "))));
+      }
     }
   }
   return rows;
