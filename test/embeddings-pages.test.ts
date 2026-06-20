@@ -19,7 +19,8 @@ describe("embedPages batching", () => {
       { slug: "b", title: "B", summary: "sb", body: "" },
     ];
     const out = await embedPages(records, new Set(["a", "b"]), 256);
-    expect(out.map((e) => e.slug)).toEqual(["a", "b"]);
+    expect(out.entries.map((e) => e.slug)).toEqual(["a", "b"]);
+    expect(out.requests).toBe(1); // two pages collapsed into one batch request
     expect(calls).toHaveLength(1); // one batch, not two singles
     expect(calls[0]).toEqual(["A\n\nsa", "B\n\nsb"]);
   });

@@ -9,7 +9,9 @@ import {
   classifyEmbeddingError,
   enrichEmbedError,
   shouldRethrowEmbeddingFailure,
+  makeCountingProvider,
 } from "../src/utils/embeddings-batch.js";
+import type { LLMProvider } from "../src/utils/provider.js";
 import {
   assertVectorValid,
   assertEveryVectorValid,
@@ -139,5 +141,26 @@ describe("failure reporting helpers", () => {
     process.env.LLMWIKI_EMBED_STRICT = "0";
     expect(shouldRethrowEmbeddingFailure()).toBe(false);
     delete process.env.LLMWIKI_EMBED_STRICT;
+  });
+});
+
+describe("makeCountingProvider", () => {
+  const base = {
+    complete: async () => "", stream: async () => "", toolCall: async () => "",
+    embed: async () => [1], embedBatch: async (t: string[]) => t.map(() => [1]),
+  } as unknown as LLMProvider;
+
+  it("counts each embed and embedBatch call", async () => {
+    const { provider, requestCount } = makeCountingProvider(base);
+    await provider.embedBatch!(["a", "b"]);
+    await provider.embed("c");
+    await provider.embedBatch!(["d"]);
+    expect(requestCount()).toBe(3); // 2 batch calls + 1 single, regardless of input sizes
+  });
+
+  it("omits embedBatch when the underlying provider has none", () => {
+    const noBatch = { ...base, embedBatch: undefined } as unknown as LLMProvider;
+    const { provider } = makeCountingProvider(noBatch);
+    expect(provider.embedBatch).toBeUndefined();
   });
 });

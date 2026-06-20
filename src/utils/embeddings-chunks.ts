@@ -9,7 +9,7 @@ import { getProvider } from "./provider.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import { type ChunkEmbeddingEntry } from "./embeddings-store.js";
 import { type PageRecord } from "./embeddings-pages.js";
-import { embedTextBatch, enrichEmbedError } from "./embeddings-batch.js";
+import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
 
 /** One output position: a reused entry, or a pending one awaiting a fresh vector. */
 type ChunkSlot =
@@ -36,7 +36,7 @@ export async function refreshChunkEmbeddings(
   forceAll: boolean,
   batchSize: number,
   expectedDim?: number,
-): Promise<{ chunks: ChunkEmbeddingEntry[]; embedded: number }> {
+): Promise<{ chunks: ChunkEmbeddingEntry[]; embedded: number; requests: number }> {
   const liveSlugs = new Set(records.map((r) => r.slug));
   const existingByKey = indexChunksByKey(existing.filter((c) => liveSlugs.has(c.slug)));
   const now = new Date().toISOString();
@@ -58,7 +58,7 @@ export async function refreshChunkEmbeddings(
     }
   }
 
-  const provider = getProvider();
+  const { provider, requestCount } = makeCountingProvider(getProvider());
   let vectors: number[][];
   try {
     vectors = await embedTextBatch(provider, work.map((w) => w.text), batchSize, expectedDim);
@@ -74,7 +74,7 @@ export async function refreshChunkEmbeddings(
       contentHash: w.contentHash, text: w.text, vector: vectors[slot.workIndex], updatedAt: now,
     };
   });
-  return { chunks, embedded: work.length };
+  return { chunks, embedded: work.length, requests: requestCount() };
 }
 
 /** Index existing chunks by `${slug}#${chunkIndex}` for O(1) reuse lookup. */

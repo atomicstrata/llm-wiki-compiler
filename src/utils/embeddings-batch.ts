@@ -28,6 +28,30 @@ import { EmbeddingIntegrityError, assertVectorValid, assertEveryVectorValid } fr
 // Re-export so existing test imports `{ EmbeddingIntegrityError } from embeddings-batch.js` keep working.
 export { EmbeddingIntegrityError } from "./embeddings-validate.js";
 
+/**
+ * Wrap a provider so every embed / embedBatch call is counted. Lets a pass
+ * report the exact number of provider requests it made — native batch calls
+ * plus any sequential-fallback singles — without changing embedTextBatch's
+ * signature.
+ */
+export function makeCountingProvider(
+  provider: LLMProvider,
+): { provider: LLMProvider; requestCount: () => number } {
+  let requests = 0;
+  const counting: LLMProvider = Object.create(provider);
+  counting.embed = (text: string, inputType?: EmbeddingInputType) => {
+    requests += 1;
+    return provider.embed(text, inputType);
+  };
+  if (provider.embedBatch) {
+    counting.embedBatch = (texts: string[], inputType?: EmbeddingInputType) => {
+      requests += 1;
+      return provider.embedBatch!(texts, inputType);
+    };
+  }
+  return { provider: counting, requestCount: () => requests };
+}
+
 /** Read a numeric HTTP status off an error if present. */
 function statusOf(err: unknown): number | undefined {
   const s = (err as { status?: unknown })?.status;

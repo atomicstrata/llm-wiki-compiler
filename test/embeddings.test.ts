@@ -227,7 +227,7 @@ describe("structured embeddings report", () => {
     await updateEmbeddings(root, ["alpha"]);
 
     const lines = log.mock.calls.map(([line]) => (typeof line === "string" ? line : "")).join("\n");
-    expect(lines).toMatch(/\d+\/\d+ pages, \d+\/\d+ chunks/);
+    expect(lines).toMatch(/\d+\/\d+ pages, \d+\/\d+ chunks embedded \(\d+ batched requests\)/);
   });
 });
 

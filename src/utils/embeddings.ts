@@ -71,9 +71,10 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
       ? existingStore.dimensions
       : undefined;
 
-  const freshEntries = await embedPages(records, toEmbed, batchSize, expectedDim);
+  const { entries: freshEntries, requests: pageRequests } =
+    await embedPages(records, toEmbed, batchSize, expectedDim);
   const mergedEntries = mergeEntries(previousEntries, freshEntries, liveSlugs);
-  const { chunks: mergedChunks, embedded: chunksEmbedded } =
+  const { chunks: mergedChunks, embedded: chunksEmbedded, requests: chunkRequests } =
     await refreshChunkEmbeddings(records, previousChunks, modelChanged, batchSize, expectedDim);
 
   await persistRefreshedStore(root, embeddingModel, mergedEntries, mergedChunks, {
@@ -81,6 +82,7 @@ export async function updateEmbeddings(root: string, changedSlugs: string[]): Pr
     pagesTotal: records.length,
     chunksEmbedded,
     chunksTotal: mergedChunks.length,
+    requests: pageRequests + chunkRequests,
   });
 }
 
@@ -107,7 +109,7 @@ async function persistRefreshedStore(
   embeddingModel: string,
   entries: EmbeddingEntry[],
   chunks: ChunkEmbeddingEntry[],
-  report: { pagesEmbedded: number; pagesTotal: number; chunksEmbedded: number; chunksTotal: number },
+  report: { pagesEmbedded: number; pagesTotal: number; chunksEmbedded: number; chunksTotal: number; requests: number },
 ): Promise<void> {
   const dimensions = entries[0]?.vector.length ?? chunks[0]?.vector.length ?? 0;
   const store: EmbeddingStore = { version: STORE_VERSION, model: embeddingModel, dimensions, entries, chunks };
@@ -116,7 +118,8 @@ async function persistRefreshedStore(
     "*",
     output.dim(
       `Embeddings: ${report.pagesEmbedded}/${report.pagesTotal} pages, ` +
-      `${report.chunksEmbedded}/${report.chunksTotal} chunks embedded.`,
+      `${report.chunksEmbedded}/${report.chunksTotal} chunks embedded ` +
+      `(${report.requests} batched requests).`,
     ),
   );
 }

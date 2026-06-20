@@ -10,7 +10,7 @@ import { getProvider } from "./provider.js";
 import { safeReadFile, parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
-import { embedTextBatch, enrichEmbedError } from "./embeddings-batch.js";
+import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
 
 /** A retrievable page record on disk (concepts/ or queries/). */
 export interface PageRecord {
@@ -68,11 +68,11 @@ export async function embedPages(
   slugsToEmbed: Set<string>,
   batchSize: number,
   expectedDim?: number,
-): Promise<EmbeddingEntry[]> {
-  const provider = getProvider();
+): Promise<{ entries: EmbeddingEntry[]; requests: number }> {
+  const { provider, requestCount } = makeCountingProvider(getProvider());
   const now = new Date().toISOString();
   const selected = records.filter((r) => slugsToEmbed.has(r.slug));
-  if (selected.length === 0) return [];
+  if (selected.length === 0) return { entries: [], requests: 0 };
 
   let vectors: number[][];
   try {
@@ -80,13 +80,14 @@ export async function embedPages(
   } catch (err) {
     throw enrichEmbedError(err, "page", (i) => selected[i]?.slug);
   }
-  return selected.map((record, i) => ({
+  const entries = selected.map((record, i) => ({
     slug: record.slug,
     title: record.title,
     summary: record.summary,
     vector: vectors[i],
     updatedAt: now,
   }));
+  return { entries, requests: requestCount() };
 }
 
 /** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */
