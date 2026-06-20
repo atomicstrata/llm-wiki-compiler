@@ -29,6 +29,8 @@ Compile is hash-based and incremental. Each source file's content is fingerprint
 
 The same incremental logic applies to embeddings: chunk-level embeddings are updated only for pages whose underlying content changed.
 
+Compile sends page and chunk embeddings to the provider in batches rather than one request at a time, which cuts compile time on cold starts and large refreshes. Tune the request size with [`LLMWIKI_EMBED_BATCH_SIZE`](/configuration/environment-variables#embeddings), or set [`LLMWIKI_EMBED_STRICT`](/configuration/environment-variables#embeddings) to fail the run when an embedding provider is broken or misconfigured.
+
 ## What compile produces
 
 After a successful compile, your project contains:
