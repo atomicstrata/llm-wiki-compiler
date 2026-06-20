@@ -266,9 +266,19 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-Version `0.11.0` adds in-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the Open Knowledge Format round-trip, plus faithful nested-path reconstruction when re-exporting imported foreign bundles. It builds on the 0.10.0 review policy, source-freshness repair, OKF CLI round-trip, and Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+**On main, ships in `0.12.0`:**
 
-**Available on main, will ship in `0.12.0`:** batch embedding for `compile`. Pages and chunks now embed in provider-native batches (sequential sub-batches with a validated sequential fallback) instead of one request at a time, cutting compile latency on cold starts and large refreshes. Includes document/query embedding intent, on-disk embedding-store validation (a corrupt store is skipped at query time and rebuilt on the next compile rather than poisoning retrieval), a configurable `LLMWIKI_EMBED_BATCH_SIZE`, and an opt-in `LLMWIKI_EMBED_STRICT` that turns embedding failures into a non-zero exit for CI. No on-disk store format change.
+- Batch embedding for `compile` — provider-native batches with a validated sequential fallback, cutting compile latency on cold starts and large refreshes.
+- Document/query embedding intent.
+- On-disk store validation — a corrupt store is skipped at query time and rebuilt on the next compile.
+- Configurable `LLMWIKI_EMBED_BATCH_SIZE`; opt-in `LLMWIKI_EMBED_STRICT` for CI.
+
+**Released `0.11.0`:**
+
+- In-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the OKF round-trip.
+- Faithful nested-path reconstruction when re-exporting imported foreign bundles.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Companion: Atomic Memory
 
