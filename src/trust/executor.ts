@@ -1,8 +1,13 @@
 /**
  * @file src/trust/executor.ts
- * @description The guarded PAGE EXECUTOR — the only path that turns an approved
+ * @description The guarded PAGE EXECUTOR — turns an approved
  * {@link PlannedMutation} plan into bytes on disk, under the CLP atomicity
  * contract ("partial application of an approved batch is a bug").
+ *
+ * STATUS: this planner/executor/journal seam is a Phase-2 FOUNDATION. No live
+ * production write path routes through it yet (no caller invokes
+ * {@link applyApprovedMutations}); the atomicity contract is realized for the
+ * page store in isolation and under test, not yet across any wired surface.
  *
  * {@link applyApprovedMutations} runs the batch behind the project lock and a
  * single-store intent journal:

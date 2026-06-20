@@ -15,7 +15,7 @@ import path from "path";
 import { readdir } from "fs/promises";
 import { collectPageSummaries, scanWikiPages } from "../compiler/indexgen.js";
 import { countCandidates } from "../compiler/candidates.js";
-import { readStateClassified } from "../utils/state.js";
+import { readStateClassified, isPlainObject } from "../utils/state.js";
 import type { StateStatus } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
@@ -105,9 +105,14 @@ function classifyConceptPages(
   return { stalePages, orphanedPages };
 }
 
-/** Derive the last compile time from state sources, or null if no sources. */
+/**
+ * Derive the last compile time from state sources, or null if no sources.
+ * Belt-and-suspenders: a non-plain-object `sources` (e.g. a too-new state with
+ * no v1-shaped map) is coerced to `{}` so no caller can crash this read.
+ */
 function lastCompileTime(sources: Record<string, { compiledAt: string }>): string | null {
-  const times = Object.values(sources).map((s) => s.compiledAt);
+  const safe = isPlainObject(sources) ? sources : {};
+  const times = Object.values(safe).map((s) => s.compiledAt);
   return times.length > 0 ? times.sort().slice(-1)[0] : null;
 }
 
@@ -185,10 +190,15 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     ? []
     : pendingChangesFromSnapshot(snapshot, sourceFilesOnDisk);
 
+  // A too-new state carries the RAW parsed object, which need not be v1-shaped:
+  // its `sources` may be absent. Fail closed by reading an empty map for any
+  // unusable state, so the source count and last-compile reads cannot crash.
+  const usableSources = stateUnusable ? {} : classified.state.sources;
+
   return {
     pages: { concepts: conceptSummaries.length, queries: queries.length, total: conceptSummaries.length + queries.length },
-    sources: Object.keys(classified.state.sources).length,
-    lastCompiledAt: lastCompileTime(classified.state.sources),
+    sources: Object.keys(usableSources).length,
+    lastCompiledAt: lastCompileTime(usableSources),
     stalePages: capSlugs(stalePages),
     staleCount: stalePages.length,
     orphanedPages: capSlugs(orphanedPages),

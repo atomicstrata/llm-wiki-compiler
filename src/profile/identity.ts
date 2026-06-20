@@ -52,11 +52,18 @@ export function entityId(type: string, slug: string): EntityId {
 
 /**
  * Parse an EntityId back into its entity type and slug, splitting on the
- * FIRST slash. The slug half is re-validated so the result's slug is SlugSafe.
+ * FIRST slash. BOTH halves are re-validated so the result is fully slug-safe:
+ * this is the defense-in-depth floor for hand-built ids (e.g. the executor's
+ * `pageRelPath`), so an id like `"../evil"` whose entityType is `..` cannot
+ * escape its namespace via `path.join`. An id with no slash, a leading slash
+ * (empty entityType), or a non-slug-safe entityType throws EntityIdError.
  */
 export function parseEntityId(id: EntityId): { entityType: string; slug: SlugSafe } {
   const firstSlash = id.indexOf("/");
-  const entityType = id.slice(0, firstSlash);
+  if (firstSlash < 0) {
+    throw new EntityIdError(`Not a <type>/<slug> id: ${JSON.stringify(id)}`);
+  }
+  const entityType = assertSlugSafe(id.slice(0, firstSlash));
   const slug = assertSlugSafe(id.slice(firstSlash + 1));
   return { entityType, slug };
 }
