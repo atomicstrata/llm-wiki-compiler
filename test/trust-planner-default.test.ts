@@ -22,7 +22,8 @@ import {
   type PlannedMutation,
   type RawPageRef,
 } from "../src/trust/planner.js";
-import { applyApprovedMutations } from "../src/trust/executor.js";
+import { applyApprovedMutations, applyApprovedMutationsLocked } from "../src/trust/executor.js";
+import { acquireLock, releaseLock } from "../src/utils/lock.js";
 import { makeTrustRoot, cleanupTrustRoot, existsUnder } from "./trust/fixture.js";
 
 let root: string;
@@ -102,6 +103,20 @@ describe("planDefaultPageMutation — unsafe filename components are blocked", (
   it("blocks an unsafe directory component", async () => {
     const out = await planDefaultPageMutation(defaultArgs(UNICODE_SLUG, { directory: "../evil" }));
     expect(out.planned).toEqual([]);
+  });
+});
+
+describe("applyApprovedMutationsLocked — lock-free core for an outer locked region", () => {
+  it("writes the page when the CALLER already holds the lock (no nested acquire)", async () => {
+    const out = await planDefaultPageMutation(defaultArgs(UNICODE_SLUG));
+    expect(await acquireLock(root)).toBe(true); // simulate the held review lock
+    try {
+      await applyApprovedMutationsLocked(root, out.planned);
+    } finally {
+      await releaseLock(root);
+    }
+    const target = path.join(root, "wiki", "concepts", `${UNICODE_SLUG}.md`);
+    expect(await readFile(target, "utf-8")).toBe(GOOD_BODY);
   });
 });
 

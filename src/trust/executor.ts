@@ -4,10 +4,10 @@
  * {@link PlannedMutation} plan into bytes on disk, under the CLP atomicity
  * contract ("partial application of an approved batch is a bug").
  *
- * STATUS: this planner/executor/journal seam is a Phase-2 FOUNDATION. No live
- * production write path routes through it yet (no caller invokes
- * {@link applyApprovedMutations}); the atomicity contract is realized for the
- * page store in isolation and under test, not yet across any wired surface.
+ * STATUS: the `review approve` page write is the FIRST production consumer of
+ * this seam — it routes through {@link applyApprovedMutationsLocked} under its
+ * already-held review lock. The atomicity contract (and journal replay) is now
+ * realized on that live path; other CLP write surfaces are still future work.
  *
  * {@link applyApprovedMutations} runs the batch behind the project lock and a
  * single-store intent journal:
@@ -228,16 +228,42 @@ async function applyBatch(
 }
 
 /**
- * Apply an approved plan to disk atomically. Acquires the project lock, journals
- * every target's pre-state before writing, applies each page mutation, then
- * commits the journal — releasing the lock in `finally`. A non-page kind throws
- * `not-implemented`. A mid-batch failure leaves a `pending` journal for
- * {@link replayJournal} to revert to the full pre-state.
+ * Apply an approved plan to disk atomically WHILE THE CALLER ALREADY HOLDS the
+ * project lock — the lock-free core shared with {@link applyApprovedMutations}.
  *
- * Self-recovery: BEFORE opening the new batch (but AFTER the lock is held), it
- * runs {@link replayJournal}, so a `pending` journal left dangling by a prior
- * crash is reverted under the same lock before this batch begins — the atomicity
- * guarantee no longer depends on an external caller invoking replay.
+ * The caller MUST already hold the project lock; this function acquires NOTHING,
+ * so it can run inside an outer locked region (e.g. `review approve`, which holds
+ * the review lock across its whole mutation) WITHOUT a nested-acquire deadlock.
+ *
+ * Self-recovery: BEFORE opening the new batch it runs {@link replayJournal}, so a
+ * `pending` journal left dangling by a prior crash is reverted under the SAME
+ * held lock before this batch begins. A non-page kind throws `not-implemented`; a
+ * mid-batch failure leaves a `pending` journal for replay to revert to the full
+ * pre-state.
+ *
+ * @param root - Absolute project root.
+ * @param planned - The approved mutations to apply.
+ * @param opts - Optional injectable write primitive (for fault injection).
+ */
+export async function applyApprovedMutationsLocked(
+  root: string,
+  planned: PlannedMutation[],
+  opts: ApplyOptions = {},
+): Promise<void> {
+  const writeOne = opts.writeOne ?? atomicWrite;
+  // Recover any dangling pending batch from a prior crash under the held lock.
+  await replayJournal(root);
+  const batch = await openBatch(root);
+  await applyBatch(root, planned, batch, writeOne);
+  await commitBatch(batch);
+}
+
+/**
+ * Apply an approved plan to disk atomically, acquiring the project lock itself.
+ * Acquires the PID-based project lock, delegates the journalled batch to
+ * {@link applyApprovedMutationsLocked} (replay → open → apply → commit), then
+ * releases the lock in `finally`. There is ONE batch implementation; this is the
+ * self-locking entry point for callers that do NOT already hold the lock.
  *
  * @param root - Absolute project root.
  * @param planned - The approved mutations to apply.
@@ -248,15 +274,10 @@ export async function applyApprovedMutations(
   planned: PlannedMutation[],
   opts: ApplyOptions = {},
 ): Promise<void> {
-  const writeOne = opts.writeOne ?? atomicWrite;
   const acquired = await acquireLock(root);
   if (!acquired) throw new Error("could not acquire project lock for mutation batch");
   try {
-    // Recover any dangling pending batch from a prior crash under the held lock.
-    await replayJournal(root);
-    const batch = await openBatch(root);
-    await applyBatch(root, planned, batch, writeOne);
-    await commitBatch(batch);
+    await applyApprovedMutationsLocked(root, planned, opts);
   } finally {
     await releaseLock(root);
   }

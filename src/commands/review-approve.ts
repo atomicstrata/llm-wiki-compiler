@@ -14,10 +14,9 @@
  */
 
 import path from "path";
-import {
-  atomicWrite,
-  validateWikiPage,
-} from "../utils/markdown.js";
+import { validateWikiPage } from "../utils/markdown.js";
+import { planDefaultPageMutation } from "../trust/planner.js";
+import { applyApprovedMutationsLocked } from "../trust/executor.js";
 import { deleteCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
@@ -51,15 +50,53 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
     return;
   }
 
+  if (!(await routeApprovedPageWrite(root, candidate, id))) return;
+
   const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
   const pagePath = path.join(root, dir, `${candidate.slug}.md`);
-  await atomicWrite(pagePath, candidate.body);
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
   await persistCandidateSourceStates(root, candidate);
   await refreshWikiAfterApproval(root, candidate.slug);
   await deleteCandidate(root, id);
   output.status("✓", output.dim(`Candidate ${id} cleared.`));
+}
+
+/**
+ * Route the candidate's page write through the write planner/executor (CLP
+ * Invariant 4) instead of a direct file write, preserving byte-for-byte parity:
+ * the planner derives the SAME `wiki/<dir>/<slug>.md` absolute path and the
+ * executor writes the candidate body verbatim under the ALREADY-HELD review lock
+ * (so no nested-lock deadlock), running journal replay to recover any crashed
+ * batch on this path.
+ *
+ * `allowOverwrite` is true so re-approving an existing page upserts via `update`
+ * rather than colliding. Returns true when the write landed; on a blocked plan
+ * (the mandatory floor refused, e.g. an oversized body) it surfaces an approval
+ * FAILURE — exit code 1, candidate retained, nothing written — and returns false.
+ */
+async function routeApprovedPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<boolean> {
+  const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
+  const { planned } = await planDefaultPageMutation({
+    root,
+    directory,
+    slug: candidate.slug,
+    body: candidate.body,
+    origin: "review",
+    reviewRouted: false,
+    allowOverwrite: true,
+  });
+  if (planned.length === 0) {
+    output.status("!", output.error(`Candidate ${id} blocked by the write planner; not approved.`));
+    process.exitCode = 1;
+    return false;
+  }
+  await applyApprovedMutationsLocked(root, planned);
+  return true;
 }
 
 /**
