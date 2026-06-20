@@ -80,22 +80,72 @@ export async function readStateClassified(root: string): Promise<ClassifiedState
   if (!existsSync(filePath)) return { status: "missing", state: emptyState() };
   try {
     const raw = await readFile(filePath, "utf-8");
-    return classifyParsedState(JSON.parse(raw) as WikiState);
+    return classifyParsedState(JSON.parse(raw));
   } catch {
     return { status: "corrupt", state: emptyState() };
   }
 }
 
+/** True when `value` is an array whose every element is a string. */
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+/** True when `value` is a non-null, non-array plain object. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when one `sources` entry has the required source-state shape. */
+function isValidSourceEntry(entry: unknown): boolean {
+  if (!isPlainObject(entry)) return false;
+  if (typeof entry.hash !== "string" || typeof entry.compiledAt !== "string") return false;
+  if (!isStringArray(entry.concepts)) return false;
+  if ("entities" in entry && !isStringArray(entry.entities)) return false;
+  return true;
+}
+
+/** True when every optional top-level frozen list, if present, is a string array. */
+function hasValidFrozenLists(parsed: Record<string, unknown>): boolean {
+  if ("frozenSlugs" in parsed && !isStringArray(parsed.frozenSlugs)) return false;
+  if ("frozenEntities" in parsed && !isStringArray(parsed.frozenEntities)) return false;
+  return true;
+}
+
 /**
- * Classify a successfully parsed state. Fails closed on a newer-than-known
- * `version` by returning `too-new` with the parsed state carried intact — no
- * reset and no disk write, so read-only callers can surface the condition.
+ * True when `parsed` is a structurally valid {@link WikiState}: a plain object
+ * with a string `indexHash`, a plain-object `sources` map whose every value is a
+ * valid source entry, and (when present) string-array `frozenSlugs` /
+ * `frozenEntities`. Unknown EXTRA fields are tolerated so a future format that
+ * adds fields is not falsely rejected here. `version` is validated separately by
+ * {@link classifyParsedState}.
  */
-function classifyParsedState(state: WikiState): ClassifiedState {
-  if ((state.version as number) > KNOWN_STATE_VERSION) {
-    return { status: "too-new", state };
+function isValidWikiStateShape(parsed: unknown): boolean {
+  if (!isPlainObject(parsed)) return false;
+  if (typeof parsed.indexHash !== "string") return false;
+  if (!isPlainObject(parsed.sources)) return false;
+  if (!Object.values(parsed.sources).every(isValidSourceEntry)) return false;
+  return hasValidFrozenLists(parsed);
+}
+
+/**
+ * Classify a successfully parsed state, failing closed on anything this build
+ * cannot safely treat as healthy:
+ *  1. an integer `version` ABOVE the known max ⇒ `too-new` (carried intact, NOT
+ *     deep-validated — a future format may legitimately differ in shape);
+ *  2. an integer `version` in the known range (1..KNOWN) AND a valid shape ⇒ `ok`;
+ *  3. anything else (non-integer/out-of-range version, or malformed shape) ⇒
+ *     `corrupt`, routing it into the existing `.bak`/empty-state recovery path.
+ */
+function classifyParsedState(parsed: unknown): ClassifiedState {
+  const version = isPlainObject(parsed) ? parsed.version : undefined;
+  const empty = { status: "corrupt" as const, state: emptyState() };
+  if (typeof version !== "number" || !Number.isInteger(version)) return empty;
+  if (version > KNOWN_STATE_VERSION) return { status: "too-new", state: parsed as WikiState };
+  if (version >= 1 && isValidWikiStateShape(parsed)) {
+    return { status: "ok", state: parsed as WikiState };
   }
-  return { status: "ok", state };
+  return empty;
 }
 
 /** Read .llmwiki/state.json, recovering from corruption gracefully (writes a .bak). */

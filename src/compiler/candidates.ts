@@ -29,6 +29,7 @@ import {
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
 import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
+import type { TrustDecision } from "../trust/decision.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
 const ID_SUFFIX_BYTES = 4;
@@ -76,6 +77,19 @@ interface CandidateDraft {
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */
   contradicted?: boolean;
+  /**
+   * Typed entity directory the approved page routes to under a configurable
+   * profile (e.g. `"papers"`). Phase-2 typed-staging metadata; OMITTED for
+   * default-profile candidates, so default candidate JSON stays byte-identical.
+   */
+  targetEntityType?: string;
+  /**
+   * Trust Guard decision attached to this candidate at generation time, so
+   * reviewers see how the write was routed. Phase-2 typed-staging metadata;
+   * OMITTED for default-profile candidates, so default candidate JSON stays
+   * byte-identical.
+   */
+  trustDecision?: TrustDecision;
 }
 
 /** Default metadata for legacy `compile --review` callers. */
@@ -93,6 +107,15 @@ const VALID_HELD_REASON_CODES: PolicyHeldReasonCode[] = [
   "all",
   "manual-review-requested",
   "imported-okf",
+];
+
+/** All valid TrustDecision values — mirrors the closed union in trust/decision.ts. */
+const VALID_TRUST_DECISIONS: TrustDecision[] = [
+  "allow",
+  "allow-with-warning",
+  "stage-for-review",
+  "quarantine",
+  "deny",
 ];
 
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
@@ -144,6 +167,8 @@ export async function writeCandidate(
     ...(draft.contradicted !== undefined ? { contradicted: draft.contradicted } : {}),
     ...(draft.targetDirectory ? { targetDirectory: draft.targetDirectory } : {}),
     ...(draft.okfPath ? { okfPath: draft.okfPath } : {}),
+    ...(draft.targetEntityType ? { targetEntityType: draft.targetEntityType } : {}),
+    ...(draft.trustDecision ? { trustDecision: draft.trustDecision } : {}),
   };
 
   await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
@@ -299,7 +324,23 @@ function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
   const result: ReviewCandidate = { ...candidate, generatedAt, reviewMode, heldReasons };
   if (sourceStates !== undefined) result.sourceStates = sourceStates;
   else delete result.sourceStates;
+  sanitizeTypedTarget(result);
   return result;
+}
+
+/**
+ * Validate the Phase-2 typed-staging fields in place. Drops `targetEntityType`
+ * unless it's a string and `trustDecision` unless it's a valid TrustDecision,
+ * so a hand-edited or malformed candidate file can never carry junk metadata.
+ * @param candidate - The candidate to sanitize (mutated in place).
+ */
+function sanitizeTypedTarget(candidate: ReviewCandidate): void {
+  if (typeof candidate.targetEntityType !== "string") {
+    delete candidate.targetEntityType;
+  }
+  if (!VALID_TRUST_DECISIONS.includes(candidate.trustDecision as TrustDecision)) {
+    delete candidate.trustDecision;
+  }
 }
 
 /** Filter `heldReasons` to only entries with a valid code shape; default when empty. */
