@@ -13,11 +13,18 @@
  * and validate that repaired line references are within the source's range.
  */
 
+import { splitCitationMarker } from "../utils/markdown.js";
+
 /** Regex matching `^[...]` citation markers — same pattern as the viewer uses. */
 const MARKER_PATTERN = /\^\[([^\]\n]+)\]/g;
 
-/** Regex matching a line number or line range with no filename component, e.g. `81` or `81-90`. */
-const BARE_LINE_RANGE_PATTERN = /^\d+(?:[,-]\s*\d+)?$/;
+/**
+ * Regex matching a bare line reference with no filename component.
+ * Accepts: single numbers (`81`), hyphen ranges (`81-90`), and comma lists
+ * (`81, 90` or `1-5, 12`). `splitCitationMarker` keeps comma-separated
+ * line lists together, so we must accept them here as a single entry.
+ */
+const BARE_LINE_RANGE_PATTERN = /^\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)*$/;
 
 /** Regex matching a numbered line as emitted by buildBudgetedCombinedContent: ` N | text`. */
 const NUMBERED_LINE_PATTERN = /^\s*(\d+)\s*\|/;
@@ -39,12 +46,25 @@ function maxLineNumber(combinedContent: string): number {
 }
 
 /**
- * Return true when the line range expressed in `entry` (e.g. "81" or "81-90")
- * is fully within [1, maxLine].
+ * Return true when every part of a bare line entry is valid within [1, maxLine].
+ *
+ * An entry may be a single number ("81"), a hyphen range ("81-90"), or a
+ * comma list kept together by `splitCitationMarker` ("81, 90" or "1-5, 12").
+ * Each comma-separated segment is validated individually:
+ * - Hyphen range `A-B`: requires A >= 1, A <= B, B <= maxLine (rejects backward).
+ * - Single number `N`: requires 1 <= N <= maxLine.
  */
 function rangeIsValid(entry: string, maxLine: number): boolean {
-  const parts = entry.split(/[,-]/).map((p) => Number(p.trim()));
-  return parts.every((n) => n >= 1 && n <= maxLine);
+  const segments = entry.split(/\s*,\s*/);
+  return segments.every((seg) => {
+    const dashParts = seg.split("-").map((p) => Number(p.trim()));
+    if (dashParts.length === 2) {
+      const [start, end] = dashParts;
+      return start >= 1 && start <= end && end <= maxLine;
+    }
+    const n = Number(seg.trim());
+    return n >= 1 && n <= maxLine;
+  });
 }
 
 /**
@@ -129,7 +149,7 @@ export function normalizeCitations(
   MARKER_PATTERN.lastIndex = 0;
 
   return body.replace(MARKER_PATTERN, (fullMatch, inner: string) => {
-    const entries = inner.split(",").map((e) => normalizeEntry(e, sourceFiles, maxLine));
+    const entries = splitCitationMarker(inner).map((e) => normalizeEntry(e, sourceFiles, maxLine));
     const rebuilt = rebuildMarker(entries as string[]);
     if (rebuilt === null) {
       // Signal for post-replace space cleanup: return empty string; the
