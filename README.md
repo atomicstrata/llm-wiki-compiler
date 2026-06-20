@@ -263,6 +263,8 @@ volta run --node 24 npx mint dev --port 3001
 
 Version `0.11.0` adds in-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the Open Knowledge Format round-trip, plus faithful nested-path reconstruction when re-exporting imported foreign bundles. It builds on the 0.10.0 review policy, source-freshness repair, OKF CLI round-trip, and Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
+**Available on main, will ship in `0.12.0`:** batch embedding for `compile`. Pages and chunks now embed in provider-native batches (sequential sub-batches with a validated sequential fallback) instead of one request at a time, cutting compile latency on cold starts and large refreshes. Includes document/query embedding intent, on-disk embedding-store validation (a corrupt store is skipped at query time and rebuilt on the next compile rather than poisoning retrieval), a configurable `LLMWIKI_EMBED_BATCH_SIZE`, and an opt-in `LLMWIKI_EMBED_STRICT` that turns embedding failures into a non-zero exit for CI. No on-disk store format change.
+
 ## Companion: Atomic Memory
 
 llmwiki and [Atomic Memory](https://github.com/atomicstrata/atomicmemory) are complementary open context infrastructure:
@@ -290,3 +292,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 ## License
 
 MIT
+
+## Disclaimer
+
+No LLMs were harmed in the making of this repo.
