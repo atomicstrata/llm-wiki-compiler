@@ -23,6 +23,7 @@ import { planPageMutation, type PlannedMutation } from "../src/trust/planner.js"
 import { applyApprovedMutations } from "../src/trust/executor.js";
 import { replayJournal, openBatch, recordPreState } from "../src/trust/journal.js";
 import { entityId } from "../src/profile/identity.js";
+import { MAX_SOURCE_CHARS } from "../src/utils/constants.js";
 import {
   WIKI,
   makeTrustRoot,
@@ -76,6 +77,30 @@ describe("planPageMutation — decision→plan mapping", () => {
   });
 });
 
+describe("planPageMutation — create vs update intent", () => {
+  it("plans a create for a free target regardless of allowOverwrite", async () => {
+    const out = await planPageMutation(planArgs("free", { allowOverwrite: true }));
+    expect(out.decision).toBe("allow");
+    expect(out.planned).toHaveLength(1);
+    expect(out.planned[0].operation).toBe("create");
+  });
+
+  it("plans an update (decision allow) for an existing target when allowOverwrite", async () => {
+    await writeFile(path.join(root, WIKI, "exists.md"), GOOD_BODY);
+    const out = await planPageMutation(planArgs("exists", { allowOverwrite: true }));
+    expect(out.decision).toBe("allow");
+    expect(out.planned).toHaveLength(1);
+    expect(out.planned[0].operation).toBe("update");
+  });
+
+  it("blocks (no live mutation) for an existing target when allowOverwrite is false", async () => {
+    await writeFile(path.join(root, WIKI, "exists.md"), GOOD_BODY);
+    const out = await planPageMutation(planArgs("exists", { allowOverwrite: false }));
+    expect(out.decision).toBe("deny");
+    expect(out.planned).toEqual([]);
+  });
+});
+
 /** Build a page-create PlannedMutation targeting `<WIKI>/<slug>.md`. */
 async function plannedFor(slug: string): Promise<PlannedMutation> {
   const out = await planPageMutation(planArgs(slug));
@@ -110,6 +135,47 @@ describe("applyApprovedMutations — create-collision re-probe under lock", () =
 
     // The pre-existing file is untouched — never overwritten by the create.
     expect(await readFile(target, "utf-8")).toBe("CONCURRENT");
+  });
+});
+
+/** Hand-build an `update` mutation targeting `<WIKI>/<slug>.md` with `body`. */
+function updateMutation(slug: string, body: string): PlannedMutation {
+  return {
+    kind: "page",
+    operation: "update",
+    target: { entityType: "concepts", slug, id: entityId("concepts", slug) },
+    body,
+    provenance: {
+      origin: "agent",
+      decision: "allow",
+      reviewRouted: false,
+    },
+  };
+}
+
+describe("applyApprovedMutations — update overwrites an existing target", () => {
+  it("overwrites without a create-collision error", async () => {
+    const target = path.join(root, WIKI, "exists.md");
+    await writeFile(target, "OLD");
+    const update = updateMutation("exists", GOOD_BODY);
+    await applyApprovedMutations(root, [update]);
+    expect(await readFile(target, "utf-8")).toBe(GOOD_BODY);
+  });
+});
+
+describe("applyApprovedMutations — S5 full-floor re-assertion", () => {
+  it("refuses an OVERSIZED body with MutationFloorError and writes nothing", async () => {
+    const huge = "x".repeat(MAX_SOURCE_CHARS + 1);
+    const update = updateMutation("big", huge);
+    await expect(applyApprovedMutations(root, [update])).rejects.toThrow(/mutation-floor/);
+    expect(await existsUnder(root, `${WIKI}/big.md`)).toBe(false);
+  });
+
+  it("refuses MALFORMED frontmatter with MutationFloorError and writes nothing", async () => {
+    const bad = "---\ntitle: : : bad\n  nope\n---\n\nbody\n";
+    const update = updateMutation("malformed", bad);
+    await expect(applyApprovedMutations(root, [update])).rejects.toThrow(/mutation-floor/);
+    expect(await existsUnder(root, `${WIKI}/malformed.md`)).toBe(false);
   });
 });
 

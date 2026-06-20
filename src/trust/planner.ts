@@ -23,6 +23,8 @@
  */
 
 import path from "path";
+import { lstat } from "fs/promises";
+import { confineUnderRoot } from "../utils/path-confine.js";
 import { runMandatoryPageChecks, type PageWriteContext } from "./checks.js";
 import { composeTrustDecision, type TrustDecision, type TrustCheckResult } from "./decision.js";
 import { entityId, isSlugSafe } from "../profile/identity.js";
@@ -92,6 +94,12 @@ export interface PlanPageInput {
   origin: string;
   /** Whether the surface stages risky writes for human review. */
   reviewRouted: boolean;
+  /**
+   * Whether an existing target is an intended overwrite (`update`) rather than a
+   * collision. A legitimate upserting caller (review-approve, compile recompile)
+   * passes `true`; a strict create-only caller passes `false` (the default).
+   */
+  allowOverwrite?: boolean;
 }
 
 /** The planner's output: the plan, the composed decision, and the raw checks. */
@@ -130,18 +138,35 @@ function checkIdentitySafe(entityType: string, slug: string): TrustCheckResult {
   return { code, verdict: "block", message: `entity type/slug is not slug-safe: ${entityType}/${slug}` };
 }
 
+/** True when a confinable target already exists on disk under `root`. */
+async function targetAlreadyExists(root: string, targetPath: string): Promise<boolean> {
+  let abs: string;
+  try {
+    abs = await confineUnderRoot(targetPath, root, { mustExist: false });
+  } catch {
+    return false;
+  }
+  try {
+    await lstat(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Build the single live-write mutation for an approved page. Phase 2 page
- * mutations are CREATE-ONLY: a colliding (already-existing) target is blocked
- * upstream by `checkTargetCollision`, so an approved page is always a fresh
- * `create`. In-place `update` of an existing page is a later phase.
+ * Build the single live-write mutation for an approved page. The operation is
+ * chosen by existence: a FREE target is a `create`; an already-existing target
+ * (reached here only when the caller declared `allowOverwrite`, since otherwise
+ * `checkTargetCollision` blocks) is an in-place `update`.
  */
 async function buildPageMutation(input: PlanPageInput, decision: TrustDecision): Promise<PlannedMutation> {
   const id = entityId(input.entityType, input.slug);
   const target: EntityRef = { entityType: input.entityType, slug: input.slug, id };
+  const exists = await targetAlreadyExists(input.root, pageTargetPath(input.entityType, input.slug));
   return {
     kind: "page",
-    operation: "create",
+    operation: exists ? "update" : "create",
     target,
     body: input.body,
     provenance: { origin: input.origin, decision, reviewRouted: input.reviewRouted },
@@ -158,7 +183,12 @@ async function buildPageMutation(input: PlanPageInput, decision: TrustDecision):
  */
 export async function planPageMutation(input: PlanPageInput): Promise<PlanResult> {
   const targetPath = pageTargetPath(input.entityType, input.slug);
-  const ctx: PageWriteContext = { root: input.root, targetPath, body: input.body };
+  const ctx: PageWriteContext = {
+    root: input.root,
+    targetPath,
+    body: input.body,
+    allowOverwrite: input.allowOverwrite ?? false,
+  };
   const checks = [
     checkIdentitySafe(input.entityType, input.slug),
     ...(await runMandatoryPageChecks(ctx)),

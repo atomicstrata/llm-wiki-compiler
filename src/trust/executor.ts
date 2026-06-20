@@ -25,6 +25,15 @@
  * SCOPE: Task 5 executes `kind:"page"` only. Any other {@link MutationKind} is
  * rejected with a typed `not-implemented` error, so an unhandled store can never
  * be silently no-op'd or half-applied.
+ *
+ * S5 — FULL-FLOOR RE-ASSERTION AT APPLY: the executor is where bytes hit disk,
+ * so it does not trust that plan-time checks still hold. Before every write it
+ * re-runs the mandatory floor (resource-limit + frontmatter; path-confinement is
+ * already enforced via {@link confineUnderRoot} and collision via the `create`
+ * re-probe) against a context whose `allowOverwrite` reflects the mutation's
+ * operation, and composes a {@link TrustDecision}. A non-allow decision throws a
+ * typed {@link MutationFloorError} and writes NOTHING — a hand-built mutation
+ * that bypassed the planner cannot smuggle an oversized or malformed body past.
  */
 
 import path from "path";
@@ -40,7 +49,12 @@ import {
   type JournalBatch,
 } from "./journal.js";
 import { parseEntityId } from "../profile/identity.js";
+import { checkResourceLimit, checkFrontmatter, type PageWriteContext } from "./checks.js";
+import { composeTrustDecision } from "./decision.js";
 import type { PlannedMutation } from "./planner.js";
+
+/** Decisions under which the executor is cleared to write bytes to disk. */
+const APPLY_ALLOWED_DECISIONS = new Set(["allow", "allow-with-warning"]);
 
 /** A single page write. Injectable so tests can fault-inject a failure. */
 export type WriteOne = (filePath: string, content: string) => Promise<void>;
@@ -89,6 +103,20 @@ class InvalidIdentityError extends Error {
   }
 }
 
+/**
+ * Thrown when a mutation fails the mandatory trust floor re-asserted at apply
+ * time (S5): an oversized body, malformed frontmatter, or any block-composing
+ * floor result. Refusing here — at the byte-writing boundary — means a
+ * hand-built mutation that never passed the planner cannot reach disk. Callers
+ * match on the typed `mutation-floor:` message prefix.
+ */
+class MutationFloorError extends Error {
+  constructor(reason: string) {
+    super(`mutation-floor: refused before write: ${reason}`);
+    this.name = "MutationFloorError";
+  }
+}
+
 /** True when something exists at `abs` (regular file, dir, or symlink). */
 async function targetExists(abs: string): Promise<boolean> {
   try {
@@ -120,9 +148,32 @@ function pageRelPath(mutation: PlannedMutation): string {
 }
 
 /**
- * Apply every page mutation in the batch under an already-open journal: record
- * each target's pre-state, then write it. Throws on the first non-page kind or
- * the first failing write, leaving the journal uncommitted for replay.
+ * Re-assert the mandatory trust floor for one mutation at apply time (S5),
+ * against a context whose `allowOverwrite` mirrors the operation (`update`
+ * overwrites; `create` does not). Runs the floor checks not already enforced on
+ * this path — resource-limit and frontmatter — and composes them; a non-allow
+ * decision throws {@link MutationFloorError} so nothing is written.
+ */
+async function assertFloorAtApply(root: string, mutation: PlannedMutation, abs: string): Promise<void> {
+  const ctx: PageWriteContext = {
+    root,
+    targetPath: abs,
+    body: mutation.body,
+    allowOverwrite: mutation.operation === "update",
+  };
+  const checks = await Promise.all([checkResourceLimit(ctx), checkFrontmatter(ctx)]);
+  const decision = composeTrustDecision(checks, { reviewRouted: false });
+  if (!APPLY_ALLOWED_DECISIONS.has(decision)) {
+    const reason = checks.find((c) => c.verdict === "block")?.message ?? decision;
+    throw new MutationFloorError(reason);
+  }
+}
+
+/**
+ * Apply every page mutation in the batch under an already-open journal:
+ * re-assert the trust floor (S5), record each target's pre-state, then write it.
+ * Throws on the first non-page kind, floor violation, or failing write, leaving
+ * the journal uncommitted for replay.
  *
  * A `create` target is RE-PROBED under the lock (the planner's collision check
  * runs before the lock): if it now exists, abort with {@link CreateCollisionError}
@@ -141,6 +192,7 @@ async function applyBatch(
     if (mutation.operation === "create" && (await targetExists(abs))) {
       throw new CreateCollisionError(abs);
     }
+    await assertFloorAtApply(root, mutation, abs);
     await recordPreState(batch, abs);
     await writeOne(abs, mutation.body);
   }

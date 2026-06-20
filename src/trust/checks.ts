@@ -14,8 +14,11 @@
  * project's existing trust primitives rather than re-deriving them:
  * - path-confinement → {@link confineUnderRoot} (rejects targets and symlinked
  *   ancestors that escape the project root);
- * - collision/no-overwrite → existence probe under the confined path (creates
- *   block on an existing target);
+ * - collision/no-overwrite → existence probe under the confined path. A target
+ *   that already exists blocks ONLY when the caller did not declare an explicit
+ *   overwrite intent (`allowOverwrite:false`); an intended upsert
+ *   (`allowOverwrite:true`) treats an existing target as a clean `update`, not a
+ *   violation;
  * - resource-limit → the per-file content cap {@link MAX_SOURCE_CHARS}, decided
  *   on raw character length BEFORE any parsing so an oversized body never gets
  *   heavy processing;
@@ -47,6 +50,13 @@ export interface PageWriteContext {
   targetPath: string;
   /** Full markdown content (frontmatter + body) to be written. */
   body: string;
+  /**
+   * Whether an existing target is an intended overwrite (`update`) rather than a
+   * collision. `false` (or omitted) keeps the strict create-only semantics:
+   * an existing target blocks. `true` lets a legitimate upsert (review-approve,
+   * compile recompile) overwrite without tripping {@link checkTargetCollision}.
+   */
+  allowOverwrite?: boolean;
 }
 
 /** A single mandatory check over a page mutation. */
@@ -73,9 +83,12 @@ export const checkPathConfinement: MandatoryPageCheck = async (ctx) => {
 };
 
 /**
- * Block when the confined target already exists: page creation is create-only
- * and never silently overwrites. A target whose own path escapes root is also
- * blocked here (a non-confinable target cannot be a safe create destination).
+ * Block when the confined target already exists AND the caller declared no
+ * overwrite intent (`allowOverwrite` falsy): a strict create never silently
+ * overwrites. When `allowOverwrite` is true, an existing target is an intended
+ * `update` and passes. A free target passes either way. A target whose own path
+ * escapes root is blocked here (a non-confinable target is not a safe write
+ * destination).
  */
 export const checkTargetCollision: MandatoryPageCheck = async (ctx) => {
   const code = "target-exists";
@@ -90,6 +103,7 @@ export const checkTargetCollision: MandatoryPageCheck = async (ctx) => {
   } catch {
     return pass(code, "target path is free");
   }
+  if (ctx.allowOverwrite) return pass(code, `target exists; intended overwrite (update): ${path.basename(abs)}`);
   return { code, verdict: "block", message: `target already exists (create-only): ${path.basename(abs)}` };
 };
 

@@ -78,6 +78,12 @@ describe("checkTargetCollision", () => {
     const res = await checkTargetCollision(ctx(`${WIKI}/free.md`));
     expect(res.verdict).toBe("pass");
   });
+
+  it("passes an existing target when allowOverwrite is true (intended update)", async () => {
+    await writeFile(path.join(root, WIKI, "dup.md"), GOOD_BODY);
+    const res = await checkTargetCollision({ ...ctx(`${WIKI}/dup.md`), allowOverwrite: true });
+    expect(res.verdict).toBe("pass");
+  });
 });
 
 describe("checkResourceLimit", () => {
