@@ -268,10 +268,7 @@ volta run --node 24 npx mint dev --port 3001
 
 **On main, ships in `0.12.0`:**
 
-- Batch embedding for `compile` — provider-native batches with a validated sequential fallback, cutting compile latency on cold starts and large refreshes.
-- Document/query embedding intent.
-- On-disk store validation — a corrupt store is skipped at query time and rebuilt on the next compile.
-- Configurable `LLMWIKI_EMBED_BATCH_SIZE`; opt-in `LLMWIKI_EMBED_STRICT` for CI.
+- Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
 
 **Released `0.11.0`:**
 
