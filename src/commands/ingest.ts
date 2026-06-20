@@ -17,6 +17,7 @@ import { saveSource } from "../utils/source-writer.js";
 import { appendLog } from "../utils/activity-log.js";
 import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import ingestWeb from "../ingest/web.js";
 import ingestFile from "../ingest/file.js";
 import ingestPdf from "../ingest/pdf.js";
@@ -282,13 +283,16 @@ async function journalIngest(
 export async function ingestSource(root: string, source: string): Promise<IngestResult> {
   const sourceType = await detectSourceType(source);
   output.status("*", output.info(`Ingesting [${sourceType}]: ${source}`));
+  verbose(`source type: ${sourceType}`);
 
   const { title, content } = await fetchContent(source, sourceType);
+  verbose(`fetched: ${content.length} chars`);
 
   const result = enforceCharLimit(content);
   enforceMinContent(result.content);
   const document = buildDocument(title, source, result, sourceType);
   const { path: savedPath, writeStatus } = await saveSource(root, title, document, source);
+  verbose(`saved: ${savedPath} (${result.content.length} chars extracted)`);
 
   // Journal only real writes — a no-op re-ingest must not append a log line.
   if (writeStatus !== "unchanged") {

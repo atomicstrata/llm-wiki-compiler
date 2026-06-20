@@ -67,6 +67,21 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 
 ---
 
+## Embeddings
+
+`llmwiki compile` embeds pages and chunks in provider-native batches. Both variables are optional.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLMWIKI_EMBED_BATCH_SIZE` | Per-provider default (`256` OpenAI, `128` Voyage, `64` Ollama) | Number of texts sent per embedding request. Raise to reduce round-trips; lower to stay within a provider's limits. Non-positive or non-integer values are ignored, and any value above the provider's documented cap is clamped down with a warning |
+| `LLMWIKI_EMBED_STRICT` | *(unset)* | When set to `1`, `true`, `yes`, or `on`, an embedding failure during compile exits with a non-zero status instead of warning and continuing. Use it in CI to catch a broken or misconfigured embedding provider |
+
+<Note>
+  Batching changes only how requests are sent, not the on-disk store. Existing `.llmwiki/embeddings.json` files are read and written unchanged.
+</Note>
+
+---
+
 ## Timeouts
 
 | Variable | When unset | Description |
@@ -94,6 +109,7 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 | Variable | Values | Description |
 |---|---|---|
 | `LLMWIKI_DEBUG` | `1` or `verbose` | Debug tracing for the `claude-agent` provider only. `1` prints a concise one-line trace per SDK message plus subprocess errors. `verbose` additionally enables the Agent SDK's full verbose logging |
+| `LLMWIKI_VERBOSE` | any non-empty value | Enable verbose progress output on commands that accept `--verbose` (`compile`, `refresh`, `quickstart`, `ingest`, `ingest-session`, `query`, `context`, `export`, `import`). Equivalent to passing `--verbose` on the command line. Detail is richest for `compile`, `refresh`, and `quickstart`, which print per-step lines for source parsing, concept merging, page writes, embedding batches, and total compile time |
 
 ---
 

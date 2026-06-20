@@ -19,6 +19,7 @@ import { atomicWrite, safeReadFile, slugify, buildFrontmatter, parseFrontmatter 
 import { languageDirective } from "../utils/output-language.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import {
   QUERY_PAGE_LIMIT,
   INDEX_FILE,
@@ -33,6 +34,7 @@ import {
   updateEmbeddings,
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
@@ -405,7 +407,7 @@ async function saveQueryPage(root: string, question: string, answer: string): Pr
     await updateEmbeddings(root, [slug]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 
   return slug;
@@ -443,9 +445,11 @@ export async function generateAnswer(
   }
 
   const selection = await selectRelevantPages(root, question, Boolean(options.debug));
+  verbose(`retrieval: ${selection.pages.length} page(s) selected, ${selection.chunks.length} chunk(s) used`);
   options.onPageSelection?.(selection.pages, selection.reasoning);
 
   const pagesContent = await loadSelectedPages(root, selection.pages);
+  verbose(`context pack: ${pagesContent.length} chars`);
 
   if (!pagesContent) {
     return buildEmptyResult(selection);

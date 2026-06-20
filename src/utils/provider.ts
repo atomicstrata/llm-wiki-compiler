@@ -32,6 +32,9 @@ export interface LLMTool {
   input_schema: Record<string, unknown>;
 }
 
+/** Embedding input purpose for providers that tune document/query vectors. */
+export type EmbeddingInputType = "document" | "query";
+
 /** Provider-agnostic interface for LLM backends. */
 export interface LLMProvider {
   complete(system: string, messages: LLMMessage[], maxTokens: number): Promise<string>;
@@ -48,7 +51,9 @@ export interface LLMProvider {
     maxTokens: number,
   ): Promise<string>;
   /** Return a single embedding vector for the given text. */
-  embed(text: string): Promise<number[]>;
+  embed(text: string, inputType?: EmbeddingInputType): Promise<number[]>;
+  /** Embed multiple texts in a single provider-native request (optional). */
+  embedBatch?(texts: string[], inputType?: EmbeddingInputType): Promise<number[][]>;
 }
 
 const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);

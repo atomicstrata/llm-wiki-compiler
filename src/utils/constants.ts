@@ -162,3 +162,34 @@ export const EMBEDDING_MODELS: Record<string, string> = {
   openai: "text-embedding-3-small",
   ollama: "nomic-embed-text",
 };
+
+/** Per-provider default batch size for embedding requests (count-based). */
+export const EMBED_BATCH_SIZES: Record<string, number> = {
+  openai: 256,
+  ollama: 64,
+  anthropic: 128,
+  "claude-agent": 128,
+};
+
+/** Batch size for providers not in EMBED_BATCH_SIZES. */
+export const EMBED_BATCH_SIZE_FALLBACK = 64;
+
+/** Upper clamp for LLMWIKI_EMBED_BATCH_SIZE, per provider (documented max inputs). */
+export const EMBED_BATCH_CAPS: Record<string, number> = {
+  openai: 2048,
+  ollama: 512, // no documented cap; internal ceiling to bound request size/memory
+  anthropic: 1000,
+  "claude-agent": 1000,
+};
+
+/** Clamp ceiling for providers not in EMBED_BATCH_CAPS. */
+export const EMBED_BATCH_CAP_FALLBACK = 512;
+
+/** Env var: override the embedding batch size (positive integer, clamped to cap). */
+export const ENV_EMBED_BATCH_SIZE = "LLMWIKI_EMBED_BATCH_SIZE";
+
+/** Env var: when set, a failed embedding refresh exits non-zero (for CI). */
+export const ENV_EMBED_STRICT = "LLMWIKI_EMBED_STRICT";
+
+/** Env var: when set to any non-empty value, enables verbose progress output. */
+export const ENV_VERBOSE = "LLMWIKI_VERBOSE";
