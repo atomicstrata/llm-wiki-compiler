@@ -31,6 +31,7 @@ import reviewListCommand from "./commands/review-list.js";
 import reviewShowCommand from "./commands/review-show.js";
 import reviewApproveCommand from "./commands/review-approve.js";
 import reviewRejectCommand from "./commands/review-reject.js";
+import { stateResetCommand } from "./commands/state-reset.js";
 import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
 import refreshCommand from "./commands/refresh.js";
@@ -173,6 +174,25 @@ reviewCommand
   .action(async (id: string) => {
     try {
       await reviewRejectCommand(id);
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+const stateCommand = program
+  .command("state")
+  .description(
+    "Back up and reset .llmwiki/state.json (recovery for a state written by a newer llmwiki version).",
+  );
+
+stateCommand
+  .command("reset")
+  .description("Back up and reset the project state file. Requires --yes to apply.")
+  .option("--yes", "Apply the reset (back up and remove the state file)")
+  .action(async (options: { yes?: boolean }) => {
+    try {
+      await stateResetCommand({ yes: options.yes });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
