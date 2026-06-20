@@ -27,6 +27,9 @@
 import { readFile, writeFile, mkdir, readdir, unlink, rename } from "fs/promises";
 import path from "path";
 import { LLMWIKI_DIR } from "../utils/constants.js";
+import { realpath } from "fs/promises";
+import { confineUnderRoot } from "../utils/path-confine.js";
+import { note } from "../utils/output.js";
 
 /** Sentinel recorded when a target did not exist before the batch. */
 const ABSENT = { absent: true } as const;
@@ -68,6 +71,11 @@ function journalDir(root: string): string {
 /** Absolute path to a batch's journal file. */
 function journalPath(root: string, batchId: string): string {
   return path.join(journalDir(root), `${batchId}.json`);
+}
+
+/** Absolute path a quarantined (untrusted) journal file is moved to. */
+function quarantinePath(root: string, batchId: string): string {
+  return path.join(journalDir(root), "quarantine", `${batchId}.json`);
 }
 
 /** Read a file's bytes, or `null` when it does not exist. */
@@ -142,43 +150,136 @@ export async function commitBatch(batch: JournalBatch): Promise<void> {
   await persist(batch);
 }
 
-/** Revert one target to its recorded pre-state (restore bytes or delete). */
-async function revertEntry(entry: JournalEntry): Promise<void> {
+/**
+ * Revert one target to its recorded pre-state (restore bytes or delete), writing
+ * to `confinedPath` — the result of re-confining `entry.targetPath` under root,
+ * so replay can never act on a path that escapes the project.
+ */
+async function revertEntry(entry: JournalEntry, confinedPath: string): Promise<void> {
   if (entry.preState.absent) {
     try {
-      await unlink(entry.targetPath);
+      await unlink(confinedPath);
     } catch {
       // Already absent — the pre-state is already satisfied.
     }
     return;
   }
-  await mkdir(path.dirname(entry.targetPath), { recursive: true });
-  await writeFile(entry.targetPath, entry.preState.content, "utf-8");
+  await mkdir(path.dirname(confinedPath), { recursive: true });
+  await writeFile(confinedPath, entry.preState.content, "utf-8");
 }
 
-/** Parse a single journal file, returning null on any malformed/unreadable file. */
+/** Validate one parsed entry has a string `targetPath` and a well-formed `preState`. */
+function isValidEntry(entry: unknown): entry is JournalEntry {
+  if (typeof entry !== "object" || entry === null) return false;
+  const { targetPath, preState } = entry as Record<string, unknown>;
+  if (typeof targetPath !== "string") return false;
+  if (typeof preState !== "object" || preState === null) return false;
+  const { absent, content } = preState as Record<string, unknown>;
+  if (absent === true) return content === undefined;
+  return absent === false && typeof content === "string";
+}
+
+/**
+ * Validate a parsed journal payload is a well-formed batch: a `status` of
+ * `"pending"`/`"committed"` and an `entries` array of valid entries. A malformed
+ * payload is untrusted and must NOT be replayed.
+ */
+function isValidBatchShape(parsed: unknown): parsed is Omit<JournalBatch, "root"> {
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const { status, entries } = parsed as Record<string, unknown>;
+  if (status !== "pending" && status !== "committed") return false;
+  return Array.isArray(entries) && entries.every(isValidEntry);
+}
+
+/** Parse a single journal file, returning null on unreadable/malformed/unshaped input. */
 async function loadBatch(root: string, batchId: string): Promise<JournalBatch | null> {
   const raw = await readOrNull(journalPath(root, batchId));
   if (raw === null) return null;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as Omit<JournalBatch, "root">;
-    return { ...parsed, root };
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isValidBatchShape(parsed)) return null;
+  return { ...parsed, root };
 }
 
-/** Revert a pending batch to its full pre-state, then delete its journal file. */
-async function resolvePending(batch: JournalBatch): Promise<void> {
+/** Move an untrusted journal file into the quarantine subdir and warn. */
+async function quarantineBatch(root: string, batchId: string): Promise<void> {
+  const dest = quarantinePath(root, batchId);
+  await mkdir(path.dirname(dest), { recursive: true });
+  await rename(journalPath(root, batchId), dest);
+  note(`⚠ Untrusted journal ${batchId}.json quarantined to ${dest} — not replayed.`);
+}
+
+/**
+ * Express `targetPath` relative to `root` so confinement is invariant to which
+ * symlink form of root it was recorded under (e.g. `/var/...` vs the canonical
+ * `/private/var/...` on macOS). An absolute target under either the literal or
+ * the realpath'd root is reduced to its in-root remainder; a target that lies
+ * outside both forms is returned unchanged so {@link confineUnderRoot} rejects it.
+ */
+async function targetRelativeToRoot(targetPath: string, root: string): Promise<string> {
+  if (!path.isAbsolute(targetPath)) return targetPath;
+  const realRoot = (await realpath(root).catch(() => null)) ?? path.resolve(root);
+  for (const base of [path.resolve(root), realRoot]) {
+    const rel = path.relative(base, targetPath);
+    if (rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel)) return rel;
+  }
+  return targetPath;
+}
+
+/**
+ * Re-confine every entry's target under root, returning the confined absolute
+ * paths in entry order, or null if ANY target escapes root (whole batch untrusted).
+ */
+async function confineTargets(batch: JournalBatch): Promise<string[] | null> {
+  const confined: string[] = [];
   for (const entry of batch.entries) {
-    await revertEntry(entry);
+    try {
+      const rel = await targetRelativeToRoot(entry.targetPath, batch.root);
+      confined.push(await confineUnderRoot(rel, batch.root, { mustExist: false }));
+    } catch {
+      return null; // a target escapes root → untrusted batch
+    }
+  }
+  return confined;
+}
+
+/** Revert a pending batch to its full pre-state (confined paths), then delete its journal. */
+async function resolvePending(batch: JournalBatch, confinedPaths: string[]): Promise<void> {
+  for (let i = 0; i < batch.entries.length; i++) {
+    await revertEntry(batch.entries[i], confinedPaths[i]);
   }
   await unlink(journalPath(batch.root, batch.batchId));
+}
+
+/** Replay (or quarantine) one pending batch loaded from `batchId`. */
+async function replayPending(root: string, batchId: string): Promise<void> {
+  const batch = await loadBatch(root, batchId);
+  if (batch === null) {
+    await quarantineBatch(root, batchId); // unreadable JSON or malformed shape
+    return;
+  }
+  if (batch.status !== "pending") return; // committed → leave untouched
+  const confinedPaths = await confineTargets(batch);
+  if (confinedPaths === null) {
+    await quarantineBatch(root, batchId); // a target escapes root
+    return;
+  }
+  await resolvePending(batch, confinedPaths);
 }
 
 /**
  * Crash-recovery seam: revert every `pending`-but-not-`committed` batch to its
  * full pre-state, then resolve it. A `committed` batch is left untouched.
+ *
+ * FAIL CLOSED: a journal file that is unparseable, structurally malformed, or
+ * names ANY target that escapes the project root is QUARANTINED (moved under
+ * `.llmwiki/journal/quarantine/`) and never replayed — so a crafted or corrupted
+ * journal can never drive a write/delete outside the root. Every surviving target
+ * is re-confined via {@link confineUnderRoot} before it is touched.
  *
  * Idempotent: reverting a pending batch deletes its journal file, so a second
  * call finds no pending batches and does nothing. A missing journal directory
@@ -201,9 +302,6 @@ export async function replayJournal(root: string): Promise<void> {
   }
   for (const file of files) {
     if (!file.endsWith(".json")) continue;
-    const batch = await loadBatch(root, file.replace(/\.json$/, ""));
-    if (batch !== null && batch.status === "pending") {
-      await resolvePending(batch);
-    }
+    await replayPending(root, file.replace(/\.json$/, ""));
   }
 }
