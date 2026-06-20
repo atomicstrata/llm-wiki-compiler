@@ -58,7 +58,7 @@ describe("CLI smoke tests", () => {
   }, 30_000);
 
   it("advertises --concurrency on every command that drives a compile", async () => {
-    for (const command of ["compile", "refresh", "watch"]) {
+    for (const command of ["compile", "refresh", "watch", "quickstart"]) {
       const { stdout } = await exec("node", [CLI, command, "--help"]);
       expect(stdout).toContain("--concurrency");
     }
