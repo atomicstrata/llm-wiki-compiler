@@ -12,7 +12,7 @@
  *    compactRelations collapses superseded records and shrinks the file.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, truncate } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -116,6 +116,19 @@ describe("FIX #3 — bounded-blocking acquire serializes writers", () => {
     await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
     const attempt = acquireLockBlocking(root, { timeoutMs: 50, intervalMs: 10 });
     await expect(attempt).rejects.toBeInstanceOf(LockBusyError);
+  });
+
+  it("does NOT spam the busy warning on each intermediate retry (FIX 3)", async () => {
+    await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+    await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await acquireLockBlocking(root, { timeoutMs: 60, intervalMs: 10 }).catch(() => {});
+      const busyLines = logSpy.mock.calls.filter(([line]) => String(line).includes("Another compilation is running."));
+      expect(busyLines.length).toBeLessThanOrEqual(1);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
 

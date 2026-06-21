@@ -119,14 +119,44 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
 }
 
 /**
+ * Frontmatter keys a transition's evidence may NEVER set, even if declared: the
+ * page `slug` (identity, runtime-dropped at transition time) is reserved here so
+ * a profile can never declare an unsatisfiable evidence requirement. The
+ * lifecycle `field` is reserved too (the transition WRITES it) and is added
+ * dynamically in {@link assertEvidenceFieldsDeclared}.
+ */
+const RESERVED_EVIDENCE_KEYS = new Set(["slug"]);
+
+/**
+ * Reject a profile whose `transitionRequirements` declares any evidence field
+ * that can never be satisfied via caller evidence — a RESERVED key (`slug`, or
+ * the lifecycle `field` the transition writes) — or that is NOT a DECLARED entity
+ * field. Requiring evidence fields to be declared makes them first-class typed
+ * fields, so the field contract enforces their type/content. Fails closed at
+ * profile LOAD, so an unsatisfiable requirement is never accepted.
+ */
+function assertEvidenceFieldsDeclared(where: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): void {
+  const declared = fields ?? {};
+  for (const [state, evidenceFields] of Object.entries(lc.transitionRequirements ?? {})) {
+    for (const field of evidenceFields) {
+      const reserved = RESERVED_EVIDENCE_KEYS.has(field) || field === lc.field;
+      assert(!reserved, `${where}: transitionRequirements['${state}'] uses reserved evidence field '${field}'`);
+      assert(field in declared, `${where}: transitionRequirements['${state}'] evidence field '${field}' is not a declared field`);
+    }
+  }
+}
+
+/**
  * Validate a lifecycle FSM and return any unreachable states as warnings.
  *
  * Well-formedness (all throw on violation): the state set is the union of the
  * terminal states and every transition endpoint; initial ∈ states; terminal ⊆
  * states; terminal states have no outgoing transitions; every transition
- * endpoint ∈ states; every transitionRequirements key ∈ states; and if the
- * lifecycle `field` maps to a declared field, that field must be an enum whose
- * values equal the state set. Unreachable states are returned, not thrown.
+ * endpoint ∈ states; every transitionRequirements key ∈ states; every
+ * transitionRequirements evidence FIELD is a declared, non-reserved entity field
+ * (see {@link assertEvidenceFieldsDeclared}); and if the lifecycle `field` maps
+ * to a declared field, that field must be an enum whose values equal the state
+ * set. Unreachable states are returned, not thrown.
  */
 function validateLifecycle(entityType: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): string[] {
   const where = `entity '${entityType}' lifecycle`;
@@ -143,6 +173,7 @@ function validateLifecycle(entityType: string, lc: LifecycleDef, fields?: Record
   for (const key of Object.keys(lc.transitionRequirements ?? {})) {
     assert(states.has(key), `${where}: transitionRequirements references unknown state '${key}'`);
   }
+  assertEvidenceFieldsDeclared(where, lc, fields);
   assertLifecycleEnum(where, lc, states, fields);
   return unreachableStates(lc, states).map((s) => `${where}: state '${s}' is unreachable from initial`);
 }

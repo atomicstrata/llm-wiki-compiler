@@ -72,7 +72,11 @@ export async function acquireLockBlocking(root: string, options: BlockingLockOpt
   const intervalMs = options.intervalMs ?? DEFAULT_BLOCKING_INTERVAL_MS;
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    if (await acquireLock(root)) return;
+    // Intermediate retries acquire QUIETLY: a held lock is the EXPECTED steady
+    // state while we poll, so the per-attempt "Another compilation is running."
+    // warning would spam SDK/MCP callers that retry by design. The final
+    // LockBusyError is the clear signal on timeout.
+    if (await acquireLock(root, { quiet: true })) return;
     if (Date.now() >= deadline) throw new LockBusyError(timeoutMs);
     await delay(intervalMs);
   }
@@ -88,14 +92,25 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+/** Options for {@link acquireLock}. `quiet` suppresses the busy warning. */
+export interface AcquireLockOptions {
+  /** Suppress the "Another compilation is running." warning on a busy lock. */
+  quiet?: boolean;
+}
+
 /**
  * Acquire the compilation lock. Returns true if acquired, false if busy.
  *
  * Retries up to MAX_ACQUIRE_ATTEMPTS times to handle the case where the
  * first attempt cleans up a stale reclamation lock but cannot acquire it
  * in the same call (to avoid the double-winner race).
+ *
+ * @param root - Project root directory.
+ * @param options - When `quiet`, the busy-lock warning is suppressed (used by
+ *   {@link acquireLockBlocking}'s intermediate retries so by-design pollers stay
+ *   silent). The fail-fast CLI path leaves it unset and still prints the warning.
  */
-export async function acquireLock(root: string): Promise<boolean> {
+export async function acquireLock(root: string, options: AcquireLockOptions = {}): Promise<boolean> {
   const lockPath = path.join(root, LOCK_FILE);
   await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
 
@@ -107,7 +122,7 @@ export async function acquireLock(root: string): Promise<boolean> {
     // Lock exists. Check if the holding process is dead.
     const stale = await isLockStale(lockPath);
     if (!stale) {
-      output.status("!", output.warn("Another compilation is running."));
+      if (!options.quiet) output.status("!", output.warn("Another compilation is running."));
       return false;
     }
 
@@ -118,7 +133,7 @@ export async function acquireLock(root: string): Promise<boolean> {
     // Reclamation failed (e.g. cleaned up stale reclaim lock). Retry.
   }
 
-  output.status("!", output.warn("Could not acquire lock after retrying."));
+  if (!options.quiet) output.status("!", output.warn("Could not acquire lock after retrying."));
   return false;
 }
 

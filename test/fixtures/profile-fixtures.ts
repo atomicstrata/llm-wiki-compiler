@@ -170,6 +170,11 @@ export const RESEARCH_LITE_PROFILE = {
           type: "enum",
           enum: ["proposed", "testing", "tested", "validated", "failed"],
         },
+        // Declared so the `failed` state can require it as transition evidence:
+        // the profile validator now demands every transitionRequirements field be
+        // a declared entity field (FIX 2). Extending fixtures attach
+        // `transitionRequirements: { failed: ["failureReason"] }`.
+        failureReason: { type: "string" },
       },
       lifecycle: {
         field: "status",

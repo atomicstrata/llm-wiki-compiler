@@ -261,6 +261,49 @@ describe("validateProfile — lifecycle FSM", () => {
     };
     expect(() => validateProfile(raw)).toThrow(/transitionRequirements|state/i);
   });
+
+  it("rejects a transitionRequirements field that is the reserved 'slug' key", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: ["done"],
+      transitions: { draft: ["done"] }, transitionRequirements: { done: ["slug"] },
+    };
+    expect(() => validateProfile(raw)).toThrow(/reserved evidence field 'slug'/);
+  });
+
+  it("rejects a transitionRequirements field that is the lifecycle field itself", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: ["done"],
+      transitions: { draft: ["done"] }, transitionRequirements: { done: ["status"] },
+    };
+    expect(() => validateProfile(raw)).toThrow(/reserved evidence field 'status'/);
+  });
+
+  it("rejects a transitionRequirements field that is not a declared entity field", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: ["done"],
+      transitions: { draft: ["done"] }, transitionRequirements: { done: ["undeclaredField"] },
+    };
+    expect(() => validateProfile(raw)).toThrow(/evidence field 'undeclaredField' is not a declared field/);
+  });
+
+  it("accepts a transitionRequirements field that IS a declared entity field", () => {
+    const raw = baseProfile();
+    raw.entities.papers.fields = {
+      status: { type: "enum", enum: ["draft", "done"] },
+      reviewedBy: { type: "string" },
+    };
+    raw.entities.papers.lifecycle = {
+      field: "status", initial: "draft", terminal: ["done"],
+      transitions: { draft: ["done"] }, transitionRequirements: { done: ["reviewedBy"] },
+    };
+    expect(() => validateProfile(raw)).not.toThrow();
+  });
 });
 
 describe("validateProfile — field types", () => {

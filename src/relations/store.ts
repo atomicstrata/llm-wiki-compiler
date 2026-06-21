@@ -28,7 +28,8 @@
  * and is NOT an update — callers pass only attributes/evidence.
  */
 
-import { open, mkdir, rename, stat, writeFile } from "fs/promises";
+import { open, mkdir, rename, stat } from "fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "path";
 import { RELATIONS_FILE, MAX_RELATION_RECORD_BYTES, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
@@ -291,10 +292,36 @@ function compactedBody(records: RelationRef[]): string {
 }
 
 /**
+ * Write `body` to a RANDOM-named temp file inside the CONFINED graph dir, then
+ * atomic-rename it over `file`. The temp is opened with `"wx"` (O_CREAT|O_EXCL),
+ * so a pre-planted entry at that path — INCLUDING a symlink-to-FILE — makes the
+ * open throw `EEXIST` and compaction FAILS CLOSED, never following the link to
+ * overwrite an out-of-tree file. The random suffix means the temp path cannot be
+ * predicted and pre-targeted. The write goes through the file HANDLE (never a
+ * path), and the handle is always closed in `finally`.
+ *
+ * @param dir - The already-confined graph directory (from {@link resolveGraphDir}).
+ * @param file - The destination store file inside `dir`.
+ * @param body - The compacted store body to persist.
+ */
+async function writeCompactedAtomically(dir: string, file: string, body: string): Promise<void> {
+  const tmp = path.join(dir, `${path.basename(RELATIONS_FILE)}.compact.${randomBytes(8).toString("hex")}.tmp`);
+  const handle = await open(tmp, "wx"); // O_EXCL: refuses any pre-existing entry, incl. a symlink
+  try {
+    await handle.writeFile(body, "utf8");
+  } finally {
+    await handle.close();
+  }
+  await rename(tmp, file);
+}
+
+/**
  * Compact the relation store IN PLACE (FIX #4): under the lock, read the
  * latest-per-id records that are still VALID against `profile`, rewrite just the
- * header + those records to a temp file in the confined graph dir, and
- * atomic-rename it over `relations.jsonl`. Superseded/duplicate/now-invalid
+ * header + those records to a RANDOM-named, O_EXCL-created temp file in the
+ * confined graph dir (see {@link writeCompactedAtomically} — a pre-planted
+ * symlink at the temp path fails the open closed, never followed outside root),
+ * and atomic-rename it over `relations.jsonl`. Superseded/duplicate/now-invalid
  * records are dropped, so the store SHRINKS — the escape valve that recovers a
  * store driven up to {@link RelationStoreFullError}. The latest-per-id collapse
  * is the reader's, so no live relation is lost.
@@ -311,9 +338,7 @@ export async function compactRelations(root: string, profile: ProfilePack): Prom
     const before = await fileSize(file);
     const { relations } = await readRelations(root);
     const survivors = relations.filter((ref) => validateRelationAgainstProfile(ref, profile).length === 0);
-    const tmp = file + ".compact.tmp";
-    await writeFile(tmp, compactedBody(survivors), "utf8");
-    await rename(tmp, file);
+    await writeCompactedAtomically(dir, file, compactedBody(survivors));
     return { before, after: await fileSize(file) };
   });
 }
