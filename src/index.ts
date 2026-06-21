@@ -53,6 +53,37 @@ export type { OkfExportReport } from "./export/okf/run.js";
 export type { OkfImportReport, OkfImportSkip, OkfImportedPage } from "./import/run.js";
 export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
 
+// @experimental — programmatic non-default entity-page staging loop. The
+// `createWiki()` facade exposes `stageEntityPage`/`promoteStagedPage`; these are
+// the input/return types consumers need. The lower-level `stageEntityPage(root,…)`
+// and `promoteCandidateUnderLock` forms stay internal. API may change.
+//
+// Read-integration status: typed entity pages are a WRITE SUBSTRATE — a promoted
+// page is surfaced in `status`, the JSON export, and the wiki INDEX, but NOT YET
+// in interlinking, semantic search/embeddings, the MOC, or the viewer (planned).
+export type { SdkStageEntityPageInput } from "./trust/staging.js";
+export { StagingRequiresProfileError } from "./trust/staging.js";
+export type {
+  StagedChange,
+  CandidateKind,
+  HeldReasonCode,
+  RelationRef,
+  ArtifactRef,
+  WorkflowRunRef,
+} from "./trust/staged-change.js";
+// Planner sub-types named by `StagedChange.target` / `.planned` so the staged
+// surface is fully nameable by consumers (the typed `EntityRef` target especially).
+export type {
+  EntityRef,
+  RawPageRef,
+  MutationTarget,
+  MutationOperation,
+  MutationKind,
+  PlannedMutation,
+  MutationProvenance,
+} from "./trust/planner.js";
+export type { TrustDecision } from "./trust/decision.js";
+
 // Profile pack TYPES only — the loader stays internal (no `loadProfile` export).
 export type {
   ProfilePack,

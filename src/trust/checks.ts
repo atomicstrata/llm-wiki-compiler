@@ -125,6 +125,36 @@ export const checkResourceLimit: MandatoryPageCheck = async (ctx) => {
 };
 
 /**
+ * Thrown by {@link assertBodyWithinResourceLimit} when a body exceeds
+ * {@link MAX_SOURCE_CHARS}. Lets pre-parse entry points (staging, promotion)
+ * reject an oversized body with a TYPED error BEFORE any frontmatter parse —
+ * mirroring the executor-side {@link checkResourceLimit} floor (same cap, same
+ * message wording) so the two agree. The planner's floor stays as the executor
+ * -side guarantee (defense in depth).
+ */
+export class ResourceLimitError extends Error {
+  constructor(chars: number) {
+    super(`body ${chars} chars exceeds cap of ${MAX_SOURCE_CHARS}`);
+    this.name = "ResourceLimitError";
+  }
+}
+
+/**
+ * Reject a body whose character length exceeds {@link MAX_SOURCE_CHARS} BEFORE
+ * any frontmatter parse. A pure `.length` compare — costs nothing — so a giant
+ * all-frontmatter payload can never burn parse time before the cap rejects it.
+ * A body within the cap is a no-op. Restores the "reject before parsing"
+ * guarantee at the staging/promotion entry points.
+ * @param body - The full markdown body to length-check.
+ * @throws {ResourceLimitError} When `body.length` exceeds the cap.
+ */
+export function assertBodyWithinResourceLimit(body: string): void {
+  if (body.length > MAX_SOURCE_CHARS) {
+    throw new ResourceLimitError(body.length);
+  }
+}
+
+/**
  * Block a body whose frontmatter block is present but malformed (invalid YAML
  * or a non-mapping scalar/array), reusing {@link parseFrontmatterStatus}. A body
  * with no frontmatter block or with clean frontmatter passes.

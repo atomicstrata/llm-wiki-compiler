@@ -38,6 +38,7 @@ import { getPage, listPages } from "../pages/list.js";
 import { listSources, getSource, deleteSource } from "../sources/store.js";
 import { runOkfExport } from "../export/okf/run.js";
 import { runOkfImport } from "../import/run.js";
+import { buildStagingFacade } from "./staging-facade.js";
 import type { CreateWikiOptions, Wiki, SdkCompileOptions } from "./types.js";
 
 /**
@@ -131,5 +132,8 @@ export function createWiki(options: CreateWikiOptions): Wiki {
     exportOkf: (opts = {}) => runQuiet(() => runOkfExport(root, opts)),
 
     importOkf: (dir, opts = {}) => runQuiet(() => runOkfImport(root, dir, opts)),
+
+    // @experimental non-default staging slice — factored into staging-facade.ts.
+    ...buildStagingFacade(root, runQuiet),
   };
 }

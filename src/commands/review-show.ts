@@ -15,8 +15,26 @@ function candidateReasons(candidate: ReviewCandidate): string[] {
     .map((reason) => reason.detail ? `${reason.code} (${reason.detail})` : reason.code);
 }
 
+/**
+ * Print the resolved on-disk target for a typed candidate.
+ *
+ * Typed candidates (carrying `targetEntityType`) land in
+ * `wiki/<targetEntityType>/<slug>.md` rather than the default
+ * `wiki/concepts/`. Surfacing the resolved path lets a human reviewer see where
+ * approval will write before they approve. Default candidates (no
+ * `targetEntityType`) print nothing here so their output stays byte-identical.
+ */
+function printTypedTarget(candidate: ReviewCandidate): void {
+  if (!candidate.targetEntityType) return;
+  output.status(
+    "i",
+    output.dim(`Target:    wiki/${candidate.targetEntityType}/${candidate.slug}.md`),
+  );
+}
+
 /** Print review metadata added by policy-aware candidate generation. */
 function printReviewMetadata(candidate: ReviewCandidate): void {
+  printTypedTarget(candidate);
   output.status("i", output.dim(`review:    ${candidate.reviewMode}`));
   output.status("i", output.dim(`reasons:   ${candidateReasons(candidate).join(", ")}`));
   if (candidate.okfPath) {

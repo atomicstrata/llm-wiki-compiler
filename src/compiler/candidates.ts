@@ -16,11 +16,16 @@ import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
+import { isSafeFilenameComponent } from "../profile/identity.js";
 import { atomicWrite, safeReadFile } from "../utils/markdown.js";
 import {
   listCandidateFileIds,
   moveCandidateToArchive,
 } from "../utils/candidate-store.js";
+import {
+  confinedCandidateFilePath,
+  resolveConfinedCandidatesDir,
+} from "./candidate-store-paths.js";
 import * as output from "../utils/output.js";
 import {
   CANDIDATES_DIR,
@@ -34,11 +39,8 @@ import type { TrustDecision } from "../trust/decision.js";
 /** Length (bytes) of the random suffix appended to candidate ids. */
 const ID_SUFFIX_BYTES = 4;
 
-/** Filesystem extension used for candidate JSON files. */
-const CANDIDATE_EXT = ".json";
-
 /** Input shape for creating a new candidate (id + timestamp generated here). */
-interface CandidateDraft {
+export interface CandidateDraft {
   title: string;
   slug: string;
   summary: string;
@@ -118,20 +120,73 @@ const VALID_TRUST_DECISIONS: TrustDecision[] = [
   "deny",
 ];
 
+/**
+ * Thrown when a candidate id or slug is not a single safe path component, so a
+ * traversal-bearing value (e.g. `../evil`) can never be joined into a candidate
+ * file path that escapes `.llmwiki/candidates/`. Default slugs from `slugify`
+ * are already filename-safe, so this never fires on the default path.
+ */
+export class UnsafeCandidateIdError extends Error {
+  constructor(kind: "id" | "slug", value: string) {
+    super(`unsafe candidate ${kind}: ${JSON.stringify(value)} is not a single safe path component`);
+    this.name = "UnsafeCandidateIdError";
+  }
+}
+
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
 function buildCandidateId(slug: string): string {
   const suffix = randomBytes(ID_SUFFIX_BYTES).toString("hex");
   return `${slug}-${suffix}`;
 }
 
-/** Absolute path to a candidate's JSON file. */
-function candidatePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_DIR, `${id}${CANDIDATE_EXT}`);
+/**
+ * The FULL target identity of a candidate: the tuple of where the approved page
+ * lands AND its slug. Two candidates are duplicates only when BOTH components
+ * match. For a DEFAULT concepts candidate the type component is the constant
+ * `"concepts"`, so dedup on this key behaves EXACTLY as a slug-only dedup did —
+ * default candidate behavior stays byte-identical. A typed candidate
+ * (`targetEntityType`) or an OKF query candidate (`targetDirectory`) keys on its
+ * own directory, so `papers/foo` and `ideas/foo` never collapse into one file.
+ * @param candidate - The candidate (or draft) whose target identity is built.
+ */
+function candidateTargetKey(candidate: {
+  targetEntityType?: string;
+  targetDirectory?: string;
+  slug: string;
+}): string {
+  const target = candidate.targetEntityType ?? candidate.targetDirectory ?? "concepts";
+  return `${target}/${candidate.slug}`;
 }
 
-/** Absolute path to the archived JSON file for a rejected candidate. */
-function archivePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_EXT}`);
+/** Build the typed unsafe-id error for a candidate file id. */
+function unsafeCandidateId(id: string): Error {
+  return new UnsafeCandidateIdError("id", id);
+}
+
+/**
+ * Resolve a candidate file path under `dir`, asserting `id` is a single safe
+ * filename component AND REALPATH-confining the result under the project root via
+ * {@link confinedCandidateFilePath}. Defense in depth: a safe id under a NORMAL
+ * (real) candidates dir yields a byte-identical path to `path.join`, so default
+ * parity is preserved; an unsafe id throws {@link UnsafeCandidateIdError}, and a
+ * symlinked containing dir escaping root throws {@link UnsafeCandidateDirError} —
+ * both before any I/O.
+ * @param root - Project root directory.
+ * @param dir - Candidates subdir (pending or archive) relative to root.
+ * @param id - Candidate id to embed as the filename stem.
+ */
+function resolveCandidatePath(root: string, dir: string, id: string): Promise<string> {
+  return confinedCandidateFilePath(root, dir, id, unsafeCandidateId);
+}
+
+/** Absolute confined path to a candidate's JSON file. */
+function candidatePath(root: string, id: string): Promise<string> {
+  return resolveCandidatePath(root, CANDIDATES_DIR, id);
+}
+
+/** Absolute confined path to the archived JSON file for a rejected candidate. */
+function archivePath(root: string, id: string): Promise<string> {
+  return resolveCandidatePath(root, CANDIDATES_ARCHIVE_DIR, id);
 }
 
 /**
@@ -149,7 +204,8 @@ export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
-  const { canonicalId, duplicateIds } = await findSlugDuplicates(root, draft.slug);
+  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
+  const { canonicalId, duplicateIds } = await findIdentityDuplicates(root, candidateTargetKey(draft));
   const candidate: ReviewCandidate = {
     id: canonicalId ?? buildCandidateId(draft.slug),
     title: draft.title,
@@ -171,23 +227,28 @@ export async function writeCandidate(
     ...(draft.trustDecision ? { trustDecision: draft.trustDecision } : {}),
   };
 
-  await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
+  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
   await deleteDuplicates(root, duplicateIds);
   return candidate;
 }
 
 /**
- * Collect all candidate ids matching a slug and return the canonical (earliest)
- * id plus the list of extra duplicate ids to remove.
+ * Collect all candidate ids matching a FULL target identity (target-type + slug,
+ * via {@link candidateTargetKey}) and return the canonical (earliest) id plus the
+ * list of extra duplicate ids to remove. Keying on the full identity — not slug
+ * alone — keeps two distinct typed targets that share a slug (`papers/foo` vs
+ * `ideas/foo`) as SEPARATE candidates, so neither is silently dropped, while a
+ * DEFAULT concepts candidate (constant `concepts/` prefix) dedups exactly as
+ * before.
  * @param root - Project root directory.
- * @param slug - The page slug to search for.
+ * @param targetKey - The full target identity to match (see {@link candidateTargetKey}).
  */
-async function findSlugDuplicates(
+async function findIdentityDuplicates(
   root: string,
-  slug: string,
+  targetKey: string,
 ): Promise<{ canonicalId: string | null; duplicateIds: string[] }> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === targetKey);
   if (matching.length === 0) return { canonicalId: null, duplicateIds: [] };
   // Preserve the first match as canonical (listCandidates sorts by generatedAt).
   const [canonical, ...extras] = matching;
@@ -213,10 +274,21 @@ export async function readCandidateBySlug(
   return candidates.find((candidate) => candidate.slug === slug) ?? null;
 }
 
-/** Collect every slug currently pending review. */
-export async function listPendingCandidateSlugs(root: string): Promise<Set<string>> {
+/**
+ * Collect the slugs of pending candidates whose approval lands in a
+ * link-resolvable directory (default concepts/queries). Typed candidates
+ * (those carrying `targetEntityType`) are EXCLUDED: typed pages are not part
+ * of the concepts/queries wikilink interlinking system (see
+ * {@link file://./../sdk/types.ts}), so approving one would NOT make a
+ * `[[link]]` resolve. Including their slugs here would wrongly demote a real
+ * broken wikilink to an info-level "awaiting review" — hiding a link that
+ * stays broken after approval.
+ */
+export async function listLinkResolvablePendingSlugs(root: string): Promise<Set<string>> {
   const candidates = await listCandidates(root);
-  return new Set(candidates.map((candidate) => candidate.slug));
+  return new Set(
+    candidates.filter((candidate) => !candidate.targetEntityType).map((candidate) => candidate.slug),
+  );
 }
 
 /**
@@ -279,7 +351,7 @@ export async function readCandidate(
   root: string,
   id: string,
 ): Promise<ReviewCandidate | null> {
-  const raw = await safeReadFile(candidatePath(root, id));
+  const raw = await safeReadFile(await candidatePath(root, id));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as ReviewCandidate;
@@ -423,7 +495,8 @@ function isValidCandidate(value: unknown): value is ReviewCandidate {
  * @returns All pending review candidates.
  */
 export async function listCandidates(root: string): Promise<ReviewCandidate[]> {
-  const dir = path.join(root, CANDIDATES_DIR);
+  const dir = await resolveConfinedCandidatesDir(root, CANDIDATES_DIR);
+  if (dir === null) return []; // absent candidates dir → nothing pending
   const ids = await listCandidateFileIds(dir);
   const candidates: ReviewCandidate[] = [];
   for (const id of ids) {
@@ -448,22 +521,27 @@ export async function countCandidates(root: string): Promise<number> {
 
 /** Remove a pending candidate from disk. Returns false when nothing existed to remove. */
 export async function deleteCandidate(root: string, id: string): Promise<boolean> {
-  const filePath = candidatePath(root, id);
+  const filePath = await candidatePath(root, id);
   if (!existsSync(filePath)) return false;
   await unlink(filePath);
   return true;
 }
 
 /**
- * Delete ALL pending candidate files for a slug.
+ * Delete ALL pending candidate files for a DEFAULT concepts slug.
  *
  * When duplicates exist (e.g. legacy or hand-dropped files) the direct-write
  * reconcile path must remove every file matching the slug, not just the first
- * canonical one, so no stale duplicates remain after a page is written directly.
+ * canonical one, so no stale duplicates remain after a concepts page is written
+ * directly. Matches on the FULL `concepts/<slug>` identity (via
+ * {@link candidateTargetKey}) so a typed `papers/<slug>` candidate that merely
+ * shares the slug is NOT collaterally deleted when a default concepts page is
+ * reconciled — the default caller only writes concepts, so its behavior is
+ * unchanged.
  */
 export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === `concepts/${slug}`);
   if (matching.length === 0) return false;
   for (const candidate of matching) {
     await deleteCandidate(root, candidate.id);
@@ -479,5 +557,5 @@ export async function deleteCandidateBySlug(root: string, slug: string): Promise
  * @returns True when the candidate was found and archived.
  */
 export async function archiveCandidate(root: string, id: string): Promise<boolean> {
-  return moveCandidateToArchive(candidatePath(root, id), archivePath(root, id));
+  return moveCandidateToArchive(await candidatePath(root, id), await archivePath(root, id));
 }

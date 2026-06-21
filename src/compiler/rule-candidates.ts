@@ -12,15 +12,18 @@
  * evidence, lowercase status/confidence. Do not reshape it for local use.
  */
 
-import path from "path";
 import { createHash } from "node:crypto";
 import { atomicWrite, safeReadFile, slugify } from "../utils/markdown.js";
 import {
-  CANDIDATE_JSON_EXT,
   candidateFileId,
   listCandidateFileIds,
   moveCandidateToArchive,
 } from "../utils/candidate-store.js";
+import {
+  confinedCandidateFilePath,
+  resolveConfinedCandidatesDir,
+} from "./candidate-store-paths.js";
+import { UnsafeCandidateIdError } from "./candidates.js";
 import {
   RULE_CANDIDATES_DIR,
   RULE_CANDIDATES_ARCHIVE_DIR,
@@ -42,14 +45,26 @@ const STATUS_VALUES: readonly RuleStatus[] = ["proposed", "approved", "rejected"
 /** Runtime evidence shape checker for a tagged evidence variant. */
 type EvidenceShapeChecker = (ref: Record<string, unknown>) => string | null;
 
-/** Absolute path to a rule candidate's JSON file. */
-function ruleCandidatePath(root: string, id: string): string {
-  return path.join(root, RULE_CANDIDATES_DIR, `${id}${CANDIDATE_JSON_EXT}`);
+/** Build the typed unsafe-id error for a rule-candidate file id. */
+function unsafeRuleCandidateId(id: string): Error {
+  return new UnsafeCandidateIdError("id", id);
 }
 
-/** Absolute path to the archived JSON file for a rejected rule candidate. */
-function ruleArchivePath(root: string, id: string): string {
-  return path.join(root, RULE_CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_JSON_EXT}`);
+/**
+ * Absolute, REALPATH-confined path to a rule candidate's JSON file. Asserts
+ * `id` is a single safe filename component and confines the result under the
+ * project root via the shared {@link confinedCandidateFilePath} — so a symlinked
+ * `.llmwiki/rule-candidates` (or `.llmwiki`) escaping root throws
+ * {@link UnsafeCandidateDirError} before any I/O. A NORMAL real dir yields the
+ * byte-identical lexical path, so default rule behavior is unchanged.
+ */
+function ruleCandidatePath(root: string, id: string): Promise<string> {
+  return confinedCandidateFilePath(root, RULE_CANDIDATES_DIR, id, unsafeRuleCandidateId);
+}
+
+/** Absolute, REALPATH-confined path to the archived JSON file for a rejected rule candidate. */
+function ruleArchivePath(root: string, id: string): Promise<string> {
+  return confinedCandidateFilePath(root, RULE_CANDIDATES_ARCHIVE_DIR, id, unsafeRuleCandidateId);
 }
 
 /** the rule importer contract caps (mirrored from the rule-import contract rule_candidate_validation.rs). */
@@ -314,7 +329,7 @@ export async function writeRuleCandidate(
   candidate: RuleCandidate,
 ): Promise<string> {
   const fileId = candidateFileId(candidate.id);
-  const target = ruleCandidatePath(root, fileId);
+  const target = await ruleCandidatePath(root, fileId);
   await atomicWrite(target, JSON.stringify(candidate, null, 2));
   return target;
 }
@@ -329,7 +344,7 @@ export async function readRuleCandidate(
   root: string,
   fileId: string,
 ): Promise<RuleCandidate | null> {
-  const raw = await safeReadFile(ruleCandidatePath(root, fileId));
+  const raw = await safeReadFile(await ruleCandidatePath(root, fileId));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -345,7 +360,8 @@ export async function readRuleCandidate(
  * @param root - Project root directory.
  */
 export async function listRuleCandidates(root: string): Promise<RuleCandidate[]> {
-  const dir = path.join(root, RULE_CANDIDATES_DIR);
+  const dir = await resolveConfinedCandidatesDir(root, RULE_CANDIDATES_DIR);
+  if (dir === null) return []; // absent rule-candidates dir → nothing pending
   const fileIds = await listCandidateFileIds(dir);
   const candidates: RuleCandidate[] = [];
   for (const fileId of fileIds) {
@@ -375,7 +391,7 @@ export async function setRuleCandidateStatus(
   if (!candidate) return null;
   const updated: RuleCandidate = { ...candidate, status };
   await atomicWrite(
-    ruleCandidatePath(root, fileId),
+    await ruleCandidatePath(root, fileId),
     JSON.stringify(updated, null, 2),
   );
   return updated;
@@ -392,7 +408,7 @@ export async function archiveRuleCandidate(
   fileId: string,
 ): Promise<boolean> {
   return moveCandidateToArchive(
-    ruleCandidatePath(root, fileId),
-    ruleArchivePath(root, fileId),
+    await ruleCandidatePath(root, fileId),
+    await ruleArchivePath(root, fileId),
   );
 }

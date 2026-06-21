@@ -30,13 +30,8 @@
 import { scanEntityDir, type RawEntityScan } from "../wiki/collect.js";
 import { isDefaultProfile } from "./default.js";
 import { isSlugSafe, assertSlugSafe, entityId, suggestSlugFromBasename } from "./identity.js";
-import type {
-  ProfilePack,
-  EntityPage,
-  EntityTypeDef,
-  FieldDef,
-  FieldType,
-} from "./types.js";
+import { validateEntityFields } from "./field-contract.js";
+import type { ProfilePack, EntityPage, EntityTypeDef } from "./types.js";
 
 /** Error raised only for the programming-error default-profile guard. */
 export class EntityCollectError extends Error {
@@ -87,28 +82,11 @@ function declaredSlug(frontmatter: Record<string, unknown>): string | undefined 
 }
 
 /**
- * Compute the de-duplicated set of required field names for an entity type: the
- * UNION of the entity-level `requiredFields` array and every field whose own
- * `FieldDef.required === true`. Returned as a `Set` so a field declared required
- * BOTH ways yields exactly one missing-field problem, never two.
- */
-function requiredFieldNames(def: EntityTypeDef): Set<string> {
-  const names = new Set<string>(def.requiredFields ?? []);
-  for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
-    if (fieldDef.required === true) names.add(name);
-  }
-  return names;
-}
-
-/**
- * Validate a slug-safe page against its entity type's declared field contract,
- * pushing a `field-violation` problem for each missing required field and, for
- * each PRESENT field value, every declared-type / enum / min-max mismatch. A
- * field is required when it is in `def.requiredFields` OR carries
- * `FieldDef.required === true` (the union, de-duplicated). The page is NOT
+ * Validate a slug-safe page against its entity type's declared field contract via
+ * the SHARED {@link validateEntityFields} (the SAME implementation the typed write
+ * gates use), wrapping each PATH-FREE message into a `field-violation` problem
+ * tagged with the entity type and the offending `filePath`. The page is NOT
  * dropped — a contract violation is surfaced, not fatal — and this NEVER throws.
- * Messages are PATH-FREE (the offending path lives only on the structured
- * `filePath` field).
  */
 function checkFieldContract(
   entityType: string,
@@ -116,115 +94,9 @@ function checkFieldContract(
   scan: RawEntityScan,
   problems: EntityProblem[],
 ): void {
-  const fm = scan.frontmatter;
-  for (const field of requiredFieldNames(def)) {
-    if (!(field in fm)) {
-      problems.push({
-        kind: "field-violation",
-        entityType,
-        filePath: scan.filePath,
-        message: `Required field ${JSON.stringify(field)} is missing from frontmatter.`,
-      });
-    }
+  for (const message of validateEntityFields(scan.frontmatter, def)) {
+    problems.push({ kind: "field-violation", entityType, filePath: scan.filePath, message });
   }
-  for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
-    checkFieldValue(entityType, name, fieldDef, scan, problems);
-  }
-}
-
-/**
- * Validate one present field value against its declared type, enum membership,
- * and numeric min/max. A missing value is not validated here (required-presence
- * is handled separately). Each mismatch becomes one PATH-FREE `field-violation`.
- */
-function checkFieldValue(
-  entityType: string,
-  name: string,
-  fieldDef: FieldDef,
-  scan: RawEntityScan,
-  problems: EntityProblem[],
-): void {
-  const value = scan.frontmatter[name];
-  if (value === undefined) return;
-  const typeError = describeTypeMismatch(name, fieldDef, value);
-  if (typeError) {
-    pushFieldViolation(entityType, scan.filePath, typeError, problems);
-    return;
-  }
-  const rangeError = describeRangeViolation(name, fieldDef, value);
-  if (rangeError) pushFieldViolation(entityType, scan.filePath, rangeError, problems);
-}
-
-/** Append a `field-violation` problem carrying a PATH-FREE message. */
-function pushFieldViolation(
-  entityType: string,
-  filePath: string,
-  message: string,
-  problems: EntityProblem[],
-): void {
-  problems.push({ kind: "field-violation", entityType, filePath, message });
-}
-
-/**
- * Return a PATH-FREE message when `value` does not match `fieldDef.type`
- * (including enum membership), or `undefined` when the type is satisfied.
- */
-function describeTypeMismatch(name: string, fieldDef: FieldDef, value: unknown): string | undefined {
-  if (matchesDeclaredType(fieldDef, value)) return undefined;
-  if (fieldDef.type === "enum") {
-    return (
-      `Field ${JSON.stringify(name)} value ${JSON.stringify(value)} is not one of ` +
-      `${JSON.stringify(fieldDef.enum ?? [])}.`
-    );
-  }
-  return `Field ${JSON.stringify(name)} value ${JSON.stringify(value)} is not a valid ${fieldDef.type}.`;
-}
-
-/** True when `value` is a string parseable as a date, or a valid `Date`. */
-function isValidDate(value: unknown): boolean {
-  // YAML parses an unquoted ISO date into a JS `Date`; a quoted value stays a
-  // string. Accept either, provided it denotes a valid instant.
-  if (value instanceof Date) return !Number.isNaN(value.getTime());
-  return typeof value === "string" && !Number.isNaN(Date.parse(value));
-}
-
-/**
- * Per-field-type value predicates (enum excluded — it needs the `FieldDef`).
- * A lookup table keeps {@link matchesDeclaredType} flat instead of a wide
- * switch that would trip the complexity gate.
- */
-const TYPE_PREDICATES: Record<Exclude<FieldType, "enum">, (value: unknown) => boolean> = {
-  string: (v) => typeof v === "string",
-  slug: (v) => typeof v === "string" && isSlugSafe(v),
-  integer: (v) => Number.isInteger(v),
-  number: (v) => typeof v === "number" && Number.isFinite(v),
-  boolean: (v) => typeof v === "boolean",
-  date: isValidDate,
-  "string[]": (v) => Array.isArray(v) && v.every((item) => typeof item === "string"),
-};
-
-/** True when `value` satisfies the declared `FieldDef.type` (enum included). */
-function matchesDeclaredType(fieldDef: FieldDef, value: unknown): boolean {
-  if (fieldDef.type === "enum") {
-    return typeof value === "string" && (fieldDef.enum?.includes(value) ?? false);
-  }
-  return TYPE_PREDICATES[fieldDef.type](value);
-}
-
-/**
- * Return a PATH-FREE message when a numeric `value` falls outside the declared
- * `[min, max]`, or `undefined` when in range or when no bound applies. Only
- * meaningful after the value has passed its numeric type check.
- */
-function describeRangeViolation(name: string, fieldDef: FieldDef, value: unknown): string | undefined {
-  if (typeof value !== "number") return undefined;
-  if (fieldDef.min !== undefined && value < fieldDef.min) {
-    return `Field ${JSON.stringify(name)} value ${value} is below min ${fieldDef.min}.`;
-  }
-  if (fieldDef.max !== undefined && value > fieldDef.max) {
-    return `Field ${JSON.stringify(name)} value ${value} exceeds max ${fieldDef.max}.`;
-  }
-  return undefined;
 }
 
 /**

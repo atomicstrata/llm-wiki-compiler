@@ -24,7 +24,17 @@ export function computeFreshness(page: PageFreshnessInput, snapshot: FreshnessSn
   };
 }
 
-/** Source-derived freshness status, per the spec's ordered ownership algorithm. */
+/**
+ * Source-derived freshness status, per the spec's ordered ownership algorithm.
+ *
+ * SCOPED LIMITATION (typed entity pages). Source ownership is recorded only for
+ * DEFAULT concepts (in `state.sources[file].concepts`). TYPED entity pages
+ * (non-concepts produced by a non-default profile, e.g. `papers/`, `ideas/`)
+ * have no source ownership entry, so `ownersOf` returns empty and they are
+ * INTENTIONALLY classified `unverified` — and therefore excluded from orphan
+ * pruning — in this phase. This is a known, scoped limitation: typed-page
+ * source ownership (and orphan pruning) is deferred to a later phase.
+ */
 function classify(page: PageFreshnessInput, snapshot: FreshnessSnapshot): FreshnessStatus {
   if (snapshot.stateStatus !== "ok") return "unverified";
   // Query pages are generated answers, not source projections — always unverified,

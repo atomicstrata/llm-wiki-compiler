@@ -14,7 +14,7 @@ import path from "path";
 import {
   deleteCandidateBySlug,
   listCandidates,
-  listPendingCandidateSlugs,
+  listLinkResolvablePendingSlugs,
   readCandidateBySlug,
   writeCandidate,
 } from "../src/compiler/candidates.js";
@@ -49,7 +49,7 @@ describe("pending candidate lifecycle", () => {
   it("lists and deletes pending candidates by slug", async () => {
     const candidate = await writeCandidate(root.dir, draft("topic", "body"));
     expect(await readCandidateBySlug(root.dir, "topic")).toMatchObject({ id: candidate.id });
-    expect(await listPendingCandidateSlugs(root.dir)).toEqual(new Set(["topic"]));
+    expect(await listLinkResolvablePendingSlugs(root.dir)).toEqual(new Set(["topic"]));
 
     expect(await deleteCandidateBySlug(root.dir, "topic")).toBe(true);
     expect(await readCandidateBySlug(root.dir, "topic")).toBeNull();

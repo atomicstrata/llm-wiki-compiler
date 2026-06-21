@@ -19,6 +19,21 @@ function formatReasons(candidate: ReviewCandidate): string {
   return candidate.heldReasons.map((r) => r.code).join(", ");
 }
 
+/**
+ * Typed-target suffix for a candidate row.
+ *
+ * Typed candidates (those carrying `targetEntityType`) land in
+ * `wiki/<targetEntityType>/` instead of the default `wiki/concepts/`. Surfacing
+ * the typed slug keeps the human review gate honest: a staged `papers/foo` must
+ * not look identical to a default concept. Default candidates (no
+ * `targetEntityType`) return "" so their output stays byte-identical.
+ */
+function typedTargetSuffix(candidate: ReviewCandidate): string {
+  return candidate.targetEntityType
+    ? ` → ${candidate.targetEntityType}/${candidate.slug}`
+    : "";
+}
+
 /** List every pending candidate from .llmwiki/candidates/. */
 export default async function reviewListCommand(): Promise<void> {
   output.header("Pending review candidates");
@@ -33,7 +48,11 @@ export default async function reviewListCommand(): Promise<void> {
     const sources = candidate.sources.join(", ");
     const mode = `${formatMode(candidate)}: ${formatReasons(candidate)}`;
     const meta = output.dim(`${candidate.generatedAt} | ${mode} | sources: ${sources}`);
-    output.status("?", `${output.info(candidate.id)} → ${candidate.slug} ${meta}`);
+    const typedTarget = typedTargetSuffix(candidate);
+    output.status(
+      "?",
+      `${output.info(candidate.id)} → ${candidate.slug}${typedTarget} ${meta}`,
+    );
   }
 
   output.status(

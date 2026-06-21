@@ -11,13 +11,28 @@
  * the lock (TOCTOU guard) — if it disappears between the fast-fail check and
  * lock acquisition (e.g. a concurrent reject ran first), the approval aborts
  * cleanly rather than writing a page from a stale in-memory snapshot.
+ *
+ * ATOMICITY (scope — do not over-promise). Only the PAGE BYTE-WRITE is journalled
+ * and atomic (via the planner/executor batch). The post-write tail —
+ * source-state persist, index/MOC/embeddings refresh, and `deleteCandidate` —
+ * runs under the SAME lock but is NOT part of the journal batch: it is
+ * best-effort and IDEMPOTENT / re-derivable. A crash anywhere in the tail leaves
+ * the page written but the candidate possibly un-cleared; recovery is simply
+ * re-running `approve` (idempotent) or a `refresh` (which re-derives the index,
+ * MOC, embeddings, and source state). The whole operation is NOT a single atomic
+ * transaction; only the page write is.
  */
 
 import path from "path";
+import { validateWikiPage } from "../utils/markdown.js";
+import { planDefaultPageMutation } from "../trust/planner.js";
+import { applyApprovedMutationsLocked } from "../trust/executor.js";
 import {
-  atomicWrite,
-  validateWikiPage,
-} from "../utils/markdown.js";
+  applyTypedCandidate,
+  CandidateProfileError,
+  CandidatePromotionBlockedError,
+} from "../trust/promote.js";
+import { EntityFieldContractError } from "../profile/field-contract.js";
 import { deleteCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
@@ -39,27 +54,142 @@ export default async function reviewApproveCommand(id: string): Promise<void> {
  *
  * Re-reads the candidate under the lock so that a concurrent reject that ran
  * between the pre-lock fast-fail and lock acquisition is detected. Aborts with
- * exit code 1 if the candidate has disappeared or fails page validation.
+ * exit code 1 if the candidate has disappeared. Page-body validation is routed
+ * per target: DEFAULT candidates are gated by the title-requiring
+ * {@link validateWikiPage} (in {@link routeDefaultPageWrite}); TYPED candidates
+ * skip it and instead rely on {@link applyTypedCandidate}'s profile-aware
+ * field-contract validation, since non-default entity types need not require a
+ * `title`.
  */
 async function approveUnderLock(root: string, id: string): Promise<void> {
   const candidate = await readCandidateUnderLock(root, id);
   if (!candidate) return;
 
-  if (!validateWikiPage(candidate.body)) {
-    output.status("!", output.error(`Candidate ${id} failed page validation; not approved.`));
-    process.exitCode = 1;
-    return;
-  }
-
-  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
-  const pagePath = path.join(root, dir, `${candidate.slug}.md`);
-  await atomicWrite(pagePath, candidate.body);
+  const pagePath = await routeApprovedPageWrite(root, candidate, id);
+  if (!pagePath) return;
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
-  await persistCandidateSourceStates(root, candidate);
+  // The source-state tail records the approved slug into the DEFAULT
+  // `state.sources[file].concepts` list — a concepts-only structure with no
+  // typed discrimination. A TYPED candidate must skip it (mirroring
+  // routeApprovedPageWrite's typed/default branch) so a non-concept slug can
+  // never pollute concepts state. Default candidates keep the existing path.
+  if (!candidate.targetEntityType) {
+    await persistCandidateSourceStates(root, candidate);
+  }
   await refreshWikiAfterApproval(root, candidate.slug);
   await deleteCandidate(root, id);
   output.status("✓", output.dim(`Candidate ${id} cleared.`));
+}
+
+/**
+ * Route the candidate's page write through the write planner/executor (CLP
+ * Invariant 4) and return the ABSOLUTE page path it landed at, or `null` on a
+ * refusal (exit code 1, candidate retained, nothing written).
+ *
+ * A candidate carrying `targetEntityType` (staged via the typed planner) routes
+ * through {@link applyTypedCandidate} so it lands at `wiki/<entityType>/<slug>.md`
+ * — NOT silently in concepts. A candidate without a typed target keeps the
+ * EXISTING default concepts/queries path byte-for-byte. Both run under the
+ * ALREADY-HELD review lock (no nested-lock deadlock).
+ */
+async function routeApprovedPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<string | null> {
+  if (candidate.targetEntityType) {
+    return routeTypedPageWrite(root, candidate, id);
+  }
+  return routeDefaultPageWrite(root, candidate, id);
+}
+
+/**
+ * Route a TYPED candidate through the profile-validated typed planner. Refuses
+ * (exit 1, candidate retained) when the project has no profile, the type is no
+ * longer declared, the body violates the declared field contract, or the re-plan
+ * blocks — never a silent fall back to concepts. Returns the absolute
+ * `wiki/<entityType>/<slug>.md` path on success.
+ */
+async function routeTypedPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<string | null> {
+  try {
+    const relPath = await applyTypedCandidate(root, candidate);
+    noteTypedReadIntegrationPending(relPath);
+    return path.join(root, relPath);
+  } catch (err) {
+    if (
+      err instanceof CandidateProfileError ||
+      err instanceof CandidatePromotionBlockedError ||
+      err instanceof EntityFieldContractError
+    ) {
+      output.status("!", output.error(`Candidate ${id} not approved: ${err.message}`));
+      process.exitCode = 1;
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Emit a one-line, non-error informational NOTE after a typed page is written,
+ * making the half-integration LOUD + HONEST: a typed entity page is now in
+ * `status`, JSON export, and the wiki index, but is NOT YET part of interlinking,
+ * semantic search/embeddings, the MOC, or the viewer (those are planned). The
+ * note never touches the exit code — a successful typed approval still exits 0.
+ *
+ * @param relPath - The project-relative `wiki/<entityType>/<slug>.md` path.
+ */
+function noteTypedReadIntegrationPending(relPath: string): void {
+  output.status(
+    "i",
+    output.info(
+      `Typed page ${relPath} written. Note: typed entity pages are not yet ` +
+        `included in interlinking, semantic search, or the viewer (planned).`,
+    ),
+  );
+}
+
+/**
+ * Route a DEFAULT candidate (no typed target) through the concepts/queries
+ * planner exactly as before, preserving byte-for-byte parity. The
+ * title-requiring {@link validateWikiPage} gate runs HERE — only for default
+ * candidates — so a body that fails it is refused with the SAME message and exit
+ * code 1 as before. `allowOverwrite` is true so re-approving upserts via
+ * `update`. Returns the absolute `wiki/<dir>/<slug>.md` path on success, or
+ * `null` on a failed validation / blocked plan.
+ */
+async function routeDefaultPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<string | null> {
+  if (!validateWikiPage(candidate.body)) {
+    output.status("!", output.error(`Candidate ${id} failed page validation; not approved.`));
+    process.exitCode = 1;
+    return null;
+  }
+  const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
+  const { planned } = await planDefaultPageMutation({
+    root,
+    directory,
+    slug: candidate.slug,
+    body: candidate.body,
+    origin: "review",
+    reviewRouted: false,
+    allowOverwrite: true,
+  });
+  if (planned.length === 0) {
+    output.status("!", output.error(`Candidate ${id} blocked by the write planner; not approved.`));
+    process.exitCode = 1;
+    return null;
+  }
+  await applyApprovedMutationsLocked(root, planned);
+  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
+  return path.join(root, dir, `${candidate.slug}.md`);
 }
 
 /**

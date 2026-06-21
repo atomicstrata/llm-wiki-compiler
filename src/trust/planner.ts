@@ -27,7 +27,7 @@ import { lstat } from "fs/promises";
 import { confineUnderRoot } from "../utils/path-confine.js";
 import { runMandatoryPageChecks, type PageWriteContext } from "./checks.js";
 import { composeTrustDecision, type TrustDecision, type TrustCheckResult } from "./decision.js";
-import { entityId, isSlugSafe } from "../profile/identity.js";
+import { entityId, isSlugSafe, isSafeFilenameComponent } from "../profile/identity.js";
 import type { EntityId } from "../profile/types.js";
 
 /** Every CLP store a mutation can target. Task 5 executes `page` only. */
@@ -49,8 +49,23 @@ export interface EntityRef {
   id: EntityId;
 }
 
-/** The store-specific target a mutation acts on. Page mutations use EntityRef. */
-export type MutationTarget = EntityRef;
+/**
+ * Reference to a DEFAULT wiki page: its directory and raw slug stem, with NO
+ * typed identity. Default pages keep their Unicode `slugify` slugs (e.g.
+ * `café-society`) and, per the Phase-1 invariant, NEVER become EntityIds — so
+ * they carry a raw stem here rather than a branded {@link EntityId}.
+ */
+export interface RawPageRef {
+  directory: string;
+  slug: string;
+}
+
+/**
+ * The store-specific target a mutation acts on. PROFILE entity pages use
+ * {@link EntityRef} (typed identity); DEFAULT pages use {@link RawPageRef} (raw
+ * stem, no typed identity).
+ */
+export type MutationTarget = EntityRef | RawPageRef;
 
 /** Where a proposed mutation came from and how it was vetted. */
 export interface MutationProvenance {
@@ -155,48 +170,119 @@ async function targetAlreadyExists(root: string, targetPath: string): Promise<bo
 }
 
 /**
- * Build the single live-write mutation for an approved page. The operation is
- * chosen by existence: a FREE target is a `create`; an already-existing target
- * (reached here only when the caller declared `allowOverwrite`, since otherwise
- * `checkTargetCollision` blocks) is an in-place `update`.
+ * Guard a DEFAULT page's raw identity: a `directory`/`slug` that is not a safe
+ * single filename component (path separator, dot-only, leading-dot, NUL, empty)
+ * yields a `block`. Like {@link checkIdentitySafe} this runs ahead of the
+ * mandatory file checks and composes via the SAME decision path — never a thrown
+ * exception — but it uses the Unicode-tolerant {@link isSafeFilenameComponent}
+ * floor (NOT the slug-safe grammar), so a non-ASCII default slug is allowed.
  */
-async function buildPageMutation(input: PlanPageInput, decision: TrustDecision): Promise<PlannedMutation> {
-  const id = entityId(input.entityType, input.slug);
-  const target: EntityRef = { entityType: input.entityType, slug: input.slug, id };
-  const exists = await targetAlreadyExists(input.root, pageTargetPath(input.entityType, input.slug));
-  return {
-    kind: "page",
-    operation: exists ? "update" : "create",
-    target,
-    body: input.body,
-    provenance: { origin: input.origin, decision, reviewRouted: input.reviewRouted },
-  };
+function checkDefaultIdentitySafe(directory: string, slug: string): TrustCheckResult {
+  const code = "invalid-identity";
+  if (isSafeFilenameComponent(directory) && isSafeFilenameComponent(slug)) {
+    return { code, verdict: "pass", message: "directory and slug are safe filename components" };
+  }
+  return { code, verdict: "block", message: `directory/slug is not a safe filename component: ${directory}/${slug}` };
+}
+
+/** The shared inputs to {@link planPageWith}, independent of target identity. */
+interface PageFloorInput {
+  root: string;
+  targetPath: string;
+  body: string;
+  origin: string;
+  reviewRouted: boolean;
+  allowOverwrite?: boolean;
 }
 
 /**
- * Plan a single page mutation: derive the target, run the mandatory checks,
- * compose the decision, and emit either one live-write mutation (on
- * allow/allow-with-warning) or none (on any block-derived decision).
+ * The shared floor→compose→build core for BOTH the typed ({@link EntityRef}) and
+ * raw ({@link RawPageRef}) page paths. Prepends the caller's identity-check
+ * result to the mandatory floor, composes the decision, and — only on a
+ * live-write decision — invokes `buildTarget` to mint the store-specific target.
+ * Factored out so the two planners never duplicate the floor/compose/existence
+ * logic (only the identity grammar and target shape differ).
+ */
+async function planPageWith(
+  input: PageFloorInput,
+  identityCheck: TrustCheckResult,
+  buildTarget: () => MutationTarget,
+): Promise<PlanResult> {
+  const ctx: PageWriteContext = {
+    root: input.root,
+    targetPath: input.targetPath,
+    body: input.body,
+    allowOverwrite: input.allowOverwrite ?? false,
+  };
+  const checks = [identityCheck, ...(await runMandatoryPageChecks(ctx))];
+  const decision = composeTrustDecision(checks, { reviewRouted: input.reviewRouted });
+  if (!LIVE_WRITE_DECISIONS.has(decision)) {
+    return { planned: [], decision, checks };
+  }
+  const exists = await targetAlreadyExists(input.root, input.targetPath);
+  const mutation: PlannedMutation = {
+    kind: "page",
+    operation: exists ? "update" : "create",
+    target: buildTarget(),
+    body: input.body,
+    provenance: { origin: input.origin, decision, reviewRouted: input.reviewRouted },
+  };
+  return { planned: [mutation], decision, checks };
+}
+
+/**
+ * Plan a single PROFILE-entity page mutation: derive the target, run the
+ * mandatory checks, compose the decision, and emit either one live-write
+ * mutation (on allow/allow-with-warning) or none (on any block-derived
+ * decision). The target is a typed {@link EntityRef} whose {@link EntityId} is
+ * minted only once the identity is known slug-safe.
  *
  * @param input - The proposed page mutation.
  * @returns The plan, composed decision, and per-check results.
  */
 export async function planPageMutation(input: PlanPageInput): Promise<PlanResult> {
   const targetPath = pageTargetPath(input.entityType, input.slug);
-  const ctx: PageWriteContext = {
-    root: input.root,
-    targetPath,
-    body: input.body,
-    allowOverwrite: input.allowOverwrite ?? false,
-  };
-  const checks = [
+  return planPageWith(
+    { ...input, targetPath },
     checkIdentitySafe(input.entityType, input.slug),
-    ...(await runMandatoryPageChecks(ctx)),
-  ];
-  const decision = composeTrustDecision(checks, { reviewRouted: input.reviewRouted });
+    () => ({ entityType: input.entityType, slug: input.slug, id: entityId(input.entityType, input.slug) }),
+  );
+}
 
-  if (!LIVE_WRITE_DECISIONS.has(decision)) {
-    return { planned: [], decision, checks };
-  }
-  return { planned: [await buildPageMutation(input, decision)], decision, checks };
+/** Inputs to {@link planDefaultPageMutation}. */
+export interface PlanDefaultPageInput {
+  /** Absolute project root the write must stay confined to. */
+  root: string;
+  /** The wiki subdirectory the page lives in (a raw filename component). */
+  directory: string;
+  /** The raw Unicode slug stem (a raw filename component; may be invalid). */
+  slug: string;
+  /** Full markdown body (frontmatter + prose). */
+  body: string;
+  /** Origin surface/actor of the proposal. */
+  origin: string;
+  /** Whether the surface stages risky writes for human review. */
+  reviewRouted: boolean;
+  /** Whether an existing target is an intended overwrite (`update`). */
+  allowOverwrite?: boolean;
+}
+
+/**
+ * Plan a single DEFAULT page mutation. Unlike {@link planPageMutation} this does
+ * NOT mint an EntityId: default pages keep their raw Unicode slug and target a
+ * {@link RawPageRef}. The identity floor is {@link isSafeFilenameComponent}
+ * (via {@link checkDefaultIdentitySafe}), the path is `wiki/<directory>/<slug>.md`,
+ * and the SAME mandatory floor + decision composition runs through
+ * {@link planPageWith}.
+ *
+ * @param input - The proposed default page mutation.
+ * @returns The plan, composed decision, and per-check results.
+ */
+export async function planDefaultPageMutation(input: PlanDefaultPageInput): Promise<PlanResult> {
+  const targetPath = pageTargetPath(input.directory, input.slug);
+  return planPageWith(
+    { ...input, targetPath },
+    checkDefaultIdentitySafe(input.directory, input.slug),
+    () => ({ directory: input.directory, slug: input.slug }),
+  );
 }

@@ -19,7 +19,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { writeFile, readFile } from "fs/promises";
 import path from "path";
-import { planPageMutation, type PlannedMutation } from "../src/trust/planner.js";
+import {
+  planPageMutation,
+  planDefaultPageMutation,
+  type PlannedMutation,
+  type RawPageRef,
+} from "../src/trust/planner.js";
 import { applyApprovedMutations } from "../src/trust/executor.js";
 import { replayJournal, openBatch, recordPreState } from "../src/trust/journal.js";
 import { entityId } from "../src/profile/identity.js";

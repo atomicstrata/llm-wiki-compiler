@@ -4,10 +4,18 @@
  * {@link PlannedMutation} plan into bytes on disk, under the CLP atomicity
  * contract ("partial application of an approved batch is a bug").
  *
- * STATUS: this planner/executor/journal seam is a Phase-2 FOUNDATION. No live
- * production write path routes through it yet (no caller invokes
- * {@link applyApprovedMutations}); the atomicity contract is realized for the
- * page store in isolation and under test, not yet across any wired surface.
+ * STATUS: the `review approve` page write is the FIRST production consumer of
+ * this seam — it routes through {@link applyApprovedMutationsLocked} under its
+ * already-held review lock. The atomicity contract (and journal replay) is now
+ * realized on that live path; other CLP write surfaces are still future work.
+ *
+ * ATOMICITY SCOPE (honest boundary). The journal batch covers ONLY the page
+ * byte-writes in the plan. It does NOT extend to a consumer's post-write tail —
+ * e.g. `review approve`'s source-state persist, index/MOC/embeddings refresh, and
+ * candidate deletion run under the same lock but OUTSIDE this batch, and are
+ * best-effort + idempotent/re-derivable rather than journalled. "The approved
+ * batch applies atomically" means the PAGE BYTES, not the whole approve
+ * operation.
  *
  * {@link applyApprovedMutations} runs the batch behind the project lock and a
  * single-store intent journal:
@@ -48,10 +56,10 @@ import {
   replayJournal,
   type JournalBatch,
 } from "./journal.js";
-import { parseEntityId } from "../profile/identity.js";
+import { parseEntityId, isSafeFilenameComponent } from "../profile/identity.js";
 import { checkResourceLimit, checkFrontmatter, type PageWriteContext } from "./checks.js";
 import { composeTrustDecision } from "./decision.js";
-import type { PlannedMutation } from "./planner.js";
+import type { PlannedMutation, EntityRef, RawPageRef } from "./planner.js";
 
 /** Decisions under which the executor is cleared to write bytes to disk. */
 const APPLY_ALLOWED_DECISIONS = new Set(["allow", "allow-with-warning"]);
@@ -128,7 +136,24 @@ async function targetExists(abs: string): Promise<boolean> {
 }
 
 /**
- * The wiki-relative page path for a page mutation's target.
+ * The wiki-relative page path for a DEFAULT page's {@link RawPageRef} target.
+ *
+ * Defense-in-depth: the executor does not trust the caller, so it RE-ASSERTS the
+ * {@link isSafeFilenameComponent} floor on both the directory and the raw slug —
+ * a hand-built mutation carrying a `..`/separator slug is rejected with a typed
+ * {@link InvalidIdentityError} BEFORE `path.join` could collapse it into a wrong
+ * in-root location (the planner's `checkDefaultIdentitySafe` guard is not on this
+ * path).
+ */
+function rawPageRelPath(target: RawPageRef): string {
+  if (!isSafeFilenameComponent(target.directory) || !isSafeFilenameComponent(target.slug)) {
+    throw new InvalidIdentityError(`directory/slug is not a safe filename component: ${target.directory}/${target.slug}`);
+  }
+  return path.join("wiki", target.directory, `${target.slug}.md`);
+}
+
+/**
+ * The wiki-relative page path for a PROFILE entity's {@link EntityRef} target.
  *
  * Defense-in-depth: the entityType/slug are re-validated by re-parsing the
  * branded `target.id` (which throws on a non-slug-safe slug half), so a
@@ -136,15 +161,27 @@ async function targetExists(abs: string): Promise<boolean> {
  * {@link InvalidIdentityError} BEFORE `path.join` could collapse it into a wrong
  * in-root location — the planner's `checkIdentitySafe` guard is not on this path.
  */
-function pageRelPath(mutation: PlannedMutation): string {
+function entityPageRelPath(target: EntityRef): string {
   let entityType: string;
   let slug: string;
   try {
-    ({ entityType, slug } = parseEntityId(mutation.target.id));
+    ({ entityType, slug } = parseEntityId(target.id));
   } catch (err) {
     throw new InvalidIdentityError((err as Error).message);
   }
   return path.join("wiki", entityType, `${slug}.md`);
+}
+
+/**
+ * The wiki-relative page path for a page mutation's target, discriminating the
+ * union: a DEFAULT page ({@link RawPageRef}, no `id`) takes the raw-component
+ * path; a PROFILE entity ({@link EntityRef}) takes the typed-id path. Both
+ * re-assert their identity floor as defense-in-depth.
+ */
+function pageRelPath(mutation: PlannedMutation): string {
+  const target = mutation.target;
+  if ("id" in target) return entityPageRelPath(target);
+  return rawPageRelPath(target);
 }
 
 /**
@@ -199,16 +236,42 @@ async function applyBatch(
 }
 
 /**
- * Apply an approved plan to disk atomically. Acquires the project lock, journals
- * every target's pre-state before writing, applies each page mutation, then
- * commits the journal — releasing the lock in `finally`. A non-page kind throws
- * `not-implemented`. A mid-batch failure leaves a `pending` journal for
- * {@link replayJournal} to revert to the full pre-state.
+ * Apply an approved plan to disk atomically WHILE THE CALLER ALREADY HOLDS the
+ * project lock — the lock-free core shared with {@link applyApprovedMutations}.
  *
- * Self-recovery: BEFORE opening the new batch (but AFTER the lock is held), it
- * runs {@link replayJournal}, so a `pending` journal left dangling by a prior
- * crash is reverted under the same lock before this batch begins — the atomicity
- * guarantee no longer depends on an external caller invoking replay.
+ * The caller MUST already hold the project lock; this function acquires NOTHING,
+ * so it can run inside an outer locked region (e.g. `review approve`, which holds
+ * the review lock across its whole mutation) WITHOUT a nested-acquire deadlock.
+ *
+ * Self-recovery: BEFORE opening the new batch it runs {@link replayJournal}, so a
+ * `pending` journal left dangling by a prior crash is reverted under the SAME
+ * held lock before this batch begins. A non-page kind throws `not-implemented`; a
+ * mid-batch failure leaves a `pending` journal for replay to revert to the full
+ * pre-state.
+ *
+ * @param root - Absolute project root.
+ * @param planned - The approved mutations to apply.
+ * @param opts - Optional injectable write primitive (for fault injection).
+ */
+export async function applyApprovedMutationsLocked(
+  root: string,
+  planned: PlannedMutation[],
+  opts: ApplyOptions = {},
+): Promise<void> {
+  const writeOne = opts.writeOne ?? atomicWrite;
+  // Recover any dangling pending batch from a prior crash under the held lock.
+  await replayJournal(root);
+  const batch = await openBatch(root);
+  await applyBatch(root, planned, batch, writeOne);
+  await commitBatch(batch);
+}
+
+/**
+ * Apply an approved plan to disk atomically, acquiring the project lock itself.
+ * Acquires the PID-based project lock, delegates the journalled batch to
+ * {@link applyApprovedMutationsLocked} (replay → open → apply → commit), then
+ * releases the lock in `finally`. There is ONE batch implementation; this is the
+ * self-locking entry point for callers that do NOT already hold the lock.
  *
  * @param root - Absolute project root.
  * @param planned - The approved mutations to apply.
@@ -219,15 +282,10 @@ export async function applyApprovedMutations(
   planned: PlannedMutation[],
   opts: ApplyOptions = {},
 ): Promise<void> {
-  const writeOne = opts.writeOne ?? atomicWrite;
   const acquired = await acquireLock(root);
   if (!acquired) throw new Error("could not acquire project lock for mutation batch");
   try {
-    // Recover any dangling pending batch from a prior crash under the held lock.
-    await replayJournal(root);
-    const batch = await openBatch(root);
-    await applyBatch(root, planned, batch, writeOne);
-    await commitBatch(batch);
+    await applyApprovedMutationsLocked(root, planned, opts);
   } finally {
     await releaseLock(root);
   }

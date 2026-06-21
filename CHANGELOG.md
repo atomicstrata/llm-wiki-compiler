@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`llmwiki state reset`** — a recovery command for a `.llmwiki/state.json` written by a newer llmwiki version. It backs the file up to `state.json.bak` and removes it so the next compile starts fresh. It refuses by default and prints what it will do; pass `--yes` to apply. The reset works even on an unreadable too-new or corrupt state file.
+
+### Changed
+
+- llmwiki now fails closed when `.llmwiki/state.json` was written by a newer llmwiki version: instead of risking a misread or overwrite of a forward-incompatible layout, commands report a clear error. Use `llmwiki state reset --yes` to back up and reset the file, or upgrade llmwiki to read the project as-is.
+
 ## [0.11.0] - 2026-06-16
 
 Extends Open Knowledge Format support beyond the CLI: in-process SDK and MCP access to the OKF round-trip, and faithful reconstruction of an imported foreign bundle's original nested paths on re-export.

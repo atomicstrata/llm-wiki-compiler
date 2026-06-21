@@ -24,7 +24,39 @@ import { existsSync } from "fs";
 import path from "path";
 import { LLMWIKI_DIR, STATE_FILE } from "./constants.js";
 import { note } from "./output.js";
+import { mintConceptEntities } from "../state/migrate.js";
 import type { WikiState, SourceState } from "./types.js";
+
+/** The schema version that carries the typed-ownership mirror. */
+const TYPED_MIRROR_VERSION = 2;
+
+/**
+ * Re-derive the v2 typed-ownership mirror from the v1 string lists so the two
+ * never desync, regardless of which writer produced the state. For a v2 state
+ * each source's `entities` is re-derived from its `concepts` and the top-level
+ * `frozenEntities` from `frozenSlugs`, using the SAME tolerant minting as the
+ * migration ({@link mintConceptEntities}) so non-slug-safe (e.g. Unicode) slugs
+ * are simply absent from the typed mirror rather than aborting the write.
+ *
+ * For a v1 state this is a STRICT no-op — the input is returned unchanged so the
+ * default-profile (v1) on-disk bytes are byte-identical to before.
+ *
+ * NOTE: this re-derives the CONCEPTS mirror only. A later phase that introduces
+ * non-concept typed entities must extend this to preserve those, since blindly
+ * re-deriving from `concepts` would drop them.
+ */
+export function syncEntityMirror(state: WikiState): WikiState {
+  if (state.version !== TYPED_MIRROR_VERSION) return state;
+  const sources: Record<string, SourceState> = {};
+  for (const [file, source] of Object.entries(state.sources)) {
+    sources[file] = { ...source, entities: mintConceptEntities(source.concepts) };
+  }
+  return {
+    ...state,
+    sources,
+    frozenEntities: mintConceptEntities(state.frozenSlugs ?? []),
+  };
+}
 
 function emptyState(): WikiState {
   return { version: 1, indexHash: "", sources: {} };
@@ -174,7 +206,10 @@ export async function writeState(root: string, state: WikiState): Promise<void> 
   const filePath = path.join(root, STATE_FILE);
   const tmpPath = filePath + ".tmp";
 
-  await writeFile(tmpPath, JSON.stringify(state, null, 2), "utf-8");
+  // Re-derive the v2 typed mirror at the single write choke point so no writer
+  // can persist a desynced `entities` / `frozenEntities`. No-op for v1 states.
+  const synced = syncEntityMirror(state);
+  await writeFile(tmpPath, JSON.stringify(synced, null, 2), "utf-8");
   await rename(tmpPath, filePath);
 }
 

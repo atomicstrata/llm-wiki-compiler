@@ -20,6 +20,8 @@ import type { JsonExportDocument, ExportJsonOptions } from "../export/json-expor
 import type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "../sources/store.js";
 import type { OkfExportReport } from "../export/okf/run.js";
 import type { OkfImportReport } from "../import/run.js";
+import type { SdkStageEntityPageInput } from "../trust/staging.js";
+import type { StagedChange } from "../trust/staged-change.js";
 
 /** Options for `createWiki`. */
 export interface CreateWikiOptions {
@@ -165,4 +167,36 @@ export interface Wiki {
    * latency/cost); `dryRun:true` writes nothing.
    */
   importOkf(dir: string, opts?: { trusted?: boolean; dryRun?: boolean }): Promise<OkfImportReport>;
+  /**
+   * @experimental
+   * Stage a NON-DEFAULT entity page for review. The SDK loads the active
+   * non-default profile internally — the caller passes no `ProfilePack`. Throws
+   * `StagingRequiresProfileError` when the project has no non-default profile
+   * (staging targets a typed `wiki/<entityType>/<slug>.md` path that only a
+   * non-default profile declares). `existingStagedCount` is the caller's
+   * per-session bookkeeping (defaults to 0). No LLM required.
+   *
+   * READ-INTEGRATION STATUS: typed entity pages are a WRITE SUBSTRATE. A promoted
+   * page is surfaced in `status`, the JSON export, and the wiki INDEX — but NOT
+   * YET in interlinking, semantic search / embeddings, the MOC, or the viewer
+   * (those are planned). Do not assume a staged/promoted typed page participates
+   * in retrieval or rendering yet.
+   *
+   * Foundation API — the shape may change in a future minor release.
+   */
+  stageEntityPage(input: SdkStageEntityPageInput): Promise<StagedChange>;
+  /**
+   * @experimental
+   * Promote a staged entity page candidate into the live wiki under one held
+   * lock: re-reads the candidate, re-validates its type against the active
+   * profile, re-plans + applies, and clears the candidate. The page lands at
+   * `wiki/<entityType>/<slug>.md`, or nothing does. No LLM required.
+   *
+   * READ-INTEGRATION STATUS: the promoted page becomes visible in `status`, the
+   * JSON export, and the wiki INDEX — but NOT YET in interlinking, semantic
+   * search / embeddings, the MOC, or the viewer (those are planned).
+   *
+   * Foundation API — the shape may change in a future minor release.
+   */
+  promoteStagedPage(candidateId: string): Promise<void>;
 }

@@ -13,11 +13,14 @@
  *    migration never double-types a slug (no `concepts/concepts/rag`);
  *  - deterministic: minted id arrays are sorted lexicographically so repeated
  *    migrations of equal inputs serialise byte-for-byte identically;
- *  - fail-closed: a bare slug that violates the slug-safe grammar throws
- *    {@link EntityIdError} via {@link assertSlugSafe} rather than being dropped.
+ *  - tolerant: slug-safe slugs are typed; non-slug-safe slugs (e.g. the Unicode
+ *    stems `slugify` keeps, like `café-society` / `机器学习`) are kept in the
+ *    verbatim `concepts` / `frozenSlugs` mirror WITHOUT a typed id, so a
+ *    mixed-language wiki migrates instead of aborting. Widening the EntityId
+ *    grammar to cover Unicode is a deferred identity change, not done here.
  */
 
-import { entityId, assertSlugSafe } from "../profile/identity.js";
+import { entityId, isSlugSafe } from "../profile/identity.js";
 import type { EntityId } from "../profile/types.js";
 import type { SourceState, WikiState } from "../utils/types.js";
 
@@ -26,11 +29,15 @@ const CONCEPT_ENTITY_TYPE = "concepts";
 
 /**
  * Mint a sorted, deduplicated list of `concepts/<slug>` EntityIds from bare
- * concept slugs. Each slug is asserted slug-safe at mint time, so an invalid
- * slug throws rather than being silently skipped.
+ * concept slugs. Tolerant: only slug-safe slugs are typed; any slug that fails
+ * {@link isSlugSafe} (e.g. a Unicode stem) is SKIPPED here and survives via the
+ * verbatim `concepts` / `frozenSlugs` mirror it was drawn from. This is the
+ * single grammar/skip site, shared by migration and the writeState mirror sync.
  */
-function mintConceptEntities(slugs: string[]): EntityId[] {
-  const ids = slugs.map((slug) => entityId(CONCEPT_ENTITY_TYPE, assertSlugSafe(slug)));
+export function mintConceptEntities(slugs: string[]): EntityId[] {
+  const ids = slugs
+    .filter((slug) => isSlugSafe(slug))
+    .map((slug) => entityId(CONCEPT_ENTITY_TYPE, slug));
   return [...new Set(ids)].sort();
 }
 

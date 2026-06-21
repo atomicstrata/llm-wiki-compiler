@@ -9,12 +9,13 @@
  *  - lossless upgrade (v1 fields retained, typed mirror added),
  *  - idempotency (re-migrating a v2 state is a no-op, never double-typed),
  *  - determinism (sorted output, byte-stable across repeated runs), and
- *  - fail-closed behaviour (a non-slug-safe bare slug throws, never dropped).
+ *  - tolerant behaviour (a non-slug-safe bare slug — e.g. a Unicode stem — is
+ *    kept verbatim in `concepts` / `frozenSlugs` but gets no typed id, so a
+ *    mixed-language wiki migrates instead of aborting).
  */
 
 import { describe, it, expect } from "vitest";
 import { migrateStateToV2 } from "../src/state/migrate.js";
-import { EntityIdError } from "../src/profile/identity.js";
 import type { WikiState } from "../src/utils/types.js";
 
 /** A minimal, valid v1 state used as the base fixture for the suite. */
@@ -100,16 +101,28 @@ describe("migrateStateToV2 — idempotency gate >= 2", () => {
   });
 });
 
-describe("migrateStateToV2 — fail-closed", () => {
-  it("throws on a bare slug with spaces rather than silently dropping it", () => {
+describe("migrateStateToV2 — tolerant of non-slug-safe slugs", () => {
+  it("does not throw and skips typing a non-ASCII (Unicode) source slug", () => {
     const v1 = v1Fixture();
-    v1.sources["a.md"].concepts = ["Bad Slug"];
-    expect(() => migrateStateToV2(v1)).toThrow(EntityIdError);
+    v1.sources["a.md"].concepts = ["café-society", "机器学习", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/rag"]);
+    expect(v2.sources["a.md"].concepts).toEqual(["café-society", "机器学习", "rag"]);
   });
 
-  it("throws on an uppercase frozen slug rather than silently dropping it", () => {
+  it("keeps a non-slug-safe frozen slug verbatim but mints no typed id for it", () => {
     const v1 = v1Fixture();
-    v1.frozenSlugs = ["UPPER"];
-    expect(() => migrateStateToV2(v1)).toThrow(EntityIdError);
+    v1.frozenSlugs = ["café-society", "机器学习", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.frozenEntities).toEqual(["concepts/rag"]);
+    expect(v2.frozenSlugs).toEqual(["café-society", "机器学习", "rag"]);
+  });
+
+  it("skips a slug with spaces / uppercase rather than throwing", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["Bad Slug", "UPPER", "ok"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/ok"]);
+    expect(v2.sources["a.md"].concepts).toEqual(["Bad Slug", "UPPER", "ok"]);
   });
 });

@@ -15,9 +15,8 @@ import { existsSync } from "fs";
 import path from "path";
 import { callClaude } from "../utils/llm.js";
 import type { LLMTool } from "../utils/provider.js";
-import { atomicWrite, safeReadFile, slugify, buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
+import { safeReadFile, slugify, parseFrontmatter } from "../utils/markdown.js";
 import { languageDirective } from "../utils/output-language.js";
-import { generateIndex } from "../compiler/indexgen.js";
 import * as output from "../utils/output.js";
 import {
   QUERY_PAGE_LIMIT,
@@ -30,10 +29,13 @@ import {
 import {
   findRelevantPages,
   findRelevantChunks,
-  updateEmbeddings,
   type ChunkEmbeddingEntry,
 } from "../utils/embeddings.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
+import { maybeSaveQueryPage } from "./query-save.js";
+// Re-exported so existing consumers/tests keep importing these from `query.js`
+// after the save path moved to `query-save.ts`.
+export { summarizeAnswer, maybeSaveQueryPage } from "./query-save.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
 
@@ -350,67 +352,6 @@ function buildChunkProvenance(chunks: ChunkCitation[]): string {
   return `\n\nMost relevant excerpts (from chunk-level retrieval):\n${sections.join("\n\n")}`;
 }
 
-/**
- * Generate a one-line summary from the answer for use in the wiki index.
- * Takes the first sentence (up to 120 chars) so the page-selection LLM
- * has retrieval signal beyond just the title.
- * @param answer - The full answer text.
- * @returns A short summary string.
- */
-export function summarizeAnswer(answer: string): string {
-  const firstLine = answer.trim().split(/\n/)[0] ?? "";
-  const firstSentence = firstLine.split(/(?<=[.!?])\s/)[0] ?? firstLine;
-  return firstSentence.slice(0, 120);
-}
-
-/**
- * Save a query answer as a wiki page in the queries/ directory,
- * then regenerate the wiki index so the answer is immediately retrievable.
- *
- * NOTE: This path writes directly to wiki/queries/ with NO review-policy evaluation.
- * Query saves are user-initiated and deliberately out of scope for the compile-time
- * review gate. This is a known unguarded write path that will be addressed in the
- * Security cycle. Do not add policy evaluation here without updating the spec.
- *
- * @param root - Absolute path to the project root directory.
- * @param question - The original question used as the page title.
- * @param answer - The generated answer body.
- */
-async function saveQueryPage(root: string, question: string, answer: string): Promise<string> {
-  const slug = slugify(question);
-  const filePath = path.join(root, QUERIES_DIR, `${slug}.md`);
-
-  const frontmatter = buildFrontmatter({
-    title: question,
-    summary: summarizeAnswer(answer),
-    type: "query",
-    createdAt: new Date().toISOString(),
-  });
-
-  const document = `${frontmatter}\n\n${answer}\n`;
-  await atomicWrite(filePath, document);
-
-  output.status(
-    "+",
-    output.success(`Saved query → ${output.source(filePath)}`),
-  );
-
-  // Regenerate the index so the saved query is immediately discoverable
-  // by the next query's page-selection step.
-  await generateIndex(root);
-
-  // Index the new query so semantic search retrieves it on the next question.
-  // Non-critical: embedding failures (e.g. missing VOYAGE_API_KEY) don't block save.
-  try {
-    await updateEmbeddings(root, [slug]);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
-  }
-
-  return slug;
-}
-
 /** Options for generateAnswer — programmatic-friendly. */
 interface GenerateAnswerOptions {
   /** Persist the answer as a wiki query page when set. */
@@ -452,7 +393,7 @@ export async function generateAnswer(
   }
 
   const answer = await callAnswerLLM(question, pagesContent, selection.chunks, options.onToken);
-  const saved = options.save ? await saveQueryPage(root, question, answer) : undefined;
+  const saved = await maybeSaveQueryPage(root, question, answer, Boolean(options.save));
 
   // Journal the query only after the answer is produced — matching compile,
   // which logs after finalization — so a mid-flight LLM failure records nothing.
