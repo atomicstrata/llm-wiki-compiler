@@ -93,6 +93,15 @@ export const INDEX_FILE = "wiki/index.md";
 export const MOC_FILE = "wiki/MOC.md";
 
 /**
+ * The typed relation graph directory and its append-only store. Lives under
+ * `wiki/` alongside the compiled pages. A DEFAULT profile declares no relations
+ * and never creates `wiki/graph/`, so its absence is the "no relations" state —
+ * keeping default output and parity unchanged.
+ */
+export const WIKI_GRAPH_DIR = "wiki/graph";
+export const RELATIONS_FILE = "wiki/graph/relations.jsonl";
+
+/**
  * Append-only activity journal at the project root, per Karpathy's llm-wiki
  * gist: a chronological record of what happened and when (ingests, compiles,
  * queries, lint passes). Lives at the root rather than under wiki/ because it
