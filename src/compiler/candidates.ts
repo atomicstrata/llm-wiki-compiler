@@ -139,6 +139,25 @@ function buildCandidateId(slug: string): string {
   return `${slug}-${suffix}`;
 }
 
+/**
+ * The FULL target identity of a candidate: the tuple of where the approved page
+ * lands AND its slug. Two candidates are duplicates only when BOTH components
+ * match. For a DEFAULT concepts candidate the type component is the constant
+ * `"concepts"`, so dedup on this key behaves EXACTLY as a slug-only dedup did —
+ * default candidate behavior stays byte-identical. A typed candidate
+ * (`targetEntityType`) or an OKF query candidate (`targetDirectory`) keys on its
+ * own directory, so `papers/foo` and `ideas/foo` never collapse into one file.
+ * @param candidate - The candidate (or draft) whose target identity is built.
+ */
+function candidateTargetKey(candidate: {
+  targetEntityType?: string;
+  targetDirectory?: string;
+  slug: string;
+}): string {
+  const target = candidate.targetEntityType ?? candidate.targetDirectory ?? "concepts";
+  return `${target}/${candidate.slug}`;
+}
+
 /** Build the typed unsafe-id error for a candidate file id. */
 function unsafeCandidateId(id: string): Error {
   return new UnsafeCandidateIdError("id", id);
@@ -186,7 +205,7 @@ export async function writeCandidate(
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
   if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
-  const { canonicalId, duplicateIds } = await findSlugDuplicates(root, draft.slug);
+  const { canonicalId, duplicateIds } = await findIdentityDuplicates(root, candidateTargetKey(draft));
   const candidate: ReviewCandidate = {
     id: canonicalId ?? buildCandidateId(draft.slug),
     title: draft.title,
@@ -214,17 +233,22 @@ export async function writeCandidate(
 }
 
 /**
- * Collect all candidate ids matching a slug and return the canonical (earliest)
- * id plus the list of extra duplicate ids to remove.
+ * Collect all candidate ids matching a FULL target identity (target-type + slug,
+ * via {@link candidateTargetKey}) and return the canonical (earliest) id plus the
+ * list of extra duplicate ids to remove. Keying on the full identity — not slug
+ * alone — keeps two distinct typed targets that share a slug (`papers/foo` vs
+ * `ideas/foo`) as SEPARATE candidates, so neither is silently dropped, while a
+ * DEFAULT concepts candidate (constant `concepts/` prefix) dedups exactly as
+ * before.
  * @param root - Project root directory.
- * @param slug - The page slug to search for.
+ * @param targetKey - The full target identity to match (see {@link candidateTargetKey}).
  */
-async function findSlugDuplicates(
+async function findIdentityDuplicates(
   root: string,
-  slug: string,
+  targetKey: string,
 ): Promise<{ canonicalId: string | null; duplicateIds: string[] }> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === targetKey);
   if (matching.length === 0) return { canonicalId: null, duplicateIds: [] };
   // Preserve the first match as canonical (listCandidates sorts by generatedAt).
   const [canonical, ...extras] = matching;
@@ -493,15 +517,20 @@ export async function deleteCandidate(root: string, id: string): Promise<boolean
 }
 
 /**
- * Delete ALL pending candidate files for a slug.
+ * Delete ALL pending candidate files for a DEFAULT concepts slug.
  *
  * When duplicates exist (e.g. legacy or hand-dropped files) the direct-write
  * reconcile path must remove every file matching the slug, not just the first
- * canonical one, so no stale duplicates remain after a page is written directly.
+ * canonical one, so no stale duplicates remain after a concepts page is written
+ * directly. Matches on the FULL `concepts/<slug>` identity (via
+ * {@link candidateTargetKey}) so a typed `papers/<slug>` candidate that merely
+ * shares the slug is NOT collaterally deleted when a default concepts page is
+ * reconciled — the default caller only writes concepts, so its behavior is
+ * unchanged.
  */
 export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === `concepts/${slug}`);
   if (matching.length === 0) return false;
   for (const candidate of matching) {
     await deleteCandidate(root, candidate.id);

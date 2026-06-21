@@ -31,13 +31,14 @@ import {
   type StagedChange,
 } from "./staged-change.js";
 import { promoteCandidateUnderLock } from "./promote.js";
-import { writeCandidate } from "../compiler/candidates.js";
+import { writeCandidate, countCandidates } from "../compiler/candidates.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
 import {
   validateEntityFields,
   EntityFieldContractError,
 } from "../profile/field-contract.js";
 import { parseFrontmatter } from "../utils/markdown.js";
+import { assertBodyWithinResourceLimit } from "./checks.js";
 import type { ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
 
@@ -50,10 +51,15 @@ export { EntityFieldContractError } from "../profile/field-contract.js";
  * before any planning or I/O — when the contract is violated, so a contract-
  * violating typed page never persists a candidate. A clean body is a no-op.
  *
+ * The raw body-length cap is enforced FIRST (before the frontmatter parse) so a
+ * giant all-frontmatter payload is rejected by `.length` alone, never burning
+ * parse time — the "reject before parsing" guarantee.
+ *
  * @param entityType - The (already type-checked) profile entity type.
  * @param slug - The page slug (for the error message only).
  * @param body - The full markdown body whose frontmatter is validated.
  * @param profile - The profile whose entity definition supplies the contract.
+ * @throws {ResourceLimitError} When the body exceeds the resource cap.
  * @throws {EntityFieldContractError} When the frontmatter violates the contract.
  */
 function assertFieldContract(
@@ -62,6 +68,7 @@ function assertFieldContract(
   body: string,
   profile: ProfilePack,
 ): void {
+  assertBodyWithinResourceLimit(body);
   const { meta } = parseFrontmatter(body);
   const violations = validateEntityFields(meta, profile.entities[entityType]!);
   if (violations.length > 0) {
@@ -144,10 +151,12 @@ function buildPageTarget(plan: PlanResult): EntityRef {
  * persists NOTHING, so a blocked write never lands an un-promotable candidate.
  *
  * Volume bound: the PER-CALL cap (requested vs {@link DEFAULT_STAGED_WRITE_PER_CALL})
- * is self-contained and self-enforced here. The PER-SESSION cap, however, is
- * enforced against the caller-supplied `input.existingStagedCount` — there is no
- * on-disk source of truth for a running session total, so keeping that count
- * accurate across calls is the CALLER's responsibility.
+ * is self-contained and self-enforced here. The PER-SESSION cap is enforced
+ * against the REAL number of candidates ON DISK ({@link countCandidates}), not a
+ * caller hint — so an SDK caller passing `existingStagedCount: 0` on every call
+ * can never bypass the per-session cap by under-reporting. The caller hint is
+ * still honored as a floor (`max(onDisk, hint)`) so a count the caller knows
+ * about but has not yet flushed to disk also counts against the budget.
  *
  * @param root - Absolute project root.
  * @param input - The entity page to stage (caller-provided body).
@@ -161,7 +170,9 @@ export async function stageEntityPage(
   root: string,
   input: StageEntityPageInput,
 ): Promise<StagedChange> {
-  assertStagedWriteBudget(input.existingStagedCount, 1, {
+  const onDisk = await countCandidates(root);
+  const sessionCount = Math.max(onDisk, input.existingStagedCount);
+  assertStagedWriteBudget(sessionCount, 1, {
     perCall: DEFAULT_STAGED_WRITE_PER_CALL,
     perSession: DEFAULT_STAGED_WRITE_PER_SESSION,
   });
@@ -238,9 +249,10 @@ export class StagingRequiresProfileError extends Error {
 /**
  * @experimental
  * SDK staging input: the entity page to stage WITHOUT the `ProfilePack` — the SDK
- * loads the active non-default profile itself. `existingStagedCount` is the
- * caller's per-session bookkeeping (defaults to 0); the per-session cap is the
- * caller's responsibility, consistent with {@link stageEntityPage}.
+ * loads the active non-default profile itself. `existingStagedCount` (defaults to
+ * 0) is only a FLOOR hint; the per-session cap is enforced against the real
+ * on-disk candidate count by {@link stageEntityPage}, so a caller cannot bypass
+ * it by passing 0.
  */
 export interface SdkStageEntityPageInput {
   /** Profile entity type (the wiki subdirectory), e.g. `"papers"`. */

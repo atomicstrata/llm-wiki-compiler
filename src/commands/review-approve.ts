@@ -59,7 +59,14 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
   if (!pagePath) return;
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
-  await persistCandidateSourceStates(root, candidate);
+  // The source-state tail records the approved slug into the DEFAULT
+  // `state.sources[file].concepts` list — a concepts-only structure with no
+  // typed discrimination. A TYPED candidate must skip it (mirroring
+  // routeApprovedPageWrite's typed/default branch) so a non-concept slug can
+  // never pollute concepts state. Default candidates keep the existing path.
+  if (!candidate.targetEntityType) {
+    await persistCandidateSourceStates(root, candidate);
+  }
   await refreshWikiAfterApproval(root, candidate.slug);
   await deleteCandidate(root, id);
   output.status("✓", output.dim(`Candidate ${id} cleared.`));

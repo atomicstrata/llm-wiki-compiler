@@ -32,6 +32,7 @@ import {
   EntityFieldContractError,
 } from "../profile/field-contract.js";
 import { parseFrontmatter } from "../utils/markdown.js";
+import { assertBodyWithinResourceLimit } from "./checks.js";
 import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
 
@@ -79,9 +80,14 @@ function typedPagePath(entityType: string, slug: string): string {
  * violated. Promotion then fails CLOSED and the candidate is RETAINED (the caller
  * deletes only after a successful apply), so a contract-violating page never lands.
  *
+ * The raw body-length cap is enforced FIRST (before the frontmatter parse) so a
+ * giant all-frontmatter candidate body is rejected by `.length` alone, never
+ * burning parse time — the "reject before parsing" guarantee.
+ *
  * @param entityType - The (already type-checked) profile entity type.
  * @param candidate - The typed candidate whose body frontmatter is validated.
  * @param def - The resolved entity type definition supplying the contract.
+ * @throws {ResourceLimitError} When the candidate body exceeds the resource cap.
  * @throws {EntityFieldContractError} When the frontmatter violates the contract.
  */
 function assertCandidateFieldContract(
@@ -89,6 +95,7 @@ function assertCandidateFieldContract(
   candidate: ReviewCandidate,
   def: EntityTypeDef,
 ): void {
+  assertBodyWithinResourceLimit(candidate.body);
   const { meta } = parseFrontmatter(candidate.body);
   const violations = validateEntityFields(meta, def);
   if (violations.length > 0) {

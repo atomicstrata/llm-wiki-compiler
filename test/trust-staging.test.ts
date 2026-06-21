@@ -16,7 +16,7 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, readFile, readdir } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -31,7 +31,9 @@ import {
   DEFAULT_STAGED_WRITE_PER_SESSION,
   StagedWriteOverflowError,
 } from "../src/trust/staged-change.js";
-import { writeCandidate, listCandidates } from "../src/compiler/candidates.js";
+import { ResourceLimitError } from "../src/trust/checks.js";
+import { MAX_SOURCE_CHARS } from "../src/utils/constants.js";
+import { writeCandidate, listCandidates, countCandidates } from "../src/compiler/candidates.js";
 import { buildResearchLiteProject, RESEARCH_LITE_PROFILE } from "./fixtures/profile-fixtures.js";
 
 let root = "";
@@ -49,6 +51,26 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
+
+/**
+ * Seed `count` minimal valid candidate JSON files directly to disk (each a
+ * distinct slug), so {@link countCandidates} reports exactly `count` without
+ * routing through the staging budget. Models a session that has already landed
+ * candidates on disk.
+ */
+async function seedCandidatesOnDisk(count: number): Promise<void> {
+  const dir = path.join(root, ".llmwiki/candidates");
+  await mkdir(dir, { recursive: true });
+  for (let i = 0; i < count; i++) {
+    const id = `seed-${i}-abcd0000`;
+    const record = {
+      id, title: `t${i}`, slug: `seed-${i}`, summary: "", sources: [], body: "b",
+      generatedAt: "2026-01-01T00:00:00.000Z", reviewMode: "forced",
+      heldReasons: [{ code: "manual-review-requested" }],
+    };
+    await writeFile(path.join(dir, `${id}.json`), JSON.stringify(record), "utf8");
+  }
+}
 
 /** Read the single candidate JSON file in the candidates dir, parsed. */
 async function readOnlyCandidate(): Promise<Record<string, unknown>> {
@@ -159,5 +181,52 @@ describe("non-default entity page staging", () => {
     const candidate = await readOnlyCandidate();
     expect("targetEntityType" in candidate).toBe(false);
     expect("trustDecision" in candidate).toBe(false);
+  });
+});
+
+describe("per-session flood bound is derived from disk (FIX #3)", () => {
+  /** Stage one papers page, returning the rejection promise (no await). */
+  function stageOne(existingStagedCount: number): Promise<unknown> {
+    return stageEntityPage(root, {
+      entityType: "papers",
+      slug: SLUG,
+      body: BODY,
+      profile: RESEARCH_LITE_PROFILE,
+      existingStagedCount,
+    });
+  }
+
+  it("rejects when the on-disk count is at the cap EVEN IF the caller passes 0", async () => {
+    await seedCandidatesOnDisk(DEFAULT_STAGED_WRITE_PER_SESSION);
+
+    await expect(stageOne(0)).rejects.toBeInstanceOf(StagedWriteOverflowError);
+    // The exploit count is unchanged: no new candidate landed.
+    expect(await countCandidates(root)).toBe(DEFAULT_STAGED_WRITE_PER_SESSION);
+  });
+
+  it("still stages normally when the on-disk count is under the cap", async () => {
+    await seedCandidatesOnDisk(1);
+
+    const staged = await stageOne(0);
+    expect(staged).toMatchObject({ kind: "page" });
+    expect(await countCandidates(root)).toBe(2);
+  });
+});
+
+describe("staging length-guard runs before frontmatter parse (FIX #5)", () => {
+  it("rejects an oversized all-frontmatter body with ResourceLimitError, writing no candidate", async () => {
+    // All-frontmatter body > cap: the length guard must fire BEFORE yaml.load,
+    // so the thrown error is ResourceLimitError, not EntityFieldContractError.
+    const huge = `---\ntitle: ${"x".repeat(MAX_SOURCE_CHARS + 1)}\n---\n`;
+    await expect(
+      stageEntityPage(root, {
+        entityType: "papers",
+        slug: SLUG,
+        body: huge,
+        profile: RESEARCH_LITE_PROFILE,
+        existingStagedCount: 0,
+      }),
+    ).rejects.toBeInstanceOf(ResourceLimitError);
+    expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
   });
 });

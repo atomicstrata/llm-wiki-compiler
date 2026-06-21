@@ -18,6 +18,7 @@ import path from "path";
 import os from "os";
 import { writeCandidate } from "../src/compiler/candidates.js";
 import reviewApproveCommand from "../src/commands/review-approve.js";
+import { readState } from "../src/utils/state.js";
 import { CANDIDATES_DIR } from "../src/utils/constants.js";
 import { buildResearchLiteProject } from "./fixtures/profile-fixtures.js";
 
@@ -147,5 +148,38 @@ describe("review approve — typed candidates skip the default title validator",
     await reviewApproveCommand(candidate.id);
 
     expectRefused("wiki/concepts", candidate.id);
+  });
+});
+
+/** A sourceStates map carrying one source entry for `src.md`. */
+const SOURCE_STATES = {
+  "src.md": { hash: "h1", concepts: [], compiledAt: "2026-01-01T00:00:00.000Z" },
+};
+
+describe("review approve — state tail skipped for typed candidates (F4)", () => {
+  it("does NOT write a typed candidate's slug into any source's concepts list", async () => {
+    await buildResearchLiteProject(root);
+    const candidate = await writeCandidate(root, {
+      title: SLUG, slug: SLUG, summary: "", sources: ["src.md"], body: BODY,
+      targetEntityType: "papers", sourceStates: SOURCE_STATES,
+    });
+
+    await reviewApproveCommand(candidate.id);
+
+    await expectApproved("wiki/papers", candidate.id, BODY);
+    const state = await readState(root);
+    expect(state.sources).toEqual({}); // no concepts pollution from the typed slug
+  });
+
+  it("still persists source states for a DEFAULT candidate (unchanged)", async () => {
+    const candidate = await writeCandidate(root, {
+      title: SLUG, slug: SLUG, summary: "", sources: ["src.md"], body: BODY,
+      sourceStates: SOURCE_STATES,
+    });
+
+    await reviewApproveCommand(candidate.id);
+
+    const state = await readState(root);
+    expect(state.sources["src.md"]?.concepts).toEqual([SLUG]);
   });
 });

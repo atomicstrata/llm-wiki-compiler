@@ -24,8 +24,9 @@ import {
   promoteStagedEntityPage,
 } from "../src/trust/staging.js";
 import { CandidateProfileError } from "../src/trust/promote.js";
-import { deleteCandidate } from "../src/compiler/candidates.js";
-import { PROFILE_FILE } from "../src/utils/constants.js";
+import { ResourceLimitError } from "../src/trust/checks.js";
+import { writeCandidate, deleteCandidate } from "../src/compiler/candidates.js";
+import { MAX_SOURCE_CHARS, PROFILE_FILE } from "../src/utils/constants.js";
 import { buildResearchLiteProject, RESEARCH_LITE_PROFILE } from "./fixtures/profile-fixtures.js";
 
 let root = "";
@@ -76,6 +77,21 @@ describe("lock-safe typed promotion", () => {
     await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(trimmed), "utf8");
 
     await expect(promoteStagedEntityPage(root, id)).rejects.toBeInstanceOf(CandidateProfileError);
+    expect(existsSync(path.join(root, "wiki/papers", `${SLUG}.md`))).toBe(false);
+  });
+});
+
+describe("promotion length-guard runs before frontmatter parse (FIX #5)", () => {
+  it("rejects an oversized all-frontmatter body with ResourceLimitError, not a field-contract error", async () => {
+    // All-frontmatter body > the cap: a yaml.load would burn ~1s; the length
+    // guard must fire FIRST, so the error is ResourceLimitError (not parse-driven).
+    const huge = `---\ntitle: ${"x".repeat(MAX_SOURCE_CHARS + 1)}\n---\n`;
+    const candidate = await writeCandidate(root, {
+      title: SLUG, slug: SLUG, summary: "", sources: [], body: huge,
+      targetEntityType: "papers",
+    });
+
+    await expect(promoteStagedEntityPage(root, candidate.id)).rejects.toBeInstanceOf(ResourceLimitError);
     expect(existsSync(path.join(root, "wiki/papers", `${SLUG}.md`))).toBe(false);
   });
 });
