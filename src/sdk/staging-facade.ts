@@ -8,6 +8,12 @@
  * `ProfilePack`. They delegate to the trust-layer staging helpers, which fail
  * CLOSED (`StagingRequiresProfileError`) on a project with no non-default profile.
  *
+ * The facade emits NO stdout note (it runs quiet by contract); the
+ * read-integration status — typed pages are surfaced in `status`, the JSON
+ * export, and the wiki INDEX, but NOT YET in interlinking, semantic search, the
+ * MOC, or the viewer — is documented on the `stageEntityPage`/`promoteStagedPage`
+ * method docstrings instead.
+ *
  * @experimental Foundation API — the shape may change in a future minor release.
  */
 

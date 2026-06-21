@@ -176,6 +176,12 @@ export interface Wiki {
    * non-default profile declares). `existingStagedCount` is the caller's
    * per-session bookkeeping (defaults to 0). No LLM required.
    *
+   * READ-INTEGRATION STATUS: typed entity pages are a WRITE SUBSTRATE. A promoted
+   * page is surfaced in `status`, the JSON export, and the wiki INDEX — but NOT
+   * YET in interlinking, semantic search / embeddings, the MOC, or the viewer
+   * (those are planned). Do not assume a staged/promoted typed page participates
+   * in retrieval or rendering yet.
+   *
    * Foundation API — the shape may change in a future minor release.
    */
   stageEntityPage(input: SdkStageEntityPageInput): Promise<StagedChange>;
@@ -185,6 +191,10 @@ export interface Wiki {
    * lock: re-reads the candidate, re-validates its type against the active
    * profile, re-plans + applies, and clears the candidate. The page lands at
    * `wiki/<entityType>/<slug>.md`, or nothing does. No LLM required.
+   *
+   * READ-INTEGRATION STATUS: the promoted page becomes visible in `status`, the
+   * JSON export, and the wiki INDEX — but NOT YET in interlinking, semantic
+   * search / embeddings, the MOC, or the viewer (those are planned).
    *
    * Foundation API — the shape may change in a future minor release.
    */

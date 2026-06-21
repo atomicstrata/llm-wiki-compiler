@@ -118,6 +118,7 @@ async function routeTypedPageWrite(
 ): Promise<string | null> {
   try {
     const relPath = await applyTypedCandidate(root, candidate);
+    noteTypedReadIntegrationPending(relPath);
     return path.join(root, relPath);
   } catch (err) {
     if (
@@ -131,6 +132,25 @@ async function routeTypedPageWrite(
     }
     throw err;
   }
+}
+
+/**
+ * Emit a one-line, non-error informational NOTE after a typed page is written,
+ * making the half-integration LOUD + HONEST: a typed entity page is now in
+ * `status`, JSON export, and the wiki index, but is NOT YET part of interlinking,
+ * semantic search/embeddings, the MOC, or the viewer (those are planned). The
+ * note never touches the exit code — a successful typed approval still exits 0.
+ *
+ * @param relPath - The project-relative `wiki/<entityType>/<slug>.md` path.
+ */
+function noteTypedReadIntegrationPending(relPath: string): void {
+  output.status(
+    "i",
+    output.info(
+      `Typed page ${relPath} written. Note: typed entity pages are not yet ` +
+        `included in interlinking, semantic search, or the viewer (planned).`,
+    ),
+  );
 }
 
 /**

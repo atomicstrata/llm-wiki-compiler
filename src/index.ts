@@ -57,6 +57,10 @@ export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
 // `createWiki()` facade exposes `stageEntityPage`/`promoteStagedPage`; these are
 // the input/return types consumers need. The lower-level `stageEntityPage(root,…)`
 // and `promoteCandidateUnderLock` forms stay internal. API may change.
+//
+// Read-integration status: typed entity pages are a WRITE SUBSTRATE — a promoted
+// page is surfaced in `status`, the JSON export, and the wiki INDEX, but NOT YET
+// in interlinking, semantic search/embeddings, the MOC, or the viewer (planned).
 export type { SdkStageEntityPageInput } from "./trust/staging.js";
 export { StagingRequiresProfileError } from "./trust/staging.js";
 export type {

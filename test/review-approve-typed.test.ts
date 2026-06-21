@@ -151,6 +151,40 @@ describe("review approve — typed candidates skip the default title validator",
   });
 });
 
+describe("review approve — typed read-integration note (loud + honest)", () => {
+  /** Capture every console.log argument as one joined string for substring asserts. */
+  function captureLog(): () => string {
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => {
+      lines.push(args.join(" "));
+    });
+    return () => lines.join("\n");
+  }
+
+  it("prints the integration-pending note after a typed approval", async () => {
+    await buildResearchLiteProject(root);
+    const id = await stageTypedCandidate();
+    const readLog = captureLog();
+
+    await reviewApproveCommand(id);
+
+    const out = readLog();
+    expect(out).toContain("not yet included in interlinking");
+    expect(out).toContain("wiki/papers/linear-attention.md");
+  });
+
+  it("does NOT print the note for a DEFAULT (concepts) approval", async () => {
+    const candidate = await writeCandidate(root, {
+      title: SLUG, slug: SLUG, summary: "", sources: [], body: BODY,
+    });
+    const readLog = captureLog();
+
+    await reviewApproveCommand(candidate.id);
+
+    expect(readLog()).not.toContain("not yet included in interlinking");
+  });
+});
+
 /** A sourceStates map carrying one source entry for `src.md`. */
 const SOURCE_STATES = {
   "src.md": { hash: "h1", concepts: [], compiledAt: "2026-01-01T00:00:00.000Z" },
