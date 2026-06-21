@@ -22,12 +22,26 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 |------|-------------|
 | `--review` | Write generated pages to `.llmwiki/candidates/` instead of `wiki/`. Pages are held for human review and don't appear in the live wiki until you approve them with `llmwiki review approve <id>`. |
 | `--lang <code>` | Override the output language for this compile run (e.g. `zh-CN`, `Chinese`, `ja`, `Japanese`). Wins over the `LLMWIKI_OUTPUT_LANG` environment variable. Unset preserves the model's default behaviour. |
+| `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
+| `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
 ## Incremental behaviour
 
 Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. Sources that haven't changed are skipped entirely - no API calls, no rewrites. This means re-running `llmwiki compile` after editing a single source touches only the pages that source contributed to, even in a large wiki.
 
 The same incremental logic applies to embeddings: chunk-level embeddings are updated only for pages whose underlying content changed.
+
+Within a single run, both phases call the LLM in parallel: concept extraction across changed sources and page generation across merged concepts both run under one shared concurrency cap. The default is 5 simultaneous calls. On a cold start or a large refresh, raise it with `--concurrency` or [`LLMWIKI_COMPILE_CONCURRENCY`](/configuration/environment-variables#compile) to cut wall-clock; lower it if your provider rate-limits the run. The same flag is available on `llmwiki refresh`, `llmwiki watch`, and `llmwiki quickstart`.
+
+<Note>
+  Very high concurrency on a first compile can slightly reduce cross-reference quality. Page generation reads a handful of sibling pages for `[[wikilink]]` context, so with many pages generating at once, more are written before their neighbours exist. Page content is never corrupted — only the initial interlinking may be less complete. An ordinary re-compile does not backfill it, because unchanged pages are skipped; to get richer sibling-page context, run at a lower concurrency, or force a recompile of the affected sources (edit them, or remove their entries from `.llmwiki/state.json`). The default of 5 is a safe balance; reserve large values for big batch or CI runs where raw speed matters most.
+</Note>
+
+Compile sends page and chunk embeddings to the provider in batches rather than one request at a time, which cuts compile time on cold starts and large refreshes. The embeddings summary reports how many requests this took, for example `Embeddings: 12/12 pages, 84/84 chunks embedded (3 batched requests)`. Tune the request size with [`LLMWIKI_EMBED_BATCH_SIZE`](/configuration/environment-variables#embeddings), or set [`LLMWIKI_EMBED_STRICT`](/configuration/environment-variables#embeddings) to fail the run when an embedding provider is broken or misconfigured.
+
+<Note>
+  The summary only prints when embeddings actually run. With no embedding backend configured (for example, the default `anthropic` provider without `VOYAGE_API_KEY`), compile prints `Skipped embeddings update` instead and semantic search is not built.
+</Note>
 
 ## What compile produces
 

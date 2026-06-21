@@ -15,4 +15,18 @@ export class MiniMaxProvider extends OpenAIProvider {
   constructor(model: string, apiKey: string) {
     super(model, { baseURL: MINIMAX_BASE_URL, apiKey });
   }
+
+  /** MiniMax embedding support is unverified; fail closed instead of inheriting OpenAI semantics. */
+  override async embed(_text: string): Promise<number[]> {
+    throw new Error(
+      "MiniMax provider does not support embeddings in llmwiki yet.\n" +
+      "  For semantic search, use LLMWIKI_PROVIDER=openai, anthropic, claude-agent, or ollama.",
+    );
+  }
+
+  /** MiniMax batch embeddings are unsupported for the same reason as single embeddings. */
+  override async embedBatch(_texts: string[]): Promise<number[][]> {
+    await this.embed("");
+    return [];
+  }
 }

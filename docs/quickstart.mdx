@@ -58,7 +58,7 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
     llmwiki quickstart ./notes.md
     ```
 
-    `llmwiki quickstart` ingests the source, runs the two-phase LLM compile pipeline, and opens the local viewer when pages are ready. Pass `--no-open` to stop after compile without launching the viewer, or `--review` to queue generated pages as candidates instead of writing them directly to `wiki/`.
+    `llmwiki quickstart` ingests the source, runs the two-phase LLM compile pipeline, and opens the local viewer when pages are ready. Pass `--no-open` to stop after compile without launching the viewer, or `--review` to queue generated pages as candidates instead of writing them directly to `wiki/`. For a large source, `--concurrency <n>` raises how many LLM calls the compile step runs in parallel (default 5).
 
     Expected output after a successful compile:
 

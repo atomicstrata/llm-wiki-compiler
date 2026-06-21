@@ -16,7 +16,7 @@
 
 import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
-import { voyageEmbed } from "./voyage-embed.js";
+import { VoyageEmbeddingProvider } from "./voyage-embed.js";
 import { jsonSchemaToZodShape } from "./json-schema-to-zod.js";
 
 /** Name for the throwaway in-process MCP server used to host a tool. */
@@ -117,10 +117,11 @@ function findToolInput(
 }
 
 /** Claude Agent SDK-backed LLM provider using the local Claude Code login. */
-export class ClaudeAgentProvider implements LLMProvider {
+export class ClaudeAgentProvider extends VoyageEmbeddingProvider implements LLMProvider {
   private readonly model: string;
 
   constructor(model: string) {
+    super();
     this.model = model;
   }
 
@@ -206,11 +207,6 @@ export class ClaudeAgentProvider implements LLMProvider {
       },
     });
     return collectToolInput(response, requested.name, qualifiedName);
-  }
-
-  /** Produce a single embedding vector via Voyage (Anthropic has no endpoint). */
-  async embed(text: string): Promise<number[]> {
-    return voyageEmbed(text);
   }
 }
 

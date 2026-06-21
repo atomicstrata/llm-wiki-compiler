@@ -38,6 +38,7 @@ import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
 import { resolveLinks } from "../compiler/resolver.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { readState, updateSourceState } from "../utils/state.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
@@ -256,6 +257,6 @@ async function safelyUpdateEmbeddings(root: string, slugs: string[]): Promise<vo
     await updateEmbeddings(root, slugs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 }

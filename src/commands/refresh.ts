@@ -18,6 +18,8 @@ import type { CompileResult } from "../utils/types.js";
 interface RefreshCommandOptions {
   stale?: boolean;
   dryRun?: boolean;
+  /** Max concurrent LLM calls during the scoped recompile (forwarded to CompileOptions). */
+  concurrency?: number;
 }
 
 /** Pairs of [items, label, icon] for plan detail lines — data-driven to keep cyclomatic low. */
@@ -73,7 +75,11 @@ async function runRefresh(
   }
   await warnOnReviewBypass(root);
   maybeEnsureProvider(plan, ensureProvider);
-  const result = await compileAndReport(root, { changeFilter: plan.changeFilter, skipSeedPages: true });
+  const result = await compileAndReport(root, {
+    changeFilter: plan.changeFilter,
+    skipSeedPages: true,
+    concurrency: options.concurrency,
+  });
   return reportCompileOutcome(result, plan);
 }
 

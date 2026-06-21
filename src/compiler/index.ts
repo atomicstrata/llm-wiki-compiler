@@ -45,10 +45,11 @@ import {
 import { markOrphaned, orphanUnownedFrozenPages } from "./orphan.js";
 import { resolveLinks } from "./resolver.js";
 import { generateIndex } from "./indexgen.js";
-import { buildBudgetedCombinedContent, type SourceSlice } from "./prompt-budget.js";
+import { buildBudgetedCombinedContent, resolvePromptBudgetChars, type SourceSlice } from "./prompt-budget.js";
 import { addObsidianMeta, generateMOC } from "./obsidian.js";
 import { addModelProvenanceMeta } from "./provenance.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { deleteCandidateBySlug, listCandidates, writeCandidate } from "./candidates.js";
 import { appendLog, formatList, formatWikilinkList } from "../utils/activity-log.js";
 import {
@@ -59,16 +60,17 @@ import {
 import type { LintResult } from "../linter/types.js";
 import { renderMergedPageContent } from "./page-renderer.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import { loadReviewPolicy } from "../review/config.js";
 import { evaluatePolicy, isPolicyOff } from "../review/policy.js";
 import type { HeldReason, ReviewPolicy } from "../review/policy.js";
 import {
-  COMPILE_CONCURRENCY,
   CONCEPTS_DIR,
   INDEX_FILE,
   QUERIES_DIR,
   SOURCES_DIR,
 } from "../utils/constants.js";
+import { resolveCompileConcurrency } from "./concurrency.js";
 import pLimit from "p-limit";
 import type {
   CompileOptions,
@@ -180,6 +182,7 @@ async function generatePagesPhase(
   schema: SchemaConfig,
   options: CompileOptions,
   policy: ReviewPolicy,
+  concurrency: number,
 ): Promise<PageGenerationResult> {
   const merged = mergeExtractions(extractions, frozenSlugs);
   // Build the per-source state snapshot once so each candidate can carry the
@@ -188,7 +191,7 @@ async function generatePagesPhase(
   const sourceStates = shouldBuildSourceStates
     ? await buildExtractionSourceStates(root, extractions)
     : {};
-  const limit = pLimit(COMPILE_CONCURRENCY);
+  const limit = pLimit(concurrency);
   // Collect per-outcome errors and candidate info into the ordered outcomes array
   // AFTER Promise.all, then derive candidates/review by iterating outcomes in source order.
   // This ensures stable, source-order ordering regardless of parallel completion timing.
@@ -404,6 +407,7 @@ async function runCompilePipeline(
   root: string,
   options: CompileOptions,
 ): Promise<CompileResult> {
+  const startMs = Date.now();
   const schema = await loadSchema(root);
   const reviewPolicy = await loadReviewPolicy(root);
   reportSchemaStatus(schema);
@@ -460,7 +464,10 @@ async function runCompilePipeline(
   const frozenSlugs = findFrozenSlugs(state, changes);
   reportFrozenSlugs(frozenSlugs);
 
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes);
+  // Resolve once so an invalid override warns a single time, then cap both the
+  // extraction and page-generation fan-outs identically.
+  const concurrency = resolveCompileConcurrency(options.concurrency);
+  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
   if (!options.review) {
     await freezeFailedExtractions(root, extractions, frozenSlugs);
   }
@@ -475,6 +482,7 @@ async function runCompilePipeline(
     schema,
     options,
     reviewPolicy,
+    concurrency,
   );
 
   if (!options.review) {
@@ -489,6 +497,7 @@ async function runCompilePipeline(
     await finalizeWiki(root, generation.writtenPages, generation.seedSlugs);
     await logCompile(root, buckets, generation, existingIds);
   }
+  verbose(`compile finished in ${Date.now() - startMs} ms`);
   return summarizeCompile(buckets, generation, extractions, options);
 }
 
@@ -550,25 +559,56 @@ function reportFrozenSlugs(frozenSlugs: Set<string>): void {
 }
 
 /**
+ * Extract a batch of sources in parallel under a shared concurrency limit.
+ *
+ * Promise.all preserves input order, so the result matches the old serial
+ * order that mergeExtractions relies on when reconciling same-slug concepts.
+ * On the first hard failure a shared `aborted` flag short-circuits every
+ * not-yet-started source: pLimit keeps draining its queue after Promise.all
+ * rejects, and without this guard those queued sources would still issue their
+ * (now-pointless) LLM calls — wasted cost/quota exactly when the provider is
+ * already failing. In-flight sources still finish; only the queue is skipped.
+ */
+async function extractSourcesLimited(
+  root: string,
+  files: string[],
+  limit: ReturnType<typeof pLimit>,
+): Promise<ExtractionResult[]> {
+  let aborted = false;
+  return Promise.all(files.map((file) => limit(async () => {
+    if (aborted) throw new Error(`extraction skipped for ${file}: a prior source failed`);
+    try {
+      return await extractForSource(root, file);
+    } catch (err) {
+      aborted = true;
+      throw err;
+    }
+  })));
+}
+
+/**
  * Phase 1: extract concepts for the directly-changed batch, then expand to
  * any unchanged sources whose concepts overlap with newly extracted slugs.
+ * Both batches share one `pLimit(concurrency)` cap; the late-affected set is
+ * computed only after the whole direct batch resolves, since
+ * findLateAffectedSources reads every direct extraction.
  */
 async function runExtractionPhases(
   root: string,
   toCompile: SourceChange[],
   state: WikiState,
   allChanges: SourceChange[],
+  concurrency: number,
 ): Promise<ExtractionResult[]> {
-  const extractions: ExtractionResult[] = [];
-  for (const change of toCompile) {
-    extractions.push(await extractForSource(root, change.file));
-  }
+  const limit = pLimit(concurrency);
+  const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
 
   const lateAffected = findLateAffectedSources(extractions, state, allChanges);
   for (const file of lateAffected) {
     output.status("~", output.info(`${file} [shares concept with new source]`));
-    extractions.push(await extractForSource(root, file));
   }
+  const lateExtractions = await extractSourcesLimited(root, lateAffected, limit);
+  for (const result of lateExtractions) extractions.push(result);
 
   return extractions;
 }
@@ -631,6 +671,9 @@ async function extractForSource(
 
   const sourcePath = path.join(root, SOURCES_DIR, sourceFile);
   const sourceContent = await readFile(sourcePath, "utf-8");
+  const lines = sourceContent.split("\n").length;
+  const chars = sourceContent.length;
+  verbose(`source ${sourceFile}: ${lines} lines, ${chars} chars`);
   const existingIndex = await safeReadFile(path.join(root, INDEX_FILE));
   const concepts = await extractConcepts(sourceContent, existingIndex);
 
@@ -740,11 +783,16 @@ function mergeExtractions(
     }
   }
 
+  const budget = resolvePromptBudgetChars();
   for (const merged of bySlug.values()) {
     const slices = slicesBySlug.get(merged.slug) ?? [];
     merged.combinedContent = buildBudgetedCombinedContent(
       merged.concept.concept,
       slices,
+    );
+    verbose(
+      `concept ${merged.slug}: ${slices.length} source(s), ` +
+      `${merged.combinedContent.length} chars combined (budget ${budget})`,
     );
   }
 
@@ -1021,6 +1069,8 @@ async function writePageIfValid(
   }
 
   await atomicWrite(pagePath, content);
+  const slug = path.basename(pagePath, ".md");
+  verbose(`page ${slug}: ${content.length} chars`);
   return null;
 }
 
@@ -1031,9 +1081,10 @@ async function writePageIfValid(
  */
 async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Promise<void> {
   try {
+    verbose(`embeddings: refreshing ${changedSlugs.length} slug(s)`);
     await updateEmbeddings(root, changedSlugs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 }

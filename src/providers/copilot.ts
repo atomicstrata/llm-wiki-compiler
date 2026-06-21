@@ -32,4 +32,10 @@ export class CopilotProvider extends OpenAIProvider {
       "    export OPENAI_API_KEY=sk-...",
     );
   }
+
+  /** Copilot has no embeddings API — batch is unsupported too. */
+  override async embedBatch(_texts: string[]): Promise<number[][]> {
+    await this.embed(""); // throws the single-embed not-supported error (one source of truth)
+    return []; // unreachable; satisfies the number[][] return type
+  }
 }

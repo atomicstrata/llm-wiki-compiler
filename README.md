@@ -1,5 +1,10 @@
 # llmwiki
 
+[![CI](https://img.shields.io/github/actions/workflow/status/atomicstrata/llm-wiki-compiler/ci.yml?branch=main&logo=github&label=CI)](https://github.com/atomicstrata/llm-wiki-compiler/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/llm-wiki-compiler?logo=npm&label=npm)](https://www.npmjs.com/package/llm-wiki-compiler)
+[![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
+[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 <p align="center">
   <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki supports Open Knowledge Format" width="900">
 </p>
@@ -36,7 +41,7 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **Local viewer.** `llmwiki view` opens a read-only browser UI with search, page metadata, graph exploration, source-freshness badges, and citation chips.
 - **Review policy.** Generated pages can be auto-held for review when confidence, contradiction, schema, or provenance rules trip.
 - **Freshness repair.** `llmwiki lint` and `llmwiki next` surface stale/orphaned pages; `llmwiki refresh --stale` repairs changed knowledge without compiling unrelated new sources.
-- **Eval harness.** `llmwiki eval` reports health score, citation coverage/precision, corpus stats, regression deltas, and optional judge-model citation support.
+- **Eval harness.** `llmwiki eval` reports health score, a per-page health distribution that flags the worst pages, citation coverage/precision, corpus stats, regression deltas, and optional judge-model citation support.
 - **MCP server.** `llmwiki serve` exposes ingest, compile, query, lint, read, status, eval, context-pack, and OKF exchange tools to MCP-compatible agents.
 - **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, eval, and OKF import/export from TypeScript without shelling out.
 - **Open Knowledge Format exchange.** Export and import OKF bundles for portable, markdown-native knowledge exchange. External OKF imports are staged through the review queue by default; trusted bundles can be written live explicitly.
@@ -228,8 +233,10 @@ See [`docs/configuration/review-policy.mdx`](docs/configuration/review-policy.md
 llmwiki is still early software, but it is no longer a toy pipeline for a handful of notes.
 
 - **Incremental compilation** means unchanged sources do not flow back through the LLM.
+- **Parallel compile** runs concept extraction and page generation concurrently under a configurable cap (`--concurrency` / `LLMWIKI_COMPILE_CONCURRENCY`), cutting wall-clock on large compiles.
 - **Chunk-level embeddings** narrow large wikis before BM25 reranking and graph expansion.
 - **Content-hash-aware embedding updates** avoid recomputing vectors for unchanged pages and chunks.
+- **Batch embedding** sends page and chunk vectors to the provider in batches rather than one request at a time, cutting latency on cold starts and large refreshes.
 - **Cached citation judgements** make repeated `eval --suite full` runs cheaper.
 - **Lexical fallback** keeps query/context workflows usable when the active provider has no embedding endpoint.
 - **Prompt budgeting and ingest truncation metadata** make large sources explicit instead of silently pretending they fit.
@@ -261,7 +268,17 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-Version `0.11.0` adds in-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the Open Knowledge Format round-trip, plus faithful nested-path reconstruction when re-exporting imported foreign bundles. It builds on the 0.10.0 review policy, source-freshness repair, OKF CLI round-trip, and Mintlify docs site. See [`CHANGELOG.md`](CHANGELOG.md) for release history.
+**On main, ships in `0.12.0`:**
+
+- Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
+- Parallel compile — concept extraction and page generation run concurrently under a configurable cap (`--concurrency`), cutting wall-clock on large compiles.
+
+**Released `0.11.0`:**
+
+- In-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the OKF round-trip.
+- Faithful nested-path reconstruction when re-exporting imported foreign bundles.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 
 ## Companion: Atomic Memory
 
@@ -290,3 +307,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 ## License
 
 MIT
+
+## Disclaimer
+
+No LLMs were harmed in the making of this repo.

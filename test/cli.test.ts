@@ -57,6 +57,13 @@ describe("CLI smoke tests", () => {
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   }, 30_000);
 
+  it("advertises --concurrency on every command that drives a compile", async () => {
+    for (const command of ["compile", "refresh", "watch", "quickstart"]) {
+      const { stdout } = await exec("node", [CLI, command, "--help"]);
+      expect(stdout).toContain("--concurrency");
+    }
+  }, 30_000);
+
   it("compile fails without Anthropic credentials", async () => {
     try {
       await exec("node", [CLI, "compile"], {

@@ -35,14 +35,26 @@ import { stateResetCommand } from "./commands/state-reset.js";
 import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
 import refreshCommand from "./commands/refresh.js";
-import quickstartCommand, { type QuickstartOptions } from "./commands/quickstart.js";
+import quickstartCommand from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
+import { setVerbose } from "./utils/output.js";
+import { parseConcurrencyFlag } from "./compiler/concurrency.js";
+import { ENV_VERBOSE } from "./utils/constants.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
+
+/**
+ * Returns true when the --verbose flag was passed or LLMWIKI_VERBOSE is set
+ * to a non-empty value in the environment. Both paths call setVerbose(true)
+ * at the start of the action so verbose() emits output for that run only.
+ */
+function verboseEnabled(flag?: boolean): boolean {
+  return Boolean(flag) || Boolean(process.env[ENV_VERBOSE]?.trim());
+}
 
 const program = new Command();
 
@@ -54,8 +66,10 @@ program
 program
   .command("ingest <source>")
   .description("Ingest a URL or local file into sources/")
-  .action(async (source: string) => {
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (source: string, options: { verbose?: boolean }) => {
     try {
+      setVerbose(verboseEnabled(options.verbose));
       await ingestCommand(source);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -66,8 +80,10 @@ program
 program
   .command("ingest-session <path>")
   .description("Ingest a coding-agent session export (Claude, Codex, Cursor) into sources/")
-  .action(async (targetPath: string) => {
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (targetPath: string, options: { verbose?: boolean }) => {
     try {
+      setVerbose(verboseEnabled(options.verbose));
       await ingestSessionCommand(targetPath);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -102,11 +118,17 @@ program
     "--lang <code>",
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
-  .action(async (options: { review?: boolean; lang?: string }) => {
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (options: { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
     try {
+      setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       requireProvider();
-      await compileCommand({ review: options.review });
+      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -118,9 +140,18 @@ program
   .description("Recompile only stale/changed pages without touching unrelated new sources")
   .option("--stale", "Resolve stale/orphaned pages and recompile them")
   .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
-  .action(async (options: { stale?: boolean; dryRun?: boolean }) => {
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (options: { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
     try {
-      const code = await refreshCommand(options, requireProvider);
+      setVerbose(verboseEnabled(options.verbose));
+      const code = await refreshCommand(
+        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
+        requireProvider,
+      );
       process.exit(code);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -210,12 +241,14 @@ program
     "--lang <code>",
     "Target language for the answer (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
   .action(
     async (
       question: string,
-      options: { save?: boolean; debug?: boolean; lang?: string },
+      options: { save?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
     ) => {
       try {
+        setVerbose(verboseEnabled(options.verbose));
         applyLanguageOption(options.lang);
         requireProvider();
         await queryCommand(process.cwd(), question, options);
@@ -229,10 +262,14 @@ program
 program
   .command("watch")
   .description("Watch sources/ and auto-recompile on changes")
-  .action(async () => {
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls per recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .action(async (options: { concurrency?: string }) => {
     try {
       requireProvider();
-      await watchCommand();
+      await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -391,8 +428,10 @@ program
     "Bridge identifier embedded in the JSON export envelope. Must match /^[a-z0-9][a-z0-9-]{0,62}$/.",
   )
   .option("--out <dir>", "Output directory for directory-style targets (e.g. okf)")
-  .action(async (options: { target?: string; source?: string; projectId?: string; out?: string }) => {
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (options: { target?: string; source?: string; projectId?: string; out?: string; verbose?: boolean }) => {
     try {
+      setVerbose(verboseEnabled(options.verbose));
       await exportCommand(process.cwd(), options);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -409,8 +448,10 @@ program
     "Write mapped pages directly into wiki/ instead of staging for review (you vouch for the bundle's contents and its self-declared provenance)",
   )
   .option("--dry-run", "Report what would be imported (and skipped) without writing anything")
-  .action(async (options: { okf: string; trusted?: boolean; dryRun?: boolean }) => {
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (options: { okf: string; trusted?: boolean; dryRun?: boolean; verbose?: boolean }) => {
     try {
+      setVerbose(verboseEnabled(options.verbose));
       await importCommand(process.cwd(), options);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -445,9 +486,11 @@ program
     "--include-sources",
     "Populate primary[].sourceWindows from claim-level citation spans (max 20 windows, 30 lines each)",
   )
-  .action(async (prompt: string, options: ContextCommandOptions) =>
-    runExitCodeCommand(() => contextCommand(prompt, options)),
-  );
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (prompt: string, options: ContextCommandOptions & { verbose?: boolean }) => {
+    setVerbose(verboseEnabled(options.verbose));
+    return runExitCodeCommand(() => contextCommand(prompt, options));
+  });
 
 program
   .command("quickstart <source>")
@@ -465,9 +508,28 @@ program
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
   .option("--json", "Emit the quickstart JSON envelope instead of human output (implies --no-open)")
-  .action(async (source: string, options: QuickstartOptions) =>
-    runExitCodeCommand(() => quickstartCommand(source, options)),
-  );
+  .option(
+    "--concurrency <n>",
+    "Max concurrent LLM calls during the compile step (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
+  )
+  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
+  .action(async (
+    source: string,
+    options: {
+      review?: boolean; open?: boolean; provider?: string;
+      lang?: string; json?: boolean; concurrency?: string; verbose?: boolean;
+    },
+  ) => {
+    setVerbose(verboseEnabled(options.verbose));
+    return runExitCodeCommand(() => quickstartCommand(source, {
+      review: options.review,
+      open: options.open,
+      provider: options.provider,
+      lang: options.lang,
+      json: options.json,
+      concurrency: parseConcurrencyFlag(options.concurrency),
+    }));
+  });
 
 program
   .command("serve")

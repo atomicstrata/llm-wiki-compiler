@@ -27,6 +27,7 @@ import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { readStateClassified } from "../src/utils/state.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
+import { trackToolCallConcurrency } from "./fixtures/concurrency-probe.js";
 import { writeSourceState, writeSourceFile, sha256Hex } from "./fixtures/state-json.js";
 
 // ---------------------------------------------------------------------------
@@ -235,6 +236,45 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       const allOutput = logLines.join("\n");
       expect(allOutput).toMatch(/held.*for review/i);
       expect(allOutput).not.toMatch(/Refreshed \d+ page\(s\)/);
+    } finally {
+      vi.restoreAllMocks();
+      delete process.env.LLMWIKI_PROVIDER;
+      delete process.env.ANTHROPIC_API_KEY;
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("forwards the concurrency option into the recompile (serial cap keeps peak at 1)", async () => {
+    process.env.LLMWIKI_PROVIDER = "anthropic";
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.LLMWIKI_COMPILE_CONCURRENCY;
+    const root = await makeTmpRoot("concurrency");
+    try {
+      await writeSourceFile(root, "a.md", "# A\n\nabout a");
+      await writeSourceFile(root, "b.md", "# B\n\nabout b");
+      await writeSourceState(root, {
+        "a.md": { hash: "stale-a", concepts: ["topic-a"] },
+        "b.md": { hash: "stale-b", concepts: ["topic-b"] },
+      });
+      await writeConceptPage(root, "topic-a", "Topic A", ["a.md"], "Old A.");
+      await writeConceptPage(root, "topic-b", "Topic B", ["b.md"], "Old B.");
+
+      const peak = trackToolCallConcurrency((n) => extractionFor(`Topic ${n}`));
+      vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue(STUB_BODY);
+      vi.spyOn(console, "log").mockImplementation(() => {});
+
+      // refreshCommand reads process.cwd() — chdir into the temp root.
+      const savedCwd = process.cwd();
+      process.chdir(root);
+      try {
+        await refreshCommand({ stale: true, concurrency: 1 }, () => {});
+      } finally {
+        process.chdir(savedCwd);
+      }
+
+      // Without forwarding, refresh falls back to the default cap (5) and the two
+      // stale extractions overlap (peak 2). The flag must serialize them to peak 1.
+      expect(peak()).toBe(1);
     } finally {
       vi.restoreAllMocks();
       delete process.env.LLMWIKI_PROVIDER;

@@ -27,6 +27,7 @@ import {
   DEFAULT_TOP_PAGES,
 } from "../context/types.js";
 import type { RecommendedAction } from "../project/recommendations.js";
+import { verbose, setQuiet } from "../utils/output.js";
 
 /** CLI-supplied options for `llmwiki context`. */
 export interface ContextCommandOptions {
@@ -69,6 +70,25 @@ export default async function contextCommand(
   prompt: string,
   options: ContextCommandOptions = {},
 ): Promise<number> {
+  const format = resolveFormat(options);
+  // Suppress verbose/status output when emitting machine-readable JSON to
+  // stdout — the same pattern quickstart uses for its --json path. The JSON
+  // itself is written via process.stdout.write which quiet mode does not
+  // intercept, so the envelope always reaches the caller cleanly.
+  if (format === "json") setQuiet(true);
+  try {
+    return await runContext(prompt, options, format);
+  } finally {
+    if (format === "json") setQuiet(false);
+  }
+}
+
+/** Inner implementation wrapped by the quiet-mode lifecycle for JSON paths. */
+async function runContext(
+  prompt: string,
+  options: ContextCommandOptions,
+  format: "json" | "markdown",
+): Promise<number> {
   const pack = await buildContextPack({
     root: process.cwd(),
     prompt,
@@ -80,7 +100,13 @@ export default async function contextCommand(
     neighbors: options.neighbors,
     includeSources: options.includeSources === true,
   });
-  emit(pack, resolveFormat(options));
+  verbose(`primary pages: ${pack.primary.length}`);
+  verbose(`graph neighbors: ${pack.neighbors.length}`);
+  const totalCitations = pack.primary.reduce((sum, p) => sum + p.citations.length, 0);
+  verbose(`citations gathered: ${totalCitations}`);
+  const serialized = JSON.stringify(pack);
+  verbose(`pack size: ${serialized.length} chars`);
+  emit(pack, format);
   return 0;
 }
 

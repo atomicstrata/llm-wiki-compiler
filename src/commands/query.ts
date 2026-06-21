@@ -18,6 +18,7 @@ import type { LLMTool } from "../utils/provider.js";
 import { safeReadFile, slugify, parseFrontmatter } from "../utils/markdown.js";
 import { languageDirective } from "../utils/output-language.js";
 import * as output from "../utils/output.js";
+import { verbose } from "../utils/output.js";
 import {
   QUERY_PAGE_LIMIT,
   INDEX_FILE,
@@ -384,9 +385,11 @@ export async function generateAnswer(
   }
 
   const selection = await selectRelevantPages(root, question, Boolean(options.debug));
+  verbose(`retrieval: ${selection.pages.length} page(s) selected, ${selection.chunks.length} chunk(s) used`);
   options.onPageSelection?.(selection.pages, selection.reasoning);
 
   const pagesContent = await loadSelectedPages(root, selection.pages);
+  verbose(`context pack: ${pagesContent.length} chars`);
 
   if (!pagesContent) {
     return buildEmptyResult(selection);

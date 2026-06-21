@@ -13,6 +13,7 @@ import path from "path";
 import { atomicWrite, slugify, buildFrontmatter } from "../utils/markdown.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { updateEmbeddings } from "../utils/embeddings.js";
+import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
 import { QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
@@ -70,7 +71,7 @@ async function saveQueryPage(root: string, question: string, answer: string): Pr
     await updateEmbeddings(root, [slug]);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.warn(`Skipped embeddings update: ${message}`));
+    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
 
   return slug;
