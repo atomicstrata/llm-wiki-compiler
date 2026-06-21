@@ -20,6 +20,7 @@
 import { loadNonDefaultProfile } from "../profile/block.js";
 import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
 import { parseFrontmatter, buildFrontmatter, safeReadFile } from "../utils/markdown.js";
+import { acquireLock, releaseLock } from "../utils/lock.js";
 import { applyTypedCandidate } from "./promote.js";
 import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
@@ -37,6 +38,19 @@ export class LifecycleTransitionUnavailableError extends Error {
     super(`cannot transition lifecycle: ${detail}`);
     this.name = "LifecycleTransitionUnavailableError";
     void reason;
+  }
+}
+
+/**
+ * Thrown when {@link transitionLifecycle} cannot acquire the project lock —
+ * another process is writing this project. The transition is a read-modify-write,
+ * so it MUST run single-writer; without the lock the prev-state read and the
+ * apply could race (TOCTOU) and corrupt the journal. Fails CLOSED, writing nothing.
+ */
+export class LifecycleTransitionLockError extends Error {
+  constructor() {
+    super("cannot transition lifecycle: another llmwiki process is using this project (lock held)");
+    this.name = "LifecycleTransitionLockError";
   }
 }
 
@@ -76,13 +90,50 @@ function buildTransitionedBody(existing: string, field: string, toState: string,
 }
 
 /**
+ * The read-modify-write core of a transition, run WHILE THE CALLER ALREADY HOLDS
+ * the project lock. Reads the existing page + its prev lifecycle state, rewrites
+ * the lifecycle field (+ any `evidence`), and applies through the LOCK-FREE
+ * {@link applyTypedCandidate} (correct now that we hold the lock). Because the
+ * prev-state read and the apply both run under the one held lock, no concurrent
+ * writer can race between them.
+ *
+ * @param root - Absolute project root.
+ * @param entityType - The profile entity type whose page is transitioned.
+ * @param def - The resolved (lifecycle-bearing) entity type definition.
+ * @param slug - The page slug (the filename stem).
+ * @param toState - The lifecycle state to transition the page into.
+ * @param evidence - Optional frontmatter fields a target state requires (merged in).
+ */
+async function transitionUnderLock(
+  root: string,
+  entityType: string,
+  def: EntityTypeDef,
+  slug: string,
+  toState: string,
+  evidence?: LifecycleEvidence,
+): Promise<void> {
+  const existing = await readExistingPage(root, def, slug);
+  const body = buildTransitionedBody(existing, def.lifecycle!.field, toState, evidence);
+  const candidate: Pick<ReviewCandidate, "slug" | "body" | "targetEntityType"> = {
+    slug,
+    body,
+    targetEntityType: entityType,
+  };
+  await applyTypedCandidate(root, candidate as ReviewCandidate);
+}
+
+/**
  * Transition a typed entity page's lifecycle field to `toState` as a validated
- * page update. Loads the entity def (throwing {@link LifecycleTransitionUnavailableError}
- * when the type has no lifecycle), reads the existing page (throwing when it is
- * missing), rewrites its lifecycle field (+ any `evidence`), and applies the new
- * body through {@link applyTypedCandidate} — which RE-RUNS the PR2 lifecycle gate,
- * so an illegal transition or one missing required evidence is REFUSED there
- * (`LifecycleTransitionError` propagates) and the page is left unchanged.
+ * page update, UNDER THE PROJECT LOCK. Resolves the entity def (throwing
+ * {@link LifecycleTransitionUnavailableError} when the type has no lifecycle),
+ * acquires the project lock (throwing {@link LifecycleTransitionLockError} when
+ * another process holds it), then INSIDE the lock reads the existing page,
+ * rewrites its lifecycle field (+ any `evidence`), and applies the new body
+ * through {@link applyTypedCandidate} — which RE-RUNS the PR2 lifecycle gate, so
+ * an illegal transition or one missing required evidence is REFUSED there
+ * (`LifecycleTransitionError` propagates) and the page is left unchanged. The
+ * lock makes the prev-state read and the apply atomic (no TOCTOU); it is always
+ * released in `finally`.
  *
  * @param root - Absolute project root.
  * @param entityType - The profile entity type whose page is transitioned.
@@ -90,6 +141,7 @@ function buildTransitionedBody(existing: string, field: string, toState: string,
  * @param toState - The lifecycle state to transition the page into.
  * @param evidence - Optional frontmatter fields a target state requires (merged in).
  * @throws {LifecycleTransitionUnavailableError} When no profile/type/lifecycle/page.
+ * @throws {LifecycleTransitionLockError} When the project lock cannot be acquired.
  * @throws {LifecycleTransitionError} When the PR2 gate refuses the transition.
  */
 export async function transitionLifecycle(
@@ -100,12 +152,10 @@ export async function transitionLifecycle(
   evidence?: LifecycleEvidence,
 ): Promise<void> {
   const def = await resolveLifecycleDef(root, entityType);
-  const existing = await readExistingPage(root, def, slug);
-  const body = buildTransitionedBody(existing, def.lifecycle!.field, toState, evidence);
-  const candidate: Pick<ReviewCandidate, "slug" | "body" | "targetEntityType"> = {
-    slug,
-    body,
-    targetEntityType: entityType,
-  };
-  await applyTypedCandidate(root, candidate as ReviewCandidate);
+  if (!(await acquireLock(root))) throw new LifecycleTransitionLockError();
+  try {
+    await transitionUnderLock(root, entityType, def, slug, toState, evidence);
+  } finally {
+    await releaseLock(root);
+  }
 }

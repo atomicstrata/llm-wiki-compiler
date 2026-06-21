@@ -21,7 +21,7 @@
 
 import { open, mkdir } from "fs/promises";
 import path from "path";
-import { RELATIONS_FILE } from "../utils/constants.js";
+import { RELATIONS_FILE, MAX_RELATION_RECORD_BYTES } from "../utils/constants.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { parseEntityId } from "../profile/identity.js";
 import type { EntityId, ProfilePack, RelationTypeDef } from "../profile/types.js";
@@ -76,10 +76,26 @@ function assertRequiredAttributes(def: RelationTypeDef, attributes: Record<strin
 }
 
 /**
+ * Reject a relation whose serialized on-disk record exceeds
+ * {@link MAX_RELATION_RECORD_BYTES}, so attacker-controlled attribute/evidence
+ * size cannot grow one record unbounded (nor reach the per-store cap with one
+ * line). Throws {@link RelationEndpointError} BEFORE any write.
+ */
+function assertRecordWithinCap(ref: RelationRef): void {
+  const bytes = Buffer.byteLength(serializeRecord(ref), "utf8");
+  if (bytes > MAX_RELATION_RECORD_BYTES) {
+    throw new RelationEndpointError(
+      `relation '${ref.type}' record ${bytes} bytes exceeds the ${MAX_RELATION_RECORD_BYTES}-byte cap`,
+    );
+  }
+}
+
+/**
  * Validate endpoints + required attributes against the relation-type def, then
  * build the {@link RelationRef}: canonicalize symmetric endpoints, mint the id
- * (or reuse `existingId` for an update), and compute the content hash. NOTHING
- * is written here — validation throwing leaves the store untouched.
+ * (or reuse `existingId` for an update), and compute the content hash. The
+ * serialized record size is capped LAST. NOTHING is written here — validation
+ * throwing leaves the store untouched.
  */
 function buildRelationRef(
   profile: ProfilePack,
@@ -93,7 +109,9 @@ function buildRelationRef(
   assertRequiredAttributes(def, attributes, input.type);
   const { from, to } = canonicalEndpoints(input.from, input.to, def.direction);
   const content = { type: input.type, from, to, attributes, evidence: input.evidence };
-  return { id: existingId ?? mintRelationId(), ...content, contentHash: relationContentHash(content) };
+  const ref: RelationRef = { id: existingId ?? mintRelationId(), ...content, contentHash: relationContentHash(content) };
+  assertRecordWithinCap(ref);
+  return ref;
 }
 
 /** Append one serialized record line to the store under O_APPEND, creating the dir/header. */

@@ -11,13 +11,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, mkdir, readFile, writeFile, appendFile, symlink } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, readFile, writeFile, appendFile, symlink, truncate } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
-import { RELATIONS_FILE } from "../src/utils/constants.js";
+import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES, MAX_RELATION_RECORD_BYTES } from "../src/utils/constants.js";
 import { appendRelation, updateRelation } from "../src/relations/store.js";
 import { readRelations } from "../src/relations/store-read.js";
+import { recordChecksum } from "../src/relations/store-record.js";
+import type { RelationRef } from "../src/relations/types.js";
 import {
   RelationEndpointError,
   RelationStoreCorruptError,
@@ -46,6 +48,24 @@ afterEach(async () => { if (root) await rm(root, { recursive: true, force: true 
 
 /** Append-mode test profile + the on-disk store path. */
 const storePath = (): string => path.join(root, RELATIONS_FILE);
+
+/** Build a JSONL record line carrying a VALID checksum but caller-chosen endpoints. */
+function forgeRecord(parts: { type: string; from: string; to: string }): string {
+  const ref = {
+    id: "rel_forged0000000000000000000",
+    type: parts.type,
+    from: parts.from as EntityId,
+    to: parts.to as EntityId,
+    attributes: {},
+    contentHash: "deadbeef",
+  } as RelationRef;
+  return JSON.stringify({ ...ref, checksum: recordChecksum(ref) });
+}
+
+/** A well-formed valid-checksum trailing record, so the forged line is INTERIOR. */
+function serializeValidTail(): string {
+  return forgeRecord({ type: "tests", from: "experiments/tail", to: "ideas/tail" }) + "\n";
+}
 
 describe("appendRelation / readRelations round-trip", () => {
   it("persists a relation with a rel_ id and stable contentHash", async () => {
@@ -100,6 +120,47 @@ describe("durability: torn / corrupt / too-new", () => {
     await mkdir(path.dirname(storePath()), { recursive: true });
     await writeFile(storePath(), '{"kind":"relation-store-header","schemaVersion":99}\n');
     await expect(readRelations(root)).rejects.toThrow(RelationStoreTooNewError);
+  });
+});
+
+describe("resource caps (DoS — fail closed)", () => {
+  it("fails closed when the store file exceeds the byte cap", async () => {
+    await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { note: "x" } });
+    // Sparse-grow the file past the cap without writing GBs; the stat-first guard
+    // must reject it before the full readFile/validation runs.
+    await truncate(storePath(), MAX_RELATION_STORE_BYTES + 1);
+    await expect(readRelations(root)).rejects.toThrow(RelationStoreCorruptError);
+  });
+
+  it("reads a normal (under-cap) store fine", async () => {
+    await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { note: "x" } });
+    const { relations, problems } = await readRelations(root);
+    expect(problems).toEqual([]);
+    expect(relations).toHaveLength(1);
+  });
+
+  it("rejects a relation whose attributes exceed the per-record cap, writing nothing", async () => {
+    const huge = "z".repeat(MAX_RELATION_RECORD_BYTES + 1);
+    const bad = appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { note: huge } });
+    await expect(bad).rejects.toThrow(RelationEndpointError);
+    await expect(readRelations(root)).resolves.toMatchObject({ relations: [] });
+  });
+});
+
+describe("endpoint slug-safety re-validation on read (fail closed)", () => {
+  it("fails closed on an interior record with a traversal endpoint", async () => {
+    await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { note: "x" } });
+    // A well-formed (valid-checksum) interior record whose `from` escapes its
+    // namespace must be rejected as interior corruption, not read back intact.
+    const forged = forgeRecord({ type: "tests", from: "../../etc/passwd", to: IDEA_B });
+    await appendFile(storePath(), forged + "\n");
+    await appendFile(storePath(), serializeValidTail());
+    await expect(readRelations(root)).rejects.toThrow(RelationStoreCorruptError);
+  });
+
+  it("reads valid endpoints fine", async () => {
+    await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { note: "x" } });
+    await expect(readRelations(root)).resolves.toMatchObject({ relations: [{ from: EXP_A }] });
   });
 });
 

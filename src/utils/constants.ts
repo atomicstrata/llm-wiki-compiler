@@ -102,6 +102,23 @@ export const WIKI_GRAPH_DIR = "wiki/graph";
 export const RELATIONS_FILE = "wiki/graph/relations.jsonl";
 
 /**
+ * Resource cap on the relation store file. The store is attacker/sync-controllable
+ * (a teammate or a synced checkout can replace it), and the reader slurps the whole
+ * file before any header/checksum validation. A multi-GB file or a giant single
+ * line would exhaust memory before the integrity check runs, so the reader STATs
+ * the file first and FAILS CLOSED above this bound — mirroring the page path's
+ * {@link MAX_SOURCE_CHARS} resource cap, scaled up for a whole-graph aggregate.
+ */
+export const MAX_RELATION_STORE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Resource cap on a SINGLE relation record's serialized form on the write path.
+ * Bounds attacker-controlled attribute/evidence size before append so one record
+ * cannot grow unbounded (and so the per-store cap cannot be reached by one line).
+ */
+export const MAX_RELATION_RECORD_BYTES = MAX_SOURCE_CHARS;
+
+/**
  * Append-only activity journal at the project root, per Karpathy's llm-wiki
  * gist: a chronological record of what happened and when (ingests, compiles,
  * queries, lint passes). Lives at the root rather than under wiki/ because it

@@ -22,9 +22,10 @@
  * remaining on disk for audit.
  */
 
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import path from "path";
-import { RELATIONS_FILE } from "../utils/constants.js";
+import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
+import { parseEntityId, EntityIdError } from "../profile/identity.js";
 import type { RelationRef, RelationRecord } from "./types.js";
 import {
   RELATION_STORE_SCHEMA_VERSION,
@@ -41,16 +42,28 @@ export interface ReadRelationsResult {
   problems: string[];
 }
 
-/** Read the raw store file bytes, or null when the file is absent. */
+/**
+ * Read the raw store file bytes, or null when the file is absent. STATs the file
+ * FIRST and fails closed ({@link RelationStoreCorruptError}) when it exceeds
+ * {@link MAX_RELATION_STORE_BYTES}, so an attacker/sync-controlled multi-GB file
+ * is rejected before the whole-file read could exhaust memory.
+ */
 async function readStoreFile(root: string): Promise<string | null> {
   const { dir, exists } = await resolveGraphDir(root); // throws on symlink escape
   if (!exists) return null;
   const file = path.join(dir, path.basename(RELATIONS_FILE));
+  let size: number;
   try {
-    return await readFile(file, "utf-8");
+    size = (await stat(file)).size;
   } catch {
     return null; // dir exists but file does not → no relations yet
   }
+  if (size > MAX_RELATION_STORE_BYTES) {
+    throw new RelationStoreCorruptError(
+      `store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`,
+    );
+  }
+  return readFile(file, "utf-8");
 }
 
 /** Parse and validate the header line, failing closed on an unknown future version. */
@@ -86,12 +99,32 @@ function parseRecord(line: string): RelationRecord {
   return rec as RelationRecord;
 }
 
-/** Verify a parsed record's stored checksum against a recomputation; throw on mismatch. */
+/**
+ * Re-assert both endpoints are slug-safe `<type>/<slug>` ids via
+ * {@link parseEntityId} (which validates both halves), symmetrical with the
+ * write path's endpoint validation. A well-formed-but-traversal endpoint (e.g.
+ * `from: "../../etc/passwd"`) is INTERIOR CORRUPTION, not a benign dangling page,
+ * so it fails closed — a future path-deriving consumer cannot inherit a traversal.
+ */
+function assertEndpointsSlugSafe(ref: RelationRef): void {
+  try {
+    parseEntityId(ref.from);
+    parseEntityId(ref.to);
+  } catch (err) {
+    if (err instanceof EntityIdError) {
+      throw new RelationStoreCorruptError(`relation ${ref.id} has a non-slug-safe endpoint: ${err.message}`);
+    }
+    throw err;
+  }
+}
+
+/** Verify a parsed record's stored checksum + endpoint slug-safety; throw on either. */
 function verifyChecksum(record: RelationRecord): RelationRef {
   const { checksum, ...ref } = record;
   if (recordChecksum(ref) !== checksum) {
     throw new RelationStoreCorruptError(`checksum mismatch for relation ${ref.id}`);
   }
+  assertEndpointsSlugSafe(ref);
   return ref;
 }
 

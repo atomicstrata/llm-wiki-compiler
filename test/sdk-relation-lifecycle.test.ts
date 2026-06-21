@@ -13,9 +13,13 @@ import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { createWiki } from "../src/index.js";
 import { RelationsRequireProfileError } from "../src/trust/relation-write.js";
+import {
+  transitionLifecycle,
+  LifecycleTransitionLockError,
+} from "../src/trust/lifecycle-transition.js";
 import { LifecycleTransitionError } from "../src/profile/lifecycle.js";
 import { readRelations } from "../src/relations/store-read.js";
-import { PROFILE_FILE } from "../src/utils/constants.js";
+import { PROFILE_FILE, LOCK_FILE } from "../src/utils/constants.js";
 import { buildResearchLiteProject, RESEARCH_LITE_PROFILE } from "./fixtures/profile-fixtures.js";
 
 const EXP = "experiments/ablation-batch-size" as EntityId;
@@ -69,6 +73,23 @@ describe("createWiki() relation + lifecycle round-trip", () => {
     const page = await readFile(path.join(root, "wiki/ideas/sparse-routing.md"), "utf8");
     expect(page).toContain("status: failed");
     expect(page).toContain("failureReason: out of compute");
+  });
+});
+
+describe("transitionLifecycle — lock discipline", () => {
+  /**
+   * A lock file naming THIS (live) process PID is not stale, so acquireLock
+   * fails. The transition must refuse cleanly and leave the page UNCHANGED.
+   */
+  it("refuses cleanly when the project lock is held, leaving the page unchanged", async () => {
+    const pagePath = path.join(root, "wiki/ideas/sparse-routing.md");
+    const before = await readFile(pagePath, "utf8");
+    await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
+
+    const attempt = transitionLifecycle(root, "ideas", "sparse-routing", "testing");
+    await expect(attempt).rejects.toBeInstanceOf(LifecycleTransitionLockError);
+
+    expect(await readFile(pagePath, "utf8")).toBe(before);
   });
 });
 
