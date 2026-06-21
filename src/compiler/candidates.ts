@@ -40,7 +40,7 @@ import type { TrustDecision } from "../trust/decision.js";
 const ID_SUFFIX_BYTES = 4;
 
 /** Input shape for creating a new candidate (id + timestamp generated here). */
-interface CandidateDraft {
+export interface CandidateDraft {
   title: string;
   slug: string;
   summary: string;

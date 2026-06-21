@@ -22,7 +22,7 @@
  * from a benign ABSENT `.llmwiki` (nothing to reset → exit 0).
  */
 
-import { rename, realpath } from "fs/promises";
+import { rename, realpath, lstat } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { LLMWIKI_DIR, STATE_FILE } from "../utils/constants.js";
@@ -121,10 +121,45 @@ async function runConfirmedReset(root: string): Promise<void> {
 }
 
 /**
+ * True when the backup destination is safe to overwrite via `rename`.
+ *
+ * Clobbering a REGULAR-FILE `.bak` is intended (a prior backup), and an absent
+ * `.bak` is fine. But a DIRECTORY `.bak` makes `rename` throw a raw, unactionable
+ * `EISDIR` (→ exit 1 with `Error: EISDIR`); any other non-regular type is equally
+ * unwriteable. We detect those up front with `lstat` (no symlink follow — a
+ * symlink `.bak` is replaced, not written through, so it stays allowed) and
+ * refuse cleanly instead. Returns false (with an actionable message emitted) when
+ * the path exists and is not a regular file.
+ *
+ * @param bakPath - The `state.json.bak` destination path.
+ * @returns True if the rename may proceed; false if it must be refused.
+ */
+async function backupDestinationIsWriteable(bakPath: string): Promise<boolean> {
+  let st;
+  try {
+    st = await lstat(bakPath);
+  } catch {
+    return true; // absent → safe to create
+  }
+  if (st.isFile()) return true; // a prior backup → intended clobber
+  output.status(
+    "!",
+    output.warn(
+      `cannot back up: ${STATE_FILE}.bak exists and is not a regular file; remove it and retry`,
+    ),
+  );
+  return false;
+}
+
+/**
  * Back up and remove the confined state file. Resolves the state path UNDER the
  * confined `.llmwiki` dir (so a symlinked parent cannot redirect the rename) and
  * renames the RAW bytes to `state.json.bak` without reading or validating them,
  * so recovery works on a too-new or corrupt state.
+ *
+ * Refuses CLEANLY (exit 1, no crash) when `state.json.bak` exists and is not a
+ * regular file (e.g. a directory), instead of letting `rename` throw a raw
+ * `EISDIR`. The state file is left untouched in that case.
  *
  * @param root - Absolute project root directory.
  * @param confinedDir - The validated `.llmwiki` real directory.
@@ -136,7 +171,12 @@ async function backupStateFile(root: string, confinedDir: string): Promise<void>
     return;
   }
   const confinedState = await confineUnderRoot(statePath, root, { mustExist: false });
-  await rename(confinedState, `${confinedState}.bak`);
+  const bakPath = `${confinedState}.bak`;
+  if (!(await backupDestinationIsWriteable(bakPath))) {
+    process.exitCode = 1; // clean actionable refusal, not a raw EISDIR crash
+    return;
+  }
+  await rename(confinedState, bakPath);
   output.status("✓", output.success(`Reset ${STATE_FILE}. Backup saved to ${STATE_FILE}.bak.`));
 }
 

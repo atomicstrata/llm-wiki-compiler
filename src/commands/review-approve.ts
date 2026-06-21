@@ -11,6 +11,16 @@
  * the lock (TOCTOU guard) — if it disappears between the fast-fail check and
  * lock acquisition (e.g. a concurrent reject ran first), the approval aborts
  * cleanly rather than writing a page from a stale in-memory snapshot.
+ *
+ * ATOMICITY (scope — do not over-promise). Only the PAGE BYTE-WRITE is journalled
+ * and atomic (via the planner/executor batch). The post-write tail —
+ * source-state persist, index/MOC/embeddings refresh, and `deleteCandidate` —
+ * runs under the SAME lock but is NOT part of the journal batch: it is
+ * best-effort and IDEMPOTENT / re-derivable. A crash anywhere in the tail leaves
+ * the page written but the candidate possibly un-cleared; recovery is simply
+ * re-running `approve` (idempotent) or a `refresh` (which re-derives the index,
+ * MOC, embeddings, and source state). The whole operation is NOT a single atomic
+ * transaction; only the page write is.
  */
 
 import path from "path";

@@ -101,6 +101,18 @@ describe("state reset", () => {
     await rm(outside, { recursive: true, force: true });
   });
 
+  it("refuses cleanly when state.json.bak is a directory (no raw EISDIR)", async () => {
+    await seedState(OK_STATE);
+    await mkdir(BAK_PATH(), { recursive: true }); // .bak is a DIRECTORY
+
+    const result = await runCLI(["state", "reset", "--yes"], root);
+
+    expect(result.code).not.toBe(0);
+    expect(result.stdout + result.stderr).not.toMatch(/EISDIR/);
+    expect(result.stdout + result.stderr).toMatch(/not a regular file/i);
+    expect(existsSync(STATE_PATH())).toBe(true); // state untouched
+  });
+
   it("refuses cleanly when the project lock is held by a live holder", async () => {
     await seedState(OK_STATE);
     // A lock naming THIS (live) process PID is not stale, so acquireLock fails.

@@ -4,7 +4,7 @@
  * for wiki pages.
  */
 
-import { writeFile, rename, readFile, mkdir } from "fs/promises";
+import { writeFile, rename, readFile, mkdir, lstat } from "fs/promises";
 import path from "path";
 import yaml from "js-yaml";
 import type {
@@ -128,9 +128,30 @@ export function parseFrontmatterStatus(content: string): {
   return { meta, body: match[2], hasFrontmatterBlock: true, malformedFrontmatter };
 }
 
-/** Atomically write a file (write to .tmp, then rename). */
+/**
+ * Atomically write a file (write to .tmp, then rename).
+ *
+ * Defense against the confine→write race (S3): callers resolve `filePath` with
+ * `confineUnderRoot(..., {mustExist:false})`, which returns a LEXICAL path after
+ * checking the nearest EXISTING ancestor. Between that check and this write, the
+ * final directory can be swapped for a symlink that escapes the project root, so
+ * the rename would land outside root. `atomicWrite` lacks root context, so it
+ * fails CLOSED on the actual escape vector: immediately before writing, it
+ * `lstat`s the parent directory and refuses if it is a SYMLINK. Project writes
+ * always target real directories, so this never rejects a legitimate write; it
+ * matches the wider trust model (a symlinked dir is never trusted).
+ *
+ * @param filePath - Absolute destination path (its parent must be a real dir).
+ * @param content - File contents to write.
+ * @throws If the resolved parent directory is a symlink (confine→write escape).
+ */
 export async function atomicWrite(filePath: string, content: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
+  const dir = path.dirname(filePath);
+  await mkdir(dir, { recursive: true });
+  const dirStat = await lstat(dir);
+  if (dirStat.isSymbolicLink()) {
+    throw new Error(`refusing to write through a symlinked directory: ${dir}`);
+  }
   const tmpPath = filePath + ".tmp";
   await writeFile(tmpPath, content, "utf-8");
   await rename(tmpPath, filePath);

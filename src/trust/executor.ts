@@ -9,6 +9,14 @@
  * already-held review lock. The atomicity contract (and journal replay) is now
  * realized on that live path; other CLP write surfaces are still future work.
  *
+ * ATOMICITY SCOPE (honest boundary). The journal batch covers ONLY the page
+ * byte-writes in the plan. It does NOT extend to a consumer's post-write tail —
+ * e.g. `review approve`'s source-state persist, index/MOC/embeddings refresh, and
+ * candidate deletion run under the same lock but OUTSIDE this batch, and are
+ * best-effort + idempotent/re-derivable rather than journalled. "The approved
+ * batch applies atomically" means the PAGE BYTES, not the whole approve
+ * operation.
+ *
  * {@link applyApprovedMutations} runs the batch behind the project lock and a
  * single-store intent journal:
  *  1. acquire the PID-based project lock (same discipline as compile/review);
