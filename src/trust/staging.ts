@@ -28,16 +28,12 @@ import {
   assertStagedWriteBudget,
   DEFAULT_STAGED_WRITE_PER_CALL,
   DEFAULT_STAGED_WRITE_PER_SESSION,
-  type HeldReasonCode,
   type StagedChange,
 } from "./staged-change.js";
-import { applyApprovedMutations } from "./executor.js";
-import { writeCandidate, readCandidate, deleteCandidate } from "../compiler/candidates.js";
-import type { EntityId, ProfilePack } from "../profile/types.js";
+import { promoteCandidateUnderLock } from "./promote.js";
+import { writeCandidate } from "../compiler/candidates.js";
+import type { ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
-
-/** Decisions under which the planner emitted a live-write mutation. */
-const LIVE_WRITE_DECISIONS: ReadonlySet<TrustDecision> = new Set(["allow", "allow-with-warning"]);
 
 /**
  * Thrown when a caller tries to stage a page under an `entityType` that the
@@ -49,6 +45,24 @@ export class UnknownEntityTypeError extends Error {
   constructor(entityType: string) {
     super(`entity type "${entityType}" is not declared by the profile`);
     this.name = "UnknownEntityTypeError";
+  }
+}
+
+/**
+ * Thrown when staging a page whose typed plan was BLOCKED by the Write Planner
+ * (no live-write mutation — e.g. a non-slug-safe slug like `../evil`, or an
+ * oversized body). Staging fails CLOSED so a blocked/unsafe page NEVER persists
+ * a candidate that a later `review approve` could try to promote: the decision
+ * is surfaced here and nothing is written.
+ */
+export class BlockedStagedWriteError extends Error {
+  /** The non-live-write decision the planner reached for the blocked write. */
+  readonly decision: TrustDecision;
+
+  constructor(entityType: string, slug: string, decision: TrustDecision) {
+    super(`staged page ${entityType}/${slug} blocked by the write planner (${decision}); nothing written`);
+    this.name = "BlockedStagedWriteError";
+    this.decision = decision;
   }
 }
 
@@ -69,24 +83,16 @@ export interface StageEntityPageInput {
 }
 
 /**
- * Build the StagedChange `target` for a page. When the identity is slug-safe the
- * plan minted a typed {@link EntityRef}, which we reuse. When it is NOT slug-safe
- * the plan is empty (blocked) and no id was minted — we still return a typed-shape
- * target so {@link StagedChange.target} is total, casting the raw `type/slug`
- * (this target is never promoted: a blocked plan re-blocks on promotion).
+ * Build the StagedChange `target` for a page from the live mutation the planner
+ * emitted. Staging only persists a candidate for a live-write plan (a blocked
+ * plan throws {@link BlockedStagedWriteError} before this runs), so the planned
+ * mutation always carries a minted typed {@link EntityRef}.
  */
-function buildPageTarget(entityType: string, slug: string, plan: PlanResult): EntityRef {
+function buildPageTarget(plan: PlanResult): EntityRef {
   const live = plan.planned[0]?.target;
   if (live && "id" in live) return live;
-  return { entityType, slug, id: `${entityType}/${slug}` as EntityId };
-}
-
-/**
- * Why the change was held. A non-live-write decision is a real trust block;
- * otherwise the entity write is routed for review by policy in this slice.
- */
-function heldReasonsFor(decision: TrustDecision): HeldReasonCode[] {
-  return LIVE_WRITE_DECISIONS.has(decision) ? ["manual-review-requested"] : ["trust-blocked"];
+  // Unreachable: stageEntityPage throws on an empty plan before building a target.
+  throw new Error("internal: staged plan has no live mutation target");
 }
 
 /**
@@ -96,6 +102,9 @@ function heldReasonsFor(decision: TrustDecision): HeldReasonCode[] {
  * not), so an overflow or an unknown type writes nothing. It then plans the
  * write through the typed planner, captures it as a {@link StagedChange}, and
  * persists it as a typed candidate carrying `targetEntityType` + `trustDecision`.
+ * If the typed plan is BLOCKED (no live-write mutation — e.g. a non-slug-safe
+ * slug or an oversized body), it throws {@link BlockedStagedWriteError} and
+ * persists NOTHING, so a blocked write never lands an un-promotable candidate.
  *
  * Volume bound: the PER-CALL cap (requested vs {@link DEFAULT_STAGED_WRITE_PER_CALL})
  * is self-contained and self-enforced here. The PER-SESSION cap, however, is
@@ -108,6 +117,7 @@ function heldReasonsFor(decision: TrustDecision): HeldReasonCode[] {
  * @returns The persisted {@link StagedChange}.
  * @throws {StagedWriteOverflowError} When the staged-write volume bound is hit.
  * @throws {UnknownEntityTypeError} When `entityType` is not declared by the profile.
+ * @throws {BlockedStagedWriteError} When the typed plan is blocked (no live write).
  */
 export async function stageEntityPage(
   root: string,
@@ -129,6 +139,9 @@ export async function stageEntityPage(
     reviewRouted: true,
     allowOverwrite: false,
   });
+  if (plan.planned.length === 0) {
+    throw new BlockedStagedWriteError(input.entityType, input.slug, plan.decision);
+  }
   const candidate = await writeCandidate(root, {
     title: input.slug,
     slug: input.slug,
@@ -141,45 +154,30 @@ export async function stageEntityPage(
   return {
     id: candidate.id,
     kind: "page",
-    target: buildPageTarget(input.entityType, input.slug, plan),
-    operation: plan.planned[0]?.operation ?? "create",
+    target: buildPageTarget(plan),
+    operation: plan.planned[0]!.operation,
     planned: plan.planned,
-    heldReasons: heldReasonsFor(plan.decision),
+    heldReasons: ["manual-review-requested"],
     trustDecision: plan.decision,
     createdAt: (input.now ? input.now() : new Date()).toISOString(),
   };
 }
 
 /**
- * Promote a staged entity page candidate into the live wiki. Re-reads the typed
- * candidate, RE-PLANS the write (`allowOverwrite:true`, `origin:"review"`) so the
- * mandatory floor + path confinement re-run, applies it through the executor so
- * the page lands at `wiki/<entityType>/<slug>.md`, and clears the candidate.
- *
- * If the candidate is missing/untyped, or the re-plan blocks (empty plan), it
- * throws and the candidate is RETAINED — nothing partial ever lands.
+ * Promote a staged entity page candidate into the live wiki by delegating to the
+ * shared {@link promoteCandidateUnderLock} routine — the SAME under-lock read →
+ * validate-profile → re-plan → apply → delete sequence `review approve` uses for
+ * its typed branch (DRY). Holding ONE lock across read+apply+delete closes the
+ * concurrent-reject race, and re-validating the candidate's `targetEntityType`
+ * against the freshly-loaded profile refuses a type the profile no longer
+ * declares — the page lands at `wiki/<entityType>/<slug>.md` or nothing does.
  *
  * @param root - Absolute project root.
  * @param candidateId - The staged candidate's id.
- * @throws {Error} When the candidate is missing, untyped, or its re-plan blocks.
+ * @throws {Error} When the candidate is missing or untyped.
+ * @throws {CandidateProfileError} When the profile no longer declares the type.
+ * @throws {CandidatePromotionBlockedError} When the re-plan blocks (empty plan).
  */
 export async function promoteStagedEntityPage(root: string, candidateId: string): Promise<void> {
-  const candidate = await readCandidate(root, candidateId);
-  if (!candidate) throw new Error(`staged candidate not found: ${candidateId}`);
-  const entityType = candidate.targetEntityType;
-  if (!entityType) throw new Error(`candidate ${candidateId} is not a typed entity page`);
-  const { planned } = await planPageMutation({
-    root,
-    entityType,
-    slug: candidate.slug,
-    body: candidate.body,
-    origin: "review",
-    reviewRouted: false,
-    allowOverwrite: true,
-  });
-  if (planned.length === 0) {
-    throw new Error(`staged candidate ${candidateId} blocked by the write planner; retained`);
-  }
-  await applyApprovedMutations(root, planned);
-  await deleteCandidate(root, candidateId);
+  await promoteCandidateUnderLock(root, candidateId);
 }

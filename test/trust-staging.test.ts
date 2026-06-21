@@ -24,6 +24,7 @@ import {
   stageEntityPage,
   promoteStagedEntityPage,
   UnknownEntityTypeError,
+  BlockedStagedWriteError,
 } from "../src/trust/staging.js";
 import {
   DEFAULT_STAGED_WRITE_PER_SESSION,
@@ -33,8 +34,11 @@ import { writeCandidate, listCandidates } from "../src/compiler/candidates.js";
 import { buildResearchLiteProject, RESEARCH_LITE_PROFILE } from "./fixtures/profile-fixtures.js";
 
 let root = "";
-const SLUG = "attention-is-all-you-need";
-const BODY = "---\ntitle: Attention Is All You Need\n---\n\n# Attention\n\nStaged body.\n";
+// A FRESH slug not pre-seeded by buildResearchLiteProject, so the typed plan is
+// a live `create` (a seeded slug would collide under allowOverwrite:false and
+// route to stage-for-review — a blocked plan that now writes no candidate).
+const SLUG = "linear-attention";
+const BODY = "---\ntitle: Linear Attention\n---\n\n# Attention\n\nStaged body.\n";
 
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "trust-staging-"));
@@ -113,18 +117,19 @@ describe("non-default entity page staging", () => {
     expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
   });
 
-  it("blocks a non-slug-safe identity without writing an escaping path", async () => {
-    const staged = await stageEntityPage(root, {
-      entityType: "papers",
-      slug: "../evil",
-      body: BODY,
-      profile: RESEARCH_LITE_PROFILE,
-      existingStagedCount: 0,
-    });
+  it("blocks a non-slug-safe identity, writing NO candidate and no escaping path", async () => {
+    await expect(
+      stageEntityPage(root, {
+        entityType: "papers",
+        slug: "../evil",
+        body: BODY,
+        profile: RESEARCH_LITE_PROFILE,
+        existingStagedCount: 0,
+      }),
+    ).rejects.toBeInstanceOf(BlockedStagedWriteError);
 
-    expect(staged.planned).toHaveLength(0);
-    expect(staged.heldReasons).toContain("trust-blocked");
     expect(existsSync(path.join(root, "wiki/evil.md"))).toBe(false);
+    expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
   });
 
   it("keeps the DEFAULT candidate JSON clean of typed keys (parity guard)", async () => {

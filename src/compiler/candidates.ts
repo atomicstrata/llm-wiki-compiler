@@ -16,6 +16,7 @@ import { unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
+import { isSafeFilenameComponent } from "../profile/identity.js";
 import { atomicWrite, safeReadFile } from "../utils/markdown.js";
 import {
   listCandidateFileIds,
@@ -118,20 +119,52 @@ const VALID_TRUST_DECISIONS: TrustDecision[] = [
   "deny",
 ];
 
+/**
+ * Thrown when a candidate id or slug is not a single safe path component, so a
+ * traversal-bearing value (e.g. `../evil`) can never be joined into a candidate
+ * file path that escapes `.llmwiki/candidates/`. Default slugs from `slugify`
+ * are already filename-safe, so this never fires on the default path.
+ */
+export class UnsafeCandidateIdError extends Error {
+  constructor(kind: "id" | "slug", value: string) {
+    super(`unsafe candidate ${kind}: ${JSON.stringify(value)} is not a single safe path component`);
+    this.name = "UnsafeCandidateIdError";
+  }
+}
+
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
 function buildCandidateId(slug: string): string {
   const suffix = randomBytes(ID_SUFFIX_BYTES).toString("hex");
   return `${slug}-${suffix}`;
 }
 
+/**
+ * Resolve a candidate file path under `dir`, asserting `id` is a single safe
+ * filename component AND that the joined path stays lexically confined under the
+ * candidates directory. Defense in depth: a safe id (the default case) yields a
+ * byte-identical path to `path.join`, so default parity is preserved; an unsafe
+ * id (traversal) throws {@link UnsafeCandidateIdError} before any I/O.
+ * @param root - Project root directory.
+ * @param dir - Candidates subdir (pending or archive) relative to root.
+ * @param id - Candidate id to embed as the filename stem.
+ */
+function resolveCandidatePath(root: string, dir: string, id: string): string {
+  if (!isSafeFilenameComponent(id)) throw new UnsafeCandidateIdError("id", id);
+  const base = path.join(root, dir);
+  const filePath = path.join(base, `${id}${CANDIDATE_EXT}`);
+  const prefix = base.endsWith(path.sep) ? base : base + path.sep;
+  if (!filePath.startsWith(prefix)) throw new UnsafeCandidateIdError("id", id);
+  return filePath;
+}
+
 /** Absolute path to a candidate's JSON file. */
 function candidatePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_DIR, `${id}${CANDIDATE_EXT}`);
+  return resolveCandidatePath(root, CANDIDATES_DIR, id);
 }
 
 /** Absolute path to the archived JSON file for a rejected candidate. */
 function archivePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_EXT}`);
+  return resolveCandidatePath(root, CANDIDATES_ARCHIVE_DIR, id);
 }
 
 /**
@@ -149,6 +182,7 @@ export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
+  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
   const { canonicalId, duplicateIds } = await findSlugDuplicates(root, draft.slug);
   const candidate: ReviewCandidate = {
     id: canonicalId ?? buildCandidateId(draft.slug),

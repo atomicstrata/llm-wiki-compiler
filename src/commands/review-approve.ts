@@ -17,6 +17,11 @@ import path from "path";
 import { validateWikiPage } from "../utils/markdown.js";
 import { planDefaultPageMutation } from "../trust/planner.js";
 import { applyApprovedMutationsLocked } from "../trust/executor.js";
+import {
+  applyTypedCandidate,
+  CandidateProfileError,
+  CandidatePromotionBlockedError,
+} from "../trust/promote.js";
 import { deleteCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
@@ -50,10 +55,8 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
     return;
   }
 
-  if (!(await routeApprovedPageWrite(root, candidate, id))) return;
-
-  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
-  const pagePath = path.join(root, dir, `${candidate.slug}.md`);
+  const pagePath = await routeApprovedPageWrite(root, candidate, id);
+  if (!pagePath) return;
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
   await persistCandidateSourceStates(root, candidate);
@@ -64,22 +67,61 @@ async function approveUnderLock(root: string, id: string): Promise<void> {
 
 /**
  * Route the candidate's page write through the write planner/executor (CLP
- * Invariant 4) instead of a direct file write, preserving byte-for-byte parity:
- * the planner derives the SAME `wiki/<dir>/<slug>.md` absolute path and the
- * executor writes the candidate body verbatim under the ALREADY-HELD review lock
- * (so no nested-lock deadlock), running journal replay to recover any crashed
- * batch on this path.
+ * Invariant 4) and return the ABSOLUTE page path it landed at, or `null` on a
+ * refusal (exit code 1, candidate retained, nothing written).
  *
- * `allowOverwrite` is true so re-approving an existing page upserts via `update`
- * rather than colliding. Returns true when the write landed; on a blocked plan
- * (the mandatory floor refused, e.g. an oversized body) it surfaces an approval
- * FAILURE — exit code 1, candidate retained, nothing written — and returns false.
+ * A candidate carrying `targetEntityType` (staged via the typed planner) routes
+ * through {@link applyTypedCandidate} so it lands at `wiki/<entityType>/<slug>.md`
+ * — NOT silently in concepts. A candidate without a typed target keeps the
+ * EXISTING default concepts/queries path byte-for-byte. Both run under the
+ * ALREADY-HELD review lock (no nested-lock deadlock).
  */
 async function routeApprovedPageWrite(
   root: string,
   candidate: ReviewCandidate,
   id: string,
-): Promise<boolean> {
+): Promise<string | null> {
+  if (candidate.targetEntityType) {
+    return routeTypedPageWrite(root, candidate, id);
+  }
+  return routeDefaultPageWrite(root, candidate, id);
+}
+
+/**
+ * Route a TYPED candidate through the profile-validated typed planner. Refuses
+ * (exit 1, candidate retained) when the project has no profile, the type is no
+ * longer declared, or the re-plan blocks — never a silent fall back to concepts.
+ * Returns the absolute `wiki/<entityType>/<slug>.md` path on success.
+ */
+async function routeTypedPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<string | null> {
+  try {
+    const relPath = await applyTypedCandidate(root, candidate);
+    return path.join(root, relPath);
+  } catch (err) {
+    if (err instanceof CandidateProfileError || err instanceof CandidatePromotionBlockedError) {
+      output.status("!", output.error(`Candidate ${id} not approved: ${err.message}`));
+      process.exitCode = 1;
+      return null;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Route a DEFAULT candidate (no typed target) through the concepts/queries
+ * planner exactly as before, preserving byte-for-byte parity. `allowOverwrite`
+ * is true so re-approving upserts via `update`. Returns the absolute
+ * `wiki/<dir>/<slug>.md` path on success, or `null` on a blocked plan.
+ */
+async function routeDefaultPageWrite(
+  root: string,
+  candidate: ReviewCandidate,
+  id: string,
+): Promise<string | null> {
   const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
   const { planned } = await planDefaultPageMutation({
     root,
@@ -93,10 +135,11 @@ async function routeApprovedPageWrite(
   if (planned.length === 0) {
     output.status("!", output.error(`Candidate ${id} blocked by the write planner; not approved.`));
     process.exitCode = 1;
-    return false;
+    return null;
   }
   await applyApprovedMutationsLocked(root, planned);
-  return true;
+  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
+  return path.join(root, dir, `${candidate.slug}.md`);
 }
 
 /**
