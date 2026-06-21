@@ -17,12 +17,17 @@
  *      semantics, the schema, or source ownership are included — see
  *      {@link lintEntityPageContent}.
  *
- * Every finding carries the offending page/dir's `entityType` so callers can
- * group diagnostics by entity type.
+ *   3. The relation store is surfaced via {@link checkRelationStore}: dangling
+ *      endpoints, a tolerated torn line, and a fail-closed corrupt/too-new read.
+ *
+ * Every entity-page finding carries the offending page/dir's `entityType` so
+ * callers can group diagnostics by entity type; store-level relation findings
+ * are not page-scoped and carry none.
  */
 
 import { collectEntityPages, type EntityProblem, type EntityProblemKind } from "./collect.js";
 import { checkPageEmpty, checkPageMalformedCitations } from "../linter/rules.js";
+import { checkRelationStore } from "./relation-lint.js";
 import { lifecycleStateSet } from "./lifecycle.js";
 import type { ProfilePack, EntityPage, LifecycleDef } from "./types.js";
 import type { LintResult } from "../linter/types.js";
@@ -127,5 +132,6 @@ export async function lintProfileEntities(
     results.push(...lintEntityPageContent(page));
     results.push(...checkLifecycleStates(page, profile.entities[page.entityType]?.lifecycle));
   }
+  results.push(...(await checkRelationStore(root, pages)));
   return results;
 }

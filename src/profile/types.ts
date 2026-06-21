@@ -226,8 +226,18 @@ export function toEntityPageView(page: EntityPage, includeBody: boolean): Entity
  * @experimental Shape may change in a future release.
  */
 export interface EntityProblemView {
-  kind: EntityProblemKind;
-  entityType: string;
+  /**
+   * The problem kind. An entity-page/dir collector problem ({@link EntityProblemKind});
+   * `"relation-store"` for a fail-closed relation-store read (corrupt / too-new)
+   * surfaced through the SAME problems channel so a status/viewer envelope never
+   * reports a broken store as silently healthy.
+   */
+  kind: EntityProblemKind | "relation-store";
+  /**
+   * Declared entity type the problem belongs to. ABSENT for a store-level
+   * (`relation-store`) problem, which is not scoped to any entity type.
+   */
+  entityType?: string;
   /** Project-relative offending page path; ABSENT for directory-level problems. Never absolute. */
   path?: string;
   message: string;

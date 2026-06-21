@@ -25,6 +25,7 @@ export type {
   JsonExportDocument,
   ExportJsonOptions,
   JsonExportProfileBlock,
+  RelationView,
 } from "./export/json-export.js";
 
 export {

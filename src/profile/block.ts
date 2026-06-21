@@ -22,6 +22,8 @@ import { profileDigest } from "./digest.js";
 import { toEntityProblemView } from "./types.js";
 import type { EntityPage, EntityProblemView, LoadedProfile } from "./types.js";
 import { safeRealpath } from "../utils/path-confine.js";
+import { readRelations } from "../relations/store-read.js";
+import { RelationStoreCorruptError, RelationStoreTooNewError } from "../relations/types.js";
 
 /**
  * Load the active profile and return it ONLY when it is a non-default profile;
@@ -72,6 +74,17 @@ export interface ProfileSummaryBlock {
    * Present ONLY when there is at least one problem.
    */
   problemTotal?: number;
+  /**
+   * Live relation counts per relation type, present ONLY for a non-default
+   * profile whose `wiki/graph` store holds at least one relation. OMITTED for
+   * the built-in default and for any relation-LESS profile, so the default and
+   * relation-less status/viewer envelopes stay byte-identical. A corrupt /
+   * too-new store does NOT populate this — it surfaces through `problems`
+   * instead (fail-closed, never a silent zero).
+   */
+  relationCounts?: Record<string, number>;
+  /** Total live relation count; present alongside (and equal to the sum of) `relationCounts`. */
+  relationTotal?: number;
 }
 
 /**
@@ -108,6 +121,48 @@ async function toProblemViews(
 }
 
 /**
+ * The relation-store contribution to the summary block: per-type live counts
+ * (present only when non-empty) and at most one fail-closed read problem.
+ */
+interface RelationSummary {
+  relationCounts?: Record<string, number>;
+  relationTotal?: number;
+  problem?: EntityProblemView;
+}
+
+/** Map a fail-closed relation-store read error to a `relation-store` problem view. */
+function relationReadProblem(error: unknown): EntityProblemView {
+  if (error instanceof RelationStoreTooNewError || error instanceof RelationStoreCorruptError) {
+    return { kind: "relation-store", message: error.message };
+  }
+  throw error; // a non-store error (e.g. a confinement escape) is not ours to swallow
+}
+
+/**
+ * Read the live relation store for a non-default profile and reduce it to the
+ * additive summary contribution: per-type counts (OMITTED when the store is
+ * empty, so a relation-less profile gains no relation fields) and, on a
+ * fail-closed read, a single `relation-store` problem instead of a count.
+ *
+ * @param root - Absolute project root directory.
+ * @param loaded - The loaded non-default profile (its `relations` block gates).
+ * @returns The relation counts/total and/or a fail-closed problem.
+ */
+async function summarizeRelations(root: string, loaded: LoadedProfile): Promise<RelationSummary> {
+  if (loaded.profile.relations === undefined) return {};
+  let relations;
+  try {
+    ({ relations } = await readRelations(root));
+  } catch (error) {
+    return { problem: relationReadProblem(error) };
+  }
+  if (relations.length === 0) return {};
+  const counts: Record<string, number> = {};
+  for (const rel of relations) counts[rel.type] = (counts[rel.type] ?? 0) + 1;
+  return { relationCounts: counts, relationTotal: relations.length };
+}
+
+/**
  * Resolve the active profile and, for a NON-DEFAULT profile only, build the
  * shared summary block (profileId, digest, per-type entity counts, problems).
  *
@@ -122,17 +177,25 @@ async function toProblemViews(
  * @returns The summary block for a non-default profile, or `undefined` for the
  *   built-in default so the caller omits the `profile` key entirely.
  */
+/** Shape the combined problem views into the capped `problems`/`problemTotal` pair (omitted when empty). */
+function problemEnvelope(views: EntityProblemView[]): Pick<ProfileSummaryBlock, "problems" | "problemTotal"> {
+  if (views.length === 0) return {};
+  return { problems: views.slice(0, PROFILE_PROBLEM_CAP), problemTotal: views.length };
+}
+
 export async function collectProfileSummary(
   root: string,
 ): Promise<ProfileSummaryBlock | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
   const { counts, problems } = await collectEntitySummary(root, loaded.profile);
-  const views = await toProblemViews(problems, root);
+  const { relationCounts, relationTotal, problem } = await summarizeRelations(root, loaded);
+  const views = [...(await toProblemViews(problems, root)), ...(problem ? [problem] : [])];
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
     entityCounts: counts,
-    ...(views.length > 0 ? { problems: views.slice(0, PROFILE_PROBLEM_CAP), problemTotal: views.length } : {}),
+    ...problemEnvelope(views),
+    ...(relationCounts ? { relationCounts, relationTotal } : {}),
   };
 }
