@@ -32,6 +32,7 @@ import {
 } from "./staged-change.js";
 import { promoteCandidateUnderLock } from "./promote.js";
 import { writeCandidate } from "../compiler/candidates.js";
+import { loadNonDefaultProfile } from "../profile/block.js";
 import type { ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
 
@@ -180,4 +181,63 @@ export async function stageEntityPage(
  */
 export async function promoteStagedEntityPage(root: string, candidateId: string): Promise<void> {
   await promoteCandidateUnderLock(root, candidateId);
+}
+
+/**
+ * @experimental
+ * Thrown when the SDK staging entry point is called on a project that has NO
+ * non-default profile. Staging targets a typed `wiki/<entityType>/<slug>.md`
+ * path, which only a non-default profile declares — so a default project cannot
+ * stage. Fails CLOSED before any planning or I/O.
+ */
+export class StagingRequiresProfileError extends Error {
+  constructor() {
+    super("staging requires a non-default profile; this project has none");
+    this.name = "StagingRequiresProfileError";
+  }
+}
+
+/**
+ * @experimental
+ * SDK staging input: the entity page to stage WITHOUT the `ProfilePack` — the SDK
+ * loads the active non-default profile itself. `existingStagedCount` is the
+ * caller's per-session bookkeeping (defaults to 0); the per-session cap is the
+ * caller's responsibility, consistent with {@link stageEntityPage}.
+ */
+export interface SdkStageEntityPageInput {
+  /** Profile entity type (the wiki subdirectory), e.g. `"papers"`. */
+  entityType: string;
+  /** Page slug (the filename stem); may be invalid — the planner decides. */
+  slug: string;
+  /** Full markdown body (frontmatter + prose) to stage verbatim. */
+  body: string;
+  /** Staged writes already held this session (for the volume bound). Defaults to 0. */
+  existingStagedCount?: number;
+}
+
+/**
+ * @experimental
+ * SDK entry point for staging a non-default entity page: loads the active
+ * non-default profile INTERNALLY (throwing {@link StagingRequiresProfileError}
+ * when the project has none) and delegates to {@link stageEntityPage}. The caller
+ * never passes a {@link ProfilePack} — the SDK owns it.
+ *
+ * @param root - Absolute project root.
+ * @param input - The entity page to stage (no profile; body caller-provided).
+ * @returns The persisted {@link StagedChange}.
+ * @throws {StagingRequiresProfileError} When the project has no non-default profile.
+ */
+export async function stageEntityPageForProject(
+  root: string,
+  input: SdkStageEntityPageInput,
+): Promise<StagedChange> {
+  const loaded = await loadNonDefaultProfile(root);
+  if (!loaded) throw new StagingRequiresProfileError();
+  return stageEntityPage(root, {
+    entityType: input.entityType,
+    slug: input.slug,
+    body: input.body,
+    profile: loaded.profile,
+    existingStagedCount: input.existingStagedCount ?? 0,
+  });
 }

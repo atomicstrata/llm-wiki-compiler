@@ -12,12 +12,21 @@
  * the raw bytes — so it works even when the state is too-new or corrupt. The backup
  * is a single atomic `rename`, which both copies and removes in one step and
  * overwrites any prior `.bak`.
+ *
+ * SAFETY (mirrors the journal-dir trust boundary). The reset acquires the project
+ * LOCK before touching state, so it can never race a concurrent compile/writeState;
+ * if the lock is held it refuses cleanly rather than forcing. It also CONFINES the
+ * `.llmwiki` dir to the project root's realpath — a symlinked `.llmwiki` (or a
+ * state file whose parent escapes root) fails CLOSED and nothing outside root is
+ * moved or clobbered.
  */
 
-import { rename } from "fs/promises";
+import { rename, realpath } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { STATE_FILE } from "../utils/constants.js";
+import { LLMWIKI_DIR, STATE_FILE } from "../utils/constants.js";
+import { acquireLock, releaseLock } from "../utils/lock.js";
+import { safeRealpath, isInsideDir, confineUnderRoot } from "../utils/path-confine.js";
 import * as output from "../utils/output.js";
 
 /** Options for {@link stateResetCommand}. */
@@ -27,30 +36,102 @@ export interface StateResetOptions {
 }
 
 /**
- * Back up and reset `.llmwiki/state.json`.
+ * Resolve the confined `.llmwiki` directory for `root`, mirroring the journal-dir
+ * trust boundary: its realpath must be a REAL directory that stays inside the
+ * project root's realpath. Returns the confined real dir, or null to FAIL CLOSED
+ * — null when `.llmwiki` is absent (nothing to reset) OR when it exists but is a
+ * symlink/path escaping root (filesystem tampering). An escape is announced.
  *
- * - No state file → reports nothing to do and returns.
- * - Without `--yes` → prints what it would do and how to confirm; changes nothing.
- * - With `--yes` → renames the raw state file to `state.json.bak` (atomic backup +
- *   removal, overwriting any prior `.bak`) without reading or validating it, so the
- *   recovery works on a too-new or corrupt state. Prints the backup path.
+ * @param root - Absolute project root directory.
+ * @returns The confined `.llmwiki` real directory, or null to fail closed.
  */
-export async function stateResetCommand(opts: StateResetOptions = {}): Promise<void> {
-  const statePath = path.join(process.cwd(), STATE_FILE);
-  const backupPath = `${statePath}.bak`;
+async function resolveConfinedLlmwikiDir(root: string): Promise<string | null> {
+  const realDir = await safeRealpath(path.join(root, LLMWIKI_DIR));
+  if (realDir === null) return null; // absent → nothing to reset
+  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  if (!isInsideDir(realDir, realRoot)) {
+    output.status("!", output.warn(`${LLMWIKI_DIR} escapes the project root — refusing to reset (tampering).`));
+    return null;
+  }
+  return realDir;
+}
 
+/**
+ * Dry-run path (no `--yes`): report the no-op when there is no state file, else
+ * print the plan and how to confirm. Changes nothing.
+ *
+ * @param root - Absolute project root directory.
+ */
+function reportResetPlan(root: string): void {
+  if (!existsSync(path.join(root, STATE_FILE))) {
+    output.status("✓", output.success("No state file to reset."));
+    return;
+  }
+  output.status("→", `Will back up ${STATE_FILE} to ${STATE_FILE}.bak and remove it`);
+  output.status("→", "so the next compile starts fresh.");
+  output.status("→", output.dim("Re-run with `--yes` to confirm."));
+}
+
+/**
+ * Confirmed path (`--yes`): acquire the lock (refusing cleanly if held), validate
+ * `.llmwiki` is a real in-root directory, back up the raw state file, and always
+ * release the lock.
+ *
+ * @param root - Absolute project root directory.
+ */
+async function runConfirmedReset(root: string): Promise<void> {
+  const acquired = await acquireLock(root);
+  if (!acquired) {
+    output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
+    return;
+  }
+  try {
+    const confinedDir = await resolveConfinedLlmwikiDir(root);
+    if (confinedDir === null) return; // absent or escaping → nothing safe to reset
+    await backupStateFile(root, confinedDir);
+  } finally {
+    await releaseLock(root);
+  }
+}
+
+/**
+ * Back up and remove the confined state file. Resolves the state path UNDER the
+ * confined `.llmwiki` dir (so a symlinked parent cannot redirect the rename) and
+ * renames the RAW bytes to `state.json.bak` without reading or validating them,
+ * so recovery works on a too-new or corrupt state.
+ *
+ * @param root - Absolute project root directory.
+ * @param confinedDir - The validated `.llmwiki` real directory.
+ */
+async function backupStateFile(root: string, confinedDir: string): Promise<void> {
+  const statePath = path.join(confinedDir, path.basename(STATE_FILE));
   if (!existsSync(statePath)) {
     output.status("✓", output.success("No state file to reset."));
     return;
   }
+  const confinedState = await confineUnderRoot(statePath, root, { mustExist: false });
+  await rename(confinedState, `${confinedState}.bak`);
+  output.status("✓", output.success(`Reset ${STATE_FILE}. Backup saved to ${STATE_FILE}.bak.`));
+}
 
+/**
+ * Back up and reset `.llmwiki/state.json`.
+ *
+ * - No state file → reports nothing to do and returns.
+ * - Without `--yes` → prints what it would do and how to confirm; changes nothing.
+ * - With `--yes` → acquires the project lock (refusing cleanly if another process
+ *   holds it), validates `.llmwiki` is a real in-root directory (failing closed on
+ *   a symlink escaping root), then renames the raw state file to `state.json.bak`
+ *   (atomic backup + removal) without reading or validating it. Prints the backup
+ *   path. The lock is always released.
+ *
+ * @param opts - `{ yes }` — apply the reset when true, else print the plan.
+ */
+export async function stateResetCommand(opts: StateResetOptions = {}): Promise<void> {
+  const root = process.cwd();
   if (!opts.yes) {
-    output.status("→", `Will back up ${STATE_FILE} to ${STATE_FILE}.bak and remove it`);
-    output.status("→", "so the next compile starts fresh.");
-    output.status("→", output.dim("Re-run with `--yes` to confirm."));
+    reportResetPlan(root);
     return;
   }
-
-  await rename(statePath, backupPath);
-  output.status("✓", output.success(`Reset ${STATE_FILE}. Backup saved to ${STATE_FILE}.bak.`));
+  await runConfirmedReset(root);
 }
