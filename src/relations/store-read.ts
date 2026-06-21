@@ -22,7 +22,6 @@
  * remaining on disk for audit.
  */
 
-import { readFile, stat } from "fs/promises";
 import path from "path";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import { parseEntityId, EntityIdError } from "../profile/identity.js";
@@ -32,7 +31,7 @@ import {
   RelationStoreTooNewError,
   RelationStoreCorruptError,
 } from "./types.js";
-import { recordChecksum, resolveGraphDir } from "./store-record.js";
+import { recordChecksum, resolveGraphDir, openStoreFileRead } from "./store-record.js";
 
 /** The outcome of reading the store: live relations plus any tolerated problems. */
 export interface ReadRelationsResult {
@@ -43,27 +42,31 @@ export interface ReadRelationsResult {
 }
 
 /**
- * Read the raw store file bytes, or null when the file is absent. STATs the file
- * FIRST and fails closed ({@link RelationStoreCorruptError}) when it exceeds
- * {@link MAX_RELATION_STORE_BYTES}, so an attacker/sync-controlled multi-GB file
- * is rejected before the whole-file read could exhaust memory.
+ * Read the raw store file bytes, or null when the file is absent. Opens the leaf
+ * through the shared NO-FOLLOW {@link openStoreFileRead} (a symlinked leaf fails
+ * closed; the read never touches the path after open, so nothing can follow a
+ * link to out-of-tree bytes), then `fstat`s the HANDLE and fails closed
+ * ({@link RelationStoreCorruptError}) when it exceeds {@link MAX_RELATION_STORE_BYTES}
+ * — an attacker/sync-controlled multi-GB file is rejected before the whole-file
+ * read could exhaust memory. The handle is always closed in `finally`.
  */
 async function readStoreFile(root: string): Promise<string | null> {
-  const { dir, exists } = await resolveGraphDir(root); // throws on symlink escape
+  const { dir, exists } = await resolveGraphDir(root); // throws on symlink escape (DIR defense)
   if (!exists) return null;
   const file = path.join(dir, path.basename(RELATIONS_FILE));
-  let size: number;
+  const handle = await openStoreFileRead(file); // throws on symlink leaf (LEAF defense)
+  if (handle === null) return null; // dir exists but file does not → no relations yet
   try {
-    size = (await stat(file)).size;
-  } catch {
-    return null; // dir exists but file does not → no relations yet
+    const size = (await handle.stat()).size;
+    if (size > MAX_RELATION_STORE_BYTES) {
+      throw new RelationStoreCorruptError(
+        `store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`,
+      );
+    }
+    return await handle.readFile("utf-8");
+  } finally {
+    await handle.close();
   }
-  if (size > MAX_RELATION_STORE_BYTES) {
-    throw new RelationStoreCorruptError(
-      `store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`,
-    );
-  }
-  return readFile(file, "utf-8");
 }
 
 /** Parse and validate the header line, failing closed on an unknown future version. */

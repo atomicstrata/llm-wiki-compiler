@@ -11,49 +11,31 @@
  * closed (regression of the prior leaf-only fix).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, mkdir, symlink, readdir } from "node:fs/promises";
+import { describe, it, expect } from "vitest";
+import { mkdir, symlink, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import os from "node:os";
-import { appendRelation } from "../src/relations/store.js";
-import { readRelations } from "../src/relations/store-read.js";
-import { experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B } from "./fixtures/profile-fixtures.js";
+import { useConfinementRoots } from "./fixtures/confinement-roots.js";
+import { appendTestRelation, expectNormalAppendAndRead } from "./fixtures/relation-confine.js";
 
-/** A non-default profile with a directed `tests` relation. */
-const profile = () => experimentsIdeasProfile({ tests: { from: ["experiments"], to: ["ideas"], direction: "directed" } });
-
-let root = "";
-let outside = "";
-beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), "rel-confine-"));
-  outside = await mkdtemp(path.join(os.tmpdir(), "rel-out-"));
-});
-afterEach(async () => {
-  if (root) await rm(root, { recursive: true, force: true });
-  if (outside) await rm(outside, { recursive: true, force: true });
-});
-
-const append = () => appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: {} });
+const ctx = useConfinementRoots("rel");
+const append = () => appendTestRelation(ctx.root);
 
 describe("relation graph-parent confinement (FIX 1)", () => {
   it("fails closed when `wiki` is a symlinked escape and `wiki/graph` is absent", async () => {
-    await symlink(outside, path.join(root, "wiki")); // wiki -> outside; graph absent
+    await symlink(ctx.outside, path.join(ctx.root, "wiki")); // wiki -> outside; graph absent
     await expect(append()).rejects.toThrow(/escapes project root/);
-    expect(existsSync(path.join(outside, "graph"))).toBe(false);
-    expect(await readdir(outside)).toEqual([]); // nothing written outside root
+    expect(existsSync(path.join(ctx.outside, "graph"))).toBe(false);
+    expect(await readdir(ctx.outside)).toEqual([]); // nothing written outside root
   });
 
   it("still appends + reads fine on the normal real-directory path", async () => {
-    const ref = await append();
-    const { relations } = await readRelations(root);
-    expect(relations).toHaveLength(1);
-    expect(relations[0].id).toBe(ref.id);
+    await expectNormalAppendAndRead(ctx.root);
   });
 
   it("still fails closed when `wiki/graph` itself is a symlink (prior-fix regression)", async () => {
-    await mkdir(path.join(root, "wiki"), { recursive: true });
-    await symlink(outside, path.join(root, "wiki", "graph"));
+    await mkdir(path.join(ctx.root, "wiki"), { recursive: true });
+    await symlink(ctx.outside, path.join(ctx.root, "wiki", "graph"));
     await expect(append()).rejects.toThrow(/escapes project root|not a directory/);
   });
 });

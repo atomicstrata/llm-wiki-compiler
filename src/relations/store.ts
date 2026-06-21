@@ -38,7 +38,7 @@ import type { CitationRef, RelationRef } from "./types.js";
 import { RelationEndpointError, RelationStoreFullError } from "./types.js";
 import { mintRelationId } from "./ulid.js";
 import { canonicalEndpoints, relationContentHash } from "./digest.js";
-import { headerLine, serializeRecord, resolveGraphDir } from "./store-record.js";
+import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } from "./store-record.js";
 import { readRelations } from "./store-read.js";
 import { validateRelationAttributes, validateRelationEndpoints, validateRelationAgainstProfile } from "./relation-contract.js";
 
@@ -139,16 +139,20 @@ function buildRelationRef(
 
 /**
  * Append one serialized record line to the store under O_APPEND, creating the
- * dir/header. FAILS CLOSED with {@link RelationStoreFullError} (FIX #4) when the
- * append would reach/exceed {@link MAX_RELATION_STORE_BYTES} — the same bound the
- * reader rejects at — so the store can never be driven past the read cap into an
- * unreadable-yet-appendable state. {@link compactRelations} is the escape valve.
+ * dir/header. The leaf is opened through the shared NO-FOLLOW
+ * {@link openStoreFileAppend} (the LEAF defense complementing the
+ * {@link resolveGraphDir} DIR defense): a symlinked `relations.jsonl` fails the
+ * open closed, so the append NEVER lands outside root. FAILS CLOSED with
+ * {@link RelationStoreFullError} (FIX #4) when the append would reach/exceed
+ * {@link MAX_RELATION_STORE_BYTES} — the same bound the reader rejects at — so the
+ * store can never be driven past the read cap into an unreadable-yet-appendable
+ * state. {@link compactRelations} is the escape valve.
  */
 async function appendLine(root: string, ref: RelationRef): Promise<void> {
-  const { dir } = await resolveGraphDir(root); // throws on symlink escape
+  const { dir } = await resolveGraphDir(root); // throws on symlink escape (DIR defense)
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, path.basename(RELATIONS_FILE));
-  const handle = await open(file, "a");
+  const handle = await openStoreFileAppend(file); // throws on symlink leaf (LEAF defense)
   try {
     const existing = (await handle.stat()).size;
     const header = existing === 0 ? headerLine() : "";

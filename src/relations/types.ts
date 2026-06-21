@@ -115,6 +115,20 @@ export class RelationStoreCorruptError extends Error {
   }
 }
 
+/**
+ * Raised when the canonical store FILE leaf (`wiki/graph/relations.jsonl`) is a
+ * SYMLINK or non-regular file. The no-follow open fails closed here (ELOOP / a
+ * non-regular fstat), so a relation append can never land outside the project
+ * root and a read can never return out-of-tree bytes — the LEAF defense that
+ * complements the graph-DIR confinement (both are required).
+ */
+export class RelationStoreSymlinkError extends Error {
+  constructor(message: string) {
+    super(`relation store file leaf rejected: ${message}`);
+    this.name = "RelationStoreSymlinkError";
+  }
+}
+
 /** Raised when a relation's endpoints/attributes violate the relation-type def. */
 export class RelationEndpointError extends Error {
   constructor(message: string) {

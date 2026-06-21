@@ -11,16 +11,29 @@
  * recomputed on read and compared. It detects a flipped byte anywhere in the
  * line independently of the content hash (which a writer could, in principle,
  * have written wrong).
+ *
+ * It also owns the shared NO-FOLLOW open primitive for the canonical store FILE
+ * leaf (`openStoreFileRead`/`openStoreFileAppend`). Both the read and the write
+ * path route through it, so a symlinked `relations.jsonl` leaf can never be
+ * followed to read from / append to an out-of-tree file. This is the LEAF
+ * defense; {@link resolveGraphDir} is the DIR defense — BOTH are required to
+ * confine the store, and routing every open through one primitive means this
+ * symlink-escape class cannot reappear at a new call site.
  */
 
 import { createHash } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
+import type { FileHandle } from "node:fs/promises";
 import canonicalize from "canonicalize";
 import path from "path";
-import { lstat } from "fs/promises";
+import { lstat, open } from "fs/promises";
 import { WIKI_GRAPH_DIR } from "../utils/constants.js";
 import { safeRealpath, isInsideDir, confineUnderRoot } from "../utils/path-confine.js";
 import type { RelationRef, RelationRecord, RelationStoreHeader } from "./types.js";
-import { RELATION_STORE_SCHEMA_VERSION } from "./types.js";
+import { RELATION_STORE_SCHEMA_VERSION, RelationStoreSymlinkError } from "./types.js";
+
+/** Default mode for a freshly-created store file (owner rw, group/other r). */
+const STORE_FILE_MODE = 0o644;
 
 /** Compute the per-record checksum over a relation's content (excludes `checksum`). */
 export function recordChecksum(ref: RelationRef): string {
@@ -84,4 +97,68 @@ export async function resolveGraphDir(root: string): Promise<{ dir: string; exis
     throw new Error(`relation graph directory escapes project root: ${WIKI_GRAPH_DIR}`);
   }
   return { dir: real, exists: true };
+}
+
+/**
+ * Fail closed unless `handle` is a REGULAR file: a FIFO/device/socket at the
+ * leaf is rejected just like a symlink, so the store open never lands on a
+ * surface a record could be diverted through. Closes the handle before throwing.
+ */
+async function assertRegularFile(handle: FileHandle): Promise<void> {
+  const st = await handle.stat();
+  if (!st.isFile()) {
+    await handle.close();
+    throw new RelationStoreSymlinkError("store file is not a regular file");
+  }
+}
+
+/**
+ * Open the canonical store FILE leaf for READING with `O_NOFOLLOW` — a symlinked
+ * leaf fails the open with `ELOOP`, which we fail closed on
+ * ({@link RelationStoreSymlinkError}), so a read never follows the link to
+ * out-of-tree bytes. An ABSENT file (`ENOENT`) returns `null` (caller treats as
+ * empty). After open the HANDLE is `fstat`ed and required to be a regular file.
+ * This is the LEAF defense complementing the {@link resolveGraphDir} DIR defense.
+ *
+ * @param file - The store file path inside the already-confined graph dir.
+ * @returns An open read handle, or `null` when the file is absent.
+ */
+export async function openStoreFileRead(file: string): Promise<FileHandle | null> {
+  let handle: FileHandle;
+  try {
+    handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return null; // absent file → empty store
+    if (code === "ELOOP") throw new RelationStoreSymlinkError("store file is a symlink");
+    throw err;
+  }
+  await assertRegularFile(handle);
+  return handle;
+}
+
+/**
+ * Open the canonical store FILE leaf for APPEND with `O_NOFOLLOW` (creating it if
+ * absent, mode {@link STORE_FILE_MODE}) — a symlinked leaf fails the open with
+ * `ELOOP`, which we fail closed on ({@link RelationStoreSymlinkError}), so the
+ * append NEVER lands on an out-of-tree file. After open the HANDLE is `fstat`ed
+ * and required to be a regular file. The LEAF defense complementing the
+ * {@link resolveGraphDir} DIR defense.
+ *
+ * @param file - The store file path inside the already-confined graph dir.
+ * @returns An open append handle to a confirmed regular file.
+ */
+export async function openStoreFileAppend(file: string): Promise<FileHandle> {
+  const flags = fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_WRONLY | fsConstants.O_NOFOLLOW;
+  let handle: FileHandle;
+  try {
+    handle = await open(file, flags, STORE_FILE_MODE);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ELOOP") {
+      throw new RelationStoreSymlinkError("store file is a symlink");
+    }
+    throw err;
+  }
+  await assertRegularFile(handle);
+  return handle;
 }
