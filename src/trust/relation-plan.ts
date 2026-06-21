@@ -20,6 +20,7 @@
 
 import { composeTrustDecision, type TrustDecision, type TrustCheckResult } from "./decision.js";
 import { parseEntityId, EntityIdError } from "../profile/identity.js";
+import { validateRelationAttributes } from "../relations/relation-contract.js";
 import type { ProfilePack, RelationTypeDef } from "../profile/types.js";
 import type { AppendRelationInput } from "../relations/store.js";
 
@@ -76,16 +77,17 @@ function checkEndpoint(
 }
 
 /**
- * Check every required attribute of the relation type is present in the proposed
- * relation's attributes — the planner counterpart to the store's
- * `assertRequiredAttributes`. A missing required attribute yields a `block`.
+ * Check the proposed relation's attributes satisfy the relation-type def's
+ * declared contract — required-attribute PRESENCE AND each declared attribute's
+ * type/enum/min/max (the SAME field contract entity fields enforce, via
+ * {@link validateRelationAttributes}) — the planner counterpart to the store's
+ * `assertAttributesValid`. Any violation yields a `block`.
  */
-function checkRequiredAttributes(def: RelationTypeDef, input: AppendRelationInput): TrustCheckResult {
-  const code = "relation-required-attribute";
-  const attributes = input.attributes ?? {};
-  const missing = (def.requiredAttributes ?? []).filter((name) => !(name in attributes));
-  if (missing.length === 0) return pass(code, "all required relation attributes are present");
-  return block(code, `relation '${input.type}' is missing required attribute(s): ${missing.join(", ")}`);
+function checkAttributes(def: RelationTypeDef, input: AppendRelationInput): TrustCheckResult {
+  const code = "relation-attribute-contract";
+  const violations = validateRelationAttributes(def, input.attributes ?? {});
+  if (violations.length === 0) return pass(code, "relation attributes satisfy the declared contract");
+  return block(code, `relation '${input.type}' has invalid attributes: ${violations.join(" ")}`);
 }
 
 /**
@@ -101,7 +103,7 @@ function runMandatoryRelationChecks(profile: ProfilePack, input: AppendRelationI
     typeCheck,
     checkEndpoint(input.from, def.from, "from", input.type),
     checkEndpoint(input.to, def.to, "to", input.type),
-    checkRequiredAttributes(def, input),
+    checkAttributes(def, input),
   ];
 }
 

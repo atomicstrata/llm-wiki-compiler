@@ -132,6 +132,6 @@ export async function lintProfileEntities(
     results.push(...lintEntityPageContent(page));
     results.push(...checkLifecycleStates(page, profile.entities[page.entityType]?.lifecycle));
   }
-  results.push(...(await checkRelationStore(root, pages)));
+  results.push(...(await checkRelationStore(root, pages, profile)));
   return results;
 }

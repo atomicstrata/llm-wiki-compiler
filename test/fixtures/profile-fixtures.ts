@@ -39,6 +39,29 @@ export const SAMPLE_PROFILE: ProfilePack = {
   },
 };
 
+/** Stock `experiments` endpoint EntityId for the in-memory relation fixtures. */
+export const EXPERIMENT_A = "experiments/a" as EntityId;
+/** Stock `ideas` endpoint EntityId for the in-memory relation fixtures. */
+export const IDEA_B = "ideas/b" as EntityId;
+
+/**
+ * Build an in-memory NON-DEFAULT profile with `experiments` + `ideas` entity
+ * types and a caller-supplied `relations` block. Shared by the relation
+ * write-path / contract / confinement tests so they declare ONE entity shape and
+ * vary only the relation definitions under test.
+ *
+ * @param relations - The `relations` block to attach.
+ * @returns A complete {@link ProfilePack}.
+ */
+export function experimentsIdeasProfile(relations: ProfilePack["relations"]): ProfilePack {
+  return {
+    schemaVersion: 1,
+    profileId: "research",
+    entities: { experiments: { directory: "wiki/experiments" }, ideas: { directory: "wiki/ideas" } },
+    relations,
+  };
+}
+
 /** Write a profile.json into the project's `.llmwiki/` dir. */
 export async function writeProfileFile(root: string, pack: ProfilePack): Promise<void> {
   await mkdir(path.join(root, path.dirname(PROFILE_FILE)), { recursive: true });

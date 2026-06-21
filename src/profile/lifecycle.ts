@@ -131,12 +131,14 @@ function isEvidencePresent(value: unknown): boolean {
  * (empty when the write obeys the FSM). The runtime counterpart to load-time
  * {@link validateLifecycle}.
  *
- * The `next` state is read from `frontmatter[lifecycle.field]`. When absent the
- * write is exempt (the lifecycle field is optional). When present it must be a
- * declared state; a change from a defined `prev` must follow a legal out-edge (a
- * create is not a transition); and any evidence the target state requires must be
- * present. Pure and total — no I/O, never throws, carries no path/entity-type
- * context.
+ * The `next` state is read from `frontmatter[lifecycle.field]`. When absent on a
+ * never-enrolled page (no `prev`) the write is exempt (the lifecycle field is
+ * optional on create); removing it from an ALREADY-ENROLLED page (a defined
+ * `prev`) is REJECTED, since deleting the field would otherwise bypass the
+ * illegal-transition + required-evidence gates. When present it must be a declared
+ * state; a change from a defined `prev` must follow a legal out-edge (a create is
+ * not a transition); and any evidence the target state requires must be present.
+ * Pure and total — no I/O, never throws, carries no path/entity-type context.
  *
  * @param lifecycle - The resolved lifecycle definition to validate against.
  * @param prev - The page's previous on-disk lifecycle-field value, or `undefined`
@@ -153,7 +155,17 @@ export function validateLifecycleTransition(
 ): string[] {
   const problems: string[] = [];
   const states = lifecycleStateSet(lifecycle);
-  if (!checkStateDeclared(next, states, problems)) return problems;
+  if (!checkStateDeclared(next, states, problems)) {
+    // An absent `next` is exempt ONLY on a never-enrolled page (no `prev`).
+    // Removing the field from an ALREADY-ENROLLED page would bypass the
+    // illegal-transition + required-evidence gates, so it is rejected.
+    if (next === undefined && prev !== undefined) {
+      problems.push(
+        `lifecycle field ${JSON.stringify(lifecycle.field)} cannot be removed from an enrolled page (was ${JSON.stringify(prev)})`,
+      );
+    }
+    return problems;
+  }
   checkTransitionEdge(lifecycle, prev, next, problems);
   checkRequiredEvidence(lifecycle, next, frontmatter, problems);
   return problems;

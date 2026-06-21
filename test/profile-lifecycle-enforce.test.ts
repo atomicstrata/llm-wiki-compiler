@@ -56,6 +56,19 @@ async function stageIdeaCandidate(body: string): Promise<string> {
 }
 
 /**
+ * Assert promoting `body` for the seeded `ideas` page is REFUSED with a
+ * {@link LifecycleTransitionError} and the on-disk page still carries
+ * `status: <retained>` (unchanged). Shared by the illegal-transition and
+ * field-deletion refusal tests.
+ */
+async function expectPromoteRefused(body: string, retained: string): Promise<void> {
+  await expect(
+    applyTypedCandidate(root, { slug: IDEA, body, targetEntityType: "ideas" } as never),
+  ).rejects.toBeInstanceOf(LifecycleTransitionError);
+  expect(await readFile(path.join(root, "wiki/ideas", `${IDEA}.md`), "utf8")).toContain(`status: ${retained}`);
+}
+
+/**
  * Run a CLI command `fn` with `dir` as the cwd, console silenced, and
  * `process.exitCode` reset before/after — restoring everything in `finally`.
  * Shared so the chdir+mock boilerplate is not duplicated across tests.
@@ -83,10 +96,7 @@ describe("runtime lifecycle enforcement — transition on promote", () => {
   });
 
   it("refuses an illegal transition proposed → validated, leaving the page unchanged", async () => {
-    await expect(
-      applyTypedCandidate(root, { slug: IDEA, body: "---\nstatus: validated\n---\n\nSkip.\n", targetEntityType: "ideas" } as never),
-    ).rejects.toBeInstanceOf(LifecycleTransitionError);
-    expect(await readFile(path.join(root, "wiki/ideas", `${IDEA}.md`), "utf8")).toContain("status: proposed");
+    await expectPromoteRefused("---\nstatus: validated\n---\n\nSkip.\n", "proposed");
   });
 
   it("review approve refuses an illegal transition (exit 1, candidate retained)", async () => {
@@ -149,16 +159,45 @@ describe("runtime lifecycle enforcement — required evidence", () => {
   });
 
   it("refuses entering `failed` without the required `failureReason` evidence", async () => {
-    await expect(
-      applyTypedCandidate(root, { slug: IDEA, body: "---\nstatus: failed\n---\n\nNo reason.\n", targetEntityType: "ideas" } as never),
-    ).rejects.toBeInstanceOf(LifecycleTransitionError);
-    expect(await readFile(path.join(root, "wiki/ideas", `${IDEA}.md`), "utf8")).toContain("status: tested");
+    await expectPromoteRefused("---\nstatus: failed\n---\n\nNo reason.\n", "tested");
   });
 
   it("allows entering `failed` when the required evidence is present", async () => {
     const body = "---\nstatus: failed\nfailureReason: out of compute\n---\n\nDone.\n";
     const rel = await applyTypedCandidate(root, { slug: IDEA, body, targetEntityType: "ideas" } as never);
     expect(await readFile(path.join(root, rel), "utf8")).toContain("status: failed");
+  });
+});
+
+/**
+ * A profile whose `ideas` lifecycle field is OPTIONAL (no `requiredFields`, not
+ * enum-constrained), so a body with NO `status` reaches the lifecycle gate rather
+ * than the field-contract gate — isolating the lifecycle-DELETION check (FIX 3).
+ */
+const OPTIONAL_STATUS_PROFILE = {
+  ...RESEARCH_LITE_PROFILE,
+  entities: {
+    ...RESEARCH_LITE_PROFILE.entities,
+    ideas: { directory: "wiki/ideas", lifecycle: RESEARCH_LITE_PROFILE.entities.ideas.lifecycle },
+  },
+};
+
+describe("runtime lifecycle enforcement — field deletion (FIX 3)", () => {
+  beforeEach(async () => {
+    await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(OPTIONAL_STATUS_PROFILE), "utf8");
+    await writeMarkdownPage(root, "wiki/ideas", IDEA, "---\nstatus: proposed\n---\n\nEnrolled.\n");
+  });
+
+  it("refuses removing the lifecycle field from an enrolled page", async () => {
+    await expectPromoteRefused("---\ntitle: No State\n---\n\nDropped.\n", "proposed");
+  });
+
+  it("allows creating a NEW page with no lifecycle field (no prev)", async () => {
+    const staged = await stageEntityPage(root, {
+      entityType: "ideas", slug: "stateless-new", body: "---\ntitle: Fresh\n---\n\nNo state yet.\n",
+      profile: OPTIONAL_STATUS_PROFILE, existingStagedCount: 0,
+    });
+    expect(staged).toMatchObject({ kind: "page" });
   });
 });
 

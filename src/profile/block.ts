@@ -23,7 +23,9 @@ import { toEntityProblemView } from "./types.js";
 import type { EntityPage, EntityProblemView, LoadedProfile } from "./types.js";
 import { safeRealpath } from "../utils/path-confine.js";
 import { readRelations } from "../relations/store-read.js";
+import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError } from "../relations/types.js";
+import type { RelationRef } from "../relations/types.js";
 
 /**
  * Load the active profile and return it ONLY when it is a non-default profile;
@@ -138,18 +140,51 @@ function relationReadProblem(error: unknown): EntityProblemView {
   throw error; // a non-store error (e.g. a confinement escape) is not ours to swallow
 }
 
+/** A `relation-store` problem reporting the count of profile-invalid stored relations. */
+function relationProfileInvalidProblem(count: number): EntityProblemView {
+  return {
+    kind: "relation-store",
+    message: `${count} stored relation(s) are no longer valid against the current profile (retained, not counted as live)`,
+  };
+}
+
+/**
+ * Tally per-type counts over only the relations STILL VALID against the current
+ * profile; relations whose type/endpoints/attributes the profile has outgrown are
+ * excluded from the live counts and surfaced as a single `relation-store` problem.
+ */
+function tallyValidRelations(relations: RelationRef[], loaded: LoadedProfile): RelationSummary {
+  const counts: Record<string, number> = {};
+  let valid = 0;
+  let invalid = 0;
+  for (const rel of relations) {
+    if (validateRelationAgainstProfile(rel, loaded.profile).length > 0) { invalid += 1; continue; }
+    counts[rel.type] = (counts[rel.type] ?? 0) + 1;
+    valid += 1;
+  }
+  const problem = invalid > 0 ? relationProfileInvalidProblem(invalid) : undefined;
+  if (valid === 0) return { ...(problem ? { problem } : {}) };
+  return { relationCounts: counts, relationTotal: valid, ...(problem ? { problem } : {}) };
+}
+
 /**
  * Read the live relation store for a non-default profile and reduce it to the
- * additive summary contribution: per-type counts (OMITTED when the store is
- * empty, so a relation-less profile gains no relation fields) and, on a
- * fail-closed read, a single `relation-store` problem instead of a count.
+ * additive summary contribution: per-type counts of relations STILL VALID against
+ * the current profile (OMITTED when none are, so a relation-less or fully-stale
+ * profile gains no count fields), and a single `relation-store` problem on a
+ * fail-closed read OR when stored relations are no longer profile-valid (the
+ * invalid ones are retained on disk, never counted as live).
  *
  * @param root - Absolute project root directory.
  * @param loaded - The loaded non-default profile (its `relations` block gates).
- * @returns The relation counts/total and/or a fail-closed problem.
+ * @returns The valid relation counts/total and/or a problem.
  */
 async function summarizeRelations(root: string, loaded: LoadedProfile): Promise<RelationSummary> {
-  if (loaded.profile.relations === undefined) return {};
+  // The store is read even when the profile declares NO `relations` block: a
+  // relation-less project has no `wiki/graph` store, so the read returns empty
+  // (→ `{}`, byte-identical), but a project whose `relations` block was REMOVED
+  // while records remain on disk must still surface them as profile-invalid
+  // rather than silently vanishing.
   let relations;
   try {
     ({ relations } = await readRelations(root));
@@ -157,9 +192,7 @@ async function summarizeRelations(root: string, loaded: LoadedProfile): Promise<
     return { problem: relationReadProblem(error) };
   }
   if (relations.length === 0) return {};
-  const counts: Record<string, number> = {};
-  for (const rel of relations) counts[rel.type] = (counts[rel.type] ?? 0) + 1;
-  return { relationCounts: counts, relationTotal: relations.length };
+  return tallyValidRelations(relations, loaded);
 }
 
 /**

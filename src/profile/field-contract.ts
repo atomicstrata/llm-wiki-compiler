@@ -131,6 +131,43 @@ function collectFieldValueViolations(
 }
 
 /**
+ * Validate a record of `values` against a set of `fieldDefs`, returning a list of
+ * PATH-FREE violation messages: one per name in `requiredNames` absent from
+ * `values`, plus one per present value that mismatches its declared type / enum /
+ * numeric bound. A value whose key is NOT in `fieldDefs` is ignored (extra values
+ * are allowed) — exactly the entity-field behaviour.
+ *
+ * This is the ONE field-contract core shared by {@link validateEntityFields}
+ * (entity frontmatter) and the relation-attribute validation, so an entity field
+ * and a relation attribute can never be checked against drifting rules (DRY). The
+ * optional `missingMessage` lets each caller phrase its own required-presence
+ * message (frontmatter "field" vs relation "attribute") while sharing the
+ * type/enum/min/max logic verbatim.
+ *
+ * @param values - The record of named values to validate (frontmatter / attributes).
+ * @param fieldDefs - The declared field definitions, keyed by name.
+ * @param requiredNames - Names that MUST be present in `values`.
+ * @param missingMessage - Optional formatter for a missing required name's message.
+ * @returns Zero or more PATH-FREE field-violation messages.
+ */
+export function validateFieldsAgainstDefs(
+  values: Record<string, unknown>,
+  fieldDefs: Record<string, FieldDef>,
+  requiredNames: Iterable<string>,
+  missingMessage: (name: string) => string = (name) =>
+    `Required field ${JSON.stringify(name)} is missing from frontmatter.`,
+): string[] {
+  const violations: string[] = [];
+  for (const field of requiredNames) {
+    if (!(field in values)) violations.push(missingMessage(field));
+  }
+  for (const [name, fieldDef] of Object.entries(fieldDefs)) {
+    collectFieldValueViolations(name, fieldDef, values[name], violations);
+  }
+  return violations;
+}
+
+/**
  * Validate a page's parsed frontmatter against its entity type's declared field
  * contract, returning a list of PATH-FREE violation messages (empty when the page
  * satisfies the contract). One message per missing required field, plus one per
@@ -138,7 +175,8 @@ function collectFieldValueViolations(
  *
  * A field is required when it appears in `def.requiredFields` OR carries
  * `FieldDef.required === true` (the union, de-duplicated). Pure and total — no
- * I/O, never throws, carries no path/entity-type context.
+ * I/O, never throws, carries no path/entity-type context. Delegates to the shared
+ * {@link validateFieldsAgainstDefs} core.
  *
  * @param frontmatter - The page's parsed frontmatter record.
  * @param def - The resolved entity type definition to validate against.
@@ -148,14 +186,5 @@ export function validateEntityFields(
   frontmatter: Record<string, unknown>,
   def: EntityTypeDef,
 ): string[] {
-  const violations: string[] = [];
-  for (const field of requiredFieldNames(def)) {
-    if (!(field in frontmatter)) {
-      violations.push(`Required field ${JSON.stringify(field)} is missing from frontmatter.`);
-    }
-  }
-  for (const [name, fieldDef] of Object.entries(def.fields ?? {})) {
-    collectFieldValueViolations(name, fieldDef, frontmatter[name], violations);
-  }
-  return violations;
+  return validateFieldsAgainstDefs(frontmatter, def.fields ?? {}, requiredFieldNames(def));
 }

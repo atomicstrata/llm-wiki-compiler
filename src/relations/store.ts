@@ -31,6 +31,7 @@ import { mintRelationId } from "./ulid.js";
 import { canonicalEndpoints, relationContentHash } from "./digest.js";
 import { headerLine, serializeRecord, resolveGraphDir } from "./store-record.js";
 import { readRelations } from "./store-read.js";
+import { validateRelationAttributes } from "./relation-contract.js";
 
 /** The caller-supplied content of a new relation (id + hash are derived). */
 export interface AppendRelationInput {
@@ -66,12 +67,18 @@ function assertEndpoint(id: EntityId, allowed: string[], side: "from" | "to", ty
   }
 }
 
-/** Assert every required attribute of the relation type is present in `attributes`. */
-function assertRequiredAttributes(def: RelationTypeDef, attributes: Record<string, unknown>, type: string): void {
-  for (const name of def.requiredAttributes ?? []) {
-    if (!(name in attributes)) {
-      throw new RelationEndpointError(`relation '${type}' is missing required attribute '${name}'`);
-    }
+/**
+ * Assert a relation's attributes satisfy the relation-type def's declared
+ * contract — required-attribute PRESENCE AND each declared attribute's
+ * type/enum/min/max (the SAME field contract entity fields enforce, via
+ * {@link validateRelationAttributes}). Any violation fails closed BEFORE any
+ * write, so a relation whose attribute mismatches its declared type is never
+ * appended.
+ */
+function assertAttributesValid(def: RelationTypeDef, attributes: Record<string, unknown>, type: string): void {
+  const violations = validateRelationAttributes(def, attributes);
+  if (violations.length > 0) {
+    throw new RelationEndpointError(`relation '${type}' has invalid attributes: ${violations.join(" ")}`);
   }
 }
 
@@ -106,7 +113,7 @@ function buildRelationRef(
   assertEndpoint(input.from, def.from, "from", input.type);
   assertEndpoint(input.to, def.to, "to", input.type);
   const attributes = input.attributes ?? {};
-  assertRequiredAttributes(def, attributes, input.type);
+  assertAttributesValid(def, attributes, input.type);
   const { from, to } = canonicalEndpoints(input.from, input.to, def.direction);
   const content = { type: input.type, from, to, attributes, evidence: input.evidence };
   const ref: RelationRef = { id: existingId ?? mintRelationId(), ...content, contentHash: relationContentHash(content) };

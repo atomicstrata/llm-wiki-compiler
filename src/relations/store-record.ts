@@ -18,7 +18,7 @@ import canonicalize from "canonicalize";
 import path from "path";
 import { lstat } from "fs/promises";
 import { WIKI_GRAPH_DIR } from "../utils/constants.js";
-import { safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { safeRealpath, isInsideDir, confineUnderRoot } from "../utils/path-confine.js";
 import type { RelationRef, RelationRecord, RelationStoreHeader } from "./types.js";
 import { RELATION_STORE_SCHEMA_VERSION } from "./types.js";
 
@@ -53,6 +53,13 @@ export function headerLine(): string {
  * project) FAILS CLOSED here by throwing. Returns `{ dir, exists }`: `exists`
  * is false when the directory is simply absent (the "no relations" state).
  *
+ * Confinement is layered: the shared {@link confineUnderRoot} primitive (with
+ * `mustExist:false`) realpath-checks the NEAREST EXISTING ANCESTOR of the graph
+ * dir, so even when `wiki/graph` is ABSENT, a symlinked `wiki` (or `root`) that
+ * escapes the project fails closed BEFORE any caller `mkdir`s the dir. When the
+ * leaf exists, the original lstat/realpath check (a symlinked `wiki/graph`)
+ * remains as defense in depth.
+ *
  * @param root - Absolute project root.
  * @returns The confined graph dir and whether it currently exists on disk.
  */
@@ -60,6 +67,9 @@ export async function resolveGraphDir(root: string): Promise<{ dir: string; exis
   const canonicalRoot = await safeRealpath(root);
   const base = canonicalRoot ?? path.resolve(root);
   const dir = path.join(base, WIKI_GRAPH_DIR);
+  // Confine the NEAREST EXISTING ANCESTOR first: a symlinked `wiki` parent (with
+  // `wiki/graph` absent) escaping root throws here, before any caller mkdir.
+  await confineUnderRoot(dir, base, { mustExist: false });
   let st;
   try {
     st = await lstat(dir);
