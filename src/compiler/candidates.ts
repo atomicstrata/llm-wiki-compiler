@@ -274,10 +274,21 @@ export async function readCandidateBySlug(
   return candidates.find((candidate) => candidate.slug === slug) ?? null;
 }
 
-/** Collect every slug currently pending review. */
-export async function listPendingCandidateSlugs(root: string): Promise<Set<string>> {
+/**
+ * Collect the slugs of pending candidates whose approval lands in a
+ * link-resolvable directory (default concepts/queries). Typed candidates
+ * (those carrying `targetEntityType`) are EXCLUDED: typed pages are not part
+ * of the concepts/queries wikilink interlinking system (see
+ * {@link file://./../sdk/types.ts}), so approving one would NOT make a
+ * `[[link]]` resolve. Including their slugs here would wrongly demote a real
+ * broken wikilink to an info-level "awaiting review" — hiding a link that
+ * stays broken after approval.
+ */
+export async function listLinkResolvablePendingSlugs(root: string): Promise<Set<string>> {
   const candidates = await listCandidates(root);
-  return new Set(candidates.map((candidate) => candidate.slug));
+  return new Set(
+    candidates.filter((candidate) => !candidate.targetEntityType).map((candidate) => candidate.slug),
+  );
 }
 
 /**

@@ -117,4 +117,18 @@ describe("generateIndex (non-default profile)", () => {
     expect(index).toContain("[[alpha|Alpha]]");
     expect(index).toContain("## Papers");
   });
+
+  it("counts typed pages in the footer total", async () => {
+    // research-lite seeds 5 typed pages (2 papers + 2 ideas + 1 experiment).
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("5 pages");
+  });
+
+  it("counts typed pages alongside concepts in the total", async () => {
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha", summary: "A concept" }, "Body of Alpha.");
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("6 pages"); // 5 typed + 1 concept
+  });
 });

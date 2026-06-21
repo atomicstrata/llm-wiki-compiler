@@ -33,7 +33,7 @@ import {
 } from "../schema/index.js";
 import { computeFreshness } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
-import { listPendingCandidateSlugs } from "../compiler/candidates.js";
+import { listLinkResolvablePendingSlugs } from "../compiler/candidates.js";
 
 /** Minimum body length (in characters) for a page to be considered non-empty. */
 const MIN_BODY_LENGTH = 50;
@@ -119,7 +119,7 @@ function buildPageSlugSet(
 export async function checkBrokenWikilinks(root: string): Promise<LintResult[]> {
   const pages = await collectAllPages(root);
   const existingSlugs = buildPageSlugSet(pages);
-  const pendingSlugs = await listPendingCandidateSlugs(root);
+  const pendingSlugs = await listLinkResolvablePendingSlugs(root);
   const results: LintResult[] = [];
 
   for (const page of pages) {

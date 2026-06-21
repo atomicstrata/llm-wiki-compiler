@@ -111,6 +111,7 @@ async function runConfirmedReset(root: string): Promise<void> {
   const acquired = await acquireLock(root);
   if (!acquired) {
     output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
+    process.exitCode = 1; // requested reset did NOT happen → non-zero exit (no false success)
     return;
   }
   try {

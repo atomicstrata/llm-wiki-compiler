@@ -42,7 +42,9 @@ export async function generateIndex(root: string): Promise<void> {
   const indexPath = path.join(root, INDEX_FILE);
   await atomicWrite(indexPath, indexContent);
 
-  const total = concepts.length + queries.length;
+  // Typed pages are rendered in the index, so the count must include them too
+  // (empty for a DEFAULT project → unchanged "concepts + queries" total).
+  const total = concepts.length + queries.length + entityPages.length;
   output.status("+", output.success(`Index updated with ${total} pages.`));
 }
 
@@ -147,7 +149,9 @@ function buildIndexContent(
 
   lines.push(...buildEntitySections(entityPages));
 
-  const total = concepts.length + queries.length;
+  // Footer count mirrors what's rendered: concepts + queries + typed pages.
+  // entityPages is empty for DEFAULT projects, keeping that footer byte-identical.
+  const total = concepts.length + queries.length + entityPages.length;
   lines.push("");
   lines.push(`_${total} pages | Generated ${new Date().toISOString()}_`);
   lines.push("");

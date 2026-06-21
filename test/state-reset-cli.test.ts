@@ -48,6 +48,19 @@ async function resetAndReadBackup(content: unknown): Promise<unknown> {
   return JSON.parse(await readFile(BAK_PATH(), "utf8"));
 }
 
+/**
+ * Run a confirmed `state reset --yes` expected to REFUSE, and assert the
+ * refusal is a non-zero exit whose output matches `messagePattern` and that the
+ * seeded state file is left untouched. Shared by the refusal paths (lock held,
+ * `.bak` is a directory) so each only declares its own message + seed.
+ */
+async function expectRefusedReset(messagePattern: RegExp): Promise<void> {
+  const result = await runCLI(["state", "reset", "--yes"], root);
+  expect(result.code).not.toBe(0); // a refusal is a FAILURE, not a silent no-op
+  expect(result.stdout + result.stderr).toMatch(messagePattern);
+  expect(existsSync(STATE_PATH())).toBe(true); // state untouched
+}
+
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "state-reset-"));
 });
@@ -105,12 +118,9 @@ describe("state reset", () => {
     await seedState(OK_STATE);
     await mkdir(BAK_PATH(), { recursive: true }); // .bak is a DIRECTORY
 
-    const result = await runCLI(["state", "reset", "--yes"], root);
-
-    expect(result.code).not.toBe(0);
-    expect(result.stdout + result.stderr).not.toMatch(/EISDIR/);
-    expect(result.stdout + result.stderr).toMatch(/not a regular file/i);
-    expect(existsSync(STATE_PATH())).toBe(true); // state untouched
+    await expectRefusedReset(/not a regular file/i);
+    const out = await runCLI(["state", "reset", "--yes"], root);
+    expect(out.stdout + out.stderr).not.toMatch(/EISDIR/); // actionable, not a raw errno
   });
 
   it("refuses cleanly when the project lock is held by a live holder", async () => {
@@ -118,11 +128,7 @@ describe("state reset", () => {
     // A lock naming THIS (live) process PID is not stale, so acquireLock fails.
     await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
 
-    const result = await runCLI(["state", "reset", "--yes"], root);
-
-    expect(result.code).toBe(0);
-    expect(result.stdout + result.stderr).toMatch(/another llmwiki process|using this project/i);
-    expect(existsSync(STATE_PATH())).toBe(true); // untouched
-    expect(existsSync(BAK_PATH())).toBe(false);
+    await expectRefusedReset(/another llmwiki process|using this project/i);
+    expect(existsSync(BAK_PATH())).toBe(false); // no backup created on refusal
   });
 });
