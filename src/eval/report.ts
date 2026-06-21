@@ -175,6 +175,37 @@ function formatSourceUtilization(report: EvalReport): string[] {
   return rows;
 }
 
+function formatPageHealthDistribution(report: EvalReport): string[] {
+  const d = report.pageHealthDistribution;
+  if (!d) return [];
+  if (d.perPage.length === 0) {
+    return [line(), line("Page Health:  (no pages)")];
+  }
+  const rows = [
+    line(),
+    line(bold("Page Health:")),
+    line(
+      "  healthy: " + d.distribution.healthy +
+      "  adequate: " + d.distribution.adequate
+    ),
+    line(
+      "  needs_work: " + d.distribution.needs_work +
+      "  broken: " + d.distribution.broken
+    ),
+  ];
+  if (d.worstPages.length > 0) {
+    rows.push(line("  Worst pages:"));
+    for (let i = 0; i < d.worstPages.length; i++) {
+      const p = d.worstPages[i];
+      rows.push(line(dim("    " + p.slug + "  score:" + p.score)));
+      if (p.topIssues.length > 0) {
+        rows.push(line(dim("      " + p.topIssues.join(", "))));
+      }
+    }
+  }
+  return rows;
+}
+
 function formatStats(report: EvalReport): string[] {
   const s = report.stats;
   return [
@@ -206,6 +237,7 @@ export function formatTerminalReport(report: EvalReport): string {
     ...formatCoverage(report, delta),
     ...formatSourceUtilization(report),
     ...formatCitationDepth(report),
+    ...formatPageHealthDistribution(report),
     ...formatSupport(report, delta),
     ...formatStats(report),
     ...formatViolations(report.thresholdViolations),

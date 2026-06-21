@@ -22,6 +22,7 @@ import {
 } from "../linter/rules.js";
 import { loadSchema } from "../schema/loader.js";
 import { countCandidates } from "../compiler/candidates.js";
+import { lint } from "../linter/index.js";
 import type { LintResult } from "../linter/types.js";
 import type { HealthResult, HealthRuleResult } from "./types.js";
 
@@ -38,7 +39,7 @@ const ERROR_RULES = new Set([
 ]);
 
 /** Compute the point deduction for a single lint result. */
-function deductionFor(result: LintResult): number {
+export function deductionFor(result: LintResult): number {
   if (result.rule === "pending-target") return 0;
   if (ERROR_RULES.has(result.rule)) return ERROR_DEDUCTION;
   if (result.rule === "contradicted-page") return CONTRADICTED_DEDUCTION;
@@ -71,23 +72,20 @@ function aggregateRules(results: LintResult[]): HealthRuleResult[] {
  * health score plus per-rule breakdown.
  * @param root - Absolute path to the project root.
  */
-export async function evaluateHealth(root: string): Promise<HealthResult> {
-  const schema = await loadSchema(root);
+/**
+ * Run all lint rules via the canonical linter orchestrator and return
+ * flat results. Delegates to lint() so the rule list stays in sync with
+ * llmwiki lint — no manual list to maintain. Used by evaluateHealth and
+ * by page-health-distribution so both see the same diagnostics.
+ */
+export async function runAllLintRules(root: string): Promise<LintResult[]> {
+  const summary = await lint(root);
+  return summary.results;
+}
 
+export async function evaluateHealth(root: string): Promise<HealthResult> {
   const [allResults, pendingReviews] = await Promise.all([
-    Promise.all([
-      checkBrokenWikilinks(root),
-      checkBrokenCitations(root),
-      checkMalformedClaimCitations(root),
-      checkOrphanedPages(root),
-      checkMissingSummaries(root),
-      checkDuplicateConcepts(root),
-      checkEmptyPages(root),
-      checkLowConfidencePages(root),
-      checkContradictedPages(root),
-      checkInferredWithoutCitations(root),
-      checkSchemaCrossLinks(root, schema),
-    ]).then((results) => results.flat()),
+    runAllLintRules(root),
     countCandidates(root).catch(() => 0),
   ]);
 
