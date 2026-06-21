@@ -44,17 +44,16 @@ export default async function reviewApproveCommand(id: string): Promise<void> {
  *
  * Re-reads the candidate under the lock so that a concurrent reject that ran
  * between the pre-lock fast-fail and lock acquisition is detected. Aborts with
- * exit code 1 if the candidate has disappeared or fails page validation.
+ * exit code 1 if the candidate has disappeared. Page-body validation is routed
+ * per target: DEFAULT candidates are gated by the title-requiring
+ * {@link validateWikiPage} (in {@link routeDefaultPageWrite}); TYPED candidates
+ * skip it and instead rely on {@link applyTypedCandidate}'s profile-aware
+ * field-contract validation, since non-default entity types need not require a
+ * `title`.
  */
 async function approveUnderLock(root: string, id: string): Promise<void> {
   const candidate = await readCandidateUnderLock(root, id);
   if (!candidate) return;
-
-  if (!validateWikiPage(candidate.body)) {
-    output.status("!", output.error(`Candidate ${id} failed page validation; not approved.`));
-    process.exitCode = 1;
-    return;
-  }
 
   const pagePath = await routeApprovedPageWrite(root, candidate, id);
   if (!pagePath) return;
@@ -119,15 +118,23 @@ async function routeTypedPageWrite(
 
 /**
  * Route a DEFAULT candidate (no typed target) through the concepts/queries
- * planner exactly as before, preserving byte-for-byte parity. `allowOverwrite`
- * is true so re-approving upserts via `update`. Returns the absolute
- * `wiki/<dir>/<slug>.md` path on success, or `null` on a blocked plan.
+ * planner exactly as before, preserving byte-for-byte parity. The
+ * title-requiring {@link validateWikiPage} gate runs HERE — only for default
+ * candidates — so a body that fails it is refused with the SAME message and exit
+ * code 1 as before. `allowOverwrite` is true so re-approving upserts via
+ * `update`. Returns the absolute `wiki/<dir>/<slug>.md` path on success, or
+ * `null` on a failed validation / blocked plan.
  */
 async function routeDefaultPageWrite(
   root: string,
   candidate: ReviewCandidate,
   id: string,
 ): Promise<string | null> {
+  if (!validateWikiPage(candidate.body)) {
+    output.status("!", output.error(`Candidate ${id} failed page validation; not approved.`));
+    process.exitCode = 1;
+    return null;
+  }
   const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
   const { planned } = await planDefaultPageMutation({
     root,
