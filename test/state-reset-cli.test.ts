@@ -94,6 +94,7 @@ describe("state reset", () => {
 
     const result = await runCLI(["state", "reset", "--yes"], root);
 
+    expect(result.code).not.toBe(0); // a confinement refusal is a FAILURE, not a no-op
     expect(result.stdout + result.stderr).toMatch(/escapes the project root/);
     expect(existsSync(outsideState)).toBe(true); // not moved
     expect(existsSync(`${outsideState}.bak`)).toBe(false); // not clobbered

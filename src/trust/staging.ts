@@ -33,8 +33,41 @@ import {
 import { promoteCandidateUnderLock } from "./promote.js";
 import { writeCandidate } from "../compiler/candidates.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
+import {
+  validateEntityFields,
+  EntityFieldContractError,
+} from "../profile/field-contract.js";
+import { parseFrontmatter } from "../utils/markdown.js";
 import type { ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
+
+export { EntityFieldContractError } from "../profile/field-contract.js";
+
+/**
+ * Validate a staged page body's frontmatter against its entity type's declared
+ * field contract via the SHARED {@link validateEntityFields} (the same validator
+ * the read-surface collector uses), throwing {@link EntityFieldContractError} —
+ * before any planning or I/O — when the contract is violated, so a contract-
+ * violating typed page never persists a candidate. A clean body is a no-op.
+ *
+ * @param entityType - The (already type-checked) profile entity type.
+ * @param slug - The page slug (for the error message only).
+ * @param body - The full markdown body whose frontmatter is validated.
+ * @param profile - The profile whose entity definition supplies the contract.
+ * @throws {EntityFieldContractError} When the frontmatter violates the contract.
+ */
+function assertFieldContract(
+  entityType: string,
+  slug: string,
+  body: string,
+  profile: ProfilePack,
+): void {
+  const { meta } = parseFrontmatter(body);
+  const violations = validateEntityFields(meta, profile.entities[entityType]!);
+  if (violations.length > 0) {
+    throw new EntityFieldContractError(entityType, slug, violations);
+  }
+}
 
 /**
  * Thrown when a caller tries to stage a page under an `entityType` that the
@@ -100,7 +133,10 @@ function buildPageTarget(plan: PlanResult): EntityRef {
  * Stage a NON-DEFAULT entity page for review. Fails CLOSED before any I/O: it
  * first enforces the staged-write volume bound, then verifies `input.entityType`
  * is declared by `input.profile` (throwing {@link UnknownEntityTypeError} if
- * not), so an overflow or an unknown type writes nothing. It then plans the
+ * not), then validates the body's frontmatter against the entity type's declared
+ * FIELD contract (throwing {@link EntityFieldContractError} on a missing required
+ * field / enum / range violation), so an overflow, an unknown type, or a contract
+ * violation writes nothing. It then plans the
  * write through the typed planner, captures it as a {@link StagedChange}, and
  * persists it as a typed candidate carrying `targetEntityType` + `trustDecision`.
  * If the typed plan is BLOCKED (no live-write mutation — e.g. a non-slug-safe
@@ -118,6 +154,7 @@ function buildPageTarget(plan: PlanResult): EntityRef {
  * @returns The persisted {@link StagedChange}.
  * @throws {StagedWriteOverflowError} When the staged-write volume bound is hit.
  * @throws {UnknownEntityTypeError} When `entityType` is not declared by the profile.
+ * @throws {EntityFieldContractError} When the body's frontmatter violates the profile field contract.
  * @throws {BlockedStagedWriteError} When the typed plan is blocked (no live write).
  */
 export async function stageEntityPage(
@@ -131,6 +168,7 @@ export async function stageEntityPage(
   if (!(input.entityType in input.profile.entities)) {
     throw new UnknownEntityTypeError(input.entityType);
   }
+  assertFieldContract(input.entityType, input.slug, input.body, input.profile);
   const plan = await planPageMutation({
     root,
     entityType: input.entityType,

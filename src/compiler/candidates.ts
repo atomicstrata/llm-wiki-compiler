@@ -22,6 +22,10 @@ import {
   listCandidateFileIds,
   moveCandidateToArchive,
 } from "../utils/candidate-store.js";
+import {
+  confinedCandidateFilePath,
+  resolveConfinedCandidatesDir,
+} from "./candidate-store-paths.js";
 import * as output from "../utils/output.js";
 import {
   CANDIDATES_DIR,
@@ -34,9 +38,6 @@ import type { TrustDecision } from "../trust/decision.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
 const ID_SUFFIX_BYTES = 4;
-
-/** Filesystem extension used for candidate JSON files. */
-const CANDIDATE_EXT = ".json";
 
 /** Input shape for creating a new candidate (id + timestamp generated here). */
 interface CandidateDraft {
@@ -138,32 +139,34 @@ function buildCandidateId(slug: string): string {
   return `${slug}-${suffix}`;
 }
 
+/** Build the typed unsafe-id error for a candidate file id. */
+function unsafeCandidateId(id: string): Error {
+  return new UnsafeCandidateIdError("id", id);
+}
+
 /**
  * Resolve a candidate file path under `dir`, asserting `id` is a single safe
- * filename component AND that the joined path stays lexically confined under the
- * candidates directory. Defense in depth: a safe id (the default case) yields a
- * byte-identical path to `path.join`, so default parity is preserved; an unsafe
- * id (traversal) throws {@link UnsafeCandidateIdError} before any I/O.
+ * filename component AND REALPATH-confining the result under the project root via
+ * {@link confinedCandidateFilePath}. Defense in depth: a safe id under a NORMAL
+ * (real) candidates dir yields a byte-identical path to `path.join`, so default
+ * parity is preserved; an unsafe id throws {@link UnsafeCandidateIdError}, and a
+ * symlinked containing dir escaping root throws {@link UnsafeCandidateDirError} —
+ * both before any I/O.
  * @param root - Project root directory.
  * @param dir - Candidates subdir (pending or archive) relative to root.
  * @param id - Candidate id to embed as the filename stem.
  */
-function resolveCandidatePath(root: string, dir: string, id: string): string {
-  if (!isSafeFilenameComponent(id)) throw new UnsafeCandidateIdError("id", id);
-  const base = path.join(root, dir);
-  const filePath = path.join(base, `${id}${CANDIDATE_EXT}`);
-  const prefix = base.endsWith(path.sep) ? base : base + path.sep;
-  if (!filePath.startsWith(prefix)) throw new UnsafeCandidateIdError("id", id);
-  return filePath;
+function resolveCandidatePath(root: string, dir: string, id: string): Promise<string> {
+  return confinedCandidateFilePath(root, dir, id, unsafeCandidateId);
 }
 
-/** Absolute path to a candidate's JSON file. */
-function candidatePath(root: string, id: string): string {
+/** Absolute confined path to a candidate's JSON file. */
+function candidatePath(root: string, id: string): Promise<string> {
   return resolveCandidatePath(root, CANDIDATES_DIR, id);
 }
 
-/** Absolute path to the archived JSON file for a rejected candidate. */
-function archivePath(root: string, id: string): string {
+/** Absolute confined path to the archived JSON file for a rejected candidate. */
+function archivePath(root: string, id: string): Promise<string> {
   return resolveCandidatePath(root, CANDIDATES_ARCHIVE_DIR, id);
 }
 
@@ -205,7 +208,7 @@ export async function writeCandidate(
     ...(draft.trustDecision ? { trustDecision: draft.trustDecision } : {}),
   };
 
-  await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
+  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
   await deleteDuplicates(root, duplicateIds);
   return candidate;
 }
@@ -313,7 +316,7 @@ export async function readCandidate(
   root: string,
   id: string,
 ): Promise<ReviewCandidate | null> {
-  const raw = await safeReadFile(candidatePath(root, id));
+  const raw = await safeReadFile(await candidatePath(root, id));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as ReviewCandidate;
@@ -457,7 +460,8 @@ function isValidCandidate(value: unknown): value is ReviewCandidate {
  * @returns All pending review candidates.
  */
 export async function listCandidates(root: string): Promise<ReviewCandidate[]> {
-  const dir = path.join(root, CANDIDATES_DIR);
+  const dir = await resolveConfinedCandidatesDir(root, CANDIDATES_DIR);
+  if (dir === null) return []; // absent candidates dir → nothing pending
   const ids = await listCandidateFileIds(dir);
   const candidates: ReviewCandidate[] = [];
   for (const id of ids) {
@@ -482,7 +486,7 @@ export async function countCandidates(root: string): Promise<number> {
 
 /** Remove a pending candidate from disk. Returns false when nothing existed to remove. */
 export async function deleteCandidate(root: string, id: string): Promise<boolean> {
-  const filePath = candidatePath(root, id);
+  const filePath = await candidatePath(root, id);
   if (!existsSync(filePath)) return false;
   await unlink(filePath);
   return true;
@@ -513,5 +517,5 @@ export async function deleteCandidateBySlug(root: string, slug: string): Promise
  * @returns True when the candidate was found and archived.
  */
 export async function archiveCandidate(root: string, id: string): Promise<boolean> {
-  return moveCandidateToArchive(candidatePath(root, id), archivePath(root, id));
+  return moveCandidateToArchive(await candidatePath(root, id), await archivePath(root, id));
 }

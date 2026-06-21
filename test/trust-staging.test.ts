@@ -25,6 +25,7 @@ import {
   promoteStagedEntityPage,
   UnknownEntityTypeError,
   BlockedStagedWriteError,
+  EntityFieldContractError,
 } from "../src/trust/staging.js";
 import {
   DEFAULT_STAGED_WRITE_PER_SESSION,
@@ -129,6 +130,20 @@ describe("non-default entity page staging", () => {
     ).rejects.toBeInstanceOf(BlockedStagedWriteError);
 
     expect(existsSync(path.join(root, "wiki/evil.md"))).toBe(false);
+    expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
+  });
+
+  it("refuses a typed page missing a required field, writing NO candidate", async () => {
+    const noTitle = "---\nvenue: NeurIPS\n---\n\n# Body\n\nNo title field.\n";
+    await expect(
+      stageEntityPage(root, {
+        entityType: "papers",
+        slug: SLUG,
+        body: noTitle,
+        profile: RESEARCH_LITE_PROFILE,
+        existingStagedCount: 0,
+      }),
+    ).rejects.toBeInstanceOf(EntityFieldContractError);
     expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);
   });
 

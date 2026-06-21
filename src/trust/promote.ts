@@ -27,6 +27,12 @@ import { acquireLock, releaseLock } from "../utils/lock.js";
 import { planPageMutation } from "./planner.js";
 import { applyApprovedMutationsLocked } from "./executor.js";
 import { readCandidate, deleteCandidate } from "../compiler/candidates.js";
+import {
+  validateEntityFields,
+  EntityFieldContractError,
+} from "../profile/field-contract.js";
+import { parseFrontmatter } from "../utils/markdown.js";
+import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
 
 /**
@@ -66,6 +72,31 @@ function typedPagePath(entityType: string, slug: string): string {
 }
 
 /**
+ * Validate a typed candidate's body frontmatter against its entity type's
+ * declared field contract via the SHARED {@link validateEntityFields} (the same
+ * validator staging and the read-surface collector use), throwing
+ * {@link EntityFieldContractError} BEFORE the re-plan/apply when the contract is
+ * violated. Promotion then fails CLOSED and the candidate is RETAINED (the caller
+ * deletes only after a successful apply), so a contract-violating page never lands.
+ *
+ * @param entityType - The (already type-checked) profile entity type.
+ * @param candidate - The typed candidate whose body frontmatter is validated.
+ * @param def - The resolved entity type definition supplying the contract.
+ * @throws {EntityFieldContractError} When the frontmatter violates the contract.
+ */
+function assertCandidateFieldContract(
+  entityType: string,
+  candidate: ReviewCandidate,
+  def: EntityTypeDef,
+): void {
+  const { meta } = parseFrontmatter(candidate.body);
+  const violations = validateEntityFields(meta, def);
+  if (violations.length > 0) {
+    throw new EntityFieldContractError(entityType, candidate.slug, violations);
+  }
+}
+
+/**
  * Validate a typed candidate's `targetEntityType` against the active profile and
  * re-plan + apply its write — the LOCK-FREE promotion core. The caller MUST
  * already hold the project lock (so this never nests an acquire). Loads the
@@ -78,6 +109,7 @@ function typedPagePath(entityType: string, slug: string): string {
  * @param candidate - The typed candidate (must carry `targetEntityType`).
  * @returns The `wiki/<entityType>/<slug>.md` path the page was written to.
  * @throws {CandidateProfileError} When no profile declares the type.
+ * @throws {EntityFieldContractError} When the body frontmatter violates the field contract.
  * @throws {CandidatePromotionBlockedError} When the re-plan blocks (empty plan).
  */
 export async function applyTypedCandidate(
@@ -90,6 +122,7 @@ export async function applyTypedCandidate(
   if (!(entityType in loaded.profile.entities)) {
     throw new CandidateProfileError(entityType, "undeclared");
   }
+  assertCandidateFieldContract(entityType, candidate, loaded.profile.entities[entityType]!);
   const { planned } = await planPageMutation({
     root,
     entityType,

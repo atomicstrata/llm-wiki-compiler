@@ -18,7 +18,8 @@
  * if the lock is held it refuses cleanly rather than forcing. It also CONFINES the
  * `.llmwiki` dir to the project root's realpath — a symlinked `.llmwiki` (or a
  * state file whose parent escapes root) fails CLOSED and nothing outside root is
- * moved or clobbered.
+ * moved or clobbered. A confinement refusal is a FAILURE (exit code 1), distinct
+ * from a benign ABSENT `.llmwiki` (nothing to reset → exit 0).
  */
 
 import { rename, realpath } from "fs/promises";
@@ -36,24 +37,40 @@ export interface StateResetOptions {
 }
 
 /**
+ * The outcome of confining the `.llmwiki` directory under the project root:
+ *  - `ok`     — a REAL in-root directory; carries the confined real `dir`.
+ *  - `absent` — no `.llmwiki` directory at all (nothing to reset; a no-op success).
+ *  - `escape` — `.llmwiki` exists but its realpath escapes root (filesystem
+ *               tampering); a confinement REFUSAL, which must exit non-zero.
+ *
+ * Distinguishing `absent` from `escape` is what lets the caller exit 0 for the
+ * benign no-op yet exit 1 for the tampering refusal — collapsing both to `null`
+ * (the prior behavior) made a refusal masquerade as success.
+ */
+type LlmwikiDirResolution =
+  | { kind: "ok"; dir: string }
+  | { kind: "absent" }
+  | { kind: "escape" };
+
+/**
  * Resolve the confined `.llmwiki` directory for `root`, mirroring the journal-dir
  * trust boundary: its realpath must be a REAL directory that stays inside the
- * project root's realpath. Returns the confined real dir, or null to FAIL CLOSED
- * — null when `.llmwiki` is absent (nothing to reset) OR when it exists but is a
- * symlink/path escaping root (filesystem tampering). An escape is announced.
+ * project root's realpath. Returns a tagged {@link LlmwikiDirResolution} so the
+ * caller can tell a benign ABSENT dir (no-op, exit 0) apart from an ESCAPING one
+ * (tampering refusal, exit non-zero). An escape is announced here.
  *
  * @param root - Absolute project root directory.
- * @returns The confined `.llmwiki` real directory, or null to fail closed.
+ * @returns The tagged resolution: `ok` (with the real dir), `absent`, or `escape`.
  */
-async function resolveConfinedLlmwikiDir(root: string): Promise<string | null> {
+async function resolveConfinedLlmwikiDir(root: string): Promise<LlmwikiDirResolution> {
   const realDir = await safeRealpath(path.join(root, LLMWIKI_DIR));
-  if (realDir === null) return null; // absent → nothing to reset
+  if (realDir === null) return { kind: "absent" }; // absent → nothing to reset
   const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
   if (!isInsideDir(realDir, realRoot)) {
     output.status("!", output.warn(`${LLMWIKI_DIR} escapes the project root — refusing to reset (tampering).`));
-    return null;
+    return { kind: "escape" };
   }
-  return realDir;
+  return { kind: "ok", dir: realDir };
 }
 
 /**
@@ -82,15 +99,22 @@ function reportResetPlan(root: string): void {
  * @param root - Absolute project root directory.
  */
 async function runConfirmedReset(root: string): Promise<void> {
-  const confinedDir = await resolveConfinedLlmwikiDir(root);
-  if (confinedDir === null) return; // absent or escaping → nothing safe to reset, no lock created
+  const resolution = await resolveConfinedLlmwikiDir(root);
+  if (resolution.kind === "absent") {
+    output.status("✓", output.success("No state file to reset."));
+    return; // benign no-op → exit 0, no lock created
+  }
+  if (resolution.kind === "escape") {
+    process.exitCode = 1; // confinement refusal is a FAILURE
+    return; // warning already announced, no lock created
+  }
   const acquired = await acquireLock(root);
   if (!acquired) {
     output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
     return;
   }
   try {
-    await backupStateFile(root, confinedDir);
+    await backupStateFile(root, resolution.dir);
   } finally {
     await releaseLock(root);
   }
