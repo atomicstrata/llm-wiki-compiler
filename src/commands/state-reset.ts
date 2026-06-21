@@ -73,21 +73,23 @@ function reportResetPlan(root: string): void {
 }
 
 /**
- * Confirmed path (`--yes`): acquire the lock (refusing cleanly if held), validate
- * `.llmwiki` is a real in-root directory, back up the raw state file, and always
- * release the lock.
+ * Confirmed path (`--yes`): validate `.llmwiki` is a real in-root directory FIRST
+ * (a read-only realpath check) so a symlinked-escaping `.llmwiki` is rejected
+ * before `acquireLock` would itself create a lock file through the symlink; only
+ * then acquire the lock (refusing cleanly if held), back up the raw state file,
+ * and always release the lock.
  *
  * @param root - Absolute project root directory.
  */
 async function runConfirmedReset(root: string): Promise<void> {
+  const confinedDir = await resolveConfinedLlmwikiDir(root);
+  if (confinedDir === null) return; // absent or escaping → nothing safe to reset, no lock created
   const acquired = await acquireLock(root);
   if (!acquired) {
     output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
     return;
   }
   try {
-    const confinedDir = await resolveConfinedLlmwikiDir(root);
-    if (confinedDir === null) return; // absent or escaping → nothing safe to reset
     await backupStateFile(root, confinedDir);
   } finally {
     await releaseLock(root);
