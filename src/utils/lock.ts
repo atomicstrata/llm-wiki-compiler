@@ -30,6 +30,54 @@ import * as output from "./output.js";
 const RECLAIM_SUFFIX = ".reclaim";
 const MAX_ACQUIRE_ATTEMPTS = 2;
 
+/** Default bound a blocking acquire waits before declaring the store busy. */
+const DEFAULT_BLOCKING_TIMEOUT_MS = 5_000;
+/** Default poll interval between blocking-acquire retries. */
+const DEFAULT_BLOCKING_INTERVAL_MS = 25;
+
+/** Options bounding a {@link acquireLockBlocking} retry loop. */
+export interface BlockingLockOptions {
+  /** Total time to keep retrying before throwing (ms). */
+  timeoutMs?: number;
+  /** Delay between retries (ms). */
+  intervalMs?: number;
+}
+
+/** Thrown when a bounded-blocking lock acquire times out without acquiring. */
+export class LockBusyError extends Error {
+  constructor(timeoutMs: number) {
+    super(`relation store busy after ${timeoutMs}ms`);
+    this.name = "LockBusyError";
+  }
+}
+
+/** Resolve after `ms` milliseconds (the poll backoff between acquire retries). */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Acquire the project lock, RETRYING with a short poll until it succeeds or
+ * `timeoutMs` elapses (then throwing {@link LockBusyError}). Unlike the fail-fast
+ * {@link acquireLock} (kept for compile), this serializes legitimate concurrent
+ * relation writers instead of spuriously failing the loser of a race. Each retry
+ * goes through {@link acquireLock}, so stale-lock reclamation still applies.
+ *
+ * @param root - Absolute project root.
+ * @param options - Optional timeout / poll-interval overrides.
+ * @throws {LockBusyError} When the lock stays held past `timeoutMs`.
+ */
+export async function acquireLockBlocking(root: string, options: BlockingLockOptions = {}): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_BLOCKING_TIMEOUT_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_BLOCKING_INTERVAL_MS;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await acquireLock(root)) return;
+    if (Date.now() >= deadline) throw new LockBusyError(timeoutMs);
+    await delay(intervalMs);
+  }
+}
+
 /** Check whether a process with the given PID is still running. */
 function isProcessAlive(pid: number): boolean {
   try {

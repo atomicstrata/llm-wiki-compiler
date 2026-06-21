@@ -3,8 +3,9 @@
  * @description Canonical content hashing for relations. Mirrors
  * `src/profile/digest.ts`: a SHA-256 over the RFC 8785 (JCS) canonicalization
  * of the content fields, so equal content yields an equal hash regardless of
- * key order or whitespace. The hash is the dedup key and the `preconditionHash`
- * a staged edit checks against.
+ * key order or whitespace. The hash is the DEDUP KEY (an append matching a live
+ * relation's hash is an idempotent no-op). An optimistic-concurrency
+ * `preconditionHash` use is reserved for future staged-relation edits.
  *
  * Symmetric-edge canonicalization: for a `symmetric` relation type, the edge
  * (a→b) and (b→a) are the SAME edge, so the endpoints are ordered

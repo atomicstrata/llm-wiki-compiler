@@ -1,26 +1,26 @@
 /**
  * @file src/trust/relation-plan.ts
- * @description The RELATION write planner — the relation-store analogue of the
- * page {@link planPageMutation}. It routes a proposed relation write through ONE
- * planner decision (CLP Invariant 4): it runs the mandatory relation checks
- * (endpoint validity against the profile relation-type def + required attributes)
- * and composes a {@link TrustDecision} via the SAME {@link composeTrustDecision}
- * the page path uses.
+ * @description The RELATION write planner. It runs the mandatory relation checks
+ * (type declared, CANONICAL endpoints valid against the profile relation-type
+ * def, required attributes) and composes a {@link TrustDecision} via the SAME
+ * {@link composeTrustDecision} the page path uses.
  *
- * This DOES NOT touch disk and mints no id — it is a pure decision over the
- * proposed relation. It RE-VALIDATES exactly what the store
- * ({@link appendRelationLocked}) also enforces, so it is defense in depth plus a
- * uniform decision shared by every surface: a relation write that the planner
- * would deny never reaches the store, and the store stays the final fail-closed
- * floor for a hand-built append that bypassed the planner.
+ * This SHARES only the trust DECISION composer with the page path — it is a
+ * separate write path, NOT the page planner/executor/journal. It DOES NOT touch
+ * disk and mints no id — a pure decision over the proposed relation. It
+ * RE-VALIDATES exactly what the store ({@link appendRelationLocked}) also
+ * enforces (canonicalize THEN validate, via the shared
+ * {@link validateRelationEndpoints}), so write and read agree on the same bytes:
+ * a relation the planner would deny never reaches the store, and the store stays
+ * the final fail-closed floor for a hand-built append that bypassed the planner.
  *
  * The relation surface is NOT review-routed, so a `block` composes to `deny`
  * (never `stage-for-review`): relation staging is out of scope for this slice.
  */
 
 import { composeTrustDecision, type TrustDecision, type TrustCheckResult } from "./decision.js";
-import { parseEntityId, EntityIdError } from "../profile/identity.js";
-import { validateRelationAttributes } from "../relations/relation-contract.js";
+import { validateRelationAttributes, validateRelationEndpoints } from "../relations/relation-contract.js";
+import { canonicalEndpoints } from "../relations/digest.js";
 import type { ProfilePack, RelationTypeDef } from "../profile/types.js";
 import type { AppendRelationInput } from "../relations/store.js";
 
@@ -53,27 +53,20 @@ function checkRelationTypeDeclared(profile: ProfilePack, type: string): TrustChe
 }
 
 /**
- * Check one endpoint's entity type is allowed on its side of the relation. A
- * non-`<type>/<slug>` id, or an endpoint whose entity type is outside the def's
- * declared `from`/`to` set, yields a `block` — the planner counterpart to the
- * store's `assertEndpoint`.
+ * Check the relation's CANONICAL endpoints against the def via the SHARED
+ * {@link validateRelationEndpoints} — the planner counterpart to the store's
+ * `assertCanonicalEndpoints`. Endpoints are canonicalized FIRST (FIX #1) so the
+ * planner judges exactly the bytes the store will persist and the read will
+ * re-validate; for a symmetric type each endpoint is checked against
+ * `def.from ∪ def.to`. A non-`<type>/<slug>` id, or a disallowed entity type,
+ * yields a `block`.
  */
-function checkEndpoint(
-  id: string,
-  allowed: string[],
-  side: "from" | "to",
-  type: string,
-): TrustCheckResult {
-  const code = `relation-endpoint-${side}`;
-  let entityType: string;
-  try {
-    ({ entityType } = parseEntityId(id as never));
-  } catch (err) {
-    if (err instanceof EntityIdError) return block(code, `relation '${type}' ${side} endpoint id is invalid: ${id}`);
-    throw err;
-  }
-  if (allowed.includes(entityType)) return pass(code, `relation '${type}' ${side} endpoint type '${entityType}' is allowed`);
-  return block(code, `relation '${type}' ${side} endpoint type '${entityType}' is not allowed`);
+function checkEndpoints(def: RelationTypeDef, input: AppendRelationInput): TrustCheckResult {
+  const code = "relation-endpoint";
+  const { from, to } = canonicalEndpoints(input.from, input.to, def.direction);
+  const reasons = validateRelationEndpoints(def, from, to);
+  if (reasons.length === 0) return pass(code, `relation '${input.type}' endpoints are allowed`);
+  return block(code, `relation '${input.type}' ${reasons.join("; ")}`);
 }
 
 /**
@@ -101,8 +94,7 @@ function runMandatoryRelationChecks(profile: ProfilePack, input: AppendRelationI
   if (!def) return [typeCheck];
   return [
     typeCheck,
-    checkEndpoint(input.from, def.from, "from", input.type),
-    checkEndpoint(input.to, def.to, "to", input.type),
+    checkEndpoints(def, input),
     checkAttributes(def, input),
   ];
 }

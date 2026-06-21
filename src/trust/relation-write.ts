@@ -1,21 +1,21 @@
 /**
  * @file src/trust/relation-write.ts
- * @description The trust-gated RELATION WRITE entry point — the relation analogue
- * of the page executor's planner→apply seam (CLP Invariant 4: a mutation routes
- * through ONE planner decision, then applies under ONE lock).
+ * @description The trust-gated RELATION WRITE entry point — shared by the SDK and CLI.
  *
- * {@link createRelation} is shared by the SDK and CLI. It plans the relation via
- * {@link planRelationMutation}; on any non-live-write decision it throws a typed
- * {@link RelationWriteDeniedError} and writes NOTHING. Only on
- * `allow`/`allow-with-warning` does it acquire the project lock ONCE and append
- * through the lock-free {@link appendRelationLocked}, releasing in `finally`.
+ * Relations use a SEPARATE write path. It SHARES the trust DECISION composer
+ * ({@link composeTrustDecision}, via {@link planRelationMutation}) with the page
+ * path, but it does NOT route through the page planner/executor/journal: relation
+ * writes are NOT journalled and are NOT atomic with page writes. They have their
+ * own append-only durability (a single locked append to `relations.jsonl`).
  *
- * Relations have their OWN append-only durability (PR4) under the lock — they are
- * deliberately NOT routed through the page temp-rename journal, so this path
- * leaves the page executor untouched.
+ * {@link createRelation} plans the relation; on any non-live-write decision it
+ * throws a typed {@link RelationWriteDeniedError} and writes NOTHING. Only on
+ * `allow`/`allow-with-warning` does it take the project lock ONCE (bounded-blocking,
+ * so concurrent writers serialize rather than spuriously fail) and append through
+ * the lock-free {@link appendRelationLocked}, releasing in `finally`.
  */
 
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
 import { appendRelationLocked, type AppendRelationInput } from "../relations/store.js";
 import { planRelationMutation } from "./relation-plan.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
@@ -65,9 +65,7 @@ export async function createRelation(
   if (!LIVE_WRITE_DECISIONS.has(decision)) {
     throw new RelationWriteDeniedError(input.type, decision);
   }
-  if (!(await acquireLock(root))) {
-    throw new Error("could not acquire project lock for relation write");
-  }
+  await acquireLockBlocking(root); // serializes concurrent writers; throws LockBusyError on timeout
   try {
     return await appendRelationLocked(root, profile, input);
   } finally {

@@ -60,6 +60,58 @@ function endpointTypeAllowed(id: EntityId, allowed: string[]): boolean {
 }
 
 /**
+ * Resolve the allowed entity-type set for ONE endpoint of a relation. A
+ * `directed` relation keeps roles distinct (`from` uses `def.from`, `to` uses
+ * `def.to`); a `symmetric` relation has NO inherent from/to, so each endpoint
+ * may be any type in `def.from ∪ def.to`. This is the SINGLE source of truth the
+ * write path (store/planner) and the read re-validation share, so a relation a
+ * write accepts is exactly one a read re-validates — they can never disagree on
+ * the same bytes.
+ *
+ * @param def - The relation-type definition.
+ * @returns The allowed entity types for, respectively, the `from` and `to` sides.
+ */
+function allowedEndpointSets(def: RelationTypeDef): { from: string[]; to: string[] } {
+  if (def.direction === "symmetric") {
+    const union = [...new Set([...def.from, ...def.to])];
+    return { from: union, to: union };
+  }
+  return { from: def.from, to: def.to };
+}
+
+/**
+ * Validate a relation's (already-canonical) endpoints against its relation-type
+ * def, returning PATH-FREE reasons either endpoint is disallowed (empty when both
+ * satisfy the def). For `symmetric` types both endpoints are checked against the
+ * combined `def.from ∪ def.to` set (a symmetric edge has no inherent direction);
+ * for `directed` types `from`/`to` are checked in declared order.
+ *
+ * The SHARED endpoint validator: the store and planner call it on the CANONICAL
+ * endpoints they are about to persist, and {@link validateRelationAgainstProfile}
+ * calls it on the stored canonical endpoints — so write and read AGREE.
+ *
+ * @param def - The relation-type definition.
+ * @param from - The `from` endpoint (in canonical order for symmetric types).
+ * @param to - The `to` endpoint (in canonical order for symmetric types).
+ * @returns Zero or more PATH-FREE disallowed-endpoint messages.
+ */
+export function validateRelationEndpoints(
+  def: RelationTypeDef,
+  from: EntityId,
+  to: EntityId,
+): string[] {
+  const allowed = allowedEndpointSets(def);
+  const reasons: string[] = [];
+  if (!endpointTypeAllowed(from, allowed.from)) {
+    reasons.push(`from endpoint ${from} is not an allowed entity type (expected one of ${allowed.from.join(", ")})`);
+  }
+  if (!endpointTypeAllowed(to, allowed.to)) {
+    reasons.push(`to endpoint ${to} is not an allowed entity type (expected one of ${allowed.to.join(", ")})`);
+  }
+  return reasons;
+}
+
+/**
  * Re-validate a STORED relation against the CURRENT profile, returning the
  * PATH-FREE reasons it is no longer valid (empty when it still satisfies the
  * profile). A relation is invalid when its `type` is no longer declared, an
@@ -77,11 +129,8 @@ export function validateRelationAgainstProfile(ref: RelationRef, profile: Profil
   const def = profile.relations?.[ref.type];
   if (!def) return [`relation type ${JSON.stringify(ref.type)} is no longer declared by the profile`];
   const reasons: string[] = [];
-  if (!endpointTypeAllowed(ref.from, def.from)) {
-    reasons.push(`relation ${ref.id} from endpoint ${ref.from} is no longer an allowed entity type`);
-  }
-  if (!endpointTypeAllowed(ref.to, def.to)) {
-    reasons.push(`relation ${ref.id} to endpoint ${ref.to} is no longer an allowed entity type`);
+  for (const reason of validateRelationEndpoints(def, ref.from, ref.to)) {
+    reasons.push(`relation ${ref.id} ${reason}`);
   }
   reasons.push(...validateRelationAttributes(def, ref.attributes));
   return reasons;

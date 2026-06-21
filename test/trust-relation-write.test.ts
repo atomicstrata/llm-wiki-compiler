@@ -61,6 +61,18 @@ describe("createRelation (planner-gated)", () => {
     await expect(bad).rejects.toBeInstanceOf(RelationWriteDeniedError);
     await expect(readRelations(root)).resolves.toMatchObject({ relations: [] });
   });
+
+  it("plans+writes a symmetric edge in reverse lexical order (planner agrees with the store)", async () => {
+    const symProfile = {
+      ...RESEARCH_LITE_PROFILE,
+      relations: { peers: { from: ["experiments"], to: ["ideas"], direction: "symmetric" } },
+    } as ProfilePack;
+    // ideas/... sorts before experiments/..., so the planner judges the CANONICAL
+    // (swapped) endpoints — a reversed symmetric write is allowed, not denied.
+    const ref = await createRelation(root, symProfile, { type: "peers", from: IDEA, to: EXP });
+    expect(ref.id).toMatch(/^rel_/);
+    expect((await readRelations(root)).relations).toHaveLength(1);
+  });
 });
 
 describe("transitionLifecycle (validated page update)", () => {
