@@ -33,6 +33,7 @@ import {
   CandidatePromotionBlockedError,
 } from "../trust/promote.js";
 import { EntityFieldContractError } from "../profile/field-contract.js";
+import { LifecycleTransitionError } from "../profile/lifecycle.js";
 import { deleteCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
@@ -108,8 +109,9 @@ async function routeApprovedPageWrite(
 /**
  * Route a TYPED candidate through the profile-validated typed planner. Refuses
  * (exit 1, candidate retained) when the project has no profile, the type is no
- * longer declared, the body violates the declared field contract, or the re-plan
- * blocks — never a silent fall back to concepts. Returns the absolute
+ * longer declared, the body violates the declared field contract, the body
+ * performs an illegal lifecycle transition, or the re-plan blocks — never a
+ * silent fall back to concepts. Returns the absolute
  * `wiki/<entityType>/<slug>.md` path on success.
  */
 async function routeTypedPageWrite(
@@ -125,7 +127,8 @@ async function routeTypedPageWrite(
     if (
       err instanceof CandidateProfileError ||
       err instanceof CandidatePromotionBlockedError ||
-      err instanceof EntityFieldContractError
+      err instanceof EntityFieldContractError ||
+      err instanceof LifecycleTransitionError
     ) {
       output.status("!", output.error(`Candidate ${id} not approved: ${err.message}`));
       process.exitCode = 1;

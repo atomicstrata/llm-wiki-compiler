@@ -23,8 +23,12 @@
 
 import { collectEntityPages, type EntityProblem, type EntityProblemKind } from "./collect.js";
 import { checkPageEmpty, checkPageMalformedCitations } from "../linter/rules.js";
-import type { ProfilePack, EntityPage } from "./types.js";
+import { lifecycleStateSet } from "./lifecycle.js";
+import type { ProfilePack, EntityPage, LifecycleDef } from "./types.js";
 import type { LintResult } from "../linter/types.js";
+
+/** Rule id for a typed entity page whose lifecycle-field value is off the FSM. */
+const INVALID_LIFECYCLE_STATE_RULE = "invalid-lifecycle-state";
 
 /** Severity for each problem kind: identity/structure errors, contract warnings. */
 const PROBLEM_SEVERITY: Record<EntityProblemKind, LintResult["severity"]> = {
@@ -77,10 +81,36 @@ function lintEntityPageContent(page: EntityPage): LintResult[] {
 }
 
 /**
+ * Flag a typed entity page whose lifecycle-field value is NOT a declared state of
+ * its entity type's lifecycle as an `invalid-lifecycle-state` warning. An entity
+ * type with no `lifecycle`, or a page whose lifecycle field is absent (the field
+ * is optional), yields no finding — so the default/concepts path (no lifecycle)
+ * stays byte-identical.
+ *
+ * @param page - The collected entity page to check.
+ * @param lifecycle - The entity type's lifecycle, or `undefined` when it has none.
+ * @returns A single-element finding array, or an empty array when on-FSM.
+ */
+function checkLifecycleStates(page: EntityPage, lifecycle?: LifecycleDef): LintResult[] {
+  if (!lifecycle) return [];
+  const value = page.frontmatter[lifecycle.field];
+  if (value === undefined) return [];
+  if (typeof value === "string" && lifecycleStateSet(lifecycle).has(value)) return [];
+  return [{
+    rule: INVALID_LIFECYCLE_STATE_RULE,
+    severity: "warning",
+    file: page.filePath,
+    message: `lifecycle field ${JSON.stringify(lifecycle.field)} value ${JSON.stringify(value)} is not a declared state`,
+    entityType: page.entityType,
+  }];
+}
+
+/**
  * Surface a non-default profile's entity-page issues as `LintResult`s,
  * additively. Collects the profile's entity pages, maps every structured
  * problem to a finding (correct severity per {@link PROBLEM_SEVERITY}), then
- * runs the profile-safe content rules over each collected page.
+ * runs the profile-safe content rules and the lifecycle-state check over each
+ * collected page.
  *
  * @param root - Absolute project root directory.
  * @param profile - A NON-default profile pack (the default profile has no
@@ -95,6 +125,7 @@ export async function lintProfileEntities(
   const results: LintResult[] = problems.map(problemToResult);
   for (const page of pages) {
     results.push(...lintEntityPageContent(page));
+    results.push(...checkLifecycleStates(page, profile.entities[page.entityType]?.lifecycle));
   }
   return results;
 }

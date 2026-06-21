@@ -46,12 +46,18 @@ import {
   validateEntityFields,
   EntityFieldContractError,
 } from "../profile/field-contract.js";
+import {
+  validateLifecycleTransition,
+  LifecycleTransitionError,
+} from "../profile/lifecycle.js";
+import { readPrevLifecycleState } from "../profile/lifecycle-read.js";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { assertBodyWithinResourceLimit } from "./checks.js";
-import type { ProfilePack } from "../profile/types.js";
+import type { EntityTypeDef, ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
 
 export { EntityFieldContractError } from "../profile/field-contract.js";
+export { LifecycleTransitionError } from "../profile/lifecycle.js";
 
 /**
  * Validate a staged page body's frontmatter against its entity type's declared
@@ -82,6 +88,40 @@ function assertFieldContract(
   const violations = validateEntityFields(meta, profile.entities[entityType]!);
   if (violations.length > 0) {
     throw new EntityFieldContractError(entityType, slug, violations);
+  }
+}
+
+/**
+ * Validate a staged page body's lifecycle transition via the SHARED
+ * {@link validateLifecycleTransition} (the runtime counterpart to load-time
+ * `validateLifecycle`), throwing {@link LifecycleTransitionError} — before any
+ * planning or I/O — when the lifecycle field's value names an undeclared state,
+ * performs an illegal transition from the page's existing on-disk state, or omits
+ * required transition evidence. An entity type with NO declared `lifecycle` is a
+ * no-op (skipped). The `prev` state is read from the existing
+ * `wiki/<entityType>/<slug>.md` (path-confined) when one exists, else `undefined`
+ * (a create).
+ *
+ * @param root - Absolute project root (to read the existing page's prev state).
+ * @param entityType - The (already type-checked) profile entity type.
+ * @param slug - The page slug (filename stem + error message).
+ * @param frontmatter - The staged body's parsed frontmatter (next state + evidence).
+ * @param def - The resolved entity type definition supplying the lifecycle.
+ * @throws {LifecycleTransitionError} When the lifecycle transition is illegal.
+ */
+async function assertLifecycleTransition(
+  root: string,
+  entityType: string,
+  slug: string,
+  frontmatter: Record<string, unknown>,
+  def: EntityTypeDef,
+): Promise<void> {
+  const lifecycle = def.lifecycle;
+  if (!lifecycle) return;
+  const prev = await readPrevLifecycleState(root, def, slug, lifecycle.field);
+  const problems = validateLifecycleTransition(lifecycle, prev, frontmatter[lifecycle.field], frontmatter);
+  if (problems.length > 0) {
+    throw new LifecycleTransitionError(entityType, slug, problems);
   }
 }
 
@@ -189,6 +229,14 @@ export async function stageEntityPage(
     throw new UnknownEntityTypeError(input.entityType);
   }
   assertFieldContract(input.entityType, input.slug, input.body, input.profile);
+  const { meta } = parseFrontmatter(input.body);
+  await assertLifecycleTransition(
+    root,
+    input.entityType,
+    input.slug,
+    meta,
+    input.profile.entities[input.entityType]!,
+  );
   const plan = await planPageMutation({
     root,
     entityType: input.entityType,

@@ -31,6 +31,11 @@ import {
   validateEntityFields,
   EntityFieldContractError,
 } from "../profile/field-contract.js";
+import {
+  validateLifecycleTransition,
+  LifecycleTransitionError,
+} from "../profile/lifecycle.js";
+import { readPrevLifecycleState } from "../profile/lifecycle-read.js";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { assertBodyWithinResourceLimit } from "./checks.js";
 import type { EntityTypeDef } from "../profile/types.js";
@@ -104,6 +109,38 @@ function assertCandidateFieldContract(
 }
 
 /**
+ * Validate a typed candidate's lifecycle transition via the SHARED
+ * {@link validateLifecycleTransition} (the runtime counterpart to load-time
+ * `validateLifecycle`), throwing {@link LifecycleTransitionError} BEFORE the
+ * re-plan/apply when the candidate body's lifecycle-field value names an
+ * undeclared state, performs an illegal transition from the on-disk page's
+ * current state, or omits required evidence. An entity type with NO declared
+ * `lifecycle` is a no-op. Promotion then fails CLOSED and the candidate is
+ * RETAINED, so a lifecycle-violating page never lands.
+ *
+ * @param root - Absolute project root (to read the existing page's prev state).
+ * @param entityType - The (already type-checked) profile entity type.
+ * @param candidate - The typed candidate whose body lifecycle is validated.
+ * @param def - The resolved entity type definition supplying the lifecycle.
+ * @throws {LifecycleTransitionError} When the lifecycle transition is illegal.
+ */
+async function assertCandidateLifecycle(
+  root: string,
+  entityType: string,
+  candidate: ReviewCandidate,
+  def: EntityTypeDef,
+): Promise<void> {
+  const lifecycle = def.lifecycle;
+  if (!lifecycle) return;
+  const { meta } = parseFrontmatter(candidate.body);
+  const prev = await readPrevLifecycleState(root, def, candidate.slug, lifecycle.field);
+  const problems = validateLifecycleTransition(lifecycle, prev, meta[lifecycle.field], meta);
+  if (problems.length > 0) {
+    throw new LifecycleTransitionError(entityType, candidate.slug, problems);
+  }
+}
+
+/**
  * Validate a typed candidate's `targetEntityType` against the active profile and
  * re-plan + apply its write — the LOCK-FREE promotion core. The caller MUST
  * already hold the project lock (so this never nests an acquire). Loads the
@@ -117,6 +154,7 @@ function assertCandidateFieldContract(
  * @returns The `wiki/<entityType>/<slug>.md` path the page was written to.
  * @throws {CandidateProfileError} When no profile declares the type.
  * @throws {EntityFieldContractError} When the body frontmatter violates the field contract.
+ * @throws {LifecycleTransitionError} When the body performs an illegal lifecycle transition.
  * @throws {CandidatePromotionBlockedError} When the re-plan blocks (empty plan).
  */
 export async function applyTypedCandidate(
@@ -129,7 +167,9 @@ export async function applyTypedCandidate(
   if (!(entityType in loaded.profile.entities)) {
     throw new CandidateProfileError(entityType, "undeclared");
   }
-  assertCandidateFieldContract(entityType, candidate, loaded.profile.entities[entityType]!);
+  const def = loaded.profile.entities[entityType]!;
+  assertCandidateFieldContract(entityType, candidate, def);
+  await assertCandidateLifecycle(root, entityType, candidate, def);
   const { planned } = await planPageMutation({
     root,
     entityType,
