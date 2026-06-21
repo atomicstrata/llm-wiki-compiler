@@ -63,14 +63,29 @@ export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
 // in interlinking, semantic search/embeddings, the MOC, or the viewer (planned).
 export type { SdkStageEntityPageInput } from "./trust/staging.js";
 export { StagingRequiresProfileError } from "./trust/staging.js";
+// The staged-change RELATION/ARTIFACT targets are Phase-4 STUB shapes named
+// `Staged…` so the canonical relation `RelationRef` (from `relations/types.ts`,
+// below) owns the unprefixed name.
 export type {
   StagedChange,
   CandidateKind,
   HeldReasonCode,
-  RelationRef,
-  ArtifactRef,
   WorkflowRunRef,
+  StagedRelationRef,
+  StagedArtifactRef,
 } from "./trust/staged-change.js";
+
+// @experimental — trust-gated relation writes + lifecycle transitions
+// (planner-routed, shared SDK/CLI). `createWiki().createRelation` /
+// `.transitionLifecycle` expose these; these are the input/return + typed-error
+// types consumers need.
+export type { AppendRelationInput } from "./relations/store.js";
+export type { RelationRef, RelationId, CitationRef } from "./relations/types.js";
+export { RelationEndpointError } from "./relations/types.js";
+export { RelationWriteDeniedError, RelationsRequireProfileError } from "./trust/relation-write.js";
+export type { SdkTransitionLifecycleInput } from "./sdk/types.js";
+export { LifecycleTransitionUnavailableError } from "./trust/lifecycle-transition.js";
+export { LifecycleTransitionError } from "./profile/lifecycle.js";
 // Planner sub-types named by `StagedChange.target` / `.planned` so the staged
 // surface is fully nameable by consumers (the typed `EntityRef` target especially).
 export type {

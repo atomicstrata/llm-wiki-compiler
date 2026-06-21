@@ -18,17 +18,25 @@
  */
 
 import { stageEntityPageForProject, promoteStagedEntityPage } from "../trust/staging.js";
+import { createRelationForProject } from "../trust/relation-write.js";
+import { transitionLifecycle } from "../trust/lifecycle-transition.js";
 import type { Wiki } from "./types.js";
 
-/** The experimental staging methods the `Wiki` facade composes in. */
-export type StagingFacadeSlice = Pick<Wiki, "stageEntityPage" | "promoteStagedPage">;
+/** The experimental non-default methods the `Wiki` facade composes in. */
+export type StagingFacadeSlice = Pick<
+  Wiki,
+  "stageEntityPage" | "promoteStagedPage" | "createRelation" | "transitionLifecycle"
+>;
 
 /**
- * Build the experimental staging slice of the `Wiki` facade bound to `root`.
+ * Build the experimental non-default slice of the `Wiki` facade bound to `root`:
+ * page staging/promotion plus the trust-gated relation-write and lifecycle-
+ * transition APIs. Each loads the active non-default profile INTERNALLY (the
+ * consumer passes no `ProfilePack`) and fails CLOSED on a default project.
  *
  * @param root - Normalized absolute project root.
  * @param runQuiet - The facade's quiet-scoping wrapper (output suppressed).
- * @returns The `stageEntityPage` / `promoteStagedPage` methods.
+ * @returns The experimental non-default Wiki methods.
  */
 export function buildStagingFacade(
   root: string,
@@ -37,5 +45,8 @@ export function buildStagingFacade(
   return {
     stageEntityPage: (input) => runQuiet(() => stageEntityPageForProject(root, input)),
     promoteStagedPage: (candidateId) => runQuiet(() => promoteStagedEntityPage(root, candidateId)),
+    createRelation: (input) => runQuiet(() => createRelationForProject(root, input)),
+    transitionLifecycle: (input) =>
+      runQuiet(() => transitionLifecycle(root, input.entityType, input.slug, input.toState, input.evidence)),
   };
 }

@@ -1,0 +1,111 @@
+/**
+ * @file src/trust/lifecycle-transition.ts
+ * @description The trust-gated LIFECYCLE TRANSITION entry point, shared by the
+ * SDK and CLI.
+ *
+ * A lifecycle transition is NOT a new executor kind — it is a validated PAGE
+ * UPDATE. PR2 already enforces the lifecycle gate ({@link validateLifecycleTransition})
+ * on any typed page write, so {@link transitionLifecycle} is a thin, correctly
+ * gated READ-MODIFY-WRITE: it reads the existing `wiki/<entityType>/<slug>.md`,
+ * sets its lifecycle field to `toState` (merging any required `evidence` into the
+ * frontmatter), and re-writes the page through the EXISTING typed promotion path
+ * ({@link applyTypedCandidate}). That path re-runs the PR2 lifecycle gate, so an
+ * illegal transition (or one missing required evidence) is REFUSED there and the
+ * page is left unchanged — no separate validation is duplicated here.
+ *
+ * Because the write rides the existing page executor + journal, this destabilizes
+ * NOTHING: the page bytes land atomically exactly as a typed promotion does.
+ */
+
+import { loadNonDefaultProfile } from "../profile/block.js";
+import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
+import { parseFrontmatter, buildFrontmatter, safeReadFile } from "../utils/markdown.js";
+import { applyTypedCandidate } from "./promote.js";
+import type { EntityTypeDef } from "../profile/types.js";
+import type { ReviewCandidate } from "../utils/types.js";
+
+/** Optional evidence fields merged into the page frontmatter for the transition. */
+export type LifecycleEvidence = Record<string, unknown>;
+
+/**
+ * Thrown when a lifecycle transition is requested for an entity type that has NO
+ * declared lifecycle, or whose page does not exist. Fails CLOSED before any write
+ * so a transition is only ever attempted against a real, lifecycle-bearing page.
+ */
+export class LifecycleTransitionUnavailableError extends Error {
+  constructor(reason: "no-profile" | "unknown-type" | "no-lifecycle" | "no-page", detail: string) {
+    super(`cannot transition lifecycle: ${detail}`);
+    this.name = "LifecycleTransitionUnavailableError";
+    void reason;
+  }
+}
+
+/** Resolve the entity def, failing closed when the profile/type/lifecycle is absent. */
+async function resolveLifecycleDef(root: string, entityType: string): Promise<EntityTypeDef> {
+  const loaded = await loadNonDefaultProfile(root);
+  if (!loaded) throw new LifecycleTransitionUnavailableError("no-profile", "the project has no non-default profile");
+  const def = loaded.profile.entities[entityType];
+  if (!def) {
+    throw new LifecycleTransitionUnavailableError("unknown-type", `the profile does not declare entity type "${entityType}"`);
+  }
+  if (!def.lifecycle) {
+    throw new LifecycleTransitionUnavailableError("no-lifecycle", `entity type "${entityType}" has no declared lifecycle`);
+  }
+  return def;
+}
+
+/** Read the existing page body (path-confined), failing closed when it is absent. */
+async function readExistingPage(root: string, def: EntityTypeDef, slug: string): Promise<string> {
+  const real = await resolveConfinedEntityPage(root, def, slug);
+  if (real === null) {
+    throw new LifecycleTransitionUnavailableError("no-page", `no page at ${def.directory}/${slug}.md to transition`);
+  }
+  return safeReadFile(real);
+}
+
+/**
+ * Build the new page body for the transition: parse the existing body, set the
+ * lifecycle field to `toState`, merge any `evidence` fields into the frontmatter,
+ * and re-assemble `${buildFrontmatter(meta)}\n${body}` (the project's standard
+ * page assembly). The prose body is preserved verbatim.
+ */
+function buildTransitionedBody(existing: string, field: string, toState: string, evidence?: LifecycleEvidence): string {
+  const { meta, body } = parseFrontmatter(existing);
+  const nextMeta = { ...meta, ...(evidence ?? {}), [field]: toState };
+  return `${buildFrontmatter(nextMeta)}\n${body}`;
+}
+
+/**
+ * Transition a typed entity page's lifecycle field to `toState` as a validated
+ * page update. Loads the entity def (throwing {@link LifecycleTransitionUnavailableError}
+ * when the type has no lifecycle), reads the existing page (throwing when it is
+ * missing), rewrites its lifecycle field (+ any `evidence`), and applies the new
+ * body through {@link applyTypedCandidate} — which RE-RUNS the PR2 lifecycle gate,
+ * so an illegal transition or one missing required evidence is REFUSED there
+ * (`LifecycleTransitionError` propagates) and the page is left unchanged.
+ *
+ * @param root - Absolute project root.
+ * @param entityType - The profile entity type whose page is transitioned.
+ * @param slug - The page slug (the filename stem).
+ * @param toState - The lifecycle state to transition the page into.
+ * @param evidence - Optional frontmatter fields a target state requires (merged in).
+ * @throws {LifecycleTransitionUnavailableError} When no profile/type/lifecycle/page.
+ * @throws {LifecycleTransitionError} When the PR2 gate refuses the transition.
+ */
+export async function transitionLifecycle(
+  root: string,
+  entityType: string,
+  slug: string,
+  toState: string,
+  evidence?: LifecycleEvidence,
+): Promise<void> {
+  const def = await resolveLifecycleDef(root, entityType);
+  const existing = await readExistingPage(root, def, slug);
+  const body = buildTransitionedBody(existing, def.lifecycle!.field, toState, evidence);
+  const candidate: Pick<ReviewCandidate, "slug" | "body" | "targetEntityType"> = {
+    slug,
+    body,
+    targetEntityType: entityType,
+  };
+  await applyTypedCandidate(root, candidate as ReviewCandidate);
+}

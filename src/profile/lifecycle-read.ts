@@ -37,14 +37,33 @@ export async function readPrevLifecycleState(
   slug: string,
   field: string,
 ): Promise<string | undefined> {
-  // Canonicalize the root first so the directory base matches the file's
-  // realpath (on macOS the temp/symlinked root would otherwise fail confinement
-  // and spuriously report "no prev page").
-  const canonicalRoot = (await safeRealpath(root)) ?? path.resolve(root);
-  const dir = path.join(canonicalRoot, def.directory);
-  const real = await confinedRegularFile(dir, `${slug}.md`);
+  const real = await resolveConfinedEntityPage(root, def, slug);
   if (real === null) return undefined;
   const { meta } = parseFrontmatter(await safeReadFile(real));
   const value = meta[field];
   return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Resolve an entity page's confined real path: `<realpath(root)>/<def.directory>/<slug>.md`
+ * via {@link confinedRegularFile}, or `null` when the page is absent or escapes
+ * the project root (a symlinked / out-of-tree page is treated as absent — never
+ * followed). The root is canonicalized FIRST so the directory base matches the
+ * file's realpath (on macOS a temp/symlinked root would otherwise fail
+ * confinement and spuriously report "no page"). Shared by the prev-state read and
+ * the lifecycle-transition read so both confine identically.
+ *
+ * @param root - Absolute project root.
+ * @param def - The resolved entity type definition (supplies the directory).
+ * @param slug - The page slug (the filename stem).
+ * @returns The confined real path, or `null` when the page is absent/escaping.
+ */
+export async function resolveConfinedEntityPage(
+  root: string,
+  def: EntityTypeDef,
+  slug: string,
+): Promise<string | null> {
+  const canonicalRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  const dir = path.join(canonicalRoot, def.directory);
+  return confinedRegularFile(dir, `${slug}.md`);
 }

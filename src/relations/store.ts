@@ -125,8 +125,36 @@ async function underLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * Validate and APPEND a new relation WHILE THE CALLER ALREADY HOLDS the project
+ * lock — the lock-free core shared with {@link appendRelation}, mirroring the
+ * {@link applyApprovedMutationsLocked} split on the page path.
+ *
+ * The caller MUST already hold the project lock; this function acquires NOTHING,
+ * so a planner-routed write path ({@link createRelation}) can take ONE lock and
+ * run validation + append inside it without a nested-acquire deadlock. Validation
+ * (endpoint entity types, required attributes) still runs BEFORE any write, so a
+ * violation throws {@link RelationEndpointError} and writes nothing.
+ *
+ * @param root - Absolute project root.
+ * @param profile - The governing profile pack (its `relations` block is the schema).
+ * @param input - The new relation's content.
+ * @returns The persisted relation reference.
+ */
+export async function appendRelationLocked(
+  root: string,
+  profile: ProfilePack,
+  input: AppendRelationInput,
+): Promise<RelationRef> {
+  const ref = buildRelationRef(profile, input); // throws before any write
+  await appendLine(root, ref);
+  return ref;
+}
+
+/**
  * Validate and APPEND a new relation, returning its {@link RelationRef}.
  *
+ * The self-locking entry point for callers that do NOT already hold the lock:
+ * acquires the project lock and delegates to {@link appendRelationLocked}.
  * Validation (endpoint entity types, required attributes) runs BEFORE any
  * write, so a violation throws {@link RelationEndpointError} and writes nothing.
  * The id is minted once; symmetric endpoints are canonicalized so (a→b) and
@@ -142,9 +170,7 @@ export async function appendRelation(
   profile: ProfilePack,
   input: AppendRelationInput,
 ): Promise<RelationRef> {
-  const ref = buildRelationRef(profile, input); // throws before any write
-  await underLock(root, () => appendLine(root, ref));
-  return ref;
+  return underLock(root, () => appendRelationLocked(root, profile, input));
 }
 
 /**
