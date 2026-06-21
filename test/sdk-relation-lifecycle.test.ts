@@ -74,6 +74,23 @@ describe("createWiki() relation + lifecycle round-trip", () => {
     expect(page).toContain("status: failed");
     expect(page).toContain("failureReason: out of compute");
   });
+
+  it("merges only declared evidence — clobber/identity keys are dropped (FIX #2)", async () => {
+    const pagePath = path.join(root, "wiki/ideas/sparse-routing.md");
+    await writeFile(pagePath, "---\nstatus: tested\ntitle: Original Title\n---\n\nBody.\n", "utf8");
+    const wiki = createWiki({ root });
+    await wiki.transitionLifecycle({
+      entityType: "ideas", slug: "sparse-routing", toState: "failed",
+      evidence: { failureReason: "ran out of budget", title: "overwritten", slug: "../../escape", junk: "y" },
+    });
+    const page = await readFile(pagePath, "utf8");
+    expect(page).toContain("status: failed");
+    expect(page).toContain("failureReason: ran out of budget");
+    expect(page).toContain("title: Original Title"); // untouched
+    expect(page).not.toContain("overwritten");
+    expect(page).not.toContain("escape");
+    expect(page).not.toContain("junk");
+  });
 });
 
 describe("transitionLifecycle — lock discipline", () => {

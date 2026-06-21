@@ -77,15 +77,49 @@ async function readExistingPage(root: string, def: EntityTypeDef, slug: string):
   return safeReadFile(real);
 }
 
+/** Frontmatter keys a transition's `evidence` may NEVER set, even if declared. */
+const RESERVED_EVIDENCE_KEYS: ReadonlySet<string> = new Set(["slug"]);
+
+/**
+ * Reduce caller-supplied `evidence` to ONLY the keys that are legitimately
+ * settable for THIS transition: the fields the entity's lifecycle declares as
+ * `transitionRequirements[toState]`, MINUS any reserved identity key. Any key the
+ * caller passes that is not a declared evidence field for the target state — a
+ * `title` clobber, a planted `slug`, arbitrary junk — is DROPPED (FIX #2). When
+ * the target state declares no requirements, NO evidence key is admitted.
+ *
+ * @param def - The (lifecycle-bearing) entity type definition.
+ * @param toState - The lifecycle state being transitioned into.
+ * @param evidence - The caller-supplied, untrusted evidence map.
+ * @returns Only the declared, non-reserved evidence key/value pairs.
+ */
+function allowedEvidence(def: EntityTypeDef, toState: string, evidence?: LifecycleEvidence): LifecycleEvidence {
+  const declared = def.lifecycle!.transitionRequirements?.[toState] ?? [];
+  const allowed: LifecycleEvidence = {};
+  for (const field of declared) {
+    if (RESERVED_EVIDENCE_KEYS.has(field)) continue;
+    if (evidence && Object.prototype.hasOwnProperty.call(evidence, field)) allowed[field] = evidence[field];
+  }
+  return allowed;
+}
+
 /**
  * Build the new page body for the transition: parse the existing body, set the
- * lifecycle field to `toState`, merge any `evidence` fields into the frontmatter,
- * and re-assemble `${buildFrontmatter(meta)}\n${body}` (the project's standard
- * page assembly). The prose body is preserved verbatim.
+ * lifecycle field to `toState`, merge ONLY the ALLOW-LISTED `evidence` fields
+ * (those declared as required for `toState`; see {@link allowedEvidence}) into the
+ * frontmatter, and re-assemble `${buildFrontmatter(meta)}\n${body}` (the project's
+ * standard page assembly). The prose body is preserved verbatim. The lifecycle
+ * `field` is written LAST so it always wins, and arbitrary caller keys
+ * (`title`/`slug`/junk) can never clobber existing frontmatter (FIX #2).
  */
-function buildTransitionedBody(existing: string, field: string, toState: string, evidence?: LifecycleEvidence): string {
+function buildTransitionedBody(
+  existing: string,
+  def: EntityTypeDef,
+  toState: string,
+  evidence?: LifecycleEvidence,
+): string {
   const { meta, body } = parseFrontmatter(existing);
-  const nextMeta = { ...meta, ...(evidence ?? {}), [field]: toState };
+  const nextMeta = { ...meta, ...allowedEvidence(def, toState, evidence), [def.lifecycle!.field]: toState };
   return `${buildFrontmatter(nextMeta)}\n${body}`;
 }
 
@@ -113,7 +147,7 @@ async function transitionUnderLock(
   evidence?: LifecycleEvidence,
 ): Promise<void> {
   const existing = await readExistingPage(root, def, slug);
-  const body = buildTransitionedBody(existing, def.lifecycle!.field, toState, evidence);
+  const body = buildTransitionedBody(existing, def, toState, evidence);
   const candidate: Pick<ReviewCandidate, "slug" | "body" | "targetEntityType"> = {
     slug,
     body,

@@ -117,12 +117,28 @@ function checkRequiredEvidence(
   }
 }
 
-/** True when an evidence value is present and non-empty (not "", not []). */
-function isEvidencePresent(value: unknown): boolean {
-  if (value === undefined || value === null) return false;
+/**
+ * True when a single evidence value is a NON-EMPTY scalar: a string with
+ * non-whitespace content, or a finite number. Everything else (booleans, the
+ * empty/whitespace string, NaN) is NOT a scalar justification.
+ */
+function isEvidenceScalar(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
-  return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  return false;
+}
+
+/**
+ * True when an evidence value counts as PRESENT justification. Evidence is a
+ * non-empty string/number, or a NON-EMPTY array EVERY element of which is itself
+ * such a scalar. Bare objects and booleans are REJECTED — an object is not
+ * human-readable justification, and a bare `true`/`1`-as-boolean proves only that
+ * a key exists, not that a real reason was supplied. The gate must prove content,
+ * not mere key presence (FIX #7).
+ */
+function isEvidencePresent(value: unknown): boolean {
+  if (Array.isArray(value)) return value.length > 0 && value.every(isEvidenceScalar);
+  return isEvidenceScalar(value);
 }
 
 /**
