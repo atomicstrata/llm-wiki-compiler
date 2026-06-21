@@ -41,6 +41,21 @@ export async function profileShow(): Promise<void> {
   console.log(`profileId:  ${loaded.profile.profileId}`);
   console.log(`digest:     ${loaded.digest}`);
   console.log(`loadedFrom: ${loadedFrom}`);
+  printRelations(loaded.profile.relations);
+}
+
+/**
+ * Print the declared relation types, one line each, ONLY when the profile
+ * declares any. A relation-less profile (including the built-in default) prints
+ * nothing extra, so its `profile show` output stays unchanged.
+ */
+function printRelations(relations: ProfilePack["relations"]): void {
+  const entries = Object.entries(relations ?? {});
+  if (entries.length === 0) return;
+  console.log(`relations:  ${entries.length}`);
+  for (const [name, def] of entries) {
+    console.log(`  ${name}: ${def.from.join(",")} -> ${def.to.join(",")} (${def.direction})`);
+  }
 }
 
 /**

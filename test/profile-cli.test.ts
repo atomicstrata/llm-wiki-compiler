@@ -83,6 +83,21 @@ describe("profile show / validate", () => {
     expect(result.stdout).toContain("valid");
   });
 
+  it("show displays declared relation types", async () => {
+    const profile = {
+      schemaVersion: 1,
+      profileId: "research-rel",
+      entities: { experiments: { directory: "wiki/experiments" }, ideas: { directory: "wiki/ideas" } },
+      relations: { tests: { from: ["experiments"], to: ["ideas"], direction: "directed" } },
+    };
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    await writeFile(path.join(root, PROFILE_FILE), JSON.stringify(profile), "utf8");
+    const result = await runCLI(["profile", "show"], root);
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/relations:\s+1/);
+    expect(result.stdout).toMatch(/tests: experiments -> ideas \(directed\)/);
+  });
+
   it("validate exits non-zero with a message for an invalid profile", async () => {
     await mkdir(path.join(root, ".llmwiki"), { recursive: true });
     await writeFile(path.join(root, PROFILE_FILE), JSON.stringify({ schemaVersion: 2, profileId: "x", entities: {} }), "utf8");
