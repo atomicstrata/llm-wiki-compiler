@@ -33,6 +33,7 @@ import path from "path";
 import { LLMWIKI_DIR } from "../utils/constants.js";
 import { realpath } from "fs/promises";
 import { confineUnderRoot, safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { atomicWrite } from "../utils/markdown.js";
 import { note } from "../utils/output.js";
 
 /** Sentinel recorded when a target did not exist before the batch. */
@@ -91,18 +92,20 @@ async function readOrNull(filePath: string): Promise<string | null> {
   }
 }
 
-/** Atomically persist a batch's current state to its journal file. */
+/**
+ * Atomically persist a batch's current state to its journal file via the shared
+ * hardened {@link atomicWrite} primitive (random O_EXCL temp + rename), so the
+ * journal writer inherits the same leaf-symlink write-escape defenses rather than
+ * carrying its own bespoke temp+rename.
+ */
 async function persist(batch: JournalBatch): Promise<void> {
   const file = journalPath(batch.root, batch.batchId);
-  await mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
   const payload = {
     batchId: batch.batchId,
     status: batch.status,
     entries: batch.entries,
   };
-  await writeFile(tmp, JSON.stringify(payload, null, 2), "utf-8");
-  await rename(tmp, file);
+  await atomicWrite(file, JSON.stringify(payload, null, 2));
 }
 
 /**

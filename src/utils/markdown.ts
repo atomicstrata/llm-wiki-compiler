@@ -4,7 +4,8 @@
  * for wiki pages.
  */
 
-import { writeFile, rename, readFile, mkdir, lstat } from "fs/promises";
+import { rename, readFile, mkdir, lstat, open } from "fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "path";
 import yaml from "js-yaml";
 import type {
@@ -128,22 +129,42 @@ export function parseFrontmatterStatus(content: string): {
   return { meta, body: match[2], hasFrontmatterBlock: true, malformedFrontmatter };
 }
 
+/** Bytes of randomness in the per-write temp-file suffix (→ 16 hex chars). */
+const TEMP_SUFFIX_BYTES = 8;
+
 /**
- * Atomically write a file (write to .tmp, then rename).
+ * Atomically write a file (write to a private temp, then rename).
  *
- * Defense against the confine→write race (S3): callers resolve `filePath` with
- * `confineUnderRoot(..., {mustExist:false})`, which returns a LEXICAL path after
- * checking the nearest EXISTING ancestor. Between that check and this write, the
- * final directory can be swapped for a symlink that escapes the project root, so
- * the rename would land outside root. `atomicWrite` lacks root context, so it
- * fails CLOSED on the actual escape vector: immediately before writing, it
- * `lstat`s the parent directory and refuses if it is a SYMLINK. Project writes
- * always target real directories, so this never rejects a legitimate write; it
- * matches the wider trust model (a symlinked dir is never trusted).
+ * This is the SHARED atomic-write primitive every wiki write routes through, so
+ * its symlink defenses are the single place the leaf-symlink write-escape class
+ * is closed. Two layers, both fail CLOSED:
+ *
+ *  1. PARENT DIR (confine→write race, S3): callers resolve `filePath` with
+ *     `confineUnderRoot(..., {mustExist:false})`, which returns a LEXICAL path
+ *     after checking the nearest EXISTING ancestor. Between that check and this
+ *     write, the final directory can be swapped for a symlink that escapes the
+ *     project root, so the rename would land outside root. `atomicWrite` lacks
+ *     root context, so it `lstat`s the parent directory and refuses if it is a
+ *     SYMLINK. Project writes always target real directories, so this never
+ *     rejects a legitimate write.
+ *
+ *  2. TEMP LEAF: the temp file gets a RANDOM name (`<basename>.<16-hex>.tmp`) and
+ *     is opened with `O_EXCL` (`open(..., "wx")`), which REFUSES any pre-existing
+ *     entry — including a pre-planted symlink — with `EEXIST`. A predictable
+ *     `<path>.tmp` leaf could be planted as a symlink so `writeFile` followed it
+ *     to an out-of-tree target; a random O_EXCL temp closes that. The content is
+ *     written THROUGH the handle (never re-opening the name), then `rename`d onto
+ *     the target — rename REPLACES a symlinked target rather than writing through
+ *     it, so the final destination being a symlink is already safe.
+ *
+ * Parity: for a normal write (no pre-existing temp) a random O_EXCL temp is
+ * observably identical to the old predictable temp — the destination bytes are
+ * byte-for-byte unchanged, so the frozen default goldens are unaffected.
  *
  * @param filePath - Absolute destination path (its parent must be a real dir).
  * @param content - File contents to write.
- * @throws If the resolved parent directory is a symlink (confine→write escape).
+ * @throws If the resolved parent directory is a symlink (confine→write escape),
+ *   or if the random temp leaf already exists (EEXIST — fail closed).
  */
 export async function atomicWrite(filePath: string, content: string): Promise<void> {
   const dir = path.dirname(filePath);
@@ -152,8 +173,14 @@ export async function atomicWrite(filePath: string, content: string): Promise<vo
   if (dirStat.isSymbolicLink()) {
     throw new Error(`refusing to write through a symlinked directory: ${dir}`);
   }
-  const tmpPath = filePath + ".tmp";
-  await writeFile(tmpPath, content, "utf-8");
+  const suffix = randomBytes(TEMP_SUFFIX_BYTES).toString("hex");
+  const tmpPath = `${filePath}.${suffix}.tmp`;
+  const handle = await open(tmpPath, "wx");
+  try {
+    await handle.writeFile(content, "utf-8");
+  } finally {
+    await handle.close();
+  }
   await rename(tmpPath, filePath);
 }
 

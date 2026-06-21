@@ -19,11 +19,12 @@
  * is backed up to `.bak` and recovered as empty state instead.
  */
 
-import { readFile, writeFile, rename, mkdir, copyFile } from "fs/promises";
+import { readFile, copyFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { LLMWIKI_DIR, STATE_FILE } from "./constants.js";
+import { STATE_FILE } from "./constants.js";
 import { note } from "./output.js";
+import { atomicWrite } from "./markdown.js";
 import { mintConceptEntities } from "../state/migrate.js";
 import type { WikiState, SourceState } from "./types.js";
 
@@ -198,19 +199,18 @@ export async function readState(root: string): Promise<WikiState> {
   return classified.state;
 }
 
-/** Atomically write state.json (write .tmp then rename). */
+/**
+ * Atomically write state.json via the shared hardened {@link atomicWrite}
+ * primitive (random O_EXCL temp + rename), so the state writer inherits the same
+ * leaf-symlink write-escape defenses as every page write rather than carrying its
+ * own bespoke temp+rename.
+ */
 export async function writeState(root: string, state: WikiState): Promise<void> {
-  const dir = path.join(root, LLMWIKI_DIR);
-  await mkdir(dir, { recursive: true });
-
   const filePath = path.join(root, STATE_FILE);
-  const tmpPath = filePath + ".tmp";
-
   // Re-derive the v2 typed mirror at the single write choke point so no writer
   // can persist a desynced `entities` / `frozenEntities`. No-op for v1 states.
   const synced = syncEntityMirror(state);
-  await writeFile(tmpPath, JSON.stringify(synced, null, 2), "utf-8");
-  await rename(tmpPath, filePath);
+  await atomicWrite(filePath, JSON.stringify(synced, null, 2));
 }
 
 /**

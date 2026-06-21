@@ -13,10 +13,11 @@
  * is always empty because rule extraction produces candidates, not pages.
  */
 
-import { readFile, writeFile, rename, mkdir } from "fs/promises";
+import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import { LLMWIKI_DIR, RULE_STATE_FILE } from "../utils/constants.js";
+import { RULE_STATE_FILE } from "../utils/constants.js";
+import { atomicWrite } from "../utils/markdown.js";
 import type { WikiState, SourceState } from "../utils/types.js";
 
 /** A fresh, empty rule-extraction state. */
@@ -40,13 +41,14 @@ export async function readRuleState(root: string): Promise<WikiState> {
   }
 }
 
-/** Atomically write rule-state.json (write .tmp then rename). */
+/**
+ * Atomically write rule-state.json via the shared hardened {@link atomicWrite}
+ * primitive (random O_EXCL temp + rename), so this cursor writer inherits the
+ * same leaf-symlink write-escape defenses rather than carrying its own temp+rename.
+ */
 async function writeRuleState(root: string, state: WikiState): Promise<void> {
-  await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
   const filePath = path.join(root, RULE_STATE_FILE);
-  const tmpPath = `${filePath}.tmp`;
-  await writeFile(tmpPath, JSON.stringify(state, null, 2), "utf-8");
-  await rename(tmpPath, filePath);
+  await atomicWrite(filePath, JSON.stringify(state, null, 2));
 }
 
 /**
