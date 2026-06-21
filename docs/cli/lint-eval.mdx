@@ -83,7 +83,7 @@ llmwiki eval --suite full      # fast + LLM-as-judge citation support
 Aggregates all lint rules into a single number. Errors (broken citations, broken wikilinks, duplicate concepts) cost more than warnings. A score of 100 means the lint pass found nothing.
 
 **Page health distribution**
-Breaks the corpus health score down per page, so you can see *which* pages need attention rather than just that something is wrong. Each page is scored with the same rules as the overall health score - a page's score is the health score it would receive if it were the only page in the wiki - and sorted into four tiers: `healthy` (90–100), `adequate` (70–89), `needs_work` (50–69), and `broken` (0–49). The report shows the tier counts plus the worst pages with their top issues, so a maintainer knows where to start. The full per-page list is available in the JSON report.
+Breaks the corpus health score down per page, so you can see *which* pages need attention rather than just that something is wrong. Each page is scored by summing the lint deductions attributed to that page, using the same weights as the overall health score, then sorted into four tiers: `healthy` (90–100), `adequate` (70–89), `needs_work` (50–69), and `broken` (0–49). The report shows the tier counts plus the worst pages with their top issues, so a maintainer knows where to start. The full per-page list is available in the JSON report.
 
 **Citation coverage**
 The fraction of prose paragraphs that carry at least one `^[...]` citation marker. Higher is better; uncited prose is harder to verify and maintain.
