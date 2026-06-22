@@ -41,6 +41,8 @@ import { canonicalEndpoints, relationContentHash } from "./digest.js";
 import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } from "./store-record.js";
 import { readRelations } from "./store-read.js";
 import { validateRelationAttributes, validateRelationEndpoints, validateRelationAgainstProfile } from "./relation-contract.js";
+import { appendEventLocked } from "../events/store.js";
+import type { EventType } from "../events/types.js";
 
 /** The caller-supplied content of a new relation (id + hash are derived). */
 export interface AppendRelationInput {
@@ -167,6 +169,22 @@ async function appendLine(root: string, ref: RelationRef): Promise<void> {
   }
 }
 
+/**
+ * Emit one relation audit event into the chained event store under the CALLER's
+ * held lock (the lock-free {@link appendEventLocked}). Called only after a real
+ * {@link appendLine} (a dedup hit appends nothing and emits nothing), so the
+ * event trails the durable mutation it records. Best-effort after-mutation: a
+ * failed emit does not roll back the relation append.
+ */
+async function emitRelationEvent(root: string, type: EventType, ref: RelationRef): Promise<void> {
+  await appendEventLocked(root, {
+    type,
+    origin: "sdk",
+    payload: { id: ref.id, relType: ref.type, from: ref.from, to: ref.to },
+    at: new Date().toISOString(),
+  });
+}
+
 /** Run `fn` while holding the project lock (bounded-blocking acquire); release in a finally. */
 async function underLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
   await acquireLockBlocking(root); // throws LockBusyError on timeout
@@ -203,8 +221,9 @@ export async function appendRelationLocked(
   const ref = buildRelationRef(profile, input); // throws before any write
   const { relations } = await readRelations(root); // under the caller's lock
   const duplicate = relations.find((rel) => rel.contentHash === ref.contentHash);
-  if (duplicate) return duplicate; // idempotent create (FIX #6) — append nothing
+  if (duplicate) return duplicate; // idempotent create (FIX #6) — append nothing, emit nothing
   await appendLine(root, ref);
+  await emitRelationEvent(root, "relation-create", ref); // under the caller's lock, after the append
   return ref;
 }
 
@@ -269,6 +288,7 @@ export async function updateRelation(
     };
     const ref = buildRelationRef(profile, input, id);
     await appendLine(root, ref);
+    await emitRelationEvent(root, "relation-update", ref); // under the held lock, after the append
     return ref;
   });
 }

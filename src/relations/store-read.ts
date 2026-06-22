@@ -25,13 +25,15 @@
 import path from "path";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import { parseEntityId, EntityIdError } from "../profile/identity.js";
+import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
 import type { RelationRef, RelationRecord } from "./types.js";
 import {
   RELATION_STORE_SCHEMA_VERSION,
   RelationStoreTooNewError,
   RelationStoreCorruptError,
+  RelationStoreSymlinkError,
 } from "./types.js";
-import { recordChecksum, resolveGraphDir, openStoreFileRead } from "./store-record.js";
+import { recordChecksum } from "./store-record.js";
 
 /** The outcome of reading the store: live relations plus any tolerated problems. */
 export interface ReadRelationsResult {
@@ -42,31 +44,21 @@ export interface ReadRelationsResult {
 }
 
 /**
- * Read the raw store file bytes, or null when the file is absent. Opens the leaf
- * through the shared NO-FOLLOW {@link openStoreFileRead} (a symlinked leaf fails
- * closed; the read never touches the path after open, so nothing can follow a
- * link to out-of-tree bytes), then `fstat`s the HANDLE and fails closed
- * ({@link RelationStoreCorruptError}) when it exceeds {@link MAX_RELATION_STORE_BYTES}
- * — an attacker/sync-controlled multi-GB file is rejected before the whole-file
- * read could exhaust memory. The handle is always closed in `finally`.
+ * Read the raw store file bytes, or null when the file is absent — via the shared
+ * {@link readConfinedGraphStore}, which resolves the confined graph dir, opens the
+ * leaf NO-FOLLOW (a symlinked leaf fails closed as {@link RelationStoreSymlinkError}),
+ * and `fstat`-fails-closed ({@link RelationStoreCorruptError}) above
+ * {@link MAX_RELATION_STORE_BYTES} before the whole-file read — so an
+ * attacker/sync-controlled multi-GB file cannot exhaust memory.
  */
-async function readStoreFile(root: string): Promise<string | null> {
-  const { dir, exists } = await resolveGraphDir(root); // throws on symlink escape (DIR defense)
-  if (!exists) return null;
-  const file = path.join(dir, path.basename(RELATIONS_FILE));
-  const handle = await openStoreFileRead(file); // throws on symlink leaf (LEAF defense)
-  if (handle === null) return null; // dir exists but file does not → no relations yet
-  try {
-    const size = (await handle.stat()).size;
-    if (size > MAX_RELATION_STORE_BYTES) {
-      throw new RelationStoreCorruptError(
-        `store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`,
-      );
-    }
-    return await handle.readFile("utf-8");
-  } finally {
-    await handle.close();
-  }
+function readStoreFile(root: string): Promise<string | null> {
+  return readConfinedGraphStore(root, {
+    fileName: path.basename(RELATIONS_FILE),
+    makeSymlinkError: (reason) => new RelationStoreSymlinkError(reason),
+    maxBytes: MAX_RELATION_STORE_BYTES,
+    makeOversizeError: (size) =>
+      new RelationStoreCorruptError(`store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`),
+  });
 }
 
 /** Parse and validate the header line, failing closed on an unknown future version. */
@@ -171,10 +163,9 @@ function parseRecords(lines: string[], problems: string[]): RelationRef[] {
  */
 export async function readRelations(root: string): Promise<ReadRelationsResult> {
   const raw = await readStoreFile(root); // throws on symlink escape
-  if (raw === null || raw.trim() === "") return { relations: [], problems: [] };
-  const lines = raw.split("\n").filter((line) => line.length > 0);
-  parseHeader(lines[0]);
+  const recordLines = splitStoreRecords(raw, parseHeader);
+  if (recordLines === null) return { relations: [], problems: [] };
   const problems: string[] = [];
-  const refs = parseRecords(lines.slice(1), problems);
+  const refs = parseRecords(recordLines, problems);
   return { relations: latestPerId(refs), problems };
 }

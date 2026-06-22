@@ -102,6 +102,17 @@ export const WIKI_GRAPH_DIR = "wiki/graph";
 export const RELATIONS_FILE = "wiki/graph/relations.jsonl";
 
 /**
+ * The append-only, hash-chained EVENT STORE and its sealed head anchor. The
+ * store lives in the SAME confined `wiki/graph/` dir as the relation store; the
+ * head anchor (the digest of the last event) lives under the private `.llmwiki/`
+ * dir so truncation/rewrite of the log can be detected against a sealed value.
+ * A DEFAULT profile performs no lifecycle/relation mutations, so it never writes
+ * either file — its absence is the "no events" state, keeping parity unchanged.
+ */
+export const EVENTS_FILE = "wiki/graph/events.jsonl";
+export const EVENTS_HEAD_FILE = ".llmwiki/events.head";
+
+/**
  * Resource cap on the relation store file. The store is attacker/sync-controllable
  * (a teammate or a synced checkout can replace it), and the reader slurps the whole
  * file before any header/checksum validation. A multi-GB file or a giant single

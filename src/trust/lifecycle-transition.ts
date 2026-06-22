@@ -21,6 +21,7 @@ import { loadNonDefaultProfile } from "../profile/block.js";
 import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
 import { parseFrontmatter, buildFrontmatter, safeReadFile } from "../utils/markdown.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
+import { appendEventLocked } from "../events/store.js";
 import { applyTypedCandidate } from "./promote.js";
 import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
@@ -147,6 +148,7 @@ async function transitionUnderLock(
   evidence?: LifecycleEvidence,
 ): Promise<void> {
   const existing = await readExistingPage(root, def, slug);
+  const prev = parseFrontmatter(existing).meta[def.lifecycle!.field];
   const body = buildTransitionedBody(existing, def, toState, evidence);
   const candidate: Pick<ReviewCandidate, "slug" | "body" | "targetEntityType"> = {
     slug,
@@ -154,6 +156,39 @@ async function transitionUnderLock(
     targetEntityType: entityType,
   };
   await applyTypedCandidate(root, candidate as ReviewCandidate);
+  // Emit AFTER the page write lands, under the held lock so event + mutation
+  // co-commit. Best-effort: a failed emit does not roll back the transition.
+  await emitTransitionEvent(root, { entityType, slug, prev, toState, evidence });
+}
+
+/** The fields one lifecycle-transition audit event records about the transition. */
+interface TransitionEventFields {
+  entityType: string;
+  slug: string;
+  prev: unknown;
+  toState: string;
+  evidence?: LifecycleEvidence;
+}
+
+/**
+ * Emit one `lifecycle-transition` audit event into the chained event store under
+ * the CALLER's held lock (the lock-free {@link appendEventLocked}). Called only
+ * after {@link applyTypedCandidate} has durably written the page, so the event
+ * trails the mutation it records.
+ */
+async function emitTransitionEvent(root: string, fields: TransitionEventFields): Promise<void> {
+  await appendEventLocked(root, {
+    type: "lifecycle-transition",
+    origin: "sdk",
+    payload: {
+      entityType: fields.entityType,
+      slug: fields.slug,
+      from: fields.prev ?? null,
+      to: fields.toState,
+      evidenceKeys: Object.keys(fields.evidence ?? {}),
+    },
+    at: new Date().toISOString(),
+  });
 }
 
 /**
