@@ -35,7 +35,7 @@ import {
   createSourceWindowBudget,
   materializeSourceWindows,
 } from "./provenance.js";
-import type { GraphData, PageId } from "../viewer/types.js";
+import type { GraphData, GraphNodeId, PageId } from "../viewer/types.js";
 import { buildBudget, estimatePackTokens, trimToBudget } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
@@ -277,8 +277,13 @@ function annotateGraphNeighbors(
   graph: GraphData,
 ): ContextPack["primary"] {
   if (primary.length < 2) return primary;
-  const primaryIds = collectPrimaryIds(primary);
-  const connected = new Set<PageId>();
+  // Widened to the GraphNodeId key space so the membership test also accepts an
+  // edge endpoint that is a typed EntityId (CLP 4b). An entity id is never a
+  // primary PageId, so a relation edge can never spuriously mark a page as a
+  // graph-neighbor here — only PageId↔PageId wikilink edges between two
+  // primaries widen the reason set, exactly as before.
+  const primaryIds: ReadonlySet<GraphNodeId> = collectPrimaryIds(primary);
+  const connected = new Set<GraphNodeId>();
   for (const edge of graph.edges) {
     if (primaryIds.has(edge.source) && primaryIds.has(edge.target)) {
       connected.add(edge.source);

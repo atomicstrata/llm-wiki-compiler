@@ -27,8 +27,11 @@ import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
+import type { EntityPageNode, GraphBuildOptions, RelationEdge } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
-import { collectProfileSummary } from "../profile/block.js";
+import { collectProfileSummary, loadNonDefaultProfile } from "../profile/block.js";
+import { collectEntityPages } from "../profile/collect.js";
+import { readRelations } from "../relations/store-read.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type {
   ViewerCounts,
@@ -79,7 +82,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   // any non-ok state so `compiledSources` fails closed instead of crashing.
   const countableState = classified.status === "ok" ? classified.state : { sources: {} };
   const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, countableState);
-  const graph = buildGraphData(annotatedPages);
+  const graph = buildGraphData(annotatedPages, await collectTypedGraphInputs(root));
   const profile = await collectProfileSummary(root);
   return {
     root,
@@ -94,6 +97,49 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     graph,
     ...(profile ? { profile } : {}),
   };
+}
+
+/**
+ * Collect the ADDITIVE typed-graph inputs (entity-page nodes + relation edges)
+ * for a NON-DEFAULT profile, so {@link buildGraphData} surfaces typed pages and
+ * relations in the snapshot graph (which also feeds agent context expansion).
+ *
+ * Returns `undefined` for the built-in DEFAULT profile, so the default path
+ * passes no opts and the snapshot graph stays byte-identical. Fail-closed and
+ * path-safe like the `status`/profile-summary surfaces: a corrupt / too-new /
+ * symlinked relation store (or any read error) drops the relation edges rather
+ * than crashing the snapshot — those problems are already surfaced through the
+ * `profile` summary block. The entity collector never throws on page data, so a
+ * bad page is simply skipped.
+ */
+async function collectTypedGraphInputs(root: string): Promise<GraphBuildOptions | undefined> {
+  const loaded = await loadNonDefaultProfile(root);
+  if (loaded === undefined) return undefined;
+  const { pages } = await collectEntityPages(root, loaded.profile);
+  const entityPages: EntityPageNode[] = pages.map((page) => ({
+    id: page.id,
+    entityType: page.entityType,
+    slug: page.slug,
+    directory: page.directory,
+    ...(page.title !== undefined ? { title: page.title } : {}),
+  }));
+  const relations = await readTypedRelations(root);
+  return { entityPages, relations };
+}
+
+/**
+ * Read the live relations as graph edges, fail-closed: a corrupt / too-new /
+ * symlinked-leaf store (or any read error) yields an empty edge list rather than
+ * crashing the snapshot. The store-read problems are surfaced separately through
+ * the `profile` summary block, so dropping them here is not a silent loss.
+ */
+async function readTypedRelations(root: string): Promise<RelationEdge[]> {
+  try {
+    const { relations } = await readRelations(root);
+    return relations.map((rel) => ({ type: rel.type, from: rel.from, to: rel.to }));
+  } catch {
+    return [];
+  }
 }
 
 /**

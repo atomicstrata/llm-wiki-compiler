@@ -16,6 +16,7 @@ import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { PageFreshness } from "../freshness/types.js";
 import type { ProfileSummaryBlock } from "../profile/block.js";
+import type { EntityId } from "../profile/types.js";
 import type { StateStatus } from "../utils/state.js";
 
 /**
@@ -24,6 +25,17 @@ import type { StateStatus } from "../utils/state.js";
  * the namespaced form.
  */
 export type PageId = `${PageDirectory}/${string}`;
+
+/**
+ * The identifier space of a graph node. A wikilink/ghost node is keyed by a
+ * {@link PageId}; a typed entity node (CLP 4b) is keyed by its branded
+ * {@link EntityId} (`<entityType>/<slug>`). Both are string subtypes, so a
+ * `PageId`-keyed set/map (e.g. the context expander's `primaryIds`) still
+ * accepts and compares them. The union is widened ONLY for the new typed
+ * surfaces — wikilink nodes/edges keep their concrete `PageId` everywhere a
+ * default project serializes them, so the default graph is byte-identical.
+ */
+export type GraphNodeId = PageId | EntityId;
 
 /**
  * A single diagnostic surfaced on a page. Codes are stable so the client
@@ -128,8 +140,9 @@ export interface ViewerRecentPage {
  * placeholders are both represented here; check `isDangling` to distinguish.
  */
 export interface GraphNode {
-  /** Namespaced canonical ID matching `ViewerPage.id`, or the raw link target for ghosts. */
-  id: PageId;
+  /** Namespaced canonical ID matching `ViewerPage.id`, the raw link target for
+   *  ghosts, or the branded `EntityId` for a typed entity node (CLP 4b). */
+  id: GraphNodeId;
   title: string;
   slug: string;
   /** Directory prefix from the PageId string. Widened to `string` so ghost nodes
@@ -141,12 +154,32 @@ export interface GraphNode {
   degree: number;
   /** True when the node has no backing page — it represents a broken wikilink target. */
   isDangling?: boolean;
+  /**
+   * Discriminator for typed entity nodes (CLP 4b). ABSENT on wikilink and ghost
+   * nodes, so the default graph serialization is byte-identical; present only
+   * on a typed entity node, where it is the literal `"entity"`.
+   */
+  nodeKind?: "entity";
+  /**
+   * The profile entity type a typed node belongs to (CLP 4b), e.g. `"person"`.
+   * ABSENT on wikilink/ghost nodes. Lets the viewer/context group/tag typed
+   * nodes by their declared entity type.
+   */
+  entityType?: string;
 }
 
-/** A directed edge between two wiki pages. */
+/** A directed edge between two wiki pages, or a typed relation edge (CLP 4b). */
 export interface GraphEdge {
-  source: PageId;
-  target: PageId;
+  source: GraphNodeId;
+  target: GraphNodeId;
+  /**
+   * Discriminator for typed relation edges (CLP 4b). ABSENT on wikilink edges,
+   * so the default graph serialization is byte-identical; present only on a
+   * relation edge, where it is the literal `"relation"`.
+   */
+  edgeKind?: "relation";
+  /** The profile relation type a typed edge represents (CLP 4b). ABSENT on wikilink edges. */
+  relationType?: string;
 }
 
 /** Adjacency data for the graph view. Built once at snapshot time. */

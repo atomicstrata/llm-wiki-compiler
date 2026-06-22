@@ -11,7 +11,7 @@
  * `version`.
  */
 
-import type { PageId } from "../viewer/types.js";
+import type { GraphNodeId, PageId } from "../viewer/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { RecommendedAction } from "../project/recommendations.js";
 import type { FreshnessStatus } from "../freshness/types.js";
@@ -129,10 +129,16 @@ export interface ContextPrimary {
   archived: boolean;
 }
 
-/** One graph neighbor edge. `distance` is 1 for direct, 2 for second-hop. */
+/**
+ * One graph neighbor edge. `distance` is 1 for direct, 2 for second-hop.
+ * Endpoints are in the {@link GraphNodeId} space so a typed entity node reached
+ * along a relation edge (CLP 4b) is a valid neighbor; for a wikilink-only
+ * (default) pack every endpoint is still a `PageId`, so the wire shape is
+ * unchanged.
+ */
 interface ContextNeighbor {
-  from: PageId;
-  to: PageId;
+  from: GraphNodeId;
+  to: GraphNodeId;
   direction: "outgoing" | "incoming";
   distance: number;
   score: number;
