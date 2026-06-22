@@ -22,7 +22,7 @@
  */
 
 import path from "path";
-import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
+import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES, MAX_EVENT_HEAD_BYTES } from "../utils/constants.js";
 import { resolveConfinedPrivateDir } from "../utils/private-dir.js";
 import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
 import { atomicWrite } from "../utils/markdown.js";
@@ -148,13 +148,19 @@ export function verifyEventChain(events: EventRecord[]): { ok: boolean; problem?
   return { ok: true };
 }
 
-/** Read the sealed head-anchor digest, or null when it is absent. Confined + no-follow. */
+/** Read the sealed head-anchor digest, or null when it is absent. Confined + no-follow + capped. */
 async function readHeadAnchor(root: string): Promise<string | null> {
   const dir = await resolveConfinedPrivateDir(root); // throws on .llmwiki symlink escape
   const file = path.join(dir, path.basename(EVENTS_HEAD_FILE));
   const handle = await openEventFileRead(file); // no-follow; symlink → fail closed
   if (handle === null) return null;
   try {
+    const size = (await handle.stat()).size;
+    if (size > MAX_EVENT_HEAD_BYTES) {
+      throw new EventStoreCorruptError(
+        `head anchor file ${size} bytes exceeds the ${MAX_EVENT_HEAD_BYTES}-byte cap`,
+      );
+    }
     return (await handle.readFile("utf-8")).trim();
   } finally {
     await handle.close();

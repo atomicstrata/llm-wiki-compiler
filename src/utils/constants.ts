@@ -150,6 +150,23 @@ export const MAX_EVENT_STORE_BYTES = MAX_RELATION_STORE_BYTES;
 export const MAX_EVENT_RECORD_BYTES = MAX_RELATION_RECORD_BYTES;
 
 /**
+ * Resource cap on the sealed head-anchor file (`.llmwiki/events.head`). A valid
+ * sealed digest is a 64-character SHA-256 hex string; 4 KiB is extremely generous.
+ * An attacker/synced teammate can plant a multi-MB `.llmwiki/events.head` and the
+ * read would previously slurp it fully before the string compare — this cap closes
+ * that DoS gap. A bloated head is treated as corrupt (fail closed).
+ */
+export const MAX_EVENT_HEAD_BYTES = 4096;
+
+/**
+ * Resource cap on `.llmwiki/profile.json`. A profile is a small JSON document;
+ * 1 MiB is extremely generous. Without this cap, a `/dev/zero`-backed or multi-GB
+ * symlink target would be read fully before `JSON.parse`, a local DoS. A bloated
+ * profile is treated as a load error (fail closed).
+ */
+export const MAX_PROFILE_BYTES = 1024 * 1024; // 1 MiB
+
+/**
  * Append-only activity journal at the project root, per Karpathy's llm-wiki
  * gist: a chronological record of what happened and when (ingests, compiles,
  * queries, lint passes). Lives at the root rather than under wiki/ because it
