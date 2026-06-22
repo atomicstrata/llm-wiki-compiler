@@ -206,6 +206,22 @@ function formatPageHealthDistribution(report: EvalReport): string[] {
   return rows;
 }
 
+function formatGraphHealth(report: EvalReport): string[] {
+  const g = report.graphHealth;
+  if (!g || g.pageCount === 0) return [];
+  const rows = [
+    line(),
+    line(bold("Graph Health:")),
+    line("  pages: " + g.pageCount + "  unreferenced: " + g.unreferencedCount + "  components: " + g.componentCount),
+    line("  avg indegree: " + g.avgIndegree.toFixed(1) + "  dangling: " + g.danglingCount),
+  ];
+  if (g.hubPages.length > 0) {
+    const hubs = g.hubPages.map(function(h) { return h.slug + "(" + h.totalDegree + ")"; });
+    rows.push(line(dim("  Hubs: " + hubs.join(", "))));
+  }
+  return rows;
+}
+
 function formatStats(report: EvalReport): string[] {
   const s = report.stats;
   return [
@@ -238,6 +254,7 @@ export function formatTerminalReport(report: EvalReport): string {
     ...formatSourceUtilization(report),
     ...formatCitationDepth(report),
     ...formatPageHealthDistribution(report),
+    ...formatGraphHealth(report),
     ...formatSupport(report, delta),
     ...formatStats(report),
     ...formatViolations(report.thresholdViolations),

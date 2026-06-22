@@ -87,6 +87,30 @@ export interface PageHealthDistributionResult {
   worstPages: PageHealthEntry[];
 }
 
+export interface HubPage {
+  slug: string;
+  indegree: number;
+  outdegree: number;
+  totalDegree: number;
+}
+
+interface DanglingTarget {
+  title: string;
+  referenceCount: number;
+}
+
+export interface GraphHealthResult {
+  pageCount: number;
+  unreferencedCount: number;
+  unreferencedPages: string[];
+  componentCount: number;
+  avgIndegree: number;
+  hubPages: HubPage[];
+  danglingCount: number;
+  topDangling: DanglingTarget[];
+}
+
+
 
 export interface CitationJudgement {
   /** First 16 hex chars of SHA-256(claimText + spanText) — stable cache key. */
@@ -142,6 +166,7 @@ export interface EvalReport {
   sourceUtilization: SourceUtilizationResult;
   citationDepth: CitationDepthResult;
   pageHealthDistribution?: PageHealthDistributionResult;
+  graphHealth?: GraphHealthResult;
   citationSupport?: CitationSupportResult;
   stats: StatsResult;
   delta?: EvalDelta;
