@@ -159,7 +159,12 @@ export function validateFieldsAgainstDefs(
 ): string[] {
   const violations: string[] = [];
   for (const field of requiredNames) {
-    if (!(field in values)) violations.push(missingMessage(field));
+    // Required means an OWN key whose value is not `undefined`: a key present but
+    // set to `undefined` (e.g. a JS attributes object `{rationale: undefined}`)
+    // is dropped by JSON.stringify/canonicalize on persist, so accepting it would
+    // store a record MISSING its required field yet report it valid. Treat an
+    // undefined value as absent so the required check fails closed.
+    if (!(field in values) || values[field] === undefined) violations.push(missingMessage(field));
   }
   for (const [name, fieldDef] of Object.entries(fieldDefs)) {
     collectFieldValueViolations(name, fieldDef, values[name], violations);

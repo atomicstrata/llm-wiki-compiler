@@ -16,7 +16,7 @@ import type { JsonExportProfileBlock, RelationView } from "./json-export.js";
 import type { LoadedProfile } from "../profile/types.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
-import { RelationStoreCorruptError, RelationStoreTooNewError } from "../relations/types.js";
+import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
 import type { RelationRef } from "../relations/types.js";
 
 /**
@@ -33,8 +33,8 @@ function toRelationView(ref: RelationRef): RelationView {
  * Read the live relation store for the export, returning path-safe views ONLY
  * for relations STILL VALID against the current profile. A relation-less profile
  * yields `undefined` (no `relations` key, so the export stays byte-identical); a
- * fail-closed read (corrupt / too-new) also yields `undefined` rather than partial
- * relations — lint is the surface that reports a broken store. Relations the
+ * fail-closed read (corrupt / too-new / symlinked-leaf) also yields `undefined`
+ * rather than partial relations — lint is the surface that reports a broken store. Relations the
  * profile has outgrown (type removed / endpoint type disallowed / attributes now
  * invalid) are OMITTED from this live snapshot but retained on disk; lint flags
  * them as `relation-profile-invalid`.
@@ -49,7 +49,13 @@ async function exportRelationViews(root: string, loaded: LoadedProfile): Promise
     const valid = relations.filter((rel) => validateRelationAgainstProfile(rel, loaded.profile).length === 0);
     return valid.length > 0 ? valid.map(toRelationView) : undefined;
   } catch (error) {
-    if (error instanceof RelationStoreCorruptError || error instanceof RelationStoreTooNewError) return undefined;
+    if (
+      error instanceof RelationStoreCorruptError ||
+      error instanceof RelationStoreTooNewError ||
+      error instanceof RelationStoreSymlinkError
+    ) {
+      return undefined;
+    }
     throw error;
   }
 }

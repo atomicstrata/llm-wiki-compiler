@@ -24,7 +24,7 @@ import type { EntityPage, EntityProblemView, LoadedProfile } from "./types.js";
 import { safeRealpath } from "../utils/path-confine.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
-import { RelationStoreCorruptError, RelationStoreTooNewError } from "../relations/types.js";
+import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
 import type { RelationRef } from "../relations/types.js";
 
 /**
@@ -81,8 +81,8 @@ export interface ProfileSummaryBlock {
    * profile whose `wiki/graph` store holds at least one relation. OMITTED for
    * the built-in default and for any relation-LESS profile, so the default and
    * relation-less status/viewer envelopes stay byte-identical. A corrupt /
-   * too-new store does NOT populate this — it surfaces through `problems`
-   * instead (fail-closed, never a silent zero).
+   * too-new / symlinked-leaf store does NOT populate this — it surfaces through
+   * `problems` instead (fail-closed, never a silent zero).
    */
   relationCounts?: Record<string, number>;
   /** Total live relation count; present alongside (and equal to the sum of) `relationCounts`. */
@@ -134,7 +134,11 @@ interface RelationSummary {
 
 /** Map a fail-closed relation-store read error to a `relation-store` problem view. */
 function relationReadProblem(error: unknown): EntityProblemView {
-  if (error instanceof RelationStoreTooNewError || error instanceof RelationStoreCorruptError) {
+  if (
+    error instanceof RelationStoreTooNewError ||
+    error instanceof RelationStoreCorruptError ||
+    error instanceof RelationStoreSymlinkError
+  ) {
     return { kind: "relation-store", message: error.message };
   }
   throw error; // a non-store error (e.g. a confinement escape) is not ours to swallow

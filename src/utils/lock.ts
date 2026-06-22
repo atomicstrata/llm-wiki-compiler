@@ -22,9 +22,10 @@
  * acquires it cleanly via 'wx'.
  */
 
-import { open, readFile, unlink, mkdir } from "fs/promises";
+import { open, readFile, unlink } from "fs/promises";
 import path from "path";
-import { LLMWIKI_DIR, LOCK_FILE } from "./constants.js";
+import { LOCK_FILE } from "./constants.js";
+import { resolveConfinedPrivateDir } from "./private-dir.js";
 import * as output from "./output.js";
 
 const RECLAIM_SUFFIX = ".reclaim";
@@ -111,8 +112,19 @@ export interface AcquireLockOptions {
  *   silent). The fail-fast CLI path leaves it unset and still prints the warning.
  */
 export async function acquireLock(root: string, options: AcquireLockOptions = {}): Promise<boolean> {
-  const lockPath = path.join(root, LOCK_FILE);
-  await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+  // FAIL CLOSED on a `.llmwiki` (or ancestor) that symlinks outside the root:
+  // resolving + creating the confined private dir throws on escape, so the lock
+  // file is NEVER created out-of-tree (the lock writer runs FIRST in the page
+  // mutation path, before the journal). A normal real `.llmwiki` resolves to
+  // itself, leaving the happy path byte-identical.
+  let privateDir: string;
+  try {
+    privateDir = await resolveConfinedPrivateDir(root);
+  } catch {
+    if (!options.quiet) output.status("!", output.warn("Lock directory escapes project root — refusing to lock."));
+    return false;
+  }
+  const lockPath = path.join(privateDir, path.basename(LOCK_FILE));
 
   for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
     // Try atomic create — fails if file already exists

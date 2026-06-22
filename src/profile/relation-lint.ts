@@ -11,16 +11,17 @@
  *   - `relation-store-torn` (warning): the reader tolerated and REPORTED a torn
  *     trailing line (an incomplete final append). Surfaced verbatim so the
  *     half-written record is visible, not silently dropped.
- *   - `relation-store-corrupt` / `relation-store-too-new` (error): the reader
- *     FAILED CLOSED (interior corruption / an unknown future schema version).
- *     Caught here so lint reports the failure instead of throwing.
+ *   - `relation-store-corrupt` / `relation-store-too-new` / `relation-store-symlink`
+ *     (error): the reader FAILED CLOSED (interior corruption / an unknown future
+ *     schema version / a symlinked-or-non-regular store-file leaf). Caught here so
+ *     lint reports the failure instead of throwing.
  *
  * A DEFAULT project (no `wiki/graph`) reads an EMPTY store, so this yields no
  * findings and the default lint output stays byte-identical.
  */
 
 import { readRelations } from "../relations/store-read.js";
-import { RelationStoreCorruptError, RelationStoreTooNewError } from "../relations/types.js";
+import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import type { RelationRef } from "../relations/types.js";
 import type { EntityId, EntityPage, ProfilePack } from "./types.js";
@@ -34,6 +35,8 @@ const RELATION_STORE_TORN_RULE = "relation-store-torn";
 const RELATION_STORE_CORRUPT_RULE = "relation-store-corrupt";
 /** Rule id for a fail-closed unknown-future-schema-version read. */
 const RELATION_STORE_TOO_NEW_RULE = "relation-store-too-new";
+/** Rule id for a fail-closed symlinked/non-regular store-file leaf read. */
+const RELATION_STORE_SYMLINK_RULE = "relation-store-symlink";
 /** Rule id for a stored relation no longer valid against the CURRENT profile. */
 const RELATION_PROFILE_INVALID_RULE = "relation-profile-invalid";
 
@@ -47,6 +50,9 @@ function readErrorFinding(error: unknown): LintResult | null {
   }
   if (error instanceof RelationStoreCorruptError) {
     return { rule: RELATION_STORE_CORRUPT_RULE, severity: "error", file: RELATION_STORE_FILE, message: error.message };
+  }
+  if (error instanceof RelationStoreSymlinkError) {
+    return { rule: RELATION_STORE_SYMLINK_RULE, severity: "error", file: RELATION_STORE_FILE, message: error.message };
   }
   return null;
 }
