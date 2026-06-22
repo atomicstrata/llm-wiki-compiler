@@ -118,3 +118,20 @@ export class EventStoreChainError extends Error {
     this.name = "EventStoreChainError";
   }
 }
+
+/**
+ * Raised when an append would drive the event store to/over
+ * {@link MAX_EVENT_STORE_BYTES} (the SAME bound the reader fails closed at), or
+ * when a single record's serialized size exceeds {@link MAX_EVENT_RECORD_BYTES}.
+ * The append path fails closed BEFORE writing so the store can never be grown
+ * past the read cap into an unreadable-yet-appendable (bricked) state.
+ *
+ * NOTE: rotation/archival of an exhausted event log is a documented future item —
+ * no automatic rotation is performed; callers must handle this error explicitly.
+ */
+export class EventStoreFullError extends Error {
+  constructor() {
+    super("event store is full; rotation/archival is required");
+    this.name = "EventStoreFullError";
+  }
+}

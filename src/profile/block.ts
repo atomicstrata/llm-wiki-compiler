@@ -28,7 +28,7 @@ import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymli
 import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import type { RelationRef } from "../relations/types.js";
 import { readEvents } from "../events/store-read.js";
-import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError } from "../events/types.js";
+import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError, EventStoreFullError } from "../events/types.js";
 
 /**
  * Load the active profile and return it ONLY when it is a non-default profile;
@@ -230,6 +230,7 @@ function eventReadProblem(error: unknown): EntityProblemView {
     error instanceof EventStoreTooNewError ||
     error instanceof EventStoreCorruptError ||
     error instanceof EventStoreSymlinkError ||
+    error instanceof EventStoreFullError ||
     error instanceof GraphDirConfinementError // a symlinked/escaping wiki/graph DIR (FIX F5)
   ) {
     return { kind: "event-store", message: error.message };

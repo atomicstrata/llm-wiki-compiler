@@ -25,16 +25,22 @@
  * ORDERING: emit sites call this AFTER the durable mutation has landed, so the
  * event trails the mutation. A crash between the mutation and the append leaves a
  * missing trailing event — the torn-trailing case the reader tolerates and reports.
+ *
+ * SIZE CEILING: the append-only log has a hard size ceiling ({@link MAX_EVENT_STORE_BYTES}
+ * for the whole file, {@link MAX_EVENT_RECORD_BYTES} per record). An append that
+ * would reach/exceed either cap throws {@link EventStoreFullError} BEFORE writing,
+ * so the store can never be driven past the read cap into a bricked state. ROTATION
+ * and ARCHIVAL of an exhausted log are documented future items — not implemented here.
  */
 
 import { mkdir } from "fs/promises";
 import path from "path";
-import { EVENTS_FILE, EVENTS_HEAD_FILE } from "../utils/constants.js";
+import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_EVENT_RECORD_BYTES, MAX_EVENT_STORE_BYTES } from "../utils/constants.js";
 import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { ulid } from "../relations/ulid.js";
 import type { EventContent, EventId, EventRecord, EventType } from "./types.js";
-import { GENESIS_PREV_HASH } from "./types.js";
+import { GENESIS_PREV_HASH, EventStoreFullError } from "./types.js";
 import {
   eventChecksum,
   eventHeaderLine,
@@ -88,6 +94,29 @@ function buildEventRecord(input: AppendEventInput, prevHash: string): EventRecor
   return { ...unchecked, checksum: eventChecksum(unchecked) };
 }
 
+/**
+ * Reject a record whose serialized on-disk form exceeds {@link MAX_EVENT_RECORD_BYTES}.
+ * Throws {@link EventStoreFullError} BEFORE any write so the store is never touched.
+ */
+function assertRecordWithinCap(serialized: string): void {
+  const bytes = Buffer.byteLength(serialized, "utf8");
+  if (bytes > MAX_EVENT_RECORD_BYTES) {
+    throw new EventStoreFullError();
+  }
+}
+
+/**
+ * Reject an append when the PROJECTED store size (current + new bytes) would
+ * reach or exceed {@link MAX_EVENT_STORE_BYTES} — the same ceiling the reader
+ * enforces, so the store can never be driven into an unreadable-yet-appendable
+ * (bricked) state. Throws {@link EventStoreFullError} BEFORE any write.
+ */
+function assertStoreNotFull(existing: number, addition: number): void {
+  if (existing + addition >= MAX_EVENT_STORE_BYTES) {
+    throw new EventStoreFullError();
+  }
+}
+
 /** Append one record line to the store under O_APPEND, creating the dir/header. */
 async function appendLine(root: string, record: EventRecord): Promise<void> {
   const { dir } = await resolveEventGraphDir(root); // throws on symlink escape (DIR)
@@ -96,10 +125,14 @@ async function appendLine(root: string, record: EventRecord): Promise<void> {
   const handle = await openEventFileAppend(file); // throws on symlink leaf (LEAF)
   try {
     const existing = (await handle.stat()).size;
-    if (existing === 0) await handle.write(eventHeaderLine());
+    const header = existing === 0 ? eventHeaderLine() : "";
     const { checksum, ...rest } = record;
     void checksum; // serializeEventRecord recomputes from the content fields
-    await handle.write(serializeEventRecord(rest));
+    const serialized = serializeEventRecord(rest);
+    assertRecordWithinCap(serialized); // per-record cap BEFORE any write
+    assertStoreNotFull(existing, Buffer.byteLength(header + serialized, "utf8")); // projected-size cap
+    if (header) await handle.write(header);
+    await handle.write(serialized);
   } finally {
     await handle.close();
   }

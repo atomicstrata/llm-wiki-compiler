@@ -130,6 +130,26 @@ export const MAX_RELATION_STORE_BYTES = 64 * 1024 * 1024;
 export const MAX_RELATION_RECORD_BYTES = MAX_SOURCE_CHARS;
 
 /**
+ * Resource cap on the event store file. Mirrors {@link MAX_RELATION_STORE_BYTES}:
+ * the same read-side cap that {@link readConfinedGraphStore} enforces on
+ * `events.jsonl` is now also enforced on the WRITE path so the log can never be
+ * driven past the read ceiling into an unreadable-yet-appendable (bricked) state.
+ *
+ * NOTE: rotation/archival of an exhausted event log is a documented future item —
+ * the append path fails closed with {@link EventStoreFullError} when this ceiling
+ * is reached, and no automatic rotation is performed.
+ */
+export const MAX_EVENT_STORE_BYTES = MAX_RELATION_STORE_BYTES;
+
+/**
+ * Resource cap on a SINGLE event record's serialized form on the write path.
+ * Bounds attacker/caller-controlled payload size before append so one record
+ * cannot grow unbounded (and so the per-store cap cannot be reached by one line).
+ * Mirrors {@link MAX_RELATION_RECORD_BYTES} for consistent behavior across stores.
+ */
+export const MAX_EVENT_RECORD_BYTES = MAX_RELATION_RECORD_BYTES;
+
+/**
  * Append-only activity journal at the project root, per Karpathy's llm-wiki
  * gist: a chronological record of what happened and when (ingests, compiles,
  * queries, lint passes). Lives at the root rather than under wiki/ because it
