@@ -179,11 +179,17 @@ async function appendLine(root: string, ref: RelationRef): Promise<void> {
  * fails on the deferred cross-store-atomicity gap (healthy at pre-flight, fails
  * mid-emit), not on a symlinked/tampered store (those are caught up front).
  */
-async function emitRelationEvent(root: string, type: EventType, ref: RelationRef): Promise<void> {
+async function emitRelationEvent(
+  root: string,
+  type: EventType,
+  ref: RelationRef,
+  decision?: string,
+): Promise<void> {
   await appendEventLocked(root, {
     type,
     origin: "sdk",
     payload: { id: ref.id, relType: ref.type, from: ref.from, to: ref.to },
+    decision,
     at: new Date().toISOString(),
   });
 }
@@ -225,12 +231,15 @@ async function underLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
  * @param root - Absolute project root.
  * @param profile - The governing profile pack (its `relations` block is the schema).
  * @param input - The new relation's content.
+ * @param decision - The trust decision the planner composed for this write, recorded
+ *   on the audit event (B7). OPTIONAL: a direct/non-trust append omits it.
  * @returns The persisted relation reference.
  */
 export async function appendRelationLocked(
   root: string,
   profile: ProfilePack,
   input: AppendRelationInput,
+  decision?: string,
 ): Promise<RelationRef> {
   const ref = buildRelationRef(profile, input); // throws before any write
   await prepareEventStoreForAppend(root); // FIX F2 pre-flight (under the held lock): REPAIR a torn tail, else fail closed on a tampered/symlinked/corrupt audit store
@@ -238,7 +247,7 @@ export async function appendRelationLocked(
   const duplicate = relations.find((rel) => rel.contentHash === ref.contentHash);
   if (duplicate) return duplicate; // idempotent create (FIX #6) — append nothing, emit nothing
   await appendLine(root, ref);
-  await emitRelationEvent(root, "relation-create", ref); // under the caller's lock, after the append
+  await emitRelationEvent(root, "relation-create", ref, decision); // records the composed trust decision (B7)
   return ref;
 }
 
@@ -332,6 +341,25 @@ function compactedBody(records: RelationRef[]): string {
 }
 
 /**
+ * Emit one `relation-compact` audit event recording the rewrite (A5): the
+ * live-record counts before/after and the ids dropped, so the very audit log the
+ * relation store protects no longer has a silent gap where compaction discards
+ * superseded/invalid records. Pre-flight then emit under the caller's held lock,
+ * so the event co-commits with the compaction and the chain stays intact.
+ */
+async function emitCompactionEvent(root: string, before: RelationRef[], survivors: RelationRef[]): Promise<void> {
+  const survivingIds = new Set(survivors.map((ref) => ref.id));
+  const droppedIds = before.filter((ref) => !survivingIds.has(ref.id)).map((ref) => ref.id);
+  await prepareEventStoreForAppend(root); // REPAIR a torn tail / else fail closed on a tampered audit store
+  await appendEventLocked(root, {
+    type: "relation-compact",
+    origin: "sdk",
+    payload: { countBefore: before.length, countAfter: survivors.length, droppedCount: droppedIds.length, droppedIds },
+    at: new Date().toISOString(),
+  });
+}
+
+/**
  * Write `body` to a RANDOM-named temp file inside the CONFINED graph dir, then
  * atomic-rename it over `file`. The temp is opened with `"wx"` (O_CREAT|O_EXCL),
  * so a pre-planted entry at that path — INCLUDING a symlink-to-FILE — makes the
@@ -379,6 +407,7 @@ export async function compactRelations(root: string, profile: ProfilePack): Prom
     const { relations } = await readRelations(root);
     const survivors = relations.filter((ref) => validateRelationAgainstProfile(ref, profile).length === 0);
     await writeCompactedAtomically(dir, file, compactedBody(survivors));
+    await emitCompactionEvent(root, relations, survivors); // audit the rewrite (A5), under the held lock
     return { before, after: await fileSize(file) };
   });
 }

@@ -194,6 +194,9 @@ interface TransitionEventFields {
  * cross-store-atomicity gap, not on a symlinked/tampered store.
  */
 async function emitTransitionEvent(root: string, fields: TransitionEventFields): Promise<void> {
+  // A lifecycle transition is an FSM-validated page write (the PR2 lifecycle gate),
+  // NOT a trust-gated write — it composes no TrustDecision — so the audit event's
+  // `decision` is intentionally OMITTED here rather than fabricated.
   await appendEventLocked(root, {
     type: "lifecycle-transition",
     origin: "sdk",

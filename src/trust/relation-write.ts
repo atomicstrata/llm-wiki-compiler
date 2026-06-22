@@ -67,7 +67,7 @@ export async function createRelation(
   }
   await acquireLockBlocking(root); // serializes concurrent writers; throws LockBusyError on timeout
   try {
-    return await appendRelationLocked(root, profile, input);
+    return await appendRelationLocked(root, profile, input, decision); // record the composed verdict on the audit event (B7)
   } finally {
     await releaseLock(root);
   }

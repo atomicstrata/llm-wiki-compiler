@@ -2,7 +2,7 @@
  * @file src/events/event-digest.ts
  * @description The chain digest for the event store. Mirrors the relation
  * digest's canonicalize-then-sha256 pattern: a SHA-256 over the RFC 8785 (JCS)
- * canonicalization of an event's CONTENT fields (`{id,type,origin,actor,payload,
+ * canonicalization of an event's CONTENT fields (`{id,type,origin,payload,
  * decision,at}`), so equal content yields an equal hash regardless of key order.
  *
  * This digest is the link material of the hash chain: the digest of record[i] is
@@ -25,7 +25,7 @@ import type { EventContent } from "./types.js";
  * Compute the canonical chain digest of an event's content fields.
  *
  * Returns the lowercase-hex SHA-256 of the RFC 8785 canonicalization of
- * `{id,type,origin,actor,payload,decision,at}`. The result is what the NEXT
+ * `{id,type,origin,payload,decision,at}`. The result is what the NEXT
  * record carries as its `prevHash`, and what {@link verifyHeadAnchor} compares
  * the sealed head against for the LAST record.
  *
@@ -37,7 +37,6 @@ export function eventPrevHash(content: EventContent): string {
     id: content.id,
     type: content.type,
     origin: content.origin,
-    actor: content.actor,
     payload: content.payload,
     decision: content.decision,
     at: content.at,

@@ -60,7 +60,6 @@ import { prepareEventStoreForAppend } from "./store-read.js";
 export interface AppendEventInput {
   type: EventType;
   origin: string;
-  actor?: string;
   payload: Record<string, unknown>;
   decision?: string;
   /** ISO-8601 emit timestamp; the caller supplies one (e.g. `new Date().toISOString()`). */
@@ -89,7 +88,6 @@ function buildEventRecord(input: AppendEventInput, prevHash: string): EventRecor
     id: mintEventId(),
     type: input.type,
     origin: input.origin,
-    actor: input.actor,
     payload: input.payload,
     decision: input.decision,
     at: input.at,

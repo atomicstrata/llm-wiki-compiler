@@ -46,8 +46,21 @@ export const EVENT_STORE_SCHEMA_VERSION = 1;
  */
 export const GENESIS_PREV_HASH = "genesis";
 
-/** The kinds of mutation that emit an audit event. */
-export type EventType = "lifecycle-transition" | "relation-create" | "relation-update";
+/**
+ * The kinds of mutation that emit an audit event.
+ *
+ * IMPLEMENTED categories: lifecycle transitions, relation create/update, and
+ * relation-store COMPACTION (`relation-compact`, recording the rewrite that drops
+ * superseded/invalid records). DEFERRED (explicitly NOT silently omitted) to later
+ * phases: standalone trust-VERDICT events (a verdict here rides on the
+ * relation-create/update record's `decision`, not its own event), page
+ * PROMOTE / review-APPROVE events, IMPORT/EXPORT events, and WORKFLOW events.
+ */
+export type EventType =
+  | "lifecycle-transition"
+  | "relation-create"
+  | "relation-update"
+  | "relation-compact";
 
 /** An event id, always of the form `evt_<ULID>`. */
 export type EventId = `evt_${string}`;
@@ -60,11 +73,9 @@ export interface EventContent {
   type: EventType;
   /** Where the mutation originated (e.g. `"sdk"`). */
   origin: string;
-  /** Optional acting principal (user/agent), when known. */
-  actor?: string;
   /** Mutation-specific detail (entity/slug/from/to/state etc.). */
   payload: Record<string, unknown>;
-  /** Optional trust decision that routed the mutation. */
+  /** Optional composed trust decision that routed the mutation (relation writes). */
   decision?: string;
   /** ISO-8601 emit timestamp. */
   at: string;
