@@ -4,9 +4,11 @@
  * for wiki pages.
  */
 
-import { writeFile, rename, readFile, mkdir, lstat } from "fs/promises";
+import { rename, readFile, mkdir, lstat, open, unlink, realpath } from "fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "path";
 import yaml from "js-yaml";
+import { confineUnderRoot, isInsideDir } from "./path-confine.js";
 import type {
   ClaimCitation,
   ContradictionRef,
@@ -128,33 +130,125 @@ export function parseFrontmatterStatus(content: string): {
   return { meta, body: match[2], hasFrontmatterBlock: true, malformedFrontmatter };
 }
 
+/** Bytes of randomness in the per-write temp-file suffix (→ 16 hex chars). */
+const TEMP_SUFFIX_BYTES = 8;
+
+/** Options for {@link atomicWrite}. */
+export interface AtomicWriteOptions {
+  /**
+   * When provided, confine the write under this project root: the nearest
+   * EXISTING ancestor of `filePath` must realpath-resolve inside `confineRoot`
+   * BEFORE any directory is created, and `realpath(dir)` must still be inside it
+   * AFTER the mkdir (TOCTOU). A caller that OMITS this gets only the
+   * immediate-parent symlink guard (back-compat).
+   */
+  confineRoot?: string;
+}
+
 /**
- * Atomically write a file (write to .tmp, then rename).
+ * Atomically write a file (write to a private temp, then rename).
  *
- * Defense against the confine→write race (S3): callers resolve `filePath` with
- * `confineUnderRoot(..., {mustExist:false})`, which returns a LEXICAL path after
- * checking the nearest EXISTING ancestor. Between that check and this write, the
- * final directory can be swapped for a symlink that escapes the project root, so
- * the rename would land outside root. `atomicWrite` lacks root context, so it
- * fails CLOSED on the actual escape vector: immediately before writing, it
- * `lstat`s the parent directory and refuses if it is a SYMLINK. Project writes
- * always target real directories, so this never rejects a legitimate write; it
- * matches the wider trust model (a symlinked dir is never trusted).
+ * This is the SHARED atomic-write primitive every wiki write routes through, so
+ * its symlink defenses are the single place the leaf-symlink write-escape class
+ * is closed. The defenses fail CLOSED:
+ *
+ *  1. ANCESTOR DIR (opt-in via `confineRoot`): `mkdir(dir,{recursive})` would
+ *     otherwise CREATE an absent leaf THROUGH a symlinked ANCESTOR that escapes
+ *     root, after which a leaf-parent `lstat` sees a real dir and passes — so the
+ *     write escapes. With `confineRoot`, the nearest EXISTING ancestor's realpath
+ *     is verified inside root BEFORE any mkdir (and `realpath(dir)` re-checked
+ *     after mkdir to catch a TOCTOU swap). The no-symlink-escape guarantee holds
+ *     ONLY for callers that pass `confineRoot`; a caller that omits it gets just
+ *     the immediate-parent guard below.
+ *
+ *  2. PARENT DIR (confine→write race): the final directory can be swapped for a
+ *     symlink between a caller's confine check and this write, so the rename
+ *     would land outside root. `atomicWrite` `lstat`s the parent directory and
+ *     refuses if it is a SYMLINK. Project writes always target real directories,
+ *     so this never rejects a legitimate write.
+ *
+ *  3. TEMP LEAF: the temp file gets a RANDOM name (`<basename>.<16-hex>.tmp`) and
+ *     is opened with `O_EXCL` (`open(..., "wx")`), which REFUSES any pre-existing
+ *     entry — including a pre-planted symlink — with `EEXIST`. The content is
+ *     written THROUGH the handle (never re-opening the name), then `rename`d onto
+ *     the target. On ANY failure after the temp is opened (write or rename) the
+ *     random temp is `unlink`ed best-effort before rethrowing, so a failed write
+ *     never leaves an orphan `*.tmp` behind (which would otherwise make an OKF
+ *     re-export's empty-dir gate see phantom content).
+ *
+ * Parity: for a normal write a random O_EXCL temp is observably identical to the
+ * old predictable temp — the destination bytes are byte-for-byte unchanged, so
+ * the frozen default goldens are unaffected.
  *
  * @param filePath - Absolute destination path (its parent must be a real dir).
  * @param content - File contents to write.
- * @throws If the resolved parent directory is a symlink (confine→write escape).
+ * @param opts - Optional {@link AtomicWriteOptions} (e.g. `confineRoot`).
+ * @throws If the resolved parent directory is a symlink (confine→write escape),
+ *   if `confineRoot` is given and an ancestor escapes root, or if the random temp
+ *   leaf already exists (EEXIST — fail closed).
  */
-export async function atomicWrite(filePath: string, content: string): Promise<void> {
+export async function atomicWrite(
+  filePath: string,
+  content: string,
+  opts?: AtomicWriteOptions,
+): Promise<void> {
   const dir = path.dirname(filePath);
+  if (opts?.confineRoot !== undefined) {
+    await assertAncestorInRoot(filePath, opts.confineRoot);
+  }
   await mkdir(dir, { recursive: true });
+  await assertParentNotSymlink(dir, opts?.confineRoot);
+  await writeViaTemp(filePath, content);
+}
+
+/**
+ * Fail closed BEFORE any mkdir when the nearest existing ancestor of `filePath`
+ * escapes `confineRoot`. Delegates to {@link confineUnderRoot} (mustExist:false),
+ * which realpath-checks the nearest existing path at or above the target.
+ *
+ * `filePath` is confined as a path RELATIVE to `confineRoot` so confinement is
+ * invariant to which symlink form of root it resolves under (e.g. `/var/…` vs the
+ * canonical `/private/var/…` on macOS) — an absolute target would otherwise pin
+ * to the non-canonical form and spuriously read as escaping.
+ */
+async function assertAncestorInRoot(filePath: string, confineRoot: string): Promise<void> {
+  const relPath = path.relative(confineRoot, filePath);
+  await confineUnderRoot(relPath, confineRoot, { mustExist: false });
+}
+
+/**
+ * Reject a symlinked parent directory. With `confineRoot`, ALSO re-check that the
+ * just-created `dir` realpath is still inside root (catches a post-mkdir TOCTOU
+ * ancestor swap that the pre-mkdir {@link assertAncestorInRoot} could not see).
+ */
+async function assertParentNotSymlink(dir: string, confineRoot?: string): Promise<void> {
   const dirStat = await lstat(dir);
   if (dirStat.isSymbolicLink()) {
     throw new Error(`refusing to write through a symlinked directory: ${dir}`);
   }
-  const tmpPath = filePath + ".tmp";
-  await writeFile(tmpPath, content, "utf-8");
-  await rename(tmpPath, filePath);
+  if (confineRoot !== undefined) {
+    const realRoot = await realpath(confineRoot);
+    const realDir = await realpath(dir);
+    if (!isInsideDir(realDir, realRoot)) {
+      throw new Error(`write directory escapes project root: ${dir}`);
+    }
+  }
+}
+
+/** Write `content` to a random O_EXCL temp, then rename onto `filePath`; clean up the temp on any failure. */
+async function writeViaTemp(filePath: string, content: string): Promise<void> {
+  const suffix = randomBytes(TEMP_SUFFIX_BYTES).toString("hex");
+  const tmpPath = `${filePath}.${suffix}.tmp`;
+  const handle = await open(tmpPath, "wx");
+  try {
+    await handle.writeFile(content, "utf-8");
+    await handle.close();
+    await rename(tmpPath, filePath);
+  } catch (err) {
+    await handle.close().catch(() => {}); // guard double-close (rename failure)
+    await unlink(tmpPath).catch(() => {}); // best-effort: never leak an orphan temp
+    throw err;
+  }
 }
 
 /**

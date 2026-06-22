@@ -19,7 +19,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expect } from "vitest";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
-import type { ProfilePack, EntityPageView } from "../../src/profile/types.js";
+import type { EntityId, ProfilePack, EntityPageView } from "../../src/profile/types.js";
+import { appendRelation } from "../../src/relations/store.js";
 
 /**
  * A minimal NON-DEFAULT profile: a single `notes` entity type at `wiki/notes`
@@ -37,6 +38,29 @@ export const SAMPLE_PROFILE: ProfilePack = {
     },
   },
 };
+
+/** Stock `experiments` endpoint EntityId for the in-memory relation fixtures. */
+export const EXPERIMENT_A = "experiments/a" as EntityId;
+/** Stock `ideas` endpoint EntityId for the in-memory relation fixtures. */
+export const IDEA_B = "ideas/b" as EntityId;
+
+/**
+ * Build an in-memory NON-DEFAULT profile with `experiments` + `ideas` entity
+ * types and a caller-supplied `relations` block. Shared by the relation
+ * write-path / contract / confinement tests so they declare ONE entity shape and
+ * vary only the relation definitions under test.
+ *
+ * @param relations - The `relations` block to attach.
+ * @returns A complete {@link ProfilePack}.
+ */
+export function experimentsIdeasProfile(relations: ProfilePack["relations"]): ProfilePack {
+  return {
+    schemaVersion: 1,
+    profileId: "research",
+    entities: { experiments: { directory: "wiki/experiments" }, ideas: { directory: "wiki/ideas" } },
+    relations,
+  };
+}
 
 /** Write a profile.json into the project's `.llmwiki/` dir. */
 export async function writeProfileFile(root: string, pack: ProfilePack): Promise<void> {
@@ -146,6 +170,11 @@ export const RESEARCH_LITE_PROFILE = {
           type: "enum",
           enum: ["proposed", "testing", "tested", "validated", "failed"],
         },
+        // Declared so the `failed` state can require it as transition evidence:
+        // the profile validator now demands every transitionRequirements field be
+        // a declared entity field (FIX 2). Extending fixtures attach
+        // `transitionRequirements: { failed: ["failureReason"] }`.
+        failureReason: { type: "string" },
       },
       lifecycle: {
         field: "status",
@@ -161,6 +190,26 @@ export const RESEARCH_LITE_PROFILE = {
     experiments: {
       directory: "wiki/experiments",
       fields: { runtime: { type: "string" } },
+    },
+  },
+} as const;
+
+/**
+ * A research-lite profile EXTENDED with a `tests` relation type
+ * (`experiments → ideas`, directed, optional `metric` attribute). Kept separate
+ * from {@link RESEARCH_LITE_PROFILE} so the base fixture stays relation-LESS for
+ * tests that trim its entity set (a relation referencing a trimmed-away entity
+ * type would fail profile validation). Materialized via
+ * {@link buildResearchLiteRelationsProject} + {@link seedTestsRelation}.
+ */
+export const RESEARCH_LITE_RELATIONS_PROFILE = {
+  ...RESEARCH_LITE_PROFILE,
+  relations: {
+    tests: {
+      from: ["experiments"],
+      to: ["ideas"],
+      direction: "directed",
+      attributes: { metric: { type: "string" } },
     },
   },
 } as const;
@@ -206,4 +255,45 @@ export async function buildResearchLiteProject(root: string): Promise<void> {
     await mkdir(path.join(root, dir), { recursive: true });
     for (const slug of slugs) await writeSeedPage(root, dir, slug);
   }
+}
+
+/**
+ * Materialize a research-lite project whose on-disk profile DECLARES the `tests`
+ * relation type ({@link RESEARCH_LITE_RELATIONS_PROFILE}). Builds the base
+ * project (entity dirs + seed pages), then overwrites the profile file so the
+ * read surfaces (status/export/lint) see the relations block.
+ *
+ * @param root - Absolute project root directory (must already exist).
+ */
+export async function buildResearchLiteRelationsProject(root: string): Promise<void> {
+  await buildResearchLiteProject(root);
+  await writeFile(
+    path.join(root, ".llmwiki", "profile.json"),
+    `${JSON.stringify(RESEARCH_LITE_RELATIONS_PROFILE, null, 2)}\n`,
+    "utf8",
+  );
+}
+
+/**
+ * Append a `tests` relation (`experiments/<from>` → `ideas/<to>`) into a
+ * research-lite project's relation store, returning its minted ref. Used by the
+ * relation-lint/surfacing tests to seed both HEALTHY (both endpoints have seed
+ * pages) and DANGLING (a missing endpoint slug) relations.
+ *
+ * @param root - Absolute project root (must already be a research-lite project).
+ * @param fromSlug - The `experiments` endpoint slug.
+ * @param toSlug - The `ideas` endpoint slug.
+ * @returns The persisted relation reference.
+ */
+export async function seedTestsRelation(
+  root: string,
+  fromSlug: string,
+  toSlug: string,
+): Promise<{ id: string; type: string }> {
+  return appendRelation(root, RESEARCH_LITE_RELATIONS_PROFILE as ProfilePack, {
+    type: "tests",
+    from: `experiments/${fromSlug}` as EntityId,
+    to: `ideas/${toSlug}` as EntityId,
+    attributes: { metric: "f1" },
+  });
 }

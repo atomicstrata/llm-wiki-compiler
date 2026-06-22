@@ -22,6 +22,24 @@ import type { OkfExportReport } from "../export/okf/run.js";
 import type { OkfImportReport } from "../import/run.js";
 import type { SdkStageEntityPageInput } from "../trust/staging.js";
 import type { StagedChange } from "../trust/staged-change.js";
+import type { AppendRelationInput } from "../relations/store.js";
+import type { RelationRef } from "../relations/types.js";
+
+/**
+ * @experimental
+ * SDK input for {@link Wiki.transitionLifecycle}: the entity page to transition
+ * and its target state, plus any frontmatter `evidence` a target state requires.
+ */
+export interface SdkTransitionLifecycleInput {
+  /** Profile entity type whose page is transitioned (must declare a lifecycle). */
+  entityType: string;
+  /** Page slug (the filename stem) of the page to transition. */
+  slug: string;
+  /** The lifecycle state to transition the page into. */
+  toState: string;
+  /** Optional frontmatter fields a target state requires, merged into the page. */
+  evidence?: Record<string, unknown>;
+}
 
 /** Options for `createWiki`. */
 export interface CreateWikiOptions {
@@ -205,4 +223,44 @@ export interface Wiki {
    * Foundation API — the shape may change in a future minor release.
    */
   promoteStagedPage(candidateId: string): Promise<void>;
+  /**
+   * @experimental
+   * Create a typed RELATION through the trust planner. The SDK loads the active
+   * non-default profile internally — the caller passes no `ProfilePack`. The
+   * write routes through ONE planner decision (endpoint validity + required
+   * attributes) and, only when allowed, appends to the relation store under one
+   * lock. Throws `RelationsRequireProfileError` on a default project (no
+   * `relations` block) and `RelationWriteDeniedError` when the planner denies the
+   * write (undeclared type, disallowed endpoint, missing required attribute) —
+   * nothing is written in either case. No LLM required.
+   *
+   * READ-INTEGRATION STATUS: a created relation is a WRITE SUBSTRATE. It lands in
+   * the relation store and is surfaced in `status`, the JSON export, and lint —
+   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
+   * viewer, or any agent-facing read path (those are planned). Do not assume a
+   * created relation participates in retrieval or rendering yet.
+   *
+   * Foundation API — the shape may change in a future minor release.
+   */
+  createRelation(input: AppendRelationInput): Promise<RelationRef>;
+  /**
+   * @experimental
+   * Transition a typed entity page's lifecycle field to `input.toState` as a
+   * validated page update. The SDK loads the active non-default profile
+   * internally. The write rides the EXISTING typed page path, which re-runs the
+   * lifecycle gate — an illegal transition (or one missing required `evidence`)
+   * is REFUSED (`LifecycleTransitionError`) and the page is left unchanged.
+   * Throws `LifecycleTransitionUnavailableError` when the project has no profile,
+   * the type is unknown, the type has no lifecycle, or the page does not exist.
+   * No LLM required.
+   *
+   * READ-INTEGRATION STATUS: the transition writes the lifecycle-field value into
+   * the page — a WRITE SUBSTRATE surfaced in `status`, the JSON export, and lint,
+   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
+   * viewer, or any agent-facing read path (those are planned). Do not assume the
+   * new lifecycle state participates in retrieval or rendering yet.
+   *
+   * Foundation API — the shape may change in a future minor release.
+   */
+  transitionLifecycle(input: SdkTransitionLifecycleInput): Promise<void>;
 }

@@ -858,7 +858,7 @@ async function generateMergedPage(
   }
 
   const pagePath = path.join(root, CONCEPTS_DIR, `${entry.slug}.md`);
-  const error = await writePageIfValid(pagePath, fullPage, entry.concept.concept);
+  const error = await writePageIfValid(root, pagePath, fullPage, entry.concept.concept);
   if (!error) await deleteCandidateBySlug(root, entry.slug);
   return { error: error ?? undefined, wrotePage: !error };
 }
@@ -1016,7 +1016,7 @@ async function generateSingleSeedPage(
   addObsidianMeta(frontmatterFields, seed.title, []);
   addModelProvenanceMeta(frontmatterFields);
   const frontmatter = buildFrontmatter(frontmatterFields);
-  const error = await writePageIfValid(pagePath, `${frontmatter}\n\n${pageBody}\n`, seed.title);
+  const error = await writePageIfValid(root, pagePath, `${frontmatter}\n\n${pageBody}\n`, seed.title);
   return error ? { slug, error } : { slug };
 }
 
@@ -1053,12 +1053,16 @@ async function extractConcepts(
 }
 
 /**
- * Validate and atomically write a wiki page, logging the result.
+ * Validate and atomically write a wiki page, logging the result. The write is
+ * root-confined (`confineRoot: root`) so a symlinked ANCESTOR on the page path
+ * fails closed rather than escaping the project root.
+ * @param root - Project root the write is confined under.
  * @param pagePath - Absolute path to write the page.
  * @param content - Full page content including frontmatter.
  * @param conceptTitle - Title for logging purposes.
  */
 async function writePageIfValid(
+  root: string,
   pagePath: string,
   content: string,
   conceptTitle: string,
@@ -1068,7 +1072,7 @@ async function writePageIfValid(
     return `Invalid page for "${conceptTitle}" — failed validation`;
   }
 
-  await atomicWrite(pagePath, content);
+  await atomicWrite(pagePath, content, { confineRoot: root });
   const slug = path.basename(pagePath, ".md");
   verbose(`page ${slug}: ${content.length} chars`);
   return null;

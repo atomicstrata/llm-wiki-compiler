@@ -16,7 +16,9 @@
  *     canonicalization + uniqueness + reserved-root confinement, requiredFields
  *     references, lifecycle FSM well-formedness, slug-safe entity-type keys,
  *     defensive non-finite-number rejection, the unsupported `extends`
- *     inheritance, and (in `validateProfile` only) reserved profile ids.
+ *     inheritance, relation-type well-formedness (slug-safe keys, declared
+ *     endpoints, requiredAttributes membership), and (in `validateProfile`
+ *     only) reserved profile ids.
  *
  * Validation NEVER mutates the caller's input: the raw object is cloned up
  * front and only the clone is canonicalized and returned. `validateProfileShape`
@@ -26,7 +28,7 @@
  * Unreachable lifecycle states are collected as warnings, not errors.
  */
 
-import type { ProfilePack, EntityTypeDef, FieldDef, LifecycleDef } from "./types.js";
+import type { ProfilePack, EntityTypeDef, FieldDef, FieldType, LifecycleDef, RelationTypeDef } from "./types.js";
 import { isSlugSafe } from "./identity.js";
 import { validateEntityDirectory } from "./paths.js";
 import { assertStructurallyValid } from "./schema-validator.js";
@@ -88,15 +90,20 @@ function rejectInheritance(raw: ProfilePack): void {
   );
 }
 
+/** Reject any non-finite numeric value on one FieldDef (default/min/max). */
+function assertFieldDefFinite(where: string, field: FieldDef): void {
+  for (const key of ["default", "min", "max"] as const) {
+    const value = field[key];
+    if (typeof value === "number") {
+      assert(Number.isFinite(value), `${where} has a non-finite ${key}`);
+    }
+  }
+}
+
 /** Reject any non-finite numeric field-def or retrieval value defensively. */
 function assertFiniteNumbers(entityType: string, def: EntityTypeDef): void {
   for (const [name, field] of Object.entries(def.fields ?? {})) {
-    for (const key of ["default", "min", "max"] as const) {
-      const value = field[key];
-      if (typeof value === "number") {
-        assert(Number.isFinite(value), `entity '${entityType}' field '${name}' has a non-finite ${key}`);
-      }
-    }
+    assertFieldDefFinite(`entity '${entityType}' field '${name}'`, field);
   }
   const weight = def.retrieval?.defaultWeight;
   if (typeof weight === "number") {
@@ -112,14 +119,70 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
 }
 
 /**
+ * Frontmatter keys a transition's evidence may NEVER set, even if declared: the
+ * page `slug` (identity, runtime-dropped at transition time) is reserved here so
+ * a profile can never declare an unsatisfiable evidence requirement. The
+ * lifecycle `field` is reserved too (the transition WRITES it) and is added
+ * dynamically in {@link assertEvidenceFieldsDeclared}.
+ */
+const RESERVED_EVIDENCE_KEYS = new Set(["slug"]);
+
+/**
+ * Field types the runtime evidence gate ({@link isEvidencePresent} in
+ * `lifecycle.ts`) can satisfy: a non-empty string / number / slug / enum value
+ * (a non-empty enum value is a non-empty string), or a non-empty `string[]`.
+ * `boolean`, `object`, and `date` are EXCLUDED — the gate rejects booleans and
+ * objects (a bare `true` proves only key presence, not justification), and a
+ * `date` parses to a Date object the scalar gate cannot accept. A profile
+ * declaring an evidence field of an excluded type would LOAD but its target state
+ * could never be entered (a permanently dead state), so it is rejected at load.
+ */
+const EVIDENCE_COMPATIBLE_TYPES: ReadonlySet<FieldType> = new Set<FieldType>([
+  "string",
+  "number",
+  "integer",
+  "slug",
+  "string[]",
+  "enum",
+]);
+
+/**
+ * Reject a profile whose `transitionRequirements` declares any evidence field
+ * that can never be satisfied via caller evidence — a RESERVED key (`slug`, or
+ * the lifecycle `field` the transition writes), one that is NOT a DECLARED entity
+ * field, OR one whose declared `type` the runtime evidence gate can never satisfy
+ * (see {@link EVIDENCE_COMPATIBLE_TYPES} — `boolean`/`object`/`date` would make
+ * the target state permanently unreachable). Requiring evidence fields to be
+ * declared makes them first-class typed fields, so the field contract enforces
+ * their type/content. Fails closed at profile LOAD.
+ */
+function assertEvidenceFieldsDeclared(where: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): void {
+  const declared = fields ?? {};
+  for (const [state, evidenceFields] of Object.entries(lc.transitionRequirements ?? {})) {
+    for (const field of evidenceFields) {
+      const reserved = RESERVED_EVIDENCE_KEYS.has(field) || field === lc.field;
+      assert(!reserved, `${where}: transitionRequirements['${state}'] uses reserved evidence field '${field}'`);
+      assert(field in declared, `${where}: transitionRequirements['${state}'] evidence field '${field}' is not a declared field`);
+      const type = declared[field].type;
+      assert(
+        EVIDENCE_COMPATIBLE_TYPES.has(type),
+        `${where}: evidence field '${field}' has type '${type}' which can never satisfy the required-evidence gate`,
+      );
+    }
+  }
+}
+
+/**
  * Validate a lifecycle FSM and return any unreachable states as warnings.
  *
  * Well-formedness (all throw on violation): the state set is the union of the
  * terminal states and every transition endpoint; initial ∈ states; terminal ⊆
  * states; terminal states have no outgoing transitions; every transition
- * endpoint ∈ states; every transitionRequirements key ∈ states; and if the
- * lifecycle `field` maps to a declared field, that field must be an enum whose
- * values equal the state set. Unreachable states are returned, not thrown.
+ * endpoint ∈ states; every transitionRequirements key ∈ states; every
+ * transitionRequirements evidence FIELD is a declared, non-reserved entity field
+ * (see {@link assertEvidenceFieldsDeclared}); and if the lifecycle `field` maps
+ * to a declared field, that field must be an enum whose values equal the state
+ * set. Unreachable states are returned, not thrown.
  */
 function validateLifecycle(entityType: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): string[] {
   const where = `entity '${entityType}' lifecycle`;
@@ -136,6 +199,7 @@ function validateLifecycle(entityType: string, lc: LifecycleDef, fields?: Record
   for (const key of Object.keys(lc.transitionRequirements ?? {})) {
     assert(states.has(key), `${where}: transitionRequirements references unknown state '${key}'`);
   }
+  assertEvidenceFieldsDeclared(where, lc, fields);
   assertLifecycleEnum(where, lc, states, fields);
   return unreachableStates(lc, states).map((s) => `${where}: state '${s}' is unreachable from initial`);
 }
@@ -206,6 +270,47 @@ function validateEntities(entities: Record<string, EntityTypeDef>): string[] {
   return warnings;
 }
 
+/** Every from/to endpoint must reference a DECLARED entity type. */
+function validateRelationEndpoints(rel: string, def: RelationTypeDef, entities: Set<string>): void {
+  assert(def.from.length > 0, `relation '${rel}' has an empty 'from' endpoint list`);
+  assert(def.to.length > 0, `relation '${rel}' has an empty 'to' endpoint list`);
+  for (const endpoint of [...def.from, ...def.to]) {
+    assert(entities.has(endpoint), `relation '${rel}' endpoint '${endpoint}' is not a declared entity type`);
+  }
+}
+
+/** requiredAttributes entries must be declared keys in `attributes`; attrs finite. */
+function validateRelationAttributes(rel: string, def: RelationTypeDef): void {
+  const attributes = def.attributes ?? {};
+  for (const [name, field] of Object.entries(attributes)) {
+    assertFieldDefFinite(`relation '${rel}' attribute '${name}'`, field);
+  }
+  for (const name of def.requiredAttributes ?? []) {
+    assert(name in attributes, `relation '${rel}' requiredAttributes references undeclared attribute '${name}'`);
+  }
+}
+
+/**
+ * Validate the optional `relations` block (fail-closed). Each relation-type key
+ * must be slug-safe; `from`/`to` must be non-empty and reference declared entity
+ * types; `direction` is schema-enforced to `directed`/`symmetric`; attribute
+ * FieldDefs must be finite and every `requiredAttributes` entry must name a
+ * declared attribute. Symmetric-pair canonicalization is a STORE-time concern
+ * (a later slice), so only the def shape is validated here.
+ */
+function validateRelations(
+  relations: Record<string, RelationTypeDef> | undefined,
+  entities: Record<string, EntityTypeDef>,
+): void {
+  if (!relations) return;
+  const declared = new Set(Object.keys(entities));
+  for (const [rel, def] of Object.entries(relations)) {
+    assert(isSlugSafe(rel), `relation type key '${rel}' must be slug-safe`);
+    validateRelationEndpoints(rel, def, declared);
+    validateRelationAttributes(rel, def);
+  }
+}
+
 /**
  * Validate a raw profile's SHAPE: the ajv structural gate plus every semantic
  * check, EXCEPT the reserved profileId rejection. The built-in default profile
@@ -218,6 +323,7 @@ export function validateProfileShape(raw: unknown): ProfileValidationResult {
   const profile = structuredClone(raw) as ProfilePack;
   rejectInheritance(profile);
   const warnings = validateEntities(profile.entities);
+  validateRelations(profile.relations, profile.entities);
   return { profile, warnings };
 }
 

@@ -27,9 +27,11 @@
  * not be able to consume the whole session budget in one shot, but the limit is
  * generous enough for realistic batch proposals. Per-session ≥ per-call always.
  *
- * `RelationRef` / `ArtifactRef` are Phase-4 STUBS declared here purely so the
- * {@link StagedChange.target} union is total across all {@link CandidateKind}s;
- * relation/artifact staging logic lands later and may replace these shapes.
+ * `StagedRelationRef` / `StagedArtifactRef` are Phase-4 STUBS declared here purely
+ * so the {@link StagedChange.target} union is total across all {@link CandidateKind}s;
+ * relation/artifact staging logic lands later and may replace these shapes. They
+ * are deliberately distinct from the canonical relation `RelationRef`
+ * (`src/relations/types.ts`), which is the real persisted-edge type.
  */
 
 import type { TrustDecision } from "./decision.js";
@@ -61,15 +63,15 @@ export type HeldReasonCode =
   | "human-gate"
   | (string & {});
 
-/** Phase-4 STUB: a staged relation target. Replaced when relations land. */
-export interface RelationRef {
+/** Phase-4 STUB: a staged relation target. Distinct from the canonical `RelationRef`. */
+export interface StagedRelationRef {
   fromId: string;
   toId: string;
   relationType: string;
 }
 
 /** Phase-4 STUB: a staged artifact target. Replaced when artifacts land. */
-export interface ArtifactRef {
+export interface StagedArtifactRef {
   artifactId: string;
   artifactType: string;
 }
@@ -88,7 +90,7 @@ export interface WorkflowRunRef {
 export interface StagedChange {
   id: string;
   kind: CandidateKind;
-  target: EntityRef | RelationRef | ArtifactRef | WorkflowRunRef;
+  target: EntityRef | StagedRelationRef | StagedArtifactRef | WorkflowRunRef;
   operation: MutationOperation;
   planned: PlannedMutation[];
   heldReasons: HeldReasonCode[];

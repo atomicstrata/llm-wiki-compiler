@@ -224,6 +224,10 @@ async function applyBatch(
   writeOne: WriteOne,
 ): Promise<void> {
   for (const mutation of planned) {
+    // Only `page` mutations ride this executor + journal. `relation` writes have
+    // their own append-only durability (src/trust/relation-write.ts) and a
+    // `lifecycle-transition` is itself a validated PAGE update, so neither kind
+    // is ever planned into this batch — the throw stays a hard invariant guard.
     if (mutation.kind !== "page") throw new NotImplementedMutationError(mutation.kind);
     const abs = await confineUnderRoot(pageRelPath(mutation), root, { mustExist: false });
     if (mutation.operation === "create" && (await targetExists(abs))) {

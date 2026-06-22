@@ -22,13 +22,66 @@
  * acquires it cleanly via 'wx'.
  */
 
-import { open, readFile, unlink, mkdir } from "fs/promises";
+import { open, readFile, unlink } from "fs/promises";
 import path from "path";
-import { LLMWIKI_DIR, LOCK_FILE } from "./constants.js";
+import { LOCK_FILE } from "./constants.js";
+import { resolveConfinedPrivateDir } from "./private-dir.js";
 import * as output from "./output.js";
 
 const RECLAIM_SUFFIX = ".reclaim";
 const MAX_ACQUIRE_ATTEMPTS = 2;
+
+/** Default bound a blocking acquire waits before declaring the store busy. */
+const DEFAULT_BLOCKING_TIMEOUT_MS = 5_000;
+/** Default poll interval between blocking-acquire retries. */
+const DEFAULT_BLOCKING_INTERVAL_MS = 25;
+
+/** Options bounding a {@link acquireLockBlocking} retry loop. */
+export interface BlockingLockOptions {
+  /** Total time to keep retrying before throwing (ms). */
+  timeoutMs?: number;
+  /** Delay between retries (ms). */
+  intervalMs?: number;
+}
+
+/** Thrown when a bounded-blocking lock acquire times out without acquiring. */
+export class LockBusyError extends Error {
+  constructor(timeoutMs: number) {
+    super(`relation store busy after ${timeoutMs}ms`);
+    this.name = "LockBusyError";
+  }
+}
+
+/** Resolve after `ms` milliseconds (the poll backoff between acquire retries). */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Acquire the project lock, RETRYING with a short poll until it succeeds or
+ * `timeoutMs` elapses (then throwing {@link LockBusyError}). Unlike the fail-fast
+ * {@link acquireLock} (kept for compile), this serializes legitimate concurrent
+ * relation writers instead of spuriously failing the loser of a race. Each retry
+ * goes through {@link acquireLock}, so stale-lock reclamation still applies.
+ *
+ * @param root - Absolute project root.
+ * @param options - Optional timeout / poll-interval overrides.
+ * @throws {LockBusyError} When the lock stays held past `timeoutMs`.
+ */
+export async function acquireLockBlocking(root: string, options: BlockingLockOptions = {}): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_BLOCKING_TIMEOUT_MS;
+  const intervalMs = options.intervalMs ?? DEFAULT_BLOCKING_INTERVAL_MS;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    // Intermediate retries acquire QUIETLY: a held lock is the EXPECTED steady
+    // state while we poll, so the per-attempt "Another compilation is running."
+    // warning would spam SDK/MCP callers that retry by design. The final
+    // LockBusyError is the clear signal on timeout.
+    if (await acquireLock(root, { quiet: true })) return;
+    if (Date.now() >= deadline) throw new LockBusyError(timeoutMs);
+    await delay(intervalMs);
+  }
+}
 
 /** Check whether a process with the given PID is still running. */
 function isProcessAlive(pid: number): boolean {
@@ -40,16 +93,38 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
+/** Options for {@link acquireLock}. `quiet` suppresses the busy warning. */
+export interface AcquireLockOptions {
+  /** Suppress the "Another compilation is running." warning on a busy lock. */
+  quiet?: boolean;
+}
+
 /**
  * Acquire the compilation lock. Returns true if acquired, false if busy.
  *
  * Retries up to MAX_ACQUIRE_ATTEMPTS times to handle the case where the
  * first attempt cleans up a stale reclamation lock but cannot acquire it
  * in the same call (to avoid the double-winner race).
+ *
+ * @param root - Project root directory.
+ * @param options - When `quiet`, the busy-lock warning is suppressed (used by
+ *   {@link acquireLockBlocking}'s intermediate retries so by-design pollers stay
+ *   silent). The fail-fast CLI path leaves it unset and still prints the warning.
  */
-export async function acquireLock(root: string): Promise<boolean> {
-  const lockPath = path.join(root, LOCK_FILE);
-  await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+export async function acquireLock(root: string, options: AcquireLockOptions = {}): Promise<boolean> {
+  // FAIL CLOSED on a `.llmwiki` (or ancestor) that symlinks outside the root:
+  // resolving + creating the confined private dir throws on escape, so the lock
+  // file is NEVER created out-of-tree (the lock writer runs FIRST in the page
+  // mutation path, before the journal). A normal real `.llmwiki` resolves to
+  // itself, leaving the happy path byte-identical.
+  let privateDir: string;
+  try {
+    privateDir = await resolveConfinedPrivateDir(root);
+  } catch {
+    if (!options.quiet) output.status("!", output.warn("Lock directory escapes project root — refusing to lock."));
+    return false;
+  }
+  const lockPath = path.join(privateDir, path.basename(LOCK_FILE));
 
   for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
     // Try atomic create — fails if file already exists
@@ -59,7 +134,7 @@ export async function acquireLock(root: string): Promise<boolean> {
     // Lock exists. Check if the holding process is dead.
     const stale = await isLockStale(lockPath);
     if (!stale) {
-      output.status("!", output.warn("Another compilation is running."));
+      if (!options.quiet) output.status("!", output.warn("Another compilation is running."));
       return false;
     }
 
@@ -70,7 +145,7 @@ export async function acquireLock(root: string): Promise<boolean> {
     // Reclamation failed (e.g. cleaned up stale reclaim lock). Retry.
   }
 
-  output.status("!", output.warn("Could not acquire lock after retrying."));
+  if (!options.quiet) output.status("!", output.warn("Could not acquire lock after retrying."));
   return false;
 }
 

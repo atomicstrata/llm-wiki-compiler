@@ -20,6 +20,7 @@ import {
 import { findSharedConcepts } from "./deps.js";
 import * as output from "../utils/output.js";
 import { CONCEPTS_DIR } from "../utils/constants.js";
+import { isSafeFilenameComponent } from "../profile/identity.js";
 
 /**
  * Mark wiki pages as orphaned when their source is deleted.
@@ -77,6 +78,11 @@ export async function orphanUnownedFrozenPages(
  * @param reason - Human-readable reason for the log message.
  */
 async function orphanPage(root: string, slug: string, reason: string): Promise<void> {
+  // Belt-and-suspenders: even if state validation is bypassed, a non-safe slug
+  // (`../escape`, an absolute or separator-bearing string) must never path-join
+  // into an out-of-tree write. State read already gates this; this is the
+  // independent floor at the write site.
+  if (!isSafeFilenameComponent(slug)) return;
   const pagePath = path.join(root, CONCEPTS_DIR, `${slug}.md`);
   const content = await safeReadFile(pagePath);
   if (!content) return;
@@ -85,6 +91,6 @@ async function orphanPage(root: string, slug: string, reason: string): Promise<v
   if (meta.orphaned === true) return;
 
   const updated = content.replace("---\n", "---\norphaned: true\n");
-  await atomicWrite(pagePath, updated);
+  await atomicWrite(pagePath, updated, { confineRoot: root });
   output.status("⚠", output.warn(`Orphaned: ${slug}.md (${reason})`));
 }

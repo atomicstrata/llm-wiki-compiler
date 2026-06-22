@@ -33,6 +33,7 @@ import path from "path";
 import { LLMWIKI_DIR } from "../utils/constants.js";
 import { realpath } from "fs/promises";
 import { confineUnderRoot, safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { atomicWrite } from "../utils/markdown.js";
 import { note } from "../utils/output.js";
 
 /** Sentinel recorded when a target did not exist before the batch. */
@@ -72,6 +73,20 @@ function journalDir(root: string): string {
   return path.join(root, LLMWIKI_DIR, "journal");
 }
 
+/**
+ * Fail CLOSED (throw) BEFORE opening a batch when `.llmwiki/journal` — or any
+ * ancestor, e.g. a symlinked `.llmwiki` — escapes the project root. Confines the
+ * journal dir against the nearest existing ancestor via {@link confineUnderRoot},
+ * so a planted escaping symlink is rejected up front with a clear error rather
+ * than only at persist time. A confined real journal dir resolves cleanly (no-op).
+ */
+async function assertJournalDirConfined(root: string): Promise<void> {
+  // Pass the journal dir RELATIVE to root: confineUnderRoot resolves it against
+  // realpath(root), so an absolute path built from a pre-realpath root would be
+  // judged outside on a symlinked root (macOS /var → /private/var).
+  await confineUnderRoot(path.join(LLMWIKI_DIR, "journal"), root, { mustExist: false });
+}
+
 /** Absolute path to a batch's journal file. */
 function journalPath(root: string, batchId: string): string {
   return path.join(journalDir(root), `${batchId}.json`);
@@ -91,18 +106,20 @@ async function readOrNull(filePath: string): Promise<string | null> {
   }
 }
 
-/** Atomically persist a batch's current state to its journal file. */
+/**
+ * Atomically persist a batch's current state to its journal file via the shared
+ * hardened {@link atomicWrite} primitive (random O_EXCL temp + rename), so the
+ * journal writer inherits the same leaf-symlink write-escape defenses rather than
+ * carrying its own bespoke temp+rename.
+ */
 async function persist(batch: JournalBatch): Promise<void> {
   const file = journalPath(batch.root, batch.batchId);
-  await mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
   const payload = {
     batchId: batch.batchId,
     status: batch.status,
     entries: batch.entries,
   };
-  await writeFile(tmp, JSON.stringify(payload, null, 2), "utf-8");
-  await rename(tmp, file);
+  await atomicWrite(file, JSON.stringify(payload, null, 2), { confineRoot: batch.root });
 }
 
 /**
@@ -113,6 +130,10 @@ async function persist(batch: JournalBatch): Promise<void> {
  * @returns The opened, persisted {@link JournalBatch}.
  */
 export async function openBatch(root: string): Promise<JournalBatch> {
+  // FAIL CLOSED UP FRONT on a symlinked `.llmwiki/journal` escaping root, with a
+  // clear error, rather than relying solely on the persist-time `confineRoot`
+  // (defense in depth). A confined real journal dir is a no-op on the happy path.
+  await assertJournalDirConfined(root);
   const random = Math.random().toString(36).slice(2, 2 + BATCH_ID_RANDOM_CHARS);
   const batchId = `${Date.now()}-${process.pid}-${random}`;
   const batch: JournalBatch = { batchId, root, status: "pending", entries: [] };

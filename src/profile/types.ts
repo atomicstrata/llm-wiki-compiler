@@ -65,6 +65,34 @@ export interface LifecycleDef {
   transitionRequirements?: Record<string, string[]>;
 }
 
+/**
+ * Declarative definition of one typed relation type within a profile pack.
+ *
+ * A relation type declares its endpoints by entity-type id (`from`/`to`, each a
+ * non-empty list of DECLARED entity types), a `direction` (`directed` keeps the
+ * endpoint roles distinct; `symmetric` treats them as an unordered pair —
+ * canonicalization of symmetric pairs is enforced at STORE time in a later
+ * slice, not here), and optionally a set of typed `attributes` (reusing the same
+ * {@link FieldDef} contract as entity fields) with a `requiredAttributes`
+ * subset that must reference declared attribute keys.
+ *
+ * This is SCHEMA + VALIDATION only: there is no relation store or write path in
+ * this slice. The DEFAULT profile declares no relations, so the whole block is
+ * omitted-for-default and never appears in default output or digest.
+ */
+export interface RelationTypeDef {
+  /** Endpoint entity-type ids on the `from` side; each must be a declared entity. */
+  from: string[];
+  /** Endpoint entity-type ids on the `to` side; each must be a declared entity. */
+  to: string[];
+  /** `directed` keeps endpoint roles distinct; `symmetric` treats them as unordered. */
+  direction: "directed" | "symmetric";
+  /** Typed relation attributes, validated with the same {@link FieldDef} contract as fields. */
+  attributes?: Record<string, FieldDef>;
+  /** Attribute keys (subset of `attributes`) that must be present on a relation instance. */
+  requiredAttributes?: string[];
+}
+
 /** Declarative definition of one entity type within a profile pack. */
 export interface EntityTypeDef {
   directory: string;
@@ -84,6 +112,13 @@ export interface ProfilePack {
   displayName?: string;
   extends?: string[];
   entities: Record<string, EntityTypeDef>;
+  /**
+   * Typed relation type declarations, keyed by slug-safe relation-type id.
+   * OPTIONAL and omitted-for-default: a relation-less profile (including the
+   * built-in default) carries no `relations` key, so its digest and output are
+   * unchanged. See {@link RelationTypeDef}.
+   */
+  relations?: Record<string, RelationTypeDef>;
 }
 
 /** A profile resolved from disk (or built-in), with its source and digest. */
@@ -191,8 +226,18 @@ export function toEntityPageView(page: EntityPage, includeBody: boolean): Entity
  * @experimental Shape may change in a future release.
  */
 export interface EntityProblemView {
-  kind: EntityProblemKind;
-  entityType: string;
+  /**
+   * The problem kind. An entity-page/dir collector problem ({@link EntityProblemKind});
+   * `"relation-store"` for a fail-closed relation-store read (corrupt / too-new)
+   * surfaced through the SAME problems channel so a status/viewer envelope never
+   * reports a broken store as silently healthy.
+   */
+  kind: EntityProblemKind | "relation-store";
+  /**
+   * Declared entity type the problem belongs to. ABSENT for a store-level
+   * (`relation-store`) problem, which is not scoped to any entity type.
+   */
+  entityType?: string;
   /** Project-relative offending page path; ABSENT for directory-level problems. Never absolute. */
   path?: string;
   message: string;

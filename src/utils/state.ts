@@ -19,11 +19,14 @@
  * is backed up to `.bak` and recovered as empty state instead.
  */
 
-import { readFile, writeFile, rename, mkdir, copyFile } from "fs/promises";
+import { copyFile, open } from "fs/promises";
+import { constants as fsConstants } from "node:fs";
 import { existsSync } from "fs";
 import path from "path";
-import { LLMWIKI_DIR, STATE_FILE } from "./constants.js";
+import { STATE_FILE } from "./constants.js";
 import { note } from "./output.js";
+import { atomicWrite } from "./markdown.js";
+import { isSafeFilenameComponent } from "../profile/identity.js";
 import { mintConceptEntities } from "../state/migrate.js";
 import type { WikiState, SourceState } from "./types.js";
 
@@ -112,16 +115,50 @@ export async function readStateClassified(root: string): Promise<ClassifiedState
   const filePath = path.join(root, STATE_FILE);
   if (!existsSync(filePath)) return { status: "missing", state: emptyState() };
   try {
-    const raw = await readFile(filePath, "utf-8");
+    // A read error here (e.g. ELOOP on a symlinked state.json) falls through to
+    // the catch and classifies CORRUPT — fail closed, never read-through.
+    const raw = await readStateNoFollow(filePath);
     return classifyParsedState(JSON.parse(raw));
   } catch {
     return { status: "corrupt", state: emptyState() };
   }
 }
 
+/**
+ * Read `state.json` with `O_RDONLY | O_NOFOLLOW` so a SYMLINKED state.json fails
+ * the open (`ELOOP`) and is treated as corrupt rather than read THROUGH to
+ * attacker-chosen out-of-tree bytes (which feed `concepts` / `frozenSlugs` into
+ * orphan path-joins). Mirrors the relation store's `openStoreFileRead` leaf
+ * defense. The caller has already established the file exists; any open/read
+ * error (including a symlinked leaf) propagates so the caller's try/catch
+ * classifies it CORRUPT (fail closed).
+ */
+async function readStateNoFollow(filePath: string): Promise<string> {
+  const handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  try {
+    return await handle.readFile("utf-8");
+  } finally {
+    await handle.close();
+  }
+}
+
 /** True when `value` is an array whose every element is a string. */
 function isStringArray(value: unknown): boolean {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+/**
+ * True when `value` is a string array whose every element is a SAFE filename
+ * component (no `/`, `\`, `..`, leading dot, NUL). Stored `concepts` /
+ * `frozenSlugs` flow UNVALIDATED into `path.join(root, CONCEPTS_DIR, slug+'.md')`
+ * by the orphan pass, so a poisoned `../../escape` slug would mint an out-of-tree
+ * write. Gating slug-safety AT READ classifies a poisoned state CORRUPT (its
+ * existing fail-closed `.bak`+fresh path), defanging the chain regardless of how
+ * the bytes arrived. Compile slugs come from Unicode-aware `slugify`, so this
+ * uses the Unicode-tolerant {@link isSafeFilenameComponent}, NOT ASCII slug-safe.
+ */
+function isSafeSlugArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((s) => typeof s === "string" && isSafeFilenameComponent(s));
 }
 
 /** True when `value` is a non-null, non-array plain object. */
@@ -133,14 +170,14 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 function isValidSourceEntry(entry: unknown): boolean {
   if (!isPlainObject(entry)) return false;
   if (typeof entry.hash !== "string" || typeof entry.compiledAt !== "string") return false;
-  if (!isStringArray(entry.concepts)) return false;
+  if (!isSafeSlugArray(entry.concepts)) return false; // slugs path-join into orphan writes
   if ("entities" in entry && !isStringArray(entry.entities)) return false;
   return true;
 }
 
 /** True when every optional top-level frozen list, if present, is a string array. */
 function hasValidFrozenLists(parsed: Record<string, unknown>): boolean {
-  if ("frozenSlugs" in parsed && !isStringArray(parsed.frozenSlugs)) return false;
+  if ("frozenSlugs" in parsed && !isSafeSlugArray(parsed.frozenSlugs)) return false; // path-join into orphan writes
   if ("frozenEntities" in parsed && !isStringArray(parsed.frozenEntities)) return false;
   return true;
 }
@@ -198,19 +235,18 @@ export async function readState(root: string): Promise<WikiState> {
   return classified.state;
 }
 
-/** Atomically write state.json (write .tmp then rename). */
+/**
+ * Atomically write state.json via the shared hardened {@link atomicWrite}
+ * primitive (random O_EXCL temp + rename), so the state writer inherits the same
+ * leaf-symlink write-escape defenses as every page write rather than carrying its
+ * own bespoke temp+rename.
+ */
 export async function writeState(root: string, state: WikiState): Promise<void> {
-  const dir = path.join(root, LLMWIKI_DIR);
-  await mkdir(dir, { recursive: true });
-
   const filePath = path.join(root, STATE_FILE);
-  const tmpPath = filePath + ".tmp";
-
   // Re-derive the v2 typed mirror at the single write choke point so no writer
   // can persist a desynced `entities` / `frozenEntities`. No-op for v1 states.
   const synced = syncEntityMirror(state);
-  await writeFile(tmpPath, JSON.stringify(synced, null, 2), "utf-8");
-  await rename(tmpPath, filePath);
+  await atomicWrite(filePath, JSON.stringify(synced, null, 2), { confineRoot: root });
 }
 
 /**
