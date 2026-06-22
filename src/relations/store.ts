@@ -318,6 +318,16 @@ export async function updateRelation(
   });
 }
 
+/**
+ * The maximum number of dropped relation ids carried as a SAMPLE in the
+ * `relation-compact` event payload. A large compaction can drop thousands of
+ * records; embedding every id could push the event record past
+ * {@link MAX_EVENT_RECORD_BYTES} and throw {@link EventStoreFullError} AFTER the
+ * relation store was rewritten. The full `droppedCount` is always recorded; only
+ * the id list is sampled so the payload stays well under the record cap.
+ */
+const MAX_COMPACTION_SAMPLE_IDS = 50;
+
 /** The byte sizes of the store file before and after a compaction. */
 export interface CompactionResult {
   /** File size before compaction (bytes). */
@@ -342,19 +352,30 @@ function compactedBody(records: RelationRef[]): string {
 
 /**
  * Emit one `relation-compact` audit event recording the rewrite (A5): the
- * live-record counts before/after and the ids dropped, so the very audit log the
- * relation store protects no longer has a silent gap where compaction discards
- * superseded/invalid records. Pre-flight then emit under the caller's held lock,
- * so the event co-commits with the compaction and the chain stays intact.
+ * live-record counts before/after, the full `droppedCount`, and a BOUNDED
+ * `droppedIdsSample` (at most {@link MAX_COMPACTION_SAMPLE_IDS} ids), so the very
+ * audit log the relation store protects no longer has a silent gap where
+ * compaction discards superseded/invalid records — yet a large compaction can
+ * never push the event record past {@link MAX_EVENT_RECORD_BYTES} by embedding
+ * every dropped id. Emit under the caller's held lock so the event co-commits
+ * with the compaction and the chain stays intact.
+ *
+ * The pre-flight ALREADY ran in {@link compactRelations} BEFORE the relation
+ * store was rewritten; this {@link appendEventLocked} pre-flights again (an
+ * idempotent double-check matching the create/update pattern).
  */
 async function emitCompactionEvent(root: string, before: RelationRef[], survivors: RelationRef[]): Promise<void> {
   const survivingIds = new Set(survivors.map((ref) => ref.id));
   const droppedIds = before.filter((ref) => !survivingIds.has(ref.id)).map((ref) => ref.id);
-  await prepareEventStoreForAppend(root); // REPAIR a torn tail / else fail closed on a tampered audit store
   await appendEventLocked(root, {
     type: "relation-compact",
     origin: "sdk",
-    payload: { countBefore: before.length, countAfter: survivors.length, droppedCount: droppedIds.length, droppedIds },
+    payload: {
+      countBefore: before.length,
+      countAfter: survivors.length,
+      droppedCount: droppedIds.length,
+      droppedIdsSample: droppedIds.slice(0, MAX_COMPACTION_SAMPLE_IDS),
+    },
     at: new Date().toISOString(),
   });
 }
@@ -394,6 +415,13 @@ async function writeCompactedAtomically(dir: string, file: string, body: string)
  * store driven up to {@link RelationStoreFullError}. The latest-per-id collapse
  * is the reader's, so no live relation is lost.
  *
+ * MANDATORY AUDIT (FIX F2, mirroring {@link appendRelationLocked}): the audit
+ * event store is PRE-FLIGHTED ({@link prepareEventStoreForAppend}, under the held
+ * lock) BEFORE {@link writeCompactedAtomically} mutates the relation store. A
+ * tampered / too-new / symlinked audit store therefore BLOCKS the compaction up
+ * front (throws) and leaves `relations.jsonl` BYTE-IDENTICAL — a healthy audit
+ * log is a PRECONDITION, not a best-effort after-mutation emit.
+ *
  * @param root - Absolute project root.
  * @param profile - The governing profile pack (records invalid against it are dropped).
  * @returns The store file's byte size before and after compaction.
@@ -406,6 +434,7 @@ export async function compactRelations(root: string, profile: ProfilePack): Prom
     const before = await fileSize(file);
     const { relations } = await readRelations(root);
     const survivors = relations.filter((ref) => validateRelationAgainstProfile(ref, profile).length === 0);
+    await prepareEventStoreForAppend(root); // FIX F2 pre-flight BEFORE mutating: a tampered audit store blocks compaction, store left byte-identical
     await writeCompactedAtomically(dir, file, compactedBody(survivors));
     await emitCompactionEvent(root, relations, survivors); // audit the rewrite (A5), under the held lock
     return { before, after: await fileSize(file) };

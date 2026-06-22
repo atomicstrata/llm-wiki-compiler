@@ -231,6 +231,8 @@ function eventReadProblem(error: unknown): EntityProblemView {
     error instanceof EventStoreTooNewError ||
     error instanceof EventStoreCorruptError ||
     error instanceof EventStoreSymlinkError ||
+    // DEFENSIVE: read maps an oversize store to EventStoreCorruptError, so read
+    // never throws Full (Full is write-side only); kept for the defensive mapping.
     error instanceof EventStoreFullError ||
     error instanceof GraphDirConfinementError || // a symlinked/escaping wiki/graph DIR (FIX F5)
     error instanceof PrivateDirConfinementError // a symlinked/escaping .llmwiki dir (B5)

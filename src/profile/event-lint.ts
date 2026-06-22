@@ -6,7 +6,11 @@
  *
  * The audit log is tamper-EVIDENT, so the lint must be tamper-DETECTING: a
  * broken/forked/reordered/interior-deleted chain, or a head-anchor mismatch
- * (a truncated or wholesale-rewritten log), MUST surface — never silently pass.
+ * (accidental/partial truncation, a torn write, or the one-record-ahead crash
+ * gap), MUST surface — never silently pass. HONEST LIMIT (T2): a COORDINATED
+ * log+anchor rewrite (truncate-AND-reseal the head together) PASSES verification
+ * — a LOCAL anchor cannot defend against an attacker who rewrites both; defeating
+ * that needs the deferred OUT-OF-TREE anchor refinement.
  *
  * Four concerns, all fail-open or fail-closed (lint NEVER crashes):
  *   - `event-chain-broken` (error): {@link readEvents} surfaced a chain-link
@@ -74,6 +78,8 @@ function readErrorFinding(error: unknown): LintResult | null {
   if (error instanceof EventStoreSymlinkError) {
     return { rule: EVENT_STORE_SYMLINK_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
   }
+  // DEFENSIVE: read maps an oversize store to EventStoreCorruptError, so the read
+  // path never throws Full (Full is write-side only); kept for the defensive mapping.
   if (error instanceof EventStoreFullError) {
     return { rule: EVENT_STORE_FULL_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
   }

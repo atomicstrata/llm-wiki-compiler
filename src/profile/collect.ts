@@ -66,6 +66,42 @@ export interface EntityCollectResult {
 }
 
 /**
+ * Problem kinds that INVALIDATE a typed page against its profile contract: a
+ * page carrying any of these does not satisfy its declared field contract and so
+ * must not be promoted as clean agent evidence NOR surfaced as a real graph node.
+ * (`field-violation` is the only one a PRODUCED page can carry — a non-slug-safe /
+ * slug-mismatch page is dropped by the collector before it becomes a page — but
+ * the full set is listed so the exclusion stays correct if the collector ever
+ * produces a page despite them.)
+ */
+const INVALIDATING_PROBLEM_KINDS: ReadonlySet<EntityProblemKind> = new Set([
+  "field-violation",
+  "non-slug-safe-filename",
+  "slug-mismatch",
+]);
+
+/**
+ * Absolute `filePath`s of every page carrying an invalidating profile-contract
+ * problem. SHARED by the context pool ({@link augmentSnapshotWithTypedPages}) and
+ * the graph node builder (`collectTypedGraphInputs`) so an invalid typed page is
+ * excluded CONSISTENTLY from both — never promoted as clean evidence and never
+ * surfaced as a real graph node (it becomes a relation-ghost → `dangling-relation`
+ * gap instead).
+ *
+ * @param problems - The structured problems from {@link collectEntityPages}.
+ * @returns The set of absolute file paths to exclude.
+ */
+export function invalidEntityPagePaths(problems: EntityProblem[]): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const problem of problems) {
+    if (problem.filePath !== undefined && INVALIDATING_PROBLEM_KINDS.has(problem.kind)) {
+      paths.add(problem.filePath);
+    }
+  }
+  return paths;
+}
+
+/**
  * The count-only result of summarizing a profile's entity pages: per-type
  * counts plus problems, with NO content `EntityPage[]` retained. Produced by
  * {@link collectEntitySummary} for surfaces (status, viewer) that only tally.

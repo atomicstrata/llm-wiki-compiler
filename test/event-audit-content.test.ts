@@ -36,7 +36,7 @@ describe("A5 — compaction emits a chained relation-compact event", () => {
     await compactRelations(root, noRelationsProfile()); // the `tests` record is now invalid → dropped
     const compact = (await readChainVerified(root)).find((e) => e.type === "relation-compact");
     expect(compact?.payload).toMatchObject({ countBefore: 1, countAfter: 0, droppedCount: 1 });
-    expect(compact?.payload.droppedIds).toEqual([dropped.id]);
+    expect(compact?.payload.droppedIdsSample).toEqual([dropped.id]);
   });
 });
 

@@ -30,7 +30,7 @@ import { buildGraphData } from "./graph.js";
 import type { EntityPageNode, GraphBuildOptions, RelationEdge } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import { collectProfileSummary, loadNonDefaultProfile } from "../profile/block.js";
-import { collectEntityPages } from "../profile/collect.js";
+import { collectEntityPages, invalidEntityPagePaths } from "../profile/collect.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import type { ProfilePack } from "../profile/types.js";
@@ -113,18 +113,27 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
  * than crashing the snapshot — those problems are already surfaced through the
  * `profile` summary block. The entity collector never throws on page data, so a
  * bad page is simply skipped.
+ *
+ * Profile-INVALID typed pages are EXCLUDED as graph NODES (mirroring T5a's
+ * context-pool exclusion, via the SHARED {@link invalidEntityPagePaths}): an
+ * invalid page that is a relation endpoint is NOT promoted to a real node, so it
+ * becomes a relation-ghost → a `dangling-relation` gap, consistent with the
+ * context pool rather than appearing as a clean `reason:"relation"` neighbor.
  */
 async function collectTypedGraphInputs(root: string): Promise<GraphBuildOptions | undefined> {
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
-  const { pages } = await collectEntityPages(root, loaded.profile);
-  const entityPages: EntityPageNode[] = pages.map((page) => ({
-    id: page.id,
-    entityType: page.entityType,
-    slug: page.slug,
-    directory: page.directory,
-    ...(page.title !== undefined ? { title: page.title } : {}),
-  }));
+  const { pages, problems } = await collectEntityPages(root, loaded.profile);
+  const invalid = invalidEntityPagePaths(problems);
+  const entityPages: EntityPageNode[] = pages
+    .filter((page) => !invalid.has(page.filePath))
+    .map((page) => ({
+      id: page.id,
+      entityType: page.entityType,
+      slug: page.slug,
+      directory: page.directory,
+      ...(page.title !== undefined ? { title: page.title } : {}),
+    }));
   const relations = await readTypedRelations(root, loaded.profile);
   return { entityPages, relations };
 }

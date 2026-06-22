@@ -16,8 +16,7 @@
  */
 
 import { loadNonDefaultProfile } from "../profile/block.js";
-import { collectEntityPages } from "../profile/collect.js";
-import type { EntityProblem, EntityProblemKind } from "../profile/collect.js";
+import { collectEntityPages, invalidEntityPagePaths } from "../profile/collect.js";
 import type { EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ClaimCitation } from "../utils/types.js";
@@ -58,31 +57,6 @@ function entityPageToViewerPage(page: EntityPage): ViewerPage {
 }
 
 /**
- * Problem kinds that INVALIDATE a typed page against its profile contract: a
- * page carrying any of these does not satisfy its declared field contract and so
- * must not be promoted as clean agent evidence. (`field-violation` is the only
- * one a PRODUCED page can carry — a non-slug-safe / slug-mismatch page is dropped
- * by the collector before it becomes a page — but the full set is listed so the
- * exclusion stays correct if the collector ever produces a page despite them.)
- */
-const INVALIDATING_PROBLEM_KINDS: ReadonlySet<EntityProblemKind> = new Set([
-  "field-violation",
-  "non-slug-safe-filename",
-  "slug-mismatch",
-]);
-
-/** Absolute `filePath`s of every page carrying an invalidating profile-contract problem. */
-function invalidPagePaths(problems: EntityProblem[]): ReadonlySet<string> {
-  const paths = new Set<string>();
-  for (const problem of problems) {
-    if (problem.filePath !== undefined && INVALIDATING_PROBLEM_KINDS.has(problem.kind)) {
-      paths.add(problem.filePath);
-    }
-  }
-  return paths;
-}
-
-/**
  * Return a snapshot whose `pages` pool ADDITIVELY includes the active non-default
  * profile's typed entity pages (FIX F3). For the built-in DEFAULT profile (or any
  * read error) the ORIGINAL snapshot is returned UNCHANGED, so the default context
@@ -108,7 +82,7 @@ export async function augmentSnapshotWithTypedPages(
   let typed: ViewerPage[];
   try {
     const { pages, problems } = await collectEntityPages(root, loaded.profile);
-    const invalid = invalidPagePaths(problems);
+    const invalid = invalidEntityPagePaths(problems);
     typed = pages.filter((page) => !invalid.has(page.filePath)).map(entityPageToViewerPage);
   } catch {
     return snapshot; // a collector failure must not break context — fall back to the legacy pool
