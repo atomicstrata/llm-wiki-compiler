@@ -26,6 +26,8 @@ import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
 import type { RelationRef } from "../relations/types.js";
+import { readEvents } from "../events/store-read.js";
+import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError } from "../events/types.js";
 
 /**
  * Load the active profile and return it ONLY when it is a non-default profile;
@@ -87,6 +89,16 @@ export interface ProfileSummaryBlock {
   relationCounts?: Record<string, number>;
   /** Total live relation count; present alongside (and equal to the sum of) `relationCounts`. */
   relationTotal?: number;
+  /**
+   * Total events in the append-only hash-chained audit log, present ONLY for a
+   * non-default profile whose `wiki/graph` store holds at least one event.
+   * OMITTED for the built-in default and for any event-LESS profile, so the
+   * default and event-less status/viewer envelopes stay byte-identical. A
+   * corrupt / too-new / symlinked-leaf store OR a broken/truncated chain does
+   * NOT populate this — it surfaces through `problems` instead (fail-closed,
+   * never a silent count reported as healthy).
+   */
+  eventCount?: number;
 }
 
 /**
@@ -200,6 +212,67 @@ async function summarizeRelations(root: string, loaded: LoadedProfile): Promise<
 }
 
 /**
+ * The event-store contribution to the summary block: the total event count
+ * (present only for an intact, non-empty log) and at most one fail-closed read
+ * or broken-chain problem. The two are mutually exclusive — a tamper signal
+ * suppresses the count so a broken store is never reported as silently healthy.
+ */
+interface EventSummary {
+  eventCount?: number;
+  problem?: EntityProblemView;
+}
+
+/** Map a fail-closed event-store read error to an `event-store` problem view. */
+function eventReadProblem(error: unknown): EntityProblemView {
+  if (
+    error instanceof EventStoreTooNewError ||
+    error instanceof EventStoreCorruptError ||
+    error instanceof EventStoreSymlinkError
+  ) {
+    return { kind: "event-store", message: error.message };
+  }
+  throw error; // a non-store error (e.g. a confinement escape) is not ours to swallow
+}
+
+/** The torn-trailing-line prefix {@link readEvents} tags; any OTHER problem is a chain/anchor tamper signal. */
+const TORN_EVENT_PREFIX = "tolerated torn trailing line";
+
+/**
+ * Reduce a successful (non-throwing) {@link readEvents} result to the summary
+ * contribution. A chain-link break or head-anchor (truncation) mismatch is a
+ * tamper signal: surface it as an `event-store` problem and SUPPRESS the count
+ * (never report a broken chain as a healthy total). A torn trailing line is
+ * tolerated — the valid events before it are still counted.
+ */
+function summarizeReadEvents(read: { events: { length: number }; problems: string[] }): EventSummary {
+  const tamper = read.problems.find((p) => !p.startsWith(TORN_EVENT_PREFIX));
+  if (tamper !== undefined) return { problem: { kind: "event-store", message: tamper } };
+  if (read.events.length === 0) return {};
+  return { eventCount: read.events.length };
+}
+
+/**
+ * Read the hash-chained event store for a non-default profile and reduce it to
+ * the additive summary contribution: the total event count (OMITTED for an
+ * event-LESS store, so an event-less project's envelope stays byte-identical),
+ * and a single `event-store` problem on a fail-closed read (corrupt / too-new /
+ * symlink) OR a broken/truncated chain — in which case the count is suppressed
+ * rather than reported as a healthy total.
+ *
+ * @param root - Absolute project root directory.
+ * @returns The event count and/or a problem.
+ */
+async function summarizeEvents(root: string): Promise<EventSummary> {
+  let read;
+  try {
+    read = await readEvents(root);
+  } catch (error) {
+    return { problem: eventReadProblem(error) };
+  }
+  return summarizeReadEvents(read);
+}
+
+/**
  * Resolve the active profile and, for a NON-DEFAULT profile only, build the
  * shared summary block (profileId, digest, per-type entity counts, problems).
  *
@@ -227,12 +300,15 @@ export async function collectProfileSummary(
   if (loaded === undefined) return undefined;
   const { counts, problems } = await collectEntitySummary(root, loaded.profile);
   const { relationCounts, relationTotal, problem } = await summarizeRelations(root, loaded);
-  const views = [...(await toProblemViews(problems, root)), ...(problem ? [problem] : [])];
+  const { eventCount, problem: eventProblem } = await summarizeEvents(root);
+  const storeProblems = [...(problem ? [problem] : []), ...(eventProblem ? [eventProblem] : [])];
+  const views = [...(await toProblemViews(problems, root)), ...storeProblems];
   return {
     profileId: loaded.profile.profileId,
     digest: loaded.digest,
     entityCounts: counts,
     ...problemEnvelope(views),
     ...(relationCounts ? { relationCounts, relationTotal } : {}),
+    ...(eventCount !== undefined ? { eventCount } : {}),
   };
 }

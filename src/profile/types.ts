@@ -228,11 +228,13 @@ export function toEntityPageView(page: EntityPage, includeBody: boolean): Entity
 export interface EntityProblemView {
   /**
    * The problem kind. An entity-page/dir collector problem ({@link EntityProblemKind});
-   * `"relation-store"` for a fail-closed relation-store read (corrupt / too-new)
-   * surfaced through the SAME problems channel so a status/viewer envelope never
-   * reports a broken store as silently healthy.
+   * `"relation-store"` for a fail-closed relation-store read (corrupt / too-new);
+   * `"event-store"` for a fail-closed event-store read OR a broken/truncated
+   * hash chain. The store-level kinds are surfaced through the SAME problems
+   * channel so a status/viewer envelope never reports a broken store as silently
+   * healthy.
    */
-  kind: EntityProblemKind | "relation-store";
+  kind: EntityProblemKind | "relation-store" | "event-store";
   /**
    * Declared entity type the problem belongs to. ABSENT for a store-level
    * (`relation-store`) problem, which is not scoped to any entity type.

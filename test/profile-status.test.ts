@@ -14,12 +14,13 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { collectStatus } from "../src/status/collect.js";
+import { appendEvent } from "../src/events/store.js";
 import { PROFILE_PROBLEM_CAP } from "../src/profile/block.js";
-import { PROFILE_FILE, CONCEPTS_DIR, QUERIES_DIR } from "../src/utils/constants.js";
+import { PROFILE_FILE, CONCEPTS_DIR, QUERIES_DIR, EVENTS_FILE } from "../src/utils/constants.js";
 
 let root = "";
 
@@ -154,5 +155,47 @@ describe("collectStatus — surfaces non-default problems (never silent)", () =>
     const dirProblem = result.profile!.problems!.find((p) => p.kind === "invalid-directory");
     expect(dirProblem).toBeDefined();
     expect("path" in dirProblem!).toBe(false);
+  });
+});
+
+/** Emit a chained event into the project's `wiki/graph` store. */
+const emitEvent = (n: string): Promise<unknown> =>
+  appendEvent(root, { type: "relation-create", origin: "sdk", payload: { n }, at: "2024-01-01T00:00:00Z" });
+
+/** Assert a fail-closed event store: an `event-store` problem present, the count suppressed. */
+async function expectEventStoreProblem(): Promise<void> {
+  const result = await collectStatus(root);
+  expect(result.profile?.problems?.some((p) => p.kind === "event-store")).toBe(true);
+  expect(result.profile && "eventCount" in result.profile).toBe(false);
+}
+
+describe("collectStatus — event store (count + fail-closed problem)", () => {
+  beforeEach(async () => await writeProfile(SAMPLE_PROFILE));
+
+  it("surfaces eventCount for a healthy chain and no event-store problem", async () => {
+    await emitEvent("a");
+    await emitEvent("b");
+    const result = await collectStatus(root);
+    expect(result.profile?.eventCount).toBe(2);
+    expect(result.profile?.problems?.some((p) => p.kind === "event-store")).toBeFalsy();
+  });
+
+  it("omits eventCount for an event-less non-default profile", async () => {
+    const result = await collectStatus(root);
+    expect(result.profile && "eventCount" in result.profile).toBe(false);
+  });
+
+  it("reports a tampered chain as a problem and suppresses the count (not silent)", async () => {
+    await emitEvent("a");
+    await emitEvent("b");
+    const lines = (await readFile(path.join(root, EVENTS_FILE), "utf8")).split("\n").filter(Boolean);
+    await writeFile(path.join(root, EVENTS_FILE), lines.slice(0, -1).join("\n") + "\n"); // truncate
+    await expectEventStoreProblem();
+  });
+
+  it("reports an unreadable (too-new) store as a problem without crashing", async () => {
+    await mkdir(path.join(root, path.dirname(EVENTS_FILE)), { recursive: true });
+    await writeFile(path.join(root, EVENTS_FILE), '{"kind":"event-store-header","schemaVersion":99}\n');
+    await expectEventStoreProblem();
   });
 });
