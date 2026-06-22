@@ -36,8 +36,10 @@ function buildRealIndegrees(realIds: Set<PageId>, edges: GraphData["edges"]): Ma
   return map;
 }
 
-/** Weakly connected components (BFS over undirected real→real edges). */
-function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>): number {
+/** Build undirected adjacency for real pages (real→real edges only, both directions). */
+function buildUndirectedAdj(
+  nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>,
+): Map<PageId, Set<PageId>> {
   const adj = new Map<PageId, Set<PageId>>();
   for (const n of nodes) {
     if (!n.isDangling) adj.set(n.id, new Set());
@@ -48,19 +50,28 @@ function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds:
       adj.get(e.target)?.add(e.source);
     }
   }
+  return adj;
+}
+
+/** BFS from a starting node, marking all reachable nodes as visited. */
+function bfsFrom(start: PageId, adj: Map<PageId, Set<PageId>>, visited: Set<PageId>): void {
+  const queue = [start];
+  visited.add(start);
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const n of adj.get(cur) ?? []) {
+      if (!visited.has(n)) { visited.add(n); queue.push(n); }
+    }
+  }
+}
+
+/** Weakly connected components (undirected view over real pages). */
+function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>): number {
+  const adj = buildUndirectedAdj(nodes, edges, realIds);
   const visited = new Set<PageId>();
   let components = 0;
   for (const id of adj.keys()) {
-    if (visited.has(id)) continue;
-    components++;
-    const queue = [id];
-    visited.add(id);
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      for (const n of adj.get(cur) ?? []) {
-        if (!visited.has(n)) { visited.add(n); queue.push(n); }
-      }
-    }
+    if (!visited.has(id)) { components++; bfsFrom(id, adj, visited); }
   }
   return components;
 }
