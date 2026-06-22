@@ -281,13 +281,16 @@ function stripChecksum(record: EventRecord): Omit<EventRecord, "checksum"> {
  * The WRITE precondition for any append/mutation, run UNDER THE CALLER'S LOCK.
  * Unlike {@link readEventsStrict} (a READ that TOLERATES a torn trailing line), a
  * WRITE must not extend a torn tail — concatenating a new record onto a partial
- * line would produce an unparseable record and desync the head. So this REPAIRS a
- * torn tail first: a torn trailing line is an UNCOMMITTED, crashed prior append
- * (no sealed head, no data loss to drop it), so it is TRUNCATED to the last valid
- * record. After repair (or when there was no torn tail) the chain + head anchor
- * are strict-verified — genuine TAMPER (broken/reordered/interior-deleted chain,
- * head-without-log, mismatched head) STILL throws {@link EventStoreChainError}.
- * Only the recoverable torn tail is repaired; real tampering fails closed.
+ * line would produce an unparseable record and desync the head.
+ *
+ * Order is VERIFY-BEFORE-REPAIR: the chain + head anchor are strict-verified FIRST,
+ * so genuine TAMPER (broken/reordered/interior-deleted chain, head-without-log,
+ * mismatched head) throws {@link EventStoreChainError} with the file left
+ * BYTE-IDENTICAL — we never truncate (write to) a store we are about to reject, so
+ * a tamper-evidence failure preserves the bytes for forensics. ONLY a verified-
+ * healthy prefix then has its torn tail REPAIRED: a torn trailing line is an
+ * UNCOMMITTED, crashed prior append (no sealed head, no data loss to drop it), so
+ * it is TRUNCATED to the last valid record before the new append.
  *
  * @param root - Absolute project root.
  * @returns The verified events (for chaining the next record's `prevHash`).
