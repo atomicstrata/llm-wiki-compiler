@@ -32,6 +32,8 @@ import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js"
 import { collectProfileSummary, loadNonDefaultProfile } from "../profile/block.js";
 import { collectEntityPages } from "../profile/collect.js";
 import { readRelations } from "../relations/store-read.js";
+import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
+import type { ProfilePack } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type {
   ViewerCounts,
@@ -123,20 +125,25 @@ async function collectTypedGraphInputs(root: string): Promise<GraphBuildOptions 
     directory: page.directory,
     ...(page.title !== undefined ? { title: page.title } : {}),
   }));
-  const relations = await readTypedRelations(root);
+  const relations = await readTypedRelations(root, loaded.profile);
   return { entityPages, relations };
 }
 
 /**
- * Read the live relations as graph edges, fail-closed: a corrupt / too-new /
- * symlinked-leaf store (or any read error) yields an empty edge list rather than
- * crashing the snapshot. The store-read problems are surfaced separately through
- * the `profile` summary block, so dropping them here is not a silent loss.
+ * Read the live relations as graph edges, fail-closed AND profile-filtered: a
+ * corrupt / too-new / symlinked-leaf store (or any read error) yields an empty
+ * edge list rather than crashing the snapshot. Each relation is re-validated
+ * against the CURRENT profile via {@link validateRelationAgainstProfile} (FIX
+ * F4); a relation whose type/endpoints/attributes the profile has outgrown is
+ * EXCLUDED from the graph, so the graph agrees with status/export/lint (which
+ * already exclude profile-invalid relations) instead of reanimating stale edges.
  */
-async function readTypedRelations(root: string): Promise<RelationEdge[]> {
+async function readTypedRelations(root: string, profile: ProfilePack): Promise<RelationEdge[]> {
   try {
     const { relations } = await readRelations(root);
-    return relations.map((rel) => ({ type: rel.type, from: rel.from, to: rel.to }));
+    return relations
+      .filter((rel) => validateRelationAgainstProfile(rel, profile).length === 0)
+      .map((rel) => ({ type: rel.type, from: rel.from, to: rel.to }));
   } catch {
     return [];
   }

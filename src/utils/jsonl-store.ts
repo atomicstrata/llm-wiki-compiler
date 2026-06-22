@@ -31,6 +31,21 @@ import { safeRealpath, isInsideDir, confineUnderRoot } from "./path-confine.js";
 /** Default mode for a freshly-created store file (owner rw, group/other r). */
 const STORE_FILE_MODE = 0o644;
 
+/**
+ * Raised when the graph DIR (`wiki/graph`) is a SYMLINK, a non-directory, or
+ * escapes the project root — the DIR-defense confinement failure. A SHARED typed
+ * error (not a generic `Error`) so BOTH the relation and event surfaces (lint /
+ * status / viewer) can CATCH it and map it to a fail-closed finding/problem
+ * instead of crashing. FIX F5: a symlinked `wiki/graph` previously threw a generic
+ * `Error` that no surface mapped, so it crashed event lint and the profile summary.
+ */
+export class GraphDirConfinementError extends Error {
+  constructor(message: string) {
+    super(`graph directory rejected: ${message}`);
+    this.name = "GraphDirConfinementError";
+  }
+}
+
 /** Builds a store-specific typed symlink error from a human-readable reason. */
 export type SymlinkErrorFactory = (reason: string) => Error;
 
@@ -81,9 +96,10 @@ export async function readConfinedGraphStore(
  * Resolve the trusted on-disk graph directory for `root`:
  * `<realpath(root)>/wiki/graph`, requiring it (if it exists) to be a REAL
  * directory at that literal path. A symlinked `wiki/graph` (which would redirect
- * every read/write outside the project) FAILS CLOSED here by throwing. Returns
- * `{ dir, exists }`: `exists` is false when the directory is simply absent (the
- * "no records yet" state).
+ * every read/write outside the project) FAILS CLOSED here by throwing the SHARED
+ * typed {@link GraphDirConfinementError} (FIX F5: a typed error both store
+ * surfaces map, not a generic one that crashes them). Returns `{ dir, exists }`:
+ * `exists` is false when the directory is simply absent (the "no records yet" state).
  *
  * Confinement is layered: {@link confineUnderRoot} (with `mustExist:false`)
  * realpath-checks the NEAREST EXISTING ANCESTOR of the graph dir, so even when
@@ -98,7 +114,14 @@ export async function resolveConfinedGraphDir(root: string): Promise<{ dir: stri
   const canonicalRoot = await safeRealpath(root);
   const base = canonicalRoot ?? path.resolve(root);
   const dir = path.join(base, WIKI_GRAPH_DIR);
-  await confineUnderRoot(dir, base, { mustExist: false });
+  // A symlinked `wiki/graph` (or escaping ancestor) makes confineUnderRoot throw a
+  // GENERIC escape Error; remap it to the SHARED typed confinement error so both
+  // store surfaces can map it to a fail-closed finding/problem rather than crash (FIX F5).
+  try {
+    await confineUnderRoot(dir, base, { mustExist: false });
+  } catch (err) {
+    throw new GraphDirConfinementError((err as Error).message);
+  }
   let st;
   try {
     st = await lstat(dir);
@@ -106,11 +129,11 @@ export async function resolveConfinedGraphDir(root: string): Promise<{ dir: stri
     return { dir, exists: false }; // absent → no records yet
   }
   if (!st.isDirectory()) {
-    throw new Error(`graph path is not a directory (symlink?): ${WIKI_GRAPH_DIR}`);
+    throw new GraphDirConfinementError(`graph path is not a directory (symlink?): ${WIKI_GRAPH_DIR}`);
   }
   const real = await safeRealpath(dir);
   if (real === null || !isInsideDir(real, base)) {
-    throw new Error(`graph directory escapes project root: ${WIKI_GRAPH_DIR}`);
+    throw new GraphDirConfinementError(`graph directory escapes project root: ${WIKI_GRAPH_DIR}`);
   }
   return { dir: real, exists: true };
 }

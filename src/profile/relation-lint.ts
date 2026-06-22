@@ -22,6 +22,7 @@
 
 import { readRelations } from "../relations/store-read.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
+import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import type { RelationRef } from "../relations/types.js";
 import type { EntityId, EntityPage, ProfilePack } from "./types.js";
@@ -37,6 +38,8 @@ const RELATION_STORE_CORRUPT_RULE = "relation-store-corrupt";
 const RELATION_STORE_TOO_NEW_RULE = "relation-store-too-new";
 /** Rule id for a fail-closed symlinked/non-regular store-file leaf read. */
 const RELATION_STORE_SYMLINK_RULE = "relation-store-symlink";
+/** Rule id for a fail-closed symlinked/escaping `wiki/graph` DIR (confinement). */
+const RELATION_STORE_GRAPH_DIR_RULE = "relation-store-graph-dir";
 /** Rule id for a stored relation no longer valid against the CURRENT profile. */
 const RELATION_PROFILE_INVALID_RULE = "relation-profile-invalid";
 
@@ -53,6 +56,9 @@ function readErrorFinding(error: unknown): LintResult | null {
   }
   if (error instanceof RelationStoreSymlinkError) {
     return { rule: RELATION_STORE_SYMLINK_RULE, severity: "error", file: RELATION_STORE_FILE, message: error.message };
+  }
+  if (error instanceof GraphDirConfinementError) {
+    return { rule: RELATION_STORE_GRAPH_DIR_RULE, severity: "error", file: RELATION_STORE_FILE, message: error.message };
   }
   return null;
 }

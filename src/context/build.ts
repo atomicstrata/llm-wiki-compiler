@@ -21,6 +21,7 @@
  */
 
 import { buildViewerSnapshot } from "../viewer/snapshot.js";
+import { augmentSnapshotWithTypedPages } from "./typed-pages.js";
 import { collectProjectState } from "../project/state.js";
 import { recommendNextAction } from "../project/recommendations.js";
 import type { Recommendation, RecommendedAction } from "../project/recommendations.js";
@@ -82,7 +83,11 @@ interface BuildContextPackOptions {
  */
 export async function buildContextPack(options: BuildContextPackOptions): Promise<ContextPack> {
   const normalized = normalizeOptions(options);
-  const snapshot = await buildViewerSnapshot(options.root);
+  const baseSnapshot = await buildViewerSnapshot(options.root);
+  // FIX F3: for a NON-DEFAULT profile, splice typed entity pages into the context
+  // page POOL so they are lexically rankable + graph-reachable. A DEFAULT project
+  // gets the snapshot back unchanged, so the default context pack is byte-identical.
+  const snapshot = await augmentSnapshotWithTypedPages(options.root, baseSnapshot);
   const state = await collectProjectState(options.root);
   const recommendation = recommendNextAction(state);
   // Semantic retrieval is opportunistic — failures surface as stable

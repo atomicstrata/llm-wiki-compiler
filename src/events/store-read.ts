@@ -192,7 +192,15 @@ async function appendChainProblems(root: string, events: EventRecord[], problems
 export async function readEvents(root: string): Promise<ReadEventsResult> {
   const raw = await readStoreFile(root); // throws on symlink/too-new/corrupt
   const recordLines = splitStoreRecords(raw, parseHeader);
-  if (recordLines === null) return { events: [], problems: [] };
+  // An ABSENT or header-only log yields ZERO events — but if the sealed head
+  // anchor still points at a real digest, a prior log was TRUNCATED to empty
+  // (not a fresh project). Run the head-anchor check on the empty list so that
+  // truncation surfaces as a head-mismatch problem instead of a healthy empty.
+  if (recordLines === null) {
+    const emptyProblems: string[] = [];
+    await appendChainProblems(root, [], emptyProblems);
+    return { events: [], problems: emptyProblems };
+  }
   const problems: string[] = [];
   const events = parseRecords(recordLines, problems);
   await appendChainProblems(root, events, problems);

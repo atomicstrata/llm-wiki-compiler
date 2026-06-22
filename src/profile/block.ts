@@ -25,6 +25,7 @@ import { safeRealpath } from "../utils/path-confine.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
+import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import type { RelationRef } from "../relations/types.js";
 import { readEvents } from "../events/store-read.js";
 import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError } from "../events/types.js";
@@ -149,7 +150,8 @@ function relationReadProblem(error: unknown): EntityProblemView {
   if (
     error instanceof RelationStoreTooNewError ||
     error instanceof RelationStoreCorruptError ||
-    error instanceof RelationStoreSymlinkError
+    error instanceof RelationStoreSymlinkError ||
+    error instanceof GraphDirConfinementError // a symlinked/escaping wiki/graph DIR (FIX F5)
   ) {
     return { kind: "relation-store", message: error.message };
   }
@@ -227,7 +229,8 @@ function eventReadProblem(error: unknown): EntityProblemView {
   if (
     error instanceof EventStoreTooNewError ||
     error instanceof EventStoreCorruptError ||
-    error instanceof EventStoreSymlinkError
+    error instanceof EventStoreSymlinkError ||
+    error instanceof GraphDirConfinementError // a symlinked/escaping wiki/graph DIR (FIX F5)
   ) {
     return { kind: "event-store", message: error.message };
   }

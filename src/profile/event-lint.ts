@@ -30,6 +30,7 @@ import {
   EventStoreTooNewError,
   EventStoreSymlinkError,
 } from "../events/types.js";
+import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import type { LintResult } from "../linter/types.js";
 
 /** Rule id for a broken/forked/reordered chain or a head-anchor (truncation) mismatch. */
@@ -42,6 +43,8 @@ const EVENT_STORE_CORRUPT_RULE = "event-store-corrupt";
 const EVENT_STORE_TOO_NEW_RULE = "event-store-too-new";
 /** Rule id for a fail-closed symlinked/non-regular store-file leaf read. */
 const EVENT_STORE_SYMLINK_RULE = "event-store-symlink";
+/** Rule id for a fail-closed symlinked/escaping `wiki/graph` DIR (confinement). */
+const EVENT_STORE_GRAPH_DIR_RULE = "event-store-graph-dir";
 
 /** The lint `file` label for store-level event findings. */
 const EVENT_STORE_FILE = "wiki/graph/events.jsonl";
@@ -64,6 +67,9 @@ function readErrorFinding(error: unknown): LintResult | null {
   }
   if (error instanceof EventStoreSymlinkError) {
     return { rule: EVENT_STORE_SYMLINK_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
+  }
+  if (error instanceof GraphDirConfinementError) {
+    return { rule: EVENT_STORE_GRAPH_DIR_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
   }
   return null;
 }

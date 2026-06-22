@@ -15,6 +15,13 @@
  *
  * Because the write rides the existing page executor + journal, this destabilizes
  * NOTHING: the page bytes land atomically exactly as a typed promotion does.
+ *
+ * MANDATORY AUDIT (FIX F2): the audit event store is PRE-FLIGHTED under the held
+ * lock BEFORE the page write — it must be healthy (not symlinked / corrupt /
+ * too-new / tampered) or the transition fails closed with the page UNCHANGED. The
+ * event emit is no longer best-effort-after-mutation; a healthy event store is a
+ * PRECONDITION. The only residual gap is a store healthy at pre-flight that fails
+ * mid-emit AFTER the page write — the deferred cross-store-atomicity item.
  */
 
 import { loadNonDefaultProfile } from "../profile/block.js";
@@ -22,6 +29,7 @@ import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
 import { parseFrontmatter, buildFrontmatter, safeReadFile } from "../utils/markdown.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { appendEventLocked } from "../events/store.js";
+import { readEventsStrict } from "../events/store-read.js";
 import { applyTypedCandidate } from "./promote.js";
 import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
@@ -155,9 +163,14 @@ async function transitionUnderLock(
     body,
     targetEntityType: entityType,
   };
+  // FIX F2 pre-flight: the audit event store is a MANDATORY precondition. Verify
+  // it is healthy (not symlinked / corrupt / too-new / tampered) BEFORE the page
+  // write — a broken store FAILS THE TRANSITION CLOSED with the page UNCHANGED.
+  await readEventsStrict(root);
   await applyTypedCandidate(root, candidate as ReviewCandidate);
   // Emit AFTER the page write lands, under the held lock so event + mutation
-  // co-commit. Best-effort: a failed emit does not roll back the transition.
+  // co-commit. The store was healthy at pre-flight; the residual mid-emit gap is
+  // the deferred cross-store-atomicity item (true atomicity needs an intent journal).
   await emitTransitionEvent(root, { entityType, slug, prev, toState, evidence });
 }
 
@@ -174,7 +187,9 @@ interface TransitionEventFields {
  * Emit one `lifecycle-transition` audit event into the chained event store under
  * the CALLER's held lock (the lock-free {@link appendEventLocked}). Called only
  * after {@link applyTypedCandidate} has durably written the page, so the event
- * trails the mutation it records.
+ * trails the mutation it records. A healthy event store is a PRECONDITION the
+ * caller pre-flights (FIX F2), so this emit fails only on the deferred mid-emit
+ * cross-store-atomicity gap, not on a symlinked/tampered store.
  */
 async function emitTransitionEvent(root: string, fields: TransitionEventFields): Promise<void> {
   await appendEventLocked(root, {
