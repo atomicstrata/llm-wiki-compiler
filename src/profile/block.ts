@@ -26,6 +26,7 @@ import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
 import { GraphDirConfinementError } from "../utils/jsonl-store.js";
+import { PrivateDirConfinementError } from "../utils/private-dir.js";
 import type { RelationRef } from "../relations/types.js";
 import { readEvents } from "../events/store-read.js";
 import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError, EventStoreFullError } from "../events/types.js";
@@ -231,7 +232,8 @@ function eventReadProblem(error: unknown): EntityProblemView {
     error instanceof EventStoreCorruptError ||
     error instanceof EventStoreSymlinkError ||
     error instanceof EventStoreFullError ||
-    error instanceof GraphDirConfinementError // a symlinked/escaping wiki/graph DIR (FIX F5)
+    error instanceof GraphDirConfinementError || // a symlinked/escaping wiki/graph DIR (FIX F5)
+    error instanceof PrivateDirConfinementError // a symlinked/escaping .llmwiki dir (B5)
   ) {
     return { kind: "event-store", message: error.message };
   }

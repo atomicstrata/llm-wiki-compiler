@@ -32,6 +32,7 @@ import {
   EventStoreFullError,
 } from "../events/types.js";
 import { GraphDirConfinementError } from "../utils/jsonl-store.js";
+import { PrivateDirConfinementError } from "../utils/private-dir.js";
 import type { LintResult } from "../linter/types.js";
 
 /** Rule id for a broken/forked/reordered chain or a head-anchor (truncation) mismatch. */
@@ -46,6 +47,8 @@ const EVENT_STORE_TOO_NEW_RULE = "event-store-too-new";
 const EVENT_STORE_SYMLINK_RULE = "event-store-symlink";
 /** Rule id for a fail-closed symlinked/escaping `wiki/graph` DIR (confinement). */
 const EVENT_STORE_GRAPH_DIR_RULE = "event-store-graph-dir";
+/** Rule id for a fail-closed symlinked/escaping `.llmwiki` private dir (confinement). */
+const EVENT_STORE_PRIVATE_DIR_RULE = "event-store-private-dir";
 /** Rule id for a fail-closed append-refused-because-store-is-full condition. */
 const EVENT_STORE_FULL_RULE = "event-store-full";
 
@@ -76,6 +79,9 @@ function readErrorFinding(error: unknown): LintResult | null {
   }
   if (error instanceof GraphDirConfinementError) {
     return { rule: EVENT_STORE_GRAPH_DIR_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
+  }
+  if (error instanceof PrivateDirConfinementError) {
+    return { rule: EVENT_STORE_PRIVATE_DIR_RULE, severity: "error", file: EVENT_STORE_FILE, message: error.message };
   }
   return null;
 }

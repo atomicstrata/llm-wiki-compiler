@@ -17,6 +17,7 @@ import type { LoadedProfile } from "../profile/types.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
+import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import type { RelationRef } from "../relations/types.js";
 
 /**
@@ -52,7 +53,8 @@ async function exportRelationViews(root: string, loaded: LoadedProfile): Promise
     if (
       error instanceof RelationStoreCorruptError ||
       error instanceof RelationStoreTooNewError ||
-      error instanceof RelationStoreSymlinkError
+      error instanceof RelationStoreSymlinkError ||
+      error instanceof GraphDirConfinementError // symlinked/escaping wiki/graph DIR (B4)
     ) {
       return undefined;
     }

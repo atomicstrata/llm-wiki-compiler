@@ -21,6 +21,20 @@ import path from "path";
 import { LLMWIKI_DIR } from "./constants.js";
 import { confineUnderRoot, safeRealpath, isInsideDir } from "./path-confine.js";
 
+/**
+ * Raised when the private `.llmwiki` dir (or an ancestor) is a symlink that
+ * escapes the project root — the private-dir confinement failure. A TYPED error
+ * (not a generic `Error`) so event read surfaces can CATCH it and map it to a
+ * fail-closed finding instead of crashing. Mirrors the shape of
+ * `GraphDirConfinementError` in `jsonl-store.ts`.
+ */
+export class PrivateDirConfinementError extends Error {
+  constructor(message: string) {
+    super(`private dir rejected: ${message}`);
+    this.name = "PrivateDirConfinementError";
+  }
+}
+
 // `confineUnderRoot` resolves its target via `path.resolve(realpath(root), target)`,
 // so the target is passed RELATIVE to root (not as an absolute path built from the
 // pre-realpath root) — an absolute `<unrealpath-root>/.llmwiki` would be judged
@@ -41,12 +55,17 @@ import { confineUnderRoot, safeRealpath, isInsideDir } from "./path-confine.js";
  * @throws When `.llmwiki` (or an ancestor) escapes the project root.
  */
 export async function resolveConfinedPrivateDir(root: string): Promise<string> {
-  const confined = await confineUnderRoot(LLMWIKI_DIR, root, { mustExist: false });
+  let confined: string;
+  try {
+    confined = await confineUnderRoot(LLMWIKI_DIR, root, { mustExist: false });
+  } catch (err) {
+    throw new PrivateDirConfinementError((err as Error).message);
+  }
   await mkdir(confined, { recursive: true });
   const realDir = await safeRealpath(confined);
   const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
   if (realDir === null || !isInsideDir(realDir, realRoot)) {
-    throw new Error(`private dir escapes project root: ${LLMWIKI_DIR}`);
+    throw new PrivateDirConfinementError(`path escapes project root: ${LLMWIKI_DIR}`);
   }
   return realDir;
 }
