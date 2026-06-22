@@ -42,14 +42,29 @@ function expandRelations(spec: {
   });
 }
 
+/** Expand the single `amy --knows--> bob` relation at depth 1 (both pages real). */
+function expandAmyKnowsBob() {
+  return expandRelations({
+    entityPages: [entity("amy"), entity("bob")],
+    relations: [rel("person/amy", "person/bob")],
+    primary: "person/amy",
+    depth: 1,
+  });
+}
+
+/** Expand `amy --knows--> ghost` where the endpoint has no backing page. */
+function expandAmyKnowsGhost() {
+  return expandRelations({
+    entityPages: [entity("amy")],
+    relations: [rel("person/amy", "person/ghost")],
+    primary: "person/amy",
+    depth: 2,
+  });
+}
+
 describe("expandGraphNeighborhood — typed relation edges (CLP 4b)", () => {
   it("expands from a typed page along a relation edge to its depth-1 neighbor", () => {
-    const out = expandRelations({
-      entityPages: [entity("amy"), entity("bob")],
-      relations: [rel("person/amy", "person/bob")],
-      primary: "person/amy",
-      depth: 1,
-    });
+    const out = expandAmyKnowsBob();
     expect(out.neighbors).toHaveLength(1);
     expect(out.neighbors[0]).toMatchObject({ from: "person/amy", to: "person/bob", distance: 1 });
   });
@@ -74,14 +89,22 @@ describe("expandGraphNeighborhood — typed relation edges (CLP 4b)", () => {
     expect(out.neighbors.map((n) => n.to)).toEqual(["person/bob"]);
   });
 
-  it("is dangling-safe: a relation to a missing endpoint (ghost) is dropped", () => {
-    const out = expandRelations({
-      entityPages: [entity("amy")],
-      relations: [rel("person/amy", "person/ghost")],
-      primary: "person/amy",
-      depth: 2,
-    });
+  it("is dangling-safe: a relation to a missing endpoint (ghost) is dropped from neighbors", () => {
+    expect(expandAmyKnowsGhost().neighbors).toEqual([]);
+  });
+
+  it("emits a dangling-relation gap naming the relation type + missing endpoint", () => {
+    const out = expandAmyKnowsGhost();
     expect(out.neighbors).toEqual([]);
-    expect(out.gaps).toEqual([]);
+    expect(out.gaps).toHaveLength(1);
+    expect(out.gaps[0]).toMatchObject({ code: "dangling-relation", pageId: "person/amy" });
+    expect(out.gaps[0].message).toContain("knows");
+    expect(out.gaps[0].message).toContain("person/ghost");
+  });
+
+  it("labels a relation-derived neighbor with reason 'relation' + relationType, not 'wikilink'", () => {
+    const out = expandAmyKnowsBob();
+    expect(out.neighbors).toHaveLength(1);
+    expect(out.neighbors[0]).toMatchObject({ reason: "relation", relationType: "knows" });
   });
 });

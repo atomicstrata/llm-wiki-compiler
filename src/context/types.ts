@@ -25,8 +25,14 @@ export type PrimaryReason =
   | "exact-title"
   | "graph-neighbor";
 
-/** Closed v1 enum for the edge label used in `neighbors[]`. */
-type NeighborReason = "wikilink";
+/**
+ * Edge-provenance label used in `neighbors[]`. `"wikilink"` is the v1 value (a
+ * PageId↔PageId wikilink edge); `"relation"` (CLP 4b) is an ADDITIVE value
+ * emitted ONLY for a neighbor reached along a typed relation edge. A default
+ * (relation-less) pack never emits `"relation"`, so its serialized output is
+ * unchanged and `version` does not bump.
+ */
+type NeighborReason = "wikilink" | "relation";
 
 /** Closed v1 enum for top-level `warnings[]` codes. */
 type ContextWarningCode =
@@ -38,8 +44,14 @@ type ContextWarningCode =
   | "source-window-unavailable"
   | "truncated-prompt";
 
-/** Closed v1 enum for `gaps[]` codes. */
-type ContextGapCode = "dangling-link" | "page-warning";
+/**
+ * Codes for `gaps[]`. `dangling-link`/`page-warning` are the v1 values;
+ * `dangling-relation` (CLP 4b) is an ADDITIVE value for a typed relation whose
+ * other endpoint has no backing page (a ghost). A default (relation-less) pack
+ * never emits it, so its serialized output is unchanged and `version` does not
+ * bump.
+ */
+type ContextGapCode = "dangling-link" | "page-warning" | "dangling-relation";
 
 /**
  * Budget envelope. `estimatedTokens` uses a tokens ≈ chars/4 heuristic in v1.
@@ -143,6 +155,12 @@ interface ContextNeighbor {
   distance: number;
   score: number;
   reason: NeighborReason;
+  /**
+   * The profile relation type a relation-derived neighbor was reached along (CLP
+   * 4b). ABSENT when `reason` is `"wikilink"`, so a default pack's neighbor shape
+   * is byte-identical; present only when `reason` is `"relation"`.
+   */
+  relationType?: string;
 }
 
 /** Top-level context-pack state warning. */
@@ -152,16 +170,18 @@ export interface ContextWarning {
 }
 
 /**
- * Missing-knowledge gap. `pageId` is required in v1; every documented
- * gap code (`dangling-link`, `page-warning`) is tied to a specific
- * page. A future project-wide gap would either bump `version` or
- * introduce a new sibling field rather than retrofitting nullability
- * onto this one.
+ * Missing-knowledge gap. `pageId` is required; every gap code
+ * (`dangling-link`, `page-warning`, `dangling-relation`) is tied to a specific
+ * source. It is keyed in the {@link GraphNodeId} space so a `dangling-relation`
+ * gap (CLP 4b) can name a typed entity page (an `EntityId`) as its source; for
+ * a default pack every gap source is still a `PageId`, so the wire shape is
+ * unchanged. A future project-wide gap would either bump `version` or introduce
+ * a new sibling field rather than retrofitting nullability onto this one.
  */
 interface ContextGap {
   code: ContextGapCode;
   message: string;
-  pageId: PageId;
+  pageId: GraphNodeId;
 }
 
 /** Top-level v1 envelope. */
