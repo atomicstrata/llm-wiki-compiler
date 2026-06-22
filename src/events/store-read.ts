@@ -295,7 +295,10 @@ function stripChecksum(record: EventRecord): Omit<EventRecord, "checksum"> {
  */
 export async function prepareEventStoreForAppend(root: string): Promise<EventRecord[]> {
   const { events, problems } = await readEvents(root); // throws on corrupt/too-new/symlink
-  if (hasTornTail(problems)) await truncateTornTail(root, events);
+  // VERIFY BEFORE REPAIR: a tampered store must be rejected with the file left
+  // BYTE-IDENTICAL — never truncate (write to) a store we are about to refuse.
   await verifyChainAndHead(root, events);
+  // Only a healthy, tamper-intact prefix gets its uncommitted torn tail repaired.
+  if (hasTornTail(problems)) await truncateTornTail(root, events);
   return events;
 }

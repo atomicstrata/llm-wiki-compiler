@@ -66,6 +66,15 @@ describe("torn-tail repair — bare event append", () => {
     await expect(appendEvent(root, eventInput("d"))).rejects.toBeInstanceOf(EventStoreChainError);
   });
 
+  it("a TAMPERED + TORN store rejects AND leaves events.jsonl byte-identical (verify before repair)", async () => {
+    const [header, r1, r2, r3] = await seedEvents(root, ["a", "b", "c"]);
+    await writeFile(storePath(), [header, r2, r1, r3].join("\n") + "\n"); // tamper (swap)
+    await appendFile(storePath(), tornFragment); // ...AND a torn trailing fragment
+    const before = await readFile(storePath(), "utf8");
+    await expect(appendEvent(root, eventInput("d"))).rejects.toBeInstanceOf(EventStoreChainError);
+    expect(await readFile(storePath(), "utf8")).toBe(before); // tamper rejected, file NOT mutated
+  });
+
   it("READ path still tolerates + reports a torn tail (unchanged)", async () => {
     await seedEvents(root, ["a", "b"]);
     await appendFile(storePath(), tornFragment);
