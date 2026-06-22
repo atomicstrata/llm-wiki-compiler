@@ -18,9 +18,8 @@
  */
 
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
-import { mkdtemp, rm, readFile, writeFile, appendFile } from "node:fs/promises";
+import { readFile, writeFile, appendFile } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { EVENTS_FILE } from "../src/utils/constants.js";
 import { appendEvent } from "../src/events/store.js";
@@ -29,7 +28,15 @@ import { EventStoreChainError } from "../src/events/types.js";
 import { appendRelation } from "../src/relations/store.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { transitionLifecycle } from "../src/trust/lifecycle-transition.js";
-import { eventInput, seedEvents } from "./fixtures/event-store-probe.js";
+import {
+  eventInput,
+  seedEvents,
+  TORN_FRAGMENT,
+  expectSwapTamperRejectedByteIdentical,
+  expectCleanAppendSucceeds,
+  makeEventTmpRoot,
+  removeEventTmpRoot,
+} from "./fixtures/event-store-probe.js";
 import { RESEARCH_LITE_RELATIONS_PROFILE } from "./fixtures/profile-fixtures.js";
 import {
   makeConfineRoots,
@@ -42,12 +49,12 @@ const IDEA = "ideas/sparse-routing" as EntityId;
 const profile = (): ProfilePack => RESEARCH_LITE_RELATIONS_PROFILE as ProfilePack;
 
 /** Append a partial (newline-less) JSON fragment so the trailing line is torn. */
-const tornFragment = '{"id":"evt_torn","type":"rel';
+const tornFragment = TORN_FRAGMENT;
 
 describe("torn-tail repair — bare event append", () => {
   let root = "";
-  beforeEach(async () => { root = await mkdtemp(path.join(os.tmpdir(), "evt-torn-")); });
-  afterEach(async () => { if (root) await rm(root, { recursive: true, force: true }); });
+  beforeEach(async () => { root = await makeEventTmpRoot("evt-torn-"); });
+  afterEach(async () => { await removeEventTmpRoot(root); });
   const storePath = (): string => path.join(root, EVENTS_FILE);
 
   it("truncates a torn trailing line, then appends the new event cleanly", async () => {
@@ -67,12 +74,7 @@ describe("torn-tail repair — bare event append", () => {
   });
 
   it("a TAMPERED + TORN store rejects AND leaves events.jsonl byte-identical (verify before repair)", async () => {
-    const [header, r1, r2, r3] = await seedEvents(root, ["a", "b", "c"]);
-    await writeFile(storePath(), [header, r2, r1, r3].join("\n") + "\n"); // tamper (swap)
-    await appendFile(storePath(), tornFragment); // ...AND a torn trailing fragment
-    const before = await readFile(storePath(), "utf8");
-    await expect(appendEvent(root, eventInput("d"))).rejects.toBeInstanceOf(EventStoreChainError);
-    expect(await readFile(storePath(), "utf8")).toBe(before); // tamper rejected, file NOT mutated
+    await expectSwapTamperRejectedByteIdentical(root, eventInput("d"), true);
   });
 
   it("READ path still tolerates + reports a torn tail (unchanged)", async () => {
@@ -84,12 +86,7 @@ describe("torn-tail repair — bare event append", () => {
   });
 
   it("a clean store append still works (regression)", async () => {
-    await seedEvents(root, ["a", "b"]); // no torn tail
-    const rec = await appendEvent(root, eventInput("c"));
-    const { events, problems } = await readEvents(root);
-    expect(problems).toEqual([]);
-    expect(events).toHaveLength(3);
-    expect(events.at(-1)?.id).toBe(rec.id);
+    await expectCleanAppendSucceeds(root, ["a", "b"]); // no torn tail
   });
 });
 

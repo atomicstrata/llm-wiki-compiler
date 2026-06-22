@@ -13,18 +13,22 @@
  * event without a nested-acquire deadlock. {@link appendEvent} is the self-locking
  * entry point. {@link recordEvent} dispatches between them on `opts.locked`.
  *
- * WRITE PRECONDITION (repair-then-verify): {@link appendEventLocked} runs
- * {@link prepareEventStoreForAppend} first. A torn TRAILING line (an uncommitted,
- * crashed prior append) is REPAIRED — truncated to the last valid record — so the
- * new event never concatenates onto a partial line and corrupts the log. After
- * repair it FAILS CLOSED on actual tamper (a tampered/truncated/corrupt store
- * throws BEFORE any append). This prevents re-sealing the head over a tampered
- * chain (which would "launder" the tamper). A healthy chain still appends
- * normally; reads keep TOLERATING a torn tail (they never extend it).
+ * WRITE PRECONDITION (verify-then-repair): {@link appendEventLocked} runs
+ * {@link prepareEventStoreForAppend} first. It VERIFIES the chain BEFORE any
+ * repair, so a tampered/reordered chain throws BEFORE any append with the file
+ * left BYTE-IDENTICAL (no re-sealing the head over a tampered chain — no
+ * laundering). Only then are two UNCOMMITTED trailing states repaired: a torn
+ * TRAILING line (a crashed prior append, truncated to the last valid record so the
+ * new event never concatenates onto a partial line) AND the one-record-AHEAD crash
+ * state (a complete record the head never sealed because a crash hit between
+ * `appendLine` and `sealHeadAnchor` — dropped, since the head SEAL is the commit
+ * point). Reads keep TOLERATING a torn tail (they never extend it).
  *
  * ORDERING: emit sites call this AFTER the durable mutation has landed, so the
  * event trails the mutation. A crash between the mutation and the append leaves a
  * missing trailing event — the torn-trailing case the reader tolerates and reports.
+ * A crash between the append and the head seal leaves a one-ahead store, recovered
+ * (the uncommitted record dropped) on the next write.
  *
  * SIZE CEILING: the append-only log has a hard size ceiling ({@link MAX_EVENT_STORE_BYTES}
  * for the whole file, {@link MAX_EVENT_RECORD_BYTES} per record). An append that
@@ -155,12 +159,14 @@ async function sealHeadAnchor(root: string, content: EventContent): Promise<void
  * @returns The persisted {@link EventRecord}.
  */
 export async function appendEventLocked(root: string, input: AppendEventInput): Promise<EventRecord> {
-  // WRITE precondition: REPAIR a torn trailing line (an uncommitted, crashed
-  // prior append) by truncating it BEFORE we chain — otherwise the new record
-  // would concatenate onto the partial line and corrupt the log. After repair,
-  // prepareEventStoreForAppend FAILS CLOSED on actual tamper (broken/reordered/
-  // truncated chain, head mismatch) and the store's typed errors (corrupt /
-  // too-new / symlink) — so a tampered chain still cannot be laundered.
+  // WRITE precondition (verify-then-repair): prepareEventStoreForAppend VERIFIES
+  // the chain FIRST, so a broken/reordered chain or a non-recoverable head/log
+  // mismatch FAILS CLOSED with the file BYTE-IDENTICAL (a tampered chain is never
+  // laundered). It then repairs only UNCOMMITTED trailing state before we chain: a
+  // torn trailing line (otherwise the new record concatenates onto the partial
+  // line and corrupts the log) and the bounded one-record-AHEAD crash state (a
+  // complete record the head never sealed — dropped, since the seal is the commit
+  // point). Typed errors (corrupt / too-new / symlink) still throw.
   const events = await prepareEventStoreForAppend(root); // under the caller's lock
   const record = buildEventRecord(input, prevHashFor(events));
   await appendLine(root, record);

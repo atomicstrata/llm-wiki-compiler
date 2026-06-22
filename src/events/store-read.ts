@@ -165,8 +165,11 @@ async function readHeadAnchor(root: string): Promise<string | null> {
  * Verify the sealed HEAD anchor matches the LAST event: the anchor (the digest of
  * the last event, written under `.llmwiki/events.head`) must equal
  * {@link eventPrevHash} of the last event. A TRUNCATED log (last record dropped)
- * or a wholesale rewrite leaves the anchor pointing at a now-absent digest, so
- * the mismatch is detected. An empty store with no anchor is consistent (`ok`).
+ * is detected ONLY when the head is NOT also rewritten — i.e. against ACCIDENTAL
+ * or PARTIAL truncation and torn writes, not against an adversary who rewrites
+ * BOTH the log and this anchor (a truncate-and-reseal would pass; full
+ * tamper-evidence needs an out-of-tree/signed anchor — a documented deferral, see
+ * the {@link EventRecord} file overview). An empty store with no anchor is `ok`.
  *
  * @param root - Absolute project root.
  * @param events - Events in append order (the last is anchored).
@@ -259,14 +262,15 @@ function hasTornTail(problems: string[]): boolean {
 }
 
 /**
- * Rewrite the store body to the header + the `events` prefix, dropping a torn
- * trailing line. Uses the confined {@link atomicWrite} (temp + O_EXCL + rename,
+ * Rewrite the store body to the header + the `kept` records, dropping anything
+ * after them. Uses the confined {@link atomicWrite} (temp + O_EXCL + rename,
  * `confineRoot` ancestor + parent-symlink defenses) so the truncation reuses the
- * hardened write discipline — no new unconfined write is introduced. A torn line
- * carries NO committed event (its head was never sealed), so this loses nothing.
+ * hardened write discipline — no new unconfined write is introduced. The shared
+ * truncation primitive for both torn-tail repair and one-ahead crash recovery; it
+ * is only ever called on an UNCOMMITTED (un-sealed) tail, so it loses nothing.
  */
-async function truncateTornTail(root: string, events: EventRecord[]): Promise<void> {
-  const body = eventHeaderLine() + events.map((e) => serializeEventRecord(stripChecksum(e))).join("");
+async function truncateToRecords(root: string, kept: EventRecord[]): Promise<void> {
+  const body = eventHeaderLine() + kept.map((e) => serializeEventRecord(stripChecksum(e))).join("");
   await atomicWrite(path.join(root, EVENTS_FILE), body, { confineRoot: root });
 }
 
@@ -278,19 +282,54 @@ function stripChecksum(record: EventRecord): Omit<EventRecord, "checksum"> {
 }
 
 /**
+ * The classification of the sealed head relative to the (chain-verified) `events`:
+ *  - `"healthy"`: the head seals the LAST record (or no head over an empty log) —
+ *    the normal, committed state.
+ *  - `"one-ahead"`: the head seals exactly the (N-1)-record PREFIX, so the LAST
+ *    record is a single UNCOMMITTED trailing record from a crash between
+ *    `appendLine` and `sealHeadAnchor` (or, for N=1 with no head, a first-ever
+ *    append that crashed before sealing) — recoverable by dropping that record.
+ *  - `"tamper"`: anything else — a head/log mismatch that is not the bounded
+ *    one-ahead crash state, so it must be rejected with the file byte-identical.
+ */
+type HeadState = "healthy" | "one-ahead" | "tamper";
+
+/**
+ * Classify the head anchor against the chain-verified `events`. Under the project
+ * lock a single append writes exactly ONE record then seals, so the log can be AT
+ * MOST one complete record ahead of the head — we recover ONLY that bounded case.
+ */
+function classifyHeadState(anchor: string | null, events: EventRecord[]): HeadState {
+  const healthyExpectation = events.length === 0 ? null : eventPrevHash(events[events.length - 1]);
+  if (anchor === healthyExpectation) return "healthy";
+  // One-ahead: the head seals the prefix that EXCLUDES the last record.
+  const sealsPrefix =
+    (events.length >= 2 && anchor === eventPrevHash(events[events.length - 2])) ||
+    (events.length === 1 && anchor === null);
+  return sealsPrefix ? "one-ahead" : "tamper";
+}
+
+/**
  * The WRITE precondition for any append/mutation, run UNDER THE CALLER'S LOCK.
  * Unlike {@link readEventsStrict} (a READ that TOLERATES a torn trailing line), a
  * WRITE must not extend a torn tail — concatenating a new record onto a partial
  * line would produce an unparseable record and desync the head.
  *
- * Order is VERIFY-BEFORE-REPAIR: the chain + head anchor are strict-verified FIRST,
- * so genuine TAMPER (broken/reordered/interior-deleted chain, head-without-log,
- * mismatched head) throws {@link EventStoreChainError} with the file left
- * BYTE-IDENTICAL — we never truncate (write to) a store we are about to reject, so
- * a tamper-evidence failure preserves the bytes for forensics. ONLY a verified-
- * healthy prefix then has its torn tail REPAIRED: a torn trailing line is an
- * UNCOMMITTED, crashed prior append (no sealed head, no data loss to drop it), so
- * it is TRUNCATED to the last valid record before the new append.
+ * Order is VERIFY-BEFORE-REPAIR. The CHAIN is strict-verified FIRST, so genuine
+ * TAMPER (a broken/reordered/interior-deleted chain) throws
+ * {@link EventStoreChainError} with the file left BYTE-IDENTICAL — we never
+ * truncate (write to) a store we are about to reject, so a tamper-evidence failure
+ * preserves the bytes for forensics. Then the head anchor is CLASSIFIED:
+ *  - `healthy` → repair a torn trailing line (an UNCOMMITTED, crashed prior append)
+ *    if present, else no-op;
+ *  - `one-ahead` → the last record is the single UNCOMMITTED trailing record from a
+ *    crash between `appendLine` and `sealHeadAnchor`. The commit point is the head
+ *    SEAL, so this record is uncommitted: DROP it (truncate to the N-1 prefix the
+ *    head already seals — no head rewrite needed). We TRUNCATE the uncommitted tail,
+ *    NEVER keep+reseal it, so a forged un-sealed trailing record is removed, never
+ *    laundered; the committed (head-sealed) prefix is never mutated.
+ *  - `tamper` → genuine head/log mismatch (incl. two-ahead, head-without-log) →
+ *    throw with the file BYTE-IDENTICAL.
  *
  * @param root - Absolute project root.
  * @returns The verified events (for chaining the next record's `prevHash`).
@@ -298,10 +337,21 @@ function stripChecksum(record: EventRecord): Omit<EventRecord, "checksum"> {
  */
 export async function prepareEventStoreForAppend(root: string): Promise<EventRecord[]> {
   const { events, problems } = await readEvents(root); // throws on corrupt/too-new/symlink
-  // VERIFY BEFORE REPAIR: a tampered store must be rejected with the file left
-  // BYTE-IDENTICAL — never truncate (write to) a store we are about to refuse.
-  await verifyChainAndHead(root, events);
-  // Only a healthy, tamper-intact prefix gets its uncommitted torn tail repaired.
-  if (hasTornTail(problems)) await truncateTornTail(root, events);
+  // VERIFY BEFORE REPAIR: a broken/reordered chain must be rejected with the file
+  // left BYTE-IDENTICAL — never truncate (write to) a store we are about to refuse.
+  const chain = verifyEventChain(events);
+  if (!chain.ok) throw new EventStoreChainError(chain.problem ?? "chain verification failed");
+  const state = classifyHeadState(await readHeadAnchor(root), events);
+  if (state === "tamper") {
+    throw new EventStoreChainError(`head anchor does not match a committable store state`);
+  }
+  if (state === "one-ahead") {
+    // Drop the single UNCOMMITTED trailing record; the head already seals the prefix.
+    const kept = events.slice(0, events.length - 1);
+    await truncateToRecords(root, kept);
+    return kept;
+  }
+  // healthy: repair only an uncommitted torn tail (no committed event is lost).
+  if (hasTornTail(problems)) await truncateToRecords(root, events);
   return events;
 }

@@ -1,7 +1,8 @@
 /**
  * @file src/events/types.ts
  * @description Type surface for the append-only, HASH-CHAINED EVENT STORE
- * (CLP 4b) — the tamper-evident audit log at `wiki/graph/events.jsonl`.
+ * (CLP 4b) — the preflighted, tamper-evidence-on-a-best-effort-local-anchor audit
+ * log at `wiki/graph/events.jsonl`, with a documented crash gap (below).
  *
  * Every lifecycle transition and relation write emits one {@link EventRecord}.
  * Each record carries a `prevHash` linking it to the digest of the PRIOR record
@@ -14,13 +15,25 @@
  * On disk the first line of a non-empty store is an {@link EventStoreHeader}
  * carrying `schemaVersion`; readers FAIL CLOSED when it exceeds
  * {@link EVENT_STORE_SCHEMA_VERSION}. A sealed HEAD anchor (the digest of the
- * last event, at `.llmwiki/events.head`) lets a reader detect a TRUNCATED or
- * wholesale-rewritten log: the last record's digest must equal the anchor.
+ * last event, at `.llmwiki/events.head`) detects ACCIDENTAL or PARTIAL truncation,
+ * torn writes, and the crash-between-append-and-seal window (recovered on the next
+ * write): the last record's digest must equal the anchor.
+ *
+ * TAMPER-EVIDENCE LIMIT (deferred refinement): the anchor does NOT provide
+ * tamper-evidence against an adversary who can rewrite BOTH the log AND the head
+ * anchor — both live in the same writable tree, so a truncate-and-reseal (drop a
+ * suffix, then re-seal the head to the new tip's digest) would PASS verification.
+ * Adding a record COUNT to the anchor does not close this (the attacker writes the
+ * matching count too). Full tamper-evidence requires an out-of-tree or SIGNED head
+ * anchor; that is a documented deferral, not provided here.
  *
  * DURABILITY: emit is best-effort AFTER the durable mutation, so a crash between
  * the mutation and the append leaves a missing trailing event — the torn-trailing
- * case the reader tolerates and reports. An interior tear / bad checksum / chain
- * break is fail-closed (corrupt) or surfaced (chain) per the read contract.
+ * case the reader tolerates and reports. A crash between the append and the head
+ * SEAL leaves one complete, unsealed record AHEAD of the head; the next WRITE
+ * recovers it (drops the uncommitted record) — see `prepareEventStoreForAppend`.
+ * An interior tear / bad checksum / chain break is fail-closed (corrupt) or
+ * surfaced (chain) per the read contract.
  */
 
 /** The event-store JSONL schema version readers understand. */
