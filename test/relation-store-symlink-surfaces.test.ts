@@ -24,6 +24,7 @@ import {
   buildResearchLiteRelationsProject,
   seedTestsRelation,
 } from "./fixtures/profile-fixtures.js";
+import { expectStoreProblemNoCounts } from "./fixtures/graph-store-confine.js";
 
 let root = "";
 let outsideDir = "";
@@ -50,9 +51,8 @@ async function plantLeafSymlink(): Promise<void> {
 describe("FIX F3 — symlinked relation store leaf maps to read surfaces", () => {
   it("status surfaces a relation-store problem instead of crashing", async () => {
     await plantLeafSymlink();
-    const status = await collectStatus(root);
-    expect(status.profile?.problems?.some((p) => /relation store/i.test(p.message))).toBe(true);
-    expect("relationCounts" in (status.profile ?? {})).toBe(false);
+    const { profile } = await collectStatus(root);
+    expectStoreProblemNoCounts(profile, /relation store/i);
   });
 
   it("lint emits a fail-closed finding instead of throwing", async () => {

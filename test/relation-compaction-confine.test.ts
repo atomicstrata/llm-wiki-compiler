@@ -15,23 +15,15 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, symlink, readFile, lstat, writeFile, open } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { RELATIONS_FILE, WIKI_GRAPH_DIR } from "../src/utils/constants.js";
-import { appendRelation, updateRelation, compactRelations } from "../src/relations/store.js";
-import { readRelations } from "../src/relations/store-read.js";
-
-const EXP_A = "experiments/a" as EntityId;
-const IDEA_B = "ideas/b" as EntityId;
+import {
+  experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B,
+  appendRelation, updateRelation, compactRelations,
+  seedThreeVersionRelation, assertCompactionShrankTo3,
+} from "./fixtures/profile-fixtures.js";
 
 /** A minimal directed-relation profile for the compaction tests. */
-function profile(): ProfilePack {
-  return {
-    schemaVersion: 1,
-    profileId: "research",
-    entities: { experiments: { directory: "wiki/experiments" }, ideas: { directory: "wiki/ideas" } },
-    relations: { tests: { from: ["experiments"], to: ["ideas"], direction: "directed" } },
-  };
-}
+const profile = () => experimentsIdeasProfile({ tests: { from: ["experiments"], to: ["ideas"], direction: "directed" } });
 
 let root = "";
 let outside = "";
@@ -75,16 +67,9 @@ describe("compaction temp-write confinement (FIX 1)", () => {
   });
 
   it("normal compaction collapses superseded records and shrinks the file", async () => {
-    const ref = await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { a: "1" } });
-    await updateRelation(root, profile(), ref.id, { attributes: { a: "2" } });
-    await updateRelation(root, profile(), ref.id, { attributes: { a: "3" } });
-
-    const { before, after } = await compactRelations(root, profile());
-
-    expect(after).toBeLessThan(before);
-    const { relations } = await readRelations(root);
-    expect(relations).toHaveLength(1);
-    expect(relations[0].attributes).toEqual({ a: "3" });
+    await seedThreeVersionRelation(root, profile());
+    const result = await compactRelations(root, profile());
+    await assertCompactionShrankTo3(root, result);
     expect((await lstat(storePath())).isSymbolicLink()).toBe(false);
   });
 });

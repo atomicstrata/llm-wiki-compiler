@@ -17,9 +17,9 @@ function entityNode(entityType: string, slug: string): EntityPageNode {
   return { id: `${entityType}/${slug}` as EntityId, entityType, slug, directory: entityType };
 }
 
-/** Build a typed relation edge input between two entity ids. */
-function relation(type: string, from: string, to: string): RelationEdge {
-  return { type, from: from as EntityId, to: to as EntityId };
+/** Build a typed relation edge input between two entity ids with optional direction. */
+function relation(type: string, from: string, to: string, direction?: "directed" | "symmetric"): RelationEdge {
+  return { type, from: from as EntityId, to: to as EntityId, ...(direction ? { direction } : {}) };
 }
 
 /** Build a minimal ViewerPage fixture for graph tests. */
@@ -149,5 +149,23 @@ describe("buildGraphData — typed entity pages + relations (CLP 4b)", () => {
     const ghost = nodes.find((n) => n.id === "person/ghost");
     expect(ghost).toMatchObject({ isDangling: true, kind: "dangling", directory: "person", slug: "ghost" });
     expect(nodes.find((n) => n.id === "person/amy")?.nodeKind).toBe("entity");
+  });
+
+  it("carries direction:symmetric on a symmetric relation edge", () => {
+    const opts = { entityPages: [entityNode("person", "amy"), entityNode("person", "bob")], relations: [relation("knows", "person/amy", "person/bob", "symmetric")] };
+    const { edges } = buildGraphData([], opts);
+    expect(edges[0]).toMatchObject({ edgeKind: "relation", relationType: "knows", direction: "symmetric" });
+  });
+
+  it("carries direction:directed on a directed relation edge", () => {
+    const opts = { entityPages: [entityNode("person", "amy"), entityNode("person", "bob")], relations: [relation("tests", "person/amy", "person/bob", "directed")] };
+    const { edges } = buildGraphData([], opts);
+    expect(edges[0]).toMatchObject({ edgeKind: "relation", relationType: "tests", direction: "directed" });
+  });
+
+  it("omits direction on a relation edge when none is supplied (additive)", () => {
+    const opts = { entityPages: [entityNode("person", "amy"), entityNode("person", "bob")], relations: [relation("knows", "person/amy", "person/bob")] };
+    const { edges } = buildGraphData([], opts);
+    expect(edges[0]).not.toHaveProperty("direction");
   });
 });

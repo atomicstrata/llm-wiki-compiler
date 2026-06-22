@@ -5,9 +5,15 @@
  * route. Expects `globalThis.d3` to be set by the D3 IIFE bundle loaded
  * as a `<script>` tag in index.html before this module runs.
  *
- * Nodes are coloured by frontmatter `kind` and sized by total degree
- * (in-degree + out-degree). Hovering a node saturates it and highlights
- * all connected edges (both directions). Clicking navigates to the page.
+ * Nodes are coloured by `nodeKind`/`kind`: typed entity nodes use the entity
+ * palette (checked via `d.nodeKind === "entity"` before the `kind` fallback);
+ * wikilink nodes use `kind`-keyed palettes (concept/comparison/overview). Node
+ * size reflects total degree. Hovering saturates and highlights connected edges.
+ * Clicking navigates to the page.
+ *
+ * Typed relation edges render with a dashed green stroke and carry the
+ * `relationType` as a tooltip title. Symmetric relation edges have no arrowhead;
+ * directed and wikilink edges use the arrowhead marker.
  */
 
 const MIN_RADIUS = 4;
@@ -22,23 +28,31 @@ const KIND_COLORS = {
 
 const ORPHAN_COLOR   = { fill: '#212121', stroke: '#424242', hot: '#37474f', strokeHot: '#607d8b' };
 const DANGLING_COLOR = { fill: '#0f172a', stroke: '#475569', hot: '#1e293b', strokeHot: '#94a3b8' };
-const DEFAULT_EDGE_STROKE  = '#374151';
-const HOT_EDGE_STROKE      = '#60a5fa';
+const DEFAULT_EDGE_STROKE   = '#374151';
+const RELATION_EDGE_STROKE  = '#2d5a3d';
+const HOT_EDGE_STROKE       = '#60a5fa';
+const ARROWHEAD_MARKER_ID   = 'llmwiki-arrowhead';
 const HIGH_DEGREE_THRESHOLD = 5;
 const RESTING_FILL   = '#374151';
 const RESTING_STROKE = '#4b5563';
 
-/** Return the hover color config for a node (kind + degree determine the palette). */
-function colorForNode(kind, degree) {
-  if (kind === 'dangling') return DANGLING_COLOR;
-  if (degree === 0) return ORPHAN_COLOR;
+/** Resolve the active color palette for a node — entity nodes bypass the kind lookup. */
+function paletteForNode(kind, nodeKind) {
+  if (nodeKind === 'entity') return KIND_COLORS.entity;
   return KIND_COLORS[kind] || KIND_COLORS.concept;
 }
 
+/** Return the hover color config for a node (kind + degree + nodeKind determine the palette). */
+function colorForNode(kind, degree, nodeKind) {
+  if (kind === 'dangling') return DANGLING_COLOR;
+  if (degree === 0) return ORPHAN_COLOR;
+  return paletteForNode(kind, nodeKind);
+}
+
 /** Return the resting (non-hovered) fill and stroke for a node, tinted by kind. */
-function restColorsForNode(kind) {
+function restColorsForNode(kind, nodeKind) {
   if (kind === 'dangling') return { fill: RESTING_FILL, stroke: RESTING_STROKE };
-  const c = KIND_COLORS[kind] || KIND_COLORS.concept;
+  const c = paletteForNode(kind, nodeKind);
   return { fill: c.rest, stroke: c.restStroke };
 }
 
@@ -152,8 +166,8 @@ function applyHighlight(hoveredId, edgeSel, nodeSel, maxDegree) {
 
   const hoveredSel = nodeSel.filter(d => d.id === hoveredId);
   hoveredSel.select('circle')
-    .attr('fill',   d => colorForNode(d.kind, d.degree).hot)
-    .attr('stroke', d => colorForNode(d.kind, d.degree).strokeHot)
+    .attr('fill',   d => colorForNode(d.kind, d.degree, d.nodeKind).hot)
+    .attr('stroke', d => colorForNode(d.kind, d.degree, d.nodeKind).strokeHot)
     .style('filter', 'brightness(1.5) saturate(2) drop-shadow(0 0 6px #60a5fa)');
   hoveredSel.select('text')
     .attr('y', d => radiusForDegree(d.degree, maxDegree) + 8);
@@ -168,8 +182,8 @@ function resetHighlight(edgeSel, nodeSel, maxDegree) {
 
   nodeSel.select('circle')
     .style('filter', null)
-    .attr('fill',   d => restColorsForNode(d.kind).fill)
-    .attr('stroke', d => restColorsForNode(d.kind).stroke);
+    .attr('fill',   d => restColorsForNode(d.kind, d.nodeKind).fill)
+    .attr('stroke', d => restColorsForNode(d.kind, d.nodeKind).stroke);
   nodeSel.select('text').attr('y', d => radiusForDegree(d.degree, maxDegree) + 3);
 }
 
@@ -194,15 +208,25 @@ function attachDrag(nodeSel, sim) {
   );
 }
 
+/** Pluralize a noun by appending 's' when count !== 1. */
+function plural(count, noun) {
+  return count + ' ' + noun + (count !== 1 ? 's' : '');
+}
+
+/** Build the tooltip meta-line text for a node datum. */
+function nodeMetaText(d) {
+  if (d.isDangling) return 'missing page · ' + plural(d.degree, 'reference');
+  const kindLabel = d.nodeKind === 'entity' ? 'entity · ' + d.entityType : d.kind;
+  return kindLabel + ' · ' + plural(d.degree, 'connection');
+}
+
 /** Wire hover and click interactions onto node groups. */
 function attachHover(nodeSel, edgeSel, tooltip, svg, maxDegree) {
   nodeSel
     .on('mouseenter', function(event, d) {
       applyHighlight(d.id, edgeSel, nodeSel, maxDegree);
       tooltip.querySelector('.tip-title').textContent = d.title;
-      tooltip.querySelector('.tip-meta').textContent = d.isDangling
-        ? 'missing page · ' + d.degree + ' reference' + (d.degree !== 1 ? 's' : '')
-        : d.kind + ' · ' + d.degree + ' connection' + (d.degree !== 1 ? 's' : '');
+      tooltip.querySelector('.tip-meta').textContent = nodeMetaText(d);
       positionTooltip(tooltip, event, svg.node());
     })
     .on('mousemove', function(event) {
@@ -222,8 +246,8 @@ function attachHover(nodeSel, edgeSel, tooltip, svg, maxDegree) {
 function appendNodeVisuals(nodeSel, maxDegree) {
   nodeSel.append('circle')
     .attr('r',                d => radiusForDegree(d.degree, maxDegree))
-    .attr('fill',             d => restColorsForNode(d.kind).fill)
-    .attr('stroke',           d => restColorsForNode(d.kind).stroke)
+    .attr('fill',             d => restColorsForNode(d.kind, d.nodeKind).fill)
+    .attr('stroke',           d => restColorsForNode(d.kind, d.nodeKind).stroke)
     .attr('stroke-dasharray', d => d.isDangling ? '3,2' : null)
     .attr('stroke-width',     d => d.degree > HIGH_DEGREE_THRESHOLD ? 2.5 : d.degree > 0 ? 2 : 1);
 
@@ -238,23 +262,55 @@ function appendNodeVisuals(nodeSel, maxDegree) {
     .attr('pointer-events', 'none');
 }
 
+/** Append an arrowhead marker definition to the SVG defs block. */
+function appendArrowheadDef(svg) {
+  svg.append('defs').append('marker')
+    .attr('id',          ARROWHEAD_MARKER_ID)
+    .attr('viewBox',     '0 -4 8 8')
+    .attr('refX',        8)
+    .attr('refY',        0)
+    .attr('markerWidth', 6)
+    .attr('markerHeight', 6)
+    .attr('orient',      'auto')
+    .append('path')
+    .attr('d',    'M0,-4L8,0L0,4')
+    .attr('fill', DEFAULT_EDGE_STROKE);
+}
+
+/**
+ * Apply the typed edge styling to an edge selection: relation edges get the
+ * distinct dashed stroke + relationType title; symmetric edges get NO arrowhead
+ * (marker-end null), while directed relation + wikilink edges get the arrowhead.
+ *
+ * @param {object} edgeSel - The D3 line selection bound to edge data.
+ * @returns {object} The same selection (for chaining).
+ */
+function styleEdges(edgeSel) {
+  return edgeSel
+    .attr('stroke',         d => d.edgeKind === 'relation' ? RELATION_EDGE_STROKE : DEFAULT_EDGE_STROKE)
+    .attr('stroke-width',   d => d.edgeKind === 'relation' ? 1.5 : 1.2)
+    .attr('stroke-opacity', 0.7)
+    .attr('stroke-dasharray', d => d.edgeKind === 'relation' ? '5,3' : null)
+    .attr('title',          d => d.edgeKind === 'relation' ? d.relationType : null)
+    .attr('marker-end',     d => d.direction === 'symmetric' ? null : `url(#${ARROWHEAD_MARKER_ID})`);
+}
+
 /** Build and run the D3 simulation; append edges, nodes, labels, and interactions. */
 function renderGraph(svg, g, data, tooltip, width, height) {
   const d3 = globalThis.d3;
   const maxDegree = Math.max(0, ...data.nodes.map(n => n.degree));
+
+  appendArrowheadDef(svg);
 
   const sim = d3.forceSimulation(data.nodes)
     .force('link',   d3.forceLink(data.edges).id(d => d.id).distance(80))
     .force('charge', d3.forceManyBody().strength(-200))
     .force('center', d3.forceCenter(width / 2, height / 2));
 
-  const edgeSel = g.append('g')
+  const edgeSel = styleEdges(g.append('g')
     .selectAll('line')
     .data(data.edges)
-    .join('line')
-    .attr('stroke', DEFAULT_EDGE_STROKE)
-    .attr('stroke-width', 1.2)
-    .attr('stroke-opacity', 0.7);
+    .join('line'));
 
   const nodeSel = g.append('g')
     .selectAll('g')
@@ -273,6 +329,31 @@ function renderGraph(svg, g, data, tooltip, width, height) {
   });
 
   return { sim, edgeSel, nodeSel };
+}
+
+/** Build the legend item for the relation edge kind (dashed line swatch + label). */
+function buildRelationLegendItem() {
+  const item = document.createElement('div');
+  item.className = 'graph-legend-item';
+
+  const swatch = document.createElement('div');
+  swatch.className = 'graph-legend-dot';
+  swatch.style.background = 'transparent';
+  swatch.style.border = `1px dashed ${RELATION_EDGE_STROKE}`;
+
+  item.appendChild(swatch);
+  item.appendChild(document.createTextNode('relation'));
+  return item;
+}
+
+/** Append the "Edge kind" heading + the relation-edge legend item to the legend. */
+function appendEdgeKindSection(legend) {
+  const edgeHeading = document.createElement('div');
+  edgeHeading.className = 'graph-legend-heading';
+  edgeHeading.textContent = 'Edge kind';
+  legend.appendChild(edgeHeading);
+
+  legend.appendChild(buildRelationLegendItem());
 }
 
 /** Build and append the kind/size legend overlay to the container. */
@@ -308,6 +389,8 @@ function buildLegend(container) {
     item.appendChild(text);
     legend.appendChild(item);
   }
+
+  appendEdgeKindSection(legend);
 
   const sizeHeading = document.createElement('div');
   sizeHeading.className = 'graph-legend-heading';

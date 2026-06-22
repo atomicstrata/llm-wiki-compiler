@@ -38,11 +38,13 @@ describe("buildViewerSnapshot — typed entity pages + relations in the graph", 
   it("includes the relation edge tagged by relationType between its endpoints", async () => {
     await seedTestsRelation(root, "ablation-batch-size", "sparse-routing");
     const { graph } = await buildViewerSnapshot(root);
+    // direction:"directed" is now included (from the profile's relation-type def)
     expect(graph.edges).toContainEqual({
       source: "experiments/ablation-batch-size",
       target: "ideas/sparse-routing",
       edgeKind: "relation",
       relationType: "tests",
+      direction: "directed",
     });
   });
 
@@ -51,5 +53,13 @@ describe("buildViewerSnapshot — typed entity pages + relations in the graph", 
     const { graph } = await buildViewerSnapshot(root);
     const ghost = graph.nodes.find((n) => n.id === "ideas/does-not-exist");
     expect(ghost).toMatchObject({ isDangling: true, kind: "dangling" });
+  });
+
+  it("carries direction from the profile onto the relation edge", async () => {
+    await seedTestsRelation(root, "ablation-batch-size", "sparse-routing");
+    const { graph } = await buildViewerSnapshot(root);
+    const edge = graph.edges.find((e) => e.edgeKind === "relation");
+    // The `tests` relation is declared direction:"directed" in RESEARCH_LITE_RELATIONS_PROFILE
+    expect(edge).toMatchObject({ edgeKind: "relation", direction: "directed" });
   });
 });

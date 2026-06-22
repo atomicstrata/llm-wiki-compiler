@@ -17,6 +17,17 @@ import { ProfilePathError } from "../src/profile/paths.js";
 import { DEFAULT_PROFILE } from "../src/profile/default.js";
 import type { ProfilePack } from "../src/profile/types.js";
 
+/** Build a profile with a status-lifecycle and a specific transitionRequirements field list. */
+function profileWithTransitionReqs(evidenceFields: string[]): ProfilePack {
+  const raw = baseProfile();
+  raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
+  raw.entities.papers.lifecycle = {
+    field: "status", initial: "draft", terminal: ["done"],
+    transitions: { draft: ["done"] }, transitionRequirements: { done: evidenceFields },
+  };
+  return raw;
+}
+
 /** A minimal valid two-entity profile used as a base for negative cases. */
 function baseProfile(): ProfilePack {
   return {
@@ -263,33 +274,15 @@ describe("validateProfile — lifecycle FSM", () => {
   });
 
   it("rejects a transitionRequirements field that is the reserved 'slug' key", () => {
-    const raw = baseProfile();
-    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
-    raw.entities.papers.lifecycle = {
-      field: "status", initial: "draft", terminal: ["done"],
-      transitions: { draft: ["done"] }, transitionRequirements: { done: ["slug"] },
-    };
-    expect(() => validateProfile(raw)).toThrow(/reserved evidence field 'slug'/);
+    expect(() => validateProfile(profileWithTransitionReqs(["slug"]))).toThrow(/reserved evidence field 'slug'/);
   });
 
   it("rejects a transitionRequirements field that is the lifecycle field itself", () => {
-    const raw = baseProfile();
-    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
-    raw.entities.papers.lifecycle = {
-      field: "status", initial: "draft", terminal: ["done"],
-      transitions: { draft: ["done"] }, transitionRequirements: { done: ["status"] },
-    };
-    expect(() => validateProfile(raw)).toThrow(/reserved evidence field 'status'/);
+    expect(() => validateProfile(profileWithTransitionReqs(["status"]))).toThrow(/reserved evidence field 'status'/);
   });
 
   it("rejects a transitionRequirements field that is not a declared entity field", () => {
-    const raw = baseProfile();
-    raw.entities.papers.fields = { status: { type: "enum", enum: ["draft", "done"] } };
-    raw.entities.papers.lifecycle = {
-      field: "status", initial: "draft", terminal: ["done"],
-      transitions: { draft: ["done"] }, transitionRequirements: { done: ["undeclaredField"] },
-    };
-    expect(() => validateProfile(raw)).toThrow(/evidence field 'undeclaredField' is not a declared field/);
+    expect(() => validateProfile(profileWithTransitionReqs(["undeclaredField"]))).toThrow(/evidence field 'undeclaredField' is not a declared field/);
   });
 
   it("accepts a transitionRequirements field that IS a declared entity field", () => {

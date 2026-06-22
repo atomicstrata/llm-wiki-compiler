@@ -15,11 +15,12 @@ import { describe, it, beforeEach, afterEach, expect } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { appendRelation } from "../src/relations/store.js";
-import { readRelations } from "../src/relations/store-read.js";
 import { RelationEndpointError } from "../src/relations/types.js";
 import { planRelationMutation } from "../src/trust/relation-plan.js";
-import { experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B } from "./fixtures/profile-fixtures.js";
+import {
+  experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B,
+  readRelations, makeRelationWriter,
+} from "./fixtures/profile-fixtures.js";
 
 /** A profile whose `tests` relation declares a bounded-number `confidence` + enum `kind`. */
 const profile = () => experimentsIdeasProfile({
@@ -34,9 +35,7 @@ let root = "";
 beforeEach(async () => { root = await mkdtemp(path.join(os.tmpdir(), "rel-attr-")); });
 afterEach(async () => { if (root) await rm(root, { recursive: true, force: true }); });
 
-const write = (attributes: Record<string, unknown>) =>
-  appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes });
-
+const write = makeRelationWriter(() => root, profile);
 const plan = (attributes: Record<string, unknown>) =>
   planRelationMutation(profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes });
 

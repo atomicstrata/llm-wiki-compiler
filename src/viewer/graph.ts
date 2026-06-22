@@ -48,7 +48,9 @@ export interface EntityPageNode {
 /**
  * Minimal typed-relation input for {@link buildGraphData}: the relation `type`
  * plus its two entity endpoints. Becomes one directed edge (`from`→`to`) tagged
- * with `edgeKind: "relation"` / `relationType`.
+ * with `edgeKind: "relation"` / `relationType`. The optional `direction` field
+ * comes from the profile's relation-type def and is carried through to the edge
+ * so the client can distinguish symmetric (undirected) from directed edges.
  */
 export interface RelationEdge {
   /** Relation-type id (a key of `profile.relations`). */
@@ -57,6 +59,8 @@ export interface RelationEdge {
   from: EntityId;
   /** `to` endpoint entity id. */
   to: EntityId;
+  /** Relation-type directionality from the profile def (additive; absent → client treats as directed). */
+  direction?: "directed" | "symmetric";
 }
 
 /**
@@ -250,13 +254,14 @@ function buildEntityNodes(
     }));
 }
 
-/** Map each relation to one directed, relation-tagged edge (`from`→`to`). */
+/** Map each relation to one relation-tagged edge (`from`→`to`), carrying direction when supplied. */
 function buildRelationEdges(relations: RelationEdge[]): GraphEdge[] {
   return relations.map((rel) => ({
     source: rel.from,
     target: rel.to,
     edgeKind: "relation" as const,
     relationType: rel.type,
+    ...(rel.direction !== undefined ? { direction: rel.direction } : {}),
   }));
 }
 

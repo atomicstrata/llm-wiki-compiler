@@ -180,6 +180,14 @@ export interface GraphEdge {
   edgeKind?: "relation";
   /** The profile relation type a typed edge represents (CLP 4b). ABSENT on wikilink edges. */
   relationType?: string;
+  /**
+   * Directionality of the relation type (CLP 4b). `"symmetric"` means the edge
+   * has no inherent direction (the client renders it without an arrowhead).
+   * `"directed"` keeps the arrowhead. ABSENT on wikilink edges and absent when
+   * the relation's direction is unavailable, so the default graph stays
+   * byte-identical and the client treats absent-direction as directed.
+   */
+  direction?: "directed" | "symmetric";
 }
 
 /** Adjacency data for the graph view. Built once at snapshot time. */

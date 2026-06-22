@@ -143,7 +143,15 @@ async function readTypedRelations(root: string, profile: ProfilePack): Promise<R
     const { relations } = await readRelations(root);
     return relations
       .filter((rel) => validateRelationAgainstProfile(rel, profile).length === 0)
-      .map((rel) => ({ type: rel.type, from: rel.from, to: rel.to }));
+      .map((rel) => {
+        const def = profile.relations?.[rel.type];
+        return {
+          type: rel.type,
+          from: rel.from,
+          to: rel.to,
+          ...(def?.direction !== undefined ? { direction: def.direction } : {}),
+        };
+      });
   } catch {
     return [];
   }

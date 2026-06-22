@@ -23,6 +23,7 @@ import {
   buildResearchLiteRelationsProject,
   seedTestsRelation,
 } from "./fixtures/profile-fixtures.js";
+import { expectStoreProblemNoCounts } from "./fixtures/graph-store-confine.js";
 
 let root = "";
 
@@ -48,9 +49,8 @@ describe("status profile block — relation counts", () => {
   it("surfaces a corrupt store as a problem rather than crashing", async () => {
     await mkdir(path.join(root, path.dirname(RELATIONS_FILE)), { recursive: true });
     await writeFile(path.join(root, RELATIONS_FILE), '{"kind":"relation-store-header","schemaVersion":99}\n');
-    const status = await collectStatus(root);
-    expect(status.profile?.problems?.some((p) => /relation store/i.test(p.message))).toBe(true);
-    expect("relationCounts" in (status.profile ?? {})).toBe(false);
+    const { profile } = await collectStatus(root);
+    expectStoreProblemNoCounts(profile, /relation store/i);
   });
 });
 

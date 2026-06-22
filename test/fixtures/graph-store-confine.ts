@@ -65,10 +65,12 @@ export function expectStoreProblemNoCounts(profile: ProfileSummaryBlock | undefi
  * `relation`/`tests`. Shared by the typed-graph + profile-filter snapshot tests.
  */
 export function expectTestsRelationEdge(edges: unknown[]): void {
+  // direction:"directed" is now carried from the profile's relation-type def
   expect(edges).toContainEqual({
     source: "experiments/ablation-batch-size",
     target: "ideas/sparse-routing",
     edgeKind: "relation",
     relationType: "tests",
+    direction: "directed",
   });
 }

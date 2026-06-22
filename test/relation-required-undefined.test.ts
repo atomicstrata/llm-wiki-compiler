@@ -19,12 +19,13 @@ import { describe, it, beforeEach, afterEach, expect } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { appendRelation } from "../src/relations/store.js";
-import { readRelations } from "../src/relations/store-read.js";
 import { RelationEndpointError } from "../src/relations/types.js";
 import { validateEntityFields } from "../src/profile/field-contract.js";
-import { experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B } from "./fixtures/profile-fixtures.js";
 import type { EntityTypeDef } from "../src/profile/types.js";
+import {
+  experimentsIdeasProfile,
+  readRelations, makeRelationWriter,
+} from "./fixtures/profile-fixtures.js";
 
 /** A `tests` relation declaring a REQUIRED `confidence` and an OPTIONAL `kind`. */
 const profile = () => experimentsIdeasProfile({
@@ -39,8 +40,7 @@ let root = "";
 beforeEach(async () => { root = await mkdtemp(path.join(os.tmpdir(), "rel-req-undef-")); });
 afterEach(async () => { if (root) await rm(root, { recursive: true, force: true }); });
 
-const write = (attributes: Record<string, unknown>) =>
-  appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes });
+const write = makeRelationWriter(() => root, profile);
 
 describe("FIX F2 — required attribute/field set to undefined fails closed", () => {
   it("rejects a required relation attribute valued undefined and appends nothing", async () => {

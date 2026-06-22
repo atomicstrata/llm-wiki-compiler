@@ -18,7 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES, LOCK_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
-import { appendRelation, updateRelation, compactRelations } from "../src/relations/store.js";
+import { appendRelation, updateRelation, compactRelations, seedThreeVersionRelation, assertCompactionShrankTo3 } from "./fixtures/profile-fixtures.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { validateRelationAgainstProfile } from "../src/relations/relation-contract.js";
 import { RelationStoreFullError } from "../src/relations/types.js";
@@ -54,6 +54,12 @@ beforeEach(async () => {
 afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
+
+/** Seed a live-PID lock file so the acquire always times out (process cannot be stale). */
+async function holdLock(): Promise<void> {
+  await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+  await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
+}
 
 describe("FIX #1 — validate after canonicalize, symmetric endpoint sets", () => {
   it("writes a symmetric zeta→alpha edge whose canonical form re-validates clean", async () => {
@@ -110,17 +116,15 @@ describe("FIX #3 — bounded-blocking acquire serializes writers", () => {
   });
 
   it("throws LockBusyError when the lock is held past the timeout", async () => {
-    await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
     // A lock file naming THIS (live) process PID is never stale, so the acquire
     // can never reclaim it — it must time out and throw the busy error.
-    await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
+    await holdLock();
     const attempt = acquireLockBlocking(root, { timeoutMs: 50, intervalMs: 10 });
     await expect(attempt).rejects.toBeInstanceOf(LockBusyError);
   });
 
   it("does NOT spam the busy warning on each intermediate retry (FIX 3)", async () => {
-    await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
-    await writeFile(path.join(root, LOCK_FILE), String(process.pid), "utf8");
+    await holdLock();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       await acquireLockBlocking(root, { timeoutMs: 60, intervalMs: 10 }).catch(() => {});
@@ -141,14 +145,9 @@ describe("FIX #4 — append cap + compaction", () => {
   });
 
   it("compactRelations collapses superseded records, shrinks the file, and reads/appends still work", async () => {
-    const ref = await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: IDEA_B, attributes: { a: "1" } });
-    await updateRelation(root, profile(), ref.id, { attributes: { a: "2" } });
-    await updateRelation(root, profile(), ref.id, { attributes: { a: "3" } });
-    const { before, after } = await compactRelations(root, profile());
-    expect(after).toBeLessThan(before);
-    const { relations } = await readRelations(root);
-    expect(relations).toHaveLength(1);
-    expect(relations[0].attributes).toEqual({ a: "3" });
+    await seedThreeVersionRelation(root, profile());
+    const result = await compactRelations(root, profile());
+    await assertCompactionShrankTo3(root, result);
     await appendRelation(root, profile(), { type: "tests", from: EXP_A, to: "ideas/c" as EntityId, attributes: {} });
     expect((await readRelations(root)).relations).toHaveLength(2);
   });
