@@ -17,6 +17,7 @@
 
 import { loadNonDefaultProfile } from "../profile/block.js";
 import { collectEntityPages } from "../profile/collect.js";
+import type { EntityProblem, EntityProblemKind } from "../profile/collect.js";
 import type { EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ClaimCitation } from "../utils/types.js";
@@ -57,15 +58,46 @@ function entityPageToViewerPage(page: EntityPage): ViewerPage {
 }
 
 /**
+ * Problem kinds that INVALIDATE a typed page against its profile contract: a
+ * page carrying any of these does not satisfy its declared field contract and so
+ * must not be promoted as clean agent evidence. (`field-violation` is the only
+ * one a PRODUCED page can carry — a non-slug-safe / slug-mismatch page is dropped
+ * by the collector before it becomes a page — but the full set is listed so the
+ * exclusion stays correct if the collector ever produces a page despite them.)
+ */
+const INVALIDATING_PROBLEM_KINDS: ReadonlySet<EntityProblemKind> = new Set([
+  "field-violation",
+  "non-slug-safe-filename",
+  "slug-mismatch",
+]);
+
+/** Absolute `filePath`s of every page carrying an invalidating profile-contract problem. */
+function invalidPagePaths(problems: EntityProblem[]): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const problem of problems) {
+    if (problem.filePath !== undefined && INVALIDATING_PROBLEM_KINDS.has(problem.kind)) {
+      paths.add(problem.filePath);
+    }
+  }
+  return paths;
+}
+
+/**
  * Return a snapshot whose `pages` pool ADDITIVELY includes the active non-default
  * profile's typed entity pages (FIX F3). For the built-in DEFAULT profile (or any
  * read error) the ORIGINAL snapshot is returned UNCHANGED, so the default context
  * pack is byte-identical. The typed pages are APPENDED after the legacy pages so
  * the legacy-page order — and thus the default ranking — is untouched.
  *
+ * Profile-INVALID typed pages are EXCLUDED from the context pool: a page that the
+ * collector flags with a field-contract problem (matched to the page by its
+ * absolute `filePath`) is never promoted as clean primary evidence to the agent.
+ * The violation is still surfaced to the user through status/lint — context
+ * simply must not rank an unvalidated/invalid page as evidence.
+ *
  * @param root - Absolute project root.
  * @param snapshot - The frozen viewer snapshot to augment.
- * @returns The snapshot, possibly with typed entity pages appended to `pages`.
+ * @returns The snapshot, possibly with valid typed entity pages appended to `pages`.
  */
 export async function augmentSnapshotWithTypedPages(
   root: string,
@@ -75,8 +107,9 @@ export async function augmentSnapshotWithTypedPages(
   if (loaded === undefined) return snapshot; // default profile → byte-identical pool
   let typed: ViewerPage[];
   try {
-    const { pages } = await collectEntityPages(root, loaded.profile);
-    typed = pages.map(entityPageToViewerPage);
+    const { pages, problems } = await collectEntityPages(root, loaded.profile);
+    const invalid = invalidPagePaths(problems);
+    typed = pages.filter((page) => !invalid.has(page.filePath)).map(entityPageToViewerPage);
   } catch {
     return snapshot; // a collector failure must not break context — fall back to the legacy pool
   }
