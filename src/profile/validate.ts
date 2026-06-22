@@ -339,6 +339,7 @@ export function validateProfile(raw: unknown): ProfileValidationResult {
   const result = validateProfileShape(raw);
   assert(!RESERVED_PROFILE_IDS.has(result.profile.profileId), `profileId '${result.profile.profileId}' is reserved`);
   rejectReservedDefaultDirs(result.profile);
+  rejectReservedEntityTypeNames(result.profile);
   return result;
 }
 
@@ -353,6 +354,32 @@ function rejectReservedDefaultDirs(profile: ProfilePack): void {
     assert(
       !RESERVED_DEFAULT_DIRS.has(def.directory),
       `entity '${entityType}' directory '${def.directory}' is reserved for the default profile`,
+    );
+  }
+}
+
+/**
+ * The basename set of directories reserved for the default profile, used to
+ * guard entity TYPE NAMES. An entity type named `concepts` or `queries` would
+ * mint `EntityId "concepts/<slug>"` which collides with the legacy
+ * `PageId "concepts/<slug>"` — corrupting the viewer graph and ranking map.
+ * Derived from `RESERVED_DEFAULT_DIRS` so no strings are hard-coded here.
+ */
+const RESERVED_ENTITY_TYPE_NAMES = new Set(
+  [...RESERVED_DEFAULT_DIRS].map((dir) => dir.split("/").at(-1) as string),
+);
+
+/**
+ * Reject any entity TYPE NAME equal to a reserved default-profile page
+ * directory basename. Disk-only guard (lives in `validateProfile`): the built-in
+ * `DEFAULT_PROFILE` legitimately uses these names, so `validateProfileShape`
+ * must not enforce this.
+ */
+function rejectReservedEntityTypeNames(profile: ProfilePack): void {
+  for (const entityType of Object.keys(profile.entities)) {
+    assert(
+      !RESERVED_ENTITY_TYPE_NAMES.has(entityType),
+      `entity type name '${entityType}' is reserved — it collides with the default profile's page directory name`,
     );
   }
 }

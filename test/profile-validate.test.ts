@@ -362,3 +362,27 @@ describe("profile.v1 JSON schema", () => {
     expect(parsed.$schema).toContain("2020-12");
   });
 });
+
+describe("validateProfile — reserved entity type names (EntityId/PageId collision)", () => {
+  /** Assert that a single reserved entity type name is rejected with its name in the message. */
+  function assertReservedEntityTypeRejected(typeName: string): void {
+    const raw = baseProfile();
+    raw.entities = { [typeName]: { directory: "wiki/papers" } };
+    expect(() => validateProfile(raw)).toThrow(ProfileValidationError);
+    expect(() => validateProfile(raw)).toThrow(new RegExp(typeName));
+  }
+
+  it("rejects an entity type literally named 'concepts' (collides with legacy PageId)", () => {
+    assertReservedEntityTypeRejected("concepts");
+  });
+
+  it("rejects an entity type literally named 'queries' (collides with legacy PageId)", () => {
+    assertReservedEntityTypeRejected("queries");
+  });
+
+  it("accepts normal entity type names that do not collide (papers, ideas)", () => {
+    const raw = baseProfile();
+    raw.entities = { papers: { directory: "wiki/papers" }, ideas: { directory: "wiki/ideas" } };
+    expect(() => validateProfile(raw)).not.toThrow();
+  });
+});
