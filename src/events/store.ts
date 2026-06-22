@@ -13,11 +13,14 @@
  * event without a nested-acquire deadlock. {@link appendEvent} is the self-locking
  * entry point. {@link recordEvent} dispatches between them on `opts.locked`.
  *
- * FAIL CLOSED ON TAMPER: {@link appendEventLocked} REFUSES to append over an
- * unhealthy chain — it strict-reads first ({@link readEventsStrict}), so a
- * tampered/truncated/corrupt store throws BEFORE any append. This prevents the
- * next append re-sealing the head over a tampered chain (which would "launder"
- * the tamper back to zero problems). A healthy chain still appends normally.
+ * WRITE PRECONDITION (repair-then-verify): {@link appendEventLocked} runs
+ * {@link prepareEventStoreForAppend} first. A torn TRAILING line (an uncommitted,
+ * crashed prior append) is REPAIRED — truncated to the last valid record — so the
+ * new event never concatenates onto a partial line and corrupts the log. After
+ * repair it FAILS CLOSED on actual tamper (a tampered/truncated/corrupt store
+ * throws BEFORE any append). This prevents re-sealing the head over a tampered
+ * chain (which would "launder" the tamper). A healthy chain still appends
+ * normally; reads keep TOLERATING a torn tail (they never extend it).
  *
  * ORDERING: emit sites call this AFTER the durable mutation has landed, so the
  * event trails the mutation. A crash between the mutation and the append leaves a
@@ -41,7 +44,7 @@ import {
   type EventChecksumInput,
 } from "./store-record.js";
 import { eventPrevHash } from "./event-digest.js";
-import { readEventsStrict } from "./store-read.js";
+import { prepareEventStoreForAppend } from "./store-read.js";
 
 /** The caller-supplied content of a new event (id, prevHash, checksum are derived). */
 export interface AppendEventInput {
@@ -119,12 +122,13 @@ async function sealHeadAnchor(root: string, content: EventContent): Promise<void
  * @returns The persisted {@link EventRecord}.
  */
 export async function appendEventLocked(root: string, input: AppendEventInput): Promise<EventRecord> {
-  // FAIL CLOSED on an unhealthy chain: readEventsStrict throws
-  // EventStoreChainError (broken/forked/reordered/truncated chain or head
-  // mismatch) and the store's own typed errors (corrupt / too-new / symlink).
-  // Refusing to append over a tampered chain prevents re-sealing the head over
-  // the tampered log, which would otherwise "launder" the tamper to no problems.
-  const events = await readEventsStrict(root); // under the caller's lock; throws on any unhealthy chain
+  // WRITE precondition: REPAIR a torn trailing line (an uncommitted, crashed
+  // prior append) by truncating it BEFORE we chain — otherwise the new record
+  // would concatenate onto the partial line and corrupt the log. After repair,
+  // prepareEventStoreForAppend FAILS CLOSED on actual tamper (broken/reordered/
+  // truncated chain, head mismatch) and the store's typed errors (corrupt /
+  // too-new / symlink) — so a tampered chain still cannot be laundered.
+  const events = await prepareEventStoreForAppend(root); // under the caller's lock
   const record = buildEventRecord(input, prevHashFor(events));
   await appendLine(root, record);
   await sealHeadAnchor(root, record);

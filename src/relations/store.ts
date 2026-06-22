@@ -42,7 +42,7 @@ import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } fro
 import { readRelations } from "./store-read.js";
 import { validateRelationAttributes, validateRelationEndpoints, validateRelationAgainstProfile } from "./relation-contract.js";
 import { appendEventLocked } from "../events/store.js";
-import { readEventsStrict } from "../events/store-read.js";
+import { prepareEventStoreForAppend } from "../events/store-read.js";
 import type { EventType } from "../events/types.js";
 
 /** The caller-supplied content of a new relation (id + hash are derived). */
@@ -212,10 +212,12 @@ async function underLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
  * that ref WITHOUT appending, so the create is idempotent on content.
  *
  * MANDATORY AUDIT (FIX F2): the audit event store is PRE-FLIGHTED before the
- * relation write — {@link readEventsStrict} must succeed (the store is not
- * symlinked / corrupt / too-new / tampered) or the WHOLE operation fails closed
- * with the relation UNCHANGED. So a broken audit store BLOCKS the mutation up
- * front; the only residual gap is a store healthy at pre-flight that fails mid
+ * relation write — {@link prepareEventStoreForAppend} (under the held lock) REPAIRS
+ * a torn trailing line (an uncommitted prior append) then requires the store to be
+ * healthy (not symlinked / corrupt / too-new / tampered) or the WHOLE operation
+ * fails closed with the relation UNCHANGED. So a TAMPERED audit store BLOCKS the
+ * mutation up front while a recoverable torn tail does not; the residual gap is a
+ * store healthy at pre-flight that fails mid
  * emit AFTER the append (the deferred cross-store-atomicity item — true atomicity
  * needs an intent journal). The event emit is therefore no longer
  * best-effort-after-mutation: a healthy event store is a PRECONDITION.
@@ -231,7 +233,7 @@ export async function appendRelationLocked(
   input: AppendRelationInput,
 ): Promise<RelationRef> {
   const ref = buildRelationRef(profile, input); // throws before any write
-  await readEventsStrict(root); // FIX F2 pre-flight: fail closed BEFORE the mutation if the audit store is unhealthy
+  await prepareEventStoreForAppend(root); // FIX F2 pre-flight (under the held lock): REPAIR a torn tail, else fail closed on a tampered/symlinked/corrupt audit store
   const { relations } = await readRelations(root); // under the caller's lock
   const duplicate = relations.find((rel) => rel.contentHash === ref.contentHash);
   if (duplicate) return duplicate; // idempotent create (FIX #6) — append nothing, emit nothing
@@ -300,7 +302,7 @@ export async function updateRelation(
       evidence: patch.evidence ?? existing.evidence,
     };
     const ref = buildRelationRef(profile, input, id);
-    await readEventsStrict(root); // FIX F2 pre-flight: fail closed BEFORE the mutation if the audit store is unhealthy
+    await prepareEventStoreForAppend(root); // FIX F2 pre-flight (under the held lock): REPAIR a torn tail, else fail closed on a tampered/symlinked/corrupt audit store
     await appendLine(root, ref);
     await emitRelationEvent(root, "relation-update", ref); // under the held lock, after the append
     return ref;

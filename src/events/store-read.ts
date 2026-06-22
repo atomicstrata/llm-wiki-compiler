@@ -25,6 +25,7 @@ import path from "path";
 import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import { resolveConfinedPrivateDir } from "../utils/private-dir.js";
 import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
+import { atomicWrite } from "../utils/markdown.js";
 import type { EventRecord } from "./types.js";
 import {
   EVENT_STORE_SCHEMA_VERSION,
@@ -34,8 +35,16 @@ import {
   EventStoreSymlinkError,
   EventStoreChainError,
 } from "./types.js";
-import { eventChecksum, openEventFileRead } from "./store-record.js";
+import {
+  eventChecksum,
+  openEventFileRead,
+  serializeEventRecord,
+  eventHeaderLine,
+} from "./store-record.js";
 import { eventPrevHash } from "./event-digest.js";
+
+/** The substring {@link readEvents} prefixes onto a tolerated torn-trailing-line problem. */
+const TORN_TAIL_MARKER = "torn trailing line";
 
 /** The outcome of reading the store: ordered events plus any tolerated/surfaced problems. */
 export interface ReadEventsResult {
@@ -208,6 +217,25 @@ export async function readEvents(root: string): Promise<ReadEventsResult> {
 }
 
 /**
+ * FAIL CLOSED on a broken chain or head-anchor mismatch over `events`. The shared
+ * strict-verification core: throws {@link EventStoreChainError} on actual TAMPER
+ * (broken/forked/reordered/interior-deleted chain, head-without-log, valid-but-
+ * mismatched head). A torn trailing line is NOT a chain/anchor problem, so this
+ * does not fire on it — the caller decides whether a torn tail is tolerated (read)
+ * or repaired before verification (write).
+ *
+ * @param root - Absolute project root (for the head-anchor read).
+ * @param events - Events in append order.
+ * @throws {EventStoreChainError} When the chain is broken or the head anchor mismatches.
+ */
+async function verifyChainAndHead(root: string, events: EventRecord[]): Promise<void> {
+  const chain = verifyEventChain(events);
+  if (!chain.ok) throw new EventStoreChainError(chain.problem ?? "chain verification failed");
+  const anchor = await verifyHeadAnchor(root, events);
+  if (!anchor.ok) throw new EventStoreChainError(anchor.problem ?? "head anchor mismatch");
+}
+
+/**
  * Read the event store and FAIL CLOSED on a broken chain or head-anchor mismatch.
  * The strict entry point for callers that demand a tamper-intact audit log:
  * delegates to {@link readEvents} (so corruption/too-new/symlink still throw their
@@ -221,9 +249,53 @@ export async function readEvents(root: string): Promise<ReadEventsResult> {
  */
 export async function readEventsStrict(root: string): Promise<EventRecord[]> {
   const { events } = await readEvents(root);
-  const chain = verifyEventChain(events);
-  if (!chain.ok) throw new EventStoreChainError(chain.problem ?? "chain verification failed");
-  const anchor = await verifyHeadAnchor(root, events);
-  if (!anchor.ok) throw new EventStoreChainError(anchor.problem ?? "head anchor mismatch");
+  await verifyChainAndHead(root, events);
+  return events;
+}
+
+/** Whether `problems` reports a tolerated torn TRAILING line (an uncommitted append). */
+function hasTornTail(problems: string[]): boolean {
+  return problems.some((p) => p.includes(TORN_TAIL_MARKER));
+}
+
+/**
+ * Rewrite the store body to the header + the `events` prefix, dropping a torn
+ * trailing line. Uses the confined {@link atomicWrite} (temp + O_EXCL + rename,
+ * `confineRoot` ancestor + parent-symlink defenses) so the truncation reuses the
+ * hardened write discipline — no new unconfined write is introduced. A torn line
+ * carries NO committed event (its head was never sealed), so this loses nothing.
+ */
+async function truncateTornTail(root: string, events: EventRecord[]): Promise<void> {
+  const body = eventHeaderLine() + events.map((e) => serializeEventRecord(stripChecksum(e))).join("");
+  await atomicWrite(path.join(root, EVENTS_FILE), body, { confineRoot: root });
+}
+
+/** Drop the stored `checksum` so {@link serializeEventRecord} recomputes it from the content. */
+function stripChecksum(record: EventRecord): Omit<EventRecord, "checksum"> {
+  const { checksum, ...rest } = record;
+  void checksum;
+  return rest;
+}
+
+/**
+ * The WRITE precondition for any append/mutation, run UNDER THE CALLER'S LOCK.
+ * Unlike {@link readEventsStrict} (a READ that TOLERATES a torn trailing line), a
+ * WRITE must not extend a torn tail — concatenating a new record onto a partial
+ * line would produce an unparseable record and desync the head. So this REPAIRS a
+ * torn tail first: a torn trailing line is an UNCOMMITTED, crashed prior append
+ * (no sealed head, no data loss to drop it), so it is TRUNCATED to the last valid
+ * record. After repair (or when there was no torn tail) the chain + head anchor
+ * are strict-verified — genuine TAMPER (broken/reordered/interior-deleted chain,
+ * head-without-log, mismatched head) STILL throws {@link EventStoreChainError}.
+ * Only the recoverable torn tail is repaired; real tampering fails closed.
+ *
+ * @param root - Absolute project root.
+ * @returns The verified events (for chaining the next record's `prevHash`).
+ * @throws {EventStoreChainError} When the chain is broken or the head anchor mismatches.
+ */
+export async function prepareEventStoreForAppend(root: string): Promise<EventRecord[]> {
+  const { events, problems } = await readEvents(root); // throws on corrupt/too-new/symlink
+  if (hasTornTail(problems)) await truncateTornTail(root, events);
+  await verifyChainAndHead(root, events);
   return events;
 }

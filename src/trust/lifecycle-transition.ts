@@ -29,7 +29,7 @@ import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
 import { parseFrontmatter, buildFrontmatter, safeReadFile } from "../utils/markdown.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { appendEventLocked } from "../events/store.js";
-import { readEventsStrict } from "../events/store-read.js";
+import { prepareEventStoreForAppend } from "../events/store-read.js";
 import { applyTypedCandidate } from "./promote.js";
 import type { EntityTypeDef } from "../profile/types.js";
 import type { ReviewCandidate } from "../utils/types.js";
@@ -163,10 +163,12 @@ async function transitionUnderLock(
     body,
     targetEntityType: entityType,
   };
-  // FIX F2 pre-flight: the audit event store is a MANDATORY precondition. Verify
-  // it is healthy (not symlinked / corrupt / too-new / tampered) BEFORE the page
-  // write — a broken store FAILS THE TRANSITION CLOSED with the page UNCHANGED.
-  await readEventsStrict(root);
+  // FIX F2 pre-flight (under the held lock): the audit event store is a MANDATORY
+  // precondition. REPAIR a torn trailing line (an uncommitted crashed append),
+  // then verify the store is healthy (not symlinked / corrupt / too-new /
+  // tampered) BEFORE the page write — a TAMPERED store FAILS THE TRANSITION CLOSED
+  // with the page UNCHANGED, while a recoverable torn tail is repaired up front.
+  await prepareEventStoreForAppend(root);
   await applyTypedCandidate(root, candidate as ReviewCandidate);
   // Emit AFTER the page write lands, under the held lock so event + mutation
   // co-commit. The store was healthy at pre-flight; the residual mid-emit gap is
