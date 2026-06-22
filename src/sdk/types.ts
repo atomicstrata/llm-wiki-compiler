@@ -234,6 +234,12 @@ export interface Wiki {
    * write (undeclared type, disallowed endpoint, missing required attribute) —
    * nothing is written in either case. No LLM required.
    *
+   * READ-INTEGRATION STATUS: a created relation is a WRITE SUBSTRATE. It lands in
+   * the relation store and is surfaced in `status`, the JSON export, and lint —
+   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
+   * viewer, or any agent-facing read path (those are planned). Do not assume a
+   * created relation participates in retrieval or rendering yet.
+   *
    * Foundation API — the shape may change in a future minor release.
    */
   createRelation(input: AppendRelationInput): Promise<RelationRef>;
@@ -247,6 +253,12 @@ export interface Wiki {
    * Throws `LifecycleTransitionUnavailableError` when the project has no profile,
    * the type is unknown, the type has no lifecycle, or the page does not exist.
    * No LLM required.
+   *
+   * READ-INTEGRATION STATUS: the transition writes the lifecycle-field value into
+   * the page — a WRITE SUBSTRATE surfaced in `status`, the JSON export, and lint,
+   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
+   * viewer, or any agent-facing read path (those are planned). Do not assume the
+   * new lifecycle state participates in retrieval or rendering yet.
    *
    * Foundation API — the shape may change in a future minor release.
    */

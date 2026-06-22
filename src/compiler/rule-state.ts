@@ -48,7 +48,7 @@ export async function readRuleState(root: string): Promise<WikiState> {
  */
 async function writeRuleState(root: string, state: WikiState): Promise<void> {
   const filePath = path.join(root, RULE_STATE_FILE);
-  await atomicWrite(filePath, JSON.stringify(state, null, 2));
+  await atomicWrite(filePath, JSON.stringify(state, null, 2), { confineRoot: root });
 }
 
 /**

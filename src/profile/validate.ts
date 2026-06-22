@@ -28,7 +28,7 @@
  * Unreachable lifecycle states are collected as warnings, not errors.
  */
 
-import type { ProfilePack, EntityTypeDef, FieldDef, LifecycleDef, RelationTypeDef } from "./types.js";
+import type { ProfilePack, EntityTypeDef, FieldDef, FieldType, LifecycleDef, RelationTypeDef } from "./types.js";
 import { isSlugSafe } from "./identity.js";
 import { validateEntityDirectory } from "./paths.js";
 import { assertStructurallyValid } from "./schema-validator.js";
@@ -128,12 +128,33 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
 const RESERVED_EVIDENCE_KEYS = new Set(["slug"]);
 
 /**
+ * Field types the runtime evidence gate ({@link isEvidencePresent} in
+ * `lifecycle.ts`) can satisfy: a non-empty string / number / slug / enum value
+ * (a non-empty enum value is a non-empty string), or a non-empty `string[]`.
+ * `boolean`, `object`, and `date` are EXCLUDED — the gate rejects booleans and
+ * objects (a bare `true` proves only key presence, not justification), and a
+ * `date` parses to a Date object the scalar gate cannot accept. A profile
+ * declaring an evidence field of an excluded type would LOAD but its target state
+ * could never be entered (a permanently dead state), so it is rejected at load.
+ */
+const EVIDENCE_COMPATIBLE_TYPES: ReadonlySet<FieldType> = new Set<FieldType>([
+  "string",
+  "number",
+  "integer",
+  "slug",
+  "string[]",
+  "enum",
+]);
+
+/**
  * Reject a profile whose `transitionRequirements` declares any evidence field
  * that can never be satisfied via caller evidence — a RESERVED key (`slug`, or
- * the lifecycle `field` the transition writes) — or that is NOT a DECLARED entity
- * field. Requiring evidence fields to be declared makes them first-class typed
- * fields, so the field contract enforces their type/content. Fails closed at
- * profile LOAD, so an unsatisfiable requirement is never accepted.
+ * the lifecycle `field` the transition writes), one that is NOT a DECLARED entity
+ * field, OR one whose declared `type` the runtime evidence gate can never satisfy
+ * (see {@link EVIDENCE_COMPATIBLE_TYPES} — `boolean`/`object`/`date` would make
+ * the target state permanently unreachable). Requiring evidence fields to be
+ * declared makes them first-class typed fields, so the field contract enforces
+ * their type/content. Fails closed at profile LOAD.
  */
 function assertEvidenceFieldsDeclared(where: string, lc: LifecycleDef, fields?: Record<string, FieldDef>): void {
   const declared = fields ?? {};
@@ -142,6 +163,11 @@ function assertEvidenceFieldsDeclared(where: string, lc: LifecycleDef, fields?: 
       const reserved = RESERVED_EVIDENCE_KEYS.has(field) || field === lc.field;
       assert(!reserved, `${where}: transitionRequirements['${state}'] uses reserved evidence field '${field}'`);
       assert(field in declared, `${where}: transitionRequirements['${state}'] evidence field '${field}' is not a declared field`);
+      const type = declared[field].type;
+      assert(
+        EVIDENCE_COMPATIBLE_TYPES.has(type),
+        `${where}: evidence field '${field}' has type '${type}' which can never satisfy the required-evidence gate`,
+      );
     }
   }
 }

@@ -105,7 +105,7 @@ async function persist(batch: JournalBatch): Promise<void> {
     status: batch.status,
     entries: batch.entries,
   };
-  await atomicWrite(file, JSON.stringify(payload, null, 2));
+  await atomicWrite(file, JSON.stringify(payload, null, 2), { confineRoot: batch.root });
 }
 
 /**
