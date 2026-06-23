@@ -98,6 +98,16 @@ describe("validateRuleCandidate", () => {
     expect(validateRuleCandidate(unc)).toContain("unsafe");
   });
 
+  it("rejects ':' in any position in a file evidence path (drive-in-segment and NTFS ADS)", () => {
+    const driveInSegment = candidate("process", "x-abcd1234");
+    driveInSegment.evidence = [{ kind: "file", path: "sources/C:/secrets.md" }];
+    expect(validateRuleCandidate(driveInSegment)).toContain("unsafe");
+
+    const ntfsAds = candidate("process", "x-abcd1234");
+    ntfsAds.evidence = [{ kind: "file", path: "sources/file.md:ads" }];
+    expect(validateRuleCandidate(ntfsAds)).toContain("unsafe");
+  });
+
   it("still accepts a legit file evidence path (regression: sources/x.md)", () => {
     const c = candidate("process", "x-abcd1234");
     c.evidence = [{ kind: "file", path: "sources/x.md" }];

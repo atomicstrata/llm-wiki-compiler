@@ -21,6 +21,10 @@ describe("isSafeRelativeEvidencePath — rejected paths", () => {
     ["empty segment", "a//b"],
     ["space in segment", "a/ /b"],
     ["NUL in segment", "a/\0/b"],
+    ["drive-colon in non-first segment", "sources/C:/secrets.md"],
+    ["NTFS alternate data stream", "sources/file.md:ads"],
+    ["colon mid-segment", "a/b:c/d"],
+    ["colon-prefixed", "x:y"],
   ])("rejects %s (%s)", (_label, p) => {
     expect(isSafeRelativeEvidencePath(p)).toBe(false);
   });

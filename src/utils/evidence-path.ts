@@ -16,6 +16,7 @@
  *   - Any empty segment (consecutive separators, trailing `/`)
  *   - Any segment failing {@link isSafeFilenameComponent} (NUL, space, leading-dot)
  *   - Paths over {@link EVIDENCE_PATH_CAP} characters
+ *   - Any `:` anywhere in the path (Windows drive-colon in non-first segment, NTFS ADS)
  */
 
 import { isSafeFilenameComponent } from "../profile/identity.js";
@@ -43,6 +44,10 @@ export function isSafeRelativeEvidencePath(p: string): boolean {
   if (p.length === 0 || p.length > EVIDENCE_PATH_CAP) return false;
   if (p.startsWith("/") || p.startsWith("\\")) return false;
   if (/^[a-zA-Z]:/.test(p)) return false; // Windows drive-absolute (C:/ or C:\)
+  // Reject ':' anywhere: drive-colon in a non-first segment (sources/C:/…) and
+  // NTFS alternate data stream syntax (file.md:ads) are both Windows-dangerous.
+  // Slugified source filenames never contain ':', so legit paths are unaffected.
+  if (p.includes(":")) return false;
   // Split on both separators so a mixed path can't sneak a drive segment through.
   // isSafeFilenameComponent rejects empty, "..", ".", NUL, space, and leading-dot.
   return p.split(/[/\\]/).every((seg) => isSafeFilenameComponent(seg));
