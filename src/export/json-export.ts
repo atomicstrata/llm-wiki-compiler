@@ -116,8 +116,9 @@ export interface JsonExportProfileBlock {
    * holds at least one relation; OMITTED for the built-in default and for any
    * relation-LESS profile so the default export envelope is byte-identical. Each
    * {@link RelationView} carries opaque EntityId endpoints and NO filesystem
-   * path. A fail-closed read (corrupt / too-new store) omits this field rather
-   * than surfacing partial relations.
+   * path. A fail-closed read (corrupt / too-new store) omits this field AND adds
+   * a `relation-store` entry to `problems` so the broken store is reported
+   * VISIBLY, never as a silent "no relations".
    */
   relations?: RelationView[];
 }

@@ -34,7 +34,14 @@ export type PrimaryReason =
  */
 type NeighborReason = "wikilink" | "relation";
 
-/** Closed v1 enum for top-level `warnings[]` codes. */
+/**
+ * Closed v1 enum for top-level `warnings[]` codes. `relation-store-unavailable`
+ * (CLP 4b) is an ADDITIVE value emitted ONLY for a non-default profile whose
+ * relation store fails closed (corrupt / too-new / symlink / confinement), so an
+ * agent SEES that typed relations are unavailable instead of getting a silently
+ * relation-less pack. A default (relation-less) pack never emits it, so its
+ * serialized output is unchanged and `version` does not bump.
+ */
 type ContextWarningCode =
   | "embedding-store-missing"
   | "query-embedding-unavailable"
@@ -42,7 +49,8 @@ type ContextWarningCode =
   | "lint-errors"
   | "pending-candidates"
   | "source-window-unavailable"
-  | "truncated-prompt";
+  | "truncated-prompt"
+  | "relation-store-unavailable";
 
 /**
  * Codes for `gaps[]`. `dangling-link`/`page-warning` are the v1 values;

@@ -22,6 +22,7 @@
 
 import { buildViewerSnapshot } from "../viewer/snapshot.js";
 import { augmentSnapshotWithTypedPages } from "./typed-pages.js";
+import { isRelationStoreUnavailableProblem } from "../profile/block.js";
 import { collectProjectState } from "../project/state.js";
 import { recommendNextAction } from "../project/recommendations.js";
 import type { Recommendation, RecommendedAction } from "../project/recommendations.js";
@@ -118,10 +119,16 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   // budget trimming. Trimming may drop sourceWindows for budget
   // reasons; the warning still correctly reports "windows missing".
   const withProjectWarnings = appendProjectWarnings(withSources, state, normalized);
+  // The viewer snapshot's `profile` summary already carries a fail-closed
+  // relation-store problem (the same one `status` surfaces). Lift it into a
+  // top-level warning so an agent SEES typed relations are unavailable rather
+  // than receiving a silently relation-less pack. A default/healthy project's
+  // snapshot has no such problem, so the pack is byte-identical.
+  const withRelationWarning = appendRelationStoreWarning(withProjectWarnings, snapshot);
   const graph = normalized.neighborsEnabled && normalized.depth >= 1
     ? snapshot.graph
     : null;
-  return finalizeBudget(withProjectWarnings, normalized.budget, graph);
+  return finalizeBudget(withRelationWarning, normalized.budget, graph);
 }
 
 /**
@@ -561,6 +568,24 @@ function appendProjectWarnings(
     });
   }
   return { ...pack, warnings };
+}
+
+/**
+ * Append a `relation-store-unavailable` warning when the snapshot's profile
+ * summary reports a fail-closed relation-store read (corrupt / too-new / symlink
+ * / confinement). Narrowed to the store-UNAVAILABLE problem via
+ * {@link isRelationStoreUnavailableProblem} so an ordinary entity field-violation
+ * or a healthy-store-but-stale-relations problem does NOT spuriously fire. A
+ * default/healthy project has no such problem, so the pack is unchanged.
+ */
+function appendRelationStoreWarning(pack: ContextPack, snapshot: ViewerSnapshot): ContextPack {
+  const problem = snapshot.profile?.problems?.find(isRelationStoreUnavailableProblem);
+  if (problem === undefined) return pack;
+  const warning: ContextWarning = {
+    code: "relation-store-unavailable",
+    message: `Typed relations are unavailable: ${problem.message}`,
+  };
+  return { ...pack, warnings: [...pack.warnings, warning] };
 }
 
 /** True when any primary page has line-range citations missing matching sourceWindows. */

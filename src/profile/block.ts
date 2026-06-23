@@ -146,8 +146,21 @@ interface RelationSummary {
   problem?: EntityProblemView;
 }
 
-/** Map a fail-closed relation-store read error to a `relation-store` problem view. */
-function relationReadProblem(error: unknown): EntityProblemView {
+/**
+ * Map a fail-closed relation-store read error (corrupt / too-new / symlinked-leaf
+ * / symlinked-or-escaping `wiki/graph` dir) to a `relation-store` problem view.
+ *
+ * This is the SINGLE mapper for the store-UNAVAILABLE case, shared by every
+ * surface that must fail closed VISIBLY (status, viewer, AND the JSON export) so
+ * a broken store is never reported as a silent "no relations". A store-unavailable
+ * problem is distinguishable from a {@link relationProfileInvalidProblem} (the
+ * store is healthy, some stored relations are just stale) via
+ * {@link isRelationStoreUnavailableProblem}.
+ *
+ * @param error - The caught relation-store read error.
+ * @returns The `relation-store` problem view, or rethrows a non-store error.
+ */
+export function relationReadProblem(error: unknown): EntityProblemView {
   if (
     error instanceof RelationStoreTooNewError ||
     error instanceof RelationStoreCorruptError ||
@@ -159,12 +172,39 @@ function relationReadProblem(error: unknown): EntityProblemView {
   throw error; // a non-store error (e.g. a confinement escape) is not ours to swallow
 }
 
+/**
+ * The trailing clause unique to the profile-invalid relation problem. It is the
+ * SOLE `relation-store` message produced WITHOUT a fail-closed read, so its
+ * suffix is the discriminator {@link isRelationStoreUnavailableProblem} uses to
+ * exclude the healthy-store-stale-data case from the store-UNAVAILABLE case.
+ */
+const RELATION_PROFILE_INVALID_SUFFIX = "(retained, not counted as live)";
+
+/** Build the stable message for the profile-invalid (NOT store-unavailable) relation problem. */
+function relationProfileInvalidMessage(count: number): string {
+  return `${count} stored relation(s) are no longer valid against the current profile ${RELATION_PROFILE_INVALID_SUFFIX}`;
+}
+
 /** A `relation-store` problem reporting the count of profile-invalid stored relations. */
 function relationProfileInvalidProblem(count: number): EntityProblemView {
-  return {
-    kind: "relation-store",
-    message: `${count} stored relation(s) are no longer valid against the current profile (retained, not counted as live)`,
-  };
+  return { kind: "relation-store", message: relationProfileInvalidMessage(count) };
+}
+
+/**
+ * True when a problem reports the relation store is UNAVAILABLE (corrupt /
+ * too-new / symlink / confinement) rather than merely holding stale,
+ * profile-invalid relations on an otherwise-healthy store. Both share
+ * `kind: "relation-store"`, so this narrows to the fail-closed read case — the
+ * one agent-facing surfaces (context) must warn about. The profile-invalid case
+ * is the SOLE `relation-store` message produced WITHOUT a read failure, so it is
+ * the only one excluded.
+ *
+ * @param problem - A problem view from `snapshot.profile.problems`.
+ * @returns Whether the problem signals an unavailable relation store.
+ */
+export function isRelationStoreUnavailableProblem(problem: EntityProblemView): boolean {
+  if (problem.kind !== "relation-store") return false;
+  return !problem.message.endsWith(RELATION_PROFILE_INVALID_SUFFIX);
 }
 
 /**

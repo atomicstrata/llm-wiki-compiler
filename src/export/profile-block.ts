@@ -9,15 +9,13 @@
  * {@link loadNonDefaultProfile} primitive.
  */
 
-import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
+import { loadNonDefaultProfile, collectEntityPagesWithMessages, relationReadProblem } from "../profile/block.js";
 import { toEntityPageView } from "../profile/types.js";
 import { PROFILE_BLOCK_VERSION } from "./json-export.js";
 import type { JsonExportProfileBlock, RelationView } from "./json-export.js";
-import type { LoadedProfile } from "../profile/types.js";
+import type { EntityProblemView, LoadedProfile } from "../profile/types.js";
 import { readRelations } from "../relations/store-read.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
-import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
-import { GraphDirConfinementError } from "../utils/jsonl-store.js";
 import type { RelationRef } from "../relations/types.js";
 
 /**
@@ -38,35 +36,36 @@ function toRelationView(ref: RelationRef): RelationView {
   };
 }
 
+/** The export's relation-store contribution: path-safe live views and/or a fail-closed problem. */
+interface ExportRelationResult {
+  relations?: RelationView[];
+  problem?: EntityProblemView;
+}
+
 /**
  * Read the live relation store for the export, returning path-safe views ONLY
  * for relations STILL VALID against the current profile. A relation-less profile
- * yields `undefined` (no `relations` key, so the export stays byte-identical); a
- * fail-closed read (corrupt / too-new / symlinked-leaf) also yields `undefined`
- * rather than partial relations — lint is the surface that reports a broken store. Relations the
+ * yields `{}` (no `relations` key, so the export stays byte-identical). A
+ * fail-closed read (corrupt / too-new / symlinked-leaf / symlinked-or-escaping
+ * `wiki/graph` dir) yields a `relation-store` `problem` (mapped via the SHARED
+ * {@link relationReadProblem}) instead of partial relations — so the export
+ * reports a broken store VISIBLY, exactly like status, rather than emitting a
+ * clean-looking block that reads as "there are no relations". Relations the
  * profile has outgrown (type removed / endpoint type disallowed / attributes now
  * invalid) are OMITTED from this live snapshot but retained on disk; lint flags
  * them as `relation-profile-invalid`.
  */
-async function exportRelationViews(root: string, loaded: LoadedProfile): Promise<RelationView[] | undefined> {
+async function exportRelationViews(root: string, loaded: LoadedProfile): Promise<ExportRelationResult> {
   // Read the store even when the profile declares NO `relations` block: a
-  // relation-less project's store is empty (→ `undefined`, byte-identical), but
+  // relation-less project's store is empty (→ `{}`, byte-identical), but
   // a project whose `relations` block was removed while records remain must
   // surface only those still valid (here: none) rather than stale ones.
   try {
     const { relations } = await readRelations(root);
     const valid = relations.filter((rel) => validateRelationAgainstProfile(rel, loaded.profile).length === 0);
-    return valid.length > 0 ? valid.map(toRelationView) : undefined;
+    return valid.length > 0 ? { relations: valid.map(toRelationView) } : {};
   } catch (error) {
-    if (
-      error instanceof RelationStoreCorruptError ||
-      error instanceof RelationStoreTooNewError ||
-      error instanceof RelationStoreSymlinkError ||
-      error instanceof GraphDirConfinementError // symlinked/escaping wiki/graph DIR (B4)
-    ) {
-      return undefined;
-    }
-    throw error;
+    return { problem: relationReadProblem(error) }; // rethrows a non-store error
   }
 }
 
@@ -83,12 +82,17 @@ export async function buildExportProfileBlock(
   const loaded = await loadNonDefaultProfile(root);
   if (loaded === undefined) return undefined;
   const { pages, problems } = await collectEntityPagesWithMessages(root, loaded);
-  const relations = await exportRelationViews(root, loaded);
+  const { relations, problem } = await exportRelationViews(root, loaded);
+  // Merge the fail-closed relation-store problem (if any) alongside the entity
+  // problems so a broken store is reported VISIBLY, not silently omitted. When
+  // the store is healthy/relation-less/default there is no problem, so the block
+  // stays byte-identical.
+  const allProblems = problem ? [...problems, problem] : problems;
   return {
     version: PROFILE_BLOCK_VERSION,
     profileId: loaded.profile.profileId,
     entityPages: pages.map((page) => toEntityPageView(page, true)),
-    ...(problems.length > 0 ? { problems, problemTotal: problems.length } : {}),
+    ...(allProblems.length > 0 ? { problems: allProblems, problemTotal: allProblems.length } : {}),
     ...(relations ? { relations } : {}),
   };
 }
