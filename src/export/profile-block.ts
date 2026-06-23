@@ -22,12 +22,20 @@ import type { RelationRef } from "../relations/types.js";
 
 /**
  * Map an internal {@link RelationRef} to its public, path-safe {@link RelationView}:
- * carry the EntityId endpoints (already opaque, not paths) and the typed
- * attributes + content hash, and DROP `evidence` (whose citations carry source
- * paths) so the export never leaks a filesystem path through a relation.
+ * carry the EntityId endpoints (already opaque, not paths), the typed attributes,
+ * the content hash, AND the `evidence` citations. Evidence is now contract-VALIDATED
+ * on write (safe project-relative paths, allowlisted keys), so exporting it leaks no
+ * filesystem path and makes the published `contentHash` recomputable by a consumer.
+ * The `evidence` key is included ONLY when present, so an evidence-less relation's
+ * view stays byte-identical.
  */
 function toRelationView(ref: RelationRef): RelationView {
-  return { id: ref.id, type: ref.type, from: ref.from, to: ref.to, attributes: ref.attributes, contentHash: ref.contentHash };
+  return {
+    id: ref.id, type: ref.type, from: ref.from, to: ref.to,
+    attributes: ref.attributes,
+    ...(ref.evidence ? { evidence: ref.evidence } : {}),
+    contentHash: ref.contentHash,
+  };
 }
 
 /**

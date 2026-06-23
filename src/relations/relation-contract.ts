@@ -22,9 +22,112 @@
  */
 
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
-import { parseEntityId, EntityIdError } from "../profile/identity.js";
+import { parseEntityId, EntityIdError, isSafeFilenameComponent } from "../profile/identity.js";
 import type { EntityId, ProfilePack, RelationTypeDef } from "../profile/types.js";
-import type { RelationRef } from "./types.js";
+import type { CitationRef, RelationRef } from "./types.js";
+
+/** Hard cap on the number of citations one relation may carry (DoS bound). */
+const MAX_RELATION_EVIDENCE = 64;
+
+/** Hard cap on a citation `sourcePath` length (bounds attacker-controlled size). */
+const MAX_SOURCE_PATH_CHARS = 1024;
+
+/** Hard cap on a citation `sourceSpan` length. */
+const MAX_SOURCE_SPAN_CHARS = 128;
+
+/** The ONLY keys a {@link CitationRef} may carry (extra/nested keys are rejected). */
+const ALLOWED_CITATION_KEYS: ReadonlySet<string> = new Set(["sourcePath", "sourceSpan"]);
+
+/**
+ * True when `value` is a SAFE project-RELATIVE multi-segment path: non-empty,
+ * within the length cap, and every `/`-separated segment is itself a safe single
+ * filename component (rejecting absolute paths, any `..`/`.` segment, NUL bytes,
+ * backslashes, spaces, and leading-dot hidden segments). A source citation is
+ * multi-segment (e.g. `sources/foo.md`), so this layers the SINGLE-component
+ * {@link isSafeFilenameComponent} floor over each segment — no confinement helper
+ * fits a not-yet-joined relative path, so this is the minimal per-segment guard.
+ *
+ * @param value - The candidate `sourcePath`.
+ * @returns Whether the path is a safe project-relative citation path.
+ */
+function isSafeRelativeSourcePath(value: string): boolean {
+  if (value.length === 0 || value.length > MAX_SOURCE_PATH_CHARS) return false;
+  return value.split("/").every((segment) => isSafeFilenameComponent(segment));
+}
+
+/** True when `entry` is a plain (non-array, non-null) object. */
+function isPlainObject(entry: unknown): entry is Record<string, unknown> {
+  return typeof entry === "object" && entry !== null && !Array.isArray(entry);
+}
+
+/** PATH-FREE messages for any key on `entry` outside the {@link ALLOWED_CITATION_KEYS} allowlist. */
+function unexpectedKeyReasons(entry: Record<string, unknown>, at: string): string[] {
+  return Object.keys(entry)
+    .filter((key) => !ALLOWED_CITATION_KEYS.has(key))
+    .map((key) => `${at} has unexpected key '${key}'`);
+}
+
+/** PATH-FREE messages when `sourcePath` is missing, non-string, or an unsafe relative path. */
+function sourcePathReasons(sourcePath: unknown, at: string): string[] {
+  if (typeof sourcePath !== "string" || !isSafeRelativeSourcePath(sourcePath)) {
+    return [`${at} sourcePath is missing or an unsafe path`];
+  }
+  return [];
+}
+
+/** PATH-FREE messages when a present `sourceSpan` is non-string or over the length cap. */
+function sourceSpanReasons(sourceSpan: unknown, at: string): string[] {
+  if (sourceSpan !== undefined && (typeof sourceSpan !== "string" || sourceSpan.length > MAX_SOURCE_SPAN_CHARS)) {
+    return [`${at} sourceSpan must be a string within ${MAX_SOURCE_SPAN_CHARS} chars`];
+  }
+  return [];
+}
+
+/**
+ * Validate ONE citation, returning PATH-FREE violation messages. The entry must
+ * be a plain object carrying ONLY the allowlisted keys; `sourcePath` is required,
+ * a string, and a safe project-relative path; `sourceSpan`, if present, is a
+ * length-capped string (the declared type — a numeric/object span is rejected).
+ * The three independent checks are delegated to tiny validators and concatenated.
+ *
+ * @param entry - The candidate citation (untrusted shape).
+ * @param index - The entry's index, for a stable message prefix.
+ * @returns Zero or more PATH-FREE violation messages for this entry.
+ */
+function validateCitation(entry: unknown, index: number): string[] {
+  const at = `evidence[${index}]`;
+  if (!isPlainObject(entry)) return [`${at} must be a citation object`];
+  return [
+    ...unexpectedKeyReasons(entry, at),
+    ...sourcePathReasons(entry.sourcePath, at),
+    ...sourceSpanReasons(entry.sourceSpan, at),
+  ];
+}
+
+/**
+ * Validate a relation's `evidence` citations, returning the PATH-FREE violation
+ * messages (empty when valid). Absent evidence is valid (the field is optional).
+ * Each citation must be a plain object carrying ONLY `sourcePath`/`sourceSpan`,
+ * with a required SAFE project-relative `sourcePath` and an optional string
+ * `sourceSpan`. The array length is capped at {@link MAX_RELATION_EVIDENCE}.
+ *
+ * Evidence participates in the relation `contentHash` yet was previously NEVER
+ * validated — an unvalidated, path-bearing side channel. This is the shared
+ * validator the WRITE path (store) and READ re-validation
+ * ({@link validateRelationAgainstProfile}) both call, so a citation a write
+ * accepts is exactly one a read re-validates (and the published hash is safe).
+ *
+ * @param evidence - The relation instance's citations (may be absent).
+ * @returns Zero or more PATH-FREE evidence-violation messages.
+ */
+export function validateRelationEvidence(evidence: CitationRef[] | undefined): string[] {
+  if (evidence === undefined) return [];
+  if (!Array.isArray(evidence)) return ["evidence must be an array of citations"];
+  if (evidence.length > MAX_RELATION_EVIDENCE) {
+    return [`evidence has too many citations (${evidence.length} > ${MAX_RELATION_EVIDENCE})`];
+  }
+  return evidence.flatMap((entry, index) => validateCitation(entry, index));
+}
 
 /**
  * Validate a relation's `attributes` against its relation-type def: every declared
@@ -116,7 +219,9 @@ export function validateRelationEndpoints(
  * PATH-FREE reasons it is no longer valid (empty when it still satisfies the
  * profile). A relation is invalid when its `type` is no longer declared, an
  * endpoint's entity type is no longer within the def's declared `from`/`to` set,
- * or its attributes no longer satisfy the declared field contract.
+ * its attributes no longer satisfy the declared field contract, or its `evidence`
+ * citations violate the {@link validateRelationEvidence} contract (a stored,
+ * hash-bearing relation must carry only safe project-relative citation paths).
  *
  * This NEVER mutates or deletes — it only classifies, so the read surfaces can
  * retain-and-warn (the spec's profile-adaptation policy).
@@ -133,5 +238,6 @@ export function validateRelationAgainstProfile(ref: RelationRef, profile: Profil
     reasons.push(`relation ${ref.id} ${reason}`);
   }
   reasons.push(...validateRelationAttributes(def, ref.attributes));
+  reasons.push(...validateRelationEvidence(ref.evidence));
   return reasons;
 }

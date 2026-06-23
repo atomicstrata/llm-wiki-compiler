@@ -40,7 +40,7 @@ import { mintRelationId } from "./ulid.js";
 import { canonicalEndpoints, relationContentHash } from "./digest.js";
 import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } from "./store-record.js";
 import { readRelations } from "./store-read.js";
-import { validateRelationAttributes, validateRelationEndpoints, validateRelationAgainstProfile } from "./relation-contract.js";
+import { validateRelationAttributes, validateRelationEndpoints, validateRelationEvidence, validateRelationAgainstProfile } from "./relation-contract.js";
 import { appendEventLocked } from "../events/store.js";
 import { prepareEventStoreForAppend } from "../events/store-read.js";
 import type { EventType } from "../events/types.js";
@@ -100,6 +100,22 @@ function assertAttributesValid(def: RelationTypeDef, attributes: Record<string, 
 }
 
 /**
+ * Assert a relation's `evidence` citations satisfy the {@link validateRelationEvidence}
+ * contract — each a plain object carrying ONLY `sourcePath`/`sourceSpan`, with a
+ * SAFE project-relative `sourcePath` and a string `sourceSpan` (within caps). Any
+ * violation fails closed BEFORE any write, so the unvalidated, path-bearing
+ * evidence side channel (which feeds the content hash) can never land on disk —
+ * the SAME fail-closed boundary attributes/endpoints get, mirrored on the read
+ * side by {@link validateRelationAgainstProfile}.
+ */
+function assertEvidenceValid(evidence: CitationRef[] | undefined, type: string): void {
+  const violations = validateRelationEvidence(evidence);
+  if (violations.length > 0) {
+    throw new RelationEndpointError(`relation '${type}' has invalid evidence: ${violations.join(" ")}`);
+  }
+}
+
+/**
  * Reject a relation whose serialized on-disk record exceeds
  * {@link MAX_RELATION_RECORD_BYTES}, so attacker-controlled attribute/evidence
  * size cannot grow one record unbounded (nor reach the per-store cap with one
@@ -116,8 +132,8 @@ function assertRecordWithinCap(ref: RelationRef): void {
 
 /**
  * Build the {@link RelationRef}: canonicalize symmetric endpoints FIRST, then
- * validate the CANONICAL endpoints + required attributes against the
- * relation-type def, mint the id (or reuse `existingId` for an update), and
+ * validate the CANONICAL endpoints + required attributes + evidence citations
+ * against the relation-type def, mint the id (or reuse `existingId` for an update), and
  * compute the content hash. Canonicalize-THEN-validate (FIX #1) means the WRITE
  * enforces exactly what the READ re-validates, so a symmetric edge whose
  * `from`-type sorts after its `to`-type is never written swapped-then-rejected.
@@ -134,6 +150,7 @@ function buildRelationRef(
   assertCanonicalEndpoints(def, from, to, input.type);
   const attributes = input.attributes ?? {};
   assertAttributesValid(def, attributes, input.type);
+  assertEvidenceValid(input.evidence, input.type);
   const content = { type: input.type, from, to, attributes, evidence: input.evidence };
   const ref: RelationRef = { id: existingId ?? mintRelationId(), ...content, contentHash: relationContentHash(content) };
   assertRecordWithinCap(ref);

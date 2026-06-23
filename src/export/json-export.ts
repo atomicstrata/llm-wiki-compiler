@@ -29,16 +29,19 @@
 import { validateProjectId } from "./project-id.js";
 import type { ExportPage } from "./types.js";
 import type { EntityPageView, EntityProblemView } from "../profile/types.js";
+import type { CitationRef } from "../relations/types.js";
 
 /**
  * The PUBLIC, path-safe DTO for one typed relation in the JSON export.
  *
  * Mirrors the {@link EntityPageView} omitted-for-default discipline: it NEVER
  * carries an absolute path. `from`/`to` are already opaque `<entityType>/<slug>`
- * EntityId strings (not filesystem paths), and the relation's `evidence`
- * citations (which carry source paths) are DELIBERATELY OMITTED so no path
- * leaks. Only the dedup/precondition `contentHash` and the typed `attributes`
- * accompany the edge.
+ * EntityId strings (not filesystem paths). The relation's `evidence` citations
+ * are now contract-VALIDATED on write (safe PROJECT-RELATIVE paths, allowlisted
+ * keys), so they are INCLUDED — they are core provenance value AND make the
+ * published `contentHash` (computed over `{type,from,to,attributes,evidence}`)
+ * recomputable by a consumer. Only the relative citation paths are exported, never
+ * an absolute path.
  *
  * @experimental Shape may change in a future release.
  */
@@ -53,6 +56,12 @@ export interface RelationView {
   to: string;
   /** Typed relation attributes, as declared by the relation-type def. */
   attributes: Record<string, unknown>;
+  /**
+   * Validated citations backing the relation (safe project-relative paths only),
+   * present ONLY when the relation carries evidence. Exported so a consumer can
+   * recompute the `contentHash`; never an absolute path.
+   */
+  evidence?: CitationRef[];
   /** Canonical content digest over `{type, from, to, attributes, evidence}`. */
   contentHash: string;
 }
