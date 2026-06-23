@@ -59,9 +59,9 @@ export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
 // the input/return types consumers need. The lower-level `stageEntityPage(root,…)`
 // and `promoteCandidateUnderLock` forms stay internal. API may change.
 //
-// Read-integration status: typed entity pages are a WRITE SUBSTRATE — a promoted
-// page is surfaced in `status`, the JSON export, and the wiki INDEX, but NOT YET
-// in interlinking, semantic search/embeddings, the MOC, or the viewer (planned).
+// Read-integration status: typed entity pages are surfaced in `status`, the JSON
+// export, the wiki INDEX, the viewer graph, and agent context packs (lexical
+// ranking + relation-edge expansion). Typed-page semantic search remains deferred.
 export type { SdkStageEntityPageInput } from "./trust/staging.js";
 export { StagingRequiresProfileError } from "./trust/staging.js";
 // The staged-change RELATION/ARTIFACT targets are Phase-4 STUB shapes named

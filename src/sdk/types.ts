@@ -200,11 +200,11 @@ export interface Wiki {
    * non-default profile declares). `existingStagedCount` is the caller's
    * per-session bookkeeping (defaults to 0). No LLM required.
    *
-   * READ-INTEGRATION STATUS: typed entity pages are a WRITE SUBSTRATE. A promoted
-   * page is surfaced in `status`, the JSON export, and the wiki INDEX — but NOT
-   * YET in interlinking, semantic search / embeddings, the MOC, or the viewer
-   * (those are planned). Do not assume a staged/promoted typed page participates
-   * in retrieval or rendering yet.
+   * READ-INTEGRATION STATUS: typed entity pages are surfaced in `status`, the
+   * JSON export, the wiki INDEX, the viewer graph, and agent context packs (lexical
+   * ranking + relation-edge expansion). Typed-page SEMANTIC (embedding) search,
+   * per-entity-type viewer UI beyond basic node/edge distinction, and cross-type
+   * wikilink resolution remain deferred.
    *
    * Foundation API — the shape may change in a future minor release.
    */
@@ -216,9 +216,10 @@ export interface Wiki {
    * profile, re-plans + applies, and clears the candidate. The page lands at
    * `wiki/<entityType>/<slug>.md`, or nothing does. No LLM required.
    *
-   * READ-INTEGRATION STATUS: the promoted page becomes visible in `status`, the
-   * JSON export, and the wiki INDEX — but NOT YET in interlinking, semantic
-   * search / embeddings, the MOC, or the viewer (those are planned).
+   * READ-INTEGRATION STATUS: the promoted page is surfaced in `status`, the JSON
+   * export, the wiki INDEX, the viewer graph, and agent context packs (lexical
+   * ranking + relation-edge expansion). Typed-page SEMANTIC (embedding) search
+   * remains deferred.
    *
    * Foundation API — the shape may change in a future minor release.
    */
@@ -234,11 +235,11 @@ export interface Wiki {
    * write (undeclared type, disallowed endpoint, missing required attribute) —
    * nothing is written in either case. No LLM required.
    *
-   * READ-INTEGRATION STATUS: a created relation is a WRITE SUBSTRATE. It lands in
-   * the relation store and is surfaced in `status`, the JSON export, and lint —
-   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
-   * viewer, or any agent-facing read path (those are planned). Do not assume a
-   * created relation participates in retrieval or rendering yet.
+   * READ-INTEGRATION STATUS: a created relation lands in the relation store and is
+   * surfaced in `status`, the JSON export, lint, the viewer graph (as an edge), and
+   * agent context packs (relation-edge expansion). Typed-page SEMANTIC (embedding)
+   * search and per-entity-type viewer UI beyond basic node/edge distinction remain
+   * deferred.
    *
    * Foundation API — the shape may change in a future minor release.
    */
@@ -255,10 +256,9 @@ export interface Wiki {
    * No LLM required.
    *
    * READ-INTEGRATION STATUS: the transition writes the lifecycle-field value into
-   * the page — a WRITE SUBSTRATE surfaced in `status`, the JSON export, and lint,
-   * but NOT YET in context packs, semantic search / embeddings, the MOC, the
-   * viewer, or any agent-facing read path (those are planned). Do not assume the
-   * new lifecycle state participates in retrieval or rendering yet.
+   * the page, which is surfaced in `status`, the JSON export, lint, the viewer
+   * graph, and agent context packs (lexical ranking + relation-edge expansion).
+   * Typed-page SEMANTIC (embedding) search remains deferred.
    *
    * Foundation API — the shape may change in a future minor release.
    */

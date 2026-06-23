@@ -18,14 +18,11 @@
  * The DEFAULT compile/review/import path is untouched: this is an additive,
  * programmatic slice. The staged body is caller-provided (no generation).
  *
- * READ-INTEGRATION STATUS (honest scope). Typed entity pages are a WRITE
- * SUBSTRATE. A promoted page is currently surfaced in `status`, the JSON export,
- * and the wiki INDEX (pure enumeration) — but NOT YET in interlinking, semantic
- * search / embeddings, the MOC, or the viewer. Those read surfaces are planned
- * (Phase 4) and have real design questions (cross-type wikilink resolution,
- * embedding-store key qualification, viewer rendering) deliberately out of scope
- * here. Until then, do not assume a staged/promoted typed page participates in
- * retrieval or rendering.
+ * READ-INTEGRATION STATUS (honest scope). Typed entity pages are surfaced in
+ * `status`, the JSON export, the wiki INDEX, the viewer graph, and agent context
+ * packs (lexical ranking + relation-edge expansion). Typed-page SEMANTIC
+ * (embedding) search, per-entity-type viewer UI beyond basic node/edge distinction,
+ * and cross-type wikilink resolution remain deferred.
  */
 
 import {

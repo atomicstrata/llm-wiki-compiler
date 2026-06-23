@@ -161,7 +161,7 @@ describe("review approve — typed read-integration note (loud + honest)", () =>
     return () => lines.join("\n");
   }
 
-  it("prints the integration-pending note after a typed approval", async () => {
+  it("prints the integration note after a typed approval", async () => {
     await buildResearchLiteProject(root);
     const id = await stageTypedCandidate();
     const readLog = captureLog();
@@ -169,7 +169,7 @@ describe("review approve — typed read-integration note (loud + honest)", () =>
     await reviewApproveCommand(id);
 
     const out = readLog();
-    expect(out).toContain("not yet included in interlinking");
+    expect(out).toContain("Visible in viewer graph and context packs");
     expect(out).toContain("wiki/papers/linear-attention.md");
   });
 
@@ -181,7 +181,7 @@ describe("review approve — typed read-integration note (loud + honest)", () =>
 
     await reviewApproveCommand(candidate.id);
 
-    expect(readLog()).not.toContain("not yet included in interlinking");
+    expect(readLog()).not.toContain("Visible in viewer graph and context packs");
   });
 });
 

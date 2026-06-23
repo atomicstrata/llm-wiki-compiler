@@ -140,10 +140,11 @@ async function routeTypedPageWrite(
 
 /**
  * Emit a one-line, non-error informational NOTE after a typed page is written,
- * making the half-integration LOUD + HONEST: a typed entity page is now in
- * `status`, JSON export, and the wiki index, but is NOT YET part of interlinking,
- * semantic search/embeddings, the MOC, or the viewer (those are planned). The
- * note never touches the exit code — a successful typed approval still exits 0.
+ * summarising the current read-integration state: a typed entity page is now
+ * surfaced in `status`, JSON export, the wiki index, the viewer graph, and agent
+ * context packs (lexical ranking + relation-edge expansion). Typed-page semantic
+ * search remains deferred. The note never touches the exit code — a successful
+ * typed approval still exits 0.
  *
  * @param relPath - The project-relative `wiki/<entityType>/<slug>.md` path.
  */
@@ -151,8 +152,8 @@ function noteTypedReadIntegrationPending(relPath: string): void {
   output.status(
     "i",
     output.info(
-      `Typed page ${relPath} written. Note: typed entity pages are not yet ` +
-        `included in interlinking, semantic search, or the viewer (planned).`,
+      `Typed page ${relPath} written. Visible in viewer graph and context packs ` +
+        `(lexical + relation-edge); typed-page semantic search is deferred.`,
     ),
   );
 }

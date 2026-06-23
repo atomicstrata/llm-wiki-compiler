@@ -10,9 +10,9 @@
  *
  * The facade emits NO stdout note (it runs quiet by contract); the
  * read-integration status — typed pages are surfaced in `status`, the JSON
- * export, and the wiki INDEX, but NOT YET in interlinking, semantic search, the
- * MOC, or the viewer — is documented on the `stageEntityPage`/`promoteStagedPage`
- * method docstrings instead.
+ * export, the wiki INDEX, the viewer graph, and agent context packs (lexical
+ * ranking + relation-edge expansion); typed-page semantic search is deferred —
+ * is documented on the `stageEntityPage`/`promoteStagedPage` method docstrings instead.
  *
  * @experimental Foundation API — the shape may change in a future minor release.
  */
