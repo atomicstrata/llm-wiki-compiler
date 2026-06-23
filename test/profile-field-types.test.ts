@@ -203,7 +203,9 @@ describe("collectEntitySummary — count-only, no bodies retained", () => {
     await writeNote("a", "year: 2026");
     await writeNote("b", 'year: "twenty"');
     const summary = await collectEntitySummary(root, TYPED_PROFILE);
-    expect(summary.counts).toEqual({ notes: 2 });
+    // note "a" is valid (year: 2026 parses as integer); note "b" has a
+    // field-violation so it is excluded from the count but surfaced as a problem.
+    expect(summary.counts).toEqual({ notes: 1 });
     expect(summary.problems.map((p) => p.message)).toEqual([
       expect.stringMatching(/"year".*not a valid integer/),
     ]);
@@ -211,12 +213,14 @@ describe("collectEntitySummary — count-only, no bodies retained", () => {
     expect(Object.values(summary).some((v) => Array.isArray(v) && v.some((x: unknown) => typeof x === "object" && x !== null && "body" in (x as object)))).toBe(false);
   });
 
-  it("produces counts + problems IDENTICAL to the content collector", async () => {
+  it("produces problems IDENTICAL to the content collector, excluding invalid pages from the count", async () => {
     await writeNote("a", "importance: 99");
     await writeNote("b", "importance: 3");
     const summary = await collectEntitySummary(root, TYPED_PROFILE);
     const full = await collectEntityPages(root, TYPED_PROFILE);
-    expect(summary.counts).toEqual({ notes: 2 });
+    // note "a" violates max:5 → excluded from summary count, surfaced as problem
+    // note "b" is valid → counted; full collector still produces both pages
+    expect(summary.counts).toEqual({ notes: 1 });
     expect(summary.problems).toEqual(full.problems);
   });
 });

@@ -158,6 +158,52 @@ describe("collectStatus — surfaces non-default problems (never silent)", () =>
   });
 });
 
+/** A profile requiring `title` on every `notes` page. */
+const REQUIRED_TITLE_PROFILE = {
+  schemaVersion: 1,
+  profileId: "required-title",
+  entities: {
+    notes: {
+      directory: "wiki/notes",
+      requiredFields: ["title"],
+      fields: { title: { type: "string" } },
+    },
+  },
+};
+
+describe("collectStatus — entityCounts excludes field-violating pages", () => {
+  it("counts only the valid page when one valid and one field-violating page exist", async () => {
+    await writeProfile(REQUIRED_TITLE_PROFILE);
+    await mkdir(path.join(root, "wiki/notes"), { recursive: true });
+    // Valid page: has the required `title` field
+    await writeFile(path.join(root, "wiki/notes/valid-note.md"), "---\ntitle: Valid\n---\n");
+    // Invalid page: missing the required `title` field
+    await writeFile(path.join(root, "wiki/notes/no-title.md"), "# no-title\n");
+    const result = await collectStatus(root);
+    expect(result.profile?.entityCounts.notes).toBe(1); // only the valid page
+    expect(result.profile?.problemTotal).toBeGreaterThanOrEqual(1); // invalid page still surfaced
+  });
+
+  it("counts zero when the only entity page is field-violating", async () => {
+    await writeProfile(REQUIRED_TITLE_PROFILE);
+    await mkdir(path.join(root, "wiki/notes"), { recursive: true });
+    await writeFile(path.join(root, "wiki/notes/no-title.md"), "# no-title\n");
+    const result = await collectStatus(root);
+    expect(result.profile?.entityCounts.notes).toBe(0);
+    expect(result.profile?.problems).toHaveLength(1);
+  });
+
+  it("counts all pages when all entity pages are valid (regression)", async () => {
+    await writeProfile(REQUIRED_TITLE_PROFILE);
+    await mkdir(path.join(root, "wiki/notes"), { recursive: true });
+    await writeFile(path.join(root, "wiki/notes/note-a.md"), "---\ntitle: A\n---\n");
+    await writeFile(path.join(root, "wiki/notes/note-b.md"), "---\ntitle: B\n---\n");
+    const result = await collectStatus(root);
+    expect(result.profile?.entityCounts.notes).toBe(2);
+    expect(result.profile && "problems" in result.profile).toBe(false);
+  });
+});
+
 /** Emit a chained event into the project's `wiki/graph` store. */
 const emitEvent = (n: string): Promise<unknown> =>
   appendEvent(root, { type: "relation-create", origin: "sdk", payload: { n }, at: "2024-01-01T00:00:00Z" });

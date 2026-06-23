@@ -244,8 +244,15 @@ async function collectOneEntity(
 /**
  * Summarize one entity type metadata-only: scan WITHOUT bodies, validate each
  * scan through the SHARED {@link validateScan} (so problems match the content
- * path exactly), and return this type's valid-page count plus problems. No
+ * path exactly), and return this type's VALID-page count plus problems. No
  * content `EntityPage` is ever built or retained.
+ *
+ * VALID means: slug-safe identity AND no invalidating profile-contract problem
+ * (field-violation). Pages with non-slug-safe or slug-mismatch identities are
+ * already excluded by `validateScan` returning `null`. Field-violating pages
+ * return a non-null stem from `validateScan` but must ALSO be excluded so the
+ * count agrees with context and graph (both use `invalidEntityPagePaths`). The
+ * invalid pages remain visible via `problems` / `problemTotal`.
  */
 async function summarizeOneEntity(
   root: string,
@@ -258,11 +265,16 @@ async function summarizeOneEntity(
     pushInvalidDirectory(entityType, def, problems);
     return 0;
   }
-  let count = 0;
+  // Pages that pass identity validation (non-null stem); a field-violating page
+  // is still produced here but excluded below by the SHARED invalidity set.
+  const producedPaths: string[] = [];
   for (const scan of scans) {
-    if (validateScan(def, entityType, scan, problems) !== null) count += 1;
+    if (validateScan(def, entityType, scan, problems) !== null) producedPaths.push(scan.filePath);
   }
-  return count;
+  // Count derives from the SAME `invalidEntityPagePaths`/`INVALIDATING_PROBLEM_KINDS`
+  // predicate context and graph use, so the three never diverge as problem kinds evolve.
+  const invalid = invalidEntityPagePaths(problems);
+  return producedPaths.filter((filePath) => !invalid.has(filePath)).length;
 }
 
 /**
