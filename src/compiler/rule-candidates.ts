@@ -28,6 +28,7 @@ import {
   RULE_CANDIDATES_DIR,
   RULE_CANDIDATES_ARCHIVE_DIR,
 } from "../utils/constants.js";
+import { isSafeRelativeEvidencePath } from "../utils/evidence-path.js";
 import type {
   EvidenceRef,
   RuleCandidate,
@@ -261,17 +262,15 @@ function urlEvidenceError(url: string): string | null {
   return null;
 }
 
-/** File evidence must be a safe relative path within the reference cap. */
+/**
+ * File evidence must be a safe relative path within the reference cap.
+ * Delegates to the shared {@link isSafeRelativeEvidencePath} predicate so rule
+ * evidence and relation citation evidence use IDENTICAL path safety rules.
+ */
 function fileEvidenceError(filePath: string): string | null {
   if (filePath.length > EVIDENCE_REF_CAP) return `evidence path exceeds ${EVIDENCE_REF_CAP} chars`;
-  if (isUnsafeEvidencePath(filePath)) return `unsafe evidence path: ${filePath}`;
+  if (!isSafeRelativeEvidencePath(filePath)) return `unsafe evidence path: ${filePath}`;
   return null;
-}
-
-/** Reject absolute paths, Windows drive/UNC roots, and any `..` traversal segment. */
-function isUnsafeEvidencePath(p: string): boolean {
-  if (p.startsWith("/") || p.startsWith("\\") || /^[a-zA-Z]:/.test(p)) return true;
-  return p.split(/[/\\]/).some((seg) => seg === "..");
 }
 
 /** Input shape for assembling a new candidate (id/status/createdAt derived here). */

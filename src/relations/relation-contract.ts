@@ -22,38 +22,19 @@
  */
 
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
-import { parseEntityId, EntityIdError, isSafeFilenameComponent } from "../profile/identity.js";
+import { parseEntityId, EntityIdError } from "../profile/identity.js";
+import { isSafeRelativeEvidencePath } from "../utils/evidence-path.js";
 import type { EntityId, ProfilePack, RelationTypeDef } from "../profile/types.js";
 import type { CitationRef, RelationRef } from "./types.js";
 
 /** Hard cap on the number of citations one relation may carry (DoS bound). */
 const MAX_RELATION_EVIDENCE = 64;
 
-/** Hard cap on a citation `sourcePath` length (bounds attacker-controlled size). */
-const MAX_SOURCE_PATH_CHARS = 1024;
-
 /** Hard cap on a citation `sourceSpan` length. */
 const MAX_SOURCE_SPAN_CHARS = 128;
 
 /** The ONLY keys a {@link CitationRef} may carry (extra/nested keys are rejected). */
 const ALLOWED_CITATION_KEYS: ReadonlySet<string> = new Set(["sourcePath", "sourceSpan"]);
-
-/**
- * True when `value` is a SAFE project-RELATIVE multi-segment path: non-empty,
- * within the length cap, and every `/`-separated segment is itself a safe single
- * filename component (rejecting absolute paths, any `..`/`.` segment, NUL bytes,
- * backslashes, spaces, and leading-dot hidden segments). A source citation is
- * multi-segment (e.g. `sources/foo.md`), so this layers the SINGLE-component
- * {@link isSafeFilenameComponent} floor over each segment — no confinement helper
- * fits a not-yet-joined relative path, so this is the minimal per-segment guard.
- *
- * @param value - The candidate `sourcePath`.
- * @returns Whether the path is a safe project-relative citation path.
- */
-function isSafeRelativeSourcePath(value: string): boolean {
-  if (value.length === 0 || value.length > MAX_SOURCE_PATH_CHARS) return false;
-  return value.split("/").every((segment) => isSafeFilenameComponent(segment));
-}
 
 /** True when `entry` is a plain (non-array, non-null) object. */
 function isPlainObject(entry: unknown): entry is Record<string, unknown> {
@@ -69,7 +50,7 @@ function unexpectedKeyReasons(entry: Record<string, unknown>, at: string): strin
 
 /** PATH-FREE messages when `sourcePath` is missing, non-string, or an unsafe relative path. */
 function sourcePathReasons(sourcePath: unknown, at: string): string[] {
-  if (typeof sourcePath !== "string" || !isSafeRelativeSourcePath(sourcePath)) {
+  if (typeof sourcePath !== "string" || !isSafeRelativeEvidencePath(sourcePath)) {
     return [`${at} sourcePath is missing or an unsafe path`];
   }
   return [];
