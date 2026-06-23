@@ -23,7 +23,7 @@
 
 import path from "path";
 import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES, MAX_EVENT_HEAD_BYTES } from "../utils/constants.js";
-import { resolveConfinedPrivateDir } from "../utils/private-dir.js";
+import { resolveExistingConfinedPrivateDir, PrivateDirConfinementError } from "../utils/private-dir.js";
 import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
 import { atomicWrite } from "../utils/markdown.js";
 import type { EventRecord } from "./types.js";
@@ -150,7 +150,8 @@ export function verifyEventChain(events: EventRecord[]): { ok: boolean; problem?
 
 /** Read the sealed head-anchor digest, or null when it is absent. Confined + no-follow + capped. */
 async function readHeadAnchor(root: string): Promise<string | null> {
-  const dir = await resolveConfinedPrivateDir(root); // throws on .llmwiki symlink escape
+  const dir = await resolveExistingConfinedPrivateDir(root); // throws on .llmwiki symlink escape
+  if (dir === null) return null; // absent .llmwiki → no head anchor, clean project
   const file = path.join(dir, path.basename(EVENTS_HEAD_FILE));
   const handle = await openEventFileRead(file); // no-follow; symlink → fail closed
   if (handle === null) return null;

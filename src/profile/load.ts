@@ -13,7 +13,7 @@
  * path (or `null` for the built-in default), and its canonical digest.
  *
  * Confinement: the read is routed through the confined `.llmwiki` dir primitive
- * (`resolveConfinedPrivateDir`) and the leaf is opened with `O_NOFOLLOW` so a
+ * (`resolveExistingConfinedPrivateDir`) and the leaf is opened with `O_NOFOLLOW` so a
  * symlinked `.llmwiki` dir OR a symlinked `profile.json` leaf FAILS CLOSED
  * (never reads out-of-tree bytes). An `fstat`-based size cap guards against
  * reading a multi-GB or `/dev/zero`-backed target before `JSON.parse`.
@@ -24,7 +24,7 @@ import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { PROFILE_FILE, MAX_PROFILE_BYTES } from "../utils/constants.js";
-import { resolveConfinedPrivateDir, PrivateDirConfinementError } from "../utils/private-dir.js";
+import { resolveExistingConfinedPrivateDir, PrivateDirConfinementError } from "../utils/private-dir.js";
 import { DEFAULT_PROFILE } from "./default.js";
 import { validateProfile } from "./validate.js";
 import { profileDigest } from "./digest.js";
@@ -78,15 +78,18 @@ async function openProfileNoFollow(filePath: string): Promise<FileHandle | null>
  * @throws {ProfileLoadError} When a present file is unparseable, invalid, or confined.
  */
 export async function loadProfile(root: string): Promise<LoadedProfile> {
-  let dir: string;
+  let dir: string | null;
   try {
-    dir = await resolveConfinedPrivateDir(root);
+    dir = await resolveExistingConfinedPrivateDir(root);
   } catch (err) {
     if (err instanceof PrivateDirConfinementError) {
       throw new ProfileLoadError(`${PROFILE_FILE} directory is a symlink — refusing to follow`);
     }
     throw err;
   }
+  // Absent .llmwiki dir means no profile file — yield the built-in default without
+  // creating the directory (read-only contract: a clean project stays clean).
+  if (dir === null) return defaultLoadedProfile();
   // Use the realpath-resolved confined path for the open (confinement) but keep the
   // original logical path for `loadedFrom` so callers see a stable, user-facing path.
   const confinedFilePath = path.join(dir, path.basename(PROFILE_FILE));
