@@ -76,21 +76,13 @@ function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds:
   return components;
 }
 
-/** Compute top dangling targets by indegree from real pages. */
-function topDanglingTargets(
-  nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>,
-): GraphHealthResult["topDangling"] {
-  const counts = new Map<string, number>();
-  for (const e of edges) {
-    const target = nodes.find((n) => n.id === e.target);
-    if (target?.isDangling && realIds.has(e.source)) {
-      counts.set(target.title, (counts.get(target.title) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+/** Top dangling targets by indegree, using ghost nodes' pre-computed degrees. */
+function topDanglingTargets(graph: GraphData): GraphHealthResult["topDangling"] {
+  return graph.nodes
+    .filter((n) => n.isDangling)
+    .sort((a, b) => b.degree - a.degree || a.id.localeCompare(b.id))
     .slice(0, MAX_TOP_DANGLING)
-    .map(([title, count]) => ({ title, referenceCount: count }));
+    .map((n) => ({ id: n.id, title: n.title, referenceCount: n.degree }));
 }
 
 /**
@@ -116,13 +108,19 @@ export async function evaluateGraphHealth(
     ? Math.round((totalIndegree / realNodes.length) * 100) / 100
     : 0;
 
+  const realOutdegrees = new Map<PageId, number>();
+  for (const e of graph.edges) {
+    if (realIds.has(e.source) && realIds.has(e.target)) {
+      realOutdegrees.set(e.source, (realOutdegrees.get(e.source) ?? 0) + 1);
+    }
+  }
   const hubPages: HubPage[] = realNodes
     .map((n) => {
       const indegree = realIndegrees.get(n.id) ?? 0;
-      const outdegree = graph.edges.filter((e) => e.source === n.id && realIds.has(e.target)).length;
-      return { slug: n.slug, indegree, outdegree, totalDegree: indegree + outdegree };
+      const outdegree = realOutdegrees.get(n.id) ?? 0;
+      return { id: n.id, indegree, outdegree, totalDegree: indegree + outdegree };
     })
-    .sort((a, b) => b.totalDegree - a.totalDegree || a.slug.localeCompare(b.slug))
+    .sort((a, b) => b.totalDegree - a.totalDegree || a.id.localeCompare(b.id))
     .slice(0, MAX_HUB_PAGES)
     .filter((h) => h.totalDegree > 0);
 
@@ -131,11 +129,11 @@ export async function evaluateGraphHealth(
   return {
     pageCount: realNodes.length,
     unreferencedCount: unreferenced.length,
-    unreferencedPages: unreferenced.map((n) => n.slug),
+    unreferencedPages: unreferenced.map((n) => n.id),
     componentCount: countComponents(graph.nodes, graph.edges, realIds),
     avgIndegree,
     hubPages,
     danglingCount: danglingNodes.length,
-    topDangling: topDanglingTargets(graph.nodes, graph.edges, realIds),
+    topDangling: topDanglingTargets(graph),
   };
 }

@@ -31,7 +31,7 @@ describe("evaluateGraphHealth", () => {
     expect(result).not.toBeNull();
     expect(result!.pageCount).toBe(1);
     expect(result!.unreferencedCount).toBe(1);
-    expect(result!.unreferencedPages).toContain("lonely");
+    expect(result!.unreferencedPages).toContain("concepts/lonely");
     expect(result!.componentCount).toBe(1);
     expect(result!.avgIndegree).toBe(0);
     expect(result!.danglingCount).toBe(0);
@@ -54,7 +54,7 @@ describe("evaluateGraphHealth", () => {
     const result = await evaluateGraphHealth(env.dir);
     // hub has indegree=2, outdegree=0 → totalDegree=2
     expect(result!.hubPages.length).toBeGreaterThan(0);
-    expect(result!.hubPages[0].slug).toBe("hub");
+    expect(result!.hubPages[0].id).toBe("concepts/hub");
     expect(result!.hubPages[0].indegree).toBe(2);
     expect(result!.hubPages[0].outdegree).toBe(0);
     expect(result!.hubPages[0].totalDegree).toBe(2);
@@ -76,6 +76,7 @@ describe("evaluateGraphHealth", () => {
     expect(result!.danglingCount).toBeGreaterThanOrEqual(1);
     expect(result!.topDangling.length).toBeGreaterThan(0);
     expect(result!.topDangling[0].title).toBe("Ghost");
+    expect(result!.topDangling[0].id).toBeDefined();
   });
 
   it("does not count dangling links in avgIndegree", async () => {
@@ -92,11 +93,11 @@ describe("evaluateGraphHealth", () => {
     const result = await evaluateGraphHealth(env.dir);
     // gamma has indegree 2. alpha and beta have indegree 0, outdegree 1.
     // Tie-break between alpha and beta → slug order (alpha < beta)
-    const slugs = result!.hubPages.map((h) => h.slug);
-    const alphaIdx = slugs.indexOf("alpha");
-    const betaIdx = slugs.indexOf("beta");
-    if (alphaIdx >= 0 && betaIdx >= 0) {
-      expect(alphaIdx).toBeLessThan(betaIdx);
-    }
+    const ids = result!.hubPages.map((h) => h.id);
+    const alphaIdx = ids.indexOf("concepts/alpha");
+    const betaIdx = ids.indexOf("concepts/beta");
+    expect(alphaIdx).toBeGreaterThanOrEqual(0);
+    expect(betaIdx).toBeGreaterThanOrEqual(0);
+    expect(alphaIdx).toBeLessThan(betaIdx);
   });
 });

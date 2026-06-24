@@ -213,10 +213,10 @@ function formatGraphHealth(report: EvalReport): string[] {
     line(),
     line(bold("Graph Health:")),
     line("  pages: " + g.pageCount + "  unreferenced: " + g.unreferencedCount + "  components: " + g.componentCount),
-    line("  avg indegree: " + g.avgIndegree.toFixed(1) + "  dangling: " + g.danglingCount),
+    line("  avg indegree: " + g.avgIndegree.toFixed(2) + "  dangling: " + g.danglingCount),
   ];
   if (g.hubPages.length > 0) {
-    const hubs = g.hubPages.map(function(h) { return h.slug + "(" + h.totalDegree + ")"; });
+    const hubs = g.hubPages.map((h) => h.id + "(" + h.totalDegree + ")");
     rows.push(line(dim("  Hubs: " + hubs.join(", "))));
   }
   return rows;

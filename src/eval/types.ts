@@ -88,13 +88,14 @@ export interface PageHealthDistributionResult {
 }
 
 export interface HubPage {
-  slug: string;
+  id: string;
   indegree: number;
   outdegree: number;
   totalDegree: number;
 }
 
-interface DanglingTarget {
+export interface DanglingTarget {
+  id: string;
   title: string;
   referenceCount: number;
 }
