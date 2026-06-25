@@ -41,7 +41,7 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **Local viewer.** `llmwiki view` opens a read-only browser UI with search, page metadata, graph exploration, source-freshness badges, and citation chips.
 - **Review policy.** Generated pages can be auto-held for review when confidence, contradiction, schema, or provenance rules trip.
 - **Freshness repair.** `llmwiki lint` and `llmwiki next` surface stale/orphaned pages; `llmwiki refresh --stale` repairs changed knowledge without compiling unrelated new sources.
-- **Eval harness.** `llmwiki eval` reports health score, a per-page health distribution that flags the worst pages, citation coverage/precision, corpus stats, regression deltas, and optional judge-model citation support.
+- **Eval harness.** `llmwiki eval` reports health score, a per-page health distribution that flags the worst pages, wikilink-graph health, citation coverage/precision, corpus stats, regression deltas, and optional judge-model citation support.
 - **MCP server.** `llmwiki serve` exposes ingest, compile, query, lint, read, status, eval, context-pack, and OKF exchange tools to MCP-compatible agents.
 - **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, eval, and OKF import/export from TypeScript without shelling out.
 - **Open Knowledge Format exchange.** Export and import OKF bundles for portable, markdown-native knowledge exchange. External OKF imports are staged through the review queue by default; trusted bundles can be written live explicitly.

@@ -70,7 +70,7 @@ llmwiki eval --suite full      # fast + LLM-as-judge citation support
 
 | Suite | What runs | LLM credentials needed? |
 |-------|-----------|------------------------|
-| `fast` (default) | Health score, per-page health distribution, citation coverage and precision, source utilization, corpus stats, regression deltas | No |
+| `fast` (default) | Health score, per-page health distribution, graph health, citation coverage and precision, source utilization, corpus stats, regression deltas | No |
 | `full` | Everything in `fast`, plus LLM-as-judge citation support scoring for a sample of claim/source pairs | Yes |
 
 <Note>
@@ -99,6 +99,9 @@ The fraction of a page's valid sources that are actually cited somewhere in the 
 
 **Claim-level citation rate**
 The fraction of citations that are pinned to specific line ranges (e.g. `^[source.md:42-58]`) rather than citing a whole file. Higher means tighter, more verifiable provenance.
+
+**Graph health**
+A topology view of the wiki's `[[wikilink]]` graph, computed from the same graph the local viewer renders. Reports unreferenced pages (no inbound links), the number of weakly connected components, average indegree, the top hub pages by total degree, and any dangling wikilink targets (links pointing at pages that don't exist). This is informational - a page with no inbound links is not necessarily wrong - and does not affect the health score.
 
 **Corpus stats**
 Page count, source count, total wiki characters, and embedding counts - appended to `.llmwiki/eval/history.jsonl` for trend tracking.
