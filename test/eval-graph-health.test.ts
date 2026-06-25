@@ -101,42 +101,19 @@ describe("evaluateGraphHealth", () => {
     expect(alphaIdx).toBeLessThan(betaIdx);
   });
 
-  it("distinguishes concept and query pages with the same slug", async () => {
+
+  it("uses namespaced ids so concept/query and dangling pages do not collide", async () => {
     await env.writeConcept("shared", fm("Concept Shared") + "[[Other]]\n");
     await env.writeQuery("shared", fm("Query Shared") + "[[Shared]]\n");
     await env.writeConcept("other", fm("Other") + "\n");
+    await env.writeConcept("p", fm("P") + "[[missing-a|TODO]]\n[[missing-b|TODO]]\n");
     const result = await evaluateGraphHealth(env.dir);
-    expect(result!.pageCount).toBe(3);
-    const ids = result!.hubPages.map((h) => h.id);
-    expect(ids).toContain("concepts/shared");
-    expect(ids).toContain("queries/shared");
-  });
-
-  it("keeps dangling targets distinct when they share a display title", async () => {
-    await env.writeConcept("page", fm("Page") + "[[missing-a|TODO]]\n[[missing-b|TODO]]\n");
-    const result = await evaluateGraphHealth(env.dir);
+    expect(result!.pageCount).toBe(4);
+    const hubIds = result!.hubPages.map((h) => h.id);
+    expect(hubIds).toContain("concepts/shared");
+    expect(hubIds).toContain("queries/shared");
     expect(result!.danglingCount).toBe(2);
-    expect(result!.topDangling.length).toBe(2);
-    const idSet = new Set(result!.topDangling.map((d) => d.id));
-    expect(idSet.size).toBe(2);
-  })
-  it("distinguishes concept and query pages with the same slug", async () => {
-    await env.writeConcept("shared", fm("Concept Shared") + "[[Other]]\n");
-    await env.writeQuery("shared", fm("Query Shared") + "[[Shared]]\n");
-    await env.writeConcept("other", fm("Other") + "\n");
-    const result = await evaluateGraphHealth(env.dir);
-    expect(result!.pageCount).toBe(3);
-    const ids = result!.hubPages.map((h) => h.id);
-    expect(ids).toContain("concepts/shared");
-    expect(ids).toContain("queries/shared");
-  });
-
-  it("keeps dangling targets distinct when they share a display title", async () => {
-    await env.writeConcept("page", fm("Page") + "[[missing-a|TODO]]\n[[missing-b|TODO]]\n");
-    const result = await evaluateGraphHealth(env.dir);
-    expect(result!.danglingCount).toBe(2);
-    expect(result!.topDangling.length).toBe(2);
-    const idSet = new Set(result!.topDangling.map((d) => d.id));
-    expect(idSet.size).toBe(2);
+    const ghostIds = new Set(result!.topDangling.map((d) => d.id));
+    expect(ghostIds.size).toBe(2);
   });
 });
