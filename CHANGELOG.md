@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Ollama structured tool calls** — `OllamaProvider.toolCall` now uses Ollama's native `POST /api/chat` with JSON-schema `format` (base URL derived from `OLLAMA_HOST`, preserving reverse-proxy path prefixes) instead of the OpenAI-compatible `tool_calls` path, which could return double-encoded `concepts` arrays and silently produce zero wiki pages. Affects all structured tool calls (concept extraction, rule extraction, query page selection, eval judge). Invalid `OLLAMA_HOST` values and empty `/api/chat` responses now throw instead of silently falling back or returning empty output. `parseConcepts` also coerces string-encoded `concepts` arrays as a defensive fallback. Embeddings continue to use `OLLAMA_HOST` / `OLLAMA_EMBEDDINGS_HOST` via the OpenAI-compatible `/v1` client.
+
 ## [0.11.0] - 2026-06-16
 
 Extends Open Knowledge Format support beyond the CLI: in-process SDK and MCP access to the OKF round-trip, and faithful reconstruction of an imported foreign bundle's original nested paths on re-export.

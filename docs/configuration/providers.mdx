@@ -141,14 +141,14 @@ See [Environment Variables](/configuration/environment-variables) for full timeo
   </Tab>
   <Tab title="Ollama">
 
-The `ollama` provider uses Ollama's OpenAI-compatible endpoint. It defaults to a 30-minute per-request timeout (instead of the 10-minute OpenAI default) to accommodate local models on modest hardware.
+The `ollama` provider uses Ollama's OpenAI-compatible endpoint for embeddings. All structured tool calls (concept extraction, rule extraction, query page selection, eval judge) use Ollama's native `/api/chat` endpoint with JSON-schema `format`, derived from `OLLAMA_HOST` with the `/v1` suffix removed while preserving any reverse-proxy path prefix. It defaults to a 30-minute per-request timeout (instead of the 10-minute OpenAI default) to accommodate local models on modest hardware.
 
 **Variables**
 
 | Variable | Required | Description |
 |---|---|---|
 | `LLMWIKI_PROVIDER` | Yes | Set to `ollama` |
-| `OLLAMA_HOST` | Yes | Ollama host URL for chat. **Include `/v1`** |
+| `OLLAMA_HOST` | Yes | Ollama host URL for chat and structured tool calls. **Include `/v1`** — the native `/api/chat` base URL is derived from this value (path prefix preserved) |
 | `LLMWIKI_MODEL` | No | Model name override |
 | `LLMWIKI_EMBEDDING_MODEL` | No | Embedding model override |
 | `OLLAMA_EMBEDDINGS_HOST` | No | Separate Ollama host for embeddings. When unset, embeddings use `OLLAMA_HOST` |

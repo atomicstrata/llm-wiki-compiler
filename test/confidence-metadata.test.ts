@@ -125,6 +125,22 @@ describe("parseConcepts handles new optional fields", () => {
     expect(concept.provenanceState).toBeUndefined();
     expect(concept.contradictedBy).toBeUndefined();
   });
+
+  it("parses concepts when Ollama double-encodes the array as a string", () => {
+    const raw = JSON.stringify({
+      concepts: JSON.stringify([
+        { concept: "Foo", summary: "Bar", is_new: true },
+      ]),
+    });
+    const result = parseConcepts(raw);
+    expect(result).toHaveLength(1);
+    expect(result[0]?.concept).toBe("Foo");
+  });
+
+  it("returns no concepts when a string-encoded concepts field is invalid JSON", () => {
+    const raw = JSON.stringify({ concepts: "not-json" });
+    expect(parseConcepts(raw)).toEqual([]);
+  });
 });
 
 describe("checkLowConfidencePages", () => {

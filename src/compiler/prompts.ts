@@ -296,7 +296,11 @@ export function buildSeedPagePrompt(
 export function parseConcepts(toolOutput: string): ExtractedConcept[] {
   try {
     const parsed = JSON.parse(toolOutput);
-    const concepts: RawConcept[] = parsed.concepts ?? [];
+    let concepts: unknown = parsed.concepts ?? [];
+    if (typeof concepts === "string") {
+      concepts = JSON.parse(concepts);
+    }
+    if (!Array.isArray(concepts)) return [];
     return concepts.filter(isValidRawConcept).map(mapRawConcept);
   } catch {
     return [];

@@ -46,7 +46,7 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 
 | Variable | Required | Description |
 |---|---|---|
-| `OLLAMA_HOST` | Yes (for `ollama` provider) | Ollama host URL for chat and tool calls. **Must include `/v1`** |
+| `OLLAMA_HOST` | Yes (for `ollama` provider) | Ollama host URL for chat and structured tool calls. **Must include `/v1`**. Structured tool calls use the native `/api/chat` endpoint on the same base URL with the `/v1` suffix removed (any path prefix is preserved, e.g. `https://proxy/ollama/v1` → `https://proxy/ollama/api/chat`) |
 | `OLLAMA_EMBEDDINGS_HOST` | No | Separate Ollama host URL for embeddings. When unset, embeddings use `OLLAMA_HOST` |
 
 ---
