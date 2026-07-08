@@ -7,6 +7,38 @@ import { CONCEPT_EXTRACTION_TOOL } from "../../src/compiler/prompts.js";
 import { OllamaProvider, resolveOllamaNativeHost } from "../../src/providers/ollama.js";
 
 const TOOL_MESSAGES = [{ role: "user" as const, content: "extract" }];
+const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1";
+const DEFAULT_TOOL_MAX_TOKENS = 1024;
+
+interface NativeFetchResponse {
+  ok: boolean;
+  status?: number;
+  text?: string;
+  json?: unknown;
+}
+
+function makeOllamaProvider(baseURL = DEFAULT_OLLAMA_BASE_URL): OllamaProvider {
+  return new OllamaProvider("llama3.1", { baseURL });
+}
+
+function stubNativeFetch(response: NativeFetchResponse): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: response.ok,
+      status: response.status,
+      text: async () => response.text ?? "",
+      json: async () => response.json,
+    }),
+  );
+}
+
+async function expectDefaultToolCallToReject(message: RegExp): Promise<void> {
+  const provider = makeOllamaProvider();
+  await expect(
+    provider.toolCall("system", TOOL_MESSAGES, [CONCEPT_EXTRACTION_TOOL], DEFAULT_TOOL_MAX_TOKENS),
+  ).rejects.toThrow(message);
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -131,40 +163,22 @@ describe("OllamaProvider.toolCall", () => {
   });
 
   it("throws when Ollama returns a non-OK HTTP status", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => "model not found",
-      }),
-    );
-
-    const provider = new OllamaProvider("llama3.1", {
-      baseURL: "http://localhost:11434/v1",
+    stubNativeFetch({
+      ok: false,
+      status: 500,
+      text: "model not found",
     });
 
-    await expect(
-      provider.toolCall("system", TOOL_MESSAGES, [CONCEPT_EXTRACTION_TOOL], 1024),
-    ).rejects.toThrow(/Ollama \/api\/chat failed \(500\): model not found/);
+    await expectDefaultToolCallToReject(/Ollama \/api\/chat failed \(500\): model not found/);
   });
 
   it("throws when Ollama returns no message content", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ message: {} }),
-      }),
-    );
-
-    const provider = new OllamaProvider("llama3.1", {
-      baseURL: "http://localhost:11434/v1",
+    stubNativeFetch({
+      ok: true,
+      json: { message: {} },
     });
 
-    await expect(
-      provider.toolCall("system", TOOL_MESSAGES, [CONCEPT_EXTRACTION_TOOL], 1024),
-    ).rejects.toThrow(/returned no message content/);
+    await expectDefaultToolCallToReject(/returned no message content/);
   });
 
   it("aborts the request when timeoutMs elapses", async () => {
