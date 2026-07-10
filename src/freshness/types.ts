@@ -6,6 +6,8 @@
  * shared by every consumer (lint, export, MCP, context, viewer).
  */
 
+import type { StateStatus } from "../utils/state.js";
+
 /** A page's computed freshness on the source-derived axis. */
 export type FreshnessStatus = "fresh" | "stale" | "orphaned" | "unverified";
 
@@ -30,7 +32,7 @@ export interface SourceFreshness {
 
 /** Reusable, per-run snapshot of all freshness inputs. */
 export interface FreshnessSnapshot {
-  stateStatus: "ok" | "missing" | "corrupt";
+  stateStatus: StateStatus;
   /** Source filename -> its freshness inputs (empty unless stateStatus === "ok"). */
   sources: Record<string, SourceFreshness>;
 }

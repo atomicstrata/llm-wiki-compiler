@@ -7,9 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-10
+
+Introduces Configurable Lifecycle Profiles (CLP): declarative, fail-closed domain packs that turn llmwiki from a fixed two-directory compiler into a reusable substrate for typed entities, relations, lifecycle gates, workflows, artifacts, connectors, and installable templates. Projects without a profile retain the pre-CLP default behavior byte-for-byte across the guarded surfaces.
+
+### Added
+
+- **Configurable Lifecycle Profiles** — `.llmwiki/profile.json` can declare typed entity directories, field contracts, retrieval policy, relation types, lifecycle state machines, transition evidence, content tiers, workflows, actions, artifact types, and connector bindings. The same validated profile drives CLI, SDK, MCP, status, lint, context, viewer, and export behavior without domain-specific branches in core.
+- **Typed relations and lifecycle gates** — append-only typed relations, endpoint validation, standing drift checks, relation-count preconditions, evidence requirements, and artifact-reference requirements are enforced on every state-entry write surface and surfaced again by read-side health checks.
+- **Workflow harness and actions** — declared workflows run through start, advance, status, submit, gate approval, fail, resume, cancel, adapt, event history, and derived projections. Page, relation, lifecycle-transition, and artifact outputs share the same trust and typed-validation floors.
+- **First-class artifacts** — profile-declared JSON and text artifacts are confined, size-capped, schema-validated, hash-pinned, journaled, and referenceable from typed fields. CLI and SDK writes require trusted authority; MCP verification exposes health and manifest metadata without artifact bodies.
+- **First-party connector substrate** — compiled-in connectors stage typed review candidates through a hardened network boundary with host allowlists, DNS/IP confinement, redirect and decompression limits, content fencing, host-computed provenance, idempotency, rate limits, and review-time body-hash pinning. The AutoSci template ships with the Crossref DOI connector.
+- **Profile-aware OKF exchange** — OKF export carries profile and relation data, while import routes typed pages and relations through the profile-aware planner instead of bypassing field, lifecycle, trust, or artifact gates.
+- **Profile templates** — `llmwiki template list|inspect|init` installs validated declarative packages without adding template resolution to the profile loader. `autosci` and `newsroom` ship as built-in examples; local template files use the same fail-closed validator. Template locks are advisory provenance only and never grant authority.
+- **AutoSci and Newsroom packs** — AutoSci provides a practical research workflow with 12 entity types, 12 relations, five workflows, seven artifact types, and Crossref import. Newsroom provides a deliberately dissimilar editorial workflow that demonstrates the same substrate outside research.
+- **Richer eval diagnostics** — eval reports now include a per-page health distribution for locating the weakest pages and graph-health metrics for connectivity, isolation, and relation structure.
+- **Batch embeddings** — page and chunk embeddings use provider-native batches with bounded sub-batches, integrity checks, transient retry and sequential fallback behavior, provider-specific document/query intent, and optional strict failure handling through `LLMWIKI_EMBED_STRICT`. `LLMWIKI_EMBED_BATCH_SIZE` controls batch size within provider caps.
+- **Parallel compilation** — concept extraction and page generation share a configurable concurrency cap. Use `--concurrency <n>` or `LLMWIKI_COMPILE_CONCURRENCY`; the CLI, refresh/watch/quickstart paths, and SDK compile options use the same bounded setting.
+- **Verbose command diagnostics** — `--verbose` and `LLMWIKI_VERBOSE` expose per-step detail for compile, refresh, ingest, query, context, quickstart, import, and export while preserving JSON stdout purity and quiet-mode precedence.
+- **Crash-visible compile recovery** — generated page mutations are journaled and applied as bounded batches. Incomplete compiles surface across status, lint, viewer, export, context, and SDK reads, and `llmwiki recover` can restore the recorded pre-state without rerunning compilation.
+- **`llmwiki state reset`** — a recovery command for a `.llmwiki/state.json` written by a newer llmwiki version. It backs the file up to `state.json.bak` and removes it so the next compile starts fresh. It refuses by default and prints what it will do; pass `--yes` to apply. The reset works even on an unreadable too-new or corrupt state file.
+- **Typed-page semantic search** — typed entity pages (e.g. `papers/my-paper`) are now embedded under their qualified `<entityType>/<slug>` id and participate in `query`, MCP/SDK search, and agent context packs alongside concepts and queries. A concept `foo` and an entity page `papers/foo` no longer share an embedding key and can no longer collide.
+- **`retrieval.includeInSearch` / `retrieval.includeInContext` enforcement** — an entity type that opts out of both flags is never sent to the embedding provider and never appears in semantic search results. This acts as a per-type privacy and cost control: pages whose type declares `retrieval.includeInSearch: false` are excluded from the embedding index, and pages whose type declares `retrieval.includeInContext: false` are excluded from agent context packs entirely.
+
+### Changed
+
+- Compile now confines the wiki files it reads back into LLM prompts and page bodies. Wiki content must resolve UNDER the project root: a wiki file (`wiki/index.md`, `wiki/concepts/<slug>.md`, `wiki/queries/<slug>.md`) that is a symlink whose target escapes the project root is unsupported. It is dropped — never read, never sent to an LLM provider, never re-emitted into a written page — its escaping path is named in a prominent warning, and the read proceeds as if the file were absent (extraction uses an empty index; seed/resolution/index generation/MOC skip the page). An escaping-symlink wiki file is never silently followed; remove or retarget the symlink so its content lives under the project root to compile that file.
+- llmwiki now fails closed when `.llmwiki/state.json` was written by a newer llmwiki version: instead of risking a misread or overwrite of a forward-incompatible layout, commands report a clear error. Use `llmwiki state reset --yes` to back up and reset the file, or upgrade llmwiki to read the project as-is.
+- The embedding index format advances from v2 to v3, adding the qualified-key layout required for typed-page embeddings. The upgrade runs automatically on the next `compile` (or any embedding-writing command). Until the upgrade runs, semantic search reports an "embedding index outdated — run compile" notice while lexical search continues to work unchanged.
+- Failed or interrupted embedding refreshes now persist a bounded per-page retry list that drains on subsequent compile, review-approval, and OKF-refresh paths. Pending or unreadable refresh state is surfaced by status and lint instead of being silently dropped.
+- Eval health scoring now uses the canonical lint rule set. Stale pages therefore reduce `health.score` when freshness data is available; projects that gate on `health_score` may observe a lower score until stale pages are refreshed.
+- Production discovery now lists only connectors explicitly marked as template-installable; the internal offline fixture connector remains available to substrate tests but is not presented as a user-facing integration.
+- Parser, sanitizer, MCP, viewer, and test-tool dependencies were updated to patched releases; the release dependency audit reports zero known vulnerabilities.
+
 ### Fixed
 
-- **Ollama structured tool calls** — `OllamaProvider.toolCall` now uses Ollama's native `POST /api/chat` with JSON-schema `format` (base URL derived from `OLLAMA_HOST`, preserving reverse-proxy path prefixes) instead of the OpenAI-compatible `tool_calls` path, which could return double-encoded `concepts` arrays and silently produce zero wiki pages. Affects all structured tool calls (concept extraction, rule extraction, query page selection, eval judge). Invalid `OLLAMA_HOST` values and empty `/api/chat` responses now throw instead of silently falling back or returning empty output. `parseConcepts` also coerces string-encoded `concepts` arrays as a defensive fallback. Embeddings continue to use `OLLAMA_HOST` / `OLLAMA_EMBEDDINGS_HOST` via the OpenAI-compatible `/v1` client.
+- **Ollama structured tool calls** — Ollama now uses its native `POST /api/chat` JSON-schema format for concept extraction and other structured calls instead of the OpenAI-compatible tool-call path that could double-encode arrays and silently produce no pages. Reverse-proxy path prefixes, timeout handling, invalid hosts, HTTP failures, and empty responses are handled explicitly; defensive concept parsing also accepts string-encoded arrays.
+- **Bare-number citations** — compile repairs unambiguous in-range markers such as `^[81]` to include their source filename and drops ambiguous or hallucinated bare line numbers before writing a page, preventing broken `Source not found: 81` callouts.
+
+### Security
+
+- Profile loading, connector ingestion, artifact storage, workflow outputs, typed OKF import, event journals, and template installation fail closed on malformed, unreadable, escaping, or unverifiable state.
+- Connector-fetched and non-built-in template content is treated as untrusted data. Connector output is staged, fenced on agent-facing surfaces, and cannot become live without review and a hash pinned to the exact reviewed body.
+- The default profile remains the implicit no-file behavior. Templates are install-time materialization only; advisory template metadata cannot skip profile validation or elevate write authority.
+- npm releases use GitHub OIDC Trusted Publishing, check out an explicit public commit, verify version and documentation consistency, refuse existing versions, run build/test/package gates, and confirm the published package's `gitHead` without a long-lived npm token.
+
+### Contributors
+
+Thanks to **@dohu012** for contributing the per-page health distribution and graph-health additions to the eval harness in PRs #96 and #140, and to **@JulianKominovic** for the Ollama native structured-tool-call fix in PR #145.
 
 ## [0.11.0] - 2026-06-16
 
@@ -326,6 +371,7 @@ Initial release.
 - Atomic writes, lock-protected compilation, orphan marking for deleted sources.
 - `[[wikilink]]` resolution and auto-generated `wiki/index.md`.
 
+[1.0.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v0.11.0...v1.0.0
 [0.2.0]: https://github.com/atomicmemory/llm-wiki-compiler/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/atomicmemory/llm-wiki-compiler/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/atomicmemory/llm-wiki-compiler/releases/tag/v0.1.0

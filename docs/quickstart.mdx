@@ -104,6 +104,37 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
 
 </Steps>
 
+## Start with a domain template
+
+The default quickstart creates the classic concepts-and-queries wiki. For a typed domain project, install a template before adding content:
+
+<Tabs>
+  <Tab title="AutoSci research">
+    ```bash
+    mkdir research-wiki && cd research-wiki
+    llmwiki template inspect autosci
+    llmwiki template init autosci
+    llmwiki profile validate
+    llmwiki workflow list
+    ```
+
+    AutoSci declares papers, sources, ideas, experiments, manuscripts, methods, people, reviews, research outputs, typed relations, five workflows, seven artifact types, and the Crossref DOI connector. Continue with the [AutoSci practical guide](/guides/autosci-research-workflow).
+  </Tab>
+  <Tab title="Newsroom editorial">
+    ```bash
+    mkdir newsroom-wiki && cd newsroom-wiki
+    llmwiki template inspect newsroom
+    llmwiki template init newsroom
+    llmwiki profile validate
+    llmwiki workflow list
+    ```
+
+    Newsroom declares articles, desks, bylines, editorial relationships, and a story pipeline. It intentionally uses the same generic lifecycle substrate for a domain unrelated to research. Continue with the [Newsroom practical guide](/guides/newsroom-editorial-workflow).
+  </Tab>
+</Tabs>
+
+Template installation is intended for a new or empty typed project. The selected profile is materialized at `.llmwiki/profile.json`; the advisory template lock records install provenance but never changes validation or write authority.
+
 <Tip>
   Not sure what to do next after setup? Run `llmwiki next` from your project directory. It inspects the current project state and recommends the single most useful follow-up command - whether that's adding more sources, recompiling after a file change, running `llmwiki lint`, or reviewing pending candidates.
 </Tip>
@@ -113,6 +144,9 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
 <CardGroup cols={2}>
   <Card title="Core Concepts" icon="book-open" href="/concepts/how-it-works">
     Understand how llmwiki's two-phase compile pipeline, hybrid retrieval, and citation model work together.
+  </Card>
+  <Card title="Configurable Lifecycle Profiles" icon="diagram-project" href="/concepts/configurable-lifecycle-profiles">
+    Learn how profiles define typed domain behavior while core remains generic.
   </Card>
   <Card title="CLI Reference" icon="terminal" href="/cli/ingest">
     Full documentation for every `llmwiki` command, flag, and option.

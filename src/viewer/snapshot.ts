@@ -22,12 +22,18 @@ import { readdir, readFile, realpath } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { countCandidates } from "../compiler/candidates.js";
-import { readStateClassified } from "../utils/state.js";
+import { readStateClassified, isPlainObject } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
+import type { EntityPageNode, GraphBuildOptions, RelationEdge } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
+import { collectProfileSummary, loadNonDefaultProfile } from "../profile/block.js";
+import { journalHealthWarning } from "../trust/journal-health-warning.js";
+import { collectEntityPages, invalidEntityPagePaths } from "../profile/collect.js";
+import { readLiveValidRelations } from "../relations/live-valid.js";
+import type { ProfilePack } from "../profile/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type {
   ViewerCounts,
@@ -73,8 +79,17 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   const annotatedPages = pages
     .map((page) => annotateCitationWarnings(page, sourceFileSet))
     .map((page) => attachFreshness(page, freshnessSnapshot));
-  const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, classified.state);
-  const graph = buildGraphData(annotatedPages);
+  // A too-new/corrupt state carries the RAW parsed object, which need not be
+  // v1-shaped (its `sources` may be absent). Feed buildCounts an empty map for
+  // any non-ok state so `compiledSources` fails closed instead of crashing.
+  const countableState = classified.status === "ok" ? classified.state : { sources: {} };
+  const counts = buildCounts(annotatedPages, sourceFilenames, pendingReviews, countableState);
+  const graph = buildGraphData(annotatedPages, await collectTypedGraphInputs(root));
+  const profile = await collectProfileSummary(root);
+  // Surface a pending/unavailable compile journal so the viewer never renders
+  // partial post-crash or tampered state as silently healthy. ABSENT when the
+  // journal is ok, so the default snapshot is byte-identical (parity-safe).
+  const journalWarning = await journalHealthWarning(root);
   return {
     root,
     generatedAt: new Date().toISOString(),
@@ -86,7 +101,72 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     pages: annotatedPages,
     sourceFilenames,
     graph,
+    ...(journalWarning ? { warnings: [journalWarning] } : {}),
+    ...(profile ? { profile } : {}),
   };
+}
+
+/**
+ * Collect the ADDITIVE typed-graph inputs (entity-page nodes + relation edges)
+ * for a NON-DEFAULT profile, so {@link buildGraphData} surfaces typed pages and
+ * relations in the snapshot graph (which also feeds agent context expansion).
+ *
+ * Returns `undefined` for the built-in DEFAULT profile, so the default path
+ * passes no opts and the snapshot graph stays byte-identical. Fail-closed and
+ * path-safe like the `status`/profile-summary surfaces: a corrupt / too-new /
+ * symlinked relation store (or any read error) drops the relation edges rather
+ * than crashing the snapshot — those problems are already surfaced through the
+ * `profile` summary block. The entity collector never throws on page data, so a
+ * bad page is simply skipped.
+ *
+ * Profile-INVALID typed pages are EXCLUDED as graph NODES (mirroring T5a's
+ * context-pool exclusion, via the SHARED {@link invalidEntityPagePaths}): an
+ * invalid page that is a relation endpoint is NOT promoted to a real node, so it
+ * becomes a relation-ghost → a `dangling-relation` gap, consistent with the
+ * context pool rather than appearing as a clean `reason:"relation"` neighbor.
+ */
+async function collectTypedGraphInputs(root: string): Promise<GraphBuildOptions | undefined> {
+  const loaded = await loadNonDefaultProfile(root);
+  if (loaded === undefined) return undefined;
+  const { pages, problems } = await collectEntityPages(root, loaded.profile);
+  const invalid = invalidEntityPagePaths(problems);
+  const entityPages: EntityPageNode[] = pages
+    .filter((page) => !invalid.has(page.filePath))
+    .map((page) => ({
+      id: page.id,
+      entityType: page.entityType,
+      slug: page.slug,
+      directory: page.directory,
+      ...(page.title !== undefined ? { title: page.title } : {}),
+    }));
+  const relations = await readTypedRelations(root, loaded.profile);
+  return { entityPages, relations };
+}
+
+/**
+ * Read the live relations as graph edges, fail-closed AND profile-filtered: a
+ * corrupt / too-new / symlinked-leaf store (or any read error) yields an empty
+ * edge list rather than crashing the snapshot. The live + profile-valid filtering
+ * runs through the SHARED {@link readLiveValidRelations} (FIX F4), so a relation
+ * whose type/endpoints/attributes the profile has outgrown is EXCLUDED from the
+ * graph and the graph agrees with status/export/lint (which exclude the same
+ * profile-invalid relations) instead of reanimating stale edges.
+ */
+async function readTypedRelations(root: string, profile: ProfilePack): Promise<RelationEdge[]> {
+  try {
+    const valid = await readLiveValidRelations(root, profile);
+    return valid.map((rel) => {
+      const def = profile.relations?.[rel.type];
+      return {
+        type: rel.type,
+        from: rel.from,
+        to: rel.to,
+        ...(def?.direction !== undefined ? { direction: def.direction } : {}),
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -117,6 +197,9 @@ function annotateCitationWarnings(page: ViewerPage, sourceFiles: ReadonlySet<str
  * Derive the frozen counts from the annotated page list, source filenames,
  * candidates count, and state. Concept/query counts are derived from pages
  * (the already-confined collector list) so symlinked drops don't inflate them.
+ *
+ * Belt-and-suspenders: a non-plain-object `state.sources` (e.g. a too-new state
+ * with no v1-shaped map) is coerced to `{}` so `compiledSources` cannot crash.
  */
 function buildCounts(
   pages: ViewerPage[],
@@ -124,12 +207,13 @@ function buildCounts(
   pendingReviews: number,
   state: { sources: Record<string, unknown> },
 ): ViewerCounts {
+  const sources = isPlainObject(state.sources) ? state.sources : {};
   return {
     concepts: pages.filter((p) => p.pageDirectory === "concepts").length,
     queries: pages.filter((p) => p.pageDirectory === "queries").length,
     sourceFiles: sourceFilenames.length,
     pendingReviews,
-    compiledSources: Object.keys(state.sources).length,
+    compiledSources: Object.keys(sources).length,
     stale: pages.filter((p) => p.freshness.freshnessStatus === "stale").length,
     orphaned: pages.filter((p) => p.freshness.freshnessStatus === "orphaned").length,
   };

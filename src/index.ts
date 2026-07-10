@@ -18,9 +18,15 @@ export type {
   PageDirectory,
   ListPagesOptions,
   ListPagesResult,
+  ListPagesProfileBlock,
 } from "./pages/list.js";
 
-export type { JsonExportDocument } from "./export/json-export.js";
+export type {
+  JsonExportDocument,
+  ExportJsonOptions,
+  JsonExportProfileBlock,
+  RelationView,
+} from "./export/json-export.js";
 
 export {
   ProviderUnavailableError,
@@ -47,3 +53,70 @@ export type { WriteStatus } from "./utils/types.js";
 export type { OkfExportReport } from "./export/okf/run.js";
 export type { OkfImportReport, OkfImportSkip, OkfImportedPage } from "./import/run.js";
 export { LockUnavailableError, QueueFullError } from "./import/run-errors.js";
+
+// @experimental — artifact write/verify. `createWiki()` exposes `writeArtifact`/
+// `verifyArtifact`; `SdkWriteArtifactInput` is the input `writeArtifact` takes,
+// `ArtifactRef`/`ArtifactHealth` are the ref/health types both methods return,
+// and `ArtifactVerifyUnavailableError` is the typed, catchable refusal
+// `verifyArtifact` throws when no active profile declares artifact types.
+export type { SdkWriteArtifactInput } from "./sdk/types.js";
+export type { ArtifactRef } from "./artifacts/ref.js";
+export type { ArtifactHealth } from "./artifacts/resolve.js";
+export { ArtifactVerifyUnavailableError } from "./artifacts/resolve.js";
+
+// @experimental — programmatic non-default entity-page staging loop. The
+// `createWiki()` facade exposes `stageEntityPage`/`promoteStagedPage`; these are
+// the input/return types consumers need. The lower-level `stageEntityPage(root,…)`
+// and `promoteCandidateUnderLock` forms stay internal. API may change.
+//
+// Read-integration status: typed entity pages are surfaced in `status`, the JSON
+// export, the wiki INDEX, the viewer graph, agent context packs (lexical ranking
+// + relation-edge expansion), and semantic search (under their qualified EntityId).
+export type { SdkStageEntityPageInput } from "./trust/staging.js";
+export { StagingRequiresProfileError } from "./trust/staging.js";
+// The staged-change RELATION/ARTIFACT targets are Phase-4 STUB shapes named
+// `Staged…` so the canonical relation `RelationRef` (from `relations/types.ts`,
+// below) owns the unprefixed name.
+export type {
+  StagedChange,
+  CandidateKind,
+  HeldReasonCode,
+  WorkflowRunRef,
+  StagedRelationRef,
+  StagedArtifactRef,
+} from "./trust/staged-change.js";
+
+// @experimental — trust-gated relation writes + lifecycle transitions
+// (planner-routed, shared SDK/CLI). `createWiki().createRelation` /
+// `.transitionLifecycle` expose these; these are the input/return + typed-error
+// types consumers need.
+export type { AppendRelationInput } from "./relations/store.js";
+export type { RelationRef, RelationId, CitationRef } from "./relations/types.js";
+export { RelationEndpointError } from "./relations/types.js";
+export { RelationWriteDeniedError, RelationsRequireProfileError } from "./trust/relation-write.js";
+export type { SdkTransitionLifecycleInput } from "./sdk/types.js";
+export { LifecycleTransitionUnavailableError } from "./trust/lifecycle-transition.js";
+export { LifecycleTransitionError } from "./profile/lifecycle.js";
+// Planner sub-types named by `StagedChange.target` / `.planned` so the staged
+// surface is fully nameable by consumers (the typed `EntityRef` target especially).
+export type {
+  EntityRef,
+  RawPageRef,
+  MutationTarget,
+  MutationOperation,
+  MutationKind,
+  PlannedMutation,
+  MutationProvenance,
+} from "./trust/planner.js";
+export type { TrustDecision } from "./trust/decision.js";
+
+// Profile pack TYPES only — the loader stays internal (no `loadProfile` export).
+export type {
+  ProfilePack,
+  EntityId,
+  EntityPageRef,
+  EntityPageView,
+  EntityProblemView,
+  LoadedProfile,
+  SlugSafe,
+} from "./profile/types.js";

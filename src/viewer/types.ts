@@ -15,6 +15,9 @@
 import type { ClaimCitation } from "../utils/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { PageFreshness } from "../freshness/types.js";
+import type { ProfileSummaryBlock } from "../profile/block.js";
+import type { EntityId } from "../profile/types.js";
+import type { StateStatus } from "../utils/state.js";
 
 /**
  * Canonical page identifier: `concepts/<slug>` or `queries/<slug>`. Bare
@@ -22,6 +25,17 @@ import type { PageFreshness } from "../freshness/types.js";
  * the namespaced form.
  */
 export type PageId = `${PageDirectory}/${string}`;
+
+/**
+ * The identifier space of a graph node. A wikilink/ghost node is keyed by a
+ * {@link PageId}; a typed entity node (CLP 4b) is keyed by its branded
+ * {@link EntityId} (`<entityType>/<slug>`). Both are string subtypes, so a
+ * `PageId`-keyed set/map (e.g. the context expander's `primaryIds`) still
+ * accepts and compares them. The union is widened ONLY for the new typed
+ * surfaces — wikilink nodes/edges keep their concrete `PageId` everywhere a
+ * default project serializes them, so the default graph is byte-identical.
+ */
+export type GraphNodeId = PageId | EntityId;
 
 /**
  * A single diagnostic surfaced on a page. Codes are stable so the client
@@ -126,8 +140,9 @@ export interface ViewerRecentPage {
  * placeholders are both represented here; check `isDangling` to distinguish.
  */
 export interface GraphNode {
-  /** Namespaced canonical ID matching `ViewerPage.id`, or the raw link target for ghosts. */
-  id: PageId;
+  /** Namespaced canonical ID matching `ViewerPage.id`, the raw link target for
+   *  ghosts, or the branded `EntityId` for a typed entity node (CLP 4b). */
+  id: GraphNodeId;
   title: string;
   slug: string;
   /** Directory prefix from the PageId string. Widened to `string` so ghost nodes
@@ -139,12 +154,40 @@ export interface GraphNode {
   degree: number;
   /** True when the node has no backing page — it represents a broken wikilink target. */
   isDangling?: boolean;
+  /**
+   * Discriminator for typed entity nodes (CLP 4b). ABSENT on wikilink and ghost
+   * nodes, so the default graph serialization is byte-identical; present only
+   * on a typed entity node, where it is the literal `"entity"`.
+   */
+  nodeKind?: "entity";
+  /**
+   * The profile entity type a typed node belongs to (CLP 4b), e.g. `"person"`.
+   * ABSENT on wikilink/ghost nodes. Lets the viewer/context group/tag typed
+   * nodes by their declared entity type.
+   */
+  entityType?: string;
 }
 
-/** A directed edge between two wiki pages. */
+/** A directed edge between two wiki pages, or a typed relation edge (CLP 4b). */
 export interface GraphEdge {
-  source: PageId;
-  target: PageId;
+  source: GraphNodeId;
+  target: GraphNodeId;
+  /**
+   * Discriminator for typed relation edges (CLP 4b). ABSENT on wikilink edges,
+   * so the default graph serialization is byte-identical; present only on a
+   * relation edge, where it is the literal `"relation"`.
+   */
+  edgeKind?: "relation";
+  /** The profile relation type a typed edge represents (CLP 4b). ABSENT on wikilink edges. */
+  relationType?: string;
+  /**
+   * Directionality of the relation type (CLP 4b). `"symmetric"` means the edge
+   * has no inherent direction (the client renders it without an arrowhead).
+   * `"directed"` keeps the arrowhead. ABSENT on wikilink edges and absent when
+   * the relation's direction is unavailable, so the default graph stays
+   * byte-identical and the client treats absent-direction as directed.
+   */
+  direction?: "directed" | "symmetric";
 }
 
 /** Adjacency data for the graph view. Built once at snapshot time. */
@@ -164,8 +207,8 @@ export interface ViewerSnapshot {
   root: string;
   /** ISO-8601 timestamp the snapshot was built at. */
   generatedAt: string;
-  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt-state banner. */
-  stateStatus: "ok" | "missing" | "corrupt";
+  /** Classification of state.json at snapshot build time. Exposed on /api/health for the corrupt/too-new-state banner. */
+  stateStatus: StateStatus;
   /** Project metadata for the dashboard header. */
   project: ViewerProject;
   /** Frozen counts for `/api/pages` and `/api/health`. */
@@ -185,4 +228,22 @@ export interface ViewerSnapshot {
   sourceFilenames: string[];
   /** Adjacency data for the `#/graph` route. Built once at snapshot time. */
   graph: GraphData;
+  /**
+   * Project-level read-surface health warnings, distinct from the per-page
+   * `ViewerPage.warnings`. ABSENT (key omitted) for a healthy project so the
+   * default snapshot is byte-identical (parity-safe); present ONLY when the
+   * compile journal is `pending` (`incomplete-compile`) or `unavailable`
+   * (`journal-unavailable`), so the viewer never renders partial post-crash or
+   * tampered state as silently healthy.
+   */
+  warnings?: ViewerWarning[];
+  /**
+   * Active non-default profile summary (profileId, digest, per-type entity
+   * counts, problems), MIRRORING the `status` profile block. ABSENT (undefined)
+   * for the built-in default so the default snapshot is byte-identical. This is
+   * a counts/problems block only — no entity-page rendering, routes, or
+   * navigation. The legacy `counts.concepts`/`counts.queries` stay scoped to the
+   * literal wiki/concepts + wiki/queries dirs in both cases.
+   */
+  profile?: ProfileSummaryBlock;
 }

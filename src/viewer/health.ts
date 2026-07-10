@@ -11,6 +11,7 @@
 import { readLintCache } from "../linter/cache.js";
 import type { LintCacheEntry } from "../linter/cache.js";
 import type { ViewerSnapshot } from "./types.js";
+import type { StateStatus } from "../utils/state.js";
 
 /**
  * Cheap health summary surfacing the same count fields MCP `wiki_status`
@@ -26,8 +27,8 @@ interface ViewerHealthResponse {
   queries: number;
   stale: number;
   orphaned: number;
-  /** Classification of state.json at snapshot build time. "corrupt" triggers the client-side banner. */
-  stateStatus: "ok" | "missing" | "corrupt";
+  /** Classification of state.json at snapshot build time. "corrupt"/"too-new" trigger the client-side banner. */
+  stateStatus: StateStatus;
   lint: LintCacheEntry | null;
 }
 

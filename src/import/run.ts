@@ -6,19 +6,38 @@ import { isWritable } from "../commands/import-core.js"; // leaf created in Task
 import { writeCandidate, listCandidates } from "../compiler/candidates.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { qualifiedPageId, type PageId } from "../utils/page-id.js";
 import { refreshAfterImport } from "./okf-refresh.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { withQuiet } from "../utils/output.js";
 import { LockUnavailableError, QueueFullError } from "./run-errors.js";
-import type { MappedOkfPage } from "./types.js";
+import { buildBundleSections, type BundleReportSections, type ParsedBundleBlock } from "./bundle-block-read.js";
+import { applyTypedDocs, previewTypedOutcomes } from "./profile-import.js";
+import { applyBundleRelations, inertRelationOutcomes, type RelationImportOutcome } from "./relation-import.js";
+import type { ImportedOkfBundle } from "./okf-import.js";
+import type { MappedOkfPage, TypedImportOutcome } from "./types.js";
 
 export interface OkfImportSkip { slug: string; okfPath: string; reason: "live-page" | "pending-candidate" | "duplicate-in-bundle" | "invalid-page"; }
 export interface OkfImportedPage { slug: string; okfPath: string; targetDirectory: "concepts" | "queries"; }
-export interface OkfImportReport {
+export interface OkfImportReport extends BundleReportSections {
   mode: "staged" | "written" | "dry-run";
   pages: OkfImportedPage[];
   skipped: OkfImportSkip[];
   warnings: string[];
+  /**
+   * Per-doc outcomes of the TYPED profile-entity leg (CLP 7.6): typed staging /
+   * planner promotion / mismatch-fallback / collision skip. OMITTED (key absent)
+   * when the bundle contributes no typed docs, so a default-profile import's
+   * report stays byte-identical (D-7.6.10 parity).
+   */
+  typed?: TypedImportOutcome[];
+  /**
+   * Per-entry outcomes of the bundle-RELATION leg (CLP 7.6, D-7.6.6): trusted
+   * apply through the validated store (`imported`/`deduplicated`/`skipped-invalid`),
+   * or an inert `skipped-untrusted`/`skipped-no-profile`/`skipped-dry-run`. OMITTED
+   * when the bundle carries no relations, so default-profile parity holds.
+   */
+  relationOutcomes?: RelationImportOutcome[];
   nextAction?: string;
 }
 export interface OkfImportOptions { trusted?: boolean; dryRun?: boolean; maxNewCandidates?: number; }
@@ -47,44 +66,106 @@ async function stageAll(root: string, valid: MappedOkfPage[]): Promise<void> {
 }
 
 async function writeAll(root: string, valid: MappedOkfPage[]): Promise<void> {
-  const written: string[] = [];
+  // The namespace IS the targetDirectory basename ("concepts" / "queries"), so a
+  // concept `foo` and a query `foo` imported together invalidate independently.
+  const written: PageId[] = [];
   try {
     for (const page of valid) {
       const dir = page.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
       await atomicWrite(path.join(root, dir, `${page.slug}.md`), page.body);
-      written.push(page.slug);
+      written.push(qualifiedPageId(page.targetDirectory, page.slug));
     }
   } finally {
     if (written.length) await refreshAfterImport(root, written);
   }
 }
 
+/** Build the inert bundle-block report sections from a parsed block (none → {}). */
+async function bundleSectionsFor(root: string, block: ParsedBundleBlock | undefined): Promise<BundleReportSections> {
+  return block ? buildBundleSections(root, block) : {};
+}
+
+/** Wrap typed-leg outcomes into the report's optional `typed` key, OMITTING it when empty (default parity). */
+function typedSection(outcomes: TypedImportOutcome[]): { typed?: TypedImportOutcome[] } {
+  return outcomes.length > 0 ? { typed: outcomes } : {};
+}
+
+/**
+ * Build the report's optional `relationOutcomes` (CLP 7.6 Task 5). OMITTED (parity)
+ * when the bundle carries no relations. A default project (no active profile) reports
+ * `skipped-no-profile`; a dry-run reports `skipped-dry-run` (no writes, no simulated
+ * validation); otherwise relations apply through the validated store under the held
+ * lock (untrusted → `skipped-untrusted`, D-7.6.6). No-profile precedes dry-run: a
+ * default project can never apply relations, so it is the honest permanent status.
+ */
+async function relationSection(
+  root: string, imported: ImportedOkfBundle, opts: OkfImportOptions,
+): Promise<{ relationOutcomes?: RelationImportOutcome[] }> {
+  const entries = imported.bundleBlock?.relations ?? [];
+  if (entries.length === 0) return {};
+  if (imported.profile === undefined) return { relationOutcomes: inertRelationOutcomes(entries, "skipped-no-profile") };
+  if (opts.dryRun) return { relationOutcomes: inertRelationOutcomes(entries, "skipped-dry-run") };
+  return { relationOutcomes: await applyBundleRelations(root, imported.profile.profile, entries, opts.trusted ?? false) };
+}
+
+/**
+ * Re-run the post-import refresh over PROMOTED typed pages (CLP 7.6): the earlier
+ * {@link writeAll} refresh covers only the untyped concepts/queries leg, which runs
+ * BEFORE the typed promotion, so a freshly-promoted `wiki/<entityType>/<slug>.md`
+ * would otherwise miss the index/MOC/link/embedding refresh. Idempotent (index/MOC
+ * regenerate wholesale); a no-op when nothing promoted (untrusted / default-profile).
+ */
+async function refreshPromotedTyped(root: string, applied: TypedImportOutcome[]): Promise<void> {
+  const promoted = applied.filter((o) => o.outcome === "promoted-typed" && o.entityType !== undefined);
+  if (promoted.length === 0) return;
+  await refreshAfterImport(root, promoted.map((o) => qualifiedPageId(o.entityType!, o.slug)));
+}
+
+/** Assert the untrusted candidate-queue cap counts native + typed candidates together (CLP 7.6). */
+async function assertQueueCapacity(root: string, imported: ImportedOkfBundle, validCount: number, opts: OkfImportOptions): Promise<void> {
+  if (opts.maxNewCandidates === undefined || opts.trusted) return;
+  const pending = (await listCandidates(root)).length;
+  if (pending + validCount + imported.typed.length > opts.maxNewCandidates) throw new QueueFullError();
+}
+
 /** Read→map→collision→validate→stage/write/preview an OKF bundle; output-free; returns a report. */
 export async function runOkfImport(root: string, dir: string, opts: OkfImportOptions = {}): Promise<OkfImportReport> {
   const warnings: string[] = [];
+  const onWarn = (m: string): number => warnings.push(m);
   if (opts.dryRun) {
-    const { pages, skipped } = await importOkfBundle(dir, root, {}, (m) => warnings.push(m));
-    const { valid, skipped: allSkipped } = partition(pages, skipped as OkfImportSkip[]);
-    return { mode: "dry-run", pages: valid.map(toImported), skipped: allSkipped, warnings, nextAction: "Re-run without dryRun to apply." };
+    const imported = await importOkfBundle(dir, root, {}, onWarn);
+    const { valid, skipped: allSkipped } = partition(imported.pages, imported.skipped as OkfImportSkip[]);
+    const bundle = await bundleSectionsFor(root, imported.bundleBlock);
+    const typed = [...imported.typedSkipped, ...previewTypedOutcomes(imported.typed)];
+    const relations = await relationSection(root, imported, opts);
+    return { mode: "dry-run", pages: valid.map(toImported), skipped: allSkipped, warnings, ...bundle, ...typedSection(typed), ...relations, nextAction: "Re-run without dryRun to apply." };
   }
   // withQuiet: acquireLock prints "Another compilation is running." on contention;
   // the typed LockUnavailableError is the signal, so the core stays output-free.
   const locked = await withQuiet(() => acquireLock(root));
   if (!locked) throw new LockUnavailableError();
   try {
-    const { pages, skipped } = await importOkfBundle(dir, root, {}, (m) => warnings.push(m));
-    const { valid, skipped: allSkipped } = partition(pages, skipped as OkfImportSkip[]);
-    if (opts.maxNewCandidates !== undefined && !opts.trusted) {
-      const pending = (await listCandidates(root)).length;
-      if (pending + valid.length > opts.maxNewCandidates) throw new QueueFullError();
-    }
+    const imported = await importOkfBundle(dir, root, {}, onWarn);
+    const { valid, skipped: allSkipped } = partition(imported.pages, imported.skipped as OkfImportSkip[]);
+    await assertQueueCapacity(root, imported, valid.length, opts);
     if (opts.trusted) await writeAll(root, valid);
     else await stageAll(root, valid);
+    // The import lock is held, so promote typed candidates via the LOCK-FREE core
+    // (applyTypedDocs); a self-locking promotion would deadlock here.
+    const typedApplied = imported.profile
+      ? await applyTypedDocs(root, imported.typed, imported.profile.profile, opts.trusted ?? false)
+      : [];
+    await refreshPromotedTyped(root, typedApplied);
+    const bundle = await bundleSectionsFor(root, imported.bundleBlock);
+    const relations = await relationSection(root, imported, opts);
     return {
       mode: opts.trusted ? "written" : "staged",
       pages: valid.map(toImported),
       skipped: allSkipped,
       warnings,
+      ...bundle,
+      ...typedSection([...imported.typedSkipped, ...typedApplied]),
+      ...relations,
       nextAction: opts.trusted ? `${valid.length} page(s) written live.` : "Review and approve before it goes live: llmwiki review list.",
     };
   } finally {

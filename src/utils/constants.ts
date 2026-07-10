@@ -6,6 +6,24 @@
 /** Maximum source file size in characters before truncation. */
 export const MAX_SOURCE_CHARS = 100_000;
 
+/**
+ * Absolute body-size guardrail for COMPILE-GENERATED page writes (`origin:"compile"`).
+ *
+ * The mandatory trust floor's resource-limit caps a page body at
+ * {@link MAX_SOURCE_CHARS} — a bound sized for a SINGLE ingest source. But compile
+ * concept pages are MERGED across many sources, so the most-referenced (and thus
+ * most important) concepts accumulate the most content. Holding them to the
+ * single-source cap would SILENTLY DROP exactly the pages that matter most once a
+ * legitimate merged page crosses 100k chars.
+ *
+ * This is a distinct, larger absolute guardrail — 5× {@link MAX_SOURCE_CHARS} —
+ * because merged concept pages aggregate multiple sources, while still keeping a
+ * real ceiling so a runaway/adversarial body is SKIPPED (H2) with a prominent
+ * warning rather than written unbounded. It applies ONLY to compile-origin writes;
+ * every other origin (staging/promote/review-approve) keeps {@link MAX_SOURCE_CHARS}.
+ */
+export const GENERATED_PAGE_MAX_CHARS = 5 * MAX_SOURCE_CHARS;
+
 /** Minimum source content length to ingest without a warning. */
 export const MIN_SOURCE_CHARS = 50;
 
@@ -85,11 +103,298 @@ export const EXPORT_DIR = "dist/exports";
 export const SOURCES_DIR = "sources";
 export const CONCEPTS_DIR = "wiki/concepts";
 export const QUERIES_DIR = "wiki/queries";
+
+/**
+ * The reserved subtree workflow-run markdown PROJECTIONS must live under. A
+ * `projectionFile` is confined here at profile LOAD so it can never target an
+ * authored entity page; no entity `directory` may overlap this subtree either.
+ */
+export const WORKFLOW_PROJECTION_DIR = "wiki/outputs/workflows";
 export const LLMWIKI_DIR = ".llmwiki";
+export const PROFILE_FILE = ".llmwiki/profile.json";
 export const STATE_FILE = ".llmwiki/state.json";
 export const LOCK_FILE = ".llmwiki/lock";
+
+/**
+ * Resource cap on the lock leaf (`.llmwiki/lock`). The leaf holds ONLY a decimal
+ * `process.pid` (a handful of bytes), so 64 bytes is far above any legitimate
+ * content yet bounds the read. `.llmwiki` is local/sync-controllable, so a planted
+ * symlinked or oversized leaf would otherwise let {@link isLockStale}'s read slurp
+ * an unbounded symlink target into memory before parsing — a PID-parse oracle + a
+ * local DoS. The hardened reader caps the read at this bound and treats an oversized
+ * (or non-regular / symlinked) leaf as unreadable → stale.
+ *
+ * 256 bytes accommodates the small JSON owner record `{pid, startTime}` (the
+ * PID-reuse-safe liveness identity) — a process start-time string plus a PID —
+ * while still being far below any abusive size. A legacy bare-PID leaf is far smaller.
+ */
+export const MAX_LOCK_FILE_BYTES = 256;
+
+/**
+ * Resource cap on a single mutation target read into the intent journal's
+ * pre-state. {@link recordPreState} copies a target's prior bytes into the
+ * on-disk journal so a crash can revert it, and {@link persist} RE-serializes the
+ * whole accumulated batch on EVERY subsequent `recordPreState` call. So a huge
+ * in-root planted target is O(N²)-amplified into `.llmwiki/journal/` — an OOM /
+ * disk-blowup DoS. This cap exists solely to bound that: a target above it is
+ * reported `unavailable` by the no-follow reader and the mutation is REFUSED
+ * (never silently coerced to `absent`, which would make revert DELETE it).
+ *
+ * 16 MiB is far above any legitimate target — a compile page body is capped at
+ * {@link GENERATED_PAGE_MAX_CHARS} (~2 MB UTF-8 worst case) and an artifact body
+ * at {@link MAX_WORKFLOW_SUBMIT_FILE_BYTES} (1 MiB) — so no real page/artifact
+ * write is refused by it; it is a pure anti-blowup backstop.
+ */
+export const JOURNAL_PRESTATE_MAX_BYTES = 16 * 1024 * 1024; // 16 MiB
+/**
+ * Durable write-ahead list of qualified page-ids whose embeddings still need a
+ * refresh. Recorded BEFORE an embeddings update is attempted and cleared only
+ * AFTER it succeeds, so a swallowed/crashed refresh leaves a retry list that the
+ * next non-review compile drains. Lives under `.llmwiki/` (never emitted into
+ * `wiki/` output) so default goldens stay byte-identical. Mirrors {@link LOCK_FILE}.
+ */
+export const PENDING_EMBEDDINGS_FILE = ".llmwiki/pending-embeddings.json";
+
+/**
+ * Resource cap on the pending-embeddings marker file. `.llmwiki` is
+ * local/sync-controllable (a synced checkout or a teammate can replace the
+ * marker), and {@link loadPendingEmbeddings} runs on EVERY non-review compile,
+ * slurping the whole file before `JSON.parse`. A multi-GB marker (or a `/dev/zero`
+ * symlink target) would exhaust memory/latency before any validation runs, a local
+ * DoS on each compile. 256 KiB is far above any legitimate id list (thousands of
+ * ~40-char qualified ids fit comfortably) yet bounds the read. A bloated marker is
+ * treated as corrupt — fail OPEN (return `[]`) so a bad marker never breaks compile.
+ */
+export const MAX_PENDING_EMBEDDINGS_BYTES = 256 * 1024; // 256 KiB
+
+/**
+ * Maximum number of pending page-ids honored from the marker. The marker is
+ * attacker/sync-controllable, so a forged file could list an unbounded id set that
+ * would fan out into the embeddings refresh. A few thousand distinct pages is well
+ * beyond any realistic single-project wiki; entries past this cap are dropped.
+ */
+export const MAX_PENDING_EMBEDDING_IDS = 5000;
+
+/**
+ * Maximum number of FAILED embedding-refresh attempts a single pending page-id is
+ * retried before it is QUARANTINED (dropped from the marker with a visible warning).
+ *
+ * Bounds poison-id retries and provider cost: a page-id that fails for a
+ * NON-transient reason (a provider 400 that isn't request-too-large, an integrity
+ * error, or one that is permanently ineligible) would otherwise stay pending
+ * forever — re-attempted (and re-billed) on EVERY compile, and able to wedge the
+ * whole all-or-nothing batch it shares. After this many failures the lifecycle
+ * ages the id out so a perpetually-failing id can neither loop nor block healthy
+ * co-pending ids. 5 leaves room to ride out a genuine transient outage.
+ */
+export const MAX_PENDING_EMBEDDING_ATTEMPTS = 5;
+
+/**
+ * Resource cap on a single workflow run record file under
+ * `.llmwiki/workflows/runs/<runId>.json`. Run state is local/sync-controllable
+ * (a synced checkout or a teammate can replace a run file), and the read path
+ * slurps the whole file before `JSON.parse`. A multi-GB record (or a `/dev/zero`
+ * symlink target) would exhaust memory/latency before any validation runs, a
+ * local DoS. 256 KiB is far above any legitimate run record (stage logs and
+ * inputs/outputs for a single run) yet bounds the read; an oversize record is
+ * reported as `unavailable` rather than read. Mirrors
+ * {@link MAX_PENDING_EMBEDDINGS_BYTES}.
+ */
+export const MAX_WORKFLOW_RUN_BYTES = 256 * 1024; // 256 KiB
+
+/**
+ * A generous per-run cap on the in-record event log. Appending past this fails
+ * closed (an audit event is never silently dropped) rather than letting the
+ * record grow unbounded. {@link MAX_WORKFLOW_RUN_BYTES} remains the hard byte
+ * backstop; this is the friendlier, count-based guard hit first in practice.
+ */
+export const MAX_WORKFLOW_RUN_EVENTS = 1000;
+
+/**
+ * Cap on the serialized size of a run's caller-supplied `inputs` block, enforced
+ * on `startWorkflow` BEFORE the record is built. `inputs` is the one run field a
+ * caller fully controls, so an oversized payload could otherwise build a record
+ * that writes fine yet trips {@link MAX_WORKFLOW_RUN_BYTES} on read forever
+ * (unreadable). Bounding `inputs` well under the whole-record cap keeps room for
+ * the run's own fields, so a within-cap `inputs` cannot push the record over the
+ * read ceiling. 64 KiB is far above any realistic run-input payload.
+ */
+export const MAX_WORKFLOW_INPUTS_BYTES = 64 * 1024; // 64 KiB
+
+/**
+ * Cap on the RAW byte size of a file passed to `workflow submit`
+ * (`--body-file`/`--evidence-file`/`--output-file`), enforced by `stat` BEFORE the
+ * file is slurped into memory. Without it a 1 GB file would be `readFile`d whole
+ * before any downstream check — a memory DoS. This is purely an anti-slurp bound;
+ * the page BODY's own content limit is enforced downstream by the page-write
+ * resource cap. 1 MiB comfortably covers a legitimate page body
+ * ({@link GENERATED_PAGE_MAX_CHARS}) plus frontmatter and any evidence/output JSON.
+ */
+export const MAX_WORKFLOW_SUBMIT_FILE_BYTES = 1024 * 1024; // 1 MiB
+
+/**
+ * Maximum nesting depth permitted in a caller-supplied workflow `inputs` object,
+ * enforced BEFORE the payload is canonicalized/serialized on every input surface
+ * (CLI `--input-json`, MCP `inputs`). A deeply-nested object is cheap to express
+ * yet drives `JSON.stringify`/canonicalize into deep recursion that can overflow
+ * the stack — a crash-class DoS reachable before any byte cap is checked. 8 levels
+ * is far beyond any realistic typed-input payload (whose schema is one level of
+ * scalar/array fields) yet bounds the recursion. Excess nesting FAILS CLOSED.
+ */
+export const MAX_WORKFLOW_INPUT_DEPTH = 8;
+
+/**
+ * Maximum character length of a SINGLE string-valued workflow action input field
+ * (a `string` or `entityRef`), enforced per-field by `validateActionInputs`. The
+ * whole-object {@link MAX_WORKFLOW_INPUTS_BYTES} backstop bounds the aggregate, but
+ * a per-field cap rejects one runaway string with a precise error and bounds the
+ * cost of validating/echoing it. 64k chars is far above any realistic field value.
+ */
+export const MAX_WORKFLOW_INPUT_STRING_CHARS = 64 * 1024; // 64k chars
+
+/**
+ * Maximum number of items in a `string[]` workflow action input field, enforced
+ * per-field by `validateActionInputs`. Without it a single array field accepts an
+ * unbounded element count (each then size-checked against
+ * {@link MAX_WORKFLOW_INPUT_STRING_CHARS}), materialized in full for non-`start`
+ * ops that have no downstream byte cap. 1000 items is far above any realistic
+ * typed list yet bounds the per-field surface. Excess items FAIL CLOSED.
+ */
+export const MAX_WORKFLOW_INPUT_ARRAY_ITEMS = 1000;
+
+/**
+ * Cap on the character length of a free-form actor LABEL recorded on a workflow
+ * event (gate approve / stage submit). The label is caller-controlled and lands
+ * verbatim on the audit event, so an unbounded label could bloat the record
+ * toward {@link MAX_WORKFLOW_RUN_BYTES}. A username/agent-id fits comfortably.
+ */
+export const MAX_WORKFLOW_LABEL_CHARS = 256;
+
+/**
+ * Cap on the character length of the free-form `detail` reason recorded on a
+ * `run-failed` event by `failWorkflow`. Caller-controlled and recorded verbatim,
+ * so it is bounded for the same reason as {@link MAX_WORKFLOW_LABEL_CHARS}.
+ */
+export const MAX_WORKFLOW_DETAIL_CHARS = 2048;
+
+/**
+ * Bounded number of re-mint attempts when a freshly-minted run id collides with
+ * an existing run on `startWorkflow`'s no-clobber create. With
+ * {@link RUN_ID_RANDOM_BYTES} of entropy a single collision is already
+ * astronomically unlikely; this bounds the retry loop so a pathological
+ * environment cannot spin forever, surfacing a typed error instead.
+ */
+export const MAX_MINT_ATTEMPTS = 5;
+
+/**
+ * Global cap on the number of ACTIVE (non-terminal) workflow runs a project may
+ * hold at once, enforced by `startWorkflow` BEFORE minting (H5). Without it a remote
+ * MCP client (staged-write) could mint unbounded `runs/<id>.json` files —
+ * disk/inode exhaustion plus a `status` that slows linearly. A terminal
+ * (completed/cancelled/failed) run does NOT count toward this cap, so retiring runs
+ * frees quota. 100 concurrent in-flight runs is far above any legitimate single-
+ * project workload yet bounds the active-run surface.
+ */
+export const MAX_ACTIVE_WORKFLOW_RUNS = 100;
+
+/**
+ * Global cap on the TOTAL number of workflow run FILES (active + terminal) a project
+ * may hold, enforced by `startWorkflow` BEFORE minting (H5). The active-run cap alone
+ * is insufficient: an agent that loops start+cancel leaves unbounded TERMINAL run
+ * files behind (disk/inode exhaustion) while staying under the active cap. Bounding
+ * the total run-file count closes that. 1000 is far above any legitimate project's
+ * accumulated run history yet bounds the on-disk surface; an operator who wants more
+ * must prune retired runs. Strictly greater than {@link MAX_ACTIVE_WORKFLOW_RUNS}.
+ */
+export const MAX_TOTAL_WORKFLOW_RUNS = 1000;
+
+/**
+ * Resource cap on the local `.llmwiki/config.json` consulted for workflow-action
+ * authority grants. The file is local/sync-controllable (a synced checkout or a
+ * teammate can replace it) and the read path slurps it before `JSON.parse`, so a
+ * `/dev/zero`-backed symlink target or a multi-GB file would exhaust memory before
+ * any validation runs — a local DoS. 64 KiB is far above any legitimate config
+ * (a handful of per-surface grants plus an enabled-gate list) yet bounds the read;
+ * an oversize config FAILS CLOSED to `read-only`, never a write capability.
+ */
+export const MAX_LOCAL_CONFIG_BYTES = 64 * 1024; // 64 KiB
+
 export const INDEX_FILE = "wiki/index.md";
 export const MOC_FILE = "wiki/MOC.md";
+
+/**
+ * The typed relation graph directory and its append-only store. Lives under
+ * `wiki/` alongside the compiled pages. A DEFAULT profile declares no relations
+ * and never creates `wiki/graph/`, so its absence is the "no relations" state —
+ * keeping default output and parity unchanged.
+ */
+export const WIKI_GRAPH_DIR = "wiki/graph";
+export const RELATIONS_FILE = "wiki/graph/relations.jsonl";
+
+/**
+ * The append-only, hash-chained EVENT STORE and its sealed head anchor. The
+ * store lives in the SAME confined `wiki/graph/` dir as the relation store; the
+ * head anchor (the digest of the last event) lives under the private `.llmwiki/`
+ * dir so truncation/rewrite of the log can be detected against a sealed value.
+ * A DEFAULT profile performs no lifecycle/relation mutations, so it never writes
+ * either file — its absence is the "no events" state, keeping parity unchanged.
+ */
+export const EVENTS_FILE = "wiki/graph/events.jsonl";
+export const EVENTS_HEAD_FILE = ".llmwiki/events.head";
+
+/**
+ * Resource cap on the relation store file. The store is attacker/sync-controllable
+ * (a teammate or a synced checkout can replace it), and the reader slurps the whole
+ * file before any header/checksum validation. A multi-GB file or a giant single
+ * line would exhaust memory before the integrity check runs, so the reader STATs
+ * the file first and FAILS CLOSED above this bound — mirroring the page path's
+ * {@link MAX_SOURCE_CHARS} resource cap, scaled up for a whole-graph aggregate.
+ */
+export const MAX_RELATION_STORE_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Resource cap on a SINGLE relation record's serialized form on the write path.
+ * Bounds attacker-controlled attribute/evidence size before append so one record
+ * cannot grow unbounded (and so the per-store cap cannot be reached by one line).
+ */
+export const MAX_RELATION_RECORD_BYTES = MAX_SOURCE_CHARS;
+
+/**
+ * Resource cap on the event store file. Mirrors {@link MAX_RELATION_STORE_BYTES}:
+ * the same read-side cap that {@link readConfinedGraphStore} enforces on
+ * `events.jsonl` is now also enforced on the WRITE path so the log can never be
+ * driven past the read ceiling into an unreadable-yet-appendable (bricked) state.
+ *
+ * NOTE: rotation/archival of an exhausted event log is a documented future item —
+ * the append path fails closed with {@link EventStoreFullError} when this ceiling
+ * is reached, and no automatic rotation is performed.
+ */
+export const MAX_EVENT_STORE_BYTES = MAX_RELATION_STORE_BYTES;
+
+/**
+ * Resource cap on a SINGLE event record's serialized form on the write path.
+ * Bounds attacker/caller-controlled payload size before append so one record
+ * cannot grow unbounded (and so the per-store cap cannot be reached by one line).
+ * Mirrors {@link MAX_RELATION_RECORD_BYTES} for consistent behavior across stores.
+ */
+export const MAX_EVENT_RECORD_BYTES = MAX_RELATION_RECORD_BYTES;
+
+/**
+ * Resource cap on the sealed head-anchor file (`.llmwiki/events.head`). A valid
+ * sealed digest is a 64-character SHA-256 hex string; 4 KiB is extremely generous.
+ * An attacker/synced teammate can plant a multi-MB `.llmwiki/events.head` and the
+ * read would previously slurp it fully before the string compare — this cap closes
+ * that DoS gap. A bloated head is treated as corrupt (fail closed).
+ */
+export const MAX_EVENT_HEAD_BYTES = 4096;
+
+/**
+ * Resource cap on `.llmwiki/profile.json`. A profile is a small JSON document;
+ * 1 MiB is extremely generous. Without this cap, a `/dev/zero`-backed or multi-GB
+ * symlink target would be read fully before `JSON.parse`, a local DoS. A bloated
+ * profile is treated as a load error (fail closed).
+ */
+export const MAX_PROFILE_BYTES = 1024 * 1024; // 1 MiB
 
 /**
  * Append-only activity journal at the project root, per Karpathy's llm-wiki
@@ -199,3 +504,24 @@ export const ENV_EMBED_STRICT = "LLMWIKI_EMBED_STRICT";
 
 /** Env var: when set to any non-empty value, enables verbose progress output. */
 export const ENV_VERBOSE = "LLMWIKI_VERBOSE";
+
+/**
+ * Resource cap on the embedding store file. Mirrors {@link MAX_RELATION_STORE_BYTES}:
+ * the same fstat-based cap that the reader enforces before the whole-file parse is
+ * also enforced on the write path so the store can never grow past the read ceiling
+ * into an unreadable-yet-writable (bricked) state.
+ */
+export const MAX_EMBEDDING_STORE_BYTES = 64 * 1024 * 1024; // 64 MiB
+
+/**
+ * Maximum number of entries (pages + chunks) allowed in a single embedding store.
+ * Guards against unbounded store growth from adversarial or runaway input.
+ */
+export const MAX_EMBEDDING_ENTRIES = 100_000;
+
+/**
+ * Maximum character length for per-record string fields (slug, title, summary, chunk
+ * text). An over-long field is rejected on write so one large record cannot drive
+ * the store toward the byte cap or pollute search ranking.
+ */
+export const MAX_EMBEDDING_FIELD_CHARS = MAX_SOURCE_CHARS;

@@ -167,7 +167,7 @@ See [Detecting and Repairing Stale Pages](/troubleshooting/stale-pages) for the 
 <Accordion title="How many sources can llmwiki handle?">
 The scale story has matured well past a few dozen sources. Several mechanisms keep large corpora manageable:
 
-- **Semantic chunk retrieval** (`.llmwiki/embeddings.json` v2) narrows hundreds of pages down to a small top-K via cosine similarity before any LLM selection, with BM25 reranking on top.
+- **Semantic chunk retrieval** (`.llmwiki/embeddings.json` v3) narrows hundreds of pages down to a small top-K via cosine similarity before any LLM selection, with BM25 reranking on top.
 - **Incremental compilation** means only changed sources re-run. Re-running on an unchanged large corpus takes seconds.
 - **Per-concept prompt budget** (`LLMWIKI_PROMPT_BUDGET_CHARS`, default `200000`) prevents popular shared concepts from exhausting the model's context window. Each contributing source gets a fair share when the cap fires, with a truncation warning to stderr.
 

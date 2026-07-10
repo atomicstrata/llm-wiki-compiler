@@ -27,7 +27,9 @@ describe("OKF native round-trip (export -> import)", () => {
     const pages = await collectExportPages(dir);
     const out = path.join(dir, "bundle");
     await buildOkfBundle(dir, pages, out);
-    const { pages: imported } = await importOkfBundle(out, path.join(dir, "fresh-project"));
+    const fresh = path.join(dir, "fresh-project");
+    await mkdir(fresh, { recursive: true });
+    const { pages: imported } = await importOkfBundle(out, fresh);
     const rag = imported.find((p) => p.slug === "rag")!;
     const { meta, body } = parseFrontmatter(rag.body);
     const original = pages.find((p) => p.slug === "rag")!;

@@ -79,7 +79,7 @@ async function compileChunkedRetrievalProject(
 }
 
 describe("chunked-retrieval subprocess coverage via aimock", () => {
-  it("compile populates a v2 embedding store with chunks for newly-generated pages", async () => {
+  it("compile populates a v3 embedding store with chunks for newly-generated pages", async () => {
     const handle = await aimock.start();
     registerChunkedRetrievalMocks(handle, CHUNKED_RETRIEVAL_BODY);
 
@@ -91,17 +91,19 @@ describe("chunked-retrieval subprocess coverage via aimock", () => {
     const conceptMd = conceptFiles.find((f) => f.endsWith(".md"));
     expect(conceptMd, formatCLIFailure(result)).toBeDefined();
 
-    // Assert: the embedding store exists, version 2, with chunks populated.
+    // Assert: the embedding store exists, version 3 (pageId-keyed), with chunks.
     const storePath = path.join(cwd, ".llmwiki", "embeddings.json");
     expect(existsSync(storePath)).toBe(true);
     const store = JSON.parse(await readFile(storePath, "utf-8")) as {
       version: number;
-      entries: unknown[];
-      chunks?: unknown[];
+      entries: Array<{ pageId?: string }>;
+      chunks?: Array<{ pageId?: string }>;
     };
-    expect(store.version, formatCLIFailure(result)).toBe(2);
+    expect(store.version, formatCLIFailure(result)).toBe(3);
     expect(store.entries.length, formatCLIFailure(result)).toBeGreaterThan(0);
     expect((store.chunks ?? []).length, formatCLIFailure(result)).toBeGreaterThan(0);
+    // v3 records are keyed by a qualified pageId, not a bare slug.
+    expect(store.entries[0].pageId, formatCLIFailure(result)).toMatch(/^concepts\//);
   }, 30_000);
 
   it("query --debug prints chunk-level retrieval details after an aimock compile", async () => {

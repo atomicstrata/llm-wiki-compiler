@@ -1,14 +1,12 @@
 ---
 title: "llmwiki: Compile Raw Sources into an Interlinked Wiki"
 sidebarTitle: "Introduction"
-description: "llmwiki turns URLs, files, and session exports into a persistent, citation-traced markdown wiki with semantic search and MCP agent integration."
+description: "llmwiki turns URLs, files, and session exports into a persistent, citation-traced markdown wiki with configurable domain profiles, semantic search, and MCP agent integration."
 ---
 
-<p align="center">
-  <img src="/images/okf-docs-banner.svg" alt="Breaking News: llmwiki supports Open Knowledge Format" width="900" />
-</p>
-
 llmwiki is a knowledge compiler. You point it at your sources - research papers, documentation sites, notes, session exports - and it uses an LLM pipeline to compile them into a structured, interlinked wiki that you can browse, search, query, and connect to AI agents. Unlike retrieval-augmented generation (RAG), llmwiki compiles your knowledge once into a durable artifact that compounds over time: concepts get their own typed pages, links form a navigable graph, and every claim traces back to its source.
+
+Configurable Lifecycle Profiles (CLP) let one compiler serve different domains without hardcoded domain behavior. A validated profile can declare entity schemas, typed relations, lifecycle state machines, evidence gates, workflows, artifacts, connector bindings, content tiers, and retrieval policy. Projects without a profile keep the classic concepts-and-queries behavior. New projects can start with the built-in [AutoSci research workflow](/guides/autosci-research-workflow) or [Newsroom editorial workflow](/guides/newsroom-editorial-workflow).
 
 llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing/). You can export a compiled wiki as an OKF bundle, import OKF bundles from other tools through the review queue, and re-export foreign bundles while preserving producer metadata, llmwiki provenance, and safe original nested paths.
 
@@ -22,6 +20,9 @@ llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://
   <Card title="How It Works" icon="gears" href="/concepts/how-it-works">
     Understand the two-phase compile pipeline and hybrid retrieval model.
   </Card>
+  <Card title="Configurable Lifecycle Profiles" icon="diagram-project" href="/concepts/configurable-lifecycle-profiles">
+    Model typed entities, relations, lifecycles, workflows, artifacts, and connectors as validated configuration.
+  </Card>
   <Card title="Open Knowledge Format" icon="share-nodes" href="/guides/open-knowledge-format">
     Exchange compiled knowledge with OKF-aware tools while preserving provenance.
   </Card>
@@ -33,6 +34,8 @@ llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://
 ## What llmwiki gives you
 
 **A compiled wiki, not raw chunks.** Instead of storing document chunks and re-discovering relationships at every query, llmwiki runs a two-phase LLM pipeline that extracts concepts, merges duplicates across sources, and generates typed wiki pages - each with citations back to the original source lines.
+
+**A domain model without a domain fork.** Install a declarative template or author `.llmwiki/profile.json` to define the entities, relations, lifecycle gates, workflows, artifacts, and connectors for your project. The same generic runtime validates and surfaces every profile across the CLI, SDK, MCP, viewer, context packs, lint, status, and export.
 
 **Semantic search that gets smarter.** After compiling, llmwiki builds chunk-level embeddings. When you run `llmwiki query`, it narrows hundreds of pages to a top-K via cosine similarity, reranks with BM25, and expands along the wikilink graph - giving you a tight, citation-traceable evidence pack.
 

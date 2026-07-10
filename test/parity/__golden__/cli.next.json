@@ -1,0 +1,67 @@
+{
+  "code": 0,
+  "json": {
+    "otherActions": [
+      {
+        "command": "llmwiki view --open",
+        "executable": {
+          "args": [
+            "view",
+            "--open"
+          ],
+          "binary": "llmwiki"
+        },
+        "reason": "Browse the compiled wiki in the local viewer."
+      },
+      {
+        "command": "llmwiki query \"<question>\"",
+        "executable": {
+          "args": [
+            "query"
+          ],
+          "binary": "llmwiki",
+          "placeholders": [
+            "question"
+          ]
+        },
+        "reason": "Ask a natural-language question against the compiled wiki."
+      }
+    ],
+    "projectRoot": "<ROOT>",
+    "recommended": {
+      "command": "llmwiki view --open",
+      "executable": {
+        "args": [
+          "view",
+          "--open"
+        ],
+        "binary": "llmwiki"
+      },
+      "reason": "Wiki pages are ready to browse."
+    },
+    "state": "wiki-ready",
+    "summary": {
+      "conceptCount": 6,
+      "freshness": {
+        "orphanedPages": 1,
+        "stalePages": 1
+      },
+      "hasIndex": true,
+      "hasLintCache": true,
+      "lint": {
+        "errors": 0,
+        "warnings": 5
+      },
+      "pendingCandidates": 0,
+      "queryCount": 1,
+      "sourceCount": 2
+    },
+    "version": 1,
+    "warnings": [
+      {
+        "code": "stale-pages",
+        "message": "1 stale, 1 orphaned page(s) as of the last lint — run `llmwiki compile` to refresh."
+      }
+    ]
+  }
+}

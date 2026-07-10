@@ -19,6 +19,8 @@ import {
   type MockClaudeHandle,
 } from "./fixtures/aimock-helper.js";
 import { CONCEPTS_DIR, EMBEDDINGS_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
+import { hashChunkText, splitIntoChunks } from "../src/utils/retrieval.js";
+import { buildEmbeddingText } from "../src/utils/embeddings-pages.js";
 
 const aimock = useAimockLifecycle("context-cli");
 
@@ -163,48 +165,78 @@ describe("`llmwiki context` — defaults", () => {
 });
 
 /**
- * Seed a v2 embedding store with one chunk that has a known vector and
- * model. The model defaults to what `mockOpenAIEnv` configures
- * (`text-embedding-3-small`) so the active-model check inside
- * `loadActiveStore` passes for aimock-driven runs. Pass an override
- * (e.g. `voyage-3-lite`) for tests that drive the anthropic fallback.
+ * Seed a v3 (pageId-keyed) embedding store with one page + chunk that have a
+ * known vector and model. The model defaults to `text-embedding-3-small` so the
+ * loader's active-model gate passes for aimock-driven runs. Pass an override
+ * (e.g. `voyage-3-lite`) for tests that drive a provider/credential branch, or a
+ * deliberately stale model to drive the degrade-on-stale-model branch.
  */
 async function seedEmbeddingStore(
   root: string,
   options: { model?: string; vector?: number[] } = {},
 ): Promise<void> {
   const vector = options.vector ?? [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
-  const store = {
-    version: 2,
+  await writeV3Store(root, {
     model: options.model ?? "text-embedding-3-small",
-    dimensions: vector.length,
+    vector,
+    title: "Retrieval",
+    pageHash: "seeded-page-hash",
+    chunks: [{ chunkIndex: 0, contentHash: "seeded-hash", text: "Seeded chunk body about retrieval." }],
+  });
+}
+
+/** One chunk record's identity fields for {@link writeV3Store}. */
+interface SeedChunk {
+  chunkIndex: number;
+  contentHash: string;
+  text: string;
+}
+
+/** Write a single-page v3 store (concepts/retrieval) with the given hashes/chunks. */
+async function writeV3Store(
+  root: string,
+  spec: { model: string; vector: number[]; title: string; pageHash: string; chunks: SeedChunk[] },
+): Promise<void> {
+  const at = "2026-05-24T00:00:00.000Z";
+  const store = {
+    version: 3,
+    model: spec.model,
+    dimensions: spec.vector.length,
     entries: [
-      {
-        slug: "retrieval",
-        title: "Retrieval",
-        summary: "Page-level embedding for retrieval.",
-        vector,
-        updatedAt: "2026-05-24T00:00:00.000Z",
-      },
+      { pageId: "concepts/retrieval", title: spec.title, summary: "", embeddingTextHash: spec.pageHash, vector: spec.vector, updatedAt: at },
     ],
-    chunks: [
-      {
-        slug: "retrieval",
-        title: "Retrieval",
-        chunkIndex: 0,
-        contentHash: "seeded-hash",
-        text: "Seeded chunk body about retrieval.",
-        vector,
-        updatedAt: "2026-05-24T00:00:00.000Z",
-      },
-    ],
+    chunks: spec.chunks.map((c) => ({
+      pageId: "concepts/retrieval", title: spec.title, chunkIndex: c.chunkIndex, contentHash: c.contentHash, text: c.text, vector: spec.vector, updatedAt: at,
+    })),
   };
   await mkdir(path.join(root, LLMWIKI_DIR), { recursive: true });
+  await writeFile(path.join(root, EMBEDDINGS_FILE), JSON.stringify(store, null, 2), "utf-8");
+}
+
+/**
+ * Write a live concept page plus a v3 store whose page/chunk hashes match the
+ * live content, so the freshness-verified read pipeline keeps the hit and
+ * rehydrates its text from the live body. The single-chunk case is assumed.
+ */
+async function seedContentConsistentStore(
+  root: string,
+  title: string,
+  body: string,
+  vector: number[],
+): Promise<void> {
+  await mkdir(path.join(root, CONCEPTS_DIR), { recursive: true });
   await writeFile(
-    path.join(root, EMBEDDINGS_FILE),
-    JSON.stringify(store, null, 2),
+    path.join(root, CONCEPTS_DIR, "retrieval.md"),
+    `---\ntitle: ${title}\n---\n\n${body}\n`,
     "utf-8",
   );
+  await writeV3Store(root, {
+    model: "text-embedding-3-small",
+    vector,
+    title,
+    pageHash: hashChunkText(buildEmbeddingText({ title, summary: "" })),
+    chunks: splitIntoChunks(body).map((text, chunkIndex) => ({ chunkIndex, contentHash: hashChunkText(text), text })),
+  });
 }
 
 /** Strip any inherited provider creds so the test sees a clean fallback. */
@@ -219,17 +251,18 @@ function noCredentialsEnv(): NodeJS.ProcessEnv {
 }
 
 describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
-  it("emits embedding-store-missing when no .llmwiki/embeddings.json exists", async () => {
+  it("emits embedding-index-outdated when no .llmwiki/embeddings.json exists", async () => {
     await seedConcept("alpha", "Alpha");
     const payload = await runJsonContext("alpha");
-    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    // v3 read pipeline: an absent index degrades-on-read to embedding-index-outdated.
+    expect(warningCodesOf(payload)).toContain("embedding-index-outdated");
     // Lexical signals still rank the page even without semantic input.
     firstPrimary(payload);
   });
 
-  it("emits embedding-store-missing when the store has no chunks (v1 / empty v2)", async () => {
+  it("emits embedding-index-outdated for a pre-v3 store (v1 / empty v2)", async () => {
     await seedConcept("alpha", "Alpha");
-    // Seed an empty v2 store — the wrapper's pre-check treats it as unusable.
+    // Seed an empty v2 store — the v3 loader degrades it as an older version.
     await mkdir(path.join(tmpDir, LLMWIKI_DIR), { recursive: true });
     await writeFile(
       path.join(tmpDir, EMBEDDINGS_FILE),
@@ -243,7 +276,7 @@ describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
       "utf-8",
     );
     const payload = await runJsonContext("alpha");
-    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    expect(warningCodesOf(payload)).toContain("embedding-index-outdated");
   });
 
   it("emits query-embedding-unavailable when the provider has no credentials", async () => {
@@ -265,10 +298,8 @@ describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
   });
 
   it("stale-model store keeps --json output pure (no stdout warning leaks)", async () => {
-    // Regression: previously `findRelevantChunks` -> `loadActiveStore`
-    // wrote a `! Embedding store was built with ...` line to stdout via
-    // `output.status`, breaking JSON parsing. The wrapper must detect
-    // the model mismatch up front and skip the call entirely.
+    // Regression: the read pipeline must detect the model mismatch up front and
+    // degrade-on-read WITHOUT any stdout warning that would corrupt --json.
     await seedConcept("alpha", "Alpha");
     await seedEmbeddingStore(tmpDir, { model: "definitely-stale-model" });
     const result = await runCLI(["context", "alpha", "--json"], tmpDir);
@@ -276,22 +307,22 @@ describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
     // stdout must parse cleanly as a single JSON object — no stale-warning prefix.
     expect(result.stdout.trimStart().startsWith("{")).toBe(true);
     const payload = JSON.parse(result.stdout) as Record<string, unknown>;
-    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    // A stale-model v3 store degrades-on-read as outdated (rebuild on compile).
+    expect(warningCodesOf(payload)).toContain("embedding-index-outdated");
     // eslint-disable-next-line no-control-regex
     expect(result.stdout).not.toMatch(/\x1b\[/);
   });
 
   it("malformed .llmwiki/embeddings.json does not crash and still lexically ranks", async () => {
-    // Regression: previously `readEmbeddingStore` propagated JSON.parse
-    // failures, exit 1 with a stack trace. The wrapper must catch and
-    // fall back to lexical with the documented warning.
+    // Regression: a broken store must NOT propagate JSON.parse failures (exit 1
+    // + stack trace). The v3 loader catches and degrades to lexical-only.
     await seedConcept("alpha", "Alpha");
     await mkdir(path.join(tmpDir, LLMWIKI_DIR), { recursive: true });
     await writeFile(path.join(tmpDir, EMBEDDINGS_FILE), "{broken", "utf-8");
     const result = await runCLI(["context", "alpha", "--json"], tmpDir);
     expectCLIExit(result, 0);
     const payload = JSON.parse(result.stdout) as Record<string, unknown>;
-    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
+    expect(warningCodesOf(payload)).toContain("embedding-index-outdated");
     // Lexical signals still rank the seeded page.
     const top = firstPrimary(payload);
     expect(top.id).toBe("concepts/alpha");
@@ -311,13 +342,11 @@ describe("`llmwiki context` — Slice 2 semantic success via aimock", () => {
     const vector = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
     registerEmbedding(handle, vector);
     const cwd = await aimock.makeWorkspace("# placeholder\n", "placeholder.md");
-    await mkdir(path.join(cwd, CONCEPTS_DIR), { recursive: true });
-    await writeFile(
-      path.join(cwd, CONCEPTS_DIR, "retrieval.md"),
-      "---\ntitle: Retrieval\n---\n\nbody\n",
-      "utf-8",
-    );
-    await seedEmbeddingStore(cwd, { vector });
+    // The v3 read pipeline freshness-verifies each hit against the LIVE page and
+    // rehydrates its text from the live body (S12), so the seeded store's hashes
+    // MUST match the live page's content or the hit is dropped as stale.
+    const body = "Live body about retrieval that the v3 pipeline rehydrates from disk.";
+    await seedContentConsistentStore(cwd, "Retrieval", body, vector);
     const result = await runCLI(
       ["context", "totally unrelated question", "--json", "--top-chunks", "2"],
       cwd,
@@ -330,12 +359,14 @@ describe("`llmwiki context` — Slice 2 semantic success via aimock", () => {
     expect(top.reasons as string[]).toContain("semantic-chunk");
     const chunks = top.chunks as Array<Record<string, unknown>>;
     expect(chunks.length).toBe(1);
-    expect(chunks[0].text).toBe("Seeded chunk body about retrieval.");
-    expect(chunks[0].contentHash).toBe("seeded-hash");
+    // Rehydrated from the LIVE body (NOT a store-cached copy) — S12.
+    expect(chunks[0].text).toBe(splitIntoChunks(body)[0]);
+    expect(chunks[0].contentHash).toBe(hashChunkText(splitIntoChunks(body)[0]));
     expect(typeof chunks[0].score).toBe("number");
     // No fallback warnings should fire when retrieval succeeded.
     const codes = warningCodesOf(payload);
     expect(codes).not.toContain("embedding-store-missing");
+    expect(codes).not.toContain("embedding-index-outdated");
     expect(codes).not.toContain("query-embedding-unavailable");
   });
 });

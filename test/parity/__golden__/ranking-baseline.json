@@ -1,0 +1,113 @@
+{
+  "chunkTopK": [
+    {
+      "chunkIndex": 0,
+      "score": 0.9798,
+      "slug": "alpha"
+    },
+    {
+      "chunkIndex": 1,
+      "score": 0.8984,
+      "slug": "alpha"
+    },
+    {
+      "chunkIndex": 0,
+      "score": 0.8486,
+      "slug": "what-is-alpha"
+    },
+    {
+      "chunkIndex": 1,
+      "score": 0.7507,
+      "slug": "what-is-alpha"
+    },
+    {
+      "chunkIndex": 0,
+      "score": 0.7021,
+      "slug": "beta"
+    },
+    {
+      "chunkIndex": 1,
+      "score": 0.4983,
+      "slug": "beta"
+    },
+    {
+      "chunkIndex": 0,
+      "score": 0.3987,
+      "slug": "gamma"
+    },
+    {
+      "chunkIndex": 1,
+      "score": 0.2,
+      "slug": "gamma"
+    }
+  ],
+  "collapsedPageOrder": [
+    "alpha",
+    "what-is-alpha",
+    "beta",
+    "gamma"
+  ],
+  "contextPrimary": [
+    {
+      "chunkHashes": [
+        "dfb0fa7719a3cd21",
+        "ee56cbdc37dbaf1f"
+      ],
+      "id": "concepts/alpha",
+      "reasons": [
+        "body-match",
+        "semantic-chunk"
+      ]
+    },
+    {
+      "chunkHashes": [
+        "0a5937763c710c4e",
+        "489c12da9bc0ce5e"
+      ],
+      "id": "concepts/beta",
+      "reasons": [
+        "body-match",
+        "semantic-chunk"
+      ]
+    },
+    {
+      "chunkHashes": [
+        "b922663fc87a4c56",
+        "83b97b038ab87994"
+      ],
+      "id": "queries/what-is-alpha",
+      "reasons": [
+        "body-match",
+        "semantic-chunk"
+      ]
+    },
+    {
+      "chunkHashes": [
+        "255a65b63bf69d77",
+        "80bbf4f27813b791"
+      ],
+      "id": "concepts/gamma",
+      "reasons": [
+        "semantic-chunk"
+      ]
+    }
+  ],
+  "pageTopK": [
+    {
+      "score": 0.9507,
+      "slug": "alpha"
+    },
+    {
+      "score": 0.8,
+      "slug": "what-is-alpha"
+    },
+    {
+      "score": 0.6,
+      "slug": "beta"
+    },
+    {
+      "score": 0.3011,
+      "slug": "gamma"
+    }
+  ]
+}

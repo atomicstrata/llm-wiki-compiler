@@ -10,7 +10,8 @@
 
 import { readdir } from "fs/promises";
 import path from "path";
-import { slugify, atomicWrite, safeReadFile, parseFrontmatter } from "../utils/markdown.js";
+import { slugify, atomicWrite, parseFrontmatter } from "../utils/markdown.js";
+import { readWikiPageInDirOrWarn } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR, MOC_FILE } from "../utils/constants.js";
 
 /** Minimum word count to generate an abbreviation alias. */
@@ -113,7 +114,7 @@ export async function generateMOC(root: string): Promise<void> {
   const tagGroups = groupPagesByTag(pages);
   const content = buildMOCContent(tagGroups);
 
-  await atomicWrite(path.join(root, MOC_FILE), content);
+  await atomicWrite(path.join(root, MOC_FILE), content, { confineRoot: root });
 }
 
 /** Minimal page info needed for MOC generation. */
@@ -136,17 +137,21 @@ async function loadConceptPages(conceptsPath: string): Promise<PageInfo[]> {
     return [];
   }
 
+  // The concepts directory is itself the confinement boundary: a symlinked
+  // entry whose target escapes it is dropped (warned, skipped) and never enters
+  // the MOC. An empty file is skipped, matching the prior behavior.
   const pages: PageInfo[] = [];
   for (const file of files) {
     if (!file.endsWith(".md")) continue;
 
-    const content = await safeReadFile(path.join(conceptsPath, file));
+    const slug = file.replace(/\.md$/, "");
+    const result = await readWikiPageInDirOrWarn(conceptsPath, slug);
+    const content = "content" in result ? result.content : "";
     if (!content) continue;
 
     const { meta } = parseFrontmatter(content);
     if (meta.orphaned) continue;
 
-    const slug = file.replace(/\.md$/, "");
     const title = typeof meta.title === "string" ? meta.title : slug;
     const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];
     pages.push({ slug, title, tags });

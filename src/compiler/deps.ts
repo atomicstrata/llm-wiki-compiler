@@ -12,10 +12,10 @@
  * B's contribution entirely.
  */
 
-import { readState, updateSourceState, writeState } from "../utils/state.js";
 import { slugify } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import type { WikiState, SourceChange, ExtractedConcept } from "../utils/types.js";
+import type { CompileStateDraft } from "./compile-state-draft.js";
 
 export interface ExtractionResult {
   sourceFile: string;
@@ -163,13 +163,19 @@ export function findFrozenSlugs(
  * contributors, then persist the remaining frozen set to state.
  * A slug is safe to unfreeze when every source that claims it in state
  * was compiled in this batch and successfully extracted it.
+ * @param draft - In-memory CompileStateDraft the function reads/mutates instead of disk state,
+ *   so freshly-compiled markers from this run are visible when making unfreeze decisions.
+ * @param frozenSlugs - Set of concept slugs currently frozen (shared with a deleted source).
+ * @param successfulExtractions - Extraction results from sources compiled in this batch.
  */
-export async function persistFrozenSlugs(
-  root: string,
+export function persistFrozenSlugs(
+  draft: CompileStateDraft,
   frozenSlugs: Set<string>,
   successfulExtractions: ExtractionResult[],
-): Promise<void> {
-  const currentState = await readState(root);
+): void {
+  // Read the draft (reflects this run's compiled markers), not disk, so the
+  // unfreeze decision sees freshly-compiled owners.
+  const currentState = draft.read();
   const conceptMap = buildConceptToSourcesMap(currentState.sources);
 
   // Concepts successfully extracted in this batch, keyed by slug.
@@ -197,8 +203,7 @@ export async function persistFrozenSlugs(
     if (!allOwnersCompiled) remaining.add(slug);
   }
 
-  const stateToSave = { ...currentState, frozenSlugs: Array.from(remaining) };
-  await writeState(root, stateToSave);
+  draft.setFrozen(remaining);
 }
 
 /**
@@ -302,21 +307,25 @@ export function findSharedConcepts(
  * Freeze concepts from failed extractions and persist their state with a
  * blank hash so they retry on the next compile. Preserves old concept lists
  * to keep dependency tracking intact.
+ * @param draft - In-memory CompileStateDraft the function reads/mutates instead of disk state,
+ *   buffering source entries with a blank hash so they are retried on the next compile.
+ * @param results - Extraction results from this batch; entries with no concepts are failed.
+ * @param frozenSlugs - Mutable set of frozen slugs; old concept slugs from failed sources
+ *   are added here to prevent them from being orphaned prematurely.
  */
-export async function freezeFailedExtractions(
-  root: string,
+export function freezeFailedExtractions(
+  draft: CompileStateDraft,
   results: ExtractionResult[],
   frozenSlugs: Set<string>,
-): Promise<void> {
+): void {
   for (const result of results) {
     if (result.concepts.length > 0) continue;
 
     output.status("!", output.warn(`${result.sourceFile}: no concepts — will retry.`));
-    const currentState = await readState(root);
-    const oldConcepts = currentState.sources[result.sourceFile]?.concepts ?? [];
+    const oldConcepts = draft.read().sources[result.sourceFile]?.concepts ?? [];
     for (const slug of oldConcepts) frozenSlugs.add(slug);
 
-    await updateSourceState(root, result.sourceFile, {
+    draft.setSource(result.sourceFile, {
       hash: "",
       concepts: oldConcepts,
       compiledAt: new Date().toISOString(),

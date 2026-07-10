@@ -13,6 +13,7 @@
  */
 
 import type { ExportPage, MarpSource } from "./types.js";
+import { exportBodyText, exportFieldText } from "./connector-content.js";
 
 /** Maximum characters of body text to include per slide. */
 const SLIDE_BODY_MAX_CHARS = 300;
@@ -41,12 +42,13 @@ function buildSpeakerNotes(page: ExportPage): string {
 /** Render one ExportPage as a Marp slide. */
 function pageToSlide(page: ExportPage): string {
   const tagLine = page.tags.length > 0 ? `\n_Tags: ${page.tags.join(", ")}_` : "";
-  const excerpt = extractFirstParagraph(page.body);
+  const excerpt = extractFirstParagraph(exportBodyText(page));
+  const summary = exportFieldText(page, "summary", page.summary);
   const notes = buildSpeakerNotes(page);
   return [
     `## ${page.title}`,
     "",
-    `> ${page.summary}${tagLine}`,
+    `> ${summary}${tagLine}`,
     "",
     excerpt,
     "",

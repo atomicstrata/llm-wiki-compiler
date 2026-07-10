@@ -17,11 +17,21 @@ export { isWritable } from "./import-core.js"; // preserve existing importers
 /** CLI options for `import`. */
 export interface ImportOptions { okf?: string; trusted?: boolean; dryRun?: boolean; }
 
+/** Print each typed profile-entity outcome (staged / promoted / mismatch-fallback / skipped). */
+function printTypedOutcomes(report: OkfImportReport): void {
+  for (const t of report.typed ?? []) {
+    const target = t.entityType ? `${t.entityType}/${t.slug}` : t.slug;
+    const suffix = t.reason ? ` — ${t.reason}` : "";
+    output.status("+", `${t.outcome}: ${target} ← ${t.okfPath}${suffix}`);
+  }
+}
+
 /** Print a report's warnings, skips, per-page lines, and a one-line summary (CLI-only presentation). */
 function printReport(report: OkfImportReport): void {
   for (const w of report.warnings) output.status("!", output.warn(w));
   for (const p of report.pages) output.status("+", `${p.slug} (${p.targetDirectory}) ← ${p.okfPath}`);
   for (const s of report.skipped) output.status("!", output.warn(`skip ${s.okfPath} — ${s.reason}`));
+  printTypedOutcomes(report);
   const verb = report.mode === "written" ? "wrote" : report.mode === "dry-run" ? "would import" : "staged";
   output.status("+", output.success(`OKF import: ${verb} ${report.pages.length} page(s); skipped ${report.skipped.length}.`));
 }

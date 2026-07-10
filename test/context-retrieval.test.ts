@@ -1,127 +1,63 @@
 /**
- * Unit tests for the Slice 2 semantic retrieval wrapper.
+ * Unit tests for the v3 semantic retrieval wrapper.
  *
- * Mocks `src/utils/embeddings.js` so the wrapper's branching can be
- * exercised without seeded stores or live providers. Each branch must
- * produce the documented `{ hits, warning }` shape so the orchestrator
- * can rely on a stable post-condition regardless of which failure mode
- * the underlying store/provider exhibited.
+ * Mocks `src/utils/embeddings-load.js` so the wrapper's branching can be
+ * exercised without seeded stores or live providers. Each branch must produce
+ * the documented `{ hits, warning }` shape so the orchestrator can rely on a
+ * stable post-condition regardless of which failure/degrade mode the underlying
+ * v3 store/provider exhibited. `loadProfile` is mocked to the default profile.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
+import { defaultProfileLoad } from "./fixtures/profile-fixtures.js";
 
-// Mock `resolveEmbeddingModel` so the stale-model pre-check is
-// deterministic regardless of which `LLMWIKI_PROVIDER` the host
-// shell happens to have set. `v2StoreWithChunk` declares the SAME
-// model name below so the default (non-stale) cases pass through to
-// `findRelevantChunks`.
-const ACTIVE_MODEL = "text-embedding-3-small";
-vi.mock("../src/utils/embeddings.js", () => ({
-  readEmbeddingStore: vi.fn(),
-  findRelevantChunks: vi.fn(),
-  resolveEmbeddingModel: vi.fn(() => ACTIVE_MODEL),
+vi.mock("../src/utils/embeddings-load.js", () => ({
+  loadEmbeddingsForContext: vi.fn(),
+  findRelevantChunksV3: vi.fn(),
+}));
+vi.mock("../src/profile/load.js", () => ({
+  loadProfile: vi.fn(async () => defaultProfileLoad()),
 }));
 
-import {
-  readEmbeddingStore,
-  findRelevantChunks,
-  resolveEmbeddingModel,
-} from "../src/utils/embeddings.js";
+import { loadEmbeddingsForContext, findRelevantChunksV3 } from "../src/utils/embeddings-load.js";
 import { retrieveSemanticChunks } from "../src/context/retrieval.js";
 
-const mockedReadStore = readEmbeddingStore as unknown as Mock;
-const mockedFindChunks = findRelevantChunks as unknown as Mock;
-const mockedResolveModel = resolveEmbeddingModel as unknown as Mock;
+const mockedLoad = loadEmbeddingsForContext as unknown as Mock;
+const mockedFindChunks = findRelevantChunksV3 as unknown as Mock;
 
 afterEach(() => {
-  mockedReadStore.mockReset();
+  mockedLoad.mockReset();
   mockedFindChunks.mockReset();
-  mockedResolveModel.mockReset();
-  mockedResolveModel.mockReturnValue(ACTIVE_MODEL);
 });
 
-/** Build a fake v2 store with one synthetic chunk so the pre-check passes. */
-function v2StoreWithChunk(): unknown {
-  return {
-    version: 2,
-    model: "text-embedding-3-small",
-    dimensions: 4,
-    entries: [],
-    chunks: [
-      {
-        slug: "alpha",
-        title: "Alpha",
-        chunkIndex: 0,
-        contentHash: "h-alpha-0",
-        text: "alpha chunk",
-        vector: [0.1, 0.2, 0.3, 0.4],
-        updatedAt: "2026-05-24T00:00:00.000Z",
-      },
-    ],
-  };
+/** A degraded load outcome (store null) with the given warning code. */
+function degraded(code: string): unknown {
+  return { store: null, warnings: [{ code, message: "m" }], stalePageIds: [] };
 }
 
-/**
- * Invoke retrieval and assert it returned the documented "store unusable"
- * branch without ever invoking the provider. Used across the missing-store
- * variants so the per-test bodies only assert the input difference.
- */
-async function expectStoreUnusable(): Promise<void> {
-  const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
-  expect(outcome.warning).toBe("embedding-store-missing");
-  expect(mockedFindChunks).not.toHaveBeenCalled();
+/** A healthy v3 load outcome carrying a minimal usable store. */
+function v3Outcome(): unknown {
+  return { store: { version: 3, model: "m", dimensions: 4, entries: [], chunks: [] }, warnings: [], stalePageIds: [] };
 }
 
-describe("retrieveSemanticChunks — store-absence and credential branches", () => {
-  it("returns embedding-store-missing when readEmbeddingStore yields null", async () => {
-    mockedReadStore.mockResolvedValueOnce(null);
-    await expectStoreUnusable();
+describe("retrieveSemanticChunks — degrade and credential branches", () => {
+  it("returns embedding-index-outdated when the load degrades (non-v3 store)", async () => {
+    mockedLoad.mockResolvedValueOnce(degraded("embedding-index-outdated"));
+    const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
+    expect(outcome.warning).toBe("embedding-index-outdated");
+    expect(mockedFindChunks).not.toHaveBeenCalled();
   });
 
-  it("returns embedding-store-missing for a v1 store (no chunks array)", async () => {
-    mockedReadStore.mockResolvedValueOnce({
-      version: 1,
-      model: "voyage-3-lite",
-      dimensions: 4,
-      entries: [{ slug: "x", title: "X", summary: "", vector: [0, 0, 0, 0], updatedAt: "" }],
-    });
-    await expectStoreUnusable();
+  it("returns embedding-store-missing when the load reports no index", async () => {
+    mockedLoad.mockResolvedValueOnce(degraded("embedding-store-missing"));
+    const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
+    expect(outcome.warning).toBe("embedding-store-missing");
+    expect(mockedFindChunks).not.toHaveBeenCalled();
   });
 
-  it("returns embedding-store-missing for a v2 store with empty chunks", async () => {
-    mockedReadStore.mockResolvedValueOnce({
-      version: 2,
-      model: ACTIVE_MODEL,
-      dimensions: 4,
-      entries: [],
-      chunks: [],
-    });
-    await expectStoreUnusable();
-  });
-
-  it("returns embedding-store-missing when readEmbeddingStore throws (malformed JSON)", async () => {
-    mockedReadStore.mockRejectedValueOnce(
-      new SyntaxError("Unexpected token { in JSON at position 0"),
-    );
-    await expectStoreUnusable();
-  });
-
-  it("returns embedding-store-missing WITHOUT calling findRelevantChunks for a stale-model store", async () => {
-    // Same store shape as the happy path, but with a model name that
-    // does not match what the active provider would resolve to. The
-    // wrapper must catch this BEFORE invoking findRelevantChunks so
-    // the embeddings module's stdout-emitting stale-warning never
-    // fires (it would corrupt --json output).
-    mockedReadStore.mockResolvedValueOnce({
-      ...(v2StoreWithChunk() as object),
-      model: "definitely-stale-model",
-    });
-    await expectStoreUnusable();
-  });
-
-  it("returns query-embedding-unavailable when findRelevantChunks throws", async () => {
-    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
+  it("returns query-embedding-unavailable when the chunk pipeline throws an auth error", async () => {
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
     mockedFindChunks.mockRejectedValueOnce(new Error("VOYAGE_API_KEY is not set"));
     const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
     expect(outcome.hits).toEqual([]);
@@ -129,62 +65,58 @@ describe("retrieveSemanticChunks — store-absence and credential branches", () 
   });
 
   it("returns semantic-retrieval-error for unexpected internal failures", async () => {
-    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
     mockedFindChunks.mockRejectedValueOnce(new Error("vector index invariant violated"));
     const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
     expect(outcome.hits).toEqual([]);
     expect(outcome.warning).toBe("semantic-retrieval-error");
   });
 
-  it("defensive: empty findRelevantChunks result after pre-check still emits embedding-store-missing", async () => {
-    // Under normal operation the upfront stale-model and chunk-count
-    // checks make this path unreachable, but a TOCTOU race (store
-    // mutated between the pre-check and the call) would surface as
-    // an empty result here. The wrapper still emits the documented
-    // warning rather than silently returning empty hits.
-    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
-    mockedFindChunks.mockResolvedValueOnce([]);
+  it("emits embedding-store-missing when the v3 pipeline returns no hits", async () => {
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
+    mockedFindChunks.mockResolvedValueOnce({ hits: [], stalePageIds: [] });
     const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
     expect(outcome.warning).toBe("embedding-store-missing");
   });
 });
 
 describe("retrieveSemanticChunks — happy path", () => {
-  it("maps embedding-store chunk records into the slim SemanticChunkHit shape", async () => {
-    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
-    mockedFindChunks.mockResolvedValueOnce([
-      {
-        chunk: {
-          slug: "alpha",
-          title: "Alpha",
-          chunkIndex: 0,
-          contentHash: "h-alpha-0",
-          text: "alpha chunk",
-          vector: [0.1, 0.2, 0.3, 0.4],
-          updatedAt: "2026-05-24T00:00:00.000Z",
-        },
-        score: 0.81,
-      },
-    ]);
+  it("maps v3 chunk hits into the slim SemanticChunkHit shape (carrying pageId)", async () => {
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
+    mockedFindChunks.mockResolvedValueOnce({
+      hits: [{ pageId: "concepts/alpha", slug: "alpha", chunkIndex: 0, contentHash: "h-alpha-0", text: "alpha chunk", score: 0.81 }],
+      stalePageIds: [],
+    });
     const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
     expect(outcome.warning).toBeNull();
     expect(outcome.hits).toEqual([
-      { slug: "alpha", text: "alpha chunk", score: 0.81, contentHash: "h-alpha-0" },
+      { pageId: "concepts/alpha", slug: "alpha", text: "alpha chunk", score: 0.81, contentHash: "h-alpha-0" },
     ]);
   });
 
-  it("forwards topChunks through to findRelevantChunks verbatim", async () => {
-    mockedReadStore.mockResolvedValueOnce(v2StoreWithChunk());
-    mockedFindChunks.mockResolvedValueOnce([]);
-    await retrieveSemanticChunks("/tmp/proj", "prompt", 12);
-    const callArgs = mockedFindChunks.mock.calls[0];
-    expect(callArgs[2]).toBe(12);
-  });
-
-  it("short-circuits to embedding-store-missing without touching the store when topChunks <= 0", async () => {
+  it("short-circuits without touching the store when topChunks <= 0", async () => {
     const outcome = await retrieveSemanticChunks("/tmp/proj", "p", 0);
     expect(outcome.warning).toBeNull();
-    expect(mockedReadStore).not.toHaveBeenCalled();
+    expect(mockedLoad).not.toHaveBeenCalled();
     expect(mockedFindChunks).not.toHaveBeenCalled();
+  });
+});
+
+describe("retrieveSemanticChunks — embedding-entry-stale surfacing (context)", () => {
+  const hit = { pageId: "concepts/alpha", slug: "alpha", chunkIndex: 0, contentHash: "h", text: "t", score: 0.8 };
+
+  it("flags staleEntriesDetected when the chunk pipeline reports stale entries alongside hits", async () => {
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
+    mockedFindChunks.mockResolvedValueOnce({ hits: [hit], stalePageIds: ["concepts/ghost"] });
+    const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
+    expect(outcome.warning).toBeNull();
+    expect(outcome.staleEntriesDetected).toBe(true);
+  });
+
+  it("does NOT flag staleEntriesDetected for a clean v3 store (no stale entries)", async () => {
+    mockedLoad.mockResolvedValueOnce(v3Outcome());
+    mockedFindChunks.mockResolvedValueOnce({ hits: [hit], stalePageIds: [] });
+    const outcome = await retrieveSemanticChunks("/tmp/proj", "any", 8);
+    expect(outcome.staleEntriesDetected).toBe(false);
   });
 });

@@ -6,11 +6,16 @@
  * avoid duplicated mkdir/writeFile boilerplate across test files.
  */
 
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, readFile } from "fs/promises";
 import { createHash } from "node:crypto";
 import path from "path";
 import { LLMWIKI_DIR, STATE_FILE } from "../../src/utils/constants.js";
 import type { WikiState } from "../../src/utils/types.js";
+
+/** Read and parse the persisted `.llmwiki/state.json` for a test root. */
+export async function readPersistedState(root: string): Promise<WikiState> {
+  return JSON.parse(await readFile(path.join(root, STATE_FILE), "utf-8"));
+}
 
 /** Hex SHA-256 of a string — mirrors the compiler's source hashing for fixtures. */
 export function sha256Hex(text: string): string {
@@ -53,3 +58,14 @@ export async function writeTestStateJson(root: string, state: WikiState): Promis
 export async function writeCorruptTestStateJson(root: string): Promise<void> {
   await writeRawTestStateJson(root, "{ not valid json");
 }
+
+/**
+ * Canonical valid version:1 state fixture shared by state-read tests so the
+ * "reports ok and carries the parsed source" assertion isn't re-declared per
+ * file. One tracked source with a known hash.
+ */
+export const SAMPLE_OK_STATE_V1: WikiState = {
+  version: 1,
+  indexHash: "",
+  sources: { "a.md": { hash: "h", concepts: ["x"], compiledAt: "t" } },
+};

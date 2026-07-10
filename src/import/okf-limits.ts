@@ -16,4 +16,10 @@ export const DEFAULT_OKF_LIMITS: OkfImportLimits = {
   // Total directory entries visited during the walk — bounds deep-empty-dir /
   // many-non-`.md` trees that wouldn't otherwise count toward maxFiles.
   maxEntries: 100_000,
+  // Bundle-level `x-llmwiki` block caps (CLP 7.6, D-7.6.9). A block over the byte
+  // cap is refused whole; an over-cap relation/workflow LIST is refused whole (a
+  // partial list would misrepresent the graph) — pages still import regardless.
+  maxIndexBlockBytes: 2_000_000,
+  maxRelations: 10_000,
+  maxWorkflowRuns: 1_000,
 };

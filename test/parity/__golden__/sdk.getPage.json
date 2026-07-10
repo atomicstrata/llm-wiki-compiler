@@ -1,0 +1,13 @@
+{
+  "archived": false,
+  "body": "\n# Foo Bar\n\nProves a space in the stem is preserved verbatim.\n",
+  "createdAt": "2024-01-01T00:00:00.000Z",
+  "links": [],
+  "orphaned": false,
+  "pageDirectory": "concepts",
+  "slug": "Foo Bar",
+  "summary": "Stem with a space.",
+  "tags": [],
+  "title": "Foo Bar",
+  "updatedAt": "2024-01-02T00:00:00.000Z"
+}

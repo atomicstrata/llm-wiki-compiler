@@ -12,6 +12,7 @@
 import path from "path";
 import { collectRawWikiPages, extractWikilinkSlugs } from "../wiki/collect.js";
 import type { RawWikiPage } from "../wiki/collect.js";
+import { readConnectorBlock } from "../connectors/fence.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import { extractClaimCitations } from "../utils/markdown.js";
@@ -119,6 +120,7 @@ function toExportPage(
   const meta = raw.frontmatter;
   const aliases = readStringArray(meta, "aliases");
   const sources = readStringArray(meta, "sources");
+  const connectorOrigin = readConnectorBlock(meta);
   const freshness = computeFreshness(
     { slug: raw.slug, pageDirectory: raw.pageDirectory, frontmatter: meta },
     snapshot,
@@ -137,6 +139,7 @@ function toExportPage(
     body: raw.body,
     kind: readPageKind(meta),
     ...(readXOkf(meta) ? { xOkf: readXOkf(meta)! } : {}),
+    ...(connectorOrigin ? { connectorOrigin } : {}),
     advisoryConfidence: readAdvisoryConfidence(meta),
     provenanceState: readProvenanceState(meta),
     contradictedBy: readContradictedBy(meta),

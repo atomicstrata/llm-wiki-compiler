@@ -14,6 +14,7 @@
  */
 
 import type { ExportPage } from "./types.js";
+import { exportBodyText, exportFieldText } from "./connector-content.js";
 
 /**
  * Build the wiki-relative path for a page based on its source directory.
@@ -29,7 +30,7 @@ function pageRelativePath(page: ExportPage): string {
  */
 function buildEntryNote(page: ExportPage): string {
   const parts: string[] = [];
-  if (page.summary) parts.push(page.summary);
+  if (page.summary) parts.push(exportFieldText(page, "summary", page.summary));
   if (page.tags.length > 0) parts.push(`tags: ${page.tags.join(", ")}`);
   if (page.sources.length > 0) parts.push(`sources: ${page.sources.join(", ")}`);
   parts.push(`created: ${page.createdAt}`);
@@ -85,14 +86,15 @@ export function buildLlmsFullTxt(pages: ExportPage[], projectTitle: string): str
   for (const page of pages) {
     const tags = page.tags.length > 0 ? `\nTags: ${page.tags.join(", ")}` : "";
     const sources = page.sources.length > 0 ? `\nSources: ${page.sources.join(", ")}` : "";
+    const summary = exportFieldText(page, "summary", page.summary);
     const header = [
       "---",
       `## ${page.title}`,
-      `> ${page.summary}${tags}${sources}`,
+      `> ${summary}${tags}${sources}`,
       `Created: ${page.createdAt} | Updated: ${page.updatedAt}`,
       "",
     ].join("\n");
-    sections.push(`${header}\n${page.body.trim()}\n`);
+    sections.push(`${header}\n${exportBodyText(page).trim()}\n`);
   }
 
   return sections.join("\n");

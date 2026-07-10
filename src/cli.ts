@@ -16,20 +16,9 @@ import compileCommand from "./commands/compile.js";
 import queryCommand from "./commands/query.js";
 import watchCommand from "./commands/watch.js";
 import lintCommand from "./commands/lint.js";
-import evalCommand, {
-  evalCacheClearCommand,
-  evalCacheShowCommand,
-  evalReportCommand,
-  evalHistoryCommand,
-  evalJudgementsCommand,
-} from "./commands/eval.js";
 import exportCommand from "./commands/export.js";
 import importCommand from "./commands/import.js";
-import { schemaInitCommand, schemaShowCommand } from "./commands/schema.js";
-import reviewListCommand from "./commands/review-list.js";
-import reviewShowCommand from "./commands/review-show.js";
-import reviewApproveCommand from "./commands/review-approve.js";
-import reviewRejectCommand from "./commands/review-reject.js";
+import { recoverCommand } from "./commands/recover.js";
 import { registerRulesCommand } from "./commands/rules-register.js";
 import nextCommand from "./commands/next.js";
 import refreshCommand from "./commands/refresh.js";
@@ -41,6 +30,16 @@ import { ensureProviderAvailable } from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
 import { parseConcurrencyFlag } from "./compiler/concurrency.js";
 import { ENV_VERBOSE } from "./utils/constants.js";
+import { runExitCodeCommand } from "./cli/shared.js";
+import { registerStateCommands } from "./cli/state-commands.js";
+import { registerSchemaCommands } from "./cli/schema-commands.js";
+import { registerProfileCommands } from "./cli/profile-commands.js";
+import { registerTemplateCommands } from "./cli/template-commands.js";
+import { registerArtifactCommands } from "./cli/artifact-commands.js";
+import { registerReviewCommands } from "./cli/review-commands.js";
+import { registerEvalCommands } from "./cli/eval-commands.js";
+import { registerWorkflowCommands } from "./cli/workflow-commands.js";
+import { registerConnectorCommands } from "./cli/connector-commands.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -157,52 +156,16 @@ program
     }
   });
 
-const reviewCommand = program
-  .command("review")
-  .description("Inspect and act on pending compile review candidates");
+registerReviewCommands(program);
 
-reviewCommand
-  .command("list")
-  .description("List pending review candidates")
+registerStateCommands(program);
+
+program
+  .command("recover")
+  .description("Recover an incomplete compile (revert a crashed compile's journal) without a full recompile.")
   .action(async () => {
     try {
-      await reviewListCommand();
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-reviewCommand
-  .command("show <id>")
-  .description("Print a single candidate's metadata and body")
-  .action(async (id: string) => {
-    try {
-      await reviewShowCommand(id);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-reviewCommand
-  .command("approve <id>")
-  .description("Approve a candidate and promote it into wiki/concepts/")
-  .action(async (id: string) => {
-    try {
-      await reviewApproveCommand(id);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-reviewCommand
-  .command("reject <id>")
-  .description("Reject a candidate and archive it without touching wiki/")
-  .action(async (id: string) => {
-    try {
-      await reviewRejectCommand(id);
+      await recoverCommand();
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -267,99 +230,19 @@ program
     }
   });
 
-const evalCmd = program
-  .command("eval")
-  .description("Evaluate wiki quality (health, citation coverage, LLM judge)")
-  .option("--suite <level>", "fast (deterministic) or full (+ LLM judge)", "fast")
-  .option("--out <format>", "terminal or json", "terminal")
-  .option("--sample <n>", "number of citations to judge in full suite", "20")
-  .action(async (opts) => {
-    try {
-      await evalCommand(opts);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
+registerEvalCommands(program);
 
-const evalCacheCmd = evalCmd
-  .command("cache")
-  .description("Manage the citation judgement cache");
+registerSchemaCommands(program);
 
-evalCacheCmd
-  .command("clear")
-  .description("Delete the cache so all judgements re-run on the next full eval")
-  .action(async () => {
-    try { await evalCacheClearCommand(); }
-    catch (err) { console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`); process.exit(1); }
-  });
+registerProfileCommands(program);
 
-evalCacheCmd
-  .command("show")
-  .description("Print a score distribution summary of cached citation judgements")
-  .action(async () => {
-    try { await evalCacheShowCommand(); }
-    catch (err) { console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`); process.exit(1); }
-  });
+registerTemplateCommands(program);
 
-evalCmd
-  .command("report")
-  .description("Re-display the most recent eval report without running a new eval")
-  .option("--out <format>", "terminal or json", "terminal")
-  .action(async (opts) => {
-    try { await evalReportCommand(opts); }
-    catch (err) { console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`); process.exit(1); }
-  });
+registerWorkflowCommands(program);
 
-evalCmd
-  .command("history")
-  .description("Show a trend table of past eval runs")
-  .option("--n <count>", "number of runs to show", "10")
-  .option("--out <format>", "terminal or json", "terminal")
-  .action(async (opts) => {
-    try { await evalHistoryCommand(opts); }
-    catch (err) { console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`); process.exit(1); }
-  });
+registerArtifactCommands(program);
 
-evalCmd
-  .command("judgements")
-  .description("Browse cached citation judgements")
-  .option("--score <0|1|2>", "filter by support score (0=unsupported, 1=partial, 2=full)")
-  .option("--page <slug>", "filter by wiki page slug")
-  .option("--n <count>", "limit number of judgements shown")
-  .option("--out <format>", "terminal or json", "terminal")
-  .action(async (opts) => {
-    try { await evalJudgementsCommand(opts); }
-    catch (err) { console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`); process.exit(1); }
-  });
-
-const schemaCmd = program
-  .command("schema")
-  .description("Inspect or initialize the project's wiki schema config");
-
-schemaCmd
-  .command("init")
-  .description("Write a starter schema file to .llmwiki/schema.json")
-  .action(async () => {
-    try {
-      await schemaInitCommand();
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-schemaCmd
-  .command("show")
-  .description("Print the resolved schema for this project")
-  .action(async () => {
-    try {
-      await schemaShowCommand();
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
+registerConnectorCommands(program);
 
 program
   .command("export")
@@ -505,25 +388,6 @@ function requireProvider(): void {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`\x1b[31mError:\x1b[0m ${message}`);
-    process.exit(1);
-  }
-}
-
-/**
- * Wrap a command implementation that returns an exit code with the
- * shared CLI exit semantics: assign process.exitCode for non-zero
- * returns (so stdout can drain before the event loop exits) and
- * print a red-formatted error then process.exit(1) on throws.
- *
- * Centralised so command actions stay one-liners and fallow does not
- * flag the try/catch+exitCode skeleton as duplicated across siblings.
- */
-async function runExitCodeCommand(work: () => Promise<number>): Promise<void> {
-  try {
-    const code = await work();
-    if (code !== 0) process.exitCode = code;
-  } catch (err) {
-    console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
 }

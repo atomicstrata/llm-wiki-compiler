@@ -4,7 +4,12 @@
  */
 
 import type { PageKind } from "../schema/types.js";
-import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { EntityId } from "../profile/types.js";
+import type { ConnectorProvenance } from "../connectors/types.js";
+import type { TrustDecision } from "../trust/decision.js";
+import type { PageId } from "./page-id.js";
+import type { SelectedPageRef } from "../search/retrieval.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -72,15 +77,29 @@ export interface SourceState {
   hash: string;
   concepts: string[];
   compiledAt: string;
+  /**
+   * v2 typed-ownership mirror of {@link concepts}: each bare concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `concepts` list (never replacing it) so a v2 state stays losslessly
+   * downgradeable. Present only after migration to `version: 2`.
+   */
+  entities?: EntityId[];
 }
 
 /** Root shape of .llmwiki/state.json. */
 export interface WikiState {
-  version: 1;
+  version: 1 | 2;
   indexHash: string;
   sources: Record<string, SourceState>;
   /** Concept slugs frozen across batches to preserve content from deleted sources. */
   frozenSlugs?: string[];
+  /**
+   * v2 typed-ownership mirror of {@link frozenSlugs}: each frozen concept slug
+   * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE
+   * the v1 `frozenSlugs` list (never replacing it). Present only after
+   * migration to `version: 2`.
+   */
+  frozenEntities?: EntityId[];
 }
 
 /** Change detection result for a single source file. */
@@ -136,7 +155,7 @@ export interface CompileResult {
 export interface ReviewedCandidateRef {
   id: string;
   slug: string;
-  reasons: HeldReasonCode[];
+  reasons: PolicyHeldReasonCode[];
 }
 
 /** Optional behaviour controls for the compile pipeline. */
@@ -197,8 +216,22 @@ export interface ReviewCandidate {
    * OKF query docs set `queries` to round-trip back into the right subdir.
    */
   targetDirectory?: "concepts" | "queries";
+  /**
+   * Typed entity directory the approved page routes to under a configurable
+   * profile (e.g. `"papers"`). Phase-2 typed-target metadata; OMITTED for
+   * default-profile candidates.
+   */
+  targetEntityType?: string;
+  /**
+   * Trust Guard decision attached to this candidate at generation time, so
+   * reviewers see how the write was routed. Phase-2 typed-target metadata;
+   * OMITTED for default-profile candidates.
+   */
+  trustDecision?: TrustDecision;
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
+  /** Host-authored provenance for connector-fetched candidates. */
+  connectorProvenance?: ConnectorProvenance;
   /** Confidence parsed from the generated page frontmatter, for review display. */
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */
@@ -235,6 +268,11 @@ export interface ReviewCandidate {
 
 /** A single chunk citation surfaced as part of a query result. */
 export interface ChunkCitation {
+  /**
+   * Qualified parent-page id (`<namespace>/<part>`) — keeps same-slug chunks
+   * (`concepts/foo` vs `papers/foo`) distinct in provenance/reasoning/debug.
+   */
+  pageId: PageId;
   slug: string;
   title: string;
   chunkIndex: number;
@@ -244,8 +282,8 @@ export interface ChunkCitation {
 
 /** Diagnostic snapshot of how the retrieval pipeline picked context. */
 export interface RetrievalDebug {
-  /** Pages selected after collapsing chunks to their parent slugs. */
-  pages: Array<{ slug: string; score: number }>;
+  /** Pages selected after collapsing chunks to their parent qualified pageId. */
+  pages: Array<{ pageId: PageId; score: number }>;
   /** Top-ranked chunks before the page-collapse step. */
   chunks: ChunkCitation[];
   /** True when chunk-level entries drove the selection (vs. page-level fallback). */
@@ -254,14 +292,42 @@ export interface RetrievalDebug {
   reranked: boolean;
 }
 
+/** A structured warning surfaced in a {@link QueryResult} (S6). */
+export interface QueryWarning {
+  code: string;
+  message: string;
+}
+
 /** Structured result returned by the query pipeline. */
 export interface QueryResult {
   answer: string;
+  /**
+   * Legacy DERIVED display field: the bare page-part of each selected
+   * {@link pageIds} entry (via `slugFromPageId`). Kept populated for back-compat
+   * with consumers that read slugs; prefer {@link pageIds}/{@link refs} as the
+   * canonical, collision-free identity (a typed `papers/foo` and a concept `foo`
+   * share the slug `foo` but are DISTINCT pageIds).
+   */
   selectedPages: string[];
+  /**
+   * Canonical qualified ids the answer was grounded on (`<namespace>/<part>`),
+   * deduped and order-preserved. Carries the typed namespace so a `papers/foo`
+   * hit grounds on `wiki/papers/foo.md`, never `wiki/concepts/foo.md`.
+   */
+  pageIds: PageId[];
+  /** The selected page refs (qualified id + slug + title + selection kind). */
+  refs: SelectedPageRef[];
   reasoning: string;
   saved?: string;
   /** Populated when the query was run in debug mode. */
   debug?: RetrievalDebug;
+  /**
+   * Embedding-load degrade warnings surfaced in the result payload (S6) rather
+   * than only logged: an outdated (non-v3) or unavailable index degrades query
+   * to lexical/index selection and reports `embedding-index-outdated`. Omitted
+   * (key absent) when there are no warnings, so a healthy query is unchanged.
+   */
+  warnings?: QueryWarning[];
 }
 
 /** Source type tag persisted in frontmatter to describe the ingest origin. */

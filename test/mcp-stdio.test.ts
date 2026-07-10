@@ -14,8 +14,8 @@
 import { describe, it, expect } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { useMcpRoot, connectMcpClient } from "./fixtures/mcp-test-env.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { useMcpRoot, connectMcpClient, parseToolPayload } from "./fixtures/mcp-test-env.js";
 
 const rootHandle = useMcpRoot("mcp-stdio");
 
@@ -42,15 +42,6 @@ async function seedPendingCandidate(root: string): Promise<void> {
   );
 }
 
-/** Parse the JSON status payload from a wiki_status tool response. */
-function parseStatusResult(result: Awaited<ReturnType<Client["callTool"]>>): { pendingCandidates: number } {
-  const text = (result.content as Array<{ type: string; text: string }>)
-    .filter((c) => c.type === "text")
-    .map((c) => c.text)
-    .join("");
-  return JSON.parse(text) as { pendingCandidates: number };
-}
-
 describe("MCP stdio: wiki_status pending-review count", () => {
   it("reports pendingCandidates ≥ 1 after seeding a candidate file", async () => {
     const root = rootHandle.value;
@@ -59,7 +50,7 @@ describe("MCP stdio: wiki_status pending-review count", () => {
     const { client, transport } = await connectMcpClient(root);
     try {
       const result = await client.callTool({ name: "wiki_status", arguments: {} });
-      const status = parseStatusResult(result);
+      const status = parseToolPayload<{ pendingCandidates: number }>(result as CallToolResult);
       expect(status.pendingCandidates).toBeGreaterThanOrEqual(1);
     } finally {
       await client.close();

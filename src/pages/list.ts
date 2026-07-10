@@ -25,6 +25,10 @@ import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { assertSafeSlug } from "../viewer/path-safety.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
+import { journalHealthWarning } from "../trust/journal-health-warning.js";
+import { toEntityPageView } from "../profile/types.js";
+import type { EntityPageView, EntityProblemView, EntityPage } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 
 export type { PageDirectory };
@@ -61,13 +65,98 @@ export interface ListPagesOptions {
   includeBody?: boolean;
   includeArchived?: boolean;
   includeOrphaned?: boolean;
+  /**
+   * Opaque continuation cursor for the ADDITIVE profile entity section ONLY.
+   * Drives the entity window independently of the legacy `cursor` (which scopes
+   * `pages`), so the entity batch is never re-sliced or re-sent by legacy
+   * paging. Uses the SAME `limit` as the legacy section.
+   */
+  profileCursor?: string;
+  /**
+   * Opaque continuation cursor for the ADDITIVE profile `problems` section ONLY.
+   * Windows collector problems independently of `cursor`/`profileCursor`, using
+   * the SAME `limit`, so a partially-invalid profile never returns thousands of
+   * problems per page. Drive the next batch via {@link ListPagesProfileBlock.problemCursor}.
+   */
+  problemCursor?: string;
 }
 
-/** Result returned by `listPages`. */
+/**
+ * Additive, non-default-profile entity-page block for `listPages`.
+ *
+ * Present ONLY for a non-default profile; for the built-in default it is
+ * ABSENT (`result.profile === undefined`) so the default envelope is unchanged.
+ * `entityPages` carries the PUBLIC `EntityPageView`s (project-relative `path`,
+ * never an absolute `filePath`); each view's `body` is OMITTED when
+ * `includeBody` is false (mirroring how the legacy `pages` block omits bodies).
+ *
+ * The entity section is BOUNDED by `limit`: it returns at most `limit` views,
+ * deterministically sorted by `id`, with `total` reporting the full entity-page
+ * count and `cursor` carrying the offset of the NEXT batch (absent when
+ * exhausted). Drive the next batch via {@link ListPagesOptions.profileCursor},
+ * which is independent of the legacy `pages` cursor.
+ *
+ * @experimental Shape may change in a future release.
+ */
+export interface ListPagesProfileBlock {
+  entityPages: EntityPageView[];
+  /** Full count of entity pages across the whole non-default profile. */
+  total: number;
+  /**
+   * Opaque continuation cursor for the NEXT entity batch; absent when the
+   * entity section is exhausted. Pass back via `profileCursor`.
+   */
+  cursor?: string;
+  /**
+   * Structured collector problems, WINDOWED by `limit` independently of
+   * `entityPages` (its own `problemCursor` offset). Present ONLY when the window
+   * is non-empty; each `path` is project-relative (never absolute) and absent
+   * for directory-level problems. See `problemTotal` for the full count.
+   */
+  problems?: EntityProblemView[];
+  /** Full count of collector problems across the profile; present ONLY when non-empty. */
+  problemTotal?: number;
+  /**
+   * Opaque continuation cursor for the NEXT `problems` batch; absent when the
+   * problem section is exhausted. Pass back via `problemCursor`.
+   */
+  problemCursor?: string;
+}
+
+/**
+ * Result returned by `listPages`.
+ *
+ * DX note: for a NON-DEFAULT profile the legacy `pages` array is scoped to
+ * concepts/queries (typically EMPTY for an entity-only project); the entity
+ * content lives in `profile.entityPages`. Read the entity section there, not
+ * from `pages`.
+ */
 export interface ListPagesResult {
   pages: Page[];
   /** Opaque cursor for the next page; absent when the listing is exhausted. */
   cursor?: string;
+  /**
+   * Non-default profile entity pages, ADDITIVELY. ABSENT (undefined) for the
+   * built-in default so the default envelope is byte-identical; the legacy
+   * `pages` block stays scoped to concepts/queries in both cases. For a
+   * non-default profile this is where the entity content lives — the legacy
+   * `pages` array is typically empty.
+   */
+  profile?: ListPagesProfileBlock;
+  /**
+   * Read-surface health warnings. ABSENT (key omitted) for a healthy project so
+   * the default envelope is byte-identical (parity-safe); present ONLY when the
+   * compile journal is `pending` (`incomplete-compile`) or `unavailable`
+   * (`journal-unavailable`), so an agent listing pages never treats partial
+   * post-crash or tampered content as a complete, clean listing.
+   */
+  warnings?: ListPagesWarning[];
+}
+
+/** One read-surface health warning carried on a {@link ListPagesResult}. */
+export interface ListPagesWarning {
+  code: string;
+  message: string;
 }
 
 /** Maps each PageDirectory to its project-relative path. */
@@ -145,7 +234,102 @@ export async function listPages(
     (a, b) =>
       a.pageDirectory.localeCompare(b.pageDirectory) || a.slug.localeCompare(b.slug),
   );
-  return paginate(all, options);
+  const result = paginate(all, options);
+  const profile = await collectProfileBlock(root, options);
+  const withProfile = profile ? { ...result, profile } : result;
+  // Surface a pending/unavailable compile journal so an agent listing pages
+  // never treats partial post-crash state as a complete listing. ABSENT when the
+  // journal is ok, so the default envelope is byte-identical (parity-safe).
+  const warning = await journalHealthWarning(root);
+  return warning ? { ...withProfile, warnings: [warning] } : withProfile;
+}
+
+/**
+ * Resolve a window offset from an opaque cursor for an additive profile section.
+ * A non-integer or negative cursor is rejected rather than silently recycled
+ * (mirroring the legacy {@link paginate} cursor guard). `name` identifies the
+ * offending cursor option in the error so callers can tell which one was bad.
+ */
+function profileOffset(cursor: string | undefined, name: string): number {
+  const offset = cursor !== undefined ? Number(cursor) : 0;
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error(`invalid listPages ${name}: ${cursor}`);
+  }
+  return offset;
+}
+
+/**
+ * For a NON-DEFAULT profile only, build the additive `profile` block from the
+ * content-carrying entity collector. Returns `undefined` for the built-in
+ * default so the legacy envelope is unchanged — gated through the shared
+ * {@link loadNonDefaultProfile} primitive, exactly as `status` does.
+ *
+ * Honors `includeBody`: each view's `body` is OMITTED (key absent) when bodies
+ * are not requested, mirroring how the legacy `pages` block omits bodies. Maps
+ * the internal `EntityPage` to the public `EntityPageView` so the absolute
+ * `filePath` never reaches the surface.
+ *
+ * BOUNDED + PAGINATED: entity pages are deterministically sorted by `id` (entity
+ * collection order is filesystem-dependent and unstable), then windowed by the
+ * SAME `limit` as the legacy section, offset by `profileCursor`. `total` reports
+ * the full count and `cursor` carries the next offset (absent when exhausted) —
+ * so a large profile no longer returns an unbounded, body-bearing payload.
+ */
+async function collectProfileBlock(
+  root: string,
+  options: ListPagesOptions,
+): Promise<ListPagesProfileBlock | undefined> {
+  const loaded = await loadNonDefaultProfile(root);
+  if (loaded === undefined) return undefined;
+  const { pages, problems } = await collectEntityPagesWithMessages(root, loaded);
+  pages.sort((a, b) => a.id.localeCompare(b.id));
+  const includeBody = options.includeBody === true;
+  return windowEntityPages(pages, options, includeBody, problems);
+}
+
+/** An offset window over a list: the slice plus the next-batch offset (absent when exhausted). */
+interface OffsetWindow<T> {
+  items: T[];
+  cursor?: string;
+}
+
+/**
+ * Slice an already-ordered list into a bounded window at `offset`, sized by the
+ * SAME `limit` contract as the legacy {@link paginate} (non-positive/absent limit
+ * = unbounded). The returned `cursor` is the offset past the window, absent once
+ * the list is exhausted. Shared by the entity-page and problem windows so the two
+ * never drift.
+ */
+function sliceWindow<T>(items: T[], offset: number, limit: number | undefined): OffsetWindow<T> {
+  const effectiveLimit = limit && limit > 0 ? limit : items.length;
+  const window = items.slice(offset, offset + effectiveLimit);
+  const nextOffset = offset + window.length;
+  return { items: window, ...(nextOffset < items.length ? { cursor: String(nextOffset) } : {}) };
+}
+
+/**
+ * Slice an already-sorted entity-page list into a bounded, cursor-paged block,
+ * windowing `problems` by the SAME `limit` under an INDEPENDENT `problemCursor`
+ * offset (with `problemTotal`/`problemCursor`) so a partially-invalid profile
+ * never returns thousands of problems per page. Entity `cursor` and problem
+ * `problemCursor` advance separately; the next-batch cursors are absent once
+ * each section is exhausted.
+ */
+function windowEntityPages(
+  pages: EntityPage[],
+  options: ListPagesOptions,
+  includeBody: boolean,
+  problems: EntityProblemView[],
+): ListPagesProfileBlock {
+  const pageWindow = sliceWindow(pages, profileOffset(options.profileCursor, "profileCursor"), options.limit);
+  const problemWindow = sliceWindow(problems, profileOffset(options.problemCursor, "problemCursor"), options.limit);
+  return {
+    entityPages: pageWindow.items.map((page) => toEntityPageView(page, includeBody)),
+    total: pages.length,
+    ...(pageWindow.cursor !== undefined ? { cursor: pageWindow.cursor } : {}),
+    ...(problems.length > 0 ? { problems: problemWindow.items, problemTotal: problems.length } : {}),
+    ...(problemWindow.cursor !== undefined ? { problemCursor: problemWindow.cursor } : {}),
+  };
 }
 
 /**

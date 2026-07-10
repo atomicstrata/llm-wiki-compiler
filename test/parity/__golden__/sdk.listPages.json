@@ -1,0 +1,88 @@
+{
+  "pages": [
+    {
+      "archived": false,
+      "body": "\n\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [],
+      "orphaned": false,
+      "pageDirectory": "concepts",
+      "slug": "empty-edge",
+      "summary": "",
+      "tags": [],
+      "title": "Empty Edge",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "archived": false,
+      "body": "\n# Alpha\n\nAlpha establishes the core idea.^[alpha.md:1]\n\nSee also [[Beta|the beta concept]].\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [
+        "beta"
+      ],
+      "orphaned": false,
+      "pageDirectory": "concepts",
+      "slug": "alpha",
+      "summary": "The core idea.",
+      "tags": [
+        "core"
+      ],
+      "title": "Alpha",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "archived": false,
+      "body": "\n# Beta\n\nBeta has drifted since its source last compiled.\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [],
+      "orphaned": false,
+      "pageDirectory": "concepts",
+      "slug": "beta",
+      "summary": "Drifted concept.",
+      "tags": [],
+      "title": "Beta",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "archived": false,
+      "body": "\n# Foo Bar\n\nProves a space in the stem is preserved verbatim.\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [],
+      "orphaned": false,
+      "pageDirectory": "concepts",
+      "slug": "Foo Bar",
+      "summary": "Stem with a space.",
+      "tags": [],
+      "title": "Foo Bar",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "archived": false,
+      "body": "\n# What is Alpha?\n\nAlpha is the core idea.^[alpha.md:1] See [[Alpha]].\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [
+        "alpha"
+      ],
+      "orphaned": false,
+      "pageDirectory": "queries",
+      "slug": "what-is-alpha",
+      "summary": "Generated answer.",
+      "tags": [],
+      "title": "What is Alpha?",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "archived": false,
+      "body": "\n# 研究\n\nProves a unicode/CJK stem is preserved verbatim.\n",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "links": [],
+      "orphaned": false,
+      "pageDirectory": "concepts",
+      "slug": "研究",
+      "summary": "Stem with a CJK char.",
+      "tags": [],
+      "title": "研究",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    }
+  ]
+}

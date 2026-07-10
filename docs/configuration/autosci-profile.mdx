@@ -1,0 +1,178 @@
+---
+title: "AutoSci Profile"
+sidebarTitle: "AutoSci Profile"
+description: "Use AutoSci as a complete example of profiles-as-configuration."
+---
+
+AutoSci is a built-in profile template for research projects. It is useful both
+as a ready-to-use research workspace and as a concrete example of how profiles
+compose entities, relations, lifecycles, artifacts, workflows, connector
+bindings, and trust rules without profile-specific code.
+
+AutoSci is the largest built-in example of
+[Configurable Lifecycle Profiles](/concepts/configurable-lifecycle-profiles):
+the domain behavior comes from profile data, while the core engine stays
+generic.
+
+## Install AutoSci
+
+```bash
+llmwiki template inspect autosci
+llmwiki template init autosci
+llmwiki profile validate
+```
+
+`template init autosci` writes `.llmwiki/profile.json` after confirming the
+typed corpus is empty. The installed profile has `profileId: autosci`.
+
+## What AutoSci declares
+
+| Capability | AutoSci |
+|---|---|
+| Entities | 12 |
+| Relations | 12 |
+| Workflows | 5 |
+| Workflow actions | 5 |
+| Artifact types | 7 |
+| Connector bindings | `crossref` |
+| Content tiers | yes |
+| Relation preconditions | yes |
+| Artifact preconditions | yes |
+
+## Entity vocabulary
+
+AutoSci's entities model a research workflow:
+
+| Entity type | Directory | Role |
+|---|---|---|
+| `papers` | `wiki/papers` | Imported and distilled literature |
+| `sources` | `wiki/sources` | Repositories, videos, web pages, and paper sources |
+| `ideas` | `wiki/ideas` | Proposed, explored, validated, or rejected hypotheses |
+| `experiments` | `wiki/experiments` | Designs, running experiments, and completed results |
+| `manuscripts` | `wiki/manuscripts` | Drafting, citation-checking, and submission |
+| `topics` | `wiki/topics` | Research areas and gaps |
+| `research-concepts` | `wiki/research-concepts` | Domain concepts extracted from literature |
+| `methods` | `wiki/methods` | Proposed, validated, or deprecated methods |
+| `foundations` | `wiki/foundations` | Datasets, tools, theories, and benchmarks |
+| `people` | `wiki/people` | Researchers and collaborators |
+| `reviews` | `wiki/reviews` | Peer review and internal review records |
+| `research-outputs` | `wiki/research-outputs` | Released models, datasets, reports, and code |
+
+## Relations
+
+AutoSci relations are typed and endpoint-checked:
+
+```json
+{
+  "tests": {
+    "from": ["experiments"],
+    "to": ["ideas"],
+    "direction": "directed"
+  },
+  "cites": {
+    "from": ["papers", "manuscripts"],
+    "to": ["sources", "papers"],
+    "direction": "directed"
+  },
+  "builds-on": {
+    "from": ["ideas"],
+    "to": ["papers", "ideas"],
+    "direction": "directed"
+  }
+}
+```
+
+The full profile also includes `challenges`, `introduces-concept`,
+`uses-concept`, `proposes-method`, `extends-method`, `supports`,
+`contradicts`, `derived-from`, and `addresses-gap`.
+
+## Lifecycle gates
+
+AutoSci uses lifecycle fields to keep state transitions explicit. For example,
+an experiment starts as `designed`, moves to `running`, and can enter `complete`
+only when it has a `resultSummary`, a live `tests` relation to an idea, and a
+healthy `experiment-result` artifact ref.
+
+```yaml
+---
+title: Sparse attention ablation
+hypothesis: Sparse attention improves latency.
+stage: complete
+resultSummary: Sparse attention improved p95 latency.
+result: experiment-result/sparse-attention@sha256:4b7...
+---
+```
+
+That frontmatter is accepted only if the referenced artifact exists and matches
+the pinned hash, and the relation graph contains the required `tests` edge.
+
+## Artifacts
+
+AutoSci declares seven artifact types:
+
+| Artifact type | File name | Content kind |
+|---|---|---|
+| `experiment-result` | `result.json` | JSON |
+| `paper-source-metadata` | `source-metadata.json` | JSON |
+| `experiment-plan` | `plan.json` | JSON |
+| `run-log` | `run.txt` | text |
+| `manuscript-draft` | `draft.md` | text |
+| `review-packet` | `packet.json` | JSON |
+| `rebuttal-response` | `rebuttal.md` | text |
+
+Artifacts are written with `llmwiki artifact write` or as workflow artifact
+outputs. Pages reference them with `artifactRef` fields.
+
+## Workflows
+
+AutoSci ships five workflows:
+
+| Workflow | Purpose |
+|---|---|
+| `literature-review` | Gather papers, extract concepts, and synthesize topics |
+| `research` | Move from paper import through idea and experiment completion |
+| `manuscript-writing` | Draft, cite, check, and submit a manuscript |
+| `experiment-design` | Propose methods and design experiments |
+| `review-response` | Intake reviews and draft responses |
+
+Each workflow is declared in the profile. The core workflow engine has no
+AutoSci-specific branches.
+
+## Crossref binding
+
+AutoSci binds the first-party `crossref` connector to `papers`:
+
+```json
+{
+  "crossref": {
+    "entityType": "papers",
+    "fields": {
+      "title": "title",
+      "doi": "doi",
+      "year": "year",
+      "authors": "authors",
+      "stage": "stage"
+    },
+    "contentField": "abstract"
+  }
+}
+```
+
+Running Crossref stages a typed `papers` review candidate. Approval requires the
+operator-supplied draft content hash printed by `review show`.
+
+## Why AutoSci is a configuration example
+
+AutoSci proves the profile model by expressing a rich research workflow as data:
+
+- entity directories and field contracts;
+- typed relations;
+- finite-state lifecycles;
+- relation and artifact preconditions;
+- declared workflow stages and actions;
+- artifact contracts;
+- connector bindings;
+- content tiers.
+
+The default profile, AutoSci, and Newsroom all use the same core engine. Profile
+behavior comes from `.llmwiki/profile.json`, not from domain-specific branches.

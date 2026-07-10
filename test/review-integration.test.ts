@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import path from "path";
-import { mkdir, rm, writeFile, readdir, access } from "fs/promises";
+import { mkdir, rm, writeFile, readdir, readFile, access } from "fs/promises";
 import { tmpdir } from "os";
 import type { ReviewCandidate } from "../src/utils/types.js";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";
@@ -253,6 +253,35 @@ describe("review integration tests", () => {
   // -------------------------------------------------------------------------
   // End-to-end: approve → wiki page written
   // -------------------------------------------------------------------------
+
+  it("review approve resolves interlinks into the approved page on disk", async () => {
+    // Regression: refreshWikiAfterApproval calls resolveLinks, which now COMPUTES
+    // rewrites the caller must apply. If the caller discards them, the approved
+    // page would never get its [[wikilink]] — this asserts it actually lands.
+    const cwd = await makeTempWorkspace("review-approve-resolve");
+    try {
+      // An existing concept ("Graph Theory") already on disk for the new page to link to.
+      const conceptsDir = path.join(cwd, "wiki", "concepts");
+      await mkdir(conceptsDir, { recursive: true });
+      await writeFile(
+        path.join(conceptsDir, "graph-theory.md"),
+        "---\ntitle: Graph Theory\nsummary: s\n---\n\nAbout graphs.\n",
+        "utf-8",
+      );
+      // A candidate whose body MENTIONS "Graph Theory" in prose.
+      const candidate = await writeCandidateFixture(cwd, {
+        slug: "networks", title: "Networks",
+        body: "---\ntitle: Networks\nsummary: s\nsources: []\n---\n\n# Networks\n\nNetworks build on Graph Theory ideas.\n",
+      });
+
+      expectCLIExit(await runCLI(["review", "approve", candidate.id], cwd), 0);
+
+      const approved = await readFile(path.join(conceptsDir, "networks.md"), "utf-8");
+      expect(approved).toContain("[[graph-theory|Graph Theory]]");
+    } finally {
+      await cleanupDir(cwd);
+    }
+  }, 30_000);
 
   it("review approve writes the wiki page and clears the candidate", async () => {
     const cwd = await makeTempWorkspace("review-approve-e2e");

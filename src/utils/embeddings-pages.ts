@@ -7,41 +7,73 @@
 import { readdir } from "fs/promises";
 import path from "path";
 import { getProvider } from "./provider.js";
-import { safeReadFile, parseFrontmatter } from "./markdown.js";
+import { parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
 import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
+import { safeRealpath, isInsideDir } from "./path-confine.js";
+import { readConfinedPage } from "./confined-read.js";
+import type { PageRecord } from "../pages/read.js";
 
-/** A retrievable page record on disk (concepts/ or queries/). */
-export interface PageRecord {
-  slug: string;
-  title: string;
-  summary: string;
-  body: string;
+/** A reserved-namespace page record tagged with the directory it came from. */
+export interface NamespacedPageRecord {
+  /** `concepts` or `queries` — the reserved namespace of the source directory. */
+  namespace: string;
+  record: PageRecord;
 }
 
-/** Scan concepts/ and queries/ directories, returning retrievable pages. */
-export async function collectPageRecords(root: string): Promise<PageRecord[]> {
-  const records: PageRecord[] = [];
-  for (const dir of [CONCEPTS_DIR, QUERIES_DIR]) {
-    const absDir = path.join(root, dir);
+/** Reserved namespaces and their on-disk directories, in priority order. */
+const RESERVED_DIRS: ReadonlyArray<{ namespace: string; dir: string }> = [
+  { namespace: path.basename(CONCEPTS_DIR), dir: CONCEPTS_DIR },
+  { namespace: path.basename(QUERIES_DIR), dir: QUERIES_DIR },
+];
+
+/**
+ * Scan concepts/ and queries/ directories, returning retrievable pages tagged
+ * with the reserved namespace they came from.
+ *
+ * Each `.md` entry is realpath-confirmed to resolve INSIDE its canonical entity
+ * directory and read through {@link readConfinedPage} (handle-bound), so a
+ * symlinked page escaping the project tree is dropped before it is read — its
+ * bytes never reach the embedding provider. A legit in-dir symlink (resolving
+ * inside the dir) is still read.
+ */
+export async function collectNamespacedPageRecords(root: string): Promise<NamespacedPageRecord[]> {
+  const records: NamespacedPageRecord[] = [];
+  const canonicalRoot = await safeRealpath(root);
+  if (!canonicalRoot) return records;
+  for (const { namespace, dir } of RESERVED_DIRS) {
+    const expectedDir = await safeRealpath(path.join(canonicalRoot, dir));
+    if (!expectedDir || !isInsideDir(expectedDir, canonicalRoot)) continue;
     let files: string[];
     try {
-      files = await readdir(absDir);
+      files = await readdir(expectedDir);
     } catch {
       continue;
     }
     for (const file of files.filter((f) => f.endsWith(".md"))) {
-      const record = await readPageRecord(absDir, file);
-      if (record) records.push(record);
+      const record = await readConfinedPageRecord(expectedDir, file);
+      if (record) records.push({ namespace, record });
     }
   }
   return records;
 }
 
-/** Parse a single page file into a PageRecord, skipping orphans/untitled pages. */
-async function readPageRecord(absDir: string, file: string): Promise<PageRecord | null> {
-  const content = await safeReadFile(path.join(absDir, file));
+/** Scan concepts/ and queries/ for retrievable pages (untagged). */
+export async function collectPageRecords(root: string): Promise<PageRecord[]> {
+  return (await collectNamespacedPageRecords(root)).map((r) => r.record);
+}
+
+/**
+ * Confine, read, and parse a single page into a PageRecord. The entry is dropped
+ * (returns null) when its realpath escapes `expectedDir`, when the handle-bound
+ * read fails closed, or when the page is an orphan / lacks a title.
+ */
+async function readConfinedPageRecord(expectedDir: string, file: string): Promise<PageRecord | null> {
+  const resolved = await safeRealpath(path.join(expectedDir, file));
+  if (!resolved || !isInsideDir(resolved, expectedDir)) return null;
+  const content = await readConfinedPage(resolved, expectedDir);
+  if (content === null) return null;
   const { meta, body } = parseFrontmatter(content);
   if (meta.orphaned || typeof meta.title !== "string") return null;
   return {
@@ -53,7 +85,7 @@ async function readPageRecord(absDir: string, file: string): Promise<PageRecord 
 }
 
 /** Build the text that represents a page in the embedding space. */
-function buildEmbeddingText(record: PageRecord): string {
+export function buildEmbeddingText(record: Pick<PageRecord, "title" | "summary">): string {
   return record.summary
     ? `${record.title}\n\n${record.summary}`
     : record.title;
@@ -88,20 +120,4 @@ export async function embedPages(
     updatedAt: now,
   }));
   return { entries, requests: requestCount() };
-}
-
-/** Merge fresh embeddings into an existing store, dropping slugs not in liveSlugs. */
-export function mergeEntries(
-  existing: EmbeddingEntry[],
-  fresh: EmbeddingEntry[],
-  liveSlugs: Set<string>,
-): EmbeddingEntry[] {
-  const bySlug = new Map<string, EmbeddingEntry>();
-  for (const entry of existing) {
-    if (liveSlugs.has(entry.slug)) bySlug.set(entry.slug, entry);
-  }
-  for (const entry of fresh) {
-    bySlug.set(entry.slug, entry);
-  }
-  return Array.from(bySlug.values());
 }

@@ -19,6 +19,7 @@ import {
   type EmbeddingStore,
 } from "../src/utils/embeddings.js";
 import { refreshChunkEmbeddings } from "../src/utils/embeddings-chunks.js";
+import { readV3Store, conceptId } from "./fixtures/v3-store.js";
 import * as providerMod from "../src/utils/provider.js";
 import type { PageRecord } from "../src/utils/embeddings-pages.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
@@ -91,12 +92,12 @@ describe("updateEmbeddings (chunk path)", () => {
     const body = "Paragraph one.\n\nParagraph two with more detail.";
     await writeConcept(root, "alpha", body);
 
-    await updateEmbeddings(root, ["alpha"]);
-    const store = await readEmbeddingStore(root);
+    await updateEmbeddings(root, [conceptId("alpha")]);
+    const store = await readV3Store(root);
 
-    expect(store?.version).toBe(2);
+    expect(store?.version).toBe(3);
     expect(store?.chunks?.length).toBeGreaterThan(0);
-    expect(store?.chunks?.[0].slug).toBe("alpha");
+    expect(store?.chunks?.[0].pageId).toBe(conceptId("alpha"));
     expect(store?.chunks?.[0].contentHash).toMatch(/^[a-f0-9]+$/);
     // Both page and chunk passes use embedBatch; embed is only the sequential fallback.
     expect(store?.chunks?.length).toBeGreaterThan(0);
@@ -106,13 +107,13 @@ describe("updateEmbeddings (chunk path)", () => {
     const root = await makeRoot();
     setupOpenAI([0.1, 0.9]);
     await writeConcept(root, "alpha", "Stable body content.");
-    await updateEmbeddings(root, ["alpha"]);
-    const firstStore = await readEmbeddingStore(root);
+    await updateEmbeddings(root, [conceptId("alpha")]);
+    const firstStore = await readV3Store(root);
     const initialChunkCount = firstStore?.chunks?.length ?? 0;
     expect(initialChunkCount).toBeGreaterThan(0);
 
-    // Add a brand-new page with a fresh body. The existing chunk for alpha
-    // should be reused (same hash), not re-embedded.
+    // Add a brand-new page with a fresh body. The existing vectors for alpha
+    // are content-verified and PRESERVED by migration (same hash), not re-embedded.
     await writeConcept(root, "beta", "Different body");
     const batchedTexts: string[][] = [];
     vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(async (texts: string[]) => {
@@ -120,14 +121,14 @@ describe("updateEmbeddings (chunk path)", () => {
       return texts.map(() => [0.3, 0.7]);
     });
 
-    await updateEmbeddings(root, ["beta"]);
-    const afterStore = await readEmbeddingStore(root);
+    await updateEmbeddings(root, [conceptId("beta")]);
+    const afterStore = await readV3Store(root);
 
-    const alphaChunks = afterStore?.chunks?.filter((c) => c.slug === "alpha") ?? [];
-    const betaChunks = afterStore?.chunks?.filter((c) => c.slug === "beta") ?? [];
+    const alphaChunks = afterStore?.chunks?.filter((c) => c.pageId === conceptId("alpha")) ?? [];
+    const betaChunks = afterStore?.chunks?.filter((c) => c.pageId === conceptId("beta")) ?? [];
     expect(alphaChunks.length).toBe(initialChunkCount);
     expect(betaChunks.length).toBeGreaterThan(0);
-    // Only beta page + beta chunks are embedded; alpha chunks are reused (hash unchanged).
+    // Only beta page + beta chunks are embedded; alpha vectors are preserved.
     const totalBatchedTexts = batchedTexts.reduce((s, ts) => s + ts.length, 0);
     // 1 page text (page pass) + betaChunks.length texts (chunk pass)
     expect(totalBatchedTexts).toBe(1 + betaChunks.length);
@@ -137,13 +138,13 @@ describe("updateEmbeddings (chunk path)", () => {
     const root = await makeRoot();
     setupOpenAI([0.4, 0.6]);
     await writeConcept(root, "alpha", "Original body content here.");
-    await updateEmbeddings(root, ["alpha"]);
-    const before = await readEmbeddingStore(root);
+    await updateEmbeddings(root, [conceptId("alpha")]);
+    const before = await readV3Store(root);
     const beforeHash = before?.chunks?.[0].contentHash;
 
     await writeConcept(root, "alpha", "Completely different body content.");
-    await updateEmbeddings(root, ["alpha"]);
-    const after = await readEmbeddingStore(root);
+    await updateEmbeddings(root, [conceptId("alpha")]);
+    const after = await readV3Store(root);
     const afterHash = after?.chunks?.[0].contentHash;
 
     expect(afterHash).not.toBe(beforeHash);
@@ -153,18 +154,18 @@ describe("updateEmbeddings (chunk path)", () => {
     const root = await makeRoot();
     setupOpenAI([0.2, 0.8]);
     await writeConcept(root, "ghost", "Content");
-    await updateEmbeddings(root, ["ghost"]);
+    await updateEmbeddings(root, [conceptId("ghost")]);
 
     const { rm } = await import("fs/promises");
     await rm(path.join(root, "wiki/concepts/ghost.md"));
     await updateEmbeddings(root, []);
 
-    const store = await readEmbeddingStore(root);
-    expect(store?.chunks?.find((c) => c.slug === "ghost")).toBeUndefined();
-    expect(store?.entries.find((e) => e.slug === "ghost")).toBeUndefined();
+    const store = await readV3Store(root);
+    expect(store?.chunks?.find((c) => c.pageId === conceptId("ghost"))).toBeUndefined();
+    expect(store?.entries.find((e) => e.pageId === conceptId("ghost"))).toBeUndefined();
   });
 
-  it("upgrades a v1 store to v2 by adding chunks for live pages", async () => {
+  it("upgrades a v1 store to v3 by re-embedding live pages with chunks", async () => {
     const root = await makeRoot();
     setupOpenAI([0.7, 0.3]);
     await writeConcept(root, "alpha", "Body for chunking");
@@ -184,12 +185,14 @@ describe("updateEmbeddings (chunk path)", () => {
     };
     await writeEmbeddingStore(root, v1Store);
 
+    // A no-op change still migrates a sub-v3 store (version-driven, S1). A v1
+    // store cannot preserve vectors, so the live page is re-embedded with chunks.
     await updateEmbeddings(root, []);
-    const upgraded = await readEmbeddingStore(root);
+    const upgraded = await readV3Store(root);
 
-    expect(upgraded?.version).toBe(2);
+    expect(upgraded?.version).toBe(3);
     expect(upgraded?.chunks?.length).toBeGreaterThan(0);
-    expect(upgraded?.chunks?.[0].slug).toBe("alpha");
+    expect(upgraded?.chunks?.[0].pageId).toBe(conceptId("alpha"));
   });
 });
 

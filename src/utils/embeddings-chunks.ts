@@ -8,8 +8,8 @@
 import { getProvider } from "./provider.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
 import { type ChunkEmbeddingEntry } from "./embeddings-store.js";
-import { type PageRecord } from "./embeddings-pages.js";
-import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
+import type { PageRecord } from "../pages/read.js";
+import { embedWorkItems, makeCountingProvider } from "./embeddings-batch.js";
 
 /** One output position: a reused entry, or a pending one awaiting a fresh vector. */
 type ChunkSlot =
@@ -59,12 +59,9 @@ export async function refreshChunkEmbeddings(
   }
 
   const { provider, requestCount } = makeCountingProvider(getProvider());
-  let vectors: number[][];
-  try {
-    vectors = await embedTextBatch(provider, work.map((w) => w.text), batchSize, expectedDim);
-  } catch (err) {
-    throw enrichEmbedError(err, "chunk", (i) => work[i]?.slug);
-  }
+  const vectors = await embedWorkItems(
+    provider, work, (w) => w.text, (i) => work[i]?.slug, "chunk", batchSize, expectedDim,
+  );
 
   const chunks = slots.map((slot) => {
     if (slot.kind === "reused") return slot.entry;
@@ -77,28 +74,34 @@ export async function refreshChunkEmbeddings(
   return { chunks, embedded: work.length, requests: requestCount() };
 }
 
-/** Index existing chunks by `${slug}#${chunkIndex}` for O(1) reuse lookup. */
-function indexChunksByKey(chunks: ChunkEmbeddingEntry[]): Map<string, ChunkEmbeddingEntry> {
-  const byKey = new Map<string, ChunkEmbeddingEntry>();
-  for (const chunk of chunks) byKey.set(chunkKey(chunk.slug, chunk.chunkIndex), chunk);
+/**
+ * Index existing chunks by a structured nested map: page key → chunkIndex → entry.
+ *
+ * A nested `Map<string, Map<number, ChunkEmbeddingEntry>>` is used instead of the
+ * old `${slug}#${chunkIndex}` string key so that a page whose slug or future pageId
+ * contains `#` cannot collide with the delimiter. Chunk identity is always the pair
+ * `(page key, chunkIndex)` — never a delimited string.
+ */
+function indexChunksByKey(chunks: ChunkEmbeddingEntry[]): Map<string, Map<number, ChunkEmbeddingEntry>> {
+  const byKey = new Map<string, Map<number, ChunkEmbeddingEntry>>();
+  for (const chunk of chunks) {
+    let inner = byKey.get(chunk.slug);
+    if (!inner) { inner = new Map(); byKey.set(chunk.slug, inner); }
+    inner.set(chunk.chunkIndex, chunk);
+  }
   return byKey;
-}
-
-/** Compose the index key for a chunk lookup. */
-function chunkKey(slug: string, chunkIndex: number): string {
-  return `${slug}#${chunkIndex}`;
 }
 
 /** Return the existing chunk vector when its hash still matches and reuse is allowed. */
 function pickReusableChunk(
-  byKey: Map<string, ChunkEmbeddingEntry>,
+  byKey: Map<string, Map<number, ChunkEmbeddingEntry>>,
   slug: string,
   chunkIndex: number,
   contentHash: string,
   forceAll: boolean,
 ): ChunkEmbeddingEntry | null {
   if (forceAll) return null;
-  const existing = byKey.get(chunkKey(slug, chunkIndex));
+  const existing = byKey.get(slug)?.get(chunkIndex);
   if (!existing) return null;
   return existing.contentHash === contentHash ? existing : null;
 }

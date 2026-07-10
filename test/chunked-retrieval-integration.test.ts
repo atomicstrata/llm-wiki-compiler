@@ -38,6 +38,7 @@ import {
   type EmbeddingStore,
 } from "../src/utils/embeddings.js";
 import { rerankWithBm25 } from "../src/utils/retrieval.js";
+import { readV3Store, conceptId } from "./fixtures/v3-store.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";
 
@@ -239,11 +240,11 @@ describe("chunk ranking over v2 fixture (programmatic)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Programmatic: v1 → v2 store upgrade (no LLM — OpenAI provider stubbed)
+// Programmatic: v1 → v3 store upgrade (no LLM — OpenAI provider stubbed)
 // ---------------------------------------------------------------------------
 
-describe("v1 → v2 store upgrade (programmatic)", () => {
-  it("upgrades a v1 store to version 2 and adds chunks", async () => {
+describe("v1 → v3 store upgrade (programmatic)", () => {
+  it("upgrades a v1 store to version 3 and adds chunks", async () => {
     const root = await makeTempRoot("v1-upgrade");
     stubOpenAIProvider();
 
@@ -255,12 +256,12 @@ describe("v1 → v2 store upgrade (programmatic)", () => {
     );
 
     await updateEmbeddings(root, []);
-    const upgraded = await readEmbeddingStore(root);
+    const upgraded = await readV3Store(root);
 
-    expect(upgraded?.version).toBe(2);
+    expect(upgraded?.version).toBe(3);
     expect(upgraded?.chunks).toBeDefined();
     expect((upgraded?.chunks ?? []).length).toBeGreaterThan(0);
-    expect(upgraded?.chunks?.[0].slug).toBe("alpha");
+    expect(upgraded?.chunks?.[0].pageId).toBe(conceptId("alpha"));
 
     await cleanupRoot(root);
   });
@@ -309,20 +310,21 @@ async function setupEmptyStore(label: string, version: 1 | 2): Promise<string> {
 }
 
 /**
- * Assert that updateEmbeddings populated a v2 store with at least one chunk
- * for the expected slug, then clean up the temp root.
+ * Assert that updateEmbeddings populated a v3 store with at least one chunk
+ * for the expected page, then clean up the temp root. A no-op change still
+ * migrates a sub-v3 store and re-embeds its live pages (version-driven, S1).
  */
 async function assertPopulatedAndCleanup(root: string, expectedSlug: string): Promise<void> {
   await updateEmbeddings(root, []);
-  const store = await readEmbeddingStore(root);
-  expect(store?.version).toBe(2);
+  const store = await readV3Store(root);
+  expect(store?.version).toBe(3);
   expect((store?.chunks ?? []).length).toBeGreaterThan(0);
-  expect(store?.chunks?.[0].slug).toBe(expectedSlug);
+  expect(store?.chunks?.[0].pageId).toBe(conceptId(expectedSlug));
   await cleanupRoot(root);
 }
 
 describe("empty-store cold-start (programmatic)", () => {
-  it("empty v1 store + live pages → populates chunks and upgrades to version 2", async () => {
+  it("empty v1 store + live pages → populates chunks and upgrades to version 3", async () => {
     const root = await setupEmptyStore("empty-v1-live", 1);
     await writeFile(
       path.join(root, "wiki/concepts/beta.md"),

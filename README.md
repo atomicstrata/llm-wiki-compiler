@@ -5,17 +5,13 @@
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-<p align="center">
-  <img src="docs/images/okf-readme-banner.svg" alt="Breaking News: llmwiki supports Open Knowledge Format" width="900">
-</p>
-
-**Breaking News:** llmwiki is now an **Open Knowledge Format (OKF)** producer and consumer, aligning compiled agent knowledge with Google Cloud's emerging standard for portable knowledge sharing. Export compiled wikis with `llmwiki export --target okf`, import external bundles with `llmwiki import --okf`, and stage untrusted knowledge through review before it becomes live agent context.
+> **New in 1.0:** Configurable Lifecycle Profiles turn llmwiki into a reusable domain knowledge substrate. Declare typed entities, relations, lifecycle gates, workflows, artifacts, connectors, and retrieval policy in one validated profile. Start with the built-in `autosci` research pack or the deliberately different `newsroom` editorial pack, or install a local declarative template.
 
 ---
 
 ## What llmwiki does
 
-Compile raw sources into an interlinked, citation-traceable markdown wiki that agents and humans can browse, query, lint, export, and reuse.
+Compile raw sources into an interlinked, citation-traceable markdown wiki that agents and humans can browse, query, lint, export, and reuse. The default profile preserves the classic concepts-and-queries layout; optional profiles add domain-specific types and workflows without adding domain branches to the compiler.
 
 llmwiki implements the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern: instead of re-discovering knowledge from raw files at query time, compile it once into durable pages that accumulate structure, provenance, review state, and retrieval metadata over time.
 
@@ -36,6 +32,9 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 ## What you get
 
 - **Compiled wiki, not chunks.** A two-phase LLM pipeline extracts concepts, then generates typed pages: `concept`, `entity`, `comparison`, and `overview`.
+- **Configurable Lifecycle Profiles.** A fail-closed `.llmwiki/profile.json` can declare entity schemas, typed relations, lifecycle state machines, transition requirements, workflows, artifacts, connectors, content tiers, and retrieval policy.
+- **Installable domain templates.** `llmwiki template init autosci` creates a research project with papers, ideas, experiments, manuscripts, evidence artifacts, workflows, and Crossref import. `newsroom` demonstrates the same machinery for editorial work.
+- **Runtime trust gates.** Relation, evidence, artifact, and human/agent gates are enforced by the write path rather than left as prompt conventions; standing lint detects drift after the fact.
 - **Citation-traceable output.** Paragraphs and claims cite source files and line ranges, and `llmwiki lint` validates the links.
 - **Hybrid retrieval.** Semantic chunk search, BM25 reranking, and wikilink graph expansion build compact evidence packs for queries and agents.
 - **Local viewer.** `llmwiki view` opens a read-only browser UI with search, page metadata, graph exploration, source-freshness badges, and citation chips.
@@ -65,6 +64,11 @@ If an agent is scanning this README, these are the high-signal entry points:
 | Goal | Use |
 |---|---|
 | Create a wiki from one source and inspect it | `llmwiki quickstart <source>` |
+| Start a typed research or editorial project | `llmwiki template list`, then `llmwiki template init autosci\|newsroom` |
+| Inspect or validate the active domain contract | `llmwiki profile show` and `llmwiki profile validate` |
+| Run a declared lifecycle workflow | `llmwiki workflow list`, then `llmwiki workflow start <id>` |
+| Write or verify a profile-declared artifact | `llmwiki artifact write ...` and `llmwiki artifact verify <ref>` |
+| Import external records through a connector | `llmwiki connector list`, then `llmwiki connector run <id> --input key=value` |
 | Add more files or URLs | `llmwiki ingest <url-or-file>` |
 | Compile or recompile changed sources | `llmwiki compile` |
 | Hold generated pages for human approval | `llmwiki compile --review` or review policy config |
@@ -97,6 +101,18 @@ llmwiki view --open
 
 `quickstart` ingests one source, compiles pages, and opens the viewer. Inside an existing project, run `llmwiki next` when you want the safest next action.
 
+To start with a domain model instead of the default concepts-and-queries layout:
+
+```bash
+mkdir research-wiki && cd research-wiki
+llmwiki template inspect autosci
+llmwiki template init autosci
+llmwiki profile validate
+llmwiki workflow list
+```
+
+Template installation is for a new or empty typed project. It materializes the chosen profile into `.llmwiki/profile.json`; normal project loading never depends on a template registry or lockfile.
+
 ## Demo
 
 Try it on any article or document:
@@ -118,6 +134,11 @@ The [`examples/basic/`](examples/basic/) directory includes a small pre-generate
 | `llmwiki quickstart <source>` | Ingest, compile, and optionally open the viewer in one step. |
 | `llmwiki compile` | Incrementally extract concepts and generate wiki pages. |
 | `llmwiki refresh --stale [--dry-run]` | Recompile changed owners of stale pages and clean selected orphaned ownership. |
+| `llmwiki template list\|inspect\|init` | Discover and install validated declarative profile templates. |
+| `llmwiki profile show\|validate\|diff` | Inspect, validate, and assess changes to the active profile. |
+| `llmwiki workflow ...` | Discover and drive profile-declared workflows, stages, gates, and outputs. |
+| `llmwiki artifact write\|verify` | Write trusted profile-declared artifacts and verify hash-pinned references. |
+| `llmwiki connector list\|run` | Discover first-party connectors and stage external records for review. |
 | `llmwiki review list/show/approve/reject` | Inspect and manage held candidates. |
 | `llmwiki query "question" [--save]` | Ask questions against the compiled wiki, optionally saving the answer. |
 | `llmwiki context "<prompt>" --json` | Build a citation-aware evidence pack for agents. |
@@ -154,13 +175,20 @@ sources/
 wiki/
   concepts/      compiled pages
   queries/       saved answers
+  <entity>/      profile-declared typed pages
+  graph/         typed relation and audit-event stores
+  outputs/       derived workflow projections
   index.md       generated TOC
 .llmwiki/
+  profile.json   active domain contract
+  template-lock.json  advisory install provenance
   config.json    review policy
   schema.json    page-kind/cross-link policy
   state.json     source hashes and ownership
   candidates/    held review candidates
+  workflows/     signed workflow run state
   eval/          quality history and thresholds
+artifacts/       hash-pinned profile-declared files and manifests
 log.md           activity journal
 ```
 
@@ -176,7 +204,7 @@ Run:
 llmwiki serve --root /path/to/wiki-project
 ```
 
-MCP clients can ingest sources, compile, query, search pages, read pages, lint, run eval, inspect status, request context packs, and exchange OKF bundles. Read-only tools work without provider credentials; LLM-backed tools validate provider credentials at call time.
+MCP clients can ingest sources, compile, query, search pages, read pages, lint, run eval, inspect status, request context packs, and exchange OKF bundles. Read-only tools work without provider credentials; LLM-backed tools validate provider credentials at call time. The `run_eval` tool runs its fast suite without a provider; its full suite (which LLM-judges citation support) requires one.
 
 See [`docs/guides/mcp-agent-integration.mdx`](docs/guides/mcp-agent-integration.mdx).
 
@@ -220,9 +248,12 @@ See [`docs/configuration/providers.mdx`](docs/configuration/providers.mdx) and [
 llmwiki is designed for auditable generated knowledge:
 
 - **Review before write.** Use `compile --review` or `.llmwiki/config.json` review policy to hold risky pages as candidates.
+- **Profile floors are runtime checks.** Field contracts, lifecycle transitions, relation counts, evidence, and artifact requirements are enforced across page, lifecycle, workflow, import, and approval write surfaces.
+- **External connector data is untrusted.** First-party connectors use confined fetches and stage fenced review candidates; approval is pinned to the exact body the operator reviewed.
+- **Artifacts are content-addressed evidence.** Artifact reads and writes are path-confined, size-capped, schema-checked, and verified against hash-pinned references.
 - **Fail-closed config.** Invalid review-policy config aborts compile instead of silently disabling review.
 - **Source confinement.** Source snippets and import/export paths are confined to the project.
-- **Freshness is explicit.** Pages can be fresh, stale, orphaned, or unverified; stale pages are flagged and repairable.
+- **Freshness is explicit.** Pages can be fresh, stale, orphaned, or unverified; stale pages are flagged and repairable. The JSON export is active-page-only: it carries freshness for live pages (`fresh`/`stale`/`unverified`); computed-orphaned pages (all sources deleted) surface only as lint and viewer signals and are dropped from the export.
 - **Imported compiled knowledge is staged by default.** External bundles go through the review queue unless explicitly trusted.
 - **CI gates are supported.** `llmwiki lint` and `llmwiki eval` can enforce quality thresholds.
 
@@ -253,6 +284,10 @@ The full docs site source is in [`docs/`](docs/):
 - Karpathy's LLM Wiki pattern: [`docs/concepts/karpathy-pattern.mdx`](docs/concepts/karpathy-pattern.mdx)
 - How the compiler works: [`docs/concepts/how-it-works.mdx`](docs/concepts/how-it-works.mdx)
 - Wiki model: [`docs/concepts/wiki-model.mdx`](docs/concepts/wiki-model.mdx)
+- Configurable Lifecycle Profiles: [`docs/concepts/configurable-lifecycle-profiles.mdx`](docs/concepts/configurable-lifecycle-profiles.mdx)
+- AutoSci research workflow: [`docs/guides/autosci-research-workflow.mdx`](docs/guides/autosci-research-workflow.mdx)
+- Newsroom editorial workflow: [`docs/guides/newsroom-editorial-workflow.mdx`](docs/guides/newsroom-editorial-workflow.mdx)
+- Profile templates: [`docs/configuration/profile-templates.mdx`](docs/configuration/profile-templates.mdx)
 - CLI reference: [`docs/cli/`](docs/cli/)
 - Open Knowledge Format: [`docs/guides/open-knowledge-format.mdx`](docs/guides/open-knowledge-format.mdx)
 - MCP integration: [`docs/guides/mcp-agent-integration.mdx`](docs/guides/mcp-agent-integration.mdx)
@@ -268,15 +303,11 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-**On main, ships in `0.12.0`:**
+**Released `1.0.0`:**
 
-- Batch embedding for `compile` — provider-native batches cut compile latency on cold starts and large refreshes.
-- Parallel compile — concept extraction and page generation run concurrently under a configurable cap (`--concurrency`), cutting wall-clock on large compiles.
-
-**Released `0.11.0`:**
-
-- In-process SDK (`createWiki().exportOkf`/`importOkf`) and MCP (`export_okf`/`import_okf`) access to the OKF round-trip.
-- Faithful nested-path reconstruction when re-exporting imported foreign bundles.
+- Configurable Lifecycle Profiles across CLI, SDK, MCP, viewer, context, lint, status, export, and profile-aware OKF exchange.
+- Built-in `autosci` and `newsroom` templates, typed workflows and actions, first-class artifacts, typed relations and runtime lifecycle gates, plus a hardened first-party connector substrate with Crossref.
+- Typed-page semantic search and retrieval controls, batch embeddings, parallel compile, and fail-closed state recovery.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for release history.
 

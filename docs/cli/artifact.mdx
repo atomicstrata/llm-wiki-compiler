@@ -1,0 +1,85 @@
+---
+title: "artifact"
+sidebarTitle: "artifact"
+description: "Write and verify profile-declared artifacts."
+---
+
+Artifacts are typed files declared by the active profile. They are stored
+outside wiki pages, hashed, and referenced from frontmatter with hash-pinned
+`artifactRef` fields.
+
+Use artifacts for result JSON, experiment logs, manuscript drafts, review
+packets, and other files that should be addressed by content hash instead of
+embedded directly into a page.
+
+## Write an artifact
+
+```bash
+LLMWIKI_TRUSTED_WRITE=autosci \
+  llmwiki artifact write \
+  --type experiment-result \
+  --slug attention-ablation \
+  --body-file ./result.json
+```
+
+`artifact write` requires:
+
+- a non-default active profile;
+- a declared artifact type;
+- a slug-safe artifact slug;
+- exactly one of `--body` or `--body-file`;
+- valid UTF-8 content;
+- an out-of-workspace `LLMWIKI_TRUSTED_WRITE` grant.
+
+The command prints the compact hash-pinned ref:
+
+```text
+experiment-result/attention-ablation@sha256:4b7...
+```
+
+Direct artifact writes are not staged for review. Without the trusted-write
+grant, the command refuses before writing bytes.
+
+## Verify an artifact ref
+
+```bash
+llmwiki artifact verify \
+  --type experiment-result \
+  --slug attention-ablation \
+  --sha256 4b7...
+```
+
+Verification prints metadata and a health verdict. It never prints the artifact
+body.
+
+## Reference an artifact from a page
+
+Profile fields can use `artifactRef` or `artifactRef[]`. The value is the compact
+ref printed by `artifact write`:
+
+```yaml
+---
+title: Attention ablation
+hypothesis: Sparse attention improves latency.
+stage: complete
+resultSummary: Sparse attention improved p95 latency.
+result: experiment-result/attention-ablation@sha256:4b7...
+---
+```
+
+When a lifecycle state declares an artifact precondition, entering that state
+requires a healthy ref of the configured artifact type. A missing, malformed,
+wrong-type, dangling, tampered, or unreadable artifact ref fails closed.
+
+## Store layout
+
+Artifacts are written under the project root:
+
+```text
+artifacts/<artifact-type>/<slug>/<fileName>
+artifacts/<artifact-type>/<slug>/<fileName>.manifest.json
+```
+
+The profile controls the artifact type, file name, content kind, byte limit, and
+metadata field contract. Reads are confined to the project root and verify the
+manifest against the actual bytes.

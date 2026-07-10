@@ -7,19 +7,67 @@
  * `parseLlmwikiLog` translates llmwiki's `## [ISO] op | desc` headings into OKF entries.
  */
 import type { ExportPage } from "../types.js";
+import type { ProfileEntityDoc } from "./profile-docs.js";
+import type { BundleBlock } from "./bundle-block.js";
+import { buildFrontmatter } from "../../utils/markdown.js";
+
+/** The OKF bundle format version stamped on `index.md` frontmatter. */
+const OKF_VERSION = "0.1";
 
 /** A single activity entry for the OKF log.md. */
 export interface OkfLogEntry { date: string; action: string; text: string; }
 
-/** Bundle-root index.md: okf_version frontmatter + a TOC over concepts/ AND queries/. */
-export function buildOkfIndex(pages: ExportPage[], paths: Map<ExportPage, string>): string {
+/** Upper-case the first character for a section heading (`papers` -> `Papers`). */
+function capitalize(text: string): string {
+  return text.length === 0 ? text : text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * One `## <Type>` TOC section per entity type that has docs, ALPHABETICAL by
+ * entity type, emitted after the Concepts/Queries sections. An empty
+ * `entityDocs` yields no sections, so a default-profile bundle's index.md is
+ * byte-identical to a pre-7.6 export (D-7.6.10).
+ */
+function entityTocSections(entityDocs: ProfileEntityDoc[]): string[] {
+  const byType = new Map<string, ProfileEntityDoc[]>();
+  for (const doc of entityDocs) {
+    const list = byType.get(doc.entityType) ?? [];
+    list.push(doc);
+    byType.set(doc.entityType, list);
+  }
+  return [...byType.keys()].sort().map((type) => {
+    const items = byType.get(type)!.map((d) => `* [${d.title}](/${d.rel}) - ${d.summary}`);
+    return `## ${capitalize(type)}\n\n${items.join("\n")}`;
+  });
+}
+
+/**
+ * Render the `index.md` frontmatter. A default-profile bundle (no `bundleBlock`)
+ * keeps the exact `okf_version`-only header — byte-identical to a pre-7.6 export
+ * (D-7.6.10). A non-default project additionally carries the reserved
+ * `x-llmwiki` bundle metadata block (D-7.6.1), serialized via the shared YAML
+ * frontmatter builder.
+ */
+function renderIndexFrontmatter(bundleBlock: BundleBlock | undefined): string {
+  if (bundleBlock === undefined) return `---\nokf_version: "${OKF_VERSION}"\n---`;
+  return buildFrontmatter({ okf_version: OKF_VERSION, "x-llmwiki": bundleBlock });
+}
+
+/** Bundle-root index.md: okf_version (+ optional x-llmwiki) frontmatter + a TOC over concepts/, queries/, and each entity type. */
+export function buildOkfIndex(
+  pages: ExportPage[],
+  paths: Map<ExportPage, string>,
+  entityDocs: ProfileEntityDoc[] = [],
+  bundleBlock?: BundleBlock,
+): string {
   const entry = (p: ExportPage) => `* [${p.title}](/${paths.get(p)}) - ${p.summary}`;
   const concepts = pages.filter((p) => p.pageDirectory === "concepts").map(entry);
   const queries = pages.filter((p) => p.pageDirectory === "queries").map(entry);
   const sections: string[] = [];
   if (concepts.length) sections.push(`## Concepts\n\n${concepts.join("\n")}`);
   if (queries.length) sections.push(`## Queries\n\n${queries.join("\n")}`);
-  return `---\nokf_version: "0.1"\n---\n\n# Knowledge Bundle\n\n${sections.join("\n\n")}\n`;
+  sections.push(...entityTocSections(entityDocs));
+  return `${renderIndexFrontmatter(bundleBlock)}\n\n# Knowledge Bundle\n\n${sections.join("\n\n")}\n`;
 }
 
 /**

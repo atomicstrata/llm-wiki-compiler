@@ -84,8 +84,10 @@ function baseFields(meta: Record<string, unknown>, ctx: OkfMapContext, slug: str
  * Verbatim snapshot of the source frontmatter; records the raw `type` only when foreign.
  * `okfPath` durably records the doc's bundle-relative source path so the original OKF
  * identity survives review approval (the candidate-only `okfPath` is lost once live).
+ * Exported so the typed profile-import leg reuses the SAME re-export honesty snapshot
+ * (D-7.6.12) as native docs — foreign vendor keys survive in `originalFrontmatter`.
  */
-function buildXokf(meta: Record<string, unknown>, okfPath: string): Record<string, unknown> {
+export function buildXokf(meta: Record<string, unknown>, okfPath: string): Record<string, unknown> {
   const rawType = typeof meta.type === "string" ? meta.type : "concept";
   const known = KNOWN_KINDS.has(rawType);
   return { ...(known ? {} : { type: rawType }), okfPath, originalFrontmatter: meta };
@@ -101,27 +103,37 @@ function buildPageFields(doc: RawOkfDoc, ctx: OkfMapContext, slug: string): Reco
   return fields;
 }
 
-/** Map one OKF doc to a llmwiki page record (frontmatter + body, ready to stage or write). */
-export function okfDocToPage(doc: RawOkfDoc, ctx: OkfMapContext): MappedOkfPage {
-  const slug = slugFromRelPath(doc.relPath);
-  const fields = buildPageFields(doc, ctx, slug);
+/**
+ * Reverse an OKF doc's body back to llmwiki form: a NATIVE doc (one carrying an
+ * `x-llmwiki` block) has its canonical body's OKF links rewritten to `[[wikilinks]]`
+ * against the bundle's title resolver; a foreign body is kept content-verbatim.
+ *
+ * NOTE: canonicalBody strips a derived `# Citations` section on BOTH export and import
+ * (symmetric, so round-trip canonical equality holds); an author-written `# Citations`
+ * in a native page is likewise dropped. A foreign body is kept verbatim on FIRST import,
+ * but re-export stamps an `x-llmwiki` block, so a SUBSEQUENT import sees it as native and
+ * rewrites its links — the first round-trip is faithful, multi-hop "llmwiki-ifies" the
+ * syntax (intentional: it's a llmwiki page by then). Shared by the native mapper and the
+ * typed profile-import leg so both reverse bodies identically (DRY).
+ */
+export function reverseDocBody(doc: RawOkfDoc, ctx: OkfMapContext): string {
   const isNative = doc.meta["x-llmwiki"] !== undefined;
-  // NOTE: canonicalBody strips a derived `# Citations` section on BOTH export and import
-  // (symmetric, so round-trip canonical equality holds); an author-written `# Citations`
-  // in a native page is likewise dropped. Foreign bodies are kept content-verbatim.
   const resolveLink = (linkPath: string): { slug: string; title: string } | null => {
     const linkSlug = slugFromRelPath(linkPath);
     const title = ctx.titleOf(linkSlug);
     return title !== null ? { slug: linkSlug, title } : null;
   };
-  // A foreign body is kept verbatim on FIRST import, but re-export stamps an `x-llmwiki` block, so a
-  // SUBSEQUENT import sees it as native and rewrites its markdown links to [[wikilinks]]. The first
-  // round-trip is faithful; multi-hop "llmwiki-ifies" the link syntax — intentional (it's a llmwiki page by then).
-  const body = isNative ? okfLinksToWikilinks(canonicalBody(doc.body), resolveLink) : doc.body;
+  return isNative ? okfLinksToWikilinks(canonicalBody(doc.body), resolveLink) : doc.body;
+}
+
+/** Map one OKF doc to a llmwiki page record (frontmatter + body, ready to stage or write). */
+export function okfDocToPage(doc: RawOkfDoc, ctx: OkfMapContext): MappedOkfPage {
+  const slug = slugFromRelPath(doc.relPath);
+  const fields = buildPageFields(doc, ctx, slug);
   // Join with a SINGLE newline, mirroring the exporter's render-doc convention
   // (`${frontmatter}\n${body}`). The canonical body already carries its own leading
   // blank line, so this keeps the export->import round-trip byte-symmetric.
-  const pageBody = `${buildFrontmatter(fields)}\n${body}`;
+  const pageBody = `${buildFrontmatter(fields)}\n${reverseDocBody(doc, ctx)}`;
   return {
     slug,
     title: fields.title as string,

@@ -10,34 +10,49 @@
  * compile runs and can be inspected manually without the CLI. Each record
  * stores the full page body so approval is a pure copy — the LLM is never
  * called again at approval time.
+ *
+ * This module owns the WRITE/dedup/identity/delete/archive half of the store.
+ * The READ/list/sanitize/validate half lives in {@link file://./candidate-read.ts}
+ * and the shared path resolvers in {@link file://./candidate-paths.ts}; both are
+ * RE-EXPORTED below so existing importers of `candidates.ts` are unchanged.
  */
 
 import { unlink } from "fs/promises";
 import { existsSync } from "fs";
-import path from "path";
 import { randomBytes } from "crypto";
-import { atomicWrite, safeReadFile } from "../utils/markdown.js";
+import { isSafeFilenameComponent } from "../profile/identity.js";
+import { atomicWrite } from "../utils/markdown.js";
+import { moveCandidateToArchive } from "../utils/candidate-store.js";
+import { candidatePath, archivePath, UnsafeCandidateIdError } from "./candidate-paths.js";
 import {
-  listCandidateFileIds,
-  moveCandidateToArchive,
-} from "../utils/candidate-store.js";
-import * as output from "../utils/output.js";
-import {
-  CANDIDATES_DIR,
-  CANDIDATES_ARCHIVE_DIR,
-} from "../utils/constants.js";
+  listCandidates,
+  countCandidates,
+  DEFAULT_HELD_REASONS,
+} from "./candidate-read.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
-import type { HeldReason, HeldReasonCode, ReviewMode } from "../review/policy.js";
+import type { HeldReason, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
+import type { TrustDecision } from "../trust/decision.js";
+import type { ConnectorProvenance } from "../connectors/types.js";
+
+// Re-export the read/list/sanitize half and shared path symbols so every
+// existing importer of `candidates.ts` keeps working without churn.
+export {
+  readCandidate,
+  readCandidateBySlug,
+  listCandidates,
+  countCandidates,
+  listLinkResolvablePendingSlugs,
+  loadCandidateOrFail,
+  loadCandidateUnderLockOrFail,
+} from "./candidate-read.js";
+export { UnsafeCandidateIdError } from "./candidate-paths.js";
 
 /** Length (bytes) of the random suffix appended to candidate ids. */
 const ID_SUFFIX_BYTES = 4;
 
-/** Filesystem extension used for candidate JSON files. */
-const CANDIDATE_EXT = ".json";
-
 /** Input shape for creating a new candidate (id + timestamp generated here). */
-interface CandidateDraft {
+export interface CandidateDraft {
   title: string;
   slug: string;
   summary: string;
@@ -72,28 +87,26 @@ interface CandidateDraft {
   targetDirectory?: "concepts" | "queries";
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
+  /** Host-authored provenance for connector-fetched candidates. */
+  connectorProvenance?: ConnectorProvenance;
   /** Confidence parsed from the generated page frontmatter, for display. */
   confidence?: number;
   /** True when the generated page frontmatter declares contradictions. */
   contradicted?: boolean;
+  /**
+   * Typed entity directory the approved page routes to under a configurable
+   * profile (e.g. `"papers"`). Phase-2 typed-staging metadata; OMITTED for
+   * default-profile candidates, so default candidate JSON stays byte-identical.
+   */
+  targetEntityType?: string;
+  /**
+   * Trust Guard decision attached to this candidate at generation time, so
+   * reviewers see how the write was routed. Phase-2 typed-staging metadata;
+   * OMITTED for default-profile candidates, so default candidate JSON stays
+   * byte-identical.
+   */
+  trustDecision?: TrustDecision;
 }
-
-/** Default metadata for legacy `compile --review` callers. */
-const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }];
-
-/** All valid ReviewMode values. */
-const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced", "imported"];
-
-/** All valid HeldReasonCode values — mirrors the union in policy.ts. */
-const VALID_HELD_REASON_CODES: HeldReasonCode[] = [
-  "low-confidence",
-  "contradicted",
-  "schema-violating",
-  "provenance-violating",
-  "all",
-  "manual-review-requested",
-  "imported-okf",
-];
 
 /** Build a deterministic-but-unique id from a slug and a short random suffix. */
 function buildCandidateId(slug: string): string {
@@ -101,14 +114,23 @@ function buildCandidateId(slug: string): string {
   return `${slug}-${suffix}`;
 }
 
-/** Absolute path to a candidate's JSON file. */
-function candidatePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_DIR, `${id}${CANDIDATE_EXT}`);
-}
-
-/** Absolute path to the archived JSON file for a rejected candidate. */
-function archivePath(root: string, id: string): string {
-  return path.join(root, CANDIDATES_ARCHIVE_DIR, `${id}${CANDIDATE_EXT}`);
+/**
+ * The FULL target identity of a candidate: the tuple of where the approved page
+ * lands AND its slug. Two candidates are duplicates only when BOTH components
+ * match. For a DEFAULT concepts candidate the type component is the constant
+ * `"concepts"`, so dedup on this key behaves EXACTLY as a slug-only dedup did —
+ * default candidate behavior stays byte-identical. A typed candidate
+ * (`targetEntityType`) or an OKF query candidate (`targetDirectory`) keys on its
+ * own directory, so `papers/foo` and `ideas/foo` never collapse into one file.
+ * @param candidate - The candidate (or draft) whose target identity is built.
+ */
+function candidateTargetKey(candidate: {
+  targetEntityType?: string;
+  targetDirectory?: string;
+  slug: string;
+}): string {
+  const target = candidate.targetEntityType ?? candidate.targetDirectory ?? "concepts";
+  return `${target}/${candidate.slug}`;
 }
 
 /**
@@ -126,9 +148,30 @@ export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
 ): Promise<ReviewCandidate> {
-  const { canonicalId, duplicateIds } = await findSlugDuplicates(root, draft.slug);
+  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
+  const { canonicalId, duplicateIds } = await findIdentityDuplicates(root, candidateTargetKey(draft));
+  const candidate = buildCandidate(draft, canonicalId ?? buildCandidateId(draft.slug));
+
+  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
+  await deleteDuplicates(root, duplicateIds);
+  return candidate;
+}
+
+/** Persist a new candidate without target-key canonicalization. Used only by typed staging supersede. */
+export async function writeFreshCandidate(
+  root: string,
+  draft: CandidateDraft,
+): Promise<ReviewCandidate> {
+  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
+  const candidate: ReviewCandidate = buildCandidate(draft, buildCandidateId(draft.slug));
+  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
+  return candidate;
+}
+
+/** Build a ReviewCandidate from a draft and chosen id. */
+function buildCandidate(draft: CandidateDraft, id: string): ReviewCandidate {
   const candidate: ReviewCandidate = {
-    id: canonicalId ?? buildCandidateId(draft.slug),
+    id,
     title: draft.title,
     slug: draft.slug,
     summary: draft.summary,
@@ -137,32 +180,52 @@ export async function writeCandidate(
     generatedAt: new Date().toISOString(),
     reviewMode: draft.reviewMode ?? "forced",
     heldReasons: draft.heldReasons ?? DEFAULT_HELD_REASONS,
-    ...(draft.sourceStates ? { sourceStates: draft.sourceStates } : {}),
-    ...(draft.schemaViolations ? { schemaViolations: draft.schemaViolations } : {}),
-    ...(draft.provenanceViolations ? { provenanceViolations: draft.provenanceViolations } : {}),
-    ...(draft.confidence !== undefined ? { confidence: draft.confidence } : {}),
-    ...(draft.contradicted !== undefined ? { contradicted: draft.contradicted } : {}),
-    ...(draft.targetDirectory ? { targetDirectory: draft.targetDirectory } : {}),
-    ...(draft.okfPath ? { okfPath: draft.okfPath } : {}),
   };
-
-  await atomicWrite(candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
-  await deleteDuplicates(root, duplicateIds);
+  copyCandidateOptionalFields(candidate, draft);
   return candidate;
 }
 
+/** Copy optional candidate fields while preserving the legacy omission rules. */
+function copyCandidateOptionalFields(candidate: ReviewCandidate, draft: CandidateDraft): void {
+  setCandidateField(candidate, "sourceStates", draft.sourceStates, draft.sourceStates !== undefined);
+  setCandidateField(candidate, "schemaViolations", draft.schemaViolations, draft.schemaViolations !== undefined);
+  setCandidateField(candidate, "provenanceViolations", draft.provenanceViolations, draft.provenanceViolations !== undefined);
+  setCandidateField(candidate, "confidence", draft.confidence, draft.confidence !== undefined);
+  setCandidateField(candidate, "contradicted", draft.contradicted, draft.contradicted !== undefined);
+  setCandidateField(candidate, "targetDirectory", draft.targetDirectory, Boolean(draft.targetDirectory));
+  setCandidateField(candidate, "okfPath", draft.okfPath, Boolean(draft.okfPath));
+  setCandidateField(candidate, "connectorProvenance", draft.connectorProvenance, draft.connectorProvenance !== undefined);
+  setCandidateField(candidate, "targetEntityType", draft.targetEntityType, Boolean(draft.targetEntityType));
+  setCandidateField(candidate, "trustDecision", draft.trustDecision, Boolean(draft.trustDecision));
+}
+
+/** Assign one optional field to a candidate when its legacy include condition is met. */
+function setCandidateField<K extends keyof ReviewCandidate>(
+  candidate: ReviewCandidate,
+  key: K,
+  value: ReviewCandidate[K] | undefined,
+  include: boolean,
+): void {
+  if (include) candidate[key] = value as ReviewCandidate[K];
+}
+
 /**
- * Collect all candidate ids matching a slug and return the canonical (earliest)
- * id plus the list of extra duplicate ids to remove.
+ * Collect all candidate ids matching a FULL target identity (target-type + slug,
+ * via {@link candidateTargetKey}) and return the canonical (earliest) id plus the
+ * list of extra duplicate ids to remove. Keying on the full identity — not slug
+ * alone — keeps two distinct typed targets that share a slug (`papers/foo` vs
+ * `ideas/foo`) as SEPARATE candidates, so neither is silently dropped, while a
+ * DEFAULT concepts candidate (constant `concepts/` prefix) dedups exactly as
+ * before.
  * @param root - Project root directory.
- * @param slug - The page slug to search for.
+ * @param targetKey - The full target identity to match (see {@link candidateTargetKey}).
  */
-async function findSlugDuplicates(
+async function findIdentityDuplicates(
   root: string,
-  slug: string,
+  targetKey: string,
 ): Promise<{ canonicalId: string | null; duplicateIds: string[] }> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === targetKey);
   if (matching.length === 0) return { canonicalId: null, duplicateIds: [] };
   // Preserve the first match as canonical (listCandidates sorts by generatedAt).
   const [canonical, ...extras] = matching;
@@ -179,250 +242,29 @@ async function deleteDuplicates(root: string, ids: string[]): Promise<void> {
   }
 }
 
-/** Find the pending candidate for a slug, if one exists. */
-export async function readCandidateBySlug(
-  root: string,
-  slug: string,
-): Promise<ReviewCandidate | null> {
-  const candidates = await listCandidates(root);
-  return candidates.find((candidate) => candidate.slug === slug) ?? null;
-}
-
-/** Collect every slug currently pending review. */
-export async function listPendingCandidateSlugs(root: string): Promise<Set<string>> {
-  const candidates = await listCandidates(root);
-  return new Set(candidates.map((candidate) => candidate.slug));
-}
-
-/**
- * Emit a CLI error, set exit code 1, and return null. Used by candidate load
- * helpers to avoid duplicating the error-path boilerplate.
- * @param message - Error message to display.
- */
-function failWithError(message: string): null {
-  output.status("!", output.error(message));
-  process.exitCode = 1;
-  return null;
-}
-
-/**
- * Load a candidate by id and, if missing, emit the standard "not found" CLI
- * error and set process.exitCode = 1. Returns null when the candidate is
- * missing so callers can early-return without re-implementing the same
- * error block in every review subcommand.
- * @param root - Project root directory.
- * @param id - Candidate id to look up.
- */
-export async function loadCandidateOrFail(
-  root: string,
-  id: string,
-): Promise<ReviewCandidate | null> {
-  const candidate = await readCandidate(root, id);
-  if (!candidate) return failWithError(`Candidate not found: ${id}`);
-  return candidate;
-}
-
-/**
- * Re-read a candidate under the lock and abort if it has disappeared.
- *
- * This is the authoritative TOCTOU guard: a concurrent approve or reject may
- * have removed the candidate after the pre-lock fast-fail but before the lock
- * was acquired. Returning `null` signals the caller to abort without writing
- * any output artefact.
- * @param root - Project root directory.
- * @param id - Candidate id to load.
- * @returns The candidate if still present, or `null` after setting exit code 1.
- */
-export async function loadCandidateUnderLockOrFail(
-  root: string,
-  id: string,
-): Promise<ReviewCandidate | null> {
-  const candidate = await readCandidate(root, id);
-  if (!candidate) {
-    return failWithError(`Candidate ${id} was removed by another process during review.`);
-  }
-  return candidate;
-}
-
-/**
- * Parse a single candidate JSON file. Returns null when the file is missing.
- * Structurally invalid files (unparseable JSON or missing required fields) are
- * skipped with a warning rather than throwing, so `review list`/`show` never
- * crash due to a hand-edited or truncated candidate file.
- */
-export async function readCandidate(
-  root: string,
-  id: string,
-): Promise<ReviewCandidate | null> {
-  const raw = await safeReadFile(candidatePath(root, id));
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as ReviewCandidate;
-    if (!isValidCandidate(parsed)) {
-      output.note(`[llmwiki] Skipping malformed candidate file: ${id}.json (missing required fields)`);
-      return null;
-    }
-    return sanitizeCandidate(parsed);
-  } catch {
-    output.note(`[llmwiki] Skipping unparseable candidate file: ${id}.json`);
-    return null;
-  }
-}
-
-/**
- * Sanitize and default every consumed field at the IO boundary. Ensures that
- * user-edited or legacy candidate files can never crash downstream consumers
- * (review list, review show, listCandidates).
- *
- * Fields that can be safely defaulted are corrected in place:
- * - `generatedAt`: non-string values are replaced with a sentinel ISO string.
- * - `reviewMode`: unknown values default to `"forced"` (safe legacy assumption).
- * - `heldReasons`: non-array, missing, or entries with invalid codes are cleaned;
- *   if the result is empty after filtering, defaults to `DEFAULT_HELD_REASONS`.
- * - `sourceStates`: non-object values are treated as absent; entries with unsafe
- *   keys (path separators, `..` traversal) or invalid field types are dropped so
- *   approval can never write malformed state from a bad candidate file.
- */
-function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
-  const generatedAt =
-    typeof candidate.generatedAt === "string"
-      ? candidate.generatedAt
-      : new Date(0).toISOString();
-
-  const reviewMode: ReviewMode = VALID_REVIEW_MODES.includes(candidate.reviewMode)
-    ? candidate.reviewMode
-    : "forced";
-
-  const heldReasons = sanitizeHeldReasons(candidate.heldReasons);
-  const sourceStates = sanitizeSourceStates(candidate.sourceStates);
-
-  const result: ReviewCandidate = { ...candidate, generatedAt, reviewMode, heldReasons };
-  if (sourceStates !== undefined) result.sourceStates = sourceStates;
-  else delete result.sourceStates;
-  return result;
-}
-
-/** Filter `heldReasons` to only entries with a valid code shape; default when empty. */
-function sanitizeHeldReasons(raw: unknown): HeldReason[] {
-  if (!Array.isArray(raw)) return DEFAULT_HELD_REASONS;
-  const valid = raw.filter(
-    (r): r is HeldReason =>
-      r !== null &&
-      typeof r === "object" &&
-      typeof (r as Record<string, unknown>).code === "string" &&
-      VALID_HELD_REASON_CODES.includes((r as HeldReason).code),
-  );
-  return valid.length > 0 ? valid : DEFAULT_HELD_REASONS;
-}
-
-/**
- * Return true when a source-state key is a safe plain basename.
- * Rejects any key containing `/`, `\`, or the sequence `..` to prevent
- * path-traversal attacks when the key is later used as a state.json entry.
- */
-function isSourceKeysafe(key: string): boolean {
-  return !key.includes("/") && !key.includes("\\") && !key.includes("..");
-}
-
-/**
- * Validate and filter a raw `sourceStates` value from disk.
- *
- * Rules enforced per entry:
- * - Key must be a safe plain basename (no path separators, no `..`).
- * - `hash` must be a non-empty string.
- * - `concepts` must be a `string[]`.
- * - `compiledAt` must be a string.
- *
- * If `raw` is not a plain object, returns `undefined` (treated as absent).
- * Valid entries are kept; invalid ones are silently dropped.
- */
-function sanitizeSourceStates(
-  raw: unknown,
-): Record<string, SourceState> | undefined {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const result: Record<string, SourceState> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!isSourceKeyValid(key, value)) continue;
-    result[key] = value as SourceState;
-  }
-  return result;
-}
-
-/** Return true when both the key is path-safe and the entry fields are valid. */
-function isSourceKeyValid(key: string, value: unknown): boolean {
-  if (!isSourceKeysafe(key)) return false;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const entry = value as Record<string, unknown>;
-  return (
-    typeof entry.hash === "string" &&
-    entry.hash.length > 0 &&
-    Array.isArray(entry.concepts) &&
-    (entry.concepts as unknown[]).every((c) => typeof c === "string") &&
-    typeof entry.compiledAt === "string"
-  );
-}
-
-/** Defensive type-guard so corrupted candidate files don't blow up the CLI. */
-function isValidCandidate(value: unknown): value is ReviewCandidate {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.title === "string" &&
-    typeof candidate.slug === "string" &&
-    typeof candidate.body === "string" &&
-    Array.isArray(candidate.sources)
-  );
-}
-
-/**
- * List every candidate currently pending review, sorted by generation time.
- * Skips files that aren't candidate JSON (e.g. the archive subdirectory).
- * @param root - Project root directory.
- * @returns All pending review candidates.
- */
-export async function listCandidates(root: string): Promise<ReviewCandidate[]> {
-  const dir = path.join(root, CANDIDATES_DIR);
-  const ids = await listCandidateFileIds(dir);
-  const candidates: ReviewCandidate[] = [];
-  for (const id of ids) {
-    const candidate = await readCandidate(root, id);
-    if (candidate) candidates.push(candidate);
-  }
-
-  candidates.sort((a, b) => a.generatedAt.localeCompare(b.generatedAt));
-  return candidates;
-}
-
-/**
- * Count pending candidates using the same validity filter as listCandidates,
- * so consumers (e.g. `wiki_status.pendingCandidates`) never report counts
- * that disagree with what `review list` actually shows. Malformed JSON files
- * are skipped here exactly as they are by listCandidates.
- */
-export async function countCandidates(root: string): Promise<number> {
-  const candidates = await listCandidates(root);
-  return candidates.length;
-}
-
 /** Remove a pending candidate from disk. Returns false when nothing existed to remove. */
 export async function deleteCandidate(root: string, id: string): Promise<boolean> {
-  const filePath = candidatePath(root, id);
+  const filePath = await candidatePath(root, id);
   if (!existsSync(filePath)) return false;
   await unlink(filePath);
   return true;
 }
 
 /**
- * Delete ALL pending candidate files for a slug.
+ * Delete ALL pending candidate files for a DEFAULT concepts slug.
  *
  * When duplicates exist (e.g. legacy or hand-dropped files) the direct-write
  * reconcile path must remove every file matching the slug, not just the first
- * canonical one, so no stale duplicates remain after a page is written directly.
+ * canonical one, so no stale duplicates remain after a concepts page is written
+ * directly. Matches on the FULL `concepts/<slug>` identity (via
+ * {@link candidateTargetKey}) so a typed `papers/<slug>` candidate that merely
+ * shares the slug is NOT collaterally deleted when a default concepts page is
+ * reconciled — the default caller only writes concepts, so its behavior is
+ * unchanged.
  */
 export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
   const all = await listCandidates(root);
-  const matching = all.filter((c) => c.slug === slug);
+  const matching = all.filter((c) => candidateTargetKey(c) === `concepts/${slug}`);
   if (matching.length === 0) return false;
   for (const candidate of matching) {
     await deleteCandidate(root, candidate.id);
@@ -438,5 +280,17 @@ export async function deleteCandidateBySlug(root: string, slug: string): Promise
  * @returns True when the candidate was found and archived.
  */
 export async function archiveCandidate(root: string, id: string): Promise<boolean> {
-  return moveCandidateToArchive(candidatePath(root, id), archivePath(root, id));
+  return moveCandidateToArchive(await candidatePath(root, id), await archivePath(root, id));
+}
+
+/**
+ * Move an archived candidate back into the pending area — the compensation for
+ * a multi-candidate archive batch that fails partway, so a supersede that
+ * cannot complete never silently shrinks the review queue.
+ * @param root - Project root directory.
+ * @param id - Candidate id to restore.
+ * @returns True when the archived candidate was found and restored.
+ */
+export async function restoreArchivedCandidate(root: string, id: string): Promise<boolean> {
+  return moveCandidateToArchive(await archivePath(root, id), await candidatePath(root, id));
 }
