@@ -47,6 +47,32 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **Other portable exports.** Export JSON, JSON-LD, GraphML, Marp slides, and `llms.txt` for downstream systems.
 - **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI-compatible servers, Ollama, GitHub Copilot, and local OpenAI-compatible runtimes.
 
+## Configurable Lifecycle Profiles (CLP)
+
+CLP turns llmwiki's knowledge compiler into a reusable substrate for domain-specific knowledge systems. A validated `.llmwiki/profile.json` is the single contract for:
+
+- typed entities, fields, and directed relations;
+- lifecycle states, transition evidence, and trust gates;
+- multi-stage workflows and declared actions;
+- hash-pinned artifacts and first-party connector bindings; and
+- content tiers and retrieval behavior.
+
+These rules are enforced by the runtime, not left as prompt conventions. The CLI, SDK, MCP server, viewer, context builder, lint, status, export, and OKF exchange surfaces all operate from the same profile contract. Invalid profiles and writes that bypass a declared gate fail closed.
+
+CLP is backward-compatible by construction: a project without `.llmwiki/profile.json` uses the built-in default concepts-and-queries profile and preserves the pre-1.0 behavior. New projects can start from a shipped declarative template:
+
+```bash
+llmwiki template list
+llmwiki template inspect autosci
+llmwiki template init autosci
+llmwiki profile validate
+llmwiki workflow list
+```
+
+`autosci` is a practical research system with papers, ideas, experiments, manuscripts, evidence artifacts, workflows, and Crossref ingestion. `newsroom` applies the same generic machinery to articles, desks, bylines, and editorial workflows. Templates contain configuration and examples, never executable plugin code.
+
+Read the [CLP concept guide](docs/concepts/configurable-lifecycle-profiles.mdx), follow the [AutoSci research workflow](docs/guides/autosci-research-workflow.mdx), or explore the [Newsroom editorial workflow](docs/guides/newsroom-editorial-workflow.mdx).
+
 ## Karpathy's LLM Wiki pattern
 
 Andrej Karpathy described the LLM Wiki pattern as a way to turn raw material into compiled knowledge that future agents can reuse. llmwiki is a concrete compiler for that pattern.
