@@ -1,0 +1,26 @@
+{
+  "lastCompiledAt": "2024-01-03T00:00:00.000Z",
+  "orphanedCount": 1,
+  "orphanedPages": [
+    "orphan"
+  ],
+  "pages": {
+    "concepts": 5,
+    "queries": 1,
+    "total": 6
+  },
+  "pendingCandidates": 0,
+  "pendingChanges": [
+    {
+      "file": "beta.md",
+      "status": "changed"
+    }
+  ],
+  "pendingChangesCount": 1,
+  "sources": 2,
+  "staleCount": 1,
+  "stalePages": [
+    "beta"
+  ],
+  "stateStatus": "ok"
+}

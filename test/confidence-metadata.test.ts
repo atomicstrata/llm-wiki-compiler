@@ -19,7 +19,7 @@ import {
   checkInferredWithoutCitations,
 } from "../src/linter/rules.js";
 import { parseConcepts } from "../src/compiler/prompts.js";
-import { reconcileConceptMetadata } from "../src/compiler/index.js";
+import { reconcileConceptMetadata } from "../src/compiler/extraction-merge.js";
 import { makeLintTempRoot } from "./fixtures/lint-temp-root.js";
 
 let tmpDir: string;

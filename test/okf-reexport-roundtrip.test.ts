@@ -32,6 +32,7 @@ describe("OKF re-export honesty round-trips", () => {
     await mkdir(path.join(bundleDir, "concepts"), { recursive: true });
     await writeFile(path.join(bundleDir, "concepts/t.md"), FOREIGN_DOC);
     const proj = path.join(dir, "proj");
+    await mkdir(proj, { recursive: true });
     const { pages } = await importOkfBundle(bundleDir, proj);
     await stageImported(proj, pages[0].slug, pages[0].body);
     await editStaged(proj, pages[0].slug, { title: "Edited", summary: "edited summary" });
@@ -60,6 +61,7 @@ describe("OKF re-export honesty round-trips", () => {
     const docA = await readFile(path.join(outA, "concepts/rag.md"), "utf-8");
     expect((docA.match(/^#\s+Citations\b/gm) ?? []).length).toBe(1);
     const proj2 = path.join(dir, "proj2");
+    await mkdir(proj2, { recursive: true });
     const { pages } = await importOkfBundle(outA, proj2);
     await stageImported(proj2, pages[0].slug, pages[0].body);
     const expB = await collectExportPages(proj2);

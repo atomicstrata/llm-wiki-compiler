@@ -31,6 +31,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../linter/cache.js";
 import type { LintCacheEntry } from "../linter/cache.js";
 import { readStateClassified } from "../utils/state.js";
+import type { StateStatus } from "../utils/state.js";
 
 /** Markdown extension treated as a wiki page for counting purposes. */
 const MARKDOWN_EXT = ".md";
@@ -45,6 +46,7 @@ type ProjectStateWarningCode =
   | "pending-candidates"
   | "project-unreadable"
   | "state-unreadable"
+  | "state-too-new"
   | "stale-pages";
 
 /** One structural warning surfaced alongside the primary state. */
@@ -239,7 +241,7 @@ interface AssembleStateInput {
   counts: PageCounts;
   lint: LintCacheStatus;
   mtimes: MtimePair;
-  stateStatus: "ok" | "missing" | "corrupt";
+  stateStatus: StateStatus;
 }
 
 /** Combine the per-section reads into the final ProjectState + warning list. */
@@ -255,7 +257,7 @@ interface WarningInput {
   counts: PageCounts;
   lint: LintCacheStatus;
   mtimes: MtimePair;
-  stateStatus: "ok" | "missing" | "corrupt";
+  stateStatus: StateStatus;
 }
 
 /** Derive every structural warning from the already-collected state slices. */
@@ -326,7 +328,7 @@ function appendStructuralWarnings(
 function appendFreshnessWarnings(
   warnings: ProjectStateWarning[],
   lint: LintCacheStatus,
-  stateStatus: "ok" | "missing" | "corrupt",
+  stateStatus: StateStatus,
   latestSourceMtimeMs: number | null,
 ): void {
   if (stateStatus === "corrupt") {
@@ -334,6 +336,13 @@ function appendFreshnessWarnings(
       code: "state-unreadable",
       message:
         ".llmwiki/state.json is corrupt — run `llmwiki compile` to rebuild it (freshness figures shown are from the last lint and may be stale).",
+    });
+  }
+  if (stateStatus === "too-new") {
+    warnings.push({
+      code: "state-too-new",
+      message:
+        ".llmwiki/state.json was written by a newer llmwiki version — upgrade llmwiki to read this project (freshness figures shown are from the last lint and may be stale).",
     });
   }
   const f = lint.entry?.freshness;

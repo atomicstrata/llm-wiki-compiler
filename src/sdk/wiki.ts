@@ -33,11 +33,17 @@ import { exportJson } from "../commands/export.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { collectStatus } from "../status/collect.js";
-import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
+import { pickSearchRefs, loadSelectedRefs } from "../search/retrieval.js";
 import { getPage, listPages } from "../pages/list.js";
 import { listSources, getSource, deleteSource } from "../sources/store.js";
 import { runOkfExport } from "../export/okf/run.js";
 import { runOkfImport } from "../import/run.js";
+import { buildStagingFacade } from "./staging-facade.js";
+import { buildWorkflowFacade } from "./workflow-facade.js";
+import { applyApprovedMutations } from "../trust/executor.js";
+import { loadNonDefaultProfile } from "../profile/block.js";
+import { resolveArtifactRef, declaresArtifactTypes, ArtifactVerifyUnavailableError, type ArtifactHealth } from "../artifacts/resolve.js";
+import type { ArtifactPlannedMutation } from "../trust/planner.js";
 import type { CreateWikiOptions, Wiki, SdkCompileOptions } from "./types.js";
 
 /**
@@ -80,8 +86,9 @@ export function createWiki(options: CreateWikiOptions): Wiki {
     search: (question) =>
       runQuiet(async () => {
         ensureProviderAvailable();
-        const slugs = await pickSearchSlugs(root, question);
-        return loadPageRecords(root, slugs);
+        const { refs, warnings } = await pickSearchRefs(root, question);
+        const pages = await loadSelectedRefs(root, refs);
+        return { pages, refs, warnings };
       }),
 
     query: (question, opts = {}) =>
@@ -131,5 +138,55 @@ export function createWiki(options: CreateWikiOptions): Wiki {
     exportOkf: (opts = {}) => runQuiet(() => runOkfExport(root, opts)),
 
     importOkf: (dir, opts = {}) => runQuiet(() => runOkfImport(root, dir, opts)),
+
+    // @experimental artifact write/verify slice — writeArtifact delegates to the
+    // SAME self-locking executor seam the CLI uses, threading `origin: "sdk"`
+    // from the mutation (never hardcoded downstream); verifyArtifact loads the
+    // active non-default profile itself and throws the typed
+    // ArtifactVerifyUnavailableError when none is active OR it declares no
+    // artifact types (the CLI's dedicated "no artifact types declared" exit,
+    // mirrored via the shared `declaresArtifactTypes` predicate so the two
+    // surfaces agree), matching the other experimental profile-gated methods.
+    //
+    // Allowlist-construct the mutation from ONLY the known `input` fields —
+    // the SDK is a published JS runtime surface, so a caller can pass extra
+    // properties (e.g. a forged `origin`/`kind`) that TypeScript can't stop at
+    // the call site. Naming each field (rather than spreading `input`) means no
+    // caller-injected property can ride along and override the SDK-stamped
+    // `origin` or `kind`.
+    writeArtifact: (input) =>
+      runQuiet(async () => {
+        const mutation: ArtifactPlannedMutation = {
+          kind: "artifact",
+          artifactType: input.artifactType,
+          slug: input.slug,
+          body: input.body,
+          origin: "sdk",
+        };
+        const [result] = await applyApprovedMutations(root, [mutation]);
+        if (result.kind !== "artifact") throw new Error("executor returned a non-artifact result for an artifact write");
+        return { ref: result.ref };
+      }),
+
+    // `resolveArtifactRef` also returns the parsed manifest now (an MCP-only
+    // optimization — see `src/mcp/tools.ts`); project it away here rather than
+    // returning the resolve result verbatim, so the published SDK contract
+    // stays exactly `{ health }` and never leaks manifest fields.
+    verifyArtifact: (ref): Promise<{ health: ArtifactHealth }> =>
+      runQuiet(async () => {
+        const loaded = await loadNonDefaultProfile(root);
+        if (!loaded) throw new ArtifactVerifyUnavailableError("no-profile", "the project has no non-default profile");
+        if (!declaresArtifactTypes(loaded.profile)) {
+          throw new ArtifactVerifyUnavailableError("no-artifact-types", "no artifact types declared by the active profile");
+        }
+        const { health } = await resolveArtifactRef(root, loaded.profile, ref);
+        return { health };
+      }),
+
+    // @experimental non-default staging slice — factored into staging-facade.ts.
+    ...buildStagingFacade(root, runQuiet),
+
+    // @experimental workflow slice — factored into workflow-facade.ts.
+    ...buildWorkflowFacade(root, runQuiet),
   };
 }

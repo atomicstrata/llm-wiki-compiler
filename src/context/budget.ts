@@ -15,7 +15,8 @@
  *   1. neighbors
  *   2. source windows
  *   3. semantic chunks / excerpts
- *   4. primary pages (last resort)
+ *   4. content tiers (deepest per-record tiers first, shallowest preserved)
+ *   5. primary pages (last resort)
  *
  * Trim functions mutate a deep-cloned copy of the pack so the caller's
  * draft is never observably modified. JSON validity is preserved at
@@ -29,7 +30,7 @@ import type { ContextBudget, ContextPack } from "./types.js";
 const APPROX_CHARS_PER_TOKEN = 4;
 
 /** Section names that can land in `budget.trimmedSections`. */
-type TrimmedSection = "neighbors" | "sourceWindows" | "chunks" | "primary";
+type TrimmedSection = "neighbors" | "sourceWindows" | "chunks" | "contentTiers" | "primary";
 
 /**
  * Estimate token count for an arbitrary string. Always returns a
@@ -98,6 +99,7 @@ export function trimToBudget(pack: ContextPack, requestedTokens: number): TrimRe
   trimNeighbors(clone, requestedTokens, trimmed);
   trimSourceWindows(clone, requestedTokens, trimmed);
   trimChunks(clone, requestedTokens, trimmed);
+  trimContentTiers(clone, requestedTokens, trimmed);
   trimPrimary(clone, requestedTokens, trimmed);
   return { pack: clone, trimmedSections: orderedSections(trimmed) };
 }
@@ -109,7 +111,7 @@ function clonePack(pack: ContextPack): ContextPack {
 
 /** Re-emit trimmed sections in the documented trim order, not insertion order. */
 function orderedSections(trimmed: Set<TrimmedSection>): TrimmedSection[] {
-  const order: TrimmedSection[] = ["neighbors", "sourceWindows", "chunks", "primary"];
+  const order: TrimmedSection[] = ["neighbors", "sourceWindows", "chunks", "contentTiers", "primary"];
   return order.filter((section) => trimmed.has(section));
 }
 
@@ -156,6 +158,30 @@ function trimChunks(
       pack.primary[i].chunks.pop();
       trimmed.add("chunks");
     }
+    if (estimatePackTokens(pack) <= budget) return;
+  }
+}
+
+/**
+ * Drop per-record content tiers DEEPEST-first (end of each primary's
+ * `contentTiers` array), walking bottom-ranked primaries first so the most
+ * relevant page keeps its shallow tiers longest. A primary whose tiers all drop
+ * has the (now-empty) key deleted so it matches an unprojected record. Primaries
+ * without `contentTiers` are untouched, so a default pack trims identically.
+ */
+function trimContentTiers(
+  pack: ContextPack,
+  budget: number,
+  trimmed: Set<TrimmedSection>,
+): void {
+  for (let i = pack.primary.length - 1; i >= 0; i--) {
+    const tiers = pack.primary[i].contentTiers;
+    if (tiers === undefined) continue;
+    while (tiers.length > 0 && estimatePackTokens(pack) > budget) {
+      tiers.pop();
+      trimmed.add("contentTiers");
+    }
+    if (tiers.length === 0) delete pack.primary[i].contentTiers;
     if (estimatePackTokens(pack) <= budget) return;
   }
 }

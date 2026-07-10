@@ -1,52 +1,23 @@
 /**
- * Source-store API for the llmwiki SDK: list / get sources under `sources/`.
- * Source IDs are bare basenames including `.md` (e.g. "note.md") — opaque,
- * path-safe, never joined with an extra extension. Read-only, no LLM.
+ * @file src/sources/store.ts
+ * @description Source-store I/O API for the llmwiki SDK: list / get / delete
+ * sources under `sources/`. Source IDs are bare basenames including `.md` (e.g.
+ * "note.md") — opaque, path-safe, never joined with an extra extension. The pure
+ * record/guard logic lives in `./source-record.js`; this module is the thin
+ * filesystem layer over it. Read-only-ish (delete aside), no LLM.
  */
 import path from "path";
 import { readdir, readFile, unlink } from "fs/promises";
-import { parseFrontmatter } from "../utils/markdown.js";
-import { PathSafetyError } from "../viewer/path-safety.js";
 import { confinedRegularFile, resolveSourcesDir } from "../utils/path-confine.js";
+import {
+  assertSafeSourceId,
+  toRecord,
+  type SourceRecord,
+  type ListSourcesOptions,
+  type ListSourcesResult,
+} from "./source-record.js";
 
-/** A single source file under `sources/`, with frontmatter metadata. */
-export interface SourceRecord {
-  id: string;          // basename incl. ".md"
-  title: string;
-  source: string;      // frontmatter `source` identity
-  sourceType: string;
-  ingestedAt?: string;
-  body?: string;
-}
-
-/** Options for paginating `listSources` and opting into source bodies. */
-export interface ListSourcesOptions { cursor?: string; limit?: number; includeBody?: boolean }
-
-/** Result returned by `listSources`. */
-export interface ListSourcesResult { sources: SourceRecord[]; cursor?: string }
-
-/** Reject anything that isn't a bare `sources/` basename ending in `.md`. */
-function assertSafeSourceId(id: string): void {
-  if (typeof id !== "string" || id.length === 0) throw new PathSafetyError("source id must be a non-empty string");
-  if (!id.endsWith(".md")) throw new PathSafetyError(`source id must end in .md: "${id}"`);
-  // Conservative: real source IDs are `slug-<hex>.md` (slugified title + collision
-  // hash) and never contain `..`, so rejecting any `..` substring is safe and
-  // simpler than component-level normalization.
-  if (id.includes("/") || id.includes("\\") || id.includes("\0") || id.includes(".."))
-    throw new PathSafetyError(`source id must be a bare basename: "${id}"`);
-}
-
-function toRecord(id: string, content: string, includeBody: boolean): SourceRecord {
-  const { meta, body } = parseFrontmatter(content);
-  return {
-    id,
-    title: typeof meta.title === "string" ? meta.title : id,
-    source: typeof meta.source === "string" ? meta.source : "",
-    sourceType: typeof meta.sourceType === "string" ? meta.sourceType : "file",
-    ingestedAt: typeof meta.ingestedAt === "string" ? meta.ingestedAt : undefined,
-    ...(includeBody ? { body } : {}),
-  };
-}
+export type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "./source-record.js";
 
 export async function listSources(root: string, options: ListSourcesOptions = {}): Promise<ListSourcesResult> {
   const dir = await resolveSourcesDir(root);

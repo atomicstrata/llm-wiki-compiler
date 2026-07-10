@@ -24,6 +24,8 @@ import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 const aimock = useAimockLifecycle("output-language-query");
 
 const PAGE_SLUG = "lang-test-page";
+/** Qualified pageId the embeddings-unavailable fallback selector echoes for the pick. */
+const PAGE_ID = `concepts/${PAGE_SLUG}`;
 const PAGE_TITLE = "Lang Test Page";
 const ANSWER_TEXT = "Stubbed answer body for the lang test.";
 
@@ -58,7 +60,7 @@ function stubQueryResponses(handle: MockClaudeHandle): void {
       {
         name: "select_pages",
         arguments: {
-          pages: [PAGE_SLUG],
+          pages: [PAGE_ID],
           reasoning: "Stubbed selection for the lang test.",
         },
       },

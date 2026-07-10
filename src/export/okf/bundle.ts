@@ -18,6 +18,9 @@ import { renderOkfDoc } from "./render-doc.js";
 import { buildOkfIndex, buildOkfLog, parseLlmwikiLog } from "./index-log.js";
 import { collectReferenceFiles, resolveReferences, type ResolvedReference } from "./references.js";
 import { resolveOutputPaths } from "./output-paths.js";
+import { collectProfileEntityDocs } from "./profile-docs.js";
+import { collectBundleBlock } from "./bundle-block.js";
+import { loadNonDefaultProfile } from "../../profile/block.js";
 
 /** OS noise files that must not, by themselves, make an output dir count as non-empty. */
 const IGNORED_DIR_ENTRIES = new Set([".DS_Store", "Thumbs.db"]);
@@ -171,12 +174,23 @@ export async function buildOkfBundle(
   // Resolve references FIRST so citation links are emitted only for files actually copied.
   const refs = await resolveReferences(root, pages);
   const refName = (file: string): string | null => refs.get(file)?.destName ?? null;
+  // Load the ACTIVE profile ONCE and thread it to every profile-aware surface, so
+  // the export validates it a single time and all surfaces see the same profile.
+  // `undefined` = the built-in default: entity docs are [] and the bundle block is
+  // omitted, so the bundle stays byte-identical to a pre-7.6 export (D-7.6.10).
+  const loaded = await loadNonDefaultProfile(root);
+  // Entity-page bodies reuse the native-page resolver for wikilink rewriting.
+  const entityDocs = await collectProfileEntityDocs(root, resolve, loaded);
+  const bundleBlock = await collectBundleBlock(root, loaded);
   const written: string[] = [];
 
-  written.push(await writeConfined(realOut, "index.md", buildOkfIndex(pages, paths)));
+  written.push(await writeConfined(realOut, "index.md", buildOkfIndex(pages, paths, entityDocs, bundleBlock)));
   for (const p of pages) {
     const docRel = paths.get(p)!;
     written.push(await writeConfined(realOut, docRel, renderOkfDoc(p, resolve, refName)));
+  }
+  for (const doc of entityDocs) {
+    written.push(await writeConfined(realOut, doc.rel, doc.content));
   }
   written.push(...(await copyResolvedReferences(refs, realOut)));
   written.push(await writeConfined(realOut, "log.md", await buildLog(root, pages.length)));

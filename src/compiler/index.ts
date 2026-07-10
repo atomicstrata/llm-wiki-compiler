@@ -8,84 +8,78 @@
  * sources are processed through the LLM pipeline.
  */
 
-import { readFile, readdir } from "fs/promises";
+import { readdir } from "fs/promises";
 import path from "path";
-import { readState, updateSourceState } from "../utils/state.js";
+import { CompileStateDraft } from "./compile-state-draft.js";
+import {
+  recoverJournalBeforeCompile,
+  JournalUnsafeError,
+} from "../trust/journal-recovery.js";
 import {
   buildExtractionSourceStates,
-  pickStatesForSources,
 } from "./source-state.js";
 import {
-  atomicWrite,
-  buildFrontmatter,
-  parseFrontmatter,
-  parseProvenanceMetadata,
-  safeReadFile,
-  validateWikiPage,
   slugify,
 } from "../utils/markdown.js";
-import { callClaude } from "../utils/llm.js";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import {
-  CONCEPT_EXTRACTION_TOOL,
-  buildExtractionPrompt,
-  buildSeedPagePrompt,
   parseConcepts,
 } from "./prompts.js";
-import { loadSchema, type SchemaConfig, type SeedPage } from "../schema/index.js";
+import { loadSchema, type SchemaConfig } from "../schema/index.js";
 import { detectChanges, hashFile } from "./hasher.js";
 import {
   findAffectedSources,
   findFrozenSlugs,
-  findLateAffectedSources,
   freezeFailedExtractions,
   persistFrozenSlugs,
   type ExtractionResult,
 } from "./deps.js";
 import { markOrphaned, orphanUnownedFrozenPages } from "./orphan.js";
-import { resolveLinks } from "./resolver.js";
+import { resolveAndApplyLinks } from "./resolver.js";
 import { generateIndex } from "./indexgen.js";
-import { buildBudgetedCombinedContent, resolvePromptBudgetChars, type SourceSlice } from "./prompt-budget.js";
-import { addObsidianMeta, generateMOC } from "./obsidian.js";
-import { addModelProvenanceMeta } from "./provenance.js";
-import { updateEmbeddings } from "../utils/embeddings.js";
-import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
-import { deleteCandidateBySlug, listCandidates, writeCandidate } from "./candidates.js";
-import { appendLog, formatList, formatWikilinkList } from "../utils/activity-log.js";
+import { generateMOC } from "./obsidian.js";
+import { qualifiedPageId } from "../utils/page-id.js";
+import { refreshEmbeddingsDrainingPending } from "../utils/embeddings-refresh.js";
+import { listCandidates } from "./candidates.js";
 import {
-  checkPageBrokenCitations,
-  checkPageCrossLinks,
-  checkPageMalformedCitations,
-} from "../linter/rules.js";
-import type { LintResult } from "../linter/types.js";
-import { renderMergedPageContent } from "./page-renderer.js";
+  applyCompilePageWritesLocked,
+} from "./compile-write.js";
 import * as output from "../utils/output.js";
 import { verbose } from "../utils/output.js";
 import { loadReviewPolicy } from "../review/config.js";
-import { evaluatePolicy, isPolicyOff } from "../review/policy.js";
-import type { HeldReason, ReviewPolicy } from "../review/policy.js";
+import { isPolicyOff } from "../review/policy.js";
+import type { ReviewPolicy } from "../review/policy.js";
 import {
   CONCEPTS_DIR,
-  INDEX_FILE,
   QUERIES_DIR,
   SOURCES_DIR,
 } from "../utils/constants.js";
 import { resolveCompileConcurrency } from "./concurrency.js";
 import pLimit from "p-limit";
+import { mergeExtractions } from "./extraction-merge.js";
+import { runExtractionPhases } from "./extraction-phase.js";
+import { generateMergedPage } from "./review-pipeline.js";
+import { generateSeedPages } from "./seed-pages.js";
+import {
+  logCompile,
+  printChangesSummary,
+  reportFrozenSlugs,
+  reportSchemaStatus,
+  summarizeCompile,
+} from "./compile-report.js";
+import type {
+  ChangeBuckets,
+  MergedConcept,
+  MergedPageOutcome,
+  PageGenerationResult,
+} from "./types.js";
 import type {
   CompileOptions,
   CompileResult,
-  ExtractedConcept,
   ReviewedCandidateRef,
-  ReviewCandidate,
   SourceChange,
   SourceState,
-  WikiFrontmatter,
-  WikiState,
 } from "../utils/types.js";
-
-/** Per-source state snapshots keyed by source filename. */
-type SourceStateMap = Record<string, SourceState>;
 
 /** Empty CompileResult used when no pipeline work runs (e.g. lock contention). */
 function emptyCompileResult(): CompileResult {
@@ -128,17 +122,19 @@ export async function compileAndReport(
   }
 
   try {
+    // STRICT replay-before-read: recover any pending journal to its pre-state
+    // BEFORE the pipeline reads state or touches pages. An `unsafe` journal
+    // (escaping/malformed/escaping-target) aborts the compile loudly — no reads,
+    // no writes — rather than compounding a possibly-inconsistent page store.
+    // The `finally` below still releases the lock on this abort path.
+    const recovery = await recoverJournalBeforeCompile(root);
+    if (recovery.status === "unsafe") {
+      throw new JournalUnsafeError("pre-compile journal recovery unsafe");
+    }
     return await runCompilePipeline(root, options);
   } finally {
     await releaseLock(root);
   }
-}
-
-/** Buckets of source changes used by the compile pipeline. */
-interface ChangeBuckets {
-  toCompile: SourceChange[];
-  deleted: SourceChange[];
-  unchanged: SourceChange[];
 }
 
 /** Sort source changes into the buckets the pipeline acts on. */
@@ -148,30 +144,6 @@ function bucketChanges(changes: SourceChange[]): ChangeBuckets {
     deleted: changes.filter((c) => c.status === "deleted"),
     unchanged: changes.filter((c) => c.status === "unchanged"),
   };
-}
-
-/** Result of phase 2: page writes plus any errors collected along the way. */
-interface PageGenerationResult {
-  /** All merged concepts generated this run, including held candidates. */
-  pages: MergedConcept[];
-  /** Concept pages actually written into wiki/concepts this run. */
-  writtenPages: MergedConcept[];
-  errors: string[];
-  /** Candidate ids written by --review or review policy. Empty otherwise. */
-  candidates: string[];
-  /** Structured split of candidates created this run. */
-  review: {
-    held: ReviewedCandidateRef[];
-    forced: ReviewedCandidateRef[];
-  };
-  /**
-   * Slugs of seed pages written this run (overview / comparison / entity).
-   * Concept pages live on `pages`; seed pages don't fit MergedConcept's
-   * source-list shape, so they're tracked separately here. summarizeCompile
-   * concatenates these into CompileResult.pages so downstream consumers
-   * (MCP, embeddings, programmatic callers) see seed-page changes too.
-   */
-  seedSlugs: string[];
 }
 
 /** Phase 2: generate pages for merged concepts in parallel, capturing errors. */
@@ -212,8 +184,48 @@ async function generatePagesPhase(
     }
   }
   const pages = outcomes.map(({ entry }) => entry);
-  const writtenPages = outcomes.filter(({ result }) => result.wrotePage).map(({ entry }) => entry);
+  // Apply every live page as ONE journalled executor batch under the held lock,
+  // then derive writtenPages from what ACTUALLY committed (skipped pages folded
+  // into errors), so finalizeWiki never resolves/embeds an uncommitted page.
+  const { writtenPages, batchErrors } = await commitLivePageWrites(root, outcomes);
+  errors.push(...batchErrors);
   return { pages, writtenPages, errors, candidates, review, seedSlugs: [] };
+}
+
+/** One generated-page outcome paired with its source-order merged entry. */
+interface GeneratedOutcome {
+  entry: MergedConcept;
+  result: MergedPageOutcome;
+}
+
+/**
+ * Apply the live-write outcomes as ONE journalled executor batch, then return
+ * the COMMITTED set (HIGH-A): the entries whose write committed become
+ * `writtenPages`, while every floor-SKIPPED page is excluded and folded into
+ * `batchErrors` (its `floor:` reason). Runs under compile's already-held lock,
+ * so it uses the lock-free adapter core. An empty live set opens no batch.
+ *
+ * @param root - Project root the writes are confined under.
+ * @param outcomes - Source-ordered generation outcomes.
+ * @returns The committed entries plus any floor-skip errors.
+ */
+async function commitLivePageWrites(
+  root: string,
+  outcomes: GeneratedOutcome[],
+): Promise<{ writtenPages: MergedConcept[]; batchErrors: string[] }> {
+  const live = outcomes.filter((o) => o.result.liveWrite);
+  const { skipped } = await applyCompilePageWritesLocked(
+    root,
+    live.map((o) => o.result.liveWrite!),
+  );
+  const skippedKeys = new Set(skipped.map((s) => `${s.item.namespace}/${s.item.slug}`));
+  const writtenPages = live
+    .filter((o) => !skippedKeys.has(`${o.result.liveWrite!.namespace}/${o.result.liveWrite!.slug}`))
+    .map((o) => o.entry);
+  const batchErrors = skipped.map(
+    (s) => `Page "${s.item.slug}" skipped — ${s.reason}`,
+  );
+  return { writtenPages, batchErrors };
 }
 
 /** Persist source state for every extraction that produced concepts.
@@ -224,7 +236,7 @@ async function generatePagesPhase(
  * A source whose concepts are all held records hash + empty concepts list.
  */
 async function persistExtractionStates(
-  root: string,
+  draft: CompileStateDraft,
   extractions: ExtractionResult[],
   writtenPages: MergedConcept[],
 ): Promise<void> {
@@ -235,7 +247,7 @@ async function persistExtractionStates(
     if (result.concepts.length === 0) continue;
     const liveSlugs = liveSlugsForSource.get(result.sourceFile) ?? [];
     await persistSourceStateFiltered(
-      root, result.sourcePath, result.sourceFile, result.concepts, new Set(liveSlugs),
+      draft, result.sourcePath, result.sourceFile, result.concepts, new Set(liveSlugs),
     );
   }
 }
@@ -255,7 +267,7 @@ function buildLiveSlugsForSource(writtenPages: MergedConcept[]): Map<string, str
 
 /** Persist source state, filtering concepts to only those in the live set. */
 async function persistSourceStateFiltered(
-  root: string,
+  draft: CompileStateDraft,
   sourcePath: string,
   sourceFile: string,
   concepts: ReturnType<typeof parseConcepts>,
@@ -267,7 +279,7 @@ async function persistSourceStateFiltered(
     concepts: concepts.map((c) => slugify(c.concept)).filter((s) => liveSlugs.has(s)),
     compiledAt: new Date().toISOString(),
   };
-  await updateSourceState(root, sourceFile, entry);
+  draft.setSource(sourceFile, entry);
 }
 
 /**
@@ -288,90 +300,6 @@ async function listExistingPageIds(root: string): Promise<Set<string>> {
     }
   }
   return ids;
-}
-
-/**
- * Journal a non-review compile to log.md: the source files consumed, plus the
- * produced pages split into created (new on disk) and updated (overwritten).
- * Compile only ever writes concept-namespace pages (concept and seed pages both
- * land under wiki/concepts/), so existence is checked against that namespace.
- */
-async function logCompile(
-  root: string,
-  buckets: ChangeBuckets,
-  generation: PageGenerationResult,
-  existingIds: Set<string>,
-): Promise<void> {
-  if (buckets.toCompile.length === 0 && buckets.deleted.length === 0) return;
-  const produced = [...new Set([...generation.writtenPages.map((entry) => entry.slug), ...generation.seedSlugs])];
-  const existed = (slug: string): boolean => existingIds.has(`${CONCEPTS_DIR}/${slug}`);
-  const created = produced.filter((slug) => !existed(slug));
-  const updated = produced.filter((slug) => existed(slug));
-  const heading = `${buckets.toCompile.length} source(s) → ${produced.length} page(s)`;
-  const details: string[] = [];
-  if (buckets.toCompile.length > 0) {
-    details.push(`Sources: ${formatList(buckets.toCompile.map((change) => change.file))}`);
-  }
-  if (created.length > 0) details.push(`Created: ${formatWikilinkList(created)}`);
-  if (updated.length > 0) details.push(`Updated: ${formatWikilinkList(updated)}`);
-  if (buckets.deleted.length > 0) details.push(`Deleted sources: ${buckets.deleted.length}`);
-  await appendLog(root, "compile", heading, { details });
-}
-
-/** Build the structured CompileResult and emit the CLI completion banner. */
-function summarizeCompile(
-  buckets: ChangeBuckets,
-  generation: PageGenerationResult,
-  extractions: ExtractionResult[],
-  options: CompileOptions,
-): CompileResult {
-  output.header("Compilation complete");
-  output.status("✓", output.success(
-    `${buckets.toCompile.length} compiled, ${buckets.unchanged.length} skipped, ${buckets.deleted.length} deleted`,
-  ));
-  if (generation.candidates.length > 0) {
-    output.status("?", output.info(
-      reviewSummaryLine(generation),
-    ));
-  } else if (buckets.toCompile.length > 0) {
-    output.status("→", output.dim('Next: llmwiki query "your question here"'));
-  }
-
-  const errors = [...generation.errors];
-  for (const result of extractions) {
-    if (result.concepts.length === 0) {
-      errors.push(`No concepts extracted from ${result.sourceFile}`);
-    }
-  }
-
-  // Concept-page slugs first, then seed-page slugs from the same run, so
-  // downstream consumers see every page the compile actually produced.
-  // Seed pages are deterministic schema-driven writes; before this they
-  // landed on disk silently and never appeared on CompileResult.pages.
-  const conceptSlugs = generation.writtenPages.map((entry) => entry.slug);
-  const baseResult: CompileResult = {
-    compiled: buckets.toCompile.length,
-    skipped: buckets.unchanged.length,
-    deleted: buckets.deleted.length,
-    concepts: generation.pages.map((entry) => entry.concept.concept),
-    pages: [...conceptSlugs, ...generation.seedSlugs],
-    errors,
-  };
-  if (generation.candidates.length > 0) {
-    baseResult.candidates = generation.candidates;
-    baseResult.review = generation.review;
-  }
-  return baseResult;
-}
-
-/** Human completion line for candidates created this run. */
-function reviewSummaryLine(generation: PageGenerationResult): string {
-  const held = generation.review.held.length;
-  const forced = generation.review.forced.length;
-  if (held > 0 && forced === 0) {
-    return `Wrote ${generation.writtenPages.length} page(s), held ${held} for review — run \`llmwiki review list\``;
-  }
-  return `${generation.candidates.length} candidate(s) awaiting review — run \`llmwiki review list\``;
 }
 
 /**
@@ -402,6 +330,25 @@ async function maybeSeedPages(
   }
 }
 
+/**
+ * The SHARED seed→finalize routing both pipeline branches use, so the seed batch
+ * (in {@link generateSeedPages}) and the resolution batch (in {@link finalizeWiki})
+ * stay routed through the executor on BOTH the normal path AND the
+ * no-source-changes early-return path. Extracting it prevents the early branch
+ * from drifting back to a direct write. Pass `draft = null` for the early branch
+ * (no state mutations to flush).
+ */
+async function seedThenFinalize(
+  root: string,
+  schema: SchemaConfig,
+  generation: PageGenerationResult,
+  options: CompileOptions,
+  draft: CompileStateDraft | null,
+): Promise<void> {
+  await maybeSeedPages(root, schema, generation, options);
+  await finalizeWiki(root, draft, generation.writtenPages, generation.seedSlugs);
+}
+
 /** Inner pipeline, runs under lock protection. Returns structured CompileResult. */
 async function runCompilePipeline(
   root: string,
@@ -411,7 +358,11 @@ async function runCompilePipeline(
   const schema = await loadSchema(root);
   const reviewPolicy = await loadReviewPolicy(root);
   reportSchemaStatus(schema);
-  const state = await readState(root);
+  // Single in-memory draft of state.json for the whole run. Every intra-compile
+  // state read/write goes through it; the durable marker advances only at the
+  // SINGLE flush after the resolution phase commits (see finalizeWiki below).
+  const draft = await CompileStateDraft.load(root);
+  const state = draft.read();
   const detected = await detectChanges(root, state);
   const changes = applyChangeFilter(detected, options.changeFilter);
   await markUnchangedPendingSources(root, changes);
@@ -432,10 +383,11 @@ async function runCompilePipeline(
         review: { held: [], forced: [] },
         seedSlugs: [],
       };
-      await maybeSeedPages(root, schema, emptyGeneration, options);
-      // Rebuild index/MOC so the newly-written seed pages become discoverable,
-      // and propagate any seed-page validation errors into the returned result.
-      await finalizeWiki(root, emptyGeneration.writtenPages, emptyGeneration.seedSlugs);
+      // Null draft: this branch has no state mutations, so nothing is flushed.
+      // Routes seed + resolution through the SAME executor batches as the normal
+      // path (see seedThenFinalize) so the early branch cannot drift to a direct
+      // write.
+      await seedThenFinalize(root, schema, emptyGeneration, options, null);
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,
@@ -458,7 +410,7 @@ async function runCompilePipeline(
   // approve time so unapproved candidates remain re-detectable on subsequent
   // compiles.
   if (!options.review) {
-    await markDeletedAsOrphaned(root, buckets.deleted, state);
+    await markDeletedAsOrphaned(root, buckets.deleted, draft);
   }
 
   const frozenSlugs = findFrozenSlugs(state, changes);
@@ -469,7 +421,7 @@ async function runCompilePipeline(
   const concurrency = resolveCompileConcurrency(options.concurrency);
   const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
   if (!options.review) {
-    await freezeFailedExtractions(root, extractions, frozenSlugs);
+    freezeFailedExtractions(draft, extractions, frozenSlugs);
   }
 
   // Snapshot pages on disk before generation so the journal can tell which
@@ -486,15 +438,16 @@ async function runCompilePipeline(
   );
 
   if (!options.review) {
-    await persistExtractionStates(root, extractions, generation.writtenPages);
+    await persistExtractionStates(draft, extractions, generation.writtenPages);
     if (frozenSlugs.size > 0) {
-      await orphanUnownedFrozenPages(root, frozenSlugs);
+      await orphanUnownedFrozenPages(root, draft, frozenSlugs);
     }
-    await persistFrozenSlugs(root, frozenSlugs, extractions);
-    // Seed pages write directly into wiki/, so skip them in review mode
-    // to honour the "no wiki/ mutation" contract of that mode.
-    await maybeSeedPages(root, schema, generation, options);
-    await finalizeWiki(root, generation.writtenPages, generation.seedSlugs);
+    persistFrozenSlugs(draft, frozenSlugs, extractions);
+    // Seed + resolution route through the SAME executor batches as the
+    // no-source-changes branch (see seedThenFinalize). The draft flush is the
+    // single durable state write, done inside finalizeWiki after resolution
+    // commits.
+    await seedThenFinalize(root, schema, generation, options, draft);
     await logCompile(root, buckets, generation, existingIds);
   }
   verbose(`compile finished in ${Date.now() - startMs} ms`);
@@ -525,13 +478,6 @@ async function collectPendingSourceHashes(root: string): Promise<Map<string, str
   return hashes;
 }
 
-/** Log where the schema was loaded from so the user can confirm it was picked up. */
-function reportSchemaStatus(schema: SchemaConfig): void {
-  if (schema.loadedFrom) {
-    output.status("i", output.dim(`Schema: ${schema.loadedFrom}`));
-  }
-}
-
 /** Append affected-source changes (logging each addition) to the change list. */
 function augmentWithAffectedSources(changes: SourceChange[], affected: string[]): void {
   for (const file of affected) {
@@ -544,73 +490,11 @@ function augmentWithAffectedSources(changes: SourceChange[], affected: string[])
 async function markDeletedAsOrphaned(
   root: string,
   deleted: SourceChange[],
-  state: WikiState,
+  draft: CompileStateDraft,
 ): Promise<void> {
   for (const del of deleted) {
-    await markOrphaned(root, del.file, state);
+    await markOrphaned(root, del.file, draft);
   }
-}
-
-/** Log frozen slugs (shared concepts whose deletion-pinned content must persist). */
-function reportFrozenSlugs(frozenSlugs: Set<string>): void {
-  for (const slug of frozenSlugs) {
-    output.status("i", output.dim(`Frozen: ${slug} (shared with deleted source)`));
-  }
-}
-
-/**
- * Extract a batch of sources in parallel under a shared concurrency limit.
- *
- * Promise.all preserves input order, so the result matches the old serial
- * order that mergeExtractions relies on when reconciling same-slug concepts.
- * On the first hard failure a shared `aborted` flag short-circuits every
- * not-yet-started source: pLimit keeps draining its queue after Promise.all
- * rejects, and without this guard those queued sources would still issue their
- * (now-pointless) LLM calls — wasted cost/quota exactly when the provider is
- * already failing. In-flight sources still finish; only the queue is skipped.
- */
-async function extractSourcesLimited(
-  root: string,
-  files: string[],
-  limit: ReturnType<typeof pLimit>,
-): Promise<ExtractionResult[]> {
-  let aborted = false;
-  return Promise.all(files.map((file) => limit(async () => {
-    if (aborted) throw new Error(`extraction skipped for ${file}: a prior source failed`);
-    try {
-      return await extractForSource(root, file);
-    } catch (err) {
-      aborted = true;
-      throw err;
-    }
-  })));
-}
-
-/**
- * Phase 1: extract concepts for the directly-changed batch, then expand to
- * any unchanged sources whose concepts overlap with newly extracted slugs.
- * Both batches share one `pLimit(concurrency)` cap; the late-affected set is
- * computed only after the whole direct batch resolves, since
- * findLateAffectedSources reads every direct extraction.
- */
-async function runExtractionPhases(
-  root: string,
-  toCompile: SourceChange[],
-  state: WikiState,
-  allChanges: SourceChange[],
-  concurrency: number,
-): Promise<ExtractionResult[]> {
-  const limit = pLimit(concurrency);
-  const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
-
-  const lateAffected = findLateAffectedSources(extractions, state, allChanges);
-  for (const file of lateAffected) {
-    output.status("~", output.info(`${file} [shares concept with new source]`));
-  }
-  const lateExtractions = await extractSourcesLimited(root, lateAffected, limit);
-  for (const result of lateExtractions) extractions.push(result);
-
-  return extractions;
 }
 
 /**
@@ -623,6 +507,7 @@ async function runExtractionPhases(
  */
 async function finalizeWiki(
   root: string,
+  draft: CompileStateDraft | null,
   pages: MergedConcept[],
   seedSlugs: string[] = [],
 ): Promise<void> {
@@ -635,456 +520,57 @@ async function finalizeWiki(
 
   if (allChangedSlugs.length > 0) {
     output.status("🔗", output.info("Resolving interlinks..."));
-    await resolveLinks(root, allChangedSlugs, allNewSlugs);
+    // Compute + apply the resolution rewrites as ONE journalled batch. compile
+    // holds the project lock for its whole pipeline → the lock-free seam.
+    await resolveAndApplyLinks(root, allChangedSlugs, allNewSlugs);
   }
+
+  // SINGLE durable state write of the whole compile: the buffered draft is
+  // flushed ONLY here, after resolution has committed. A crash before this
+  // re-runs the whole compile from the prior on-disk state (no half-marked
+  // sources). The no-source-changes early-return path passes a null draft —
+  // it has no state mutations, so there is nothing to flush.
+  if (draft) await draft.flush(root);
 
   await generateIndex(root);
   await generateMOC(root);
   await safelyUpdateEmbeddings(root, allChangedSlugs);
 }
 
-/** Print a summary of detected source file changes. */
-function printChangesSummary(changes: SourceChange[]): void {
-  const iconMap: Record<string, string> = {
-    new: "+", changed: "~", unchanged: ".", deleted: "-",
-  };
-  const fmtMap: Record<string, (s: string) => string> = {
-    new: output.success, changed: output.warn, unchanged: output.dim, deleted: output.error,
-  };
-
-  for (const c of changes) {
-    const icon = iconMap[c.status] ?? "?";
-    const fmt = fmtMap[c.status] ?? output.dim;
-    output.status(icon, fmt(`${c.file} [${c.status}]`));
-  }
-}
-
-/**
- * Phase 1: Extract concepts from a source without generating pages.
- * Returns extraction data for the generation phase.
- */
-async function extractForSource(
-  root: string,
-  sourceFile: string,
-): Promise<ExtractionResult> {
-  output.status("*", output.info(`Extracting: ${sourceFile}`));
-
-  const sourcePath = path.join(root, SOURCES_DIR, sourceFile);
-  const sourceContent = await readFile(sourcePath, "utf-8");
-  const lines = sourceContent.split("\n").length;
-  const chars = sourceContent.length;
-  verbose(`source ${sourceFile}: ${lines} lines, ${chars} chars`);
-  const existingIndex = await safeReadFile(path.join(root, INDEX_FILE));
-  const concepts = await extractConcepts(sourceContent, existingIndex);
-
-  if (concepts.length > 0) {
-    const names = concepts.map((c) => c.concept).join(", ");
-    output.status("*", output.dim(`  Found ${concepts.length} concepts: ${names}`));
-  }
-  return { sourceFile, sourcePath, sourceContent, concepts };
-}
-
-/** A concept with all contributing sources merged for generation. */
-interface MergedConcept {
-  slug: string;
-  concept: ExtractedConcept;
-  sourceFiles: string[];
-  combinedContent: string;
-}
-
-/**
- * Reconcile metadata from a later-extracted concept into an existing merged entry.
- * Called when multiple sources contribute the same slug — produces the most
- * pessimistic aggregate view of confidence, provenance, and contradictions.
- *
- * Rules:
- * - confidence: min (most pessimistic value wins)
- * - provenanceState: always 'merged' once two sources are involved
- * - contradictedBy: union by slug (deduplicating on slug identity)
- *
- * `inferredParagraphs` is no longer reconciled — it is derived from the
- * rendered page body at lint time, not from extraction metadata.
- */
-export function reconcileConceptMetadata(
-  existing: ExtractedConcept,
-  incoming: ExtractedConcept,
-): ExtractedConcept {
-  const reconciled = { ...existing };
-
-  // Minimum confidence — the weaker source's score governs the whole page.
-  if (typeof incoming.confidence === "number") {
-    reconciled.confidence = typeof existing.confidence === "number"
-      ? Math.min(existing.confidence, incoming.confidence)
-      : incoming.confidence;
-  }
-
-  // Merged state is the canonical answer when multiple sources contribute.
-  reconciled.provenanceState = "merged";
-
-  // Union contradictedBy entries, deduplicating by slug.
-  const refs = [...(existing.contradictedBy ?? [])];
-  const seenSlugs = new Set(refs.map((r) => r.slug));
-  for (const ref of incoming.contradictedBy ?? []) {
-    if (!seenSlugs.has(ref.slug)) {
-      refs.push(ref);
-      seenSlugs.add(ref.slug);
-    }
-  }
-  reconciled.contradictedBy = refs.length > 0 ? refs : undefined;
-
-  return reconciled;
-}
-
-/**
- * Merge extractions so each concept slug maps to ALL contributing sources.
- * When sources A and B both extract concept X, the LLM receives combined
- * content from both sources, producing a single page that reflects all
- * contributing material rather than just the last source processed.
- * Metadata is reconciled across all contributing concepts via
- * reconcileConceptMetadata so contradictions from later sources are not lost.
- *
- * Combined content is then run through {@link buildBudgetedCombinedContent}
- * so popular concepts that appear in many overlapping sources do not blow
- * past the LLM provider's context window (issue #39). When the raw total
- * fits the budget, the output is byte-identical to the previous unbudgeted
- * concatenation.
- */
-function mergeExtractions(
-  extractions: ExtractionResult[],
-  frozenSlugs: Set<string>,
-): MergedConcept[] {
-  const bySlug = new Map<string, MergedConcept>();
-  const slicesBySlug = new Map<string, SourceSlice[]>();
-
-  for (const result of extractions) {
-    if (result.concepts.length === 0) continue;
-
-    for (const concept of result.concepts) {
-      const slug = slugify(concept.concept);
-      if (frozenSlugs.has(slug)) continue;
-
-      const existing = bySlug.get(slug);
-      if (existing) {
-        existing.concept = reconcileConceptMetadata(existing.concept, concept);
-        existing.sourceFiles.push(result.sourceFile);
-      } else {
-        bySlug.set(slug, {
-          slug,
-          concept,
-          sourceFiles: [result.sourceFile],
-          combinedContent: "",
-        });
-        slicesBySlug.set(slug, []);
-      }
-      slicesBySlug.get(slug)!.push({
-        file: result.sourceFile,
-        content: result.sourceContent,
-      });
-    }
-  }
-
-  const budget = resolvePromptBudgetChars();
-  for (const merged of bySlug.values()) {
-    const slices = slicesBySlug.get(merged.slug) ?? [];
-    merged.combinedContent = buildBudgetedCombinedContent(
-      merged.concept.concept,
-      slices,
-    );
-    verbose(
-      `concept ${merged.slug}: ${slices.length} source(s), ` +
-      `${merged.combinedContent.length} chars combined (budget ${budget})`,
-    );
-  }
-
-  return Array.from(bySlug.values());
-}
-
-/** Outcome of generating a single merged concept page. */
-interface MergedPageOutcome {
-  error?: string;
-  wrotePage?: boolean;
-  candidate?: {
-    mode: "held" | "forced";
-    id: string;
-    ref: ReviewedCandidateRef;
-  };
-}
-
-/** Review diagnostics computed from the final generated page. */
-interface ReviewDiagnostics {
-  schemaViolations: LintResult[];
-  provenanceViolations: LintResult[];
-}
-
-/** Metadata needed when persisting a candidate. */
-interface ReviewCandidateMeta {
-  reviewMode: "policy" | "forced";
-  heldReasons: HeldReason[];
-}
-
-/**
- * Generate a wiki page from merged source content.
- * For shared concepts, the LLM sees content from all contributing sources
- * and frontmatter records every source file. When `options.review` is set,
- * the rendered page is persisted as a review candidate instead of being
- * written into `wiki/`.
- */
-async function generateMergedPage(
-  root: string,
-  entry: MergedConcept,
-  schema: SchemaConfig,
-  options: CompileOptions,
-  sourceStates: SourceStateMap,
-  policy: ReviewPolicy,
-): Promise<MergedPageOutcome> {
-  const fullPage = await renderMergedPageContent(root, entry, schema);
-  const diagnostics = await collectReviewDiagnostics(root, entry, fullPage, schema);
-  const signals = buildPolicySignals(fullPage, diagnostics);
-  const reasons = evaluatePolicy(signals, policy);
-
-  if (options.review) {
-    const heldReasons = [{ code: "manual-review-requested" } as HeldReason, ...reasons];
-    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, signals, {
-      reviewMode: "forced",
-      heldReasons,
-    });
-  }
-
-  if (reasons.length > 0) {
-    return await persistReviewCandidate(root, entry, fullPage, sourceStates, diagnostics, signals, {
-      reviewMode: "policy",
-      heldReasons: reasons,
-    });
-  }
-
-  const pagePath = path.join(root, CONCEPTS_DIR, `${entry.slug}.md`);
-  const error = await writePageIfValid(pagePath, fullPage, entry.concept.concept);
-  if (!error) await deleteCandidateBySlug(root, entry.slug);
-  return { error: error ?? undefined, wrotePage: !error };
-}
-
-/** Persist a candidate JSON record for later review and report it on stdout. */
-async function collectReviewDiagnostics(
-  root: string,
-  entry: MergedConcept,
-  fullPage: string,
-  schema: SchemaConfig,
-): Promise<ReviewDiagnostics> {
-  // Run schema-aware AND provenance-aware lint against the candidate body so
-  // both classes of violation are visible in `review show` before a reviewer
-  // approves the page. The virtual file path uses the slug so diagnostics
-  // are identifiable without a real disk path. Provenance lint covers the
-  // citation rules that previously only ran on the post-promotion compile.
-  const virtualPath = `wiki/concepts/${entry.slug}.md`;
-  const schemaViolations = checkPageCrossLinks(fullPage, virtualPath, schema);
-  const provenanceViolations = await collectCandidateProvenanceViolations(
-    root,
-    fullPage,
-    virtualPath,
-  );
-  return { schemaViolations, provenanceViolations };
-}
-
-/** Build review-policy signals from final page frontmatter and diagnostics. */
-function buildPolicySignals(fullPage: string, diagnostics: ReviewDiagnostics) {
-  const { meta } = parseFrontmatter(fullPage);
-  const provenance = parseProvenanceMetadata(meta);
-  return {
-    confidence: provenance.confidence,
-    contradicted: (provenance.contradictedBy?.length ?? 0) > 0,
-    schemaViolations: diagnostics.schemaViolations,
-    provenanceViolations: diagnostics.provenanceViolations,
-  };
-}
-
-/** Persist a candidate JSON record for later review and report it on stdout. */
-async function persistReviewCandidate(
-  root: string,
-  entry: MergedConcept,
-  fullPage: string,
-  sourceStates: SourceStateMap,
-  diagnostics: ReviewDiagnostics,
-  signals: ReturnType<typeof buildPolicySignals>,
-  meta: ReviewCandidateMeta,
-): Promise<MergedPageOutcome> {
-  const candidate: ReviewCandidate = await writeCandidate(root, {
-    title: entry.concept.concept,
-    slug: entry.slug,
-    summary: entry.concept.summary,
-    sources: entry.sourceFiles,
-    body: fullPage,
-    sourceStates: pickStatesForSources(sourceStates, entry.sourceFiles),
-    schemaViolations:
-      diagnostics.schemaViolations.length > 0 ? diagnostics.schemaViolations : undefined,
-    provenanceViolations:
-      diagnostics.provenanceViolations.length > 0 ? diagnostics.provenanceViolations : undefined,
-    reviewMode: meta.reviewMode,
-    heldReasons: meta.heldReasons,
-    confidence: signals.confidence,
-    contradicted: signals.contradicted,
-  });
-  output.status("?", output.info(`Candidate ready: ${candidate.id} (${entry.slug})`));
-  return {
-    candidate: {
-      id: candidate.id,
-      mode: meta.reviewMode === "policy" ? "held" : "forced",
-      ref: { id: candidate.id, slug: entry.slug, reasons: meta.heldReasons.map((r) => r.code) },
-    },
-  };
-}
-
-/**
- * Run the in-memory provenance lint rules against a candidate body:
- * malformed claim citations + broken-source / out-of-bounds line spans.
- * Returns the combined diagnostics so writeCandidate can persist them.
- */
-async function collectCandidateProvenanceViolations(
-  root: string,
-  fullPage: string,
-  virtualPath: string,
-): Promise<LintResult[]> {
-  const malformed = checkPageMalformedCitations(fullPage, virtualPath);
-  const broken = await checkPageBrokenCitations(
-    fullPage,
-    virtualPath,
-    path.join(root, SOURCES_DIR),
-  );
-  return [...malformed, ...broken];
-}
-
-/**
- * Materialise schema-declared seed pages (overview, comparison, entity).
- * Each seed page is written under wiki/concepts/ next to concept pages so
- * existing tooling (index, MOC, lint, embeddings) treats them uniformly.
- * Slugs from generated pages this run are added so seed pages can be linked
- * deterministically without waiting for a second compile pass.
- * @param root - Project root directory.
- * @param schema - Resolved schema config.
- * @param generation - Result of the concept-page generation phase.
- */
-async function generateSeedPages(
-  root: string,
-  schema: SchemaConfig,
-  generation: PageGenerationResult,
-): Promise<void> {
-  if (schema.seedPages.length === 0) return;
-  for (const seed of schema.seedPages) {
-    const result = await generateSingleSeedPage(root, schema, seed);
-    if (result.error) {
-      generation.errors.push(result.error);
-      continue;
-    }
-    generation.seedSlugs.push(result.slug);
-  }
-}
-
-/** Outcome of a single seed-page generation: slug always, error when the write failed validation. */
-interface SeedPageOutcome {
-  slug: string;
-  error?: string;
-}
-
-/** Build, prompt, and persist a single seed page. */
-async function generateSingleSeedPage(
-  root: string,
-  schema: SchemaConfig,
-  seed: SeedPage,
-): Promise<SeedPageOutcome> {
-  const slug = slugify(seed.title);
-  const pagePath = path.join(root, CONCEPTS_DIR, `${slug}.md`);
-  const relatedContent = await loadSeedRelatedPages(root, seed.relatedSlugs ?? []);
-  const rule = schema.kinds[seed.kind];
-  const system = buildSeedPagePrompt(seed, rule, relatedContent);
-  const pageBody = await callClaude({
-    system,
-    messages: [{ role: "user", content: `Write the ${seed.kind} page titled "${seed.title}".` }],
-  });
-
-  const now = new Date().toISOString();
-  const existing = await safeReadFile(pagePath);
-  const existingMeta = existing ? parseFrontmatter(existing).meta : null;
-  const createdAt = typeof existingMeta?.createdAt === "string" ? existingMeta.createdAt : now;
-  const typedFields: WikiFrontmatter = {
-    title: seed.title,
-    summary: seed.summary,
-    sources: [],
-    kind: seed.kind,
-    createdAt,
-    updatedAt: now,
-  };
-  const frontmatterFields: Record<string, unknown> = { ...typedFields };
-  addObsidianMeta(frontmatterFields, seed.title, []);
-  addModelProvenanceMeta(frontmatterFields);
-  const frontmatter = buildFrontmatter(frontmatterFields);
-  const error = await writePageIfValid(pagePath, `${frontmatter}\n\n${pageBody}\n`, seed.title);
-  return error ? { slug, error } : { slug };
-}
-
-/** Load the bodies of the related concept pages a seed page should weave together. */
-async function loadSeedRelatedPages(root: string, slugs: string[]): Promise<string> {
-  if (slugs.length === 0) return "";
-  const contents: string[] = [];
-  for (const slug of slugs) {
-    const pagePath = path.join(root, CONCEPTS_DIR, `${slug}.md`);
-    const content = await safeReadFile(pagePath);
-    if (content) contents.push(content);
-  }
-  return contents.join("\n\n---\n\n");
-}
-
-/**
- * Call Claude to extract concepts from a source document.
- * @param sourceContent - Full source document text.
- * @param existingIndex - Current wiki index for deduplication.
- * @returns Parsed array of extracted concepts.
- */
-async function extractConcepts(
-  sourceContent: string,
-  existingIndex: string,
-): Promise<ExtractedConcept[]> {
-  const system = buildExtractionPrompt(sourceContent, existingIndex);
-  const rawOutput = await callClaude({
-    system,
-    messages: [{ role: "user", content: "Extract the key concepts from this source." }],
-    tools: [CONCEPT_EXTRACTION_TOOL],
-  });
-
-  return parseConcepts(rawOutput);
-}
-
-/**
- * Validate and atomically write a wiki page, logging the result.
- * @param pagePath - Absolute path to write the page.
- * @param content - Full page content including frontmatter.
- * @param conceptTitle - Title for logging purposes.
- */
-async function writePageIfValid(
-  pagePath: string,
-  content: string,
-  conceptTitle: string,
-): Promise<string | null> {
-  if (!validateWikiPage(content)) {
-    output.status("!", output.warn(`Invalid page for "${conceptTitle}" — skipped.`));
-    return `Invalid page for "${conceptTitle}" — failed validation`;
-  }
-
-  await atomicWrite(pagePath, content);
-  const slug = path.basename(pagePath, ".md");
-  verbose(`page ${slug}: ${content.length} chars`);
-  return null;
-}
-
 /**
  * Refresh the embeddings store without failing compilation.
  * Semantic search is a non-critical enhancement — missing API keys or
  * transient provider errors should produce a warning, not a broken build.
+ *
+ * DURABLE source↔embeddings consistency with a PER-ID lifecycle: because
+ * source-state is already flushed (sources marked current) by the time this runs
+ * and failures are SWALLOWED, a skipped/crashed refresh would otherwise leave stale
+ * embeddings that the next compile never revisits (no source change → no refresh).
+ * To close that, the changed page-ids are UNIONED (preserving existing attempt
+ * counts) with any prior-pending entries and recorded to a durable, root-confined
+ * write-ahead marker BEFORE the attempt. AFTER the attempt the marker is reconciled
+ * per-id rather than all-or-nothing:
+ *  - SUCCESS → {@link settleAfterSuccess} clears only the ids the core actually
+ *    embedded; an id it SKIPPED (transiently ineligible) is retained with an
+ *    incremented attempt count, never cleared un-embedded.
+ *  - FAILURE → {@link settleAfterFailure} increments attempts for the whole batch.
+ * Either way, an id that fails {@link MAX_PENDING_EMBEDDING_ATTEMPTS} times is
+ * QUARANTINED (dropped + a visible warning), so a poison id can neither loop forever
+ * (re-billing the provider) nor wedge the all-or-nothing batch it shares.
+ *
+ * `finalizeWiki` calls this on EVERY non-review compile (including the
+ * no-source-changes early branch), so prior-pending ids are drained — retried —
+ * even on an otherwise no-op compile.
+ *
+ * Compile only ever writes concept-namespace pages, so changed slugs are
+ * qualified under `concepts/`. The full per-id drain lifecycle lives in the
+ * SHARED {@link refreshEmbeddingsDrainingPending} (also used by `review approve`);
+ * this wrapper only maps slugs → qualified page-ids. Compile already holds the
+ * project lock → the shared drain calls the reentrancy-safe Core (the
+ * self-locking wrapper would deadlock here).
  */
 async function safelyUpdateEmbeddings(root: string, changedSlugs: string[]): Promise<void> {
-  try {
-    verbose(`embeddings: refreshing ${changedSlugs.length} slug(s)`);
-    await updateEmbeddings(root, changedSlugs);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
-  }
+  const conceptsNamespace = path.basename(CONCEPTS_DIR);
+  const changedPageIds = changedSlugs.map((slug) => qualifiedPageId(conceptsNamespace, slug));
+  await refreshEmbeddingsDrainingPending(root, changedPageIds);
 }

@@ -34,6 +34,7 @@
               "concepts/karpathy-pattern",
               "concepts/how-it-works",
               "concepts/wiki-model",
+              "concepts/configurable-lifecycle-profiles",
               "concepts/page-types",
               "concepts/citations"
             ]
@@ -48,6 +49,17 @@
               "cli/lint-eval",
               "cli/export",
               "cli/import",
+              {
+                "group": "Configurable Lifecycle Profiles",
+                "expanded": false,
+                "pages": [
+                  "cli/profile",
+                  "cli/workflow",
+                  "cli/artifact",
+                  "cli/connector",
+                  "cli/template"
+                ]
+              },
               "cli/review",
               "cli/serve"
             ]
@@ -58,7 +70,16 @@
               "configuration/providers",
               "configuration/environment-variables",
               "configuration/review-policy",
-              "configuration/schema"
+              "configuration/schema",
+              {
+                "group": "Configurable Lifecycle Profiles",
+                "expanded": false,
+                "pages": [
+                  "configuration/profiles",
+                  "configuration/autosci-profile",
+                  "configuration/profile-templates"
+                ]
+              }
             ]
           },
           {
@@ -67,14 +88,23 @@
               "guides/mcp-agent-integration",
               "guides/sdk",
               "guides/atomic-memory-bridge",
-              "guides/ci-quality-gates"
+              "guides/ci-quality-gates",
+              {
+                "group": "Configurable Lifecycle Profiles",
+                "expanded": false,
+                "pages": [
+                  "guides/autosci-research-workflow",
+                  "guides/newsroom-editorial-workflow"
+                ]
+              }
             ]
           },
           {
             "group": "Troubleshooting",
             "pages": [
               "troubleshooting/faq",
-              "troubleshooting/stale-pages"
+              "troubleshooting/stale-pages",
+              "troubleshooting/state-recovery"
             ]
           }
         ]

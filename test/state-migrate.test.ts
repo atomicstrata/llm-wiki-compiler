@@ -1,0 +1,128 @@
+/**
+ * Tests for the lossless v1→v2 WikiState migration.
+ *
+ * Phase 2 of the Configurable Lifecycle Knowledge Platform introduces a typed
+ * ownership mirror: alongside the v1 `concepts` / `frozenSlugs` string lists,
+ * a v2 state carries `entities` / `frozenEntities` as branded `EntityId`s of
+ * the form `concepts/<slug>`. These tests pin the migration's four contracts:
+ *
+ *  - lossless upgrade (v1 fields retained, typed mirror added),
+ *  - idempotency (re-migrating a v2 state is a no-op, never double-typed),
+ *  - determinism (sorted output, byte-stable across repeated runs), and
+ *  - tolerant behaviour (a non-slug-safe bare slug — e.g. a Unicode stem — is
+ *    kept verbatim in `concepts` / `frozenSlugs` but gets no typed id, so a
+ *    mixed-language wiki migrates instead of aborting).
+ */
+
+import { describe, it, expect } from "vitest";
+import { migrateStateToV2 } from "../src/state/migrate.js";
+import type { WikiState } from "../src/utils/types.js";
+
+/** A minimal, valid v1 state used as the base fixture for the suite. */
+function v1Fixture(): WikiState {
+  return {
+    version: 1,
+    indexHash: "i",
+    sources: {
+      "a.md": { hash: "h", concepts: ["rag", "x"], compiledAt: "T" },
+    },
+    frozenSlugs: ["rag"],
+  };
+}
+
+describe("migrateStateToV2 — lossless v1→v2 upgrade", () => {
+  it("bumps version and adds the typed mirror while retaining v1 fields", () => {
+    const v2 = migrateStateToV2(v1Fixture());
+    expect(v2.version).toBe(2);
+    const src = v2.sources["a.md"];
+    expect(src.entities).toEqual(["concepts/rag", "concepts/x"]);
+    expect(src.concepts).toEqual(["rag", "x"]);
+    expect(v2.frozenEntities).toEqual(["concepts/rag"]);
+    expect(v2.frozenSlugs).toEqual(["rag"]);
+  });
+
+  it("carries hash, compiledAt, and indexHash through unchanged", () => {
+    const v2 = migrateStateToV2(v1Fixture());
+    expect(v2.indexHash).toBe("i");
+    expect(v2.sources["a.md"].hash).toBe("h");
+    expect(v2.sources["a.md"].compiledAt).toBe("T");
+  });
+});
+
+describe("migrateStateToV2 — idempotency", () => {
+  it("returns a deep-equal v2 state when given an already-v2 state", () => {
+    const once = migrateStateToV2(v1Fixture());
+    const twice = migrateStateToV2(once);
+    expect(twice).toEqual(once);
+  });
+
+  it("never double-types entities on a second migration", () => {
+    const twice = migrateStateToV2(migrateStateToV2(v1Fixture()));
+    expect(twice.sources["a.md"].entities).toEqual(["concepts/rag", "concepts/x"]);
+    expect(twice.frozenEntities).toEqual(["concepts/rag"]);
+  });
+});
+
+describe("migrateStateToV2 — determinism", () => {
+  it("produces deep-equal output across two migrations of the same input", () => {
+    expect(migrateStateToV2(v1Fixture())).toEqual(migrateStateToV2(v1Fixture()));
+  });
+
+  it("sorts entities and frozenEntities lexicographically", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["zebra", "apple", "mango"];
+    v1.frozenSlugs = ["zebra", "apple"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual([
+      "concepts/apple",
+      "concepts/mango",
+      "concepts/zebra",
+    ]);
+    expect(v2.frozenEntities).toEqual(["concepts/apple", "concepts/zebra"]);
+  });
+});
+
+describe("migrateStateToV2 — dedup", () => {
+  it("dedups duplicate concept slugs into a single typed entity", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["rag", "rag", "x"];
+    v1.frozenSlugs = ["rag", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/rag", "concepts/x"]);
+    expect(v2.frozenEntities).toEqual(["concepts/rag"]);
+  });
+});
+
+describe("migrateStateToV2 — idempotency gate >= 2", () => {
+  it("returns a v2 state unchanged even if its version reads higher than 2", () => {
+    const v2 = migrateStateToV2(v1Fixture());
+    const future = { ...v2, version: 3 as unknown as 2 };
+    expect(migrateStateToV2(future)).toBe(future);
+  });
+});
+
+describe("migrateStateToV2 — tolerant of non-slug-safe slugs", () => {
+  it("does not throw and skips typing a non-ASCII (Unicode) source slug", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["café-society", "机器学习", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/rag"]);
+    expect(v2.sources["a.md"].concepts).toEqual(["café-society", "机器学习", "rag"]);
+  });
+
+  it("keeps a non-slug-safe frozen slug verbatim but mints no typed id for it", () => {
+    const v1 = v1Fixture();
+    v1.frozenSlugs = ["café-society", "机器学习", "rag"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.frozenEntities).toEqual(["concepts/rag"]);
+    expect(v2.frozenSlugs).toEqual(["café-society", "机器学习", "rag"]);
+  });
+
+  it("skips a slug with spaces / uppercase rather than throwing", () => {
+    const v1 = v1Fixture();
+    v1.sources["a.md"].concepts = ["Bad Slug", "UPPER", "ok"];
+    const v2 = migrateStateToV2(v1);
+    expect(v2.sources["a.md"].entities).toEqual(["concepts/ok"]);
+    expect(v2.sources["a.md"].concepts).toEqual(["Bad Slug", "UPPER", "ok"]);
+  });
+});

@@ -9,6 +9,8 @@ Open Knowledge Format (OKF) is a markdown-bundle shape for sharing compiled know
 - `llmwiki export --target okf` writes a portable OKF bundle from your compiled wiki.
 - `llmwiki import --okf <dir>` reads an OKF bundle and stages its documents for review by default.
 - Re-export preserves foreign producer keys, raw foreign types, and safe original bundle paths while refreshing llmwiki's own metadata.
+- Non-default profile projects export profile identity, typed relation metadata,
+  and workflow run summaries in the bundle-level `x-llmwiki` block.
 - SDK and MCP callers can export/import OKF without shelling out; MCP import is staging-only.
 
 Use OKF when you want to exchange compiled knowledge with another tool or project. Use JSON export when you are feeding a programmatic importer that expects llmwiki's JSON bridge contract.
@@ -55,6 +57,11 @@ x-llmwiki:
 
 The body is markdown. llmwiki rewrites `[[wikilinks]]` to OKF-style links and appends a human-readable `# Citations` section. Structured citation data also lives under `x-llmwiki.citations`.
 
+For non-default projects, `index.md` also carries bundle-level `x-llmwiki`
+metadata for the active profile, relation entries, and workflow run summaries.
+That metadata is exchange data, not an install command: importing the bundle
+does not replace the receiving project's profile.
+
 ---
 
 ## Import a bundle safely
@@ -75,8 +82,15 @@ Imported candidates show:
 - The `imported-okf` hold reason
 - The original OKF path
 - The mapped page body
+- The typed entity target when the receiving profile recognizes the imported
+  document as one of its entity types
 
 Approving an imported candidate writes the page into `wiki/concepts/` or `wiki/queries/` without running an LLM.
+
+In a non-default profile project, typed OKF docs are approved into their profile
+entity directories, such as `wiki/papers/`, after profile validation. Bundle
+relations are applied only on trusted import and only through the validated
+relation store.
 
 ---
 
@@ -115,6 +129,8 @@ When you import a foreign OKF bundle, llmwiki stores the original OKF frontmatte
 - `x-okf` is not emitted; it is an internal imported-provenance record.
 - Safe original nested paths are restored, so foreign bundle layouts can round-trip.
 - Native `[[wikilinks]]` to imported foreign pages are exported to that page's restored OKF path.
+- Profile identity, relation entries, and workflow run summaries are emitted
+  from current project state for non-default projects.
 
 This keeps the bundle honest: foreign metadata is not discarded, but stale standard fields are not blindly replayed after local edits.
 

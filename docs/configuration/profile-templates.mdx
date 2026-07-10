@@ -1,0 +1,92 @@
+---
+title: "Profile Templates"
+sidebarTitle: "Profile Templates"
+description: "Install structured wiki profiles such as AutoSci and Newsroom without changing llmwiki's default behavior."
+---
+
+Profile templates are install-time packages that write `.llmwiki/profile.json`.
+They are not runtime plugins, and they do not contain executable code.
+
+If a project has no `.llmwiki/profile.json`, llmwiki uses the built-in default
+profile exactly as before.
+
+## List templates
+
+```bash
+llmwiki template list
+```
+
+The built-in list includes:
+
+| Template | Description |
+|---|---|
+| `default` | The implicit no-file profile. It is inspectable but not installable. |
+| `autosci` | An AutoSci-derived structured research profile with papers, ideas, experiments, manuscripts, artifacts, workflows, and Crossref binding. |
+| `newsroom` | A newsroom profile with articles, desks, bylines, a filing relation, and a story workflow. |
+
+The public template surface supports built-in templates and local template files.
+Remote marketplaces and paid template distribution are not part of the public
+runtime loader or the `template` command path.
+
+## Inspect a template
+
+```bash
+llmwiki template inspect autosci
+```
+
+Inspection shows the template id, profile id, publisher, version, derived
+capabilities, connector bindings, digest, and install command.
+
+## Install a built-in template
+
+```bash
+llmwiki template init autosci
+```
+
+Before writing, llmwiki checks that the active typed corpus is empty. A
+populated default wiki, even one without `.llmwiki/profile.json`, is refused so
+existing `wiki/concepts` and `wiki/queries` pages are not orphaned under a new
+profile.
+
+On success this writes:
+
+- `.llmwiki/profile.json`
+- attempts to write `.llmwiki/template-lock.json`
+
+The lock file is advisory provenance for humans and support. Runtime behavior is
+always determined by `.llmwiki/profile.json`, which is validated on load.
+
+## Install a local template file
+
+```bash
+llmwiki template init --file ./team-template.json
+```
+
+Local templates are untrusted declarative input. They go through the same
+manifest validation, profile validation, connector-binding reconciliation, and
+overwrite safety checks as built-in templates.
+
+## Replacing a profile
+
+`llmwiki template init` refuses to overwrite an existing profile by default.
+
+`--force` only works when the current typed corpus is empty:
+
+- no typed entity pages under the active or incoming profile's entity directories;
+- no relation records;
+- no event records;
+- no artifact files;
+- no workflow runs;
+- no pending or archived review candidates;
+- no unresolved, unsafe, or unreadable typed stores.
+
+If the active profile is present but cannot be loaded, replacement is refused
+even with `--force`.
+
+## What templates cannot do
+
+Templates cannot include executable code, scripts, postinstall hooks, connector
+implementations, MCP servers, or out-of-band local or environment trust grants.
+They may declare workflow gates and permission requests that the normal workflow
+authority model evaluates at run time. Connector bindings can only name
+connectors that are both compiled into llmwiki and marked template-installable.

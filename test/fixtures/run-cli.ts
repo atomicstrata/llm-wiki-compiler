@@ -134,3 +134,17 @@ export async function runCLI(
     };
   }
 }
+
+/**
+ * Start a `build` workflow run via the real CLI and return its minted run id.
+ * Shared by the workflow CLI integration tests so the start-and-extract-id
+ * preamble isn't duplicated per file.
+ *
+ * @param cwd - The temp project root (with a `build` workflow installed).
+ * @returns The minted run id (e.g. `build-...`).
+ */
+export async function startBuildRunCLI(cwd: string): Promise<string> {
+  const start = await runCLI(["workflow", "start", "build"], cwd);
+  expect(start.code).toBe(0);
+  return (start.stdout.match(/build-[\w-]+/) ?? [""])[0];
+}

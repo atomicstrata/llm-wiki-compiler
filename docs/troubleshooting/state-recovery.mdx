@@ -1,0 +1,90 @@
+---
+title: "Recovering State Written by a Newer llmwiki Version"
+sidebarTitle: "State Recovery"
+description: "When .llmwiki/state.json was written by a newer llmwiki version, commands fail closed. Use llmwiki state reset to back up and reset the file and continue."
+---
+
+llmwiki tracks each project's compilation state in `.llmwiki/state.json`. That file carries a schema `version`, and each llmwiki build understands schema versions only up to the one it shipped with.
+
+If you run an llmwiki build against a project whose `.llmwiki/state.json` was written by a **newer** llmwiki version - for example, a teammate compiled with a newer release, or a stray newer binary touched the project - the state file declares a schema version this build does not recognize.
+
+## What "written by a newer llmwiki version" means
+
+It means `.llmwiki/state.json` has a `version` field higher than the highest version your installed llmwiki understands. The newer build may have written fields or a layout your build cannot safely interpret.
+
+When this happens, llmwiki **fails closed**. Rather than risk misreading the file - or overwriting a forward-incompatible layout on the next compile and corrupting it - commands that read state stop with a clear error instead of proceeding:
+
+```
+.llmwiki/state.json (version 3) was written by a newer llmwiki version
+(this build understands up to version 2). Upgrade llmwiki to read this project.
+```
+
+This is deliberate. The safest action when llmwiki encounters state it doesn't understand is to refuse to touch it.
+
+## Two ways forward
+
+### Upgrade llmwiki
+
+If you want to keep the existing compilation state - the recorded source hashes and the incremental-compile tracking - upgrade your llmwiki install to a version at least as new as the one that wrote the file. The newer build understands the schema and reads the project as-is.
+
+```bash
+npm install -g llm-wiki-compiler@latest
+```
+
+### Reset the state file
+
+If you are pinned to an older llmwiki and cannot upgrade, or you simply want to move forward from a clean slate, reset the state file with `llmwiki state reset`. This backs up `.llmwiki/state.json` to `.llmwiki/state.json.bak` and removes it, so the next `llmwiki compile` rebuilds state from your current `sources/`.
+
+## `llmwiki state reset`
+
+`state reset` refuses by default. Run it with no flags to see exactly what it will do without changing anything:
+
+```bash
+llmwiki state reset
+```
+
+```
+→ Will back up .llmwiki/state.json to .llmwiki/state.json.bak and remove it
+→ so the next compile starts fresh.
+→ Re-run with `--yes` to confirm.
+```
+
+When you're ready, pass `--yes` to apply the reset:
+
+```bash
+llmwiki state reset --yes
+```
+
+```
+✓ Reset .llmwiki/state.json. Backup saved to .llmwiki/state.json.bak.
+```
+
+The backup is a single atomic rename: the original bytes are preserved at `.llmwiki/state.json.bak` (overwriting any earlier backup), and the original file is removed.
+
+<Note>
+`state reset --yes` operates on the raw file bytes and never parses or validates the state. That's what makes it a reliable recovery path: it works even when the state file is too-new or otherwise unreadable - the very situation that would otherwise block you.
+</Note>
+
+If there is no state file to reset, the command says so and makes no changes:
+
+```bash
+llmwiki state reset
+```
+
+```
+✓ No state file to reset.
+```
+
+## After resetting
+
+Run a full compile to rebuild state from the current sources:
+
+```bash
+llmwiki compile
+```
+
+This regenerates `.llmwiki/state.json` at your build's schema version and produces fresh pages. Incremental compilation and [source freshness tracking](/troubleshooting/stale-pages) resume normally from there.
+
+<Tip>
+The backup at `.llmwiki/state.json.bak` is left in place. If you later upgrade llmwiki and want the original newer-version state back, you can restore it by renaming the backup to `.llmwiki/state.json` - then the upgraded build can read it directly.
+</Tip>

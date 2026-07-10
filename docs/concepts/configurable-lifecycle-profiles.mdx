@@ -1,0 +1,155 @@
+---
+title: "Configurable Lifecycle Profiles (CLP)"
+sidebarTitle: "CLP"
+description: "Understand how Configurable Lifecycle Profiles turn llmwiki from a two-directory compiler into a typed, workflow-aware knowledge substrate."
+---
+
+Configurable Lifecycle Profiles, or CLP, are llmwiki's way to make a wiki's
+domain model explicit without adding domain-specific code. A profile declares
+the entities, fields, relations, lifecycles, workflows, artifact contracts,
+connectors, and read tiers for one project. The core engine then enforces those
+declarations generically.
+
+The default profile keeps the original llmwiki model: compiled concepts in
+`wiki/concepts/` and saved query pages in `wiki/queries/`. A non-default profile
+can add richer typed directories such as `wiki/papers/`, `wiki/experiments/`, or
+`wiki/articles/`, but it still uses the same compile, review, lint, export,
+viewer, context, SDK, and MCP surfaces.
+
+## Why CLP Exists
+
+The original llmwiki model is intentionally simple: sources compile into concept
+pages. That is enough for many personal and team knowledge bases, but larger
+workflows need stronger contracts:
+
+- A research experiment should not become `complete` unless it has a result
+  artifact and a linked idea.
+- A manuscript should not be marked `submitted` unless citation relations exist.
+- An article workflow should distinguish drafting, editing, filing, and
+  publication stages.
+- External metadata from a connector should enter review before it becomes live
+  context.
+
+CLP handles those cases by moving the domain rules into `.llmwiki/profile.json`.
+The profile is data. The enforcement machinery stays generic.
+
+## What a Profile Declares
+
+<CardGroup cols={2}>
+  <Card title="Entities and fields" icon="table">
+    Entity types map to directories under `wiki/`. Field contracts define the
+    required frontmatter and primitive types each entity page must satisfy.
+  </Card>
+  <Card title="Relations" icon="diagram-project">
+    Relation types define valid edges between entity types. Writes and reads use
+    the same profile-valid relation filter, so invalid edges do not quietly gain
+    authority.
+  </Card>
+  <Card title="Lifecycles" icon="shuffle">
+    Entity lifecycles are finite-state machines over one frontmatter field.
+    State changes are validated on every typed write surface.
+  </Card>
+  <Card title="Preconditions" icon="shield-check">
+    Gated states can require evidence fields, relation counts, and healthy
+    hash-pinned artifact references.
+  </Card>
+  <Card title="Workflows and actions" icon="route">
+    Workflows declare stage order, reads, writes, gates, and artifact outputs.
+    Actions expose safe shortcuts over workflow operations.
+  </Card>
+  <Card title="Artifacts and connectors" icon="box-archive">
+    Artifacts are typed files with manifest metadata and hash-pinned refs.
+    Connectors can stage typed review candidates, but profiles cannot ship code.
+  </Card>
+</CardGroup>
+
+## The Core Invariant
+
+CLP's core invariant is that domain behavior comes from profile data, not from
+hardcoded branches. The engine should not need logic like "if this is AutoSci,
+run the research path" or "if this is Newsroom, use a different reviewer." It
+loads the active profile, validates the requested write or read surface against
+that profile, and either applies the generic operation or fails closed.
+
+That is why the same machinery can support:
+
+- the built-in `default` profile;
+- the built-in `autosci` template, a full research workflow profile;
+- the built-in `newsroom` template, a deliberately different editorial profile;
+- local profile templates authored by a team.
+
+Profiles can be very different, but the engine still sees the same kinds of
+contracts: entity pages, relations, lifecycle states, artifact refs, workflow
+stages, and review candidates.
+
+## Write Surfaces
+
+CLP does not only validate a page when you explicitly run `llmwiki profile
+validate`. It validates at the write surfaces where invalid state could enter
+the wiki:
+
+<Steps>
+  <Step title="Typed page creation and update">
+    Page writes check entity type, required fields, field types, lifecycle state,
+    relation preconditions, and artifact preconditions before a page becomes
+    live.
+  </Step>
+  <Step title="Lifecycle transitions">
+    Lifecycle commands and workflow lifecycle outputs route through the same
+    gated-state validation used by page writes.
+  </Step>
+  <Step title="Relation writes">
+    Relation writes validate relation type, endpoint roles, endpoint entity
+    types, endpoint existence, and required attributes.
+  </Step>
+  <Step title="Artifact writes">
+    Artifact writes validate the declared artifact type, file contract, content
+    kind, byte cap, trust grant, and manifest integrity.
+  </Step>
+  <Step title="Review approval">
+    Review candidates are not trusted just because they reached the queue.
+    Approval re-plans the write against the current profile before promoting it.
+  </Step>
+</Steps>
+
+This keeps profile rules from being bypassed by sibling surfaces such as OKF
+import, workflow output, connector staging, or review approval.
+
+## Trust and Review
+
+Profiles describe desired authority, but they do not grant it by themselves.
+Operator-controlled surfaces still decide whether a write can apply live:
+
+- Trust-gated workflow writes and direct artifact writes require
+  `LLMWIKI_TRUSTED_WRITE`.
+- Connectors require `LLMWIKI_CONNECTORS` and stage review candidates, never
+  live pages.
+- OKF imports stage candidates by default. Trusted imports still route typed
+  docs through the typed planner.
+- Connector-fetched candidates require a `--draft-content-hash` approval pin so
+  the approved body is the body the operator reviewed.
+
+The result is a split between profile policy and runtime authority. Profiles can
+request and constrain behavior; operators grant sensitive execution.
+
+## Default Compatibility
+
+If a project has no `.llmwiki/profile.json`, it uses the built-in `default`
+profile. The default profile preserves the original behavior and directory
+layout. CLP adds new capabilities without requiring existing projects to opt in
+or migrate.
+
+When a profile is installed, it is project-defining. Template initialization
+refuses to reinterpret a non-empty typed corpus, because switching profiles can
+orphan or reinterpret existing wiki pages.
+
+## Where To Go Next
+
+- Use [Profiles](/configuration/profiles) for the configuration schema and
+  examples.
+- Use [AutoSci Profile](/configuration/autosci-profile) to see a complete
+  research profile expressed as configuration.
+- Use [Profile Templates](/configuration/profile-templates) to install a
+  built-in or local profile package.
+- Use [AutoSci Research Workflow](/guides/autosci-research-workflow) for a
+  practical end-to-end research walkthrough.

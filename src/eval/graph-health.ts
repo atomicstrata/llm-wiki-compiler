@@ -17,7 +17,7 @@
 
 import { collectViewerPages } from "../viewer/collect.js";
 import { buildGraphData } from "../viewer/graph.js";
-import type { ViewerPage, GraphData, GraphNode, PageId } from "../viewer/types.js";
+import type { ViewerPage, GraphData, GraphNode, GraphNodeId } from "../viewer/types.js";
 import type { GraphHealthResult, HubPage } from "./types.js";
 
 
@@ -26,8 +26,8 @@ const MAX_HUB_PAGES = 5;
 const MAX_TOP_DANGLING = 5;
 
 /** Count indegree from real→real edges only (exclude edges involving ghosts). */
-function buildRealIndegrees(realIds: Set<PageId>, edges: GraphData["edges"]): Map<PageId, number> {
-  const map = new Map<PageId, number>();
+function buildRealIndegrees(realIds: Set<GraphNodeId>, edges: GraphData["edges"]): Map<GraphNodeId, number> {
+  const map = new Map<GraphNodeId, number>();
   for (const e of edges) {
     if (realIds.has(e.source) && realIds.has(e.target)) {
       map.set(e.target, (map.get(e.target) ?? 0) + 1);
@@ -38,9 +38,9 @@ function buildRealIndegrees(realIds: Set<PageId>, edges: GraphData["edges"]): Ma
 
 /** Build undirected adjacency for real pages (real→real edges only, both directions). */
 function buildUndirectedAdj(
-  nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>,
-): Map<PageId, Set<PageId>> {
-  const adj = new Map<PageId, Set<PageId>>();
+  nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<GraphNodeId>,
+): Map<GraphNodeId, Set<GraphNodeId>> {
+  const adj = new Map<GraphNodeId, Set<GraphNodeId>>();
   for (const n of nodes) {
     if (!n.isDangling) adj.set(n.id, new Set());
   }
@@ -54,7 +54,7 @@ function buildUndirectedAdj(
 }
 
 /** BFS from a starting node, marking all reachable nodes as visited. */
-function bfsFrom(start: PageId, adj: Map<PageId, Set<PageId>>, visited: Set<PageId>): void {
+function bfsFrom(start: GraphNodeId, adj: Map<GraphNodeId, Set<GraphNodeId>>, visited: Set<GraphNodeId>): void {
   const queue = [start];
   visited.add(start);
   while (queue.length > 0) {
@@ -66,9 +66,9 @@ function bfsFrom(start: PageId, adj: Map<PageId, Set<PageId>>, visited: Set<Page
 }
 
 /** Weakly connected components (undirected view over real pages). */
-function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<PageId>): number {
+function countComponents(nodes: GraphNode[], edges: GraphData["edges"], realIds: Set<GraphNodeId>): number {
   const adj = buildUndirectedAdj(nodes, edges, realIds);
-  const visited = new Set<PageId>();
+  const visited = new Set<GraphNodeId>();
   let components = 0;
   for (const id of adj.keys()) {
     if (!visited.has(id)) { components++; bfsFrom(id, adj, visited); }
@@ -108,7 +108,7 @@ export async function evaluateGraphHealth(
     ? Math.round((totalIndegree / realNodes.length) * 100) / 100
     : 0;
 
-  const realOutdegrees = new Map<PageId, number>();
+  const realOutdegrees = new Map<GraphNodeId, number>();
   for (const e of graph.edges) {
     if (realIds.has(e.source) && realIds.has(e.target)) {
       realOutdegrees.set(e.source, (realOutdegrees.get(e.source) ?? 0) + 1);

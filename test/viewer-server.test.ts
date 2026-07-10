@@ -26,32 +26,9 @@ import {
   useViewerProcessLifecycle,
   type ViewerProcessHandle,
 } from "./fixtures/run-cli-server.js";
+import { fetchJson, fetchText } from "./fixtures/viewer-fetch.js";
 
 const { start: startViewer } = useViewerProcessLifecycle();
-
-async function fetchJson(handle: ViewerProcessHandle, pathname: string): Promise<{
-  status: number;
-  body: unknown;
-}> {
-  const res = await fetch(`http://${handle.host}:${handle.port}${pathname}`);
-  const body = res.headers.get("content-type")?.includes("application/json")
-    ? await res.json()
-    : await res.text();
-  return { status: res.status, body };
-}
-
-async function fetchText(handle: ViewerProcessHandle, pathname: string): Promise<{
-  status: number;
-  contentType: string | null;
-  body: string;
-}> {
-  const res = await fetch(`http://${handle.host}:${handle.port}${pathname}`);
-  return {
-    status: res.status,
-    contentType: res.headers.get("Content-Type"),
-    body: await res.text(),
-  };
-}
 
 describe("llmwiki view — readiness and snapshot", () => {
   it("prints a parseable readiness line on stdout", async () => {

@@ -10,28 +10,37 @@
 
 import type { LintResult } from "../linter/types.js";
 
-/** Policy reasons stored on review candidates and surfaced in CLI output. */
-export type HeldReasonCode =
+/**
+ * Closed set of review-policy reasons that fire from the compile pipeline and
+ * are stored on review candidates / surfaced in CLI output.
+ *
+ * The Trust Guard's staged-write surface widens this into an OPEN union
+ * (`HeldReasonCode` in `src/trust/staged-change.ts`) that keeps these literals
+ * as a strict subset and adds trust-routing codes; this stays the narrow,
+ * canonical policy set so the candidate store and CLI keep an exhaustive union.
+ */
+export type PolicyHeldReasonCode =
   | "low-confidence"
   | "contradicted"
   | "schema-violating"
   | "provenance-violating"
   | "all"
   | "manual-review-requested"
-  | "imported-okf";
+  | "imported-okf"
+  | "connector-fetched";
 
 /** Structured reason a generated page was held for review. */
 export interface HeldReason {
-  code: HeldReasonCode;
+  code: PolicyHeldReasonCode;
   detail?: string;
 }
 
-/** Candidate origin: policy-selected, explicitly forced, or imported from OKF. */
-export type ReviewMode = "policy" | "forced" | "imported";
+/** Candidate origin: policy-selected, explicitly forced, imported, or connector-fetched. */
+export type ReviewMode = "policy" | "forced" | "imported" | "connector";
 
 /** Configurable review policy modes. */
 export type ReviewPolicyMode =
-  | Exclude<HeldReasonCode, "manual-review-requested" | "imported-okf">
+  | Exclude<PolicyHeldReasonCode, "manual-review-requested" | "imported-okf">
   | "off";
 
 /** How low-confidence policy treats a missing confidence signal. */
@@ -109,4 +118,3 @@ function summarizeViolations(violations: LintResult[]): string {
   const suffix = violations.length === 1 ? "" : ` (+${violations.length - 1} more)`;
   return `${first.rule}${suffix}`;
 }
-

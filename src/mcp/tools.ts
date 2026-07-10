@@ -19,10 +19,14 @@ import { buildContextPack } from "../context/build.js";
 import { ensureProviderAvailable } from "../utils/provider-guard.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import { readPageRecord } from "../pages/read.js";
-import { pickSearchSlugs, loadPageRecords } from "../search/retrieval.js";
-import { jsonResult } from "./result.js";
+import { pickSearchRefs, loadSelectedRefs } from "../search/retrieval.js";
+import { loadNonDefaultProfile } from "../profile/block.js";
+import { isSlugSafe } from "../profile/identity.js";
+import { resolveArtifactRef, declaresArtifactTypes } from "../artifacts/resolve.js";
+import type { ArtifactRef } from "../artifacts/ref.js";
+import { jsonResult, errorResult } from "./result.js";
 
-/** Register all 9 wiki tools on the given MCP server instance. */
+/** Register all 10 wiki tools on the given MCP server instance. */
 export function registerWikiTools(server: McpServer, root: string): void {
   registerIngestTool(server, root);
   registerCompileTool(server, root);
@@ -33,6 +37,7 @@ export function registerWikiTools(server: McpServer, root: string): void {
   registerStatusTool(server, root);
   registerContextPackTool(server, root);
   registerEvalTool(server, root);
+  registerVerifyArtifactTool(server, root);
 }
 
 function registerIngestTool(server: McpServer, root: string): void {
@@ -120,9 +125,11 @@ function registerSearchTool(server: McpServer, root: string): void {
     },
     async ({ question }) => {
       ensureProviderAvailable();
-      const slugs = await pickSearchSlugs(root, question);
-      const records = await loadPageRecords(root, slugs);
-      return jsonResult({ pages: records });
+      const { refs, warnings } = await pickSearchRefs(root, question);
+      const records = await loadSelectedRefs(root, refs);
+      // S6: surface degrade warnings in the RESULT payload (not a log) so an
+      // agent SEES that an outdated index meant lexical-only contribution.
+      return jsonResult({ pages: records, refs, warnings });
     },
   );
 }
@@ -322,6 +329,68 @@ function registerEvalTool(server: McpServer, root: string): void {
     async ({ suite, sampleSize, record }) => {
       const report = await runEval(root, suite, sampleSize ?? DEFAULT_SAMPLE_SIZE, record ?? false);
       return jsonResult(report);
+    },
+  );
+}
+
+/** A 64-character lowercase-hex sha256 digest — the same grammar the manifest and the CLI's `--sha256` flag enforce. */
+const ARTIFACT_SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * Validate `verify_artifact` input at the tool boundary, BEFORE any resolve call.
+ * A malformed caller input (bad slug grammar, non-hex digest) must surface as a
+ * dedicated MCP input error — never masquerade as a health verdict like
+ * `artifact-hash-mismatch` or `artifact-dangling`, which mean store corruption,
+ * not a caller typo.
+ */
+function invalidArtifactRefInput(args: { artifactType: string; slug: string; sha256: string }): string | null {
+  if (!isSlugSafe(args.artifactType)) return `invalid artifactType: ${JSON.stringify(args.artifactType)} is not slug-safe`;
+  if (!isSlugSafe(args.slug)) return `invalid slug: ${JSON.stringify(args.slug)} is not slug-safe`;
+  if (!ARTIFACT_SHA256_PATTERN.test(args.sha256)) return "invalid sha256: expected 64 lowercase hex chars";
+  return null;
+}
+
+/**
+ * Register the read-only `verify_artifact` tool: given a hash-pinned ref, returns
+ * manifest metadata + a {@link resolveArtifactRef} health verdict — NEVER the
+ * artifact body. Mirrors `artifact verify` (CLI) / `verifyArtifact` (SDK), but
+ * additionally projects manifest metadata since an MCP caller has no other way
+ * to read it — sourced from `resolveArtifactRef`'s own `manifest` return (one
+ * manifest read, not a second independent one). No write or store-wide list
+ * tool is registered anywhere over MCP (`SURFACE_HARD_CAP.mcp = "staged-write"`
+ * — see `src/workflows/authority.ts`).
+ */
+function registerVerifyArtifactTool(server: McpServer, root: string): void {
+  server.registerTool(
+    "verify_artifact",
+    {
+      title: "Verify Artifact",
+      description:
+        "Verify a hash-pinned artifact ref against the active profile's declared " +
+        "artifact types. Returns manifest metadata (artifactType, slug, sha256, " +
+        "bytes, contentKind, writtenAt) plus a health verdict — NEVER the artifact " +
+        "body. Read-only; no write or store-wide list tool is exposed over MCP.",
+      inputSchema: {
+        artifactType: z.string().describe("The profile-declared artifact type."),
+        slug: z.string().describe("The artifact's slug."),
+        sha256: z.string().describe("The 64-character lowercase-hex sha256 digest to verify against."),
+      },
+    },
+    async ({ artifactType, slug, sha256 }) => {
+      const invalid = invalidArtifactRefInput({ artifactType, slug, sha256 });
+      if (invalid) return errorResult(invalid);
+
+      const loaded = await loadNonDefaultProfile(root);
+      if (!loaded || !declaresArtifactTypes(loaded.profile)) {
+        return errorResult("no artifact types declared by the active profile");
+      }
+
+      const ref: ArtifactRef = { artifactType, slug, sha256 };
+      // `resolveArtifactRef` already reads+parses the manifest to compute health;
+      // its `manifest` (populated whenever the file parsed, independent of the
+      // verdict) IS the metadata this tool projects — one read, not two.
+      const { health, manifest } = await resolveArtifactRef(root, loaded.profile, ref);
+      return jsonResult({ ...(manifest ?? {}), health });
     },
   );
 }

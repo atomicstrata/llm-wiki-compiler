@@ -282,24 +282,35 @@ function buildHealthDashboard(health) {
   return wrap;
 }
 
-/** Prepend a corrupt-state banner to `container` if one is not already in the document. */
+/** state.json classifications that surface a user-visible warning banner. */
+const BANNER_STATE_STATUSES = new Set(["corrupt", "too-new"]);
+
+/** Banner copy keyed by the state.json classification that triggers it. */
+const STATE_BANNER_MESSAGES = {
+  corrupt:
+    "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.",
+  "too-new":
+    "Warning: this wiki's state was written by a newer version of llmwiki. Update llmwiki to view it safely.",
+};
+
+/** Prepend a state-status banner to `container` if one is not already in the document. */
 function prependBannerIfNeeded(container, stateStatus) {
-  if (stateStatus !== "corrupt") return;
+  if (!BANNER_STATE_STATUSES.has(stateStatus)) return;
   if (document.querySelector(".corrupt-state-banner")) return;
-  container.prepend(buildCorruptStateBanner());
+  container.prepend(buildStateStatusBanner(stateStatus));
 }
 
 /**
- * Build the corrupt-state warning banner. Displayed when `/api/health`
- * reports `stateStatus === "corrupt"`, meaning the project's state.json
- * could not be parsed at viewer startup and freshness data is unreliable.
+ * Build the state-status warning banner. Displayed when `/api/health` or
+ * `/api/pages` reports `stateStatus === "corrupt"` (state.json could not be
+ * parsed at viewer startup, so freshness data is unreliable) or `"too-new"`
+ * (state.json was written by a newer llmwiki than this build understands).
  */
-function buildCorruptStateBanner() {
+function buildStateStatusBanner(stateStatus) {
   const banner = document.createElement("div");
   banner.className = "corrupt-state-banner";
   banner.setAttribute("role", "alert");
-  banner.textContent =
-    "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.";
+  banner.textContent = STATE_BANNER_MESSAGES[stateStatus];
   return banner;
 }
 
@@ -337,16 +348,16 @@ function applyHomeEnvelope(envelope) {
 }
 
 /**
- * Inject the corrupt-state banner into the app-layout container (above `main`)
+ * Inject the state-status banner into the app-layout container (above `main`)
  * so it persists across route changes. Runs once at app bootstrap from the
- * /api/pages envelope. No-ops when not corrupt or already injected.
+ * /api/pages envelope. No-ops when state is ok/missing or already injected.
  */
 function injectGlobalCorruptBanner(stateStatus) {
-  if (stateStatus !== "corrupt") return;
+  if (!BANNER_STATE_STATUSES.has(stateStatus)) return;
   if (document.querySelector(".corrupt-state-banner")) return;
   const layout = document.querySelector(".app-layout");
   if (!layout) return;
-  layout.prepend(buildCorruptStateBanner());
+  layout.prepend(buildStateStatusBanner(stateStatus));
 }
 
 /** Fetch /api/index and render the rendered HTML coming back from the server. */

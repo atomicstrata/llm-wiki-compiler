@@ -1,0 +1,28 @@
+{
+  "report": {
+    "outDir": "<OUT>",
+    "warnings": [],
+    "writtenPaths": [
+      "index.md",
+      "concepts/alpha.md",
+      "concepts/beta.md",
+      "concepts/empty-edge.md",
+      "concepts/Foo Bar.md",
+      "queries/what-is-alpha.md",
+      "concepts/研究.md",
+      "references/alpha-4d97498d.md",
+      "log.md"
+    ]
+  },
+  "tree": {
+    "concepts/Foo Bar.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: 1ff62eb9f23c929facf0e7f22be3781b9ee78e8e2e962a3110cf718cd9a60fce\n  pageDirectory: concepts\n  freshnessStatus: unverified\ntitle: Foo Bar\ndescription: Stem with a space.\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n# Foo Bar\n\nProves a space in the stem is preserved verbatim.\n",
+    "concepts/alpha.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: 7681a888c896765ab8becb8f458079d93af9037c454196b1d91965c9aba78a3c\n  pageDirectory: concepts\n  sources:\n    - alpha.md\n  freshnessStatus: fresh\n  citations:\n    - file: alpha.md\n      start: 1\n      end: 1\ntitle: Alpha\ndescription: The core idea.\ntags:\n  - core\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n# Alpha\n\nAlpha establishes the core idea.^[alpha.md:1]\n\nSee also [the beta concept](/concepts/beta.md).\n\n# Citations\n\n1. [alpha.md:1-1](/references/alpha-4d97498d.md)\n",
+    "concepts/beta.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: a0ea47ecb642b93fbb8b00b33c535cdb089a7543b01051836102c1162a0ee9ba\n  pageDirectory: concepts\n  sources:\n    - beta.md\n  freshnessStatus: stale\ntitle: Beta\ndescription: Drifted concept.\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n# Beta\n\nBeta has drifted since its source last compiled.\n",
+    "concepts/empty-edge.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: 01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b\n  pageDirectory: concepts\n  freshnessStatus: unverified\ntitle: Empty Edge\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n",
+    "concepts/研究.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: 63037f31dab82cacedb151f570b595b158ba3e39517ccb60838f210f2676495f\n  pageDirectory: concepts\n  freshnessStatus: unverified\ntitle: 研究\ndescription: Stem with a CJK char.\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n# 研究\n\nProves a unicode/CJK stem is preserved verbatim.\n",
+    "index.md": "---\nokf_version: \"0.1\"\n---\n\n# Knowledge Bundle\n\n## Concepts\n\n* [Alpha](/concepts/alpha.md) - The core idea.\n* [Beta](/concepts/beta.md) - Drifted concept.\n* [Empty Edge](/concepts/empty-edge.md) - \n* [Foo Bar](/concepts/Foo Bar.md) - Stem with a space.\n* [研究](/concepts/研究.md) - Stem with a CJK char.\n\n## Queries\n\n* [What is Alpha?](/queries/what-is-alpha.md) - Generated answer.\n",
+    "log.md": "# Log\n\n## <DATE>\n\n* **Export** 6 doc(s)\n",
+    "queries/what-is-alpha.md": "---\ntype: concept\nx-llmwiki:\n  schemaVersion: \"0.1\"\n  contentHash: 5d33d2e14051ceb7e2c80bf1b860b566e39d2f4ce03d8b9ddade33d921c5f046\n  pageDirectory: queries\n  sources:\n    - alpha.md\n  freshnessStatus: unverified\n  citations:\n    - file: alpha.md\n      start: 1\n      end: 1\ntitle: What is Alpha?\ndescription: Generated answer.\ntimestamp: \"2024-01-02T00:00:00.000Z\"\n---\n\n# What is Alpha?\n\nAlpha is the core idea.^[alpha.md:1] See [Alpha](/concepts/alpha.md).\n\n# Citations\n\n1. [alpha.md:1-1](/references/alpha-4d97498d.md)\n",
+    "references/alpha-4d97498d.md": "# Alpha source\n\nAlpha establishes the core idea.\n"
+  }
+}

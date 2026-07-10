@@ -1,0 +1,4 @@
+{
+  "code": 0,
+  "stdout": "\nLinting wiki\n────────────────\ni Schema: defaults (no schema file)\n! warning <ROOT>/wiki/concepts/orphan.md Page is marked as orphaned\n! warning <ROOT>/wiki/concepts/empty-edge.md Page has no summary in frontmatter\n! warning <ROOT>/wiki/concepts/empty-edge.md Page body is empty or too short (< 50 chars)\n! warning <ROOT>/wiki/concepts/orphan.md Page body is empty or too short (< 50 chars)\n! warning <ROOT>/wiki/concepts/beta.md Page is stale — a source it was compiled from has changed since the last compile\n\n* 0 error(s), 5 warning(s), 0 info\n"
+}

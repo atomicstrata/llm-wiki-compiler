@@ -55,6 +55,34 @@ export async function confinedInside(realRoot: string, rel: string): Promise<str
   return real && isInsideDir(real, realRoot) ? real : null;
 }
 
+/**
+ * Read `index.md`'s frontmatter — the one reserved file carrying the bundle-level
+ * `x-llmwiki` metadata block (CLP 7.6). Path-confined (a symlinked/escaping
+ * `index.md` yields `{}`) and size-bounded by `maxDocBytes`; a missing, oversize,
+ * or malformed-frontmatter index.md yields `{}` + a warning rather than throwing,
+ * so the bundle-block parse is fail-safe and pages still import.
+ *
+ * @param bundleDir - The bundle root directory.
+ * @param limits - Resource caps (the index.md read is bounded by `maxDocBytes`).
+ * @param onWarn - Sink for a size/confinement warning.
+ * @returns The parsed frontmatter mapping, or `{}` when unavailable.
+ */
+export async function readIndexFrontmatter(
+  bundleDir: string,
+  limits: OkfImportLimits,
+  onWarn: (msg: string) => void = () => {},
+): Promise<Record<string, unknown>> {
+  const realRoot = await safeRealpath(bundleDir);
+  if (!realRoot) return {};
+  const real = await confinedInside(realRoot, "index.md");
+  if (!real) return {};
+  if ((await stat(real)).size > limits.maxDocBytes) {
+    onWarn("OKF import: index.md exceeds size limit; bundle metadata block ignored");
+    return {};
+  }
+  return parseFrontmatterStatus(await readFile(real, "utf-8")).meta;
+}
+
 /** Read + parse an OKF bundle. Returns concept docs only (reserved + invalid skipped). */
 export async function readOkfBundle(
   bundleDir: string,

@@ -21,6 +21,16 @@
  */
 
 import { buildViewerSnapshot } from "../viewer/snapshot.js";
+import { augmentSnapshotWithTypedPages } from "./typed-pages.js";
+import { applyContentTiers } from "./content-tiers.js";
+import { loadNonDefaultProfile, resolveNonDefaultProfile, type PreloadedProfile } from "../profile/block.js";
+import {
+  appendArtifactWarning,
+  appendJournalWarning,
+  appendProjectWarnings,
+  appendRelationStoreWarning,
+  appendStandingRelationWarnings,
+} from "./pack-warnings.js";
 import { collectProjectState } from "../project/state.js";
 import { recommendNextAction } from "../project/recommendations.js";
 import type { Recommendation, RecommendedAction } from "../project/recommendations.js";
@@ -35,7 +45,7 @@ import {
   createSourceWindowBudget,
   materializeSourceWindows,
 } from "./provenance.js";
-import type { GraphData, PageId } from "../viewer/types.js";
+import type { GraphData, GraphNodeId, PageId } from "../viewer/types.js";
 import { buildBudget, estimatePackTokens, trimToBudget } from "./budget.js";
 import {
   DEFAULT_BUDGET_TOKENS,
@@ -82,7 +92,17 @@ interface BuildContextPackOptions {
  */
 export async function buildContextPack(options: BuildContextPackOptions): Promise<ContextPack> {
   const normalized = normalizeOptions(options);
-  const snapshot = await buildViewerSnapshot(options.root);
+  const baseSnapshot = await buildViewerSnapshot(options.root);
+  // Resolve the active non-default profile ONCE and thread it through the pool
+  // augmentation and tier projection, so a single pack is never assembled against
+  // two mid-swapped profiles (and re-loads/re-validates are avoided). `null` marks
+  // the built-in default so both steps stay a no-op and the default pack is
+  // byte-identical.
+  const preloadedProfile: PreloadedProfile = (await loadNonDefaultProfile(options.root)) ?? null;
+  // FIX F3: for a NON-DEFAULT profile, splice typed entity pages into the context
+  // page POOL so they are lexically rankable + graph-reachable. A DEFAULT project
+  // gets the snapshot back unchanged, so the default context pack is byte-identical.
+  const snapshot = await augmentSnapshotWithTypedPages(options.root, baseSnapshot, preloadedProfile);
   const state = await collectProjectState(options.root);
   const recommendation = recommendNextAction(state);
   // Semantic retrieval is opportunistic — failures surface as stable
@@ -94,13 +114,15 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
     normalized.rankingPrompt,
     normalized.topChunks,
   );
-  const draft = assembleDraft({
+  // POST-ranking, per-record content-depth projection (CLP 6.2). Reads the same
+  // non-default profile the pool augmentation loads; for the built-in default it
+  // is a no-op, so the default pack stays byte-identical.
+  const draft = await projectContentTiers(
+    assembleDraft({ snapshot, state, recommendation, options: normalized, semantic }),
     snapshot,
-    state,
-    recommendation,
-    options: normalized,
-    semantic,
-  });
+    options.root,
+    preloadedProfile,
+  );
   // Source windows are materialized AFTER ranking so the per-pack
   // budget sees the final primary list, not every candidate.
   // Skipped entirely when `--include-sources` is off.
@@ -113,10 +135,34 @@ export async function buildContextPack(options: BuildContextPackOptions): Promis
   // budget trimming. Trimming may drop sourceWindows for budget
   // reasons; the warning still correctly reports "windows missing".
   const withProjectWarnings = appendProjectWarnings(withSources, state, normalized);
+  // The viewer snapshot's `profile` summary already carries a fail-closed
+  // relation-store problem (the same one `status` surfaces). Lift it into a
+  // top-level warning so an agent SEES typed relations are unavailable rather
+  // than receiving a silently relation-less pack. A default/healthy project's
+  // snapshot has no such problem, so the pack is byte-identical.
+  const withRelationWarning = appendRelationStoreWarning(withProjectWarnings, snapshot);
+  // The snapshot's profile summary also carries any `artifact-store` problem: a
+  // hash-pinned artifactRef (page field or relation attribute) that no longer
+  // verifies. Lift it into a top-level warning so an agent SEES the unhealthy ref
+  // rather than a silently-thinner pack. A project with no artifacts or no
+  // unresolved ref has none, so the pack stays byte-identical.
+  const withArtifactWarning = appendArtifactWarning(withRelationWarning, snapshot);
+  // The snapshot's profile summary also carries any STANDING relation-precondition
+  // violation (a page still in a gated state whose precondition drifted) and any
+  // "cannot verify" store-read failure of that check. Lift them into top-level
+  // warnings so an agent SEES a drifted/unverifiable lifecycle gate rather than a
+  // silently-degraded pack. A healthy/non-gated snapshot has neither, so the pack
+  // stays byte-identical.
+  const withStandingWarning = appendStandingRelationWarnings(withArtifactWarning, snapshot);
+  // A pending/unavailable compile journal means the pack may reflect partial
+  // post-crash or tampered state; surface it as a top-level warning (mirroring
+  // appendRelationStoreWarning) so an agent SEES it. A cleanly-compiled project
+  // adds nothing, so the pack stays byte-identical.
+  const withJournalWarning = await appendJournalWarning(withStandingWarning, options.root);
   const graph = normalized.neighborsEnabled && normalized.depth >= 1
     ? snapshot.graph
     : null;
-  return finalizeBudget(withProjectWarnings, normalized.budget, graph);
+  return finalizeBudget(withJournalWarning, normalized.budget, graph);
 }
 
 /**
@@ -159,7 +205,7 @@ async function attachSourceWindows(pack: ContextPack, root: string): Promise<Con
  * `rankingPrompt` and produce different scores than it would against
  * `displayPrompt`.
  */
-interface NormalizedOptions {
+export interface NormalizedOptions {
   displayPrompt: string;
   rankingPrompt: string;
   budget: number;
@@ -255,13 +301,30 @@ function assembleDraft(input: AssembleInput): ContextPack {
     project,
     primary: annotatedPrimary,
     neighbors: expansion.neighbors,
-    warnings: buildTopLevelWarnings(options.promptTruncated, semantic.warning),
+    warnings: buildTopLevelWarnings(options.promptTruncated, semantic),
     gaps: expansion.gaps,
     suggestedActions: collectSuggestedActions(recommendation, {
       hasPages: snapshot.pages.length > 0,
       semanticWarning: semantic.warning,
     }),
   };
+}
+
+/**
+ * Project each ranked primary's declared per-record content tiers onto the draft
+ * (CLP 6.2). Loads the active NON-DEFAULT profile once (the same one the pool
+ * augmentation reads); for the built-in default profile it returns the draft
+ * UNCHANGED so the default pack stays byte-identical. Never reorders `primary[]`.
+ */
+async function projectContentTiers(
+  draft: ContextPack,
+  snapshot: ViewerSnapshot,
+  root: string,
+  preloaded: PreloadedProfile,
+): Promise<ContextPack> {
+  const loaded = await resolveNonDefaultProfile(root, preloaded);
+  if (loaded === undefined) return draft;
+  return applyContentTiers(draft, snapshot, loaded.profile);
 }
 
 /**
@@ -277,8 +340,13 @@ function annotateGraphNeighbors(
   graph: GraphData,
 ): ContextPack["primary"] {
   if (primary.length < 2) return primary;
-  const primaryIds = collectPrimaryIds(primary);
-  const connected = new Set<PageId>();
+  // Widened to the GraphNodeId key space so the membership test also accepts an
+  // edge endpoint that is a typed EntityId (CLP 4b). An entity id is never a
+  // primary PageId, so a relation edge can never spuriously mark a page as a
+  // graph-neighbor here — only PageId↔PageId wikilink edges between two
+  // primaries widen the reason set, exactly as before.
+  const primaryIds: ReadonlySet<GraphNodeId> = collectPrimaryIds(primary);
+  const connected = new Set<GraphNodeId>();
   for (const edge of graph.edges) {
     if (primaryIds.has(edge.source) && primaryIds.has(edge.target)) {
       connected.add(edge.source);
@@ -348,7 +416,7 @@ function buildProject(
  */
 function buildTopLevelWarnings(
   promptTruncated: boolean,
-  retrievalWarning: SemanticRetrievalWarning | null,
+  semantic: SemanticRetrievalOutcome,
 ): ContextWarning[] {
   const warnings: ContextWarning[] = [];
   if (promptTruncated) {
@@ -357,12 +425,30 @@ function buildTopLevelWarnings(
       message: `Prompt exceeded ${PROMPT_ECHO_MAX_LENGTH} characters; the echoed copy was truncated.`,
     });
   }
+  // Independent of the exclusive retrieval warning: stale entries can co-occur
+  // with hits, so this is surfaced whenever the read dropped any stale entry.
+  if (semantic.staleEntriesDetected) {
+    warnings.push({
+      code: "embedding-entry-stale",
+      message:
+        "Some embedding entries are stale (their page changed or was removed); " +
+        "results stayed fresh by skipping them. Run `llmwiki compile` to rebuild embeddings.",
+    });
+  }
+  const retrievalWarning = semantic.warning;
   if (retrievalWarning === "embedding-store-missing") {
     warnings.push({
       code: "embedding-store-missing",
       message:
         "No usable embedding store found; semantic retrieval skipped. " +
         "Run `llmwiki compile` to populate embeddings.",
+    });
+  } else if (retrievalWarning === "embedding-index-outdated") {
+    warnings.push({
+      code: "embedding-index-outdated",
+      message:
+        "The embedding index is an older version; semantic retrieval skipped. " +
+        "Run `llmwiki compile` to rebuild embeddings.",
     });
   } else if (retrievalWarning === "query-embedding-unavailable") {
     warnings.push({
@@ -508,58 +594,4 @@ function finalizeBudget(
 /** Replace `pack.budget` with `budget`, returning a fresh shallow-cloned envelope. */
 function applyBudget(pack: ContextPack, budget: ContextPack["budget"]): ContextPack {
   return { ...pack, budget };
-}
-
-/**
- * Append `pending-candidates`, `lint-errors`, and
- * `source-window-unavailable` to the top-level warnings list.
- *
- * Runs AFTER source-window materialization so we can detect the gap
- * where `--include-sources` was on but a line-range citation
- * produced no window (path-confined rejection, missing source file,
- * 20-window cap reached, …). Runs BEFORE budget trimming so a
- * budget-induced window drop does NOT spuriously add the warning;
- * the trimmer mutates sourceWindows only after this pass.
- */
-function appendProjectWarnings(
-  pack: ContextPack,
-  state: ProjectState,
-  options: NormalizedOptions,
-): ContextPack {
-  const warnings = [...pack.warnings];
-  if (state.pendingCandidates > 0) {
-    warnings.push({
-      code: "pending-candidates",
-      message:
-        `${state.pendingCandidates} review candidate${state.pendingCandidates === 1 ? "" : "s"} ` +
-        "pending approval. Run `llmwiki review list` to inspect.",
-    });
-  }
-  const lintErrors = state.lint.entry?.errors ?? 0;
-  if (lintErrors > 0) {
-    warnings.push({
-      code: "lint-errors",
-      message: `Last lint run reported ${lintErrors} error${lintErrors === 1 ? "" : "s"}.`,
-    });
-  }
-  if (options.includeSources && hasUnmaterializedSpans(pack)) {
-    warnings.push({
-      code: "source-window-unavailable",
-      message:
-        "One or more line-range citations did not produce a source window " +
-        "(path-confined, missing source file, or per-pack window cap reached).",
-    });
-  }
-  return { ...pack, warnings };
-}
-
-/** True when any primary page has line-range citations missing matching sourceWindows. */
-function hasUnmaterializedSpans(pack: ContextPack): boolean {
-  for (const entry of pack.primary) {
-    const lineRangeCount = entry.citations.filter(
-      (c) => c.start !== undefined && c.end !== undefined,
-    ).length;
-    if (lineRangeCount > entry.sourceWindows.length) return true;
-  }
-  return false;
 }

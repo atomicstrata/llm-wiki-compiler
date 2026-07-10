@@ -3,24 +3,106 @@
  * source file hashes and their compiled concepts. Enables incremental
  * compilation by detecting which sources have changed since last compile.
  *
- * Uses atomic writes (write to .tmp, then rename) to prevent corruption
- * from interrupted compiles.
+ * Uses atomic writes (write to .tmp, then rename) to prevent corruption from
+ * interrupted processes (crash-consistent; not guaranteed durable across power
+ * loss, as there is no fsync before the rename).
+ *
+ * VERSION GUARD (Phase 2, v2-aware reads): {@link KNOWN_STATE_VERSION} is the
+ * highest schema version this build understands. {@link readStateClassified}
+ * classifies a read into a {@link StateStatus} — `ok` / `missing` / `corrupt` /
+ * `too-new` — without side effects, so read-only surfaces (freshness, lint,
+ * view, export) can branch on the outcome. A `too-new` file (one whose `version`
+ * exceeds the known version) is the FAIL-CLOSED case: the parsed state is carried
+ * intact, nothing is written, and the recovering {@link readState} throws
+ * {@link StateTooNewError} rather than starting fresh — which would clobber the
+ * forward-incompatible layout on the next write. A `corrupt` (unparseable) file
+ * is backed up to `.bak` and recovered as empty state instead.
  */
 
-import { readFile, writeFile, rename, mkdir, copyFile } from "fs/promises";
+import { copyFile, open } from "fs/promises";
+import { constants as fsConstants } from "node:fs";
 import { existsSync } from "fs";
 import path from "path";
-import { LLMWIKI_DIR, STATE_FILE } from "./constants.js";
+import { STATE_FILE } from "./constants.js";
 import { note } from "./output.js";
+import { atomicWrite } from "./markdown.js";
+import { isSafeFilenameComponent } from "../profile/identity.js";
+import { mintConceptEntities } from "../state/migrate.js";
 import type { WikiState, SourceState } from "./types.js";
+
+/** The schema version that carries the typed-ownership mirror. */
+const TYPED_MIRROR_VERSION = 2;
+
+/**
+ * Re-derive the v2 typed-ownership mirror from the v1 string lists so the two
+ * never desync, regardless of which writer produced the state. For a v2 state
+ * each source's `entities` is re-derived from its `concepts` and the top-level
+ * `frozenEntities` from `frozenSlugs`, using the SAME tolerant minting as the
+ * migration ({@link mintConceptEntities}) so non-slug-safe (e.g. Unicode) slugs
+ * are simply absent from the typed mirror rather than aborting the write.
+ *
+ * For a v1 state this is a STRICT no-op — the input is returned unchanged so the
+ * default-profile (v1) on-disk bytes are byte-identical to before.
+ *
+ * NOTE: this re-derives the CONCEPTS mirror only. A later phase that introduces
+ * non-concept typed entities must extend this to preserve those, since blindly
+ * re-deriving from `concepts` would drop them.
+ */
+export function syncEntityMirror(state: WikiState): WikiState {
+  if (state.version !== TYPED_MIRROR_VERSION) return state;
+  const sources: Record<string, SourceState> = {};
+  for (const [file, source] of Object.entries(state.sources)) {
+    sources[file] = { ...source, entities: mintConceptEntities(source.concepts) };
+  }
+  return {
+    ...state,
+    sources,
+    frozenEntities: mintConceptEntities(state.frozenSlugs ?? []),
+  };
+}
 
 function emptyState(): WikiState {
   return { version: 1, indexHash: "", sources: {} };
 }
 
-/** State file read outcome: ok = parsed, missing = no file, corrupt = unparseable. */
+/**
+ * Highest state.json schema version this build understands. A state file whose
+ * `version` exceeds this was written by a newer llmwiki; we fail closed rather
+ * than risk misinterpreting (or clobbering) a forward-incompatible layout.
+ */
+export const KNOWN_STATE_VERSION = 2;
+
+/**
+ * Thrown by {@link readState} when state.json was written by a newer-than-known
+ * llmwiki version. Carries a distinct `.name` so callers can branch on the type
+ * rather than string-matching the message.
+ */
+export class StateTooNewError extends Error {
+  constructor(version: number) {
+    super(
+      `.llmwiki/state.json (version ${version}) was written by a newer llmwiki version ` +
+        `(this build understands up to version ${KNOWN_STATE_VERSION}). ` +
+        `Upgrade llmwiki to read this project.`,
+    );
+    this.name = "StateTooNewError";
+  }
+}
+
+/**
+ * Readability classification of `.llmwiki/state.json`, shared by every
+ * read-only surface so the fail-closed `too-new` outcome is represented
+ * uniformly:
+ * - ok = parsed and within the known schema range
+ * - missing = no file
+ * - corrupt = unparseable
+ * - too-new = parsed but `version` exceeds {@link KNOWN_STATE_VERSION}; the
+ *   parsed state is carried (never reset) and nothing is written to disk.
+ */
+export type StateStatus = "ok" | "missing" | "corrupt" | "too-new";
+
+/** State file read outcome plus the carried (parsed or empty) state. */
 export interface ClassifiedState {
-  status: "ok" | "missing" | "corrupt";
+  status: StateStatus;
   state: WikiState;
 }
 
@@ -33,16 +115,117 @@ export async function readStateClassified(root: string): Promise<ClassifiedState
   const filePath = path.join(root, STATE_FILE);
   if (!existsSync(filePath)) return { status: "missing", state: emptyState() };
   try {
-    const raw = await readFile(filePath, "utf-8");
-    return { status: "ok", state: JSON.parse(raw) as WikiState };
+    // A read error here (e.g. ELOOP on a symlinked state.json) falls through to
+    // the catch and classifies CORRUPT — fail closed, never read-through.
+    const raw = await readStateNoFollow(filePath);
+    return classifyParsedState(JSON.parse(raw));
   } catch {
     return { status: "corrupt", state: emptyState() };
   }
 }
 
+/**
+ * Read `state.json` with `O_RDONLY | O_NOFOLLOW` so a SYMLINKED state.json fails
+ * the open (`ELOOP`) and is treated as corrupt rather than read THROUGH to
+ * attacker-chosen out-of-tree bytes (which feed `concepts` / `frozenSlugs` into
+ * orphan path-joins). Mirrors the relation store's `openStoreFileRead` leaf
+ * defense. The caller has already established the file exists; any open/read
+ * error (including a symlinked leaf) propagates so the caller's try/catch
+ * classifies it CORRUPT (fail closed).
+ */
+async function readStateNoFollow(filePath: string): Promise<string> {
+  const handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  try {
+    return await handle.readFile("utf-8");
+  } finally {
+    await handle.close();
+  }
+}
+
+/** True when `value` is an array whose every element is a string. */
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+/**
+ * True when `value` is a string array whose every element is a SAFE filename
+ * component (no `/`, `\`, `..`, leading dot, NUL). Stored `concepts` /
+ * `frozenSlugs` flow UNVALIDATED into `path.join(root, CONCEPTS_DIR, slug+'.md')`
+ * by the orphan pass, so a poisoned `../../escape` slug would mint an out-of-tree
+ * write. Gating slug-safety AT READ classifies a poisoned state CORRUPT (its
+ * existing fail-closed `.bak`+fresh path), defanging the chain regardless of how
+ * the bytes arrived. Compile slugs come from Unicode-aware `slugify`, so this
+ * uses the Unicode-tolerant {@link isSafeFilenameComponent}, NOT ASCII slug-safe.
+ */
+function isSafeSlugArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((s) => typeof s === "string" && isSafeFilenameComponent(s));
+}
+
+/** True when `value` is a non-null, non-array plain object. */
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** True when one `sources` entry has the required source-state shape. */
+function isValidSourceEntry(entry: unknown): boolean {
+  if (!isPlainObject(entry)) return false;
+  if (typeof entry.hash !== "string" || typeof entry.compiledAt !== "string") return false;
+  if (!isSafeSlugArray(entry.concepts)) return false; // slugs path-join into orphan writes
+  if ("entities" in entry && !isStringArray(entry.entities)) return false;
+  return true;
+}
+
+/** True when every optional top-level frozen list, if present, is a string array. */
+function hasValidFrozenLists(parsed: Record<string, unknown>): boolean {
+  if ("frozenSlugs" in parsed && !isSafeSlugArray(parsed.frozenSlugs)) return false; // path-join into orphan writes
+  if ("frozenEntities" in parsed && !isStringArray(parsed.frozenEntities)) return false;
+  return true;
+}
+
+/**
+ * True when `parsed` is a structurally valid {@link WikiState}: a plain object
+ * with a string `indexHash`, a plain-object `sources` map whose every value is a
+ * valid source entry, and (when present) string-array `frozenSlugs` /
+ * `frozenEntities`. Unknown EXTRA fields are tolerated so a future format that
+ * adds fields is not falsely rejected here. `version` is validated separately by
+ * {@link classifyParsedState}.
+ */
+function isValidWikiStateShape(parsed: unknown): boolean {
+  if (!isPlainObject(parsed)) return false;
+  if (typeof parsed.indexHash !== "string") return false;
+  if (!isPlainObject(parsed.sources)) return false;
+  if (!Object.values(parsed.sources).every(isValidSourceEntry)) return false;
+  return hasValidFrozenLists(parsed);
+}
+
+/**
+ * Classify a successfully parsed state, failing closed on anything this build
+ * cannot safely treat as healthy:
+ *  1. an integer `version` ABOVE the known max ⇒ `too-new` (carried intact, NOT
+ *     deep-validated — a future format may legitimately differ in shape);
+ *  2. an integer `version` in the known range (1..KNOWN) AND a valid shape ⇒ `ok`;
+ *  3. anything else (non-integer/out-of-range version, or malformed shape) ⇒
+ *     `corrupt`, routing it into the existing `.bak`/empty-state recovery path.
+ */
+function classifyParsedState(parsed: unknown): ClassifiedState {
+  const version = isPlainObject(parsed) ? parsed.version : undefined;
+  const empty = { status: "corrupt" as const, state: emptyState() };
+  if (typeof version !== "number" || !Number.isInteger(version)) return empty;
+  if (version > KNOWN_STATE_VERSION) return { status: "too-new", state: parsed as WikiState };
+  if (version >= 1 && isValidWikiStateShape(parsed)) {
+    return { status: "ok", state: parsed as WikiState };
+  }
+  return empty;
+}
+
 /** Read .llmwiki/state.json, recovering from corruption gracefully (writes a .bak). */
 export async function readState(root: string): Promise<WikiState> {
   const classified = await readStateClassified(root);
+  if (classified.status === "too-new") {
+    // Fail closed: never start fresh (which would clobber a forward-incompatible
+    // file on the next write) and never copy a .bak.
+    throw new StateTooNewError(classified.state.version as number);
+  }
   if (classified.status === "corrupt") {
     const filePath = path.join(root, STATE_FILE);
     const bakPath = filePath + ".bak";
@@ -52,16 +235,54 @@ export async function readState(root: string): Promise<WikiState> {
   return classified.state;
 }
 
-/** Atomically write state.json (write .tmp then rename). */
+/**
+ * Atomically write state.json via the shared hardened {@link atomicWrite}
+ * primitive (random O_EXCL temp + rename), so the state writer inherits the same
+ * leaf-symlink write-escape defenses as every page write rather than carrying its
+ * own bespoke temp+rename.
+ */
 export async function writeState(root: string, state: WikiState): Promise<void> {
-  const dir = path.join(root, LLMWIKI_DIR);
-  await mkdir(dir, { recursive: true });
-
   const filePath = path.join(root, STATE_FILE);
-  const tmpPath = filePath + ".tmp";
+  // Re-derive the v2 typed mirror at the single write choke point so no writer
+  // can persist a desynced `entities` / `frozenEntities`. No-op for v1 states.
+  const synced = syncEntityMirror(state);
+  await atomicWrite(filePath, JSON.stringify(synced, null, 2), { confineRoot: root });
+}
 
-  await writeFile(tmpPath, JSON.stringify(state, null, 2), "utf-8");
-  await rename(tmpPath, filePath);
+/**
+ * Pure in-memory transform: set a single source's entry on `state` (mutating it
+ * in place) and return it. The SINGLE source of truth for the per-source merge,
+ * shared by the incremental on-disk {@link updateSourceState} and the in-memory
+ * compile draft so the two paths can never drift apart.
+ */
+export function applySourceState(
+  state: WikiState,
+  sourceFile: string,
+  entry: SourceState,
+): WikiState {
+  state.sources[sourceFile] = entry;
+  return state;
+}
+
+/**
+ * Pure in-memory transform: remove a source entry from `state` (mutating it in
+ * place) and return it. Shared by {@link removeSourceState} and the compile
+ * draft for the same no-drift reason as {@link applySourceState}.
+ */
+export function removeSourceFrom(state: WikiState, sourceFile: string): WikiState {
+  delete state.sources[sourceFile];
+  return state;
+}
+
+/**
+ * Pure in-memory transform: replace the frozen-slug set on `state` (mutating it
+ * in place) and return it. Mirrors the frozen-persistence step of
+ * `persistFrozenSlugs` (`{ ...state, frozenSlugs: [...] }`) so the disk path and
+ * the compile draft share one frozen-list normalization.
+ */
+export function applyFrozenSlugs(state: WikiState, slugs: Set<string>): WikiState {
+  state.frozenSlugs = Array.from(slugs);
+  return state;
 }
 
 /**
@@ -74,8 +295,7 @@ export async function updateSourceState(
   entry: SourceState,
 ): Promise<void> {
   const state = await readState(root);
-  state.sources[sourceFile] = entry;
-  await writeState(root, state);
+  await writeState(root, applySourceState(state, sourceFile, entry));
 }
 
 /** Remove a source entry from state (for deleted sources). */
@@ -84,6 +304,5 @@ export async function removeSourceState(
   sourceFile: string,
 ): Promise<void> {
   const state = await readState(root);
-  delete state.sources[sourceFile];
-  await writeState(root, state);
+  await writeState(root, removeSourceFrom(state, sourceFile));
 }

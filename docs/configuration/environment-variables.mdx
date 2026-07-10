@@ -103,6 +103,32 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 
 ---
 
+## Profiles, workflows, and connectors
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLMWIKI_TRUSTED_WRITE` | *(unset)* | Out-of-workspace operator grant for profile workflow writes and direct artifact writes. Set to a comma- or whitespace-separated list of profile ids, such as `autosci`, or to `*` for all profiles. A profile can request trusted-write authority, but only this environment grant lets a clean trust-gated write auto-apply live. |
+| `LLMWIKI_CONNECTORS` | *(unset)* | Comma- or whitespace-separated list of connector ids activated by the operator, such as `crossref`. Profiles can bind connectors, but they cannot activate network access. |
+
+Connector etiquette such as `contactEmail`, `minRequestIntervalMs`, and
+`allowedHosts` lives in `.llmwiki/config.json`. Local connector config can only
+tighten the first-party registry policy. It cannot activate connectors or add
+new hosts.
+
+```json
+{
+  "version": 1,
+  "connectors": {
+    "crossref": {
+      "contactEmail": "research@example.com",
+      "minRequestIntervalMs": 1500
+    }
+  }
+}
+```
+
+---
+
 ## Output
 
 | Variable | Default | Description |
@@ -148,6 +174,12 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional: raise compile parallelism (or lower it to ease provider rate limits)
 # LLMWIKI_COMPILE_CONCURRENCY=10
+
+# Optional: activate first-party connectors for this shell
+# LLMWIKI_CONNECTORS=crossref
+
+# Optional: grant trust-gated profile writes for this shell
+# LLMWIKI_TRUSTED_WRITE=autosci
 ```
 
 <Note>

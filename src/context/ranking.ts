@@ -144,14 +144,14 @@ function applySemanticSignals(
   hits: SemanticChunkHit[],
 ): void {
   if (hits.length === 0) return;
-  const bySlug = groupHitsBySlug(hits);
-  for (const [slug, slugHits] of bySlug) {
-    const page = findPageBySlug(snapshot, slug);
+  const byPageId = groupHitsByPageId(hits);
+  for (const [pageId, pageHits] of byPageId) {
+    const page = findPageByQualifiedId(snapshot, pageId);
     if (!page) continue;
     const row = ensureRow(rows, page);
     addReason(row, "semantic-chunk", WEIGHT_SEMANTIC_CHUNK);
-    row.weight += semanticMultiChunkBonus(slugHits.length);
-    for (const hit of slugHits) {
+    row.weight += semanticMultiChunkBonus(pageHits.length);
+    for (const hit of pageHits) {
       row.chunks.push({
         text: hit.text,
         score: hit.score,
@@ -161,15 +161,15 @@ function applySemanticSignals(
   }
 }
 
-/** Group chunk hits by page slug while preserving the score-desc input order. */
-function groupHitsBySlug(hits: SemanticChunkHit[]): Map<string, SemanticChunkHit[]> {
-  const bySlug = new Map<string, SemanticChunkHit[]>();
+/** Group chunk hits by qualified pageId while preserving the score-desc input order. */
+function groupHitsByPageId(hits: SemanticChunkHit[]): Map<string, SemanticChunkHit[]> {
+  const byId = new Map<string, SemanticChunkHit[]>();
   for (const hit of hits) {
-    const existing = bySlug.get(hit.slug);
+    const existing = byId.get(hit.pageId);
     if (existing) existing.push(hit);
-    else bySlug.set(hit.slug, [hit]);
+    else byId.set(hit.pageId, [hit]);
   }
-  return bySlug;
+  return byId;
 }
 
 /** Score bump for the 2nd..N-th chunk on the same page, capped. */
@@ -179,19 +179,23 @@ function semanticMultiChunkBonus(chunkCount: number): number {
 }
 
 /**
- * Resolve a bare chunk slug to a snapshot page, with concepts winning
- * over queries when both contain the same slug — matches the bare-slug
- * precedence rule used by the viewer's wikilink resolver.
+ * Resolve a page by its QUALIFIED id (`<namespace>/<pagePart>`) against the
+ * snapshot — the key-invariant successor to the bare-slug lookup. A qualified id
+ * names exactly one page across all namespaces, so `concepts/foo` and
+ * `papers/foo` resolve to DISTINCT pages (no concepts-over-queries guessing).
+ *
+ * Matches on `page.id` first (the canonical namespaced id every viewer surface
+ * carries) and falls back to a `(pageDirectory, pagePart)` pair so a typed page
+ * spliced in with an `EntityId` still resolves.
  */
-function findPageBySlug(snapshot: ViewerSnapshot, slug: string): ViewerPage | null {
-  const concept = snapshot.pages.find(
-    (p) => p.pageDirectory === "concepts" && p.slug === slug,
-  );
-  if (concept) return concept;
-  const query = snapshot.pages.find(
-    (p) => p.pageDirectory === "queries" && p.slug === slug,
-  );
-  return query ?? null;
+export function findPageByQualifiedId(snapshot: ViewerSnapshot, pageId: string): ViewerPage | null {
+  const byId = snapshot.pages.find((p) => p.id === pageId);
+  if (byId) return byId;
+  const slashAt = pageId.indexOf("/");
+  if (slashAt < 0) return null;
+  const namespace = pageId.slice(0, slashAt);
+  const pagePart = pageId.slice(slashAt + 1);
+  return snapshot.pages.find((p) => p.pageDirectory === namespace && p.slug === pagePart) ?? null;
 }
 
 /** Fetch the row for `page`, lazily allocating it on first use. */

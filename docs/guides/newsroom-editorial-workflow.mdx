@@ -1,0 +1,164 @@
+---
+title: "Newsroom Editorial Workflow"
+sidebarTitle: "Newsroom Workflow"
+description: "Use the Newsroom template to draft articles, file them under desks, and prove a non-research profile uses the same CLP machinery."
+---
+
+The Newsroom template is the second built-in profile. It is intentionally small
+and editorial rather than research-shaped: articles, desks, bylines, one
+`filed-under` relation, and a `story-pipeline` workflow.
+
+Use it when you want a lightweight structured newsroom wiki, or when you want to
+see how Configurable Lifecycle Profiles work outside AutoSci.
+
+## 1. Install Newsroom
+
+Start in an empty llmwiki project:
+
+```bash
+llmwiki template init newsroom
+llmwiki profile validate
+llmwiki profile show
+```
+
+The installed profile has `profileId: newsroom` and writes typed pages under:
+
+| Entity type | Directory | Purpose |
+|---|---|---|
+| `articles` | `wiki/articles` | Drafted, edited, and published stories |
+| `desks` | `wiki/desks` | Editorial desks such as metro, politics, or culture |
+| `bylines` | `wiki/bylines` | Reporter and contributor records |
+
+Newsroom does not ship a connector binding. Its workflow starts from local
+editorial pages and stage outputs.
+
+## 2. Create a desk
+
+Create the desk that articles will be filed under:
+
+```bash
+mkdir -p wiki/desks
+cat > wiki/desks/metro.md <<'MD'
+---
+name: Metro Desk
+stage: active
+---
+
+The metro desk covers city government, transit, and local labor.
+MD
+```
+
+Check that the page satisfies the profile:
+
+```bash
+llmwiki lint
+```
+
+## 3. Start the story pipeline
+
+```bash
+llmwiki workflow start story-pipeline
+llmwiki workflow status
+```
+
+The workflow has two stages:
+
+| Stage | Purpose |
+|---|---|
+| `draft-article` | Write an `articles` page |
+| `file-under-desk` | File the article under a desk with a `filed-under` relation |
+
+## 4. Submit an article draft
+
+Create `article.md`:
+
+```md
+---
+headline: Waterfront Probe Widens
+stage: draft
+---
+
+The waterfront corruption probe widened on Wednesday.
+```
+
+Submit it to the current workflow stage:
+
+```bash
+LLMWIKI_TRUSTED_WRITE=newsroom \
+  llmwiki workflow submit <run-id> \
+  --kind page \
+  --entity-type articles \
+  --slug waterfront-probe \
+  --body-file ./article.md
+```
+
+Then advance the run:
+
+```bash
+llmwiki workflow advance <run-id>
+```
+
+## 5. File the article under a desk
+
+Create `filed-under.json`:
+
+```json
+{
+  "type": "filed-under",
+  "from": "articles/waterfront-probe",
+  "to": "desks/metro",
+  "attributes": {}
+}
+```
+
+Submit the relation:
+
+```bash
+LLMWIKI_TRUSTED_WRITE=newsroom \
+  llmwiki workflow submit <run-id> \
+  --kind relation \
+  --output-file ./filed-under.json
+```
+
+The `file-under-desk` stage also has an `agent:edited` gate. Approve the gate
+and advance:
+
+```bash
+llmwiki workflow gate approve <run-id> edited --actor agent
+llmwiki workflow advance <run-id>
+```
+
+`workflow status <run-id>` now reports the completed run, and the relation store
+contains a `filed-under` edge from `articles/waterfront-probe` to `desks/metro`.
+
+## 6. Use the action shortcut
+
+Newsroom also declares a `story.file` workflow action. It wraps a trusted page
+submit for article drafts:
+
+```bash
+llmwiki workflow action show story.file
+LLMWIKI_TRUSTED_WRITE=newsroom \
+  llmwiki workflow action run story.file \
+  --input-json '{
+    "runId": "<run-id>",
+    "entityType": "articles",
+    "slug": "late-edition",
+    "body": "---\nheadline: Late Edition\nstage: draft\n---\n\nThe late edition led with the strike.\n"
+  }'
+```
+
+Actions are still profile-declared configuration. The same workflow authority
+checks apply, and the CLI still needs the matching trusted-write grant for a
+trusted write.
+
+## Why this guide matters
+
+AutoSci demonstrates a rich research workflow. Newsroom demonstrates that the
+same CLP engine works for a dissimilar editorial domain:
+
+- entity field contracts and lifecycle states come from the profile;
+- relations are endpoint-checked against profile data;
+- workflow stages and gates are profile declarations;
+- trusted writes use the same `LLMWIKI_TRUSTED_WRITE=<profileId>` grant;
+- no Newsroom-specific code path is required.

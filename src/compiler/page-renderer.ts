@@ -13,8 +13,8 @@ import path from "path";
 import {
   buildFrontmatter,
   parseFrontmatter,
-  safeReadFile,
 } from "../utils/markdown.js";
+import { readWikiPageContentOrWarn } from "./confined-wiki-read.js";
 import { callClaude } from "../utils/llm.js";
 import { buildPagePrompt } from "./prompts.js";
 import { addObsidianMeta } from "./obsidian.js";
@@ -48,8 +48,9 @@ export async function renderMergedPageContent(
   entry: RenderableConcept,
   schema: SchemaConfig,
 ): Promise<string> {
-  const pagePath = path.join(root, CONCEPTS_DIR, `${entry.slug}.md`);
-  const existingPage = await safeReadFile(pagePath);
+  const existingPage = await readWikiPageContentOrWarn(
+    root, CONCEPTS_DIR, entry.slug, false /* new page — absence is normal */,
+  );
   const relatedPages = await loadRelatedPages(root, entry.slug);
 
   const system = buildPagePrompt(
@@ -104,6 +105,9 @@ function buildMergedFrontmatter(
 /**
  * Load related wiki pages to provide cross-referencing context.
  * Returns concatenated content of up to RELATED_PAGE_CONTEXT_LIMIT pages.
+ * Each per-file read is confined to `wiki/concepts`: a symlinked entry whose
+ * target escapes that dir is dropped (warned, skipped) so its bytes never enter
+ * the generation prompt.
  * @param root - Project root directory.
  * @param excludeSlug - Slug of the current page to exclude.
  * @returns Concatenated related page contents (empty when concepts dir is missing).
@@ -124,7 +128,7 @@ async function loadRelatedPages(root: string, excludeSlug: string): Promise<stri
 
   const contents: string[] = [];
   for (const f of related) {
-    const content = await safeReadFile(path.join(conceptsPath, f));
+    const content = await readWikiPageContentOrWarn(root, CONCEPTS_DIR, f.replace(/\.md$/, ""));
     if (!content) continue;
     const { meta } = parseFrontmatter(content);
     if (meta.orphaned) continue;

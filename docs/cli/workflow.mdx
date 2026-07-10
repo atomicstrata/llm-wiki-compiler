@@ -1,0 +1,111 @@
+---
+title: "workflow"
+sidebarTitle: "workflow"
+description: "Run and inspect declarative profile workflows."
+---
+
+`llmwiki workflow` runs workflows declared by the active profile. Workflows are
+configuration, not code: each stage declares what entity types it reads, what it
+may write, optional artifact outputs, and optional gates.
+
+## Discover workflows
+
+```bash
+llmwiki workflow list
+llmwiki workflow show research
+```
+
+`workflow list` prints every workflow id declared by the active profile.
+`workflow show` prints the stage list, reads, writes, gates, projection file, and
+declared actions.
+
+## Start and inspect a run
+
+```bash
+llmwiki workflow start research --input topic=attention
+llmwiki workflow status
+llmwiki workflow status <run-id>
+llmwiki workflow events <run-id>
+```
+
+Workflow runs are durable records under `.llmwiki/`. `workflow status` is
+read-only and exits non-zero when a run is blocked by profile changes,
+unavailable state, or other integrity problems.
+
+## Advance a run
+
+```bash
+llmwiki workflow advance <run-id>
+```
+
+Advancing moves the run to the next stage when its current stage is satisfied.
+A stage with an unapplied write, unsatisfied gate, or blocked output stays parked
+until the required action is taken.
+
+## Submit stage output
+
+```bash
+llmwiki workflow submit <run-id> \
+  --kind page \
+  --entity-type ideas \
+  --slug sparse-attention-idea \
+  --body-file ./idea.md
+```
+
+Supported output kinds:
+
+| Kind | Required flags |
+|---|---|
+| `page` | `--entity-type`, `--slug`, `--body-file` |
+| `relation` | `--output-file` containing JSON `{ "type", "from", "to" }` |
+| `lifecycle-transition` | `--entity-type`, `--slug`, `--to-state`, optional `--evidence-file` |
+| `artifact` | `--artifact-type`, `--slug`, `--body-file` |
+
+Every output is checked against the active profile. Page outputs must satisfy
+field contracts and lifecycle rules. Relation outputs must match declared
+endpoint types. Artifact outputs must match the stage's `artifactWrites` list.
+
+## Gates and trusted writes
+
+Profiles can declare `trust:`, `human:`, and `agent:` gates.
+
+- A `trust:` gate requires an out-of-workspace operator grant before a clean
+  stage write auto-applies live.
+- The grant is `LLMWIKI_TRUSTED_WRITE=<profileId>` or `LLMWIKI_TRUSTED_WRITE=*`.
+- A parked output prints whether the grant can help. Planner denials and
+  quarantine decisions are not overridden by the grant.
+- A `human:` gate is satisfied only through the interactive confirmation path.
+  `--actor human` is rejected.
+
+```bash
+LLMWIKI_TRUSTED_WRITE=autosci \
+  llmwiki workflow submit <run-id> --kind page --entity-type papers --slug p1 --body-file ./paper.md
+```
+
+## Workflow actions
+
+Profiles can expose named actions as shortcuts over workflow operations.
+
+```bash
+llmwiki workflow action list
+llmwiki workflow action show research.begin
+llmwiki workflow action run research.begin --input topic=attention
+```
+
+Action authority is composed from the profile's requested permission, local
+configuration, and the surface hard cap. CLI and SDK can reach `trusted-write`
+when granted. MCP and viewer surfaces are capped at `staged-write`.
+
+## Adapt, project, and finish runs
+
+```bash
+llmwiki workflow adapt --dry-run
+llmwiki workflow adapt <run-id> --apply
+llmwiki workflow project <run-id>
+llmwiki workflow fail <run-id> --detail "waiting on data"
+llmwiki workflow resume <run-id>
+llmwiki workflow cancel <run-id>
+```
+
+`workflow project` writes a derived markdown projection only when the workflow
+declares `projectionFile`. It does not change the run state.

@@ -299,6 +299,9 @@ describe("buildContextPack — budget envelope", () => {
  */
 function hitFor(slug: string, score: number, suffix = ""): SemanticChunkHit {
   return {
+    // Pages are written under CONCEPTS_DIR, so the ranker resolves the hit by
+    // its qualified concepts/<slug> pageId via findPageByQualifiedId.
+    pageId: `concepts/${slug}`,
     slug,
     text: `chunk text for ${slug}${suffix}`,
     score,

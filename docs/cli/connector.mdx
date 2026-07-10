@@ -1,0 +1,87 @@
+---
+title: "connector"
+sidebarTitle: "connector"
+description: "Run first-party external-data connectors into review candidates."
+---
+
+Connectors fetch external data through compiled-in, first-party connector
+modules and stage the result as typed review candidates. A connector never writes
+live wiki pages directly.
+
+Profiles can bind connector fields to entity fields, but profiles do not contain
+connector code. The operator activates connectors with `LLMWIKI_CONNECTORS`.
+
+## List connectors
+
+```bash
+llmwiki connector list
+```
+
+Each row shows the connector id, version, activation state, profile-binding
+state, and allowed hosts.
+
+```text
+i crossref 1 activated, profile-bound hosts=api.crossref.org
+```
+
+## Configure connector etiquette
+
+Crossref requires a contact email for the polite `User-Agent` header:
+
+```json
+{
+  "version": 1,
+  "connectors": {
+    "crossref": {
+      "contactEmail": "research@example.com",
+      "minRequestIntervalMs": 1500,
+      "allowedHosts": ["api.crossref.org"]
+    }
+  }
+}
+```
+
+Local connector config can only tighten the registry floors. It cannot activate
+a connector, add hosts, or widen a first-party connector's egress policy.
+
+## Run Crossref
+
+```bash
+LLMWIKI_CONNECTORS=crossref \
+  llmwiki connector run crossref --input doi=10.1145/3366423.3380207
+```
+
+The active profile must bind `crossref` to an entity type. The AutoSci template
+binds Crossref to `papers`.
+
+`connector run` stages one or more review candidates and prints the candidate
+ids. The staged body includes a durable `x-llmwiki.connector` frontmatter block
+that records the connector id, source URL, content hash, idempotency key, and
+which fields came from external data.
+
+## Review and approve connector candidates
+
+```bash
+llmwiki review show <candidate-id>
+llmwiki review approve <candidate-id> --draft-content-hash <hash-from-show>
+```
+
+Connector candidates require the `--draft-content-hash` printed by
+`review show`. Approval re-hashes the candidate body under the project lock and
+compares it to the operator-supplied value. If the body changed between review
+and approval, approval refuses and you must inspect the candidate again.
+
+Connector-fetched text is treated as untrusted external content. `review show`,
+agent context, and exports fence connector-origin body and mapped field content
+so agents see it as data, not instructions.
+
+## Security boundaries
+
+- Connector code is compiled into llmwiki. Local templates and profiles can only
+  name registered connector ids.
+- `LLMWIKI_CONNECTORS` is operator intent, not a workspace file an agent can
+  edit.
+- Fetches use HTTPS, allowed-host checks, private-IP refusal, redirects bounded
+  by the same policy, response caps, timeouts, and content-type checks.
+- Connectors stage review candidates only. Trust Guard still applies when the
+  candidate is approved.

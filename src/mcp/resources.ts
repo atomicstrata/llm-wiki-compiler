@@ -98,7 +98,21 @@ function registerStateResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri) => {
-      const { state } = await readStateClassified(root);
+      const { status, state } = await readStateClassified(root);
+      // Fail closed on a too-new state: every sibling surface branches on
+      // `status`, so the resource must too rather than streaming a body written
+      // by a newer llmwiki as if it were healthy. "ok"/"missing"/"corrupt" keep
+      // their current byte-identical output (the carried state body).
+      if (status === "too-new") {
+        return {
+          contents: [
+            jsonContent(uri, {
+              stateStatus: "too-new",
+              error: "written by a newer llmwiki version",
+            }),
+          ],
+        };
+      }
       return { contents: [jsonContent(uri, state)] };
     },
   );
@@ -223,7 +237,10 @@ async function listPagesUnder(
     .filter((f) => f.endsWith(".md"))
     .map((f) => {
       const slug = f.replace(/\.md$/, "");
-      return { uri: `llmwiki://${scheme}/${slug}`, name: slug };
+      // S13: percent-encode the slug so a page-part containing spaces or `#`
+      // (e.g. `Foo #1`) round-trips through the URI rather than truncating at
+      // the `#` fragment delimiter. The read template decodes `{slug}` back.
+      return { uri: `llmwiki://${scheme}/${encodeURIComponent(slug)}`, name: slug };
     });
 
   return { resources };

@@ -1,11 +1,10 @@
 /**
  * Markdown parsing and manipulation helpers.
- * Handles YAML frontmatter extraction, slugification, and atomic file writes
- * for wiki pages.
+ * Handles YAML frontmatter extraction, slugification, citation parsing, and
+ * compatibility exports for wiki page utilities.
  */
 
-import { writeFile, rename, readFile, mkdir } from "fs/promises";
-import path from "path";
+import { readFile } from "fs/promises";
 import yaml from "js-yaml";
 import type {
   ClaimCitation,
@@ -14,6 +13,7 @@ import type {
   ProvenanceState,
   SourceSpan,
 } from "./types.js";
+export { atomicWrite } from "./atomic-write.js";
 
 /** Regex matching `^[...]` citation markers (paragraph or claim-level). */
 const CITATION_MARKER_PATTERN = /\^\[([^\]]+)\]/g;
@@ -126,14 +126,6 @@ export function parseFrontmatterStatus(content: string): {
     malformedFrontmatter = true;
   }
   return { meta, body: match[2], hasFrontmatterBlock: true, malformedFrontmatter };
-}
-
-/** Atomically write a file (write to .tmp, then rename). */
-export async function atomicWrite(filePath: string, content: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  const tmpPath = filePath + ".tmp";
-  await writeFile(tmpPath, content, "utf-8");
-  await rename(tmpPath, filePath);
 }
 
 /**

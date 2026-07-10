@@ -87,6 +87,32 @@ describe("validateRuleCandidate", () => {
     c.proposed.id = "rule.other.x-abcd1234";
     expect(validateRuleCandidate(c)).toContain("does not match");
   });
+
+  it("rejects Windows drive-absolute and UNC file evidence paths via shared helper", () => {
+    const driveAbsolute = candidate("process", "x-abcd1234");
+    driveAbsolute.evidence = [{ kind: "file", path: "C:/secrets.md" }];
+    expect(validateRuleCandidate(driveAbsolute)).toContain("unsafe");
+
+    const unc = candidate("process", "x-abcd1234");
+    unc.evidence = [{ kind: "file", path: "//host/share" }];
+    expect(validateRuleCandidate(unc)).toContain("unsafe");
+  });
+
+  it("rejects ':' in any position in a file evidence path (drive-in-segment and NTFS ADS)", () => {
+    const driveInSegment = candidate("process", "x-abcd1234");
+    driveInSegment.evidence = [{ kind: "file", path: "sources/C:/secrets.md" }];
+    expect(validateRuleCandidate(driveInSegment)).toContain("unsafe");
+
+    const ntfsAds = candidate("process", "x-abcd1234");
+    ntfsAds.evidence = [{ kind: "file", path: "sources/file.md:ads" }];
+    expect(validateRuleCandidate(ntfsAds)).toContain("unsafe");
+  });
+
+  it("still accepts a legit file evidence path (regression: sources/x.md)", () => {
+    const c = candidate("process", "x-abcd1234");
+    c.evidence = [{ kind: "file", path: "sources/x.md" }];
+    expect(validateRuleCandidate(c)).toBeNull();
+  });
 });
 
 describe("parseRules evidence-span sanity", () => {

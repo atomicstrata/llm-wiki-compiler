@@ -1,0 +1,375 @@
+{
+  "counts": {
+    "compiledSources": 2,
+    "concepts": 6,
+    "orphaned": 1,
+    "pendingReviews": 0,
+    "queries": 1,
+    "sourceFiles": 2,
+    "stale": 1
+  },
+  "graph": {
+    "edges": [
+      {
+        "source": "concepts/alpha",
+        "target": "concepts/beta"
+      },
+      {
+        "source": "queries/what-is-alpha",
+        "target": "concepts/alpha"
+      }
+    ],
+    "nodes": [
+      {
+        "degree": 0,
+        "directory": "concepts",
+        "id": "concepts/Foo Bar",
+        "kind": "concept",
+        "slug": "Foo Bar",
+        "title": "Foo Bar"
+      },
+      {
+        "degree": 2,
+        "directory": "concepts",
+        "id": "concepts/alpha",
+        "kind": "concept",
+        "slug": "alpha",
+        "title": "Alpha"
+      },
+      {
+        "degree": 1,
+        "directory": "concepts",
+        "id": "concepts/beta",
+        "kind": "concept",
+        "slug": "beta",
+        "title": "Beta"
+      },
+      {
+        "degree": 0,
+        "directory": "concepts",
+        "id": "concepts/empty-edge",
+        "kind": "concept",
+        "slug": "empty-edge",
+        "title": "Empty Edge"
+      },
+      {
+        "degree": 0,
+        "directory": "concepts",
+        "id": "concepts/orphan",
+        "kind": "concept",
+        "slug": "orphan",
+        "title": "Orphan"
+      },
+      {
+        "degree": 0,
+        "directory": "concepts",
+        "id": "concepts/研究",
+        "kind": "concept",
+        "slug": "研究",
+        "title": "研究"
+      },
+      {
+        "degree": 1,
+        "directory": "queries",
+        "id": "queries/what-is-alpha",
+        "kind": "concept",
+        "slug": "what-is-alpha",
+        "title": "What is Alpha?"
+      }
+    ]
+  },
+  "index": {
+    "available": true,
+    "body": "# Wiki Index\n\n## Concepts\n- [[alpha]]\n- [[beta]]\n\n## Queries\n- [[what-is-alpha]]\n",
+    "href": "/#/index",
+    "outgoingLinks": [
+      "concepts/alpha",
+      "concepts/beta",
+      "queries/what-is-alpha"
+    ]
+  },
+  "pages": [
+    {
+      "aliases": [],
+      "body": "\n# Foo Bar\n\nProves a space in the stem is preserved verbatim.\n",
+      "citations": [],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/Foo Bar.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "unverified"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [],
+        "summary": "Stem with a space.",
+        "tags": [],
+        "title": "Foo Bar",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/Foo Bar",
+      "outgoingLinks": [],
+      "pageDirectory": "concepts",
+      "slug": "Foo Bar",
+      "title": "Foo Bar",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n# Alpha\n\nAlpha establishes the core idea.^[alpha.md:1]\n\nSee also [[Beta|the beta concept]].\n",
+      "citations": [
+        {
+          "raw": "alpha.md:1",
+          "spans": [
+            {
+              "file": "alpha.md",
+              "lines": {
+                "end": 1,
+                "start": 1
+              }
+            }
+          ]
+        }
+      ],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/alpha.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "fresh"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [
+          "alpha.md"
+        ],
+        "summary": "The core idea.",
+        "tags": [
+          "core"
+        ],
+        "title": "Alpha",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/alpha",
+      "outgoingLinks": [
+        "concepts/beta"
+      ],
+      "pageDirectory": "concepts",
+      "slug": "alpha",
+      "title": "Alpha",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n# Beta\n\nBeta has drifted since its source last compiled.\n",
+      "citations": [],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/beta.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "stale"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [
+          "beta.md"
+        ],
+        "summary": "Drifted concept.",
+        "tags": [],
+        "title": "Beta",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/beta",
+      "outgoingLinks": [],
+      "pageDirectory": "concepts",
+      "slug": "beta",
+      "title": "Beta",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n\n",
+      "citations": [],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/empty-edge.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "unverified"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [],
+        "summary": "",
+        "tags": [],
+        "title": "Empty Edge",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/empty-edge",
+      "outgoingLinks": [],
+      "pageDirectory": "concepts",
+      "slug": "empty-edge",
+      "title": "Empty Edge",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n# Orphan\n\nThis page has no live owning source.\n",
+      "citations": [],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/orphan.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "orphaned"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "orphaned": true,
+        "sources": [],
+        "summary": "No live source.",
+        "tags": [],
+        "title": "Orphan",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/orphan",
+      "outgoingLinks": [],
+      "pageDirectory": "concepts",
+      "slug": "orphan",
+      "title": "Orphan",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n# 研究\n\nProves a unicode/CJK stem is preserved verbatim.\n",
+      "citations": [],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/concepts/研究.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "unverified"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [],
+        "summary": "Stem with a CJK char.",
+        "tags": [],
+        "title": "研究",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "concepts/研究",
+      "outgoingLinks": [],
+      "pageDirectory": "concepts",
+      "slug": "研究",
+      "title": "研究",
+      "warnings": []
+    },
+    {
+      "aliases": [],
+      "body": "\n# What is Alpha?\n\nAlpha is the core idea.^[alpha.md:1] See [[Alpha]].\n",
+      "citations": [
+        {
+          "raw": "alpha.md:1",
+          "spans": [
+            {
+              "file": "alpha.md",
+              "lines": {
+                "end": 1,
+                "start": 1
+              }
+            }
+          ]
+        }
+      ],
+      "danglingLinks": [],
+      "filePath": "<ROOT>/wiki/queries/what-is-alpha.md",
+      "freshness": {
+        "archived": false,
+        "contradicted": false,
+        "freshnessStatus": "unverified"
+      },
+      "frontmatter": {
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "sources": [
+          "alpha.md"
+        ],
+        "summary": "Generated answer.",
+        "tags": [],
+        "title": "What is Alpha?",
+        "updatedAt": "2024-01-02T00:00:00.000Z"
+      },
+      "id": "queries/what-is-alpha",
+      "outgoingLinks": [
+        "concepts/alpha"
+      ],
+      "pageDirectory": "queries",
+      "slug": "what-is-alpha",
+      "title": "What is Alpha?",
+      "warnings": []
+    }
+  ],
+  "project": {
+    "rootName": "<ROOT>",
+    "title": "<ROOT>"
+  },
+  "recentPages": [
+    {
+      "id": "concepts/Foo Bar",
+      "pageDirectory": "concepts",
+      "slug": "Foo Bar",
+      "title": "Foo Bar",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "concepts/alpha",
+      "pageDirectory": "concepts",
+      "slug": "alpha",
+      "title": "Alpha",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "concepts/beta",
+      "pageDirectory": "concepts",
+      "slug": "beta",
+      "title": "Beta",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "concepts/empty-edge",
+      "pageDirectory": "concepts",
+      "slug": "empty-edge",
+      "title": "Empty Edge",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "concepts/orphan",
+      "pageDirectory": "concepts",
+      "slug": "orphan",
+      "title": "Orphan",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "concepts/研究",
+      "pageDirectory": "concepts",
+      "slug": "研究",
+      "title": "研究",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "queries/what-is-alpha",
+      "pageDirectory": "queries",
+      "slug": "what-is-alpha",
+      "title": "What is Alpha?",
+      "updatedAt": "2024-01-02T00:00:00.000Z"
+    }
+  ],
+  "root": "<ROOT>",
+  "sourceFilenames": [
+    "alpha.md",
+    "beta.md"
+  ],
+  "stateStatus": "ok"
+}

@@ -1,0 +1,198 @@
+---
+title: "AutoSci Research Workflow"
+sidebarTitle: "AutoSci Workflow"
+description: "Use AutoSci to import papers, propose ideas, record experiment results, and gate completed research artifacts."
+---
+
+This guide walks through a practical AutoSci project: install the profile, import
+paper metadata with Crossref, create an idea, record an experiment result
+artifact, and complete an experiment only after the configured gates are
+satisfied.
+
+## 1. Install AutoSci
+
+Start in an empty llmwiki project:
+
+```bash
+llmwiki template init autosci
+llmwiki profile validate
+llmwiki profile show
+```
+
+AutoSci writes `.llmwiki/profile.json`. The profile defines research entity
+types under directories such as `wiki/papers`, `wiki/ideas`, and
+`wiki/experiments`.
+
+## 2. Configure Crossref
+
+Create `.llmwiki/config.json` with a contact email. Crossref uses it in the
+polite `User-Agent` header.
+
+```json
+{
+  "version": 1,
+  "connectors": {
+    "crossref": {
+      "contactEmail": "research@example.com",
+      "minRequestIntervalMs": 1500
+    }
+  }
+}
+```
+
+Activate Crossref for the current process:
+
+```bash
+export LLMWIKI_CONNECTORS=crossref
+llmwiki connector list
+```
+
+## 3. Stage a paper from DOI metadata
+
+```bash
+llmwiki connector run crossref --input doi=10.1145/3366423.3380207
+llmwiki review list
+```
+
+The connector stages a typed `papers` candidate. It does not write live content.
+
+Inspect the candidate:
+
+```bash
+llmwiki review show <candidate-id>
+```
+
+`review show` prints a `draft-content-hash`. Approve with that exact value:
+
+```bash
+llmwiki review approve <candidate-id> --draft-content-hash <hash-from-show>
+```
+
+If the candidate body changes after inspection, approval refuses and asks you to
+review again.
+
+## 4. Start the research workflow
+
+```bash
+llmwiki workflow start research --input topic=attention
+llmwiki workflow status
+```
+
+The `research` workflow moves through paper import, triage, distillation, idea
+creation, experiment design, and experiment completion.
+
+## 5. Submit an idea
+
+Create `idea.md`:
+
+```md
+---
+title: Sparse attention latency hypothesis
+rationale: The imported paper suggests attention patterns can be constrained.
+stage: proposed
+---
+
+Sparse attention may reduce p95 latency while preserving task quality.
+```
+
+Submit it for the workflow's current idea-writing stage:
+
+```bash
+llmwiki workflow submit <run-id> \
+  --kind page \
+  --entity-type ideas \
+  --slug sparse-attention-latency \
+  --body-file ./idea.md
+```
+
+If the current stage is trust-gated and no trusted-write grant is present, the
+output parks instead of going live. Re-run the same submit with the grant when
+you want a clean trust-gated write to apply:
+
+```bash
+LLMWIKI_TRUSTED_WRITE=autosci \
+  llmwiki workflow submit <run-id> \
+  --kind page \
+  --entity-type ideas \
+  --slug sparse-attention-latency \
+  --body-file ./idea.md
+```
+
+## 6. Record an experiment result artifact
+
+Create `result.json`:
+
+```json
+{
+  "accuracy": 0.91,
+  "runtimeMs": 482,
+  "commit": "abc123"
+}
+```
+
+Write the artifact and save the printed ref:
+
+```bash
+LLMWIKI_TRUSTED_WRITE=autosci \
+  llmwiki artifact write \
+  --type experiment-result \
+  --slug sparse-attention-latency \
+  --body-file ./result.json
+```
+
+The command prints a value like:
+
+```text
+experiment-result/sparse-attention-latency@sha256:4b7...
+```
+
+## 7. Complete the experiment with a pinned ref
+
+Create `experiment.md` using the artifact ref:
+
+```md
+---
+title: Sparse attention latency ablation
+hypothesis: Sparse attention lowers p95 latency.
+stage: complete
+resultSummary: Sparse attention reduced p95 latency while keeping accuracy above baseline.
+result: experiment-result/sparse-attention-latency@sha256:4b7...
+---
+
+The experiment compares dense attention against sparse attention on the same
+benchmark and records the result artifact by hash.
+```
+
+AutoSci's `experiments` lifecycle requires more than a field value before
+`stage: complete` is accepted:
+
+- `resultSummary` must be present;
+- `result` must resolve to a healthy `experiment-result` artifact;
+- the experiment must have a live `tests` relation to an idea.
+
+Submit or approve the page only after those requirements are satisfied. If any
+requirement is missing, llmwiki refuses the write or leaves the candidate in
+review with an actionable error.
+
+## 8. Export or share the project
+
+```bash
+llmwiki export --target json --out ./dist/autosci.json
+llmwiki export --target okf --out ./dist/autosci-okf
+```
+
+JSON export includes a profile block for non-default projects. OKF export records
+profile identity, relation metadata, and workflow run metadata in the bundle's
+`x-llmwiki` block. Import into another project interprets those records through
+the active local profile; it does not migrate the receiving project.
+
+## Trust model recap
+
+- Templates install declarative profile data, not code.
+- Crossref fetches external data and stages review candidates only.
+- Connector approval requires the operator-supplied draft content hash.
+- Direct artifact writes require `LLMWIKI_TRUSTED_WRITE`.
+- Workflow trust gates require `LLMWIKI_TRUSTED_WRITE=autosci` or `*` to
+  auto-apply clean writes.
+- Lifecycle preconditions are enforced at write time and reported again on read
+  surfaces if the graph or artifact store drifts later.
