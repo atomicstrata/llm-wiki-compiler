@@ -150,6 +150,13 @@ export interface StatsResult {
   embeddingCount: number;
   chunkEmbeddingCount: number;
   avgPageLengthChars: number;
+  /**
+   * Whether a usable v3 embedding index was found. `false` is a DISTINCT
+   * "unavailable" signal — a missing, corrupt, or pre-v3 (outdated) store — so a
+   * degraded index is never silently reported as `embeddingCount: 0`. Omitted
+   * (key absent) when the index is available, keeping healthy output unchanged.
+   */
+  embeddingsAvailable?: boolean;
 }
 
 export interface EvalDelta {

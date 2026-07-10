@@ -3,7 +3,17 @@
  * provider.ts — this leaf module is depended on by both the providers and the
  * batch helper, so the provider → openai → batch → provider cycle can't form.
  * Validation functions are added in Task 8.
+ *
+ * Integrity policy (§4.3, S5/S8):
+ *  - A malformed identity (non-string / empty slug) → DROP the record + WARNING
+ *    (store still usable). Applied at read time via {@link filterMalformedIdentities}.
+ *  - A non-finite or wrong-length vector → WHOLE STORE UNAVAILABLE (throws
+ *    {@link EmbeddingIntegrityError}). Applied by {@link assertEmbeddingStoreValid}.
+ *  - An over-long field (slug/title/summary/text > {@link MAX_EMBEDDING_FIELD_CHARS})
+ *    → rejected at WRITE time via {@link assertFieldCaps}.
  */
+
+import { MAX_EMBEDDING_FIELD_CHARS, MAX_EMBEDDING_ENTRIES } from "./constants.js";
 
 /** Provider returned structurally invalid data (count, shape, dimension, index). */
 export class EmbeddingIntegrityError extends Error {
@@ -61,12 +71,107 @@ export function assertEmbeddingStoreValid(store: unknown): void {
     throw new EmbeddingIntegrityError("store chunks must be an array when present");
   }
   const vectors = [...store.entries, ...((chunks as unknown[] | undefined) ?? [])];
+  if (vectors.length > MAX_EMBEDDING_ENTRIES) {
+    throw new EmbeddingIntegrityError(`store has ${vectors.length} entries, exceeding the MAX_EMBEDDING_ENTRIES cap`);
+  }
   if (vectors.length > 0 && dimensions === 0) {
     throw new EmbeddingIntegrityError("store dimensions is 0 but vectors are present");
   }
   for (const item of vectors) {
     if (!isRecord(item)) throw new EmbeddingIntegrityError("store entry is not an object");
     assertVectorValid(item.vector, dimensions as number);
+  }
+}
+
+/** Return true when `v` is a non-empty, non-blank string within the field cap. */
+function isValidIdentityField(v: unknown): boolean {
+  return typeof v === "string" && v.length > 0;
+}
+
+/** True when an item carries a valid identity field — either a v2 `slug` or a v3 `pageId`. */
+function hasValidIdentity(item: Record<string, unknown>): boolean {
+  return isValidIdentityField(item.slug) || isValidIdentityField(item.pageId);
+}
+
+/**
+ * Drop items lacking a valid identity field (v2 `slug` OR v3 `pageId`), returning
+ * drop warnings. Identity-agnostic so a v3 store (pageId-keyed) is not wiped by
+ * the read-time identity filter that predates the v3 re-key.
+ */
+function filterBadSlugItems(arr: unknown[], kind: string): { kept: unknown[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const kept = arr.filter((item) => {
+    if (!isRecord(item) || !hasValidIdentity(item as Record<string, unknown>)) {
+      warnings.push(`embedding ${kind} dropped: malformed or missing identity`);
+      return false;
+    }
+    return true;
+  });
+  if (kept.length < arr.length) {
+    warnings.push(`${arr.length - kept.length} ${kind}(s) dropped for malformed identity`);
+  }
+  return { kept, warnings };
+}
+
+/**
+ * Filter out entries/chunks whose `slug` is not a non-empty string. Mutates the
+ * store in place and returns human-readable warnings. Called at READ time before
+ * vector integrity checks so a store with some bad-identity records is still usable.
+ *
+ * @param store - The parsed store object (mutated in place).
+ * @returns Warnings for each dropped record.
+ */
+export function filterMalformedIdentities(store: Record<string, unknown>): string[] {
+  const allWarnings: string[] = [];
+  if (Array.isArray(store.entries)) {
+    const { kept, warnings } = filterBadSlugItems(store.entries as unknown[], "entry");
+    store.entries = kept;
+    allWarnings.push(...warnings);
+  }
+  if (Array.isArray(store.chunks)) {
+    const { kept, warnings } = filterBadSlugItems(store.chunks as unknown[], "chunk");
+    store.chunks = kept;
+    allWarnings.push(...warnings);
+  }
+  return allWarnings;
+}
+
+/** Throw {@link EmbeddingIntegrityError} when any string field exceeds the cap. */
+function assertStringFieldCap(value: string, field: string): void {
+  if (value.length > MAX_EMBEDDING_FIELD_CHARS) {
+    throw new EmbeddingIntegrityError(`${field} exceeds MAX_EMBEDDING_FIELD_CHARS (${value.length} > ${MAX_EMBEDDING_FIELD_CHARS})`);
+  }
+}
+
+/** Assert per-record page-entry string fields are within {@link MAX_EMBEDDING_FIELD_CHARS}. */
+function assertPageEntryFieldCaps(item: Record<string, unknown>): void {
+  if (typeof item.slug === "string") assertStringFieldCap(item.slug, "slug");
+  if (typeof item.pageId === "string") assertStringFieldCap(item.pageId, "pageId");
+  if (typeof item.title === "string") assertStringFieldCap(item.title, "title");
+  if (typeof item.summary === "string") assertStringFieldCap(item.summary, "summary");
+}
+
+/** Assert per-record chunk-entry string fields are within {@link MAX_EMBEDDING_FIELD_CHARS}. */
+function assertChunkEntryFieldCaps(item: Record<string, unknown>): void {
+  if (typeof item.slug === "string") assertStringFieldCap(item.slug, "chunk slug");
+  if (typeof item.pageId === "string") assertStringFieldCap(item.pageId, "chunk pageId");
+  if (typeof item.title === "string") assertStringFieldCap(item.title, "chunk title");
+  if (typeof item.text === "string") assertStringFieldCap(item.text, "chunk text");
+}
+
+/**
+ * Validate that no per-record string field exceeds {@link MAX_EMBEDDING_FIELD_CHARS}.
+ * Called at WRITE time so an over-long field is rejected before it ever reaches disk.
+ * Throws {@link EmbeddingIntegrityError} on the first violation.
+ *
+ * @param store - The store to check (already structurally valid).
+ */
+export function assertFieldCaps(store: Record<string, unknown>): void {
+  for (const item of (store.entries as Array<Record<string, unknown>> | undefined) ?? []) {
+    assertPageEntryFieldCaps(item);
+  }
+  for (const item of (store.chunks as Array<Record<string, unknown>> | undefined) ?? []) {
+    assertChunkEntryFieldCaps(item);
   }
 }
 

@@ -17,6 +17,7 @@ import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
 import type { FlatCitation } from "../context/provenance.js";
 import type { FreshnessStatus } from "../freshness/types.js";
+import type { DurableConnectorBlock } from "../connectors/types.js";
 
 /**
  * Flat citation shape exported alongside each page. Identical to the
@@ -83,6 +84,8 @@ export interface ExportPage {
   kind?: PageKind;
   /** Original OKF frontmatter snapshot when this page was imported from a foreign bundle; absent for native pages. */
   xOkf?: XOkfSnapshot;
+  /** Host-authored connector-origin metadata from `x-llmwiki.connector`; absent for native pages. */
+  connectorOrigin?: DurableConnectorBlock;
   /**
    * Compiler's confidence estimate at export time. Advisory only —
    * once imported into any downstream store this field is mutable and

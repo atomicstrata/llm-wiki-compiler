@@ -23,6 +23,8 @@ import { loadShellTemplate, substitutePageIndex } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { renderPageHtml } from "./render.js";
 import { searchPages } from "./search.js";
+import { workflowStatus } from "../workflows/status.js";
+import { buildWorkflowRunsEnvelope } from "./workflow-runs.js";
 import type { PageDirectory } from "../export/types.js";
 import type { ViewerSnapshot, ViewerPage } from "./types.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
@@ -146,11 +148,10 @@ async function routeRegistered(
 ): Promise<void> {
   if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
-  if (parsedUrl.pathname === "/api/pages") return handleApiPages(res, snapshot);
+  const snapshotOnly = SNAPSHOT_ONLY_HANDLERS.get(parsedUrl.pathname);
+  if (snapshotOnly) return snapshotOnly(res, snapshot);
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
-  if (parsedUrl.pathname === "/api/health") return handleApiHealth(res, snapshot);
   if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
-  if (parsedUrl.pathname === "/api/graph") return handleApiGraph(res, snapshot);
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
@@ -159,6 +160,24 @@ async function routeRegistered(
   // functions have drifted — fail loudly rather than silently 404.
   throw new Error(`route registration drift: no handler for ${parsedUrl.pathname}`);
 }
+
+/**
+ * Exact-path API routes whose handler needs only `(res, snapshot)` — collapsed
+ * into one lookup table so adding such a route is a single map entry rather than
+ * another `if` in `routeRegistered` (which keeps that dispatcher's branching, and
+ * thus its complexity, flat). `/api/workflow-runs` reads its runs from
+ * `snapshot.root` at request time. Routes with extra params (`/api/index`,
+ * `/api/search`) and the prefix routes stay as explicit branches.
+ */
+const SNAPSHOT_ONLY_HANDLERS: ReadonlyMap<
+  string,
+  (res: ServerResponse, snapshot: ViewerSnapshot) => void | Promise<void>
+> = new Map([
+  ["/api/pages", handleApiPages],
+  ["/api/health", handleApiHealth],
+  ["/api/graph", handleApiGraph],
+  ["/api/workflow-runs", (res, snapshot) => handleApiWorkflowRuns(res, snapshot.root)],
+]);
 
 /**
  * Exact-path registered routes for v1. Kept as a Set so additions are
@@ -171,6 +190,7 @@ const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
   "/api/health",
   "/api/search",
   "/api/graph",
+  "/api/workflow-runs",
 ]);
 
 /** Prefix-based registered routes (assets and per-page API). */
@@ -360,6 +380,19 @@ function handleApiIndex(
 /** Serve the frozen graph adjacency data for the `#/graph` route. */
 function handleApiGraph(res: ServerResponse, snapshot: ViewerSnapshot): void {
   writeJson(res, 200, snapshot.graph);
+}
+
+/**
+ * `/api/workflow-runs` — read-only projection of every workflow run's
+ * status/classification. Runs live under `.llmwiki/workflows/runs/` (NOT in
+ * the frozen snapshot), so this reads them at REQUEST time via the shared
+ * `workflowStatus(root)` classifier — which already surfaces an
+ * unavailable/corrupt store as a fail-visible `problem` row rather than an
+ * empty list. Strictly read-only: no run-state mutation, status fields only
+ * (no machine-local paths).
+ */
+async function handleApiWorkflowRuns(res: ServerResponse, root: string): Promise<void> {
+  writeJson(res, 200, buildWorkflowRunsEnvelope(await workflowStatus(root)));
 }
 
 /** `/api/health` — cheap status summary. */

@@ -11,7 +11,7 @@
  * `version`.
  */
 
-import type { PageId } from "../viewer/types.js";
+import type { GraphNodeId, PageId } from "../viewer/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { RecommendedAction } from "../project/recommendations.js";
 import type { FreshnessStatus } from "../freshness/types.js";
@@ -25,10 +25,23 @@ export type PrimaryReason =
   | "exact-title"
   | "graph-neighbor";
 
-/** Closed v1 enum for the edge label used in `neighbors[]`. */
-type NeighborReason = "wikilink";
+/**
+ * Edge-provenance label used in `neighbors[]`. `"wikilink"` is the v1 value (a
+ * PageId↔PageId wikilink edge); `"relation"` (CLP 4b) is an ADDITIVE value
+ * emitted ONLY for a neighbor reached along a typed relation edge. A default
+ * (relation-less) pack never emits `"relation"`, so its serialized output is
+ * unchanged and `version` does not bump.
+ */
+type NeighborReason = "wikilink" | "relation";
 
-/** Closed v1 enum for top-level `warnings[]` codes. */
+/**
+ * Closed v1 enum for top-level `warnings[]` codes. `relation-store-unavailable`
+ * (CLP 4b) is an ADDITIVE value emitted ONLY for a non-default profile whose
+ * relation store fails closed (corrupt / too-new / symlink / confinement), so an
+ * agent SEES that typed relations are unavailable instead of getting a silently
+ * relation-less pack. A default (relation-less) pack never emits it, so its
+ * serialized output is unchanged and `version` does not bump.
+ */
 type ContextWarningCode =
   | "embedding-store-missing"
   | "query-embedding-unavailable"
@@ -36,10 +49,58 @@ type ContextWarningCode =
   | "lint-errors"
   | "pending-candidates"
   | "source-window-unavailable"
-  | "truncated-prompt";
+  | "truncated-prompt"
+  | "relation-store-unavailable"
+  // ADDITIVE (PR4D D3): a v3 index that degrades-on-read (older/absent/stale).
+  // Emitted ONLY when a consumer hits the new pageId pipeline against a
+  // non-v3 store; a default project (freshly compiled, no outdated store)
+  // never emits it, so its serialized pack is unchanged and `version` does
+  // NOT bump (spec A4).
+  | "embedding-index-outdated"
+  // ADDITIVE: the v3 read pipeline dropped at least one store entry as stale
+  // (its page changed or was removed). Emitted ONLY when stale entries are
+  // detected on read; a freshly-compiled default project never emits it, so
+  // its serialized pack is unchanged and `version` does NOT bump.
+  | "embedding-entry-stale"
+  // ADDITIVE: an incomplete compile left a dangling (pending) journal — the pack
+  // may reflect partial post-crash state. Emitted ONLY when the journal is
+  // pending; a cleanly-compiled project never emits it, so its serialized pack is
+  // unchanged and `version` does NOT bump.
+  | "incomplete-compile"
+  // ADDITIVE: the compile journal is tampered/corrupt/escaping root (a distinct
+  // tamper signal from the pending case). Emitted ONLY when the journal is
+  // unavailable; a healthy project never emits it, so its serialized pack is
+  // unchanged and `version` does NOT bump.
+  | "journal-unavailable"
+  // ADDITIVE: at least one typed page is CURRENTLY in a gated lifecycle state whose
+  // relation-count precondition NO LONGER holds against the live relation graph (a
+  // standing-invariant violation — the relation was superseded/compacted/dangling
+  // or the profile changed after the page reached the gated state). Emitted ONLY
+  // when such drift exists; a healthy/non-gated project never emits it, so its
+  // serialized pack is unchanged and `version` does NOT bump.
+  | "lifecycle-relation-requirement-unmet"
+  // ADDITIVE: the standing relation-precondition check could NOT read the relation
+  // store (cannot verify, not a confirmed violation). Emitted ONLY when the store
+  // is unreadable; a healthy project never emits it, so its serialized pack is
+  // unchanged and `version` does NOT bump.
+  | "lifecycle-relation-requirement-unverifiable"
+  // ADDITIVE: one or more hash-pinned artifactRef values (a page field or a
+  // relation attribute) resolved to a non-`ok` health — dangling / unreadable /
+  // bytes-tampered / hash-mismatch / schema-invalid / store-unavailable — via the
+  // SAME `checkArtifactRefs`/`resolveArtifactRef` collector status/viewer/export
+  // already surface through `snapshot.profile.problems`. Emitted ONLY when such a
+  // problem exists; a project with no `artifacts` block or no unresolved ref never
+  // emits it, so its serialized pack is unchanged and `version` does NOT bump.
+  | "artifact-ref-unhealthy";
 
-/** Closed v1 enum for `gaps[]` codes. */
-type ContextGapCode = "dangling-link" | "page-warning";
+/**
+ * Codes for `gaps[]`. `dangling-link`/`page-warning` are the v1 values;
+ * `dangling-relation` (CLP 4b) is an ADDITIVE value for a typed relation whose
+ * other endpoint has no backing page (a ghost). A default (relation-less) pack
+ * never emits it, so its serialized output is unchanged and `version` does not
+ * bump.
+ */
+type ContextGapCode = "dangling-link" | "page-warning" | "dangling-relation";
 
 /**
  * Budget envelope. `estimatedTokens` uses a tokens ≈ chars/4 heuristic in v1.
@@ -51,7 +112,12 @@ export interface ContextBudget {
   requestedTokens: number;
   estimatedTokens: number;
   truncated: boolean;
-  /** Section keys (`primary`, `neighbors`, `sourceWindows`, `chunks`) that lost data. */
+  /**
+   * Section keys (`primary`, `neighbors`, `sourceWindows`, `chunks`) that lost
+   * data. The ADDITIVE `"contentTiers"` key is emitted ONLY when a primary's
+   * per-record content tiers were trimmed; a pack with no `contentTiers` anywhere
+   * never emits it, so a default pack's trimming output is unchanged.
+   */
   trimmedSections: string[];
 }
 
@@ -105,6 +171,16 @@ interface ContextPageWarning {
   message: string;
 }
 
+/**
+ * One revealed content-depth tier of a primary record. `tier` is the declared
+ * frontmatter field name (or the reserved `body` token) it projects; `content` is
+ * that field's stringified value (or the page body). See {@link ContextPrimary.contentTiers}.
+ */
+export interface ContextTier {
+  tier: string;
+  content: string;
+}
+
 /** One primary page entry. `reasons` is sorted alphabetically for stable output. */
 export interface ContextPrimary {
   id: PageId;
@@ -127,16 +203,36 @@ export interface ContextPrimary {
   contradicted: boolean;
   /** Explicitly archived (`archived: true` frontmatter). */
   archived: boolean;
+  /**
+   * Ordered shallowest-first per-record content tiers, projected when this
+   * record's entity type declares `contentTiers` (CLP 6.2). ABSENT unless that
+   * type declares the key (⇒ default packs are byte-identical and `version` does
+   * NOT bump); the projection only augments an already-ranked record, never
+   * reorders `primary[]`.
+   */
+  contentTiers?: ContextTier[];
 }
 
-/** One graph neighbor edge. `distance` is 1 for direct, 2 for second-hop. */
+/**
+ * One graph neighbor edge. `distance` is 1 for direct, 2 for second-hop.
+ * Endpoints are in the {@link GraphNodeId} space so a typed entity node reached
+ * along a relation edge (CLP 4b) is a valid neighbor; for a wikilink-only
+ * (default) pack every endpoint is still a `PageId`, so the wire shape is
+ * unchanged.
+ */
 interface ContextNeighbor {
-  from: PageId;
-  to: PageId;
+  from: GraphNodeId;
+  to: GraphNodeId;
   direction: "outgoing" | "incoming";
   distance: number;
   score: number;
   reason: NeighborReason;
+  /**
+   * The profile relation type a relation-derived neighbor was reached along (CLP
+   * 4b). ABSENT when `reason` is `"wikilink"`, so a default pack's neighbor shape
+   * is byte-identical; present only when `reason` is `"relation"`.
+   */
+  relationType?: string;
 }
 
 /** Top-level context-pack state warning. */
@@ -146,16 +242,18 @@ export interface ContextWarning {
 }
 
 /**
- * Missing-knowledge gap. `pageId` is required in v1; every documented
- * gap code (`dangling-link`, `page-warning`) is tied to a specific
- * page. A future project-wide gap would either bump `version` or
- * introduce a new sibling field rather than retrofitting nullability
- * onto this one.
+ * Missing-knowledge gap. `pageId` is required; every gap code
+ * (`dangling-link`, `page-warning`, `dangling-relation`) is tied to a specific
+ * source. It is keyed in the {@link GraphNodeId} space so a `dangling-relation`
+ * gap (CLP 4b) can name a typed entity page (an `EntityId`) as its source; for
+ * a default pack every gap source is still a `PageId`, so the wire shape is
+ * unchanged. A future project-wide gap would either bump `version` or introduce
+ * a new sibling field rather than retrofitting nullability onto this one.
  */
 interface ContextGap {
   code: ContextGapCode;
   message: string;
-  pageId: PageId;
+  pageId: GraphNodeId;
 }
 
 /** Top-level v1 envelope. */

@@ -1,0 +1,37 @@
+{
+  "errors": 0,
+  "info": 0,
+  "results": [
+    {
+      "file": "<ROOT>/wiki/concepts/orphan.md",
+      "message": "Page is marked as orphaned",
+      "rule": "orphaned-page",
+      "severity": "warning"
+    },
+    {
+      "file": "<ROOT>/wiki/concepts/empty-edge.md",
+      "message": "Page has no summary in frontmatter",
+      "rule": "missing-summary",
+      "severity": "warning"
+    },
+    {
+      "file": "<ROOT>/wiki/concepts/empty-edge.md",
+      "message": "Page body is empty or too short (< 50 chars)",
+      "rule": "empty-page",
+      "severity": "warning"
+    },
+    {
+      "file": "<ROOT>/wiki/concepts/orphan.md",
+      "message": "Page body is empty or too short (< 50 chars)",
+      "rule": "empty-page",
+      "severity": "warning"
+    },
+    {
+      "file": "<ROOT>/wiki/concepts/beta.md",
+      "message": "Page is stale — a source it was compiled from has changed since the last compile",
+      "rule": "stale-page",
+      "severity": "warning"
+    }
+  ],
+  "warnings": 5
+}

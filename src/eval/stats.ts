@@ -11,9 +11,16 @@ import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter } from "../utils/markdown.js";
-import { readEmbeddingStore } from "../utils/embeddings.js";
+import { readConfinedRaw, parseEmbeddingStore } from "../utils/embeddings-store.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { StatsResult, EvalReport } from "./types.js";
+
+/** A v3-aware embedding snapshot for stats: counts plus an availability signal. */
+interface EmbeddingSnapshot {
+  available: boolean;
+  entries: number;
+  chunks: number;
+}
 
 const HISTORY_DIR = path.join(".llmwiki", "eval");
 const HISTORY_FILE = path.join(HISTORY_DIR, "history.jsonl");
@@ -26,13 +33,29 @@ async function countFiles(dir: string): Promise<number> {
 }
 
 /**
- * Read the embedding store for a stats snapshot, treating a missing OR invalid
- * store as "no embeddings". `readEmbeddingStore` now validates the store and
- * throws on corruption; a corpus-size snapshot must degrade, not crash.
+ * Read a v3-aware embedding snapshot for stats. A missing, corrupt, or pre-v3
+ * (outdated) store reports `available: false` — a DISTINCT degrade signal, never
+ * silently `0`. A corpus-size snapshot must degrade, not crash.
  */
-async function safeReadEmbeddingStore(root: string) {
+async function readEmbeddingSnapshot(root: string): Promise<EmbeddingSnapshot> {
+  let raw: string | null;
   try {
-    return await readEmbeddingStore(root);
+    raw = await readConfinedRaw(root);
+  } catch {
+    return { available: false, entries: 0, chunks: 0 };
+  }
+  if (raw === null) return { available: false, entries: 0, chunks: 0 };
+  const parsed = safeParse(raw);
+  if (!parsed || parsed.version !== 3) return { available: false, entries: 0, chunks: 0 };
+  const entries = Array.isArray(parsed.store.entries) ? parsed.store.entries.length : 0;
+  const chunks = Array.isArray(parsed.store.chunks) ? parsed.store.chunks.length : 0;
+  return { available: true, entries, chunks };
+}
+
+/** Parse raw store JSON into a discriminated store, swallowing JSON errors. */
+function safeParse(raw: string): ReturnType<typeof parseEmbeddingStore> {
+  try {
+    return parseEmbeddingStore(JSON.parse(raw) as unknown);
   } catch {
     return null;
   }
@@ -43,10 +66,10 @@ async function safeReadEmbeddingStore(root: string) {
  * @param root - Absolute path to the project root.
  */
 export async function collectStats(root: string): Promise<StatsResult> {
-  const [sourceCount, pages, embeddingStore] = await Promise.all([
+  const [sourceCount, pages, embeddings] = await Promise.all([
     countFiles(path.join(root, SOURCES_DIR)),
     collectAllPages(root),
-    safeReadEmbeddingStore(root),
+    readEmbeddingSnapshot(root),
   ]);
 
   let totalWikiChars = 0;
@@ -57,17 +80,17 @@ export async function collectStats(root: string): Promise<StatsResult> {
 
   const pageCount = pages.length;
   const avgPageLengthChars = pageCount === 0 ? 0 : Math.round(totalWikiChars / pageCount);
-  const embeddingCount = embeddingStore?.entries.length ?? 0;
-  const chunkEmbeddingCount = embeddingStore?.chunks?.length ?? 0;
 
   return {
     timestamp: new Date().toISOString(),
     sourceCount,
     pageCount,
     totalWikiChars,
-    embeddingCount,
-    chunkEmbeddingCount,
+    embeddingCount: embeddings.entries,
+    chunkEmbeddingCount: embeddings.chunks,
     avgPageLengthChars,
+    // OMIT the key when available so healthy stats output is byte-unchanged.
+    ...(embeddings.available ? {} : { embeddingsAvailable: false }),
   };
 }
 

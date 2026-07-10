@@ -1,0 +1,10 @@
+{
+  "status": "ok",
+  "message": {
+    "title": ["Example Paper"],
+    "DOI": "10.123/example",
+    "published-print": { "date-parts": [[2024]] },
+    "author": [{ "given": "Ada", "family": "Lovelace" }],
+    "abstract": "<jats:p>Example abstract from Crossref.</jats:p>"
+  }
+}

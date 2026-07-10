@@ -15,6 +15,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerWikiTools } from "./tools.js";
 import { registerOkfTools } from "./okf-tools.js";
+import { registerWorkflowActionTools } from "./workflow-action-tools.js";
 import { registerWikiResources } from "./resources.js";
 
 interface ServerOptions {
@@ -39,11 +40,17 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
       "compile_wiki to run the LLM pipeline, query_wiki for grounded answers, " +
       "search_pages to retrieve relevant pages, and run_eval to score wiki quality. " +
       "read_page, lint_wiki, wiki_status, and run_eval (fast suite, record: false) work without an API key " +
-      "and do not mutate state.",
+      "and do not mutate state. " +
+      "list_workflow_actions, describe_workflow_action, and run_workflow_action expose the workflow " +
+      "harness; MCP actions are hard-capped at staged-write and cannot perform trusted writes or " +
+      "satisfy human gates. " +
+      "verify_artifact checks a hash-pinned artifact ref and returns manifest metadata plus a health " +
+      "verdict, never the body; there is no write or store-wide list tool for artifacts over MCP.",
   });
 
   registerWikiTools(server, root);
   registerOkfTools(server, root);
+  registerWorkflowActionTools(server, root);
   registerWikiResources(server, root);
 
   const transport = new StdioServerTransport();

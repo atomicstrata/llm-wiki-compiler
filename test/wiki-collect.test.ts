@@ -13,7 +13,7 @@ import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import { makeOutsideDir } from "./fixtures/outside-dir.js";
-import { collectRawWikiPages, extractWikilinkSlugs, extractWikilinkTargets } from "../src/wiki/collect.js";
+import { collectRawWikiPages, scanEntityDir, extractWikilinkSlugs, extractWikilinkTargets } from "../src/wiki/collect.js";
 
 describe("collectRawWikiPages", () => {
   it("collects pages from concepts and queries directories", async () => {
@@ -159,6 +159,25 @@ async function assertConceptSlugDropped(root: string, droppedSlug: string): Prom
   expect(slugs).toContain("ok");
   expect(slugs).not.toContain(droppedSlug);
 }
+
+describe("scanEntityDir — includeBody option", () => {
+  it("retains the body by default and parses frontmatter", async () => {
+    const root = await makeTempRoot("scan-default-body");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Hello body.");
+    const { scans } = await scanEntityDir(root, "wiki/concepts");
+    expect(scans[0].body).toContain("Hello body.");
+    expect(scans[0].frontmatter.title).toBe("Alpha");
+  });
+
+  it("drops the body but keeps frontmatter when includeBody is false", async () => {
+    const root = await makeTempRoot("scan-no-body");
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "Hello body.");
+    const { scans } = await scanEntityDir(root, "wiki/concepts", { includeBody: false });
+    expect(scans[0].body).toBe("");
+    expect(scans[0].frontmatter.title).toBe("Alpha");
+    expect(scans[0].parseStatus.hasTitle).toBe(true);
+  });
+});
 
 describe("extractWikilinkSlugs", () => {
   it("returns deduplicated slugified targets", () => {

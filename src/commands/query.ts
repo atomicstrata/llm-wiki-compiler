@@ -4,8 +4,9 @@
  * wiki index, then streams an answer grounded in those pages. Optionally saves
  * the response as a new page in wiki/queries/.
  *
- * Step 1 - Page Selection: Reads wiki/index.md and asks Claude (via tool_use)
- * to pick the most relevant concept pages for the question.
+ * Step 1 - Page Selection: ranks pages via the v3 embedding pipeline, falling
+ * back (when embeddings are absent/outdated) to an LLM pick over LIVE,
+ * surface-eligible, pageId-keyed candidates — never the rendered wiki/index.md.
  *
  * Step 2 - Answer Generation: Loads the selected pages in full and streams
  * a cited answer to the terminal.
@@ -14,10 +15,8 @@
 import { existsSync } from "fs";
 import path from "path";
 import { callClaude } from "../utils/llm.js";
-import type { LLMTool } from "../utils/provider.js";
-import { atomicWrite, safeReadFile, slugify, buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
+import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { languageDirective } from "../utils/output-language.js";
-import { generateIndex } from "../compiler/indexgen.js";
 import * as output from "../utils/output.js";
 import { verbose } from "../utils/output.js";
 import {
@@ -27,155 +26,158 @@ import {
   QUERIES_DIR,
   CHUNK_TOP_K,
   CHUNK_RERANK_KEEP,
+  EMBEDDING_TOP_K,
 } from "../utils/constants.js";
+import type { ChunkEmbeddingEntry } from "../utils/embeddings.js";
 import {
-  findRelevantPages,
-  findRelevantChunks,
-  updateEmbeddings,
-  type ChunkEmbeddingEntry,
-} from "../utils/embeddings.js";
-import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
+  loadEmbeddingsForSearch,
+  findRelevantChunksV3,
+  findRelevantPagesV3,
+} from "../utils/embeddings-load.js";
+import { loadProfile } from "../profile/load.js";
 import { rerankWithBm25 } from "../utils/retrieval.js";
+import { journalHealthWarning } from "../trust/journal-health-warning.js";
+import {
+  loadSelectedRefRecords,
+  selectFallbackRefs,
+  withStaleWarning,
+  type SelectedPageRef,
+  type SearchWarning,
+} from "../search/retrieval.js";
+import { slugFromPageId, type PageId } from "../utils/page-id.js";
+import type { PageRecordWithId } from "../utils/page-registry.js";
+import { selectPages } from "./page-selection.js";
+import { maybeSaveQueryPage } from "./query-save.js";
+// Re-exported so existing consumers/tests keep importing these from `query.js`
+// after the save path moved to `query-save.ts`.
+export { summarizeAnswer, maybeSaveQueryPage } from "./query-save.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, RetrievalDebug } from "../utils/types.js";
 
 /** Directories to search when loading selected pages, in priority order. */
 const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];
 
-/** Tool schema for page selection (provider-agnostic). */
-const PAGE_SELECTION_TOOL: LLMTool = {
-  name: "select_pages",
-  description: "Select the most relevant wiki pages to answer a question",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      pages: {
-        type: "array",
-        items: {
-          type: "string",
-          description: "Slug of a relevant wiki page (e.g. 'llm-knowledge-bases')",
-        },
-        maxItems: QUERY_PAGE_LIMIT,
-      },
-      reasoning: {
-        type: "string",
-        description: "Brief explanation of why these pages were selected",
-      },
-    },
-    required: ["pages", "reasoning"],
-  },
-};
-
-interface PageSelectionResult {
-  pages: string[];
-  reasoning: string;
-}
-
 /**
- * Select the most relevant wiki pages for a question using Claude tool_use.
- * @param question - The user's natural language question.
- * @param indexContent - The full text of wiki/index.md.
- * @returns Parsed page slugs and reasoning from Claude.
+ * Render candidate pages in the bullet format selectPages() consumes, keyed by
+ * each candidate's QUALIFIED `pageId` (NOT bare slug) so same-slug pages
+ * (`concepts/foo` vs `papers/foo`) stay distinct keys and the LLM returns the
+ * `namespace/slug` token verbatim — mirrors `selectFallbackRefs`'s renderer.
  */
-export async function selectPages(
-  question: string,
-  indexContent: string,
-): Promise<PageSelectionResult> {
-  const systemPrompt =
-    "You are a knowledge base assistant. Given a question and a wiki index, select the most relevant pages.";
-
-  const userMessage = `Question: ${question}\n\nWiki Index:\n${indexContent}`;
-
-  const rawResult = await callClaude({
-    system: systemPrompt,
-    messages: [{ role: "user", content: userMessage }],
-    tools: [PAGE_SELECTION_TOOL],
-  });
-
-  try {
-    const parsed = JSON.parse(rawResult);
-    return {
-      pages: Array.isArray(parsed.pages) ? parsed.pages.filter((p: unknown) => typeof p === "string") : [],
-      reasoning: typeof parsed.reasoning === "string" ? parsed.reasoning : "No reasoning provided",
-    };
-  } catch {
-    return { pages: [], reasoning: "Failed to parse page selection response" };
-  }
-}
-
-/** Render a list of candidate pages in the same bullet format selectPages() consumes. */
 function buildFilteredIndex(
-  candidates: Array<{ slug: string; title: string; summary: string }>,
+  candidates: Array<{ pageId: PageId; title: string; summary: string }>,
 ): string {
   return candidates
-    .map((entry) => `- **${entry.slug}**: ${entry.title} — ${entry.summary}`)
+    .map((entry) => `- **${entry.pageId}**: ${entry.title} — ${entry.summary}`)
     .join("\n");
 }
 
 interface SelectedPages {
-  pages: string[];
-  rawPages: string[];
+  /** Canonical qualified refs the answer grounds on (pageId-keyed). */
+  refs: SelectedPageRef[];
   reasoning: string;
   /** Chunk citations driving the selection — empty when chunk store is absent. */
   chunks: ChunkCitation[];
   /** Debug snapshot of the retrieval pipeline (only populated in debug mode). */
   debug?: RetrievalDebug;
+  /** Embedding-load degrade + journal-health warnings (S6); surfaced in the QueryResult. */
+  warnings: SearchWarning[];
 }
 
 /**
- * Pick relevant pages using a chunk-aware embedding pre-filter when available,
- * falling back to page-level embeddings, then to sending the full wiki index.
+ * Pick relevant pages through the v3 read pipeline: chunk-aware pre-filter when
+ * available, then page-level embeddings, then an LLM fallback over LIVE,
+ * surface-eligible, pageId-keyed candidates (opted-out typed pages never reach
+ * the selector). A degraded (non-v3 / unavailable) store carries its warning
+ * through to the result (S6).
  */
 async function selectRelevantPages(
   root: string,
   question: string,
   debug: boolean,
 ): Promise<SelectedPages> {
-  const chunkSelection = await trySelectViaChunks(root, question, debug);
-  if (chunkSelection) return chunkSelection;
+  const profile = await loadProfile(root);
+  const outcome = await loadEmbeddingsForSearch(root);
+  // A pending/unavailable compile journal applies to the whole answer regardless
+  // of which retrieval branch wins, so fold it into the base warnings ONCE. An
+  // ok journal contributes nothing, so a healthy query's warnings are unchanged.
+  const journalWarning = await journalHealthWarning(root);
+  const base: SearchWarning[] = journalWarning ? [journalWarning, ...outcome.warnings] : outcome.warnings;
+  // Stale entries dropped by EITHER read path are accumulated here and folded
+  // into the final warnings, so the all-stale/zero-hits fallback still surfaces
+  // `embedding-entry-stale` (a read-path signal regardless of hit count).
+  const stalePageIds: PageId[] = [];
+  const enrich = (sel: SelectedPages): SelectedPages => ({
+    ...sel,
+    warnings: withStaleWarning(base, stalePageIds),
+  });
 
-  const candidates = await tryFindRelevantPages(root, question);
-
-  if (candidates.length > 0) {
-    const filteredIndex = buildFilteredIndex(candidates);
-    const { pages: rawPages, reasoning } = await selectPages(question, filteredIndex);
-    // Tool output holds slugs directly in the semantic path — no slugify needed.
-    return { pages: rawPages, rawPages, reasoning, chunks: [] };
+  if (outcome.store) {
+    const chunkSelection = await trySelectViaChunks(root, outcome.store, question, debug, profile, stalePageIds);
+    if (chunkSelection) return enrich(chunkSelection);
+    const candidates = await findRelevantPagesV3(root, outcome.store, "search", question, EMBEDDING_TOP_K, profile);
+    stalePageIds.push(...candidates.stalePageIds);
+    if (candidates.hits.length > 0) return enrich(await selectFromCandidates(question, candidates.hits));
   }
 
-  const indexContent = await safeReadFile(path.join(root, INDEX_FILE));
-  const { pages: rawPages, reasoning } = await selectPages(question, indexContent);
-  return { pages: rawPages.map((p) => slugify(p)), rawPages, reasoning, chunks: [] };
+  const { refs, reasoning } = await selectFallbackRefs(root, question, "search", profile);
+  return enrich({ refs, reasoning, chunks: [], warnings: [] });
 }
 
 /**
- * Attempt chunk-level retrieval + reranking. Returns null when no chunk store
- * is available (caller falls back to page-level retrieval transparently).
+ * Run LLM selection over a filtered candidate index built from page-level hits.
+ * Candidates are rendered AND resolved by their qualified `pageId`, so a typed
+ * page keeps its namespace and same-slug pages never collapse. A returned token
+ * that is not a KNOWN candidate pageId is DROPPED — never fabricated into
+ * `concepts/<token>` — mirroring `selectFallbackRefs`.
+ */
+async function selectFromCandidates(
+  question: string,
+  hits: Array<{ pageId: PageId; slug: string; title: string; summary: string }>,
+): Promise<SelectedPages> {
+  const filteredIndex = buildFilteredIndex(hits);
+  const { pages: rawTokens, reasoning } = await selectPages(question, filteredIndex);
+  const byPageId = new Map(hits.map((h) => [h.pageId, h]));
+  const refs = rawTokens
+    .map((token) => byPageId.get(token as PageId))
+    .filter((hit): hit is (typeof hits)[number] => hit !== undefined)
+    .map((hit) => ({ pageId: hit.pageId, slug: hit.slug, title: hit.title, kind: "page" as const }));
+  return { refs, reasoning, chunks: [], warnings: [] };
+}
+
+/**
+ * Attempt chunk-level retrieval + reranking against the loaded v3 store. Returns
+ * null when no chunk hits exist (caller falls back to page-level retrieval). Any
+ * stale entries the chunk read dropped are pushed onto `stalePageIds` (even when
+ * this returns null) so the caller can surface `embedding-entry-stale`.
  */
 async function trySelectViaChunks(
   root: string,
+  store: NonNullable<Awaited<ReturnType<typeof loadEmbeddingsForSearch>>["store"]>,
   question: string,
   debug: boolean,
+  profile: Awaited<ReturnType<typeof loadProfile>>,
+  stalePageIds: PageId[],
 ): Promise<SelectedPages | null> {
-  const ranked = await tryFindRelevantChunks(root, question);
-  if (ranked.length === 0) return null;
+  const ranked = await tryFindRelevantChunks(root, store, question, profile);
+  stalePageIds.push(...ranked.stalePageIds);
+  if (ranked.chunks.length === 0) return null;
 
   const reranked = rerankWithBm25(
     question,
-    ranked.map(({ chunk, score }) => ({ text: chunk.text, baseScore: score, chunk })),
+    ranked.chunks.map(({ chunk, pageId, score }) => ({ text: chunk.text, baseScore: score, chunk, pageId })),
   );
   const kept = reranked.slice(0, CHUNK_RERANK_KEEP);
-  const reorderingHappened = wasReordered(ranked, kept.map((k) => k.candidate.chunk));
+  const reorderingHappened = wasReordered(ranked.chunks, kept.map((k) => k.candidate.chunk));
   const chunkCitations = toChunkCitations(kept);
-  const pageSlugs = collapseToPages(chunkCitations, QUERY_PAGE_LIMIT);
-  const reasoning = buildChunkReasoning(chunkCitations, pageSlugs);
+  const refs = collapseToRefs(kept, QUERY_PAGE_LIMIT);
+  const reasoning = buildChunkReasoning(chunkCitations, refs);
 
   return {
-    pages: pageSlugs,
-    rawPages: pageSlugs,
+    refs,
     reasoning,
     chunks: chunkCitations,
-    debug: debug ? buildDebug(chunkCitations, pageSlugs, reorderingHappened) : undefined,
+    warnings: [],
+    debug: debug ? buildDebug(chunkCitations, refs, reorderingHappened) : undefined,
   };
 }
 
@@ -191,14 +193,16 @@ function wasReordered(
   return false;
 }
 
+/** A reranked chunk candidate, carrying its parent page's qualified id. */
 interface RankedChunk {
-  candidate: { chunk: ChunkEmbeddingEntry };
+  candidate: { chunk: ChunkEmbeddingEntry; pageId: PageId };
   score: number;
 }
 
 /** Convert reranked candidates into citation records consumed downstream. */
 function toChunkCitations(ranked: RankedChunk[]): ChunkCitation[] {
   return ranked.map(({ candidate, score }) => ({
+    pageId: candidate.pageId,
     slug: candidate.chunk.slug,
     title: candidate.chunk.title,
     chunkIndex: candidate.chunk.chunkIndex,
@@ -207,71 +211,89 @@ function toChunkCitations(ranked: RankedChunk[]): ChunkCitation[] {
   }));
 }
 
-/** Collapse chunk citations down to a deduplicated list of parent page slugs. */
-function collapseToPages(chunks: ChunkCitation[], limit: number): string[] {
-  const slugs: string[] = [];
-  const seen = new Set<string>();
-  for (const chunk of chunks) {
-    if (seen.has(chunk.slug)) continue;
-    seen.add(chunk.slug);
-    slugs.push(chunk.slug);
-    if (slugs.length >= limit) break;
+/**
+ * Collapse reranked chunks down to a deduplicated list of parent page REFS,
+ * keyed by qualified `pageId` (NOT bare slug) so a typed `papers/foo` chunk and
+ * a concept `foo` chunk stay distinct. First-seen order is preserved.
+ */
+function collapseToRefs(ranked: RankedChunk[], limit: number): SelectedPageRef[] {
+  const refs: SelectedPageRef[] = [];
+  const seen = new Set<PageId>();
+  for (const { candidate } of ranked) {
+    if (seen.has(candidate.pageId)) continue;
+    seen.add(candidate.pageId);
+    refs.push({ pageId: candidate.pageId, slug: candidate.chunk.slug, title: candidate.chunk.title, kind: "chunk" });
+    if (refs.length >= limit) break;
   }
-  return slugs;
+  return refs;
 }
 
 /** Human-readable reasoning trail for the chunk-driven selection. */
-function buildChunkReasoning(chunks: ChunkCitation[], pages: string[]): string {
-  const top = chunks.slice(0, pages.length);
-  const summary = top.map((c) => `${c.slug}#${c.chunkIndex} (${c.score.toFixed(3)})`).join(", ");
-  return `Selected ${pages.length} page(s) from ${chunks.length} reranked chunks: ${summary}`;
+function buildChunkReasoning(chunks: ChunkCitation[], refs: SelectedPageRef[]): string {
+  const top = chunks.slice(0, refs.length);
+  const summary = top.map((c) => `${c.pageId}#${c.chunkIndex} (${c.score.toFixed(3)})`).join(", ");
+  return `Selected ${refs.length} page(s) from ${chunks.length} reranked chunks: ${summary}`;
 }
 
 /** Snapshot used by debug mode — pure data, no side-effects. */
 function buildDebug(
   chunks: ChunkCitation[],
-  pageSlugs: string[],
+  refs: SelectedPageRef[],
   reranked: boolean,
 ): RetrievalDebug {
-  const bestPerPage = new Map<string, number>();
+  const bestPerPage = new Map<PageId, number>();
   for (const c of chunks) {
-    const prev = bestPerPage.get(c.slug);
-    if (prev === undefined || c.score > prev) bestPerPage.set(c.slug, c.score);
+    const prev = bestPerPage.get(c.pageId);
+    if (prev === undefined || c.score > prev) bestPerPage.set(c.pageId, c.score);
   }
   return {
-    pages: pageSlugs.map((slug) => ({ slug, score: bestPerPage.get(slug) ?? 0 })),
+    pages: refs.map((ref) => ({ pageId: ref.pageId, score: bestPerPage.get(ref.pageId) ?? 0 })),
     chunks,
     usedChunks: true,
     reranked,
   };
 }
 
-/** Chunk-level candidate lookup that never throws. */
+/** Reranker-ready chunk candidates plus the ids the chunk read dropped as stale. */
+interface ChunkLookup {
+  chunks: Array<{ chunk: ChunkEmbeddingEntry; pageId: PageId; score: number }>;
+  stalePageIds: PageId[];
+}
+
+/**
+ * Chunk-level candidate lookup over the v3 store that never throws. Adapts each
+ * live-rehydrated {@link findRelevantChunksV3} hit to the chunk-entry shape the
+ * BM25 reranker consumes (its `title` is the slug — query provenance shows the
+ * slug, not the title) and forwards the read's `stalePageIds` so the caller can
+ * surface `embedding-entry-stale`. Provider failures degrade to an empty list.
+ */
 async function tryFindRelevantChunks(
   root: string,
+  store: NonNullable<Awaited<ReturnType<typeof loadEmbeddingsForSearch>>["store"]>,
   question: string,
-): Promise<Array<{ chunk: ChunkEmbeddingEntry; score: number }>> {
+  profile: Awaited<ReturnType<typeof loadProfile>>,
+): Promise<ChunkLookup> {
   try {
-    return await findRelevantChunks(root, question, CHUNK_TOP_K);
+    const { hits, stalePageIds } = await findRelevantChunksV3(root, store, "search", question, CHUNK_TOP_K, profile);
+    return { chunks: hits.map((hit) => ({ chunk: toChunkEntry(hit), pageId: hit.pageId, score: hit.score })), stalePageIds };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.dim(`Chunk pre-filter unavailable (${message}); falling back.`));
-    return [];
+    return { chunks: [], stalePageIds: [] };
   }
 }
 
-/** Embedding-based candidate lookup that never throws. */
-async function tryFindRelevantPages(
-  root: string,
-  question: string,
-): Promise<Array<{ slug: string; title: string; summary: string }>> {
-  try {
-    return await findRelevantPages(root, question);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    output.status("!", output.dim(`Semantic pre-filter unavailable (${message}); using full index.`));
-    return [];
-  }
+/** Project a v3 chunk hit onto the chunk-entry shape the reranker/citations use. */
+function toChunkEntry(hit: { slug: string; chunkIndex: number; text: string; contentHash: string }): ChunkEmbeddingEntry {
+  return {
+    slug: hit.slug,
+    title: hit.slug,
+    chunkIndex: hit.chunkIndex,
+    contentHash: hit.contentHash,
+    text: hit.text,
+    vector: [],
+    updatedAt: "",
+  };
 }
 
 /**
@@ -347,70 +369,9 @@ async function callAnswerLLM(
 /** Render the top chunk excerpts as a labelled section appended to the prompt. */
 function buildChunkProvenance(chunks: ChunkCitation[]): string {
   const sections = chunks.map(
-    (chunk) => `--- ${chunk.slug} (chunk ${chunk.chunkIndex}) ---\n${chunk.text}`,
+    (chunk) => `--- ${chunk.pageId} (chunk ${chunk.chunkIndex}) ---\n${chunk.text}`,
   );
   return `\n\nMost relevant excerpts (from chunk-level retrieval):\n${sections.join("\n\n")}`;
-}
-
-/**
- * Generate a one-line summary from the answer for use in the wiki index.
- * Takes the first sentence (up to 120 chars) so the page-selection LLM
- * has retrieval signal beyond just the title.
- * @param answer - The full answer text.
- * @returns A short summary string.
- */
-export function summarizeAnswer(answer: string): string {
-  const firstLine = answer.trim().split(/\n/)[0] ?? "";
-  const firstSentence = firstLine.split(/(?<=[.!?])\s/)[0] ?? firstLine;
-  return firstSentence.slice(0, 120);
-}
-
-/**
- * Save a query answer as a wiki page in the queries/ directory,
- * then regenerate the wiki index so the answer is immediately retrievable.
- *
- * NOTE: This path writes directly to wiki/queries/ with NO review-policy evaluation.
- * Query saves are user-initiated and deliberately out of scope for the compile-time
- * review gate. This is a known unguarded write path that will be addressed in the
- * Security cycle. Do not add policy evaluation here without updating the spec.
- *
- * @param root - Absolute path to the project root directory.
- * @param question - The original question used as the page title.
- * @param answer - The generated answer body.
- */
-async function saveQueryPage(root: string, question: string, answer: string): Promise<string> {
-  const slug = slugify(question);
-  const filePath = path.join(root, QUERIES_DIR, `${slug}.md`);
-
-  const frontmatter = buildFrontmatter({
-    title: question,
-    summary: summarizeAnswer(answer),
-    type: "query",
-    createdAt: new Date().toISOString(),
-  });
-
-  const document = `${frontmatter}\n\n${answer}\n`;
-  await atomicWrite(filePath, document);
-
-  output.status(
-    "+",
-    output.success(`Saved query → ${output.source(filePath)}`),
-  );
-
-  // Regenerate the index so the saved query is immediately discoverable
-  // by the next query's page-selection step.
-  await generateIndex(root);
-
-  // Index the new query so semantic search retrieves it on the next question.
-  // Non-critical: embedding failures (e.g. missing VOYAGE_API_KEY) don't block save.
-  try {
-    await updateEmbeddings(root, [slug]);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
-  }
-
-  return slug;
 }
 
 /** Options for generateAnswer — programmatic-friendly. */
@@ -445,10 +406,16 @@ export async function generateAnswer(
   }
 
   const selection = await selectRelevantPages(root, question, Boolean(options.debug));
-  verbose(`retrieval: ${selection.pages.length} page(s) selected, ${selection.chunks.length} chunk(s) used`);
-  options.onPageSelection?.(selection.pages, selection.reasoning);
+  // Human/log surfaces use the QUALIFIED pageId so same-slug pages
+  // (`concepts/foo` vs `papers/foo`) are distinguishable; the structured
+  // `selectedPages` API field stays bare slugs for back-compat (buildResultFields).
+  const pages = selection.refs.map((ref) => ref.pageId);
+  verbose(`retrieval: ${selection.refs.length} page(s) selected, ${selection.chunks.length} chunk(s) used`);
+  options.onPageSelection?.(pages, selection.reasoning);
 
-  const pagesContent = await loadSelectedPages(root, selection.pages);
+  // Hydrate via the qualified-id loader (confined, namespace-correct per pageId):
+  // a `papers/foo` ref loads wiki/<papers-dir>/foo.md, never wiki/concepts/foo.md.
+  const pagesContent = renderRefRecords(await loadSelectedRefRecords(root, selection.refs));
   verbose(`context pack: ${pagesContent.length} chars`);
 
   if (!pagesContent) {
@@ -456,32 +423,62 @@ export async function generateAnswer(
   }
 
   const answer = await callAnswerLLM(question, pagesContent, selection.chunks, options.onToken);
-  const saved = options.save ? await saveQueryPage(root, question, answer) : undefined;
+  const saved = await maybeSaveQueryPage(root, question, answer, Boolean(options.save));
 
   // Journal the query only after the answer is produced — matching compile,
   // which logs after finalization — so a mid-flight LLM failure records nothing.
   // Logged here (not in the CLI command) so MCP queries are captured too.
   await appendLog(root, "query", question, {
-    details: selection.pages.length > 0 ? [`Pages: ${formatWikilinkList(selection.pages)}`] : [],
+    details: pages.length > 0 ? [`Pages: ${formatWikilinkList(pages)}`] : [],
   });
 
-  return {
-    answer,
-    selectedPages: selection.pages,
-    reasoning: selection.reasoning,
-    saved,
-    debug: selection.debug,
-  };
+  return { answer, saved, ...buildResultFields(selection) };
+}
+
+/**
+ * Render hydrated ref records into the answer-LLM grounding sections, headed by
+ * each page's QUALIFIED `pageId` (so same-slug `concepts/foo` vs `papers/foo`
+ * stay distinguishable) and carrying the page title + summary above the body —
+ * reconstructed from the parsed record, NOT raw frontmatter (which would leak
+ * arbitrary keys). Empty title/summary lines are omitted.
+ */
+function renderRefRecords(pairs: PageRecordWithId[]): string {
+  return pairs.map(renderRefRecord).join("\n\n");
+}
+
+/** Render one `{pageId, record}` pair as a qualified-id section with metadata. */
+function renderRefRecord({ pageId, record }: PageRecordWithId): string {
+  const lines = [`--- Page: ${pageId} ---`];
+  if (record.title) lines.push(`# ${record.title}`);
+  if (record.summary) lines.push(`> ${record.summary}`);
+  lines.push(record.body);
+  return lines.join("\n");
 }
 
 /** Build the empty-pages result while preserving any debug/chunk context. */
 function buildEmptyResult(selection: SelectedPages): QueryResult {
+  return { answer: "", ...buildResultFields(selection) };
+}
+
+/**
+ * The shared identity/diagnostic fields of a {@link QueryResult}: the canonical
+ * qualified ids/refs plus the DERIVED legacy display slugs (back-compat).
+ */
+function buildResultFields(selection: SelectedPages): Omit<QueryResult, "answer" | "saved"> {
   return {
-    answer: "",
-    selectedPages: selection.pages,
+    selectedPages: selection.refs.map((ref) => slugFromPageId(ref.pageId)),
+    pageIds: selection.refs.map((ref) => ref.pageId),
+    refs: selection.refs,
     reasoning: selection.reasoning,
     debug: selection.debug,
+    ...warningsField(selection),
   };
+}
+
+/** Surface embedding-load warnings on the result, OMITTING the key when empty (S6). */
+function warningsField(selection: SelectedPages): { warnings?: QueryResult["warnings"] } {
+  if (selection.warnings.length === 0) return {};
+  return { warnings: selection.warnings.map((w) => ({ code: w.code, message: w.message })) };
 }
 
 /**
@@ -541,13 +538,13 @@ function printDebugSnapshot(debug: RetrievalDebug): void {
     ),
   );
   for (const page of debug.pages) {
-    output.status("•", `${page.slug} (best chunk score ${page.score.toFixed(3)})`);
+    output.status("•", `${page.pageId} (best chunk score ${page.score.toFixed(3)})`);
   }
   for (const chunk of debug.chunks) {
     const preview = chunk.text.slice(0, DEBUG_CHUNK_PREVIEW_CHARS).replace(/\s+/g, " ").trim();
     output.status(
       "·",
-      output.dim(`${chunk.slug}#${chunk.chunkIndex} score=${chunk.score.toFixed(3)} :: ${preview}…`),
+      output.dim(`${chunk.pageId}#${chunk.chunkIndex} score=${chunk.score.toFixed(3)} :: ${preview}…`),
     );
   }
 }

@@ -15,7 +15,7 @@ import path from "path";
 import { safeReadFile } from "./markdown.js";
 
 /** Extension used for all candidate JSON files. */
-export const CANDIDATE_JSON_EXT = ".json";
+const CANDIDATE_JSON_EXT = ".json";
 
 /**
  * Turn a dotted candidate id into a single filesystem-safe path segment.

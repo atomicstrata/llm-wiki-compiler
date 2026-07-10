@@ -1,0 +1,59 @@
+{
+  "index": [
+    {
+      "mimeType": "text/markdown",
+      "text": "# Wiki Index\n\n## Concepts\n- [[alpha]]\n- [[beta]]\n\n## Queries\n- [[what-is-alpha]]\n",
+      "uri": "llmwiki://index"
+    }
+  ],
+  "resources": [
+    {
+      "name": "alpha",
+      "uri": "llmwiki://concept/alpha"
+    },
+    {
+      "name": "beta",
+      "uri": "llmwiki://concept/beta"
+    },
+    {
+      "name": "empty-edge",
+      "uri": "llmwiki://concept/empty-edge"
+    },
+    {
+      "name": "eval-history",
+      "uri": "llmwiki://eval/history"
+    },
+    {
+      "name": "eval-report",
+      "uri": "llmwiki://eval/report"
+    },
+    {
+      "name": "Foo Bar",
+      "uri": "llmwiki://concept/Foo%20Bar"
+    },
+    {
+      "name": "orphan",
+      "uri": "llmwiki://concept/orphan"
+    },
+    {
+      "name": "what-is-alpha",
+      "uri": "llmwiki://query/what-is-alpha"
+    },
+    {
+      "name": "wiki-index",
+      "uri": "llmwiki://index"
+    },
+    {
+      "name": "wiki-sources",
+      "uri": "llmwiki://sources"
+    },
+    {
+      "name": "wiki-state",
+      "uri": "llmwiki://state"
+    },
+    {
+      "name": "研究",
+      "uri": "llmwiki://concept/%E7%A0%94%E7%A9%B6"
+    }
+  ]
+}

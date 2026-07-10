@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llmwiki.dev/schema/profile.v1.schema.json",
+  "title": "llmwiki Profile Pack (schemaVersion 1, v0)",
+  "description": "Canonical authoring schema for a v0 profile pack. This documents the shape for editors and tooling; the runtime enforcer is validateProfile() in src/profile/validate.ts, which adds fail-closed checks the schema cannot express (directory confinement, lifecycle FSM well-formedness, reserved-id and inheritance rejection).",
+  "type": "object",
+  "required": ["schemaVersion", "profileId", "entities"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Must be exactly 1 for this release."
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Slug-safe identifier. 'default' is reserved for the built-in profile."
+    },
+    "profileVersion": { "type": "string" },
+    "displayName": { "type": "string" },
+    "extends": {
+      "type": "array",
+      "maxItems": 0,
+      "items": { "type": "string" },
+      "description": "Profile inheritance is NOT supported in this release; only an absent or empty array is accepted."
+    },
+    "entities": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/entityTypeDef" }
+    },
+    "relations": {
+      "type": "object",
+      "description": "Optional typed relation type declarations, keyed by slug-safe id. Endpoint entity-type references and requiredAttributes membership are enforced by validateProfile().",
+      "additionalProperties": { "$ref": "#/$defs/relationTypeDef" }
+    },
+    "workflows": {
+      "type": "object",
+      "description": "Optional declarative workflow declarations, keyed by slug-safe id. Stage entity references, gate format, reserved-verb collisions and stage-id uniqueness are enforced by validateProfile().",
+      "additionalProperties": { "$ref": "#/$defs/workflowDef" }
+    },
+    "workflowActions": {
+      "type": "object",
+      "description": "Optional declarative workflow-action declarations, keyed by a slug-safe dotted id. Dotted-id well-formedness, reserved-verb collisions, declared-workflow references, gate/trustGate format, gate-requirement rules and entityRef entity references are enforced by validateProfile().",
+      "additionalProperties": { "$ref": "#/$defs/workflowActionDef" }
+    },
+    "artifacts": {
+      "type": "object",
+      "description": "Optional profile-declared artifact type declarations, keyed by slug-safe id. Filename grammar/extension match, maxBytes bounds and metadata-on-json-only are enforced by validateProfile().",
+      "additionalProperties": { "$ref": "#/$defs/artifactDef" }
+    },
+    "connectors": {
+      "type": "object",
+      "description": "Optional pure-data connector bindings keyed by registered connector id.",
+      "additionalProperties": { "$ref": "#/$defs/connectorBindingDef" }
+    }
+  },
+  "$defs": {
+    "fieldType": {
+      "enum": ["string", "number", "integer", "boolean", "date", "slug", "enum", "string[]", "artifactRef", "artifactRef[]"]
+    },
+    "fieldDef": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "$ref": "#/$defs/fieldType" },
+        "required": { "type": "boolean" },
+        "default": {},
+        "artifactTypes": { "type": "array", "items": { "type": "string" } },
+        "enum": { "type": "array", "items": { "type": "string" } },
+        "min": { "type": "number" },
+        "max": { "type": "number" }
+      }
+    },
+    "retrievalDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "includeInSearch": { "type": "boolean" },
+        "includeInContext": { "type": "boolean" },
+        "defaultWeight": { "type": "number" }
+      }
+    },
+    "lifecycleDef": {
+      "type": "object",
+      "required": ["field", "initial", "terminal", "transitions"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "initial": { "type": "string" },
+        "terminal": { "type": "array", "items": { "type": "string" } },
+        "transitions": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
+        "transitionRequirements": {
+          "type": "object",
+          "additionalProperties": { "type": "array", "items": { "type": "string" } }
+        },
+        "transitionRelationRequirements": {
+          "type": "object",
+          "description": "Optional per-state relation-count preconditions, keyed by the entered state. Relation-type/endpoint/role coherence and the integer minCount are enforced by validateProfile().",
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/relationCountReq" } }
+        },
+        "transitionArtifactRequirements": {
+          "type": "object",
+          "description": "Optional per-state artifact-existence preconditions, keyed by the entered state. Field must be an artifactRef field and artifactType a declared type in that field's scope; DAG-ordered over workflows — enforced by validateProfile().",
+          "additionalProperties": { "type": "array", "items": { "$ref": "#/$defs/artifactPreconditionReq" } }
+        }
+      }
+    },
+    "relationCountReq": {
+      "type": "object",
+      "required": ["relationType", "role", "minCount"],
+      "additionalProperties": false,
+      "properties": {
+        "relationType": { "type": "string" },
+        "role": { "enum": ["from", "to"] },
+        "otherTypes": { "type": "array", "items": { "type": "string" } },
+        "otherStates": { "type": "array", "items": { "type": "string" } },
+        "minCount": { "type": "number" }
+      }
+    },
+    "artifactPreconditionReq": {
+      "type": "object",
+      "required": ["field", "artifactType"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "type": "string" },
+        "artifactType": { "type": "string" }
+      }
+    },
+    "relationTypeDef": {
+      "type": "object",
+      "required": ["from", "to", "direction"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "to": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "direction": { "enum": ["directed", "symmetric"] },
+        "attributes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/fieldDef" }
+        },
+        "requiredAttributes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workflowStageDef": {
+      "type": "object",
+      "required": ["id", "reads", "writes"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "reads": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "writes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "artifactWrites": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "gate": { "type": "string" },
+        "previousIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workflowDef": {
+      "type": "object",
+      "required": ["stages"],
+      "additionalProperties": false,
+      "properties": {
+        "stages": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/workflowStageDef" } },
+        "projectionFile": { "type": "string" }
+      }
+    },
+    "capabilityClass": {
+      "enum": ["disabled", "read-only", "staged-write", "trusted-write"]
+    },
+    "actionInputField": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "enum": ["string", "string[]", "entityRef", "number", "boolean"] },
+        "required": { "type": "boolean" },
+        "default": {},
+        "entityTypes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workflowActionDef": {
+      "type": "object",
+      "required": ["label", "workflow", "operation", "permissions"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string" },
+        "workflow": { "type": "string" },
+        "operation": { "enum": ["start", "resume", "advance", "gate", "cancel", "fail", "status", "submit"] },
+        "inputSchema": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/actionInputField" }
+        },
+        "permissions": {
+          "type": "object",
+          "required": ["cli", "sdk", "mcp", "viewer"],
+          "additionalProperties": false,
+          "properties": {
+            "cli": { "$ref": "#/$defs/capabilityClass" },
+            "sdk": { "$ref": "#/$defs/capabilityClass" },
+            "mcp": { "$ref": "#/$defs/capabilityClass" },
+            "viewer": { "$ref": "#/$defs/capabilityClass" }
+          }
+        },
+        "gate": { "type": "string" },
+        "trustGate": { "type": "string" }
+      }
+    },
+    "entityTypeDef": {
+      "type": "object",
+      "required": ["directory"],
+      "additionalProperties": false,
+      "properties": {
+        "directory": {
+          "type": "string",
+          "pattern": "^wiki/",
+          "description": "Repo-relative directory under wiki/. Must not overlap a reserved root; enforced by validateEntityDirectory()."
+        },
+        "titleField": { "type": "string" },
+        "requiredFields": { "type": "array", "items": { "type": "string" } },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/fieldDef" }
+        },
+        "retrieval": { "$ref": "#/$defs/retrievalDef" },
+        "lifecycle": { "$ref": "#/$defs/lifecycleDef" },
+        "contentTiers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Optional shallowest-first tier names (a declared field name or the reserved 'body' token) for progressive per-record context revelation."
+        },
+        "export": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "okfType": { "type": "string" } }
+        }
+      }
+    },
+    "artifactDef": {
+      "type": "object",
+      "required": ["fileName", "contentKind", "maxBytes"],
+      "additionalProperties": false,
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1 },
+        "contentKind": { "enum": ["json", "text"] },
+        "maxBytes": { "type": "integer", "minimum": 1 },
+        "metadata": { "type": "object", "additionalProperties": { "$ref": "#/$defs/fieldDef" } }
+      }
+    },
+    "connectorBindingDef": {
+      "type": "object",
+      "required": ["entityType", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "entityType": { "type": "string" },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "contentField": { "type": "string" }
+      }
+    }
+  }
+}

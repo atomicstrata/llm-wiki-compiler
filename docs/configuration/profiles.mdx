@@ -1,0 +1,249 @@
+---
+title: "Profiles"
+sidebarTitle: "Profiles"
+description: "Configure typed entities, relations, lifecycles, artifacts, workflows, connectors, and content tiers."
+---
+
+A profile is the project-level type system for a wiki. It lives at
+`.llmwiki/profile.json` and is validated every time llmwiki loads it. For the
+conceptual model behind profiles, read
+[Configurable Lifecycle Profiles](/concepts/configurable-lifecycle-profiles).
+
+If the file is absent, llmwiki uses the built-in `default` profile. That default
+keeps the original two-directory model:
+
+```text
+wiki/concepts/
+wiki/queries/
+```
+
+Installing a profile template materializes a profile file. Runtime loading still
+reads only `.llmwiki/profile.json`.
+
+## Minimal profile shape
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "team",
+  "profileVersion": "0.1.0",
+  "displayName": "Team Knowledge Base",
+  "entities": {
+    "decisions": {
+      "directory": "wiki/decisions",
+      "fields": {
+        "title": { "type": "string", "required": true },
+        "stage": {
+          "type": "enum",
+          "enum": ["proposed", "accepted", "rejected"],
+          "required": true
+        }
+      },
+      "lifecycle": {
+        "field": "stage",
+        "initial": "proposed",
+        "terminal": ["accepted", "rejected"],
+        "transitions": {
+          "proposed": ["accepted", "rejected"]
+        }
+      }
+    }
+  }
+}
+```
+
+Entity type ids and slugs use the same lowercase slug-safe grammar. Entity
+directories must stay inside `wiki/` and cannot collide with reserved core
+directories.
+
+## Entity fields
+
+Supported field types:
+
+| Type | Use |
+|---|---|
+| `string` | Short text |
+| `number` | Numeric values |
+| `integer` | Whole numbers |
+| `boolean` | True/false values |
+| `date` | Date-like strings |
+| `slug` | Slug-safe strings |
+| `enum` | One of a declared set |
+| `string[]` | List of strings |
+| `artifactRef` | One hash-pinned artifact reference |
+| `artifactRef[]` | List of hash-pinned artifact references |
+
+Fields can be required with `required: true`, or by listing them in the entity's
+`requiredFields` array. Both forms are enforced on typed page writes.
+
+## Relations
+
+Relations declare typed edges between entity types:
+
+```json
+{
+  "relations": {
+    "tests": {
+      "from": ["experiments"],
+      "to": ["ideas"],
+      "direction": "directed"
+    }
+  }
+}
+```
+
+Relation writes are validated against the active profile. A relation whose type,
+endpoint role, endpoint entity type, or required attributes no longer fit the
+profile is excluded from live-valid reads and surfaced as a problem instead of
+silently accepted.
+
+## Lifecycles and preconditions
+
+Each entity can define a finite-state lifecycle over one frontmatter field.
+Lifecycle transitions can require evidence fields, relation counts, and artifact
+refs.
+
+```json
+{
+  "lifecycle": {
+    "field": "stage",
+    "initial": "designed",
+    "terminal": ["complete"],
+    "transitions": {
+      "designed": ["running"],
+      "running": ["complete"]
+    },
+    "transitionRequirements": {
+      "complete": ["resultSummary"]
+    },
+    "transitionRelationRequirements": {
+      "complete": [
+        {
+          "relationType": "tests",
+          "role": "from",
+          "otherTypes": ["ideas"],
+          "minCount": 1
+        }
+      ]
+    },
+    "transitionArtifactRequirements": {
+      "complete": [
+        {
+          "field": "result",
+          "artifactType": "experiment-result"
+        }
+      ]
+    }
+  }
+}
+```
+
+Write-time enforcement fails closed. A page cannot enter a gated state if the
+required fields, relations, or healthy artifact refs are missing or unverifiable.
+Read surfaces also report drift when a previously valid page no longer satisfies
+standing relation or artifact requirements.
+
+## Artifacts
+
+Artifacts declare typed files that pages can reference by hash:
+
+```json
+{
+  "artifacts": {
+    "experiment-result": {
+      "fileName": "result.json",
+      "contentKind": "json",
+      "maxBytes": 65536,
+      "metadata": {
+        "accuracy": { "type": "number", "required": true }
+      }
+    }
+  }
+}
+```
+
+Artifact bodies are stored under `artifacts/`, not inside wiki pages. References
+use compact values such as:
+
+```text
+experiment-result/run-1@sha256:4b7...
+```
+
+## Workflows and actions
+
+Workflows declare stage order and scope. A stage may read entity types, write
+entity types, produce artifact types, and require a gate.
+
+```json
+{
+  "workflows": {
+    "research": {
+      "stages": [
+        { "id": "write-idea", "reads": ["papers"], "writes": ["ideas"] },
+        {
+          "id": "complete-experiment",
+          "reads": ["experiments", "ideas"],
+          "writes": ["experiments"],
+          "artifactWrites": ["experiment-result"],
+          "gate": "trust:high"
+        }
+      ]
+    }
+  }
+}
+```
+
+Workflow actions are declarative shortcuts over workflow operations. Their
+permissions are requests, not grants. The effective authority is the most
+restrictive result of the profile request, local config, and the hard cap for the
+surface invoking the action.
+
+## Connectors
+
+Profiles can bind compiled-in connectors to entity fields:
+
+```json
+{
+  "connectors": {
+    "crossref": {
+      "entityType": "papers",
+      "fields": {
+        "title": "title",
+        "doi": "doi",
+        "year": "year",
+        "authors": "authors",
+        "stage": "stage"
+      },
+      "contentField": "abstract"
+    }
+  }
+}
+```
+
+The profile names the connector and field mapping only. It never contains
+connector code and does not activate network access. Operators activate
+connectors with `LLMWIKI_CONNECTORS`.
+
+## Content tiers
+
+`contentTiers` controls which fields and body content are projected into agent
+context. The reserved `body` tier means the markdown body. Connector-origin
+content is fenced when projected so external text remains data rather than
+instructions.
+
+```json
+{
+  "entities": {
+    "papers": {
+      "directory": "wiki/papers",
+      "contentTiers": ["title", "body"]
+    }
+  }
+}
+```
+
+## Default behavior
+
+Projects without `.llmwiki/profile.json` keep the default behavior. Profile
+features are additive: JSON export, OKF export, lint, status, context, and the
+viewer include profile data only when a non-default profile is active.

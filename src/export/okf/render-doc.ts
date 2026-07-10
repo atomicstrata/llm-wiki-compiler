@@ -10,6 +10,7 @@ import type { LinkResolver } from "./types.js";
 import { buildFrontmatter } from "../../utils/markdown.js";
 import { mapPageToOkfFrontmatter, wikilinksToOkf, canonicalBody } from "./mapping.js";
 import { renderCitationsSection } from "./citations.js";
+import { withExportBody } from "../connector-content.js";
 
 /**
  * Render a single ExportPage as a full OKF `.md` document.
@@ -25,10 +26,11 @@ export function renderOkfDoc(
   resolve: LinkResolver,
   refName: (file: string) => string | null,
 ): string {
-  const fm = mapPageToOkfFrontmatter(page);
-  const canonical = canonicalBody(page.body);
+  const renderedPage = withExportBody(page);
+  const fm = mapPageToOkfFrontmatter(renderedPage);
+  const canonical = canonicalBody(renderedPage.body);
   const rewritten = wikilinksToOkf(canonical, resolve);
-  const citations = renderCitationsSection(page.citations ?? [], refName);
+  const citations = renderCitationsSection(renderedPage.citations ?? [], refName);
   // buildFrontmatter already returns fenced YAML (---\n...\n---).
   const frontmatter = buildFrontmatter(fm as unknown as Record<string, unknown>);
   return `${frontmatter}\n${rewritten}${citations}`;

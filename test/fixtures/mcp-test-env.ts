@@ -20,6 +20,7 @@
  *     not mutate the workspace".
  */
 
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { mkdir, readdir, rm } from "fs/promises";
 import path from "path";
 import os from "os";
@@ -81,6 +82,21 @@ export async function connectMcpClient(root: string): Promise<McpClientHandle> {
 }
 
 /**
+ * Parse the JSON payload out of a tool response's text content blocks. Shared by
+ * the stdio integration tests so the text-join + JSON.parse lives in one place.
+ *
+ * @param result - A `tools/call` response from an SDK Client.
+ * @returns The decoded JSON payload, typed by the caller.
+ */
+export function parseToolPayload<T>(result: CallToolResult): T {
+  const text = (result.content as Array<{ type: string; text: string }>)
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("");
+  return JSON.parse(text) as T;
+}
+
+/**
  * Build a fresh McpServer with the wiki tools and resources registered.
  *
  * Intentionally registers ONLY the wiki tools/resources, NOT the OKF tools
@@ -100,6 +116,8 @@ export function buildServer(root: string): McpServer {
 export interface McpToolEnvelope {
   content: Array<{ type: string; text: string }>;
   structuredContent?: { result: unknown };
+  /** Present + `true` when the handler reports a clean tool-level error. */
+  isError?: boolean;
 }
 
 /**

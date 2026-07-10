@@ -1,0 +1,62 @@
+---
+title: "template"
+sidebarTitle: "template"
+description: "List, inspect, and install profile templates."
+---
+
+Profile templates are install-time packages for `.llmwiki/profile.json`.
+They do not run code and do not change the runtime profile loader.
+
+## List templates
+
+```bash
+llmwiki template list
+```
+
+The list includes the implicit `default` profile plus installable templates such
+as `autosci` and `newsroom`.
+
+## Inspect a template
+
+```bash
+llmwiki template inspect autosci
+```
+
+Inspection prints metadata, the profile id, license, minimum supported llmwiki
+version, derived capabilities, connector bindings, the profile digest, and the
+install command.
+
+## Install a built-in template
+
+```bash
+llmwiki template init autosci
+```
+
+Before writing, the command checks that the active typed corpus is empty. A
+populated default wiki is refused even if `.llmwiki/profile.json` does not exist.
+On success, the command writes `.llmwiki/profile.json` and then attempts to write
+the advisory `.llmwiki/template-lock.json` sidecar. If only the lock write fails,
+the profile remains installed and the command prints a warning.
+
+## Install a local template file
+
+```bash
+llmwiki template init --file ./team-template.json
+```
+
+Local packages are untrusted declarative input. llmwiki reads them with a
+no-follow, size-capped file read and validates the embedded profile before any
+write.
+
+## Replace an existing profile
+
+```bash
+llmwiki template init autosci --force
+```
+
+`--force` only replaces a profile when the typed corpus is empty. Existing pages,
+relations, artifacts, workflow runs, event records, pending or archived review
+candidates, or unresolved typed-store problems cause a refusal.
+
+`llmwiki template init default` never writes a profile. The default profile is
+already active when `.llmwiki/profile.json` is absent.

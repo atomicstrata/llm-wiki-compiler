@@ -1,0 +1,72 @@
+---
+title: "profile"
+sidebarTitle: "profile"
+description: "Inspect and validate the active wiki profile."
+---
+
+`llmwiki profile` is the read-only command group for the active profile.
+A profile defines the typed entity directories, relations, lifecycles,
+artifacts, workflows, connector bindings, and content tiers that a project uses.
+
+If `.llmwiki/profile.json` is absent, llmwiki uses the built-in `default`
+profile. The default profile preserves the classic `wiki/concepts/` and
+`wiki/queries/` layout.
+
+## Show the active profile
+
+```bash
+llmwiki profile show
+```
+
+The output includes the profile id, the canonical digest, and the file the
+profile was loaded from. Profiles that declare relations also print each
+relation type and its endpoint types.
+
+```text
+Profile autosci
+profileId:  autosci
+digest:     2f7d...
+loadedFrom: /project/.llmwiki/profile.json
+relations:  12
+  cites: papers,manuscripts -> sources,papers (directed)
+```
+
+## Validate the active profile
+
+```bash
+llmwiki profile validate
+```
+
+Validation fails closed. A malformed profile, unsupported field type, invalid
+entity directory, unresolved connector binding, invalid lifecycle transition, or
+impossible precondition exits non-zero before any profile-aware write path uses
+the file.
+
+## Diff profiles
+
+```bash
+llmwiki profile diff --candidate ./next-profile.json
+llmwiki profile diff --from ./old-profile.json --to ./new-profile.json
+```
+
+`profile diff` is read-only. It classifies on-disk pages under an old profile
+and a candidate new profile so you can see which pages remain compatible, which
+would be ignored, and which require manual migration. If a profile-owned
+directory is unsafe or unreadable, the command exits non-zero instead of
+printing a clean diff.
+
+## Profile installation
+
+Use `llmwiki template init` to install a built-in or local profile template.
+That command writes `.llmwiki/profile.json` only after validating the template
+package and confirming that replacing the active profile will not orphan typed
+content.
+
+```bash
+llmwiki template inspect autosci
+llmwiki template init autosci
+llmwiki profile validate
+```
+
+See [Profile templates](/configuration/profile-templates) for the install-time
+contract and [Profiles](/configuration/profiles) for the profile file format.

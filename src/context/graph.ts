@@ -31,13 +31,19 @@
 
 import type {
   GraphData,
+  GraphEdge,
   GraphNode,
-  PageId,
+  GraphNodeId,
   ViewerPage,
 } from "../viewer/types.js";
+import { emitGraphGaps } from "./graph-gaps.js";
+import type { GraphGap } from "./graph-gaps.js";
 
-/** Closed v1 neighbor edge label. */
+/** Neighbor edge label for a PageId↔PageId wikilink edge. */
 const NEIGHBOR_REASON_WIKILINK = "wikilink";
+
+/** Neighbor edge label for a neighbor reached along a typed relation edge (CLP 4b). */
+const NEIGHBOR_REASON_RELATION = "relation";
 
 /**
  * Delimiter joining the two PageIds in a canonical pair key. Visible
@@ -78,27 +84,34 @@ const DEFAULT_PAGE_KIND = "concept";
 /** Cap so combined scores stay inside the normalized [0, 1] range. */
 const MAX_NORMALIZED_SCORE = 1;
 
-/** Reasons set on emitted neighbor entries. Closed v1 enum. */
-type NeighborReason = typeof NEIGHBOR_REASON_WIKILINK;
+/**
+ * Reasons set on emitted neighbor entries: `"wikilink"` for a PageId↔PageId
+ * wikilink edge, `"relation"` for a neighbor reached along a typed relation edge
+ * (CLP 4b). Additive — a default (relation-less) pack only ever emits
+ * `"wikilink"`.
+ */
+type NeighborReason =
+  | typeof NEIGHBOR_REASON_WIKILINK
+  | typeof NEIGHBOR_REASON_RELATION;
 
 /** Direction of the underlying wikilink relative to `from`. */
 type NeighborDirection = "outgoing" | "incoming";
 
-/** One neighbor entry in the v1 context-pack envelope. */
+/**
+ * One neighbor entry in the v1 context-pack envelope. Endpoints are keyed in the
+ * {@link GraphNodeId} space so a typed entity node reached along a relation edge
+ * (CLP 4b) is a valid neighbor; for a default/wikilink-only graph every endpoint
+ * is still a `PageId`, so the emitted shape is unchanged.
+ */
 interface GraphNeighbor {
-  from: PageId;
-  to: PageId;
+  from: GraphNodeId;
+  to: GraphNodeId;
   direction: NeighborDirection;
   distance: number;
   score: number;
   reason: NeighborReason;
-}
-
-/** Gap entry surfaced when a primary page links to a missing target. */
-interface GraphGap {
-  code: "dangling-link";
-  message: string;
-  pageId: PageId;
+  /** Relation type when `reason` is `"relation"`; absent for a wikilink neighbor. */
+  relationType?: string;
 }
 
 /** Output of {@link expandGraphNeighborhood}. */
@@ -111,7 +124,12 @@ export interface GraphExpansionOutput {
 interface GraphExpansionInput {
   graph: GraphData;
   pages: ViewerPage[];
-  primaryIds: ReadonlySet<PageId>;
+  /**
+   * The pages to expand FROM. Keyed in the {@link GraphNodeId} space so a typed
+   * entity page (CLP 4b) can be a primary and expand along its relation edges;
+   * the existing wikilink callers pass a `PageId` set, which is assignable.
+   */
+  primaryIds: ReadonlySet<GraphNodeId>;
   /** 0 = expansion off; 1 = direct only; 2 = direct + second-hop. */
   depth: number;
 }
@@ -134,6 +152,7 @@ export function expandGraphNeighborhood(
   const adjacency = buildAdjacency(input.graph);
   const ghostIds = collectGhostIds(input.graph.nodes);
   const pageKinds = buildPageKindMap(input.pages);
+  const provenance = buildEdgeProvenance(input.graph.edges);
   // Sort + cap depth-1 BEFORE depth-2 expansion so a trimmed-out
   // bridge can never contribute second-hop emissions. Without this
   // gate, a primary page with high fan-out could fan out further at
@@ -143,6 +162,7 @@ export function expandGraphNeighborhood(
     adjacency,
     ghostIds,
     pageKinds,
+    provenance,
   });
   const depth1 = depth1Raw.sort(compareNeighbors).slice(0, MAX_GRAPH_NEIGHBORS);
   const depth2 = input.depth >= 2
@@ -151,6 +171,7 @@ export function expandGraphNeighborhood(
         adjacency,
         ghostIds,
         pageKinds,
+        provenance,
         depthOneTargets: collectDepthOneTargets(depth1),
       })
     : [];
@@ -160,40 +181,73 @@ export function expandGraphNeighborhood(
   const neighbors = [...depth1, ...depth2]
     .sort(compareNeighbors)
     .slice(0, MAX_GRAPH_NEIGHBORS);
-  return { neighbors, gaps: emitGapsFromPrimary(input) };
+  return {
+    neighbors,
+    gaps: emitGraphGaps({
+      pages: input.pages,
+      edges: input.graph.edges,
+      primaryIds: input.primaryIds,
+      ghostIds,
+    }),
+  };
 }
 
-/** Surface dangling-link gaps for every primary page that owns one. */
-function emitGapsFromPrimary(input: GraphExpansionInput): GraphGap[] {
-  const gaps: GraphGap[] = [];
-  for (const page of input.pages) {
-    if (!input.primaryIds.has(page.id)) continue;
-    for (const dangling of page.danglingLinks ?? []) {
-      gaps.push({
-        code: "dangling-link",
-        message: `Page links to [[${dangling.display}]], but no page exists.`,
-        pageId: page.id,
-      });
-    }
-  }
-  return gaps;
-}
-
-/** Outgoing + incoming edge maps for fast neighbor lookup keyed by PageId. */
+/** Outgoing + incoming edge maps for fast neighbor lookup keyed by GraphNodeId. */
 interface Adjacency {
-  outgoing: Map<PageId, Set<PageId>>;
-  incoming: Map<PageId, Set<PageId>>;
+  outgoing: Map<GraphNodeId, Set<GraphNodeId>>;
+  incoming: Map<GraphNodeId, Set<GraphNodeId>>;
 }
 
-/** Build the bidirectional adjacency from the snapshot's edge list. */
+/**
+ * Build the bidirectional adjacency from the snapshot's edge list. Wikilink and
+ * typed relation edges (CLP 4b) are added identically — a relation edge is just
+ * another `source`→`target` pair — so context expansion traverses both without
+ * any edge-kind branching.
+ */
 function buildAdjacency(graph: GraphData): Adjacency {
-  const outgoing = new Map<PageId, Set<PageId>>();
-  const incoming = new Map<PageId, Set<PageId>>();
+  const outgoing = new Map<GraphNodeId, Set<GraphNodeId>>();
+  const incoming = new Map<GraphNodeId, Set<GraphNodeId>>();
   for (const edge of graph.edges) {
     addToSetMap(outgoing, edge.source, edge.target);
     addToSetMap(incoming, edge.target, edge.source);
   }
   return { outgoing, incoming };
+}
+
+/**
+ * Edge provenance carried into emission so a neighbor reports the edge it was
+ * reached along. `reason` is `"relation"` only when the pair is reachable ONLY
+ * by relation edge(s); `relationType` is then the relation type.
+ */
+interface EdgeProvenance {
+  reason: NeighborReason;
+  relationType?: string;
+}
+
+/**
+ * Map each unordered endpoint pair (canonical key) to its provenance. PRECEDENCE
+ * RULE: a wikilink edge WINS over a relation edge for the same pair — if two
+ * pages are connected by both, the neighbor is labeled `"wikilink"` (the v1
+ * default reason; we never downgrade a real wikilink relationship, and the
+ * default pack's output is unperturbed). A pair connected only by relation
+ * edge(s) takes `"relation"` + the relation type of its FIRST relation edge in
+ * the snapshot's deterministic edge order, keeping output rank-stable.
+ */
+function buildEdgeProvenance(edges: GraphEdge[]): Map<string, EdgeProvenance> {
+  const provenance = new Map<string, EdgeProvenance>();
+  for (const edge of edges) {
+    const key = canonicalPairKey(edge.source, edge.target);
+    const existing = provenance.get(key);
+    if (existing?.reason === NEIGHBOR_REASON_WIKILINK) continue;
+    if (edge.edgeKind === "relation" && edge.relationType !== undefined) {
+      if (existing === undefined) {
+        provenance.set(key, { reason: NEIGHBOR_REASON_RELATION, relationType: edge.relationType });
+      }
+    } else {
+      provenance.set(key, { reason: NEIGHBOR_REASON_WIKILINK });
+    }
+  }
+  return provenance;
 }
 
 /** Insert `value` into the set at `key`, creating the set on first use. */
@@ -204,18 +258,19 @@ function addToSetMap<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 }
 
 /** Collect every ghost-node id so we can drop dangling targets from neighbors. */
-function collectGhostIds(nodes: GraphNode[]): Set<PageId> {
-  const ghosts = new Set<PageId>();
+function collectGhostIds(nodes: GraphNode[]): Set<GraphNodeId> {
+  const ghosts = new Set<GraphNodeId>();
   for (const node of nodes) if (node.isDangling) ghosts.add(node.id);
   return ghosts;
 }
 
 /** Shared input for the depth-1 expansion path. */
 interface DepthOneInput {
-  primaryIds: ReadonlySet<PageId>;
+  primaryIds: ReadonlySet<GraphNodeId>;
   adjacency: Adjacency;
-  ghostIds: ReadonlySet<PageId>;
-  pageKinds: ReadonlyMap<PageId, string>;
+  ghostIds: ReadonlySet<GraphNodeId>;
+  pageKinds: ReadonlyMap<GraphNodeId, string>;
+  provenance: ReadonlyMap<string, EdgeProvenance>;
 }
 
 /**
@@ -225,7 +280,7 @@ interface DepthOneInput {
  */
 function expandDepthOne(input: DepthOneInput): GraphNeighbor[] {
   const emitted = new Map<string, GraphNeighbor>();
-  const connectionCount = new Map<PageId, number>();
+  const connectionCount = new Map<GraphNodeId, number>();
   for (const primary of input.primaryIds) {
     addNeighborsForPrimary({ ...input, primary, emitted, connectionCount });
   }
@@ -235,9 +290,9 @@ function expandDepthOne(input: DepthOneInput): GraphNeighbor[] {
 
 /** Helpers passed into the per-primary depth-1 walker. */
 interface DepthOnePerPrimary extends DepthOneInput {
-  primary: PageId;
+  primary: GraphNodeId;
   emitted: Map<string, GraphNeighbor>;
-  connectionCount: Map<PageId, number>;
+  connectionCount: Map<GraphNodeId, number>;
 }
 
 /** Walk every edge incident to one primary page and emit canonicalized neighbors. */
@@ -250,7 +305,7 @@ function addNeighborsForPrimary(ctx: DepthOnePerPrimary): void {
 /** Inputs for the per-edge depth-1 emission check. */
 interface EmitDirectInput {
   ctx: DepthOnePerPrimary;
-  other: PageId;
+  other: GraphNodeId;
   direction: NeighborDirection;
 }
 
@@ -265,7 +320,7 @@ function tryEmitDirect(input: EmitDirectInput): void {
   if (ctx.ghostIds.has(other)) return;
   if (ctx.primaryIds.has(other)) return;
   bumpConnection(ctx.connectionCount, other);
-  mergeOrInsertNeighbor(ctx.emitted, {
+  mergeOrInsertNeighbor(ctx.emitted, ctx.provenance, {
     from: ctx.primary,
     to: other,
     direction,
@@ -280,12 +335,12 @@ function tryEmitDirect(input: EmitDirectInput): void {
 }
 
 /** Increment the per-target connection counter (used for the multi-primary bonus). */
-function bumpConnection(counter: Map<PageId, number>, target: PageId): void {
+function bumpConnection(counter: Map<GraphNodeId, number>, target: GraphNodeId): void {
   counter.set(target, (counter.get(target) ?? 0) + 1);
 }
 
-/** Empty PageId set reused across walks to avoid allocating per call. */
-const EMPTY_NEIGHBOR_SET: ReadonlySet<PageId> = new Set<PageId>();
+/** Empty node-id set reused across walks to avoid allocating per call. */
+const EMPTY_NEIGHBOR_SET: ReadonlySet<GraphNodeId> = new Set<GraphNodeId>();
 
 /**
  * Walk every wikilink edge incident to `node` and invoke `onEdge` with
@@ -295,8 +350,8 @@ const EMPTY_NEIGHBOR_SET: ReadonlySet<PageId> = new Set<PageId>();
  */
 function walkIncidentEdges(
   adjacency: Adjacency,
-  node: PageId,
-  onEdge: (other: PageId, direction: NeighborDirection) => void,
+  node: GraphNodeId,
+  onEdge: (other: GraphNodeId, direction: NeighborDirection) => void,
 ): void {
   const outgoing = adjacency.outgoing.get(node) ?? EMPTY_NEIGHBOR_SET;
   const incoming = adjacency.incoming.get(node) ?? EMPTY_NEIGHBOR_SET;
@@ -306,8 +361,8 @@ function walkIncidentEdges(
 
 /** Candidate neighbor about to be merged into the canonical-key map. */
 interface NeighborCandidate {
-  from: PageId;
-  to: PageId;
+  from: GraphNodeId;
+  to: GraphNodeId;
   direction: NeighborDirection;
   distance: number;
   score: number;
@@ -322,6 +377,7 @@ interface NeighborCandidate {
  */
 function mergeOrInsertNeighbor(
   emitted: Map<string, GraphNeighbor>,
+  provenance: ReadonlyMap<string, EdgeProvenance>,
   candidate: NeighborCandidate,
 ): void {
   const key = canonicalPairKey(candidate.from, candidate.to);
@@ -332,7 +388,16 @@ function mergeOrInsertNeighbor(
     }
     return;
   }
-  emitted.set(key, { ...candidate, reason: NEIGHBOR_REASON_WIKILINK });
+  // Reason follows the edge's provenance (wikilink wins over relation for a pair
+  // reachable by both — see buildEdgeProvenance). A `relationType` is attached
+  // only for a relation-reason neighbor; a wikilink neighbor omits it so the
+  // default pack's neighbor shape is byte-identical.
+  const prov = provenance.get(key) ?? { reason: NEIGHBOR_REASON_WIKILINK };
+  emitted.set(key, {
+    ...candidate,
+    reason: prov.reason,
+    ...(prov.relationType !== undefined ? { relationType: prov.relationType } : {}),
+  });
 }
 
 /**
@@ -342,7 +407,7 @@ function mergeOrInsertNeighbor(
  */
 function applyPrimaryConnectionBonus(
   emitted: Map<string, GraphNeighbor>,
-  connectionCount: Map<PageId, number>,
+  connectionCount: Map<GraphNodeId, number>,
 ): void {
   for (const neighbor of emitted.values()) {
     const hits = connectionCount.get(neighbor.to) ?? 0;
@@ -358,11 +423,12 @@ function applyPrimaryConnectionBonus(
 
 /** Inputs for depth-2 expansion. */
 interface DepthTwoInput {
-  primaryIds: ReadonlySet<PageId>;
+  primaryIds: ReadonlySet<GraphNodeId>;
   adjacency: Adjacency;
-  ghostIds: ReadonlySet<PageId>;
-  pageKinds: ReadonlyMap<PageId, string>;
-  depthOneTargets: ReadonlySet<PageId>;
+  ghostIds: ReadonlySet<GraphNodeId>;
+  pageKinds: ReadonlyMap<GraphNodeId, string>;
+  provenance: ReadonlyMap<string, EdgeProvenance>;
+  depthOneTargets: ReadonlySet<GraphNodeId>;
 }
 
 /**
@@ -382,7 +448,7 @@ function expandDepthTwo(input: DepthTwoInput): GraphNeighbor[] {
 
 /** Per-bridge depth-2 walker context; bridge is the depth-1 neighbor we expand from. */
 interface DepthTwoPerBridge extends DepthTwoInput {
-  bridge: PageId;
+  bridge: GraphNodeId;
   emitted: Map<string, GraphNeighbor>;
 }
 
@@ -396,7 +462,7 @@ function walkDepthTwoFromBridge(ctx: DepthTwoPerBridge): void {
 /** Inputs for the per-edge depth-2 emission check. */
 interface EmitSecondHopInput {
   ctx: DepthTwoPerBridge;
-  other: PageId;
+  other: GraphNodeId;
   direction: NeighborDirection;
 }
 
@@ -411,7 +477,7 @@ function tryEmitSecondHop(input: EmitSecondHopInput): void {
   if (ctx.ghostIds.has(other)) return;
   if (ctx.primaryIds.has(other)) return;
   if (ctx.depthOneTargets.has(other)) return;
-  mergeOrInsertNeighbor(ctx.emitted, {
+  mergeOrInsertNeighbor(ctx.emitted, ctx.provenance, {
     from: ctx.bridge,
     to: other,
     direction,
@@ -426,8 +492,8 @@ function tryEmitSecondHop(input: EmitSecondHopInput): void {
 }
 
 /** Map page ID to schema/page kind, defaulting legacy pages to concept. */
-function buildPageKindMap(pages: ViewerPage[]): Map<PageId, string> {
-  const kinds = new Map<PageId, string>();
+function buildPageKindMap(pages: ViewerPage[]): Map<GraphNodeId, string> {
+  const kinds = new Map<GraphNodeId, string>();
   for (const page of pages) {
     const kind = page.frontmatter.kind;
     kinds.set(page.id, typeof kind === "string" && kind.length > 0 ? kind : DEFAULT_PAGE_KIND);
@@ -438,9 +504,9 @@ function buildPageKindMap(pages: ViewerPage[]): Map<PageId, string> {
 /** Add the small kind-affinity bonus when both real endpoints share a kind. */
 function scoreWithSameKindBonus(
   base: number,
-  from: PageId,
-  to: PageId,
-  pageKinds: ReadonlyMap<PageId, string>,
+  from: GraphNodeId,
+  to: GraphNodeId,
+  pageKinds: ReadonlyMap<GraphNodeId, string>,
 ): number {
   return samePageKind(from, to, pageKinds)
     ? clampScore(base + WEIGHT_SAME_KIND_BONUS)
@@ -449,9 +515,9 @@ function scoreWithSameKindBonus(
 
 /** True when both endpoints have an equal page kind in the real-page map. */
 function samePageKind(
-  from: PageId,
-  to: PageId,
-  pageKinds: ReadonlyMap<PageId, string>,
+  from: GraphNodeId,
+  to: GraphNodeId,
+  pageKinds: ReadonlyMap<GraphNodeId, string>,
 ): boolean {
   const fromKind = pageKinds.get(from);
   const toKind = pageKinds.get(to);
@@ -459,8 +525,8 @@ function samePageKind(
 }
 
 /** Collect just the `to` ids from a depth-1 neighbor list for fast lookups. */
-function collectDepthOneTargets(neighbors: GraphNeighbor[]): Set<PageId> {
-  const ids = new Set<PageId>();
+function collectDepthOneTargets(neighbors: GraphNeighbor[]): Set<GraphNodeId> {
+  const ids = new Set<GraphNodeId>();
   for (const n of neighbors) ids.add(n.to);
   return ids;
 }
@@ -470,7 +536,7 @@ function collectDepthOneTargets(neighbors: GraphNeighbor[]): Set<PageId> {
  * to a single neighbor entry. `String.localeCompare` keeps the
  * ordering platform-stable for any unicode-bearing PageId.
  */
-function canonicalPairKey(a: PageId, b: PageId): string {
+function canonicalPairKey(a: GraphNodeId, b: GraphNodeId): string {
   return a < b
     ? `${a}${CANONICAL_PAIR_SEPARATOR}${b}`
     : `${b}${CANONICAL_PAIR_SEPARATOR}${a}`;

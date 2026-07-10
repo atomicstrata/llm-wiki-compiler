@@ -5,6 +5,7 @@ import { buildFrontmatter } from "../src/utils/markdown.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import { generateAndReadIndex } from "./fixtures/generate-and-read-index.js";
+import { buildResearchLiteProject } from "./fixtures/profile-fixtures.js";
 
 describe("generateIndex", () => {
   let root: string;
@@ -68,5 +69,66 @@ describe("generateIndex", () => {
     expect(index).toContain("[[alive|Alive]]");
     expect(index).not.toContain("[[dead|Dead]]");
     expect(index).toContain("1 pages");
+  });
+
+  it("omits typed entity sections for a DEFAULT project (byte-identical)", async () => {
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha", summary: "A concept" }, "Body of Alpha.");
+    const index = await generateAndReadIndex(root);
+
+    // A default project (no profile.json) renders exactly the legacy sections.
+    expect(index).toContain("# Knowledge Wiki");
+    expect(index).toContain("## Concepts");
+    expect(index).not.toContain("## Papers");
+    expect(index).not.toContain("## Entity Pages");
+  });
+});
+
+describe("generateIndex (non-default profile)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await makeTempRoot("idx-profile");
+    await buildResearchLiteProject(root);
+  });
+
+  it("lists a promoted typed page under its entity-type section", async () => {
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("## Papers");
+    expect(index).toContain("attention-is-all-you-need");
+    expect(index).toContain("papers/attention-is-all-you-need.md");
+  });
+
+  it("groups pages under one section per entity type", async () => {
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("## Papers");
+    expect(index).toContain("## Ideas");
+    expect(index).toContain("## Experiments");
+    expect(index).toContain("ideas/sparse-routing.md");
+    expect(index).toContain("experiments/ablation-batch-size.md");
+  });
+
+  it("still renders the default Concepts section alongside typed sections", async () => {
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha", summary: "A concept" }, "Body of Alpha.");
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("## Concepts");
+    expect(index).toContain("[[alpha|Alpha]]");
+    expect(index).toContain("## Papers");
+  });
+
+  it("counts typed pages in the footer total", async () => {
+    // research-lite seeds 5 typed pages (2 papers + 2 ideas + 1 experiment).
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("5 pages");
+  });
+
+  it("counts typed pages alongside concepts in the total", async () => {
+    await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha", summary: "A concept" }, "Body of Alpha.");
+    const index = await generateAndReadIndex(root);
+
+    expect(index).toContain("6 pages"); // 5 typed + 1 concept
   });
 });

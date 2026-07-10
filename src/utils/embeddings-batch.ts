@@ -242,6 +242,35 @@ export async function embedTextBatch(
   return out;
 }
 
+/**
+ * Embed a work-list via {@link embedTextBatch}, mapping each item to its text and
+ * enriching any terminal failure with the offending item's label (pass + slug/
+ * pageId at the failing index). Shared by the page and chunk passes so the
+ * batch-call + error-enrichment idiom lives in one place.
+ *
+ * @param provider - The (counting) embedding provider.
+ * @param items - The work items to embed, in order.
+ * @param getText - Map an item to the text sent to the provider.
+ * @param getLabel - Map a work index to the label named in the error.
+ * @param pass - `"page"` or `"chunk"` — names the failing pass in the error.
+ * @returns One vector per item, in input order.
+ */
+export async function embedWorkItems<T>(
+  provider: LLMProvider,
+  items: T[],
+  getText: (item: T) => string,
+  getLabel: (index: number) => string | undefined,
+  pass: "page" | "chunk",
+  batchSize: number,
+  expectedDim?: number,
+): Promise<number[][]> {
+  try {
+    return await embedTextBatch(provider, items.map(getText), batchSize, expectedDim);
+  } catch (err) {
+    throw enrichEmbedError(err, pass, getLabel);
+  }
+}
+
 export type EmbeddingErrorClass = "integrity" | "auth" | "request-too-large" | "transient" | "unknown";
 
 /** Map any embedding error onto a stable, user-facing class label. */

@@ -48,16 +48,18 @@ describe("compile batches embeddings (subprocess)", () => {
     // the page pass emits 1 request and the chunk pass emits 1 request = 2 total.
     expect(embeddingRequests.length, formatCLIFailure(result)).toBeLessThan(3);
 
-    // (b) Store correctness — REQUIRED by spec. A v2 store with entries + chunks
-    // must actually be persisted; this only passes when the batched responses
-    // validate (one vector per input), so it is a genuine end-to-end check.
+    // (b) Store correctness — REQUIRED by spec. A v3 (pageId-keyed) store with
+    // entries + chunks must actually be persisted; this only passes when the
+    // batched responses validate (one vector per input), so it is a genuine
+    // end-to-end check.
     const storePath = path.join(cwd, ".llmwiki", "embeddings.json");
     expect(existsSync(storePath), formatCLIFailure(result)).toBe(true);
     const store = JSON.parse(await readFile(storePath, "utf-8")) as {
-      version: number; entries: unknown[]; chunks?: unknown[];
+      version: number; entries: Array<{ pageId?: string }>; chunks?: unknown[];
     };
-    expect(store.version).toBe(2);
+    expect(store.version).toBe(3);
     expect(store.entries.length).toBeGreaterThan(0);
     expect((store.chunks ?? []).length).toBeGreaterThan(0);
+    expect(store.entries[0].pageId).toMatch(/^concepts\//);
   }, 60_000);
 });

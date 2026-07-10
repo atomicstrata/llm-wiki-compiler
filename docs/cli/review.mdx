@@ -62,6 +62,8 @@ The output includes:
 - **Full page body** - the complete markdown content, exactly as it would be written to `wiki/`
 - **Schema violations** - any cross-link rules the page fails, if a schema is configured
 - **Provenance violations** - any broken or malformed citation markers
+- **Connector draft hash** - for connector candidates, the `draft-content-hash`
+  required by `review approve`
 
 Use `review show` to read the proposed page before deciding to approve or reject it.
 
@@ -72,6 +74,18 @@ Promote a candidate into the live wiki:
 ```bash
 llmwiki review approve <id>
 ```
+
+Connector-fetched candidates require an extra approval pin:
+
+```bash
+llmwiki review show <id>
+llmwiki review approve <id> --draft-content-hash <hash-from-show>
+```
+
+The hash is computed from the exact candidate body printed by `review show`.
+Approval re-reads and re-hashes the candidate under the project lock. If the
+body changed after you inspected it, approval refuses and you must review the
+candidate again.
 
 Approval does the following in order:
 
@@ -112,8 +126,22 @@ Every candidate records **why** it was held. The reason codes surface in `review
 | `contradicted` | Page declares `contradictedBy` entries |
 | `schema-violating` | Page fails a schema cross-link rule |
 | `provenance-violating` | Page has broken or malformed citations |
+| `imported-okf` | Page was imported from an OKF bundle |
+| `connector-fetched` | Page was fetched by a first-party connector |
 
 When you're using a [review policy](/configuration/review-policy), only pages that trip an enabled reason code are held - the rest are written live.
+
+## Typed and external candidates
+
+Profile-aware imports and connectors can stage typed candidates. `review show`
+prints the target entity directory, such as `wiki/papers/<slug>.md`, before you
+approve. Approval routes typed candidates through the active profile's field
+contracts, lifecycle rules, relation preconditions, and artifact preconditions.
+
+Imported OKF candidates and connector candidates are external content. Treat the
+body as untrusted until you have reviewed it. Connector-origin body and mapped
+field content are fenced in review, context, and export surfaces so agents see
+it as data rather than instructions.
 
 ---
 

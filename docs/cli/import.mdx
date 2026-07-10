@@ -44,6 +44,12 @@ The default path is safest for external bundles:
 
 Import runs under `.llmwiki/lock` because staging candidates is durable project state. It will fail rather than race with a concurrent compile, refresh, approve, or reject.
 
+When the receiving project has a non-default profile, OKF docs whose
+`x-llmwiki` metadata names a declared entity type are routed through the typed
+profile path. Untrusted imports stage typed review candidates. Trusted imports
+promote typed pages only after the same field, lifecycle, relation, and artifact
+checks used by normal typed writes.
+
 ---
 
 ## Preview with `--dry-run`
@@ -75,6 +81,11 @@ llmwiki import --okf ./internal-bundle --trusted
   `--trusted` bypasses human review. Do not use it for arbitrary third-party bundles, user-uploaded bundles, or bundles whose producer you have not verified.
 </Warning>
 
+For non-default profile projects, `--trusted` typed imports still route through
+the typed planner. Bundle relation entries apply only on trusted import and only
+through the validated relation store. Untrusted imports report relation entries
+as skipped instead of staging relation writes.
+
 ---
 
 ## What gets imported
@@ -90,6 +101,11 @@ Every non-reserved `.md` file in the bundle is treated as an OKF document if it 
 - OKF links are converted back to `[[wikilinks]]` when their target path resolves to a known imported page.
 
 Foreign producer-specific frontmatter is preserved under `x-okf.originalFrontmatter`, and the original bundle-relative path is preserved under `x-okf.okfPath`. If you later export with `llmwiki export --target okf`, llmwiki preserves foreign producer keys and raw foreign `type` values while refreshing current standard fields and `x-llmwiki` metadata.
+
+Profile-aware bundles can also carry inert bundle-level `x-llmwiki` metadata:
+profile identity, relation entries, and workflow run summaries. Import compares
+the bundle profile to the active local profile and reports mismatches. It does
+not install or migrate profiles.
 
 ---
 
