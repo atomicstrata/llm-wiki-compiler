@@ -40,11 +40,11 @@
   "author": "Ethan Joffe",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/atomicmemory/llm-wiki-compiler.git"
+    "url": "git+https://github.com/atomicstrata/llm-wiki-compiler.git"
   },
-  "homepage": "https://github.com/atomicmemory/llm-wiki-compiler#readme",
+  "homepage": "https://github.com/atomicstrata/llm-wiki-compiler#readme",
   "bugs": {
-    "url": "https://github.com/atomicmemory/llm-wiki-compiler/issues"
+    "url": "https://github.com/atomicstrata/llm-wiki-compiler/issues"
   },
   "files": [
     "dist/",

@@ -121,7 +121,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Verify package.json version matches payload
+      - name: Verify package identity matches payload and repository
         env:
           WANT: ${{ needs.resolve.outputs.version }}
         run: |
@@ -131,6 +131,12 @@ jobs:
             echo "::error::package.json at this SHA is ${actual}, payload says ${WANT}"; exit 1
           fi
           echo "ok: package.json is ${actual}"
+          actual_repository="$(node -p "require('./package.json').repository.url")"
+          expected_repository="git+https://github.com/${GITHUB_REPOSITORY}.git"
+          if [[ "${actual_repository}" != "${expected_repository}" ]]; then
+            echo "::error::package.json repository.url is ${actual_repository}, expected ${expected_repository}"; exit 1
+          fi
+          echo "ok: package repository is ${actual_repository}"
       - name: Refuse to republish an existing version
         env:
           WANT: ${{ needs.resolve.outputs.version }}
