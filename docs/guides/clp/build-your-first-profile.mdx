@@ -181,6 +181,7 @@ title: Explain the first profile
 
 Explain why this project uses custom issue pages and what information every issue should contain.
 '@
+$content = $content -replace "\r`n", "`n"
 [IO.File]::WriteAllText(
   "wiki/issues/explain-first-profile.md",
   $content + "`n",

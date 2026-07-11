@@ -41,6 +41,15 @@ describe("buildStarterProfile", () => {
     expect(() => buildStarterProfile(profileId, entityType)).toThrow(/lowercase letters, numbers, and hyphens/i);
   });
 
+  it.each([
+    ["default", "issues", "Profile name 'default'"],
+    ["issue-tracker", "concepts", "Page type 'concepts'"],
+    ["issue-tracker", "queries", "Page type 'queries'"],
+  ])("explains reserved beginner identifiers: %s / %s", (profileId, entityType, message) => {
+    expect(() => buildStarterProfile(profileId, entityType))
+      .toThrow(`${message} is already used by llmwiki; choose a different name`);
+  });
+
   it("title-cases hyphenated profile names deterministically", () => {
     expect(buildStarterProfile("release-issue-tracker", "tickets").displayName)
       .toBe("Release Issue Tracker");

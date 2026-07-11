@@ -19,14 +19,9 @@ export function registerProfileCommands(program: Command): void {
     .description("Create a minimal editable profile in an empty project")
     .argument("<profile-id>", "Lowercase profile name using letters, numbers, and hyphens")
     .requiredOption("--entity <entity-type>", "First kind of page to model")
-    .action(async (profileId: string, options: { entity: string }) => {
-      try {
-        await profileInit(profileId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exitCode = 1;
-      }
-    });
+    .action(async (profileId: string, options: { entity: string }) =>
+      runExitCodeCommand(() => profileInit(profileId, options)),
+    );
 
   profileCmd
     .command("show")

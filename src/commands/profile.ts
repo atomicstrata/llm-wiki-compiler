@@ -25,7 +25,8 @@ import { validateProfile } from "../profile/validate.js";
 import { isDefaultProfile } from "../profile/default.js";
 import { diffProfiles, DISPOSITIONS, type ProfileDiffReport } from "../profile/diff.js";
 import type { ProfilePack } from "../profile/types.js";
-import { installStarterProfile } from "../profile/scaffold.js";
+import { installStarterProfile, ProfileScaffoldError } from "../profile/scaffold.js";
+import { PROFILE_FILE } from "../utils/constants.js";
 
 /** Options accepted by `profile diff`. */
 export interface ProfileDiffOptions {
@@ -40,19 +41,27 @@ export interface ProfileInitOptions {
 }
 
 /** Author a deterministic minimal profile in an empty project. */
-export async function profileInit(profileId: string, options: ProfileInitOptions): Promise<void> {
+export async function profileInit(profileId: string, options: ProfileInitOptions): Promise<number> {
   try {
     const result = await installStarterProfile(process.cwd(), profileId, options.entity);
     console.log(`Created profile '${result.profileId}'`);
-    console.log("wrote .llmwiki/profile.json");
+    console.log(`wrote ${PROFILE_FILE}`);
     console.log(`created ${result.directory}/`);
     console.log("next: llmwiki profile validate");
+    return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const outcomeKnown = /no profile was installed|profile was installed/i.test(message);
-    const suffix = outcomeKnown ? "" : " No profile was installed.";
+    const suffix = error instanceof ProfileScaffoldError
+      ? outcomeSuffix(error.outcome)
+      : " No profile was installed.";
     throw new Error(`${message}${suffix}`);
   }
+}
+
+/** Describe an install outcome without inferring state from error prose. */
+function outcomeSuffix(outcome: ProfileScaffoldError["outcome"]): string {
+  if (outcome === "not-installed") return " No profile was installed.";
+  return "";
 }
 
 /** Print the active profile's id, digest, and source. Read-only. */

@@ -6,6 +6,16 @@ import {
   extractCitations,
 } from "../src/utils/markdown.js";
 
+function expectValidFrontmatter(content: string, expectedBody: string): void {
+  const status = parseFrontmatterStatus(content);
+  expect(status).toMatchObject({
+    hasFrontmatterBlock: true,
+    malformedFrontmatter: false,
+    meta: { title: "Test" },
+    body: expectedBody,
+  });
+}
+
 describe("buildFrontmatter", () => {
   it("wraps fields in YAML delimiters", () => {
     const result = buildFrontmatter({ title: "Test" });
@@ -108,11 +118,11 @@ describe("extractCitations", () => {
 
 describe("parseFrontmatterStatus", () => {
   it("flags well-formed frontmatter", () => {
-    const status = parseFrontmatterStatus("---\ntitle: Test\n---\nBody.");
-    expect(status.hasFrontmatterBlock).toBe(true);
-    expect(status.malformedFrontmatter).toBe(false);
-    expect(status.meta.title).toBe("Test");
-    expect(status.body).toBe("Body.");
+    expectValidFrontmatter("---\ntitle: Test\n---\nBody.", "Body.");
+  });
+
+  it("parses Windows CRLF frontmatter and preserves the body", () => {
+    expectValidFrontmatter("---\r\ntitle: Test\r\n---\r\nBody.\r\n", "Body.\r\n");
   });
 
   it("flags content without a frontmatter block", () => {

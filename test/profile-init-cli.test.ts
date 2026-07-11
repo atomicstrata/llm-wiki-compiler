@@ -64,6 +64,18 @@ describe("profile init CLI", () => {
     await expectFailedInstall(result, root, /lowercase letters, numbers, and hyphens/i);
   });
 
+  it.each([
+    [["profile", "init", "default", "--entity", "issues"], /Profile name 'default'.*already used/i],
+    [["profile", "init", "issue-tracker", "--entity", "concepts"], /Page type 'concepts'.*already used/i],
+    [["profile", "init", "issue-tracker", "--entity", "queries"], /Page type 'queries'.*already used/i],
+  ])("rejects reserved names with beginner-facing guidance", async (args, message) => {
+    const root = await roots.create("profile-init-reserved");
+
+    const result = await runCLI(args as string[], root);
+
+    await expectFailedInstall(result, root, message as RegExp);
+  });
+
   it("help distinguishes profile authoring from templates", async () => {
     const root = await roots.create("profile-init-help");
 

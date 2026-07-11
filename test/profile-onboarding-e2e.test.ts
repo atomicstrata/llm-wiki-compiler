@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { PROFILE_FILE } from "../src/utils/constants.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
+import { stripAnsi } from "./fixtures/cli-runner.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { runCLI } from "./fixtures/run-cli.js";
 
@@ -48,13 +49,18 @@ async function addRequiredPriority(): Promise<void> {
   await writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
 }
 
+function expectLintSummary(stdout: string, expected: [number, number, number]): void {
+  const summary = stripAnsi(stdout).match(/(\d+) error\(s\).*?(\d+) warning\(s\).*?(\d+) info/);
+  expect(summary?.slice(1).map(Number)).toEqual(expected);
+}
+
 describe("CLP profile onboarding", () => {
   it("runs scaffold, validation, page, deliberate error, repair, and viewer proof", async () => {
     await scaffoldTutorialProject();
 
     const firstLint = await runCLI(["lint"], root);
     expect(firstLint.code).toBe(0);
-    expect(firstLint.stdout).toMatch(/0 error\(s\).*0 warning\(s\).*0 info/s);
+    expectLintSummary(firstLint.stdout, [0, 0, 0]);
     const snapshot = await buildViewerSnapshot(root);
     expect(snapshot.profile?.entityCounts.issues).toBe(1);
     expect(snapshot.graph.nodes.some((node) => node.id === "issues/explain-first-profile"))
@@ -65,12 +71,12 @@ describe("CLP profile onboarding", () => {
     const brokenLint = await runCLI(["lint"], root);
     expect(brokenLint.code).toBe(0);
     expect(brokenLint.stdout).toMatch(/Required field "priority" is missing from frontmatter/);
-    expect(brokenLint.stdout).toMatch(/0 error\(s\).*1 warning\(s\).*0 info/s);
+    expectLintSummary(brokenLint.stdout, [0, 1, 0]);
 
     await writeFile(path.join(root, ISSUE_PATH), ISSUE_BODY.replace("title:", "priority: normal\ntitle:"), "utf8");
     expect((await runCLI(["profile", "validate"], root)).code).toBe(0);
     const repairedLint = await runCLI(["lint"], root);
     expect(repairedLint.code).toBe(0);
-    expect(repairedLint.stdout).toMatch(/0 error\(s\).*0 warning\(s\).*0 info/s);
+    expectLintSummary(repairedLint.stdout, [0, 0, 0]);
   });
 });

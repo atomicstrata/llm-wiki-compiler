@@ -357,7 +357,7 @@ function scanToRawWikiPage(scan: RawEntityScan, pageDirectory: PageDirectory): R
     slug: scan.stem,
     pageDirectory,
     filePath: scan.filePath,
-    title,
+    ...(title === undefined ? {} : { title }),
     frontmatter: scan.frontmatter,
     body: scan.body,
     parseStatus: scan.parseStatus,

@@ -400,17 +400,20 @@
     "title": "Bulk 24"
   },
   {
-    "body": "---\r\ntitle: CRLF\r\n---\r\n\r\n# CRLF\r\n\r\nLine one.\r\nLine two.\r\n",
+    "body": "\r\n# CRLF\r\n\r\nLine one.\r\nLine two.\r\n",
     "filePath": "<ROOT>/wiki/concepts/crlf.md",
-    "frontmatter": {},
+    "frontmatter": {
+      "title": "CRLF"
+    },
     "pageDirectory": "concepts",
     "parseStatus": {
-      "hasFrontmatterBlock": false,
-      "hasTitle": false,
+      "hasFrontmatterBlock": true,
+      "hasTitle": true,
       "malformedFrontmatter": false,
       "orphaned": false
     },
-    "slug": "crlf"
+    "slug": "crlf",
+    "title": "CRLF"
   },
   {
     "body": "",
