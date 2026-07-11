@@ -48,7 +48,7 @@ wiki/
     Tracks per-source SHA-256 content hashes and the concept slugs each source owns. On every compile, llmwiki compares live file hashes against this state to determine what needs reprocessing. This is what makes incremental compilation possible.
   </Card>
   <Card title="embeddings.json" icon="vector-square">
-    The v2 embedding store. Carries page-level and chunk-level vectors used by `llmwiki query` and `llmwiki context` for cosine-similarity retrieval. Updated incrementally alongside source changes - only chunks whose content changed are re-embedded.
+    The v3 embedding store. Carries page-level and chunk-level vectors under qualified page ids for `llmwiki query` and `llmwiki context` cosine-similarity retrieval. Updated incrementally alongside source changes - only chunks whose content changed are re-embedded.
   </Card>
   <Card title="candidates/" icon="clock">
     JSON records for pages held for review - either via `llmwiki compile --review`, triggered automatically by a review policy in `config.json`, or staged by `llmwiki import --okf`. Each candidate records exactly why it was held (low confidence, contradicted, schema-violating, provenance-violating, or imported from OKF). Rejected candidates move to `candidates/archive/` for audit.

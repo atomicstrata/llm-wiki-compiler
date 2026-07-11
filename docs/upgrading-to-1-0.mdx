@@ -1,0 +1,119 @@
+---
+title: "Upgrading from 0.11 to 1.0"
+sidebarTitle: "Upgrade to 1.0"
+description: "Upgrade an existing llmwiki project to 1.0 without changing its default profile, and complete the one-time embedding index transition."
+---
+
+<Note>
+  Existing projects that use `wiki/concepts/` and `wiki/queries/` do not need a
+  profile or content migration. When `.llmwiki/profile.json` is absent, llmwiki
+  1.0 continues to use the implicit `default` profile and the classic directory
+  layout.
+</Note>
+
+## Before you upgrade
+
+llmwiki 0.11 and 1.0 both require Node.js 24 or newer:
+
+```bash
+node --version
+```
+
+Before the first 1.0 command that writes project state, commit or back up your
+project. Include `.llmwiki/` in the backup if you may need to restore the old
+embedding index; that directory is commonly excluded from version control.
+
+## Install 1.0
+
+```bash
+npm install -g llm-wiki-compiler@1
+llmwiki --version
+```
+
+Run these checks from the root of your existing project:
+
+```bash
+llmwiki profile show
+llmwiki profile validate
+llmwiki status
+llmwiki lint
+```
+
+For a classic project, `profile show` reports the built-in `default` profile.
+The upgrade does not create `.llmwiki/profile.json`, move pages, or reinterpret
+`wiki/concepts/` and `wiki/queries/` as a new domain model.
+
+## Refresh the embedding index
+
+llmwiki 1.0 advances `.llmwiki/embeddings.json` from v2 to v3. The v3 format
+uses qualified page ids so a concept and a profile-defined entity with the same
+slug cannot collide.
+
+The transition happens automatically on the next embedding-writing command,
+normally:
+
+```bash
+llmwiki compile
+```
+
+The migration content-checks existing vectors. It preserves vectors that map
+unambiguously to live pages and re-embeds entries that are stale or ambiguous.
+This command can call your configured embedding provider and incur its normal
+usage cost.
+
+Until the transition runs, semantic retrieval reports
+`embedding-index-outdated`. Lexical retrieval remains available, so you can
+defer the compile if you do not need semantic search immediately.
+
+## Check wiki symlinks
+
+Version 1.0 never reads a wiki file through a symlink whose target escapes the
+project root. This prevents out-of-project content from reaching prompts or
+generated pages.
+
+List symlinks before compiling:
+
+```bash
+find wiki -type l -print
+```
+
+In-project symlinks remain supported. For an escaping symlink, copy the content
+into the project or retarget the link beneath the project root. llmwiki drops
+an escaping wiki file and prints a warning instead of following it.
+
+## Do not install a template over an existing wiki
+
+The `autosci` and `newsroom` templates initialize new or empty typed projects.
+They are not migrations for an existing default wiki.
+
+Do not run either command in a populated project:
+
+```bash
+llmwiki template init autosci
+llmwiki template init newsroom
+```
+
+The installer checks the existing typed corpus and refuses the replacement,
+even when the project has no explicit profile file. To use a template, create a
+new project and move or import content deliberately.
+
+## State reset is not an upgrade step
+
+Do not run `llmwiki state reset` during a normal 0.11-to-1.0 upgrade. That
+command is a recovery tool for a corrupt state file or one written by a newer,
+forward-incompatible llmwiki build. Version 1.0 reads a healthy 0.11 state file
+without resetting it.
+
+## Upgrade checklist
+
+- `llmwiki --version` reports `1.0.0` or newer.
+- `llmwiki profile show` reports `default` for a classic project.
+- `llmwiki profile validate` succeeds.
+- Existing pages remain under `wiki/concepts/` and `wiki/queries/`.
+- `llmwiki status` and `llmwiki lint` complete without unexpected problems.
+- A subsequent `llmwiki compile` updates the embedding index when semantic
+  retrieval is in use.
+- Any wiki symlinks resolve within the project root.
+
+For the new profile system, see [Configurable Lifecycle Profiles](/concepts/configurable-lifecycle-profiles).
+For state-version recovery, see [State recovery](/troubleshooting/state-recovery).

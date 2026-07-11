@@ -59,7 +59,7 @@ Retrieval runs over the compiled wiki, not raw source chunks.
 
 <Steps>
   <Step title="Cosine similarity">
-    `.llmwiki/embeddings.json` v2 carries both page-level and chunk-level vectors. A query narrows hundreds of pages to a small top-K via cosine similarity over chunk embeddings.
+    `.llmwiki/embeddings.json` v3 carries page-level and chunk-level vectors under qualified page ids. A query narrows hundreds of pages to a small top-K via cosine similarity over chunk embeddings.
   </Step>
   <Step title="BM25 rerank">
     The candidate set is reranked using BM25 to boost lexically relevant pages that dense retrieval may have under-ranked.
