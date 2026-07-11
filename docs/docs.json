@@ -94,6 +94,7 @@
                 "group": "Configurable Lifecycle Profiles",
                 "expanded": false,
                 "pages": [
+                  "guides/clp/build-your-first-profile",
                   "guides/autosci-research-workflow",
                   "guides/newsroom-editorial-workflow"
                 ]

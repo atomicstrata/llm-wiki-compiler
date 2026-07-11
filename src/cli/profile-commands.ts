@@ -1,20 +1,32 @@
 /**
  * @file src/cli/profile-commands.ts
- * @description Registers the `profile` command group: read-only inspection
- * of the active wiki profile (`profile show`, `profile validate`,
- * `profile diff`). Moved out of `src/cli.ts` verbatim (pure move, no
- * behavior change) as part of the per-domain command split.
+ * @description Registers active-profile inspection plus the deterministic
+ * beginner `profile init` authoring command.
  */
 
 import type { Command } from "commander";
-import { profileShow, profileValidate, profileDiff } from "../commands/profile.js";
+import { profileShow, profileValidate, profileDiff, profileInit } from "../commands/profile.js";
 import { runExitCodeCommand } from "./shared.js";
 
-/** Register the `profile` command group (`show`, `validate`, `diff`) on `program`. */
+/** Register the `profile` inspection and starter-authoring commands. */
 export function registerProfileCommands(program: Command): void {
   const profileCmd = program
     .command("profile")
-    .description("Inspect the active wiki profile (read-only: show, validate, diff)");
+    .description("Create or inspect the active wiki profile");
+
+  profileCmd
+    .command("init")
+    .description("Create a minimal editable profile in an empty project")
+    .argument("<profile-id>", "Lowercase profile name using letters, numbers, and hyphens")
+    .requiredOption("--entity <entity-type>", "First kind of page to model")
+    .action(async (profileId: string, options: { entity: string }) => {
+      try {
+        await profileInit(profileId, options);
+      } catch (err) {
+        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+        process.exitCode = 1;
+      }
+    });
 
   profileCmd
     .command("show")

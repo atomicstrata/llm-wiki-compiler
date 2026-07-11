@@ -1,16 +1,40 @@
 ---
 title: "profile"
 sidebarTitle: "profile"
-description: "Inspect and validate the active wiki profile."
+description: "Create, inspect, and validate the active wiki profile."
 ---
 
-`llmwiki profile` is the read-only command group for the active profile.
+`llmwiki profile` creates a minimal local profile or inspects the active profile.
 A profile defines the typed entity directories, relations, lifecycles,
 artifacts, workflows, connector bindings, and content tiers that a project uses.
 
 If `.llmwiki/profile.json` is absent, llmwiki uses the built-in `default`
 profile. The default profile preserves the classic `wiki/concepts/` and
 `wiki/queries/` layout.
+
+## Create a minimal profile
+
+Use `profile init` in an empty project when you want to author a profile rather
+than install a complete template.
+
+```bash
+llmwiki profile init issue-tracker --entity issues
+```
+
+The command writes `.llmwiki/profile.json` and creates `wiki/issues/`. The
+generated profile requires a text `title` on every issue page. It validates the
+profile before writing and refuses if an active profile or typed project content
+already exists. There is no `--force` option.
+
+```text
+Created profile 'issue-tracker'
+wrote .llmwiki/profile.json
+created wiki/issues/
+next: llmwiki profile validate
+```
+
+See [Build your first profile](/guides/clp/build-your-first-profile) for the
+complete beginner walkthrough.
 
 ## Show the active profile
 

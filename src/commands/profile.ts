@@ -1,5 +1,5 @@
 /**
- * Commander actions for `llmwiki profile` subcommands — all READ-ONLY.
+ * Commander actions for `llmwiki profile` inspection and starter authoring.
  *
  * - `profile show` prints the active profile's id, digest, and the file it was
  *   loaded from (or that it is the built-in default).
@@ -25,12 +25,34 @@ import { validateProfile } from "../profile/validate.js";
 import { isDefaultProfile } from "../profile/default.js";
 import { diffProfiles, DISPOSITIONS, type ProfileDiffReport } from "../profile/diff.js";
 import type { ProfilePack } from "../profile/types.js";
+import { installStarterProfile } from "../profile/scaffold.js";
 
 /** Options accepted by `profile diff`. */
 export interface ProfileDiffOptions {
   candidate?: string;
   from?: string;
   to?: string;
+}
+
+/** Options accepted by `profile init`. */
+export interface ProfileInitOptions {
+  entity: string;
+}
+
+/** Author a deterministic minimal profile in an empty project. */
+export async function profileInit(profileId: string, options: ProfileInitOptions): Promise<void> {
+  try {
+    const result = await installStarterProfile(process.cwd(), profileId, options.entity);
+    console.log(`Created profile '${result.profileId}'`);
+    console.log("wrote .llmwiki/profile.json");
+    console.log(`created ${result.directory}/`);
+    console.log("next: llmwiki profile validate");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const outcomeKnown = /no profile was installed|profile was installed/i.test(message);
+    const suffix = outcomeKnown ? "" : " No profile was installed.";
+    throw new Error(`${message}${suffix}`);
+  }
 }
 
 /** Print the active profile's id, digest, and source. Read-only. */

@@ -1,0 +1,332 @@
+---
+title: "Build your first profile"
+sidebarTitle: "Build your first profile"
+description: "Create a custom issue-tracker profile, add a valid page, and see llmwiki recognize it in about ten minutes."
+mode: "wide"
+---
+
+import { ProfileExplorer } from '/snippets/ProfileExplorer.jsx';
+import { starterProfileText, profileExplanations } from '/snippets/profile-onboarding-data.mdx';
+
+Create a small custom profile in a real local project. You will define issue
+pages, add one issue, check it, and make one controlled change to the rules.
+
+<CardGroup cols={3}>
+  <Card title="Skill level">Beginner</Card>
+  <Card title="Time">About 10 minutes</Card>
+  <Card title="Result">One valid custom issue page</Card>
+</CardGroup>
+
+## Before you start
+
+Install llmwiki 1.0 or later, then check the version in any directory.
+
+**Run in:** any directory<br />
+**Does:** confirms that the CLI is available<br />
+**Writes:** nothing
+
+```bash
+llmwiki --version
+```
+
+**You should see:** version `1.0.0` or later<br />
+**If it fails:** follow [Installation](/installation), then open a new terminal.
+
+## Your five steps
+
+1. Create an empty project and its profile.
+2. Validate and understand the generated file.
+3. Add your first issue.
+4. Check what llmwiki recognizes.
+5. Add a priority rule, see one useful warning, and repair the issue.
+
+## Step 1: Create the project
+
+Create and enter a new folder. Keep each command separate so it is clear which
+step failed if your shell reports an error.
+
+**Run in:** the folder where you keep projects<br />
+**Does:** creates the tutorial project folder<br />
+**Writes:** `issue-tracker-wiki/`
+
+```bash
+mkdir issue-tracker-wiki
+```
+
+**Run in:** the folder where you keep projects<br />
+**Does:** enters the project<br />
+**Writes:** nothing
+
+```bash
+cd issue-tracker-wiki
+```
+
+Now create the smallest useful profile.
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** defines one kind of page called `issues`<br />
+**Writes:** `.llmwiki/profile.json` and `wiki/issues/`
+
+```bash
+llmwiki profile init issue-tracker --entity issues
+```
+
+**You should see:**
+
+```text
+Created profile 'issue-tracker'
+wrote .llmwiki/profile.json
+created wiki/issues/
+next: llmwiki profile validate
+```
+
+**Checkpoint:** both paths shown above exist.<br />
+**If it fails:** use an empty project. The command refuses to replace an active
+profile or reinterpret existing wiki content. It never offers a force option.
+
+## Step 2: Validate and understand the profile
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** checks that every profile rule is supported and internally consistent<br />
+**Writes:** nothing
+
+```bash
+llmwiki profile validate
+```
+
+**You should see:**
+
+```text
+Profile 'issue-tracker' is valid
+```
+
+<Visibility for="humans">
+  <ProfileExplorer
+    profileText={starterProfileText}
+    explanations={profileExplanations}
+    continueTarget="step-3-add-your-first-issue"
+  />
+</Visibility>
+
+<Visibility for="agents">
+
+### Generated profile
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "issue-tracker",
+  "displayName": "Issue Tracker",
+  "entities": {
+    "issues": {
+      "directory": "wiki/issues",
+      "titleField": "title",
+      "requiredFields": [
+        "title"
+      ],
+      "fields": {
+        "title": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
+```
+
+1. **File format version (`schemaVersion`)** tells llmwiki which profile format the file uses.
+2. **Profile name (`profileId`, `displayName`)** supplies a stable internal name and readable label.
+3. **Kinds of pages (`entities`, `issues`)** declares that this project stores issue pages.
+4. **Where pages live (`directory`)** places issue pages in `wiki/issues/`.
+5. **Required page title (`titleField`, `requiredFields`, `fields.title`)** requires every issue to have a text title.
+
+</Visibility>
+
+**Checkpoint:** you can identify where issue pages belong and which information
+each issue must contain.
+
+## Step 3: Add your first issue
+
+Create `wiki/issues/explain-first-profile.md` with the following exact content.
+
+<Tabs>
+  <Tab title="macOS and Linux">
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** creates the first issue page<br />
+**Writes:** `wiki/issues/explain-first-profile.md`
+
+```bash
+cat > wiki/issues/explain-first-profile.md <<'EOF'
+---
+title: Explain the first profile
+---
+
+Explain why this project uses custom issue pages and what information every issue should contain.
+EOF
+```
+
+  </Tab>
+  <Tab title="PowerShell">
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** creates the first issue page<br />
+**Writes:** `wiki/issues/explain-first-profile.md`
+
+```powershell
+$content = @'
+---
+title: Explain the first profile
+---
+
+Explain why this project uses custom issue pages and what information every issue should contain.
+'@
+[IO.File]::WriteAllText(
+  "wiki/issues/explain-first-profile.md",
+  $content + "`n",
+  [Text.UTF8Encoding]::new($false)
+)
+```
+
+  </Tab>
+</Tabs>
+
+**Checkpoint:** the new Markdown file exists under `wiki/issues/`.<br />
+**If it fails:** confirm that you are inside `issue-tracker-wiki/` and that Step
+1 created `wiki/issues/`.
+
+## Step 4: Check what llmwiki recognizes
+
+First check the page against the active profile.
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** checks existing pages against the profile rules<br />
+**Writes:** `.llmwiki/last-lint.json`
+
+```bash
+llmwiki lint
+```
+
+**You should see:**
+
+```text
+0 error(s), 0 warning(s), 0 info
+```
+
+Then open the local read-only viewer.
+
+**Run in:** `issue-tracker-wiki/`<br />
+**Does:** starts a local viewer and asks your operating system to open it<br />
+**Writes:** nothing
+
+```bash
+llmwiki view --open
+```
+
+The port varies, so the readiness line looks like:
+
+```text
+Viewer ready at http://127.0.0.1:PORT
+```
+
+Open **Graph** and find `Explain the first profile`. The issue appears as a
+typed graph node. This proves llmwiki recognized the file under your profile;
+the current viewer does not open typed issue bodies as ordinary page routes.
+Press `Ctrl+C` in the terminal when you are finished.
+
+<Accordion title="The browser did not open">
+Run `llmwiki view` without `--open`, then copy the printed loopback URL into a
+browser. This is the normal approach over SSH, in a container, or on a headless
+machine.
+</Accordion>
+
+## Step 5: Add a rule and repair one issue
+
+Open `.llmwiki/profile.json`. Add `priority` to `requiredFields`, then add its
+definition beside `title` under `fields`. The complete result is below; the new
+parts are the second required field and the `priority` definition.
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "issue-tracker",
+  "displayName": "Issue Tracker",
+  "entities": {
+    "issues": {
+      "directory": "wiki/issues",
+      "titleField": "title",
+      "requiredFields": [
+        "title",
+        "priority"
+      ],
+      "fields": {
+        "title": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "enum",
+          "enum": ["low", "normal", "high"]
+        }
+      }
+    }
+  }
+}
+```
+
+Validate the rules first.
+
+```bash
+llmwiki profile validate
+```
+
+It succeeds because the profile is valid. Now check the existing issue:
+
+```bash
+llmwiki lint
+```
+
+**You should see:**
+
+```text
+warning .../wiki/issues/explain-first-profile.md Required field "priority" is missing from frontmatter.
+0 error(s), 1 warning(s), 0 info
+```
+
+This warning is deliberate. Profile validation checks the rules themselves;
+lint checks your pages against those rules.
+
+Add one line to the issue's frontmatter:
+
+```yaml
+---
+title: Explain the first profile
+priority: normal
+---
+```
+
+Run both checks again:
+
+```bash
+llmwiki profile validate
+```
+
+```bash
+llmwiki lint
+```
+
+**You should see:** `0 error(s), 0 warning(s), 0 info`.
+
+<Check>
+You created a custom profile, added a page that follows it, changed one rule,
+and repaired the resulting warning. Every checkpoint is an ordinary project
+file that you can edit and commit.
+</Check>
+
+## Where to go next
+
+- Add allowed status changes to model `open`, `in-progress`, and `done`.
+- Add a `blocks` relation between issues.
+- Add a triage workflow.
+- Package your profile with [Profile templates](/configuration/profile-templates).
+- Follow [AutoSci Research Workflow](/guides/autosci-research-workflow) for artifacts, connectors, and research gates.
+- Follow [Newsroom Editorial Workflow](/guides/newsroom-editorial-workflow) for a smaller editorial model.

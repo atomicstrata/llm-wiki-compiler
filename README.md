@@ -161,7 +161,7 @@ The [`examples/basic/`](examples/basic/) directory includes a small pre-generate
 | `llmwiki compile` | Incrementally extract concepts and generate wiki pages. |
 | `llmwiki refresh --stale [--dry-run]` | Recompile changed owners of stale pages and clean selected orphaned ownership. |
 | `llmwiki template list\|inspect\|init` | Discover and install validated declarative profile templates. |
-| `llmwiki profile show\|validate\|diff` | Inspect, validate, and assess changes to the active profile. |
+| `llmwiki profile init\|show\|validate\|diff` | Create a minimal profile, inspect it, validate it, or assess profile changes. |
 | `llmwiki workflow ...` | Discover and drive profile-declared workflows, stages, gates, and outputs. |
 | `llmwiki artifact write\|verify` | Write trusted profile-declared artifacts and verify hash-pinned references. |
 | `llmwiki connector list\|run` | Discover first-party connectors and stage external records for review. |

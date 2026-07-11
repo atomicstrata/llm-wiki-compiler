@@ -1,0 +1,57 @@
+export const starterProfileText = `{
+  "schemaVersion": 1,
+  "profileId": "issue-tracker",
+  "displayName": "Issue Tracker",
+  "entities": {
+    "issues": {
+      "directory": "wiki/issues",
+      "titleField": "title",
+      "requiredFields": [
+        "title"
+      ],
+      "fields": {
+        "title": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}`;
+
+export const profileExplanations = [
+  {
+    title: "File format version",
+    key: "schemaVersion",
+    lines: [2],
+    description: "Tells llmwiki which version of the profile format this file uses.",
+    importance: "Keep this at 1. llmwiki checks it before using any of the rules below."
+  },
+  {
+    title: "Profile name",
+    key: "profileId and displayName",
+    lines: [3, 4],
+    description: "Gives your project rules a stable internal name and a readable label.",
+    importance: "The internal name is used by tools. The readable label is what people see."
+  },
+  {
+    title: "Kinds of pages",
+    key: "entities and issues",
+    lines: [5, 6],
+    description: "Declares that this project stores a kind of page called an issue.",
+    importance: "You can add more page kinds later, such as projects, decisions, or customers."
+  },
+  {
+    title: "Where pages live",
+    key: "directory",
+    lines: [7],
+    description: "Places issue pages in the wiki/issues folder.",
+    importance: "llmwiki uses this folder to recognize which rules apply to each page."
+  },
+  {
+    title: "Required page title",
+    key: "titleField, requiredFields, and fields.title",
+    lines: [8, 9, 10, 11, 12, 13, 14, 15, 16],
+    description: "Requires every issue page to include a title made from text.",
+    importance: "If a page is missing its title, lint points to that page and explains the problem."
+  }
+];
