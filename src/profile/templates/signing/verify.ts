@@ -7,20 +7,18 @@ import { createPublicKey, verify } from "node:crypto";
 import type { ProfileTemplatePackage } from "../types.js";
 import { validateTemplatePackage } from "../validate.js";
 import { canonicalBytes, canonicalDigest, packageClaim, rotationClaim, tapRotationClaim } from "./canonical.js";
-import { parseTemplateCoordinate } from "./protocol.js";
+import { parseTemplateCoordinate, type ParsedSignedPackage, type ParsedTapIndex } from "./protocol.js";
 import type {
   Ed25519Signature,
   PublisherKey,
   PublisherRotation,
   PublisherPinState,
-  SignedPackageEnvelope,
-  SignedTapIndex,
   TapKeyRotation,
 } from "./types.js";
 
 declare const VERIFIED_TAP_INDEX: unique symbol;
 /** Tap index whose signature, identity, and freshness were verified. */
-export type VerifiedTapIndex = SignedTapIndex & { readonly [VERIFIED_TAP_INDEX]: true };
+export type VerifiedTapIndex = ParsedTapIndex & { readonly [VERIFIED_TAP_INDEX]: true };
 
 /** Typed refusal preserving the failed provenance layer. */
 class TemplateVerificationError extends Error {
@@ -32,7 +30,7 @@ class TemplateVerificationError extends Error {
 
 /** Verify a tap snapshot against an explicitly trusted tap key and identity. */
 export function verifyTapIndex(
-  index: SignedTapIndex,
+  index: ParsedTapIndex,
   expectedTap: string,
   trustedKey: PublisherKey,
   now = new Date(),
@@ -47,7 +45,7 @@ export function verifyTapIndex(
 
 /** Verify one package against the exact signed index entry and publisher key. */
 export function verifySignedPackage(
-  envelope: SignedPackageEnvelope,
+  envelope: ParsedSignedPackage,
   index: VerifiedTapIndex,
   state: PublisherPinState,
   currentVersion: string,

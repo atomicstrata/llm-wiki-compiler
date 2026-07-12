@@ -28,6 +28,13 @@ export interface TemplateCoordinate {
   version: string;
 }
 
+declare const PARSED_TAP_INDEX: unique symbol;
+declare const PARSED_SIGNED_PACKAGE: unique symbol;
+/** Tap index that passed bounded JSON and complete structural validation. */
+export type ParsedTapIndex = SignedTapIndex & { readonly [PARSED_TAP_INDEX]: true };
+/** Package envelope that passed bounded JSON and structural validation. */
+export type ParsedSignedPackage = SignedPackageEnvelope & { readonly [PARSED_SIGNED_PACKAGE]: true };
+
 /** Parse one unambiguous fully qualified package coordinate. */
 export function parseTemplateCoordinate(value: string): TemplateCoordinate {
   const match = COORDINATE.exec(value);
@@ -36,7 +43,7 @@ export function parseTemplateCoordinate(value: string): TemplateCoordinate {
 }
 
 /** Parse a signed package envelope from bounded unique-key JSON bytes. */
-export function parseSignedPackage(text: string): SignedPackageEnvelope {
+export function parseSignedPackage(text: string): ParsedSignedPackage {
   const obj = record(parseBoundedUniqueJson(text, MAX_SIGNED_PACKAGE_BYTES), "package envelope");
   exactKeys(obj, ["schemaVersion", "coordinate", "payload", "payloadDigest", "publisherSignature"]);
   equal(obj.schemaVersion, 1, "package schemaVersion must be 1");
@@ -48,11 +55,11 @@ export function parseSignedPackage(text: string): SignedPackageEnvelope {
     payload: record(obj.payload, "payload") as unknown as SignedPackageEnvelope["payload"],
     payloadDigest: digest(obj.payloadDigest),
     publisherSignature: signature(obj.publisherSignature),
-  };
+  } as ParsedSignedPackage;
 }
 
 /** Parse a signed tap index from bounded unique-key JSON bytes. */
-export function parseSignedTapIndex(text: string): SignedTapIndex {
+export function parseSignedTapIndex(text: string): ParsedTapIndex {
   const obj = record(parseBoundedUniqueJson(text, MAX_TAP_INDEX_BYTES), "tap index");
   exactKeys(obj, indexKeys(), ["tapKeyRotation"]);
   equal(obj.schemaVersion, 1, "tap index schemaVersion must be 1");
@@ -72,7 +79,7 @@ export function parseSignedTapIndex(text: string): SignedTapIndex {
     signature: signature(obj.signature),
   };
   validateIndexRelationships(index);
-  return index;
+  return index as ParsedTapIndex;
 }
 
 function indexKeys(): string[] {

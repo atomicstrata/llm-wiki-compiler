@@ -48,23 +48,44 @@ function acceptedPublisherKey(
 ): PublisherKey {
   if (!pinned) return announced;
   if (sameKey(pinned, announced)) return pinned;
-  const rotation = matchingRotation(index.rotations, publisher, pinned, announced, index.sequence);
-  if (!rotation) throw new Error(`publisher key changed without a valid rotation: ${publisher}`);
-  verifyPublisherRotation(index.tap, rotation, pinned);
-  return announced;
+  return followRotationChain(index, publisher, pinned, announced);
 }
 
-function matchingRotation(
+function followRotationChain(
+  index: VerifiedTapIndex,
+  publisher: string,
+  pinned: PublisherKey,
+  announced: PublisherKey,
+): PublisherKey {
+  const rotations = rotationMap(index.rotations, publisher, index.sequence);
+  let current = pinned;
+  let previousSequence = -1;
+  const visited = new Set<string>([current.keyId]);
+  while (!sameKey(current, announced)) {
+    const rotation = rotations.get(current.keyId);
+    if (!rotation) throw new Error(`publisher key changed without a valid rotation chain: ${publisher}`);
+    if (rotation.effectiveSequence <= previousSequence) throw new Error(`publisher rotation sequence is not increasing: ${publisher}`);
+    verifyPublisherRotation(index.tap, rotation, current);
+    if (visited.has(rotation.toKey.keyId)) throw new Error(`publisher rotation cycle: ${publisher}`);
+    visited.add(rotation.toKey.keyId);
+    current = rotation.toKey;
+    previousSequence = rotation.effectiveSequence;
+  }
+  return current;
+}
+
+function rotationMap(
   rotations: PublisherRotation[],
   publisher: string,
-  from: PublisherKey,
-  to: PublisherKey,
-  sequence: number,
-): PublisherRotation | undefined {
-  return rotations.find((item) => item.publisher === publisher
-    && item.fromKeyId === from.keyId
-    && sameKey(item.toKey, to)
-    && item.effectiveSequence === sequence);
+  currentSequence: number,
+): Map<string, PublisherRotation> {
+  const result = new Map<string, PublisherRotation>();
+  for (const rotation of rotations) {
+    if (rotation.publisher !== publisher || rotation.effectiveSequence > currentSequence) continue;
+    if (result.has(rotation.fromKeyId)) throw new Error(`ambiguous publisher rotation chain: ${publisher}`);
+    result.set(rotation.fromKeyId, rotation);
+  }
+  return result;
 }
 
 function assertCoordinateContinuity(index: VerifiedTapIndex, prior: PublisherPinState): void {

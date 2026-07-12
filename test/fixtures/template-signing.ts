@@ -5,6 +5,12 @@
  */
 import { createPrivateKey, sign } from "node:crypto";
 import { canonicalBytes, canonicalDigest, packageClaim, rotationClaim, tapRotationClaim } from "../../src/profile/templates/signing/canonical.js";
+import {
+  parseSignedPackage,
+  parseSignedTapIndex,
+  type ParsedSignedPackage,
+  type ParsedTapIndex,
+} from "../../src/profile/templates/signing/protocol.js";
 import type {
   Ed25519Signature,
   PublisherKey,
@@ -33,6 +39,7 @@ export const PUBLISHER_KEY_2: PublisherKey = {
   keyId: "publisher-key-2",
   publicKey: "MCowBQYDK2VwAyEA1x7Pt3kbQIlLnFgNnx382iiEsA4v/h1YqKWzzIkYYuU=",
 };
+export const PUBLISHER_KEY_3: PublisherKey = { ...TAP_KEY, keyId: "publisher-key-3" };
 export const TAP_KEY_2: PublisherKey = { ...PUBLISHER_KEY_2, keyId: "tap-key-2" };
 
 export const COORDINATE = "official/atomicstrata/team@1.0.0";
@@ -62,6 +69,10 @@ export function signedPackage(payload = remotePackage()): SignedPackageEnvelope 
   };
 }
 
+export function parsedPackage(payload = remotePackage()): ParsedSignedPackage {
+  return parseSignedPackage(JSON.stringify(signedPackage(payload)));
+}
+
 export function signedIndex(overrides: Partial<SignedTapIndex> = {}): SignedTapIndex {
   const envelope = signedPackage();
   const unsigned: Omit<SignedTapIndex, "signature"> = {
@@ -79,6 +90,10 @@ export function signedIndex(overrides: Partial<SignedTapIndex> = {}): SignedTapI
   return { ...unsigned, signature: signClaim(unsigned, "tap", TAP_KEY.keyId) };
 }
 
+export function parsedIndex(overrides: Partial<SignedTapIndex> = {}): ParsedTapIndex {
+  return parseSignedTapIndex(JSON.stringify(signedIndex(overrides)));
+}
+
 export function signedRotation(sequence = 2): PublisherRotation {
   const base = {
     publisher: "atomicstrata",
@@ -91,6 +106,21 @@ export function signedRotation(sequence = 2): PublisherRotation {
     ...base,
     oldSignature: signClaim(claim, "publisher", PUBLISHER_KEY.keyId),
     newSignature: signClaim(claim, "publisher2", PUBLISHER_KEY_2.keyId),
+  };
+}
+
+export function signedSecondRotation(sequence = 3): PublisherRotation {
+  const base = {
+    publisher: "atomicstrata",
+    fromKeyId: PUBLISHER_KEY_2.keyId,
+    toKey: PUBLISHER_KEY_3,
+    effectiveSequence: sequence,
+  };
+  const claim = rotationClaim("official", base);
+  return {
+    ...base,
+    oldSignature: signClaim(claim, "publisher2", PUBLISHER_KEY_2.keyId),
+    newSignature: signClaim(claim, "tap", PUBLISHER_KEY_3.keyId),
   };
 }
 
