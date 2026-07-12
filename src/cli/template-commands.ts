@@ -16,6 +16,21 @@ import {
   type TemplateUpdateOptions,
 } from "../commands/template.js";
 import { runExitCodeCommand } from "./shared.js";
+import {
+  templateTapAddCommand,
+  templateTapListCommand,
+  templateTapRefreshCommand,
+  templateTapRemoveCommand,
+  type TapAddOptions,
+  type TapOutputOptions,
+} from "../commands/template-tap.js";
+import {
+  templateRemoteInspectCommand,
+  templateSearchCommand,
+  templateVerifyCommand,
+  type RemoteOutputOptions,
+  type TemplateSearchOptions,
+} from "../commands/template-remote.js";
 
 /** Register template list, inspect, and init commands. */
 export function registerTemplateCommands(program: Command): void {
@@ -30,8 +45,24 @@ export function registerTemplateCommands(program: Command): void {
 
   template
     .command("inspect <id>")
-    .description("Inspect one builtin profile template")
-    .action(async (id: string) => runExitCodeCommand(() => templateInspectCommand(id).then(() => 0)));
+    .description("Inspect one builtin id or qualified remote coordinate")
+    .option("--json", "Print stable JSON for a remote coordinate")
+    .action(async (id: string, options: RemoteOutputOptions) => runExitCodeCommand(() =>
+      id.includes("/") ? templateRemoteInspectCommand(id, options) : templateInspectCommand(id).then(() => 0),
+    ));
+
+  template
+    .command("search <query>")
+    .description("Search accepted signed remote template indexes")
+    .option("--tap <name>", "Search one configured tap")
+    .option("--json", "Print stable JSON results")
+    .action(async (query: string, options: TemplateSearchOptions) => runExitCodeCommand(() => templateSearchCommand(query, options)));
+
+  template
+    .command("verify <coordinate>")
+    .description("Verify one qualified remote template package")
+    .option("--json", "Print stable JSON provenance")
+    .action(async (coordinate: string, options: RemoteOutputOptions) => runExitCodeCommand(() => templateVerifyCommand(coordinate, options)));
 
   template
     .command("status")
@@ -56,4 +87,22 @@ export function registerTemplateCommands(program: Command): void {
     .action(async (id: string | undefined, options: TemplateInitOptions) =>
       runExitCodeCommand(() => templateInitCommand(id, options)),
     );
+
+  registerTapCommands(template);
+}
+
+function registerTapCommands(template: Command): void {
+  const tap = template.command("tap").description("Manage explicitly trusted template taps");
+  tap.command("list").option("--json", "Print stable JSON").action(async (options: TapOutputOptions) =>
+    runExitCodeCommand(() => templateTapListCommand(options)));
+  tap.command("add <name> <index-url>")
+    .requiredOption("--key-id <id>", "Trusted Ed25519 key id")
+    .option("--key-file <path>", "Read base64 SPKI DER key from a file")
+    .option("--key-base64 <value>", "Use a base64 SPKI DER key")
+    .action(async (name: string, url: string, options: TapAddOptions) =>
+      runExitCodeCommand(() => templateTapAddCommand(name, url, options)));
+  tap.command("remove <name>").description("Disable a tap and retain trust history").action(async (name: string) =>
+    runExitCodeCommand(() => templateTapRemoveCommand(name)));
+  tap.command("refresh <name>").option("--json", "Print stable JSON").action(async (name: string, options: TapOutputOptions) =>
+    runExitCodeCommand(() => templateTapRefreshCommand(name, options)));
 }

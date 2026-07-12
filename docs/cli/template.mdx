@@ -1,7 +1,7 @@
 ---
 title: "template"
 sidebarTitle: "template"
-description: "List, inspect, and install profile templates."
+description: "Install local templates and discover signed remote releases."
 ---
 
 Profile templates are install-time packages for `.llmwiki/profile.json`.
@@ -60,3 +60,41 @@ candidates, or unresolved typed-store problems cause a refusal.
 
 `llmwiki template init default` never writes a profile. The default profile is
 already active when `.llmwiki/profile.json` is absent.
+
+## Manage remote taps
+
+```bash
+llmwiki template tap add <name> <https-index-url> \
+  --key-id <key-id> \
+  (--key-file <path> | --key-base64 <value>)
+
+llmwiki template tap list [--json]
+llmwiki template tap refresh <name> [--json]
+llmwiki template tap remove <name>
+```
+
+`tap add`, `tap list`, and `tap remove` do not access the network. `tap remove`
+disables the source and retains its key, sequence, publisher pins, revocations,
+and coordinate history.
+
+## Search signed indexes
+
+```bash
+llmwiki template search <query> [--tap <name>] [--json]
+```
+
+Search reads only already accepted signed-index metadata. It does not download
+every matching package. Results from an expired but previously accepted index
+are marked `stale` and cannot introduce unseen coordinates.
+
+## Inspect or verify a remote coordinate
+
+```bash
+llmwiki template inspect <tap/publisher/template@version> [--json]
+llmwiki template verify <tap/publisher/template@version> [--json]
+```
+
+These commands fetch a missing content-addressed package from the tap's exact
+origin or reuse cached evidence, then re-run digest, signature, revocation,
+coordinate, and template validation. They do not install or update a project.
+Remote installation is intentionally not available in this release.

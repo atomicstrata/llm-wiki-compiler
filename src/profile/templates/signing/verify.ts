@@ -47,6 +47,23 @@ export function verifyTapIndex(
   return index as VerifiedTapIndex;
 }
 
+/** Re-verify an already accepted cached index without requiring current freshness. */
+export function verifyAcceptedTapIndex(
+  index: ParsedTapIndex,
+  expectedTap: string,
+  trustedKey: PublisherKey,
+  state: PublisherPinState,
+): VerifiedTapIndex {
+  if (state.tap !== expectedTap || state.highestSequence !== index.sequence) {
+    refuse("unaccepted-index", "cached tap index is not the authoritative accepted sequence");
+  }
+  if (index.tap !== expectedTap) refuse("wrong-tap", `expected tap ${expectedTap}, received ${index.tap}`);
+  if (index.signature.keyId !== trustedKey.keyId) refuse("wrong-key", "tap signature key does not match the trusted key");
+  const { signature, ...claim } = index;
+  verifySignature(canonicalBytes(claim), signature, trustedKey, "tap-signature");
+  return index as VerifiedTapIndex;
+}
+
 /** Verify one package against the exact signed index entry and publisher key. */
 export function verifySignedPackage(
   envelope: ParsedSignedPackage,

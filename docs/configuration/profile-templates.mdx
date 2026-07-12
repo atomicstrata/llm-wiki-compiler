@@ -24,9 +24,10 @@ The built-in list includes:
 | `autosci` | An AutoSci-derived structured research profile with papers, ideas, experiments, manuscripts, artifacts, workflows, and Crossref binding. |
 | `newsroom` | A newsroom profile with articles, desks, bylines, a filing relation, and a story workflow. |
 
-The public template surface supports built-in templates and local template files.
-Remote marketplaces and paid template distribution are not part of the public
-runtime loader or the `template` command path.
+The public template surface supports built-in templates, local template files,
+and explicitly trusted remote taps. Remote taps are read-only in this release:
+you can refresh, search, inspect, and verify signed releases, but you cannot
+install a remote release into a project yet.
 
 ## Inspect a template
 
@@ -90,3 +91,58 @@ implementations, MCP servers, or out-of-band local or environment trust grants.
 They may declare workflow gates and permission requests that the normal workflow
 authority model evaluates at run time. Connector bindings can only name
 connectors that are both compiled into llmwiki and marked template-installable.
+
+## Configure a signed remote tap
+
+A tap is an HTTPS signed index. Adding one requires its Ed25519 public key
+explicitly; llmwiki does not trust a key merely because a server presents it.
+
+```bash
+llmwiki template tap add community https://templates.example/index.json \
+  --key-id community-root-1 \
+  --key-file ./community-root-key.txt
+```
+
+The key file contains base64-encoded Ed25519 SPKI DER public-key bytes. Use
+`--key-base64` instead of `--key-file` for automation, but never pass both.
+Adding a tap does not perform network I/O.
+
+```bash
+llmwiki template tap refresh community
+llmwiki template search research --tap community
+```
+
+Refresh accepts an index only after its tap signature, expiry, sequence,
+publisher-key continuity, package coordinates, and revocations verify. Fetches
+remain on the exact configured HTTPS origin, including its port. Redirects
+cannot move to another origin, and DNS/private-address and response-size checks
+apply on every hop.
+
+## Inspect and verify a remote release
+
+Remote releases use a fully qualified coordinate:
+
+```text
+tap/publisher/template@version
+```
+
+```bash
+llmwiki template inspect community/acme/research@1.2.0
+llmwiki template verify community/acme/research@1.2.0 --json
+```
+
+Package bytes are addressed by the digest in the signed index, fetched from the
+same origin, and verified with the publisher key before they enter the cache.
+Cached packages are rehashed and reverified on every use. The cache is evidence,
+not authority: deleting it cannot reset accepted sequences, keys, coordinates,
+or revocations.
+
+## Disable a tap
+
+```bash
+llmwiki template tap remove community
+```
+
+Removal disables the tap but intentionally retains its trust history. Re-adding
+the same name is allowed only with the exact same URL, origin, and root key. This
+prevents remove-and-readd from becoming an implicit trust reset.
