@@ -115,4 +115,27 @@ describe("template CLI", () => {
       expect(run(root, ["template", "init", "autosci", "--file", "x.json"]).status).toBe(1);
     });
   });
+
+  it("reports verified builtin status and previews an update without writes", async () => {
+    await withRoot(async (root) => {
+      expect(run(root, ["template", "init", "autosci"]).status).toBe(0);
+      const before = await readFile(path.join(root, ".llmwiki/profile.json"), "utf8");
+      const status = run(root, ["template", "status", "--json"]);
+      const update = run(root, ["template", "update", "--dry-run", "--json"]);
+      expect(status.status).toBe(0);
+      expect(JSON.parse(status.stdout)).toMatchObject({ status: "installed-clean", templateId: "autosci" });
+      expect(update.status).toBe(0);
+      expect(JSON.parse(update.stdout)).toMatchObject({ compatible: true, reasons: [] });
+      expect(await readFile(path.join(root, ".llmwiki/profile.json"), "utf8")).toBe(before);
+    });
+  });
+
+  it("refuses an update command that omits the dry-run gate", async () => {
+    await withRoot(async (root) => {
+      expect(run(root, ["template", "init", "autosci"]).status).toBe(0);
+      const result = run(root, ["template", "update"]);
+      expect(result.status).toBe(1);
+      expect(result.stdout + result.stderr).toContain("pass --dry-run");
+    });
+  });
 });

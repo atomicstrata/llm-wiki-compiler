@@ -9,6 +9,8 @@ import * as output from "../utils/output.js";
 import { profileDigest } from "../profile/digest.js";
 import { installBuiltinTemplate, installLocalTemplate } from "../profile/templates/install.js";
 import { getBuiltinTemplate, listBuiltinTemplates, summaryFor } from "../profile/templates/registry.js";
+import { collectTemplateStatus, type TemplateStatus } from "../profile/templates/status.js";
+import { planBuiltinTemplateUpdate, type TemplateUpdatePlan } from "../profile/templates/update.js";
 import type { DerivedTemplateCapabilities, ProfileTemplateSummary } from "../profile/templates/types.js";
 
 type InitSource = { kind: "id"; id: string } | { kind: "file"; path: string };
@@ -23,6 +25,17 @@ type InspectDetails = ProfileTemplateSummary & {
 export interface TemplateInitOptions {
   file?: string;
   force?: boolean;
+}
+
+/** Options accepted by `llmwiki template status`. */
+export interface TemplateStatusOptions {
+  json?: boolean;
+}
+
+/** Options accepted by the read-only R1 update planner. */
+export interface TemplateUpdateOptions {
+  dryRun?: boolean;
+  json?: boolean;
 }
 
 /** Print all inspectable builtin template summaries. */
@@ -54,6 +67,39 @@ export async function templateInitCommand(id: string | undefined, options: Templ
   printLockResult(result.lockWritten);
   console.log("next: llmwiki profile validate");
   return 0;
+}
+
+/** Report installed-template provenance and active-profile drift. */
+export async function templateStatusCommand(options: TemplateStatusOptions): Promise<number> {
+  const status = await collectTemplateStatus(process.cwd());
+  if (options.json) console.log(JSON.stringify(status, null, 2));
+  else printTemplateStatus(status);
+  return status.status === "installed-clean" || status.status === "untracked" ? 0 : 1;
+}
+
+/** Preview a compatible builtin update; R1 deliberately performs no write. */
+export async function templateUpdateCommand(id: string | undefined, options: TemplateUpdateOptions): Promise<number> {
+  if (!options.dryRun) throw new Error("template update is preview-only in this release; pass --dry-run");
+  const plan = await planBuiltinTemplateUpdate(process.cwd(), id);
+  if (options.json) console.log(JSON.stringify(plan, null, 2));
+  else printUpdatePlan(plan);
+  return plan.compatible ? 0 : 1;
+}
+
+function printUpdatePlan(plan: TemplateUpdatePlan): void {
+  output.header(`Template update ${plan.from} -> ${plan.to}`);
+  console.log(`compatible: ${plan.compatible}`);
+  if (plan.reasons.length === 0) console.log("no compatibility blockers");
+  for (const reason of plan.reasons) console.log(`- ${reason.kind}: ${reason.path ? `${reason.path}: ` : ""}${reason.message}`);
+}
+
+function printTemplateStatus(status: TemplateStatus): void {
+  output.header("Template status");
+  console.log(`status:     ${status.status}`);
+  console.log(`profileId:  ${status.profileId}`);
+  console.log(`templateId: ${status.templateId ?? "-"}`);
+  console.log(`version:    ${status.installedVersion ?? "-"}`);
+  console.log(`detail:     ${status.detail}`);
 }
 
 function findBuiltinSummary(id: string): ProfileTemplateSummary | undefined {

@@ -88,7 +88,8 @@ async function collectArtifactReasons(root: string, reasons: string[]): Promise<
   if (result === "present") reasons.push("artifact store contains files");
 }
 
-async function confinedEntries(root: string, relativeDir: string): Promise<string[] | "absent" | "unavailable"> {
+/** List a profile-owned directory without following an escaping directory path. */
+export async function confinedEntries(root: string, relativeDir: string): Promise<string[] | "absent" | "unavailable"> {
   try {
     return await safeEntries(await confineUnderRoot(relativeDir, root, { mustExist: false }));
   } catch {
@@ -106,7 +107,8 @@ async function safeEntries(dir: string): Promise<string[] | "absent" | "unavaila
   }
 }
 
-async function firstFileUnder(root: string, relativeDir: string): Promise<"absent" | "present" | "unavailable"> {
+/** Detect any file below a confined profile-owned store with bounded recursion. */
+export async function firstFileUnder(root: string, relativeDir: string): Promise<"absent" | "present" | "unavailable"> {
   let confined: string;
   try {
     confined = await confineUnderRoot(relativeDir, root, { mustExist: false });

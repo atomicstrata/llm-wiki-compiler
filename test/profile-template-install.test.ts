@@ -35,7 +35,7 @@ describe("installBuiltinTemplate", () => {
     const loaded = await loadProfile(root);
     expect(loaded.profile.profileId).toBe("autosci");
     expect(await readJson(root, LOCK_FILE)).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       templateId: "autosci",
       version: "0.1.0",
       publisher: "atomicstrata",

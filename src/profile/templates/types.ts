@@ -7,8 +7,8 @@
  */
 import type { ProfilePack } from "../types.js";
 
-/** Template source classes supported by the v0 installer. */
-export type TemplateSourceType = "builtin" | "local";
+/** Template source classes understood by package validation and provenance. */
+export type TemplateSourceType = "builtin" | "local" | "remote";
 
 /** Example bundle metadata. v0 permits only non-executable OKF examples. */
 export interface TemplateExample {
@@ -34,8 +34,8 @@ export interface ProfileTemplatePackage {
   examples?: TemplateExample[];
 }
 
-/** Advisory provenance written after a template install; never used as load authority. */
-export interface TemplateLock {
+/** Legacy advisory provenance written by llmwiki 1.0. */
+export interface TemplateLockV1 {
   schemaVersion: 1;
   templateId: string;
   version: string;
@@ -44,6 +44,31 @@ export interface TemplateLock {
   installedAt: string;
   profileDigest: string;
 }
+
+/** Verified remote release locator recorded by future remote installs. */
+export interface RemoteTemplateProvenance {
+  coordinate: string;
+  packageDigest: string;
+  tap: string;
+  indexSequence: number;
+  publisherKeyId: string;
+  verifiedAt: string;
+}
+
+/** Current advisory provenance. Runtime profile loading never reads this file. */
+export interface TemplateLockV2 {
+  schemaVersion: 2;
+  templateId: string;
+  version: string;
+  publisher: string;
+  sourceType: TemplateSourceType;
+  installedAt: string;
+  profileDigest: string;
+  remote?: RemoteTemplateProvenance;
+}
+
+/** Every advisory lock schema accepted by the reader. */
+export type TemplateLock = TemplateLockV1 | TemplateLockV2;
 
 /** User-facing summary for builtin template list/inspect output. */
 export interface ProfileTemplateSummary {

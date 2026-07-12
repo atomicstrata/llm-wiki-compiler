@@ -9,7 +9,11 @@ import {
   templateInspectCommand,
   templateInitCommand,
   templateListCommand,
+  templateStatusCommand,
+  templateUpdateCommand,
   type TemplateInitOptions,
+  type TemplateStatusOptions,
+  type TemplateUpdateOptions,
 } from "../commands/template.js";
 import { runExitCodeCommand } from "./shared.js";
 
@@ -28,6 +32,21 @@ export function registerTemplateCommands(program: Command): void {
     .command("inspect <id>")
     .description("Inspect one builtin profile template")
     .action(async (id: string) => runExitCodeCommand(() => templateInspectCommand(id).then(() => 0)));
+
+  template
+    .command("status")
+    .description("Report installed template provenance and profile drift")
+    .option("--json", "Print a stable JSON status envelope")
+    .action(async (options: TemplateStatusOptions) => runExitCodeCommand(() => templateStatusCommand(options)));
+
+  template
+    .command("update [id]")
+    .description("Preview compatibility with a builtin template update")
+    .option("--dry-run", "Required: inspect compatibility without writing")
+    .option("--json", "Print a stable JSON update plan")
+    .action(async (id: string | undefined, options: TemplateUpdateOptions) =>
+      runExitCodeCommand(() => templateUpdateCommand(id, options)),
+    );
 
   template
     .command("init [id]")

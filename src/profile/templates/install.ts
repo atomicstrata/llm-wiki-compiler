@@ -11,11 +11,11 @@ import { atomicWrite } from "../../utils/markdown.js";
 import { profileDigest } from "../digest.js";
 import { loadProfile } from "../load.js";
 import { isTypedCorpusEmpty } from "./corpus.js";
+import { TEMPLATE_LOCK_FILE } from "./lock.js";
 import { getBuiltinTemplate } from "./registry.js";
 import type { ProfileTemplatePackage, TemplateLock, TemplateSourceType } from "./types.js";
 import { validateTemplatePackage } from "./validate.js";
 
-const TEMPLATE_LOCK_FILE = ".llmwiki/template-lock.json";
 const MAX_TEMPLATE_PACKAGE_BYTES = MAX_PROFILE_BYTES * 2;
 
 /** Options controlling profile template installation. */
@@ -113,7 +113,7 @@ async function tryWriteLock(root: string, pkg: ProfileTemplatePackage, sourceTyp
 
 async function writeLock(root: string, pkg: ProfileTemplatePackage, sourceType: TemplateSourceType): Promise<void> {
   const lock: TemplateLock = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     templateId: pkg.templateId,
     version: pkg.version,
     publisher: pkg.publisher,
