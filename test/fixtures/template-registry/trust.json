@@ -1,0 +1,10 @@
+{
+  "tap": {
+    "keyId": "tap-key-1",
+    "publicKey": "MCowBQYDK2VwAyEA+Zh7GM2+2PTzR+DGzIIMyf9RW3z8iPX+y0ToR7vFF7Q="
+  },
+  "publisher": {
+    "keyId": "publisher-key-1",
+    "publicKey": "MCowBQYDK2VwAyEALxhYHe2T84VftJ/HrDCirlutF6xJg/EoZYCrQYBq+q8="
+  }
+}

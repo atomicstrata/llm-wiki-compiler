@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "tap": "official",
+  "sequence": 1,
+  "generatedAt": "2026-07-12T00:00:00Z",
+  "expiresAt": "2027-07-12T00:00:00Z",
+  "publishers": {
+    "atomicstrata": {
+      "keyId": "publisher-key-1",
+      "publicKey": "MCowBQYDK2VwAyEALxhYHe2T84VftJ/HrDCirlutF6xJg/EoZYCrQYBq+q8="
+    }
+  },
+  "packages": [
+    {
+      "coordinate": "official/atomicstrata/team@1.0.0",
+      "publisher": "atomicstrata",
+      "payloadDigest": "sha256:4a39b4041e21c92f6a0351624ddfe27ec7bcc924659014909c92418bb06f3416"
+    }
+  ],
+  "rotations": [],
+  "revocations": [],
+  "signature": {
+    "keyId": "tap-key-1",
+    "algorithm": "ed25519",
+    "value": "NQvlmLBDgJFmQtnZHYaVkCRzsjhVFedR4dIIx+c+oHq1mD7iTImIBsZ5t8VUXwv4pB7lE6tLJvU6cC3KA/ivCw=="
+  }
+}

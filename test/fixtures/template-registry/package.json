@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "coordinate": "official/atomicstrata/team@1.0.0",
+  "payload": {
+    "schemaVersion": 1,
+    "templateId": "team",
+    "version": "1.0.0",
+    "displayName": "Team",
+    "publisher": "atomicstrata",
+    "sourceType": "remote",
+    "license": "MIT",
+    "minLlmwikiVersion": "1.0.0",
+    "profile": {
+      "schemaVersion": 1,
+      "profileId": "team",
+      "displayName": "Team",
+      "entities": {
+        "items": { "directory": "wiki/items" }
+      }
+    }
+  },
+  "payloadDigest": "sha256:4a39b4041e21c92f6a0351624ddfe27ec7bcc924659014909c92418bb06f3416",
+  "publisherSignature": {
+    "keyId": "publisher-key-1",
+    "algorithm": "ed25519",
+    "value": "YdYYJ7DSuTciaeXZChL80f6JwBnBG6UiOyol7SYnISDkroaeUPRSStqIAZpahZow5qljAYQ2/jDbDTQ6VRSrDw=="
+  }
+}
