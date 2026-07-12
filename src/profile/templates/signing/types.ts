@@ -72,6 +72,7 @@ export interface PublisherPinState {
   tap: string;
   highestSequence: number;
   publishers: Record<string, PublisherKey>;
+  keyHistory: Record<string, { publisher: string; publicKey: string }>;
   coordinates: Record<string, string>;
   revokedPackages: string[];
   revokedPublisherKeys: string[];

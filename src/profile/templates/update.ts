@@ -4,9 +4,7 @@
  * It never writes and treats every unverifiable profile-owned store as unsafe.
  */
 import canonicalize from "canonicalize";
-import { CANDIDATES_ARCHIVE_DIR, CANDIDATES_DIR } from "../../utils/constants.js";
-import { listRuns, readRun } from "../../workflows/store.js";
-import { isTerminalStatus } from "../../workflows/with-lock.js";
+import { CANDIDATES_DIR } from "../../utils/constants.js";
 import { diffProfiles, type PageDisposition, type ProfileDiffReport } from "../diff.js";
 import { profileDigest } from "../digest.js";
 import { loadProfile } from "../load.js";
@@ -14,8 +12,10 @@ import { lintProfileEntities } from "../lint.js";
 import type { ProfilePack } from "../types.js";
 import type { ProfileTemplatePackage } from "./types.js";
 import { confinedEntries, firstFileUnder } from "./corpus.js";
+import { auditArtifactStore } from "./artifact-audit.js";
+import { auditCandidateArchive, auditWorkflowHistory } from "./history-audit.js";
 import { readTemplateLock } from "./lock.js";
-import { getBuiltinTemplate } from "./registry.js";
+import { getBuiltinTemplate, getBuiltinTemplateRelease } from "./registry.js";
 
 /** One structured refusal reason from the corpus-wide compatibility audit. */
 export interface TemplateUpdateReason {
@@ -24,9 +24,13 @@ export interface TemplateUpdateReason {
   path?: string;
 }
 
-/** Complete dry-run result; `compatible` implies no reasons and no writes. */
+/**
+ * Complete advisory dry-run result. `compatible` describes this read snapshot;
+ * it cannot authorize a later write because project state may change afterward.
+ */
 export interface TemplateUpdatePlan {
   schemaVersion: 1;
+  authority: "advisory";
   compatible: boolean;
   from: string;
   to: string;
@@ -42,8 +46,8 @@ export async function planBuiltinTemplateUpdate(root: string, requestedId?: stri
   if (lockRead.kind !== "ok") throw new Error(`cannot plan update: template provenance is ${lockRead.kind}`);
   const lock = lockRead.lock;
   if (lock.sourceType !== "builtin") throw new Error("R1 update dry-run supports builtin installs only");
-  const base = getBuiltinTemplate(lock.templateId);
-  if (!base || base.version !== lock.version || base.publisher !== lock.publisher) {
+  const base = getBuiltinTemplateRelease(lock.templateId, lock.version, lock.publisher);
+  if (!base) {
     throw new Error(`cannot independently resolve installed builtin ${lock.templateId}@${lock.version}`);
   }
   const candidateId = requestedId ?? lock.templateId;
@@ -60,6 +64,7 @@ export async function planTemplateUpdate(
   base: ProfileTemplatePackage,
   candidate: ProfileTemplatePackage,
 ): Promise<TemplateUpdatePlan> {
+  assertUpdateIdentity(active, base, candidate);
   const reasons: TemplateUpdateReason[] = [];
   const activeDigest = profileDigest(active);
   const baseDigest = profileDigest(base.profile);
@@ -72,6 +77,7 @@ export async function planTemplateUpdate(
   reasons.push(...await artifactReasons(root, active, candidate.profile));
   return {
     schemaVersion: 1,
+    authority: "advisory",
     compatible: reasons.length === 0,
     from: `${base.templateId}@${base.version}`,
     to: `${candidate.templateId}@${candidate.version}`,
@@ -80,6 +86,19 @@ export async function planTemplateUpdate(
     diff,
     reasons,
   };
+}
+
+function assertUpdateIdentity(
+  active: ProfilePack,
+  base: ProfileTemplatePackage,
+  candidate: ProfileTemplatePackage,
+): void {
+  if (base.templateId !== candidate.templateId) throw new Error("template update cannot change template identity");
+  if (base.publisher !== candidate.publisher) throw new Error("template update cannot change publisher identity");
+  if (base.sourceType !== candidate.sourceType) throw new Error("template update cannot change source identity");
+  if (active.profileId !== base.profile.profileId || candidate.profile.profileId !== base.profile.profileId) {
+    throw new Error("template update cannot change profile identity");
+  }
 }
 
 function diffReasons(diff: ProfileDiffReport): TemplateUpdateReason[] {
@@ -113,32 +132,23 @@ function isContentOnlyFinding(rule: string): boolean {
 async function candidateReasons(root: string): Promise<TemplateUpdateReason[]> {
   const pending = await confinedEntries(root, CANDIDATES_DIR);
   if (pending === "unavailable") return [{ kind: "store", message: "candidate store is unreadable or unsafe" }];
-  const archived = await confinedEntries(root, CANDIDATES_ARCHIVE_DIR);
-  if (archived === "unavailable") return [{ kind: "store", message: "candidate archive is unreadable or unsafe" }];
   if (Array.isArray(pending) && pending.some(isJsonFile)) {
     return [{ kind: "candidate", message: "pending review candidates must be resolved before update" }];
   }
-  return [];
+  return (await auditCandidateArchive(root)).map((message) => ({ kind: "store", message }));
 }
 
 async function workflowReasons(root: string): Promise<TemplateUpdateReason[]> {
-  const listed = await listRuns(root);
-  if (listed.status === "unavailable") return [{ kind: "store", message: `workflow store is unavailable: ${listed.detail}` }];
-  const reasons: TemplateUpdateReason[] = [];
-  for (const runId of listed.runIds) {
-    const read = await readRun(root, runId);
-    if (read.status !== "ok") reasons.push({ kind: "store", message: `workflow run ${runId} is unavailable` });
-    else if (!isTerminalStatus(read.run.status)) reasons.push({ kind: "workflow", message: `workflow run ${runId} is active` });
-  }
-  return reasons;
+  return auditWorkflowHistory(root);
 }
 
 async function artifactReasons(root: string, active: ProfilePack, candidate: ProfilePack): Promise<TemplateUpdateReason[]> {
-  if (canonicalize(active.artifacts ?? {}) === canonicalize(candidate.artifacts ?? {})) return [];
+  const audit = (await auditArtifactStore(root, candidate)).map((message) => ({ kind: "artifact" as const, message }));
+  if (canonicalize(active.artifacts ?? {}) === canonicalize(candidate.artifacts ?? {})) return audit;
   const state = await firstFileUnder(root, "artifacts");
-  if (state === "unavailable") return [{ kind: "store", message: "artifact store is unreadable or unsafe" }];
-  if (state === "present") return [{ kind: "artifact", message: "artifact contracts changed while stored artifacts exist" }];
-  return [];
+  if (state === "unavailable") return [...audit, { kind: "store", message: "artifact store is unreadable or unsafe" }];
+  if (state === "present") return [...audit, { kind: "artifact", message: "artifact contracts changed while stored artifacts exist" }];
+  return audit;
 }
 
 function isJsonFile(name: string): boolean {

@@ -166,6 +166,22 @@ function validateIndexRelationships(index: SignedTapIndex): void {
     if (coordinate.publisher !== entry.publisher) throw new Error("package publisher differs from its coordinate");
     if (!(entry.publisher in index.publishers)) throw new Error("package publisher has no declared key");
   }
+  assertPublisherKeyIdsUnambiguous(index);
+}
+
+function assertPublisherKeyIdsUnambiguous(index: SignedTapIndex): void {
+  const owners = new Map<string, string>();
+  for (const [publisher, key] of Object.entries(index.publishers)) registerKeyOwner(owners, key.keyId, publisher);
+  for (const rotation of index.rotations) {
+    registerKeyOwner(owners, rotation.fromKeyId, rotation.publisher);
+    registerKeyOwner(owners, rotation.toKey.keyId, rotation.publisher);
+  }
+}
+
+function registerKeyOwner(owners: Map<string, string>, keyId: string, publisher: string): void {
+  const existing = owners.get(keyId);
+  if (existing !== undefined && existing !== publisher) throw new Error(`publisher key id is ambiguous: ${keyId}`);
+  owners.set(keyId, publisher);
 }
 
 function boundedArray(value: unknown, label: string): unknown[] {
@@ -217,7 +233,11 @@ function natural(value: unknown, label: string): number {
 
 function timestamp(value: unknown, label: string): string {
   const text = textField(value, label);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(text) || Number.isNaN(Date.parse(text))) {
+  const parsed = Date.parse(text);
+  const normalized = text.includes(".") ? text : text.replace("Z", ".000Z");
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(text)
+    || Number.isNaN(parsed)
+    || new Date(parsed).toISOString() !== normalized) {
     throw new Error(`${label} must be an ISO-8601 UTC timestamp`);
   }
   return text;

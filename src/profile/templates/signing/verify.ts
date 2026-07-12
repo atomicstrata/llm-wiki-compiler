@@ -17,6 +17,7 @@ import type {
 } from "./types.js";
 
 declare const VERIFIED_TAP_INDEX: unique symbol;
+const MAX_INDEX_CLOCK_SKEW_MS = 5 * 60 * 1000;
 /** Tap index whose signature, identity, and freshness were verified. */
 export type VerifiedTapIndex = ParsedTapIndex & { readonly [VERIFIED_TAP_INDEX]: true };
 
@@ -38,6 +39,9 @@ export function verifyTapIndex(
   if (index.tap !== expectedTap) refuse("wrong-tap", `expected tap ${expectedTap}, received ${index.tap}`);
   if (index.signature.keyId !== trustedKey.keyId) refuse("wrong-key", "tap signature key does not match the trusted key");
   if (Date.parse(index.expiresAt) <= now.getTime()) refuse("expired", "tap index is expired");
+  if (Date.parse(index.generatedAt) > now.getTime() + MAX_INDEX_CLOCK_SKEW_MS) {
+    refuse("not-yet-valid", "tap index generation time is too far in the future");
+  }
   const { signature, ...claim } = index;
   verifySignature(canonicalBytes(claim), signature, trustedKey, "tap-signature");
   return index as VerifiedTapIndex;

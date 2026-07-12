@@ -125,7 +125,7 @@ describe("template CLI", () => {
       expect(status.status).toBe(0);
       expect(JSON.parse(status.stdout)).toMatchObject({ status: "installed-clean", templateId: "autosci" });
       expect(update.status).toBe(0);
-      expect(JSON.parse(update.stdout)).toMatchObject({ compatible: true, reasons: [] });
+      expect(JSON.parse(update.stdout)).toMatchObject({ authority: "advisory", compatible: true, reasons: [] });
       expect(await readFile(path.join(root, ".llmwiki/profile.json"), "utf8")).toBe(before);
     });
   });

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { advancePublisherPins, assertPackageNotRevoked, emptyPublisherPinState } from "../src/profile/templates/signing/continuity.js";
 import { verifyTapIndex } from "../src/profile/templates/signing/verify.js";
 import type { ParsedTapIndex } from "../src/profile/templates/signing/protocol.js";
-import { PUBLISHER_KEY_2, PUBLISHER_KEY_3, TAP_KEY, parsedIndex, signedIndex, signedRotation, signedSecondRotation } from "./fixtures/template-signing.js";
+import { PUBLISHER_KEY, PUBLISHER_KEY_2, PUBLISHER_KEY_3, TAP_KEY, parsedIndex, signedIndex, signedReturnRotation, signedRotation, signedSecondRotation } from "./fixtures/template-signing.js";
 
 describe("publisher continuity", () => {
   it("pins a first-seen publisher and coordinate", () => {
@@ -75,6 +75,28 @@ describe("publisher continuity", () => {
 
   it("refuses crossing tap trust domains", () => {
     expect(() => advancePublisherPins(verified(), emptyPublisherPinState("community"))).toThrow(/another tap/);
+  });
+
+  it("refuses reusing a historical key id for another publisher", () => {
+    const state = advancePublisherPins(verified(), emptyPublisherPinState("official"));
+    const rebound = parsedIndex({
+      sequence: 2,
+      publishers: { other: { ...PUBLISHER_KEY_2, keyId: PUBLISHER_KEY.keyId } },
+      packages: [],
+    });
+    expect(() => advancePublisherPins(verified(rebound), state)).toThrow(/key id was rebound/);
+  });
+
+  it("refuses rotating back to a publisher's retired key id", () => {
+    const initial = advancePublisherPins(verified(), emptyPublisherPinState("official"));
+    const rotated = parsedIndex({
+      sequence: 2, publishers: { atomicstrata: PUBLISHER_KEY_2 }, rotations: [signedRotation(2)],
+    });
+    const state = advancePublisherPins(verified(rotated), initial);
+    const returned = parsedIndex({
+      sequence: 3, publishers: { atomicstrata: PUBLISHER_KEY }, rotations: [signedReturnRotation(3)],
+    });
+    expect(() => advancePublisherPins(verified(returned), state)).toThrow(/reuses historical key id/);
   });
 });
 

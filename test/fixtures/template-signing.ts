@@ -124,6 +124,21 @@ export function signedSecondRotation(sequence = 3): PublisherRotation {
   };
 }
 
+export function signedReturnRotation(sequence = 3): PublisherRotation {
+  const base = {
+    publisher: "atomicstrata",
+    fromKeyId: PUBLISHER_KEY_2.keyId,
+    toKey: PUBLISHER_KEY,
+    effectiveSequence: sequence,
+  };
+  const claim = rotationClaim("official", base);
+  return {
+    ...base,
+    oldSignature: signClaim(claim, "publisher2", PUBLISHER_KEY_2.keyId),
+    newSignature: signClaim(claim, "publisher", PUBLISHER_KEY.keyId),
+  };
+}
+
 export function signedTapRotation(sequence = 2): TapKeyRotation {
   const base = { fromKeyId: TAP_KEY.keyId, toKey: TAP_KEY_2, effectiveSequence: sequence };
   const claim = tapRotationClaim("official", base);

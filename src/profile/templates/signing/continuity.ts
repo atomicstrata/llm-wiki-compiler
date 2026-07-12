@@ -9,7 +9,7 @@ import type { PublisherKey, PublisherPinState, PublisherRotation } from "./types
 
 /** Empty operator state for a newly configured tap. */
 export function emptyPublisherPinState(tap: string): PublisherPinState {
-  return { tap, highestSequence: -1, publishers: {}, coordinates: {}, revokedPackages: [], revokedPublisherKeys: [] };
+  return { tap, highestSequence: -1, publishers: {}, keyHistory: {}, coordinates: {}, revokedPackages: [], revokedPublisherKeys: [] };
 }
 
 /** Accept a verified index into immutable operator continuity state. */
@@ -18,8 +18,11 @@ export function advancePublisherPins(index: VerifiedTapIndex, prior: PublisherPi
   if (index.sequence <= prior.highestSequence) throw new Error("tap index sequence rollback or replay");
   assertCoordinateContinuity(index, prior);
   const publishers = { ...prior.publishers };
+  const keyHistory = { ...prior.keyHistory };
   for (const [name, announced] of Object.entries(index.publishers)) {
-    publishers[name] = acceptedPublisherKey(index, name, announced, publishers[name]);
+    const accepted = acceptedPublisherKeys(index, name, announced, publishers[name]);
+    accepted.forEach((key, index) => registerKey(keyHistory, name, key, index === 0));
+    publishers[name] = accepted.at(-1)!;
   }
   const revokedPackages = union(prior.revokedPackages, revokedValues(index, "package"));
   const revokedPublisherKeys = union(prior.revokedPublisherKeys, revokedValues(index, "publisher-key"));
@@ -28,6 +31,7 @@ export function advancePublisherPins(index: VerifiedTapIndex, prior: PublisherPi
     tap: prior.tap,
     highestSequence: index.sequence,
     publishers,
+    keyHistory,
     coordinates: { ...prior.coordinates, ...Object.fromEntries(index.packages.map((entry) => [entry.coordinate, entry.payloadDigest])) },
     revokedPackages,
     revokedPublisherKeys,
@@ -40,14 +44,14 @@ export function assertPackageNotRevoked(state: PublisherPinState, digest: string
   if (state.revokedPublisherKeys.includes(publisherKeyId)) throw new Error("publisher key is revoked");
 }
 
-function acceptedPublisherKey(
+function acceptedPublisherKeys(
   index: VerifiedTapIndex,
   publisher: string,
   announced: PublisherKey,
   pinned: PublisherKey | undefined,
-): PublisherKey {
-  if (!pinned) return announced;
-  if (sameKey(pinned, announced)) return pinned;
+): PublisherKey[] {
+  if (!pinned) return [announced];
+  if (sameKey(pinned, announced)) return [pinned];
   return followRotationChain(index, publisher, pinned, announced);
 }
 
@@ -56,11 +60,12 @@ function followRotationChain(
   publisher: string,
   pinned: PublisherKey,
   announced: PublisherKey,
-): PublisherKey {
+): PublisherKey[] {
   const rotations = rotationMap(index.rotations, publisher, index.sequence);
   let current = pinned;
   let previousSequence = -1;
   const visited = new Set<string>([current.keyId]);
+  const accepted = [current];
   while (!sameKey(current, announced)) {
     const rotation = rotations.get(current.keyId);
     if (!rotation) throw new Error(`publisher key changed without a valid rotation chain: ${publisher}`);
@@ -69,9 +74,24 @@ function followRotationChain(
     if (visited.has(rotation.toKey.keyId)) throw new Error(`publisher rotation cycle: ${publisher}`);
     visited.add(rotation.toKey.keyId);
     current = rotation.toKey;
+    accepted.push(current);
     previousSequence = rotation.effectiveSequence;
   }
-  return current;
+  return accepted;
+}
+
+function registerKey(
+  history: PublisherPinState["keyHistory"],
+  publisher: string,
+  key: PublisherKey,
+  allowExisting: boolean,
+): void {
+  const existing = history[key.keyId];
+  if (existing && (existing.publisher !== publisher || existing.publicKey !== key.publicKey)) {
+    throw new Error(`publisher key id was rebound: ${key.keyId}`);
+  }
+  if (existing && !allowExisting) throw new Error(`publisher rotation reuses historical key id: ${key.keyId}`);
+  history[key.keyId] = { publisher, publicKey: key.publicKey };
 }
 
 function rotationMap(

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { canonicalBytes } from "../src/profile/templates/signing/canonical.js";
 import { parseBoundedUniqueJson } from "../src/profile/templates/signing/json.js";
 import { parseSignedPackage, parseSignedTapIndex, parseTemplateCoordinate } from "../src/profile/templates/signing/protocol.js";
-import { signedIndex, signedPackage } from "./fixtures/template-signing.js";
+import { PUBLISHER_KEY, PUBLISHER_KEY_2, signedIndex, signedPackage } from "./fixtures/template-signing.js";
 
 describe("signed template protocol parsing", () => {
   it("canonicalizes reordered object keys to identical bytes", () => {
@@ -32,6 +32,14 @@ describe("signed template protocol parsing", () => {
     const index = signedIndex();
     index.packages.push(index.packages[0]);
     expect(() => parseSignedTapIndex(JSON.stringify(index))).toThrow(/duplicate package coordinate/);
+  });
+
+  it("rejects ambiguous publisher key ids and impossible timestamps", () => {
+    const duplicateKey = { ...PUBLISHER_KEY_2, keyId: PUBLISHER_KEY.keyId };
+    const ambiguous = signedIndex({ publishers: { atomicstrata: PUBLISHER_KEY, other: duplicateKey } });
+    expect(() => parseSignedTapIndex(JSON.stringify(ambiguous))).toThrow(/key id is ambiguous/);
+    const impossible = signedIndex({ generatedAt: "2026-02-31T00:00:00Z" });
+    expect(() => parseSignedTapIndex(JSON.stringify(impossible))).toThrow(/ISO-8601/);
   });
 
   it("requires fully qualified, unambiguous coordinates", () => {

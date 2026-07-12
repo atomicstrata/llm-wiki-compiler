@@ -24,6 +24,11 @@ describe("signed template verification", () => {
     expect(() => verifyTapIndex(parsedIndex(), "official", TAP_KEY, new Date("2028-01-01T00:00:00Z"))).toThrow(/expired/);
   });
 
+  it("refuses an index generated beyond the clock-skew allowance", () => {
+    const future = parsedIndex({ generatedAt: "2027-01-01T00:00:00Z" });
+    expect(() => verifyTapIndex(future, "official", TAP_KEY, new Date("2026-07-13T00:00:00Z"))).toThrow(/future/);
+  });
+
   it("refuses payload substitution even when the stored digest is unchanged", () => {
     const envelope = parsedPackage();
     envelope.payload = { ...envelope.payload, displayName: "Attacker" };

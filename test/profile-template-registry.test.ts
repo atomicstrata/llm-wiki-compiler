@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { getConnectorDef } from "../src/connectors/registry.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { deriveTemplateCapabilities } from "../src/profile/templates/capabilities.js";
-import { getBuiltinTemplate, listBuiltinTemplates, summaryFor } from "../src/profile/templates/registry.js";
+import { compareTemplateVersions, getBuiltinTemplate, listBuiltinTemplates, summaryFor } from "../src/profile/templates/registry.js";
 import { TemplatePackageError, validateTemplatePackage } from "../src/profile/templates/validate.js";
 
 const MINIMAL_PROFILE: ProfilePack = {
@@ -156,6 +156,13 @@ describe("deriveTemplateCapabilities", () => {
 });
 
 describe("builtin template registry", () => {
+  it("orders stable and prerelease versions by SemVer precedence", () => {
+    expect(compareTemplateVersions("1.0.0", "1.0.0-rc.10")).toBeGreaterThan(0);
+    expect(compareTemplateVersions("1.0.0-rc.10", "1.0.0-rc.2")).toBeGreaterThan(0);
+    expect(compareTemplateVersions("1.0.0-1", "1.0.0-alpha")).toBeLessThan(0);
+    expect(compareTemplateVersions("1.0.0+build.2", "1.0.0+build.1")).toBe(0);
+  });
+
   it("keeps template installability policy on connector definitions", () => {
     expect(getConnectorDef("crossref")).toMatchObject({ templateInstallable: true });
     expect(getConnectorDef("fixture")).toMatchObject({ templateInstallable: false });
