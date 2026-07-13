@@ -3,7 +3,7 @@
  * @description Frozen Slice A filesystem oracle for bounded, no-follow,
  * path-confined, complete static-tree verification.
  */
-import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, it } from "vitest";
 import { makeFifo } from "./fixtures/fifo.js";
@@ -43,6 +43,14 @@ describe("template publish verify filesystem hardening", () => {
     const extra = path.join(path.dirname(tree.packageFile), `${"b".repeat(64)}.json`);
     await writeFile(extra, JSON.stringify(signedPackage()), "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /extra|unreferenced|unexpected/i);
+  });
+
+  it("refuses unreferenced regular files at every static-tree level", async () => {
+    for (const relative of ["rogue.json", path.join("packages", "rogue.json")]) {
+      const tree = await fixture();
+      await writeFile(path.join(tree.directory, relative), JSON.stringify(signedPackage()), "utf8");
+      assertPublishVerifyFailure(runPublishVerify(tree), /extra|unreferenced|unexpected/i);
+    }
   });
 
   it("refuses nested files, unexpected directories, and unreferenced symlinks", async () => {
@@ -174,6 +182,22 @@ describe("template publish verify filesystem hardening", () => {
     assertPublishVerifyFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
   });
 
+  it("refuses malformed UTF-8 before parsing signed protocol inputs", async () => {
+    const packageTree = await fixture();
+    await replaceMarkerWithMalformedUtf8(
+      packageTree.packageFile,
+      packageTree.envelope.publisherSignature.value,
+    );
+    assertPublishVerifyFailure(runPublishVerify(packageTree), /utf-?8|encoding|invalid byte/i);
+
+    const indexTree = await fixture();
+    await replaceMarkerWithMalformedUtf8(
+      path.join(indexTree.directory, "index.json"),
+      indexTree.index.signature.value,
+    );
+    assertPublishVerifyFailure(runPublishVerify(indexTree), /utf-?8|encoding|invalid byte/i);
+  });
+
   it("refuses publisher and tap-key rotations as unverifiable snapshot continuity", async () => {
     const publisherTree = await fixture();
     await writeSignedDistributionIndex(publisherTree, { rotations: [signedRotation()] });
@@ -183,3 +207,15 @@ describe("template publish verify filesystem hardening", () => {
     assertPublishVerifyFailure(runPublishVerify(tapTree), /continuity|rotation.*snapshot|snapshot.*rotation/i);
   });
 });
+
+async function replaceMarkerWithMalformedUtf8(file: string, marker: string): Promise<void> {
+  const source = await readFile(file);
+  const needle = Buffer.from(marker, "utf8");
+  const offset = source.lastIndexOf(needle);
+  if (offset < 0) throw new Error("fixture marker missing");
+  await writeFile(file, Buffer.concat([
+    source.subarray(0, offset),
+    Buffer.from([0xc3, 0x28]),
+    source.subarray(offset + needle.length),
+  ]));
+}
