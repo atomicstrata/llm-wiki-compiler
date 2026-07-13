@@ -84,6 +84,7 @@ function newTapSource(input: { name: string; indexUrl: string; key: PublisherKey
     enabled: true,
     currentTapKey: input.key,
     retiredTapKeyIds: [],
+    acceptedIndexDigest: null,
     publisherPins: emptyPublisherPinState(input.name),
   };
 }

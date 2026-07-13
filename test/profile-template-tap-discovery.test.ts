@@ -55,11 +55,11 @@ describe("remote template discovery", () => {
     }, /coordinate continuity/);
   });
 
-  it("refuses cached evidence when publisher continuity state diverges", async () => {
+  it("refuses persisting publisher continuity that diverges from key history", async () => {
     const paths = await setup();
-    await expectContinuityWarning(paths, (state) => {
-      state.taps.official.publisherPins.publishers.atomicstrata.keyId = "other-key";
-    }, /publisher continuity/);
+    const state = await readTapState(paths);
+    state.taps.official.publisherPins.publishers.atomicstrata.keyId = "other-key";
+    await expect(writeTapState(paths, state)).rejects.toThrow(/active publisher key.*history/);
   });
 
   it("refuses an explicitly selected unknown tap instead of returning an empty result", async () => {

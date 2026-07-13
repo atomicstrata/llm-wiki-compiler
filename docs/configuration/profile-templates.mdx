@@ -133,9 +133,11 @@ llmwiki template verify community/acme/research@1.2.0 --json
 
 Package bytes are addressed by the digest in the signed index, fetched from the
 same origin, and verified with the publisher key before they enter the cache.
-Cached packages are rehashed and reverified on every use. The cache is evidence,
-not authority: deleting it cannot reset accepted sequences, keys, coordinates,
-or revocations.
+Signed envelopes are cached by coordinate and payload digest so mirrors cannot
+conflict. Cached packages are rehashed and reverified on every use. The cache is
+evidence, not authority: deleting it cannot reset accepted sequences, keys,
+coordinates, or revocations. `tap refresh` can restore missing or malformed
+index evidence only from the exact signed snapshot already recorded in state.
 
 ## Disable a tap
 

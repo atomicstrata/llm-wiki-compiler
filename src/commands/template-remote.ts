@@ -6,6 +6,8 @@ import * as output from "../utils/output.js";
 import { inspectRemoteTemplate, searchRemoteTemplates } from "../profile/templates/taps/discovery.js";
 import { resolveTapPaths } from "../profile/templates/taps/paths.js";
 
+const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/gu;
+
 /** Options accepted by remote search. */
 export interface TemplateSearchOptions { tap?: string; json?: boolean }
 /** Stable-output option shared by remote inspect and verify. */
@@ -45,12 +47,16 @@ export async function templateVerifyCommand(coordinate: string, options: RemoteO
 
 function printDetails(details: Awaited<ReturnType<typeof inspectRemoteTemplate>>): void {
   output.header(`Remote template ${details.coordinate}`);
-  console.log(`display:     ${details.displayName}`);
-  console.log(`license:     ${details.license}`);
+  console.log(`display:     ${terminalMetadata(details.displayName)}`);
+  console.log(`license:     ${terminalMetadata(details.license)}`);
   console.log(`digest:      ${details.payloadDigest}`);
   console.log(`publisherKey:${details.publisherKeyId}`);
   console.log(`tapSequence: ${details.sequence}`);
   console.log(`status:      ${details.stale ? "stale accepted evidence" : "current"}`);
+}
+
+function terminalMetadata(value: string): string {
+  return value.replace(TERMINAL_CONTROL, "�");
 }
 
 function printSearch(search: Awaited<ReturnType<typeof searchRemoteTemplates>>): void {

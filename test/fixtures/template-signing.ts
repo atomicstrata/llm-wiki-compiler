@@ -58,14 +58,14 @@ export function remotePackage(): ProfileTemplatePackage {
   };
 }
 
-export function signedPackage(payload = remotePackage()): SignedPackageEnvelope {
+export function signedPackage(payload = remotePackage(), coordinate = COORDINATE): SignedPackageEnvelope {
   const payloadDigest = canonicalDigest(payload);
   return {
     schemaVersion: 1,
-    coordinate: COORDINATE,
+    coordinate,
     payload,
     payloadDigest,
-    publisherSignature: signClaim(packageClaim(COORDINATE, payloadDigest), "publisher", PUBLISHER_KEY.keyId),
+    publisherSignature: signClaim(packageClaim(coordinate, payloadDigest), "publisher", PUBLISHER_KEY.keyId),
   };
 }
 

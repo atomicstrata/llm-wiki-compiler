@@ -52,10 +52,11 @@ export async function resolveRemotePackage(
   const index = await loadAcceptedIndex(paths, source);
   const entry = index.packages.find((candidate) => candidate.coordinate === coordinate);
   if (!entry) throw new Error(`template coordinate is not accepted: ${coordinate}`);
-  const evidence = await packageEvidence(paths, source.indexUrl, source.origin, entry.payloadDigest, options);
-  const pkg = verifySignedPackage(parseSignedPackage(evidence.text), index, source.publisherPins, options.currentVersion ?? packageJson.version);
+  const currentVersion = options.currentVersion ?? packageJson.version;
+  const evidence = await packageEvidence(paths, coordinate, source.indexUrl, source.origin, entry.payloadDigest, index, source.publisherPins, currentVersion, options);
+  const pkg = verifyPackageText(evidence.text, index, source.publisherPins, currentVersion);
   await assertSourceUnchanged(paths, source);
-  if (!evidence.cached) await writePackageCache(paths, entry.payloadDigest, evidence.text);
+  if (!evidence.cached) await writePackageCache(paths, coordinate, entry.payloadDigest, evidence.text);
   return {
     package: pkg,
     coordinate,
@@ -68,13 +69,17 @@ export async function resolveRemotePackage(
 
 async function packageEvidence(
   paths: TapPaths,
+  coordinate: string,
   indexUrl: string,
   origin: string,
   digest: string,
+  index: Parameters<typeof verifySignedPackage>[1],
+  pins: Parameters<typeof verifySignedPackage>[2],
+  currentVersion: string,
   options: ResolveRemoteOptions,
 ): Promise<{ text: string; cached: boolean }> {
-  const cached = await readPackageCache(paths, digest);
-  if (cached !== null) return { text: cached, cached: true };
+  const cached = await readPackageCache(paths, coordinate, digest);
+  if (cached !== null && cacheVerifies(cached, index, pins, currentVersion)) return { text: cached, cached: true };
   if (options.offline) throw new Error("template package is not cached; refresh online to inspect it");
   const result = await confinedFetch(
     { url: packageUrl(indexUrl, digest) },
@@ -84,6 +89,29 @@ async function packageEvidence(
   );
   if (result.kind !== "ok") throw new Error(`template package ${result.kind}: ${result.reason}`);
   return { text: strictUtf8(result.bytes), cached: false };
+}
+
+function cacheVerifies(
+  text: string,
+  index: Parameters<typeof verifySignedPackage>[1],
+  pins: Parameters<typeof verifySignedPackage>[2],
+  currentVersion: string,
+): boolean {
+  try {
+    verifyPackageText(text, index, pins, currentVersion);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function verifyPackageText(
+  text: string,
+  index: Parameters<typeof verifySignedPackage>[1],
+  pins: Parameters<typeof verifySignedPackage>[2],
+  currentVersion: string,
+): ProfileTemplatePackage {
+  return verifySignedPackage(parseSignedPackage(text), index, pins, currentVersion);
 }
 
 async function assertSourceUnchanged(paths: TapPaths, expected: Awaited<ReturnType<typeof readTapState>>["taps"][string]): Promise<void> {

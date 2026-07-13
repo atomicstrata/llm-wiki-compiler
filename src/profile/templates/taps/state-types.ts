@@ -12,6 +12,7 @@ export interface TapSourceState {
   enabled: boolean;
   currentTapKey: PublisherKey;
   retiredTapKeyIds: string[];
+  acceptedIndexDigest: string | null;
   publisherPins: PublisherPinState;
 }
 

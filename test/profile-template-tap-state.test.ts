@@ -10,6 +10,7 @@ import { addTap, forgetTap, listTaps, removeTap } from "../src/profile/templates
 import { resolveTapPaths, type TapPaths } from "../src/profile/templates/taps/paths.js";
 import { readTapState, writeTapState } from "../src/profile/templates/taps/state-store.js";
 import type { PublisherKey } from "../src/profile/templates/signing/types.js";
+import { acceptTemplateTap } from "./fixtures/template-tap-runtime.js";
 
 const roots: string[] = [];
 const KEY: PublisherKey = {
@@ -95,6 +96,8 @@ function coordinates(count: number): Record<string, string> {
 async function stateWithCoordinates(store: TapPaths, count: number) {
   await addTap(store, { name: "community", indexUrl: "https://tap.example/index.json", key: KEY });
   const state = await readTapState(store);
+  state.taps.community.publisherPins.highestSequence = 0;
+  state.taps.community.acceptedIndexDigest = `sha256:${"0".repeat(64)}`;
   state.taps.community.publisherPins.coordinates = coordinates(count);
   return state;
 }
@@ -129,9 +132,44 @@ describe("template tap state hardening", () => {
     const store = await paths();
     await addTap(store, { name: "community", indexUrl: "https://tap.example/index.json", key: KEY });
     const state = await readTapState(store);
-    state.taps.community.publisherPins.keyHistory["publisher:key.v1"] = { publisher: "publisher", publicKey: KEY.publicKey };
+    const source = state.taps.community;
+    source.publisherPins.highestSequence = 0;
+    source.acceptedIndexDigest = `sha256:${"0".repeat(64)}`;
+    source.publisherPins.publishers.publisher = { keyId: "publisher:key.v1", publicKey: KEY.publicKey };
+    source.publisherPins.keyHistory["publisher:key.v1"] = { publisher: "publisher", publicKey: KEY.publicKey };
     await writeTapState(store, state);
     expect((await readTapState(store)).taps.community.publisherPins.keyHistory).toHaveProperty("publisher:key.v1");
+  });
+
+  it("rejects active publisher pins missing from retained key history", async () => {
+    const store = await paths();
+    await acceptTemplateTap(path.dirname(store.configRoot));
+    const state = await readTapState(store);
+    delete state.taps.official.publisherPins.keyHistory["publisher-key-1"];
+    await expect(writeTapState(store, state)).rejects.toThrow(/active publisher key.*history/);
+  });
+
+  it("rejects coordinates belonging to another tap", async () => {
+    const store = await paths();
+    const state = await stateWithCoordinates(store, 0);
+    state.taps.community.publisherPins.coordinates["other/pub/pkg@1.0.0"] = `sha256:${"0".repeat(64)}`;
+    await expect(writeTapState(store, state)).rejects.toThrow(/coordinate belongs to another tap/);
+  });
+
+  it("rejects a revoked key that remains active for a publisher", async () => {
+    const store = await paths();
+    await acceptTemplateTap(path.dirname(store.configRoot));
+    const state = await readTapState(store);
+    state.taps.official.publisherPins.revokedPublisherKeys.push("publisher-key-1");
+    await expect(writeTapState(store, state)).rejects.toThrow(/active publisher key is revoked/);
+  });
+
+  it("rejects key history assigned to an unknown publisher", async () => {
+    const store = await paths();
+    await acceptTemplateTap(path.dirname(store.configRoot));
+    const state = await readTapState(store);
+    state.taps.official.publisherPins.keyHistory["retired-key"] = { publisher: "unknown", publicKey: KEY.publicKey };
+    await expect(writeTapState(store, state)).rejects.toThrow(/key history names an unknown publisher/);
   });
 
   it("refuses a symlinked config root before touching its target", async () => {

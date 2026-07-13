@@ -23,6 +23,8 @@ const PACKAGE_KEYS = new Set([
   "docs",
   "examples",
 ]);
+const MAX_DISPLAY_NAME_BYTES = 256;
+const MAX_LICENSE_BYTES = 128;
 
 /** Error raised when a template package cannot be installed. */
 export class TemplatePackageError extends Error {
@@ -52,10 +54,10 @@ export function validateTemplatePackage(raw: unknown, options: TemplateValidatio
     schemaVersion: 1,
     templateId,
     version,
-    displayName: nonEmptyString(obj.displayName, "displayName"),
+    displayName: singleLineMetadata(obj.displayName, "displayName", MAX_DISPLAY_NAME_BYTES),
     publisher: nonEmptyString(obj.publisher, "publisher"),
     sourceType: templateSourceType(obj.sourceType, options.sourceType),
-    license: nonEmptyString(obj.license, "license"),
+    license: singleLineMetadata(obj.license, "license", MAX_LICENSE_BYTES),
     minLlmwikiVersion: versionString(obj.minLlmwikiVersion, "template minLlmwikiVersion"),
     profile,
     ...optionalString(obj.description, "description"),
@@ -100,6 +102,20 @@ function nonEmptyString(value: unknown, field: string): string {
     throw new TemplatePackageError(`${field} must be a non-empty string`);
   }
   return value;
+}
+
+function singleLineMetadata(value: unknown, field: string, maxBytes: number): string {
+  const text = nonEmptyString(value, field);
+  if (Buffer.byteLength(text, "utf8") > maxBytes) throw new TemplatePackageError(`${field} exceeds its byte cap`);
+  if (hasTerminalControl(text)) throw new TemplatePackageError(`${field} must be single-line text without control characters`);
+  return text;
+}
+
+function hasTerminalControl(value: string): boolean {
+  return [...value].some((char) => {
+    const code = char.codePointAt(0)!;
+    return code <= 0x1f || (code >= 0x7f && code <= 0x9f) || code === 0x2028 || code === 0x2029;
+  });
 }
 
 function slugString(value: unknown, field: string): string {

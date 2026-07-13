@@ -6,11 +6,12 @@ import { TextDecoder } from "node:util";
 import { confinedFetch, type ConfinedFetchSeams } from "../../../connectors/confined-fetch.js";
 import { canonicalDigest } from "../signing/canonical.js";
 import { advancePublisherPins } from "../signing/continuity.js";
-import { parseSignedTapIndex } from "../signing/protocol.js";
+import { parseSignedTapIndex, type ParsedTapIndex } from "../signing/protocol.js";
 import type { PublisherKey } from "../signing/types.js";
-import { verifyTapIndex, verifyTapKeyRotation } from "../signing/verify.js";
-import { removeIndexCache, writeIndexCache } from "./cache.js";
+import { verifyAcceptedTapIndex, verifyTapIndex, verifyTapKeyRotation } from "../signing/verify.js";
+import { pruneIndexCaches, writeIndexCache } from "./cache.js";
 import { tapStateCapacityWarnings } from "./capacity.js";
+import { assertContinuityMatchesIndex, loadAcceptedIndex } from "./evidence.js";
 import { withTapStateLock } from "./operator-lock.js";
 import type { TapPaths } from "./paths.js";
 import { readTapState, writeTapState } from "./state-store.js";
@@ -34,10 +35,13 @@ export async function refreshTap(paths: TapPaths, name: string, seams: ConfinedF
   if (!initial.enabled) throw new Error(`template tap is disabled: ${name}`);
   const fetched = await fetchIndex(initial, seams);
   const parsed = parseSignedTapIndex(fetched.text);
+  if (parsed.sequence === initial.publisherPins.highestSequence) {
+    return repairAcceptedCache(paths, initial, parsed, fetched.text);
+  }
   const key = acceptedTapKey(initial, parsed);
   const verified = verifyTapIndex(parsed, name, key);
   const pins = advancePublisherPins(verified, initial.publisherPins);
-  const successor = nextSource(initial, key, pins);
+  const successor = nextSource(initial, key, pins, canonicalDigest(parsed));
   const warnings = await commitRefresh(paths, initial, successor, fetched.text);
   return { tap: name, sequence: verified.sequence, packages: verified.packages.length, warnings };
 }
@@ -66,14 +70,53 @@ function acceptedTapKey(source: TapSourceState, index: ReturnType<typeof parseSi
   return verifyTapKeyRotation(source.name, rotation, source.currentTapKey);
 }
 
-function nextSource(source: TapSourceState, key: PublisherKey, pins: TapSourceState["publisherPins"]): TapSourceState {
+function nextSource(
+  source: TapSourceState,
+  key: PublisherKey,
+  pins: TapSourceState["publisherPins"],
+  acceptedIndexDigest: string,
+): TapSourceState {
   const rotated = key.keyId !== source.currentTapKey.keyId;
   return {
     ...source,
     currentTapKey: key,
     retiredTapKeyIds: rotated ? [...source.retiredTapKeyIds, source.currentTapKey.keyId] : source.retiredTapKeyIds,
+    acceptedIndexDigest,
     publisherPins: pins,
   };
+}
+
+async function repairAcceptedCache(
+  paths: TapPaths,
+  source: TapSourceState,
+  parsed: ParsedTapIndex,
+  text: string,
+): Promise<TapRefreshResult> {
+  if (await acceptedCacheIsHealthy(paths, source)) throw new Error("tap index sequence rollback or replay");
+  if (canonicalDigest(parsed) !== source.acceptedIndexDigest) throw new Error("fetched index differs from the accepted index digest");
+  const verified = verifyAcceptedTapIndex(parsed, source.name, source.currentTapKey, source.publisherPins);
+  assertContinuityMatchesIndex(verified, source);
+  const warnings = await commitCacheRepair(paths, source, text);
+  return { tap: source.name, sequence: parsed.sequence, packages: parsed.packages.length, warnings };
+}
+
+async function acceptedCacheIsHealthy(paths: TapPaths, source: TapSourceState): Promise<boolean> {
+  try {
+    await loadAcceptedIndex(paths, source);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function commitCacheRepair(paths: TapPaths, expected: TapSourceState, text: string): Promise<string[]> {
+  return withTapStateLock(paths, async () => {
+    const state = await readTapState(paths);
+    const current = state.taps[expected.name];
+    if (!current || canonicalDigest(current) !== canonicalDigest(expected)) throw new Error("tap state changed during refresh; retry");
+    await writeIndexCache(paths, expected.name, expected.publisherPins.highestSequence, text);
+    return tapStateCapacityWarnings(state);
+  });
 }
 
 async function commitRefresh(paths: TapPaths, initial: TapSourceState, next: TapSourceState, indexText: string): Promise<string[]> {
@@ -84,13 +127,7 @@ async function commitRefresh(paths: TapPaths, initial: TapSourceState, next: Tap
     await writeIndexCache(paths, next.name, next.publisherPins.highestSequence, indexText);
     const updated = { ...state, taps: { ...state.taps, [next.name]: next } };
     await writeTapState(paths, updated);
-    await prunePreviousIndex(paths, initial);
+    await pruneIndexCaches(paths, next.name, next.publisherPins.highestSequence).catch(() => {});
     return tapStateCapacityWarnings(updated);
   });
-}
-
-async function prunePreviousIndex(paths: TapPaths, source: TapSourceState): Promise<void> {
-  const sequence = source.publisherPins.highestSequence;
-  if (sequence < 0) return;
-  await removeIndexCache(paths, source.name, sequence).catch(() => {});
 }

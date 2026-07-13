@@ -4,6 +4,7 @@
  */
 import { createPublicKey } from "node:crypto";
 import { parseBoundedUniqueJson } from "../signing/json.js";
+import { parseTemplateCoordinate } from "../signing/protocol.js";
 import type { PublisherKey, PublisherPinState } from "../signing/types.js";
 import { MAX_TAP_SOURCES, MAX_TAP_STATE_BYTES, MAX_TAP_STATE_ITEMS } from "./capacity.js";
 import type { TapOperatorState, TapSourceState } from "./state-types.js";
@@ -22,7 +23,7 @@ export function parseTapOperatorState(text: string): TapOperatorState {
 
 function parseSource(value: unknown, name: string): TapSourceState {
   const obj = record(value, `tap ${name}`);
-  exact(obj, ["name", "indexUrl", "origin", "enabled", "currentTapKey", "retiredTapKeyIds", "publisherPins"]);
+  exact(obj, ["name", "indexUrl", "origin", "enabled", "currentTapKey", "retiredTapKeyIds", "acceptedIndexDigest", "publisherPins"]);
   if (slug(obj.name, "tap name") !== name) throw new Error("tap state name differs from its map key");
   const indexUrl = httpsUrl(obj.indexUrl, "tap indexUrl");
   const origin = httpsOrigin(obj.origin, "tap origin");
@@ -30,6 +31,11 @@ function parseSource(value: unknown, name: string): TapSourceState {
   const currentTapKey = publisherKey(obj.currentTapKey);
   const retiredTapKeyIds = stringList(obj.retiredTapKeyIds, "retired tap keys");
   if (retiredTapKeyIds.includes(currentTapKey.keyId)) throw new Error("current tap key cannot be retired");
+  const publisherPins = parsePublisherPins(obj.publisherPins, name);
+  const acceptedIndexDigest = optionalDigest(obj.acceptedIndexDigest);
+  if ((publisherPins.highestSequence < 0) !== (acceptedIndexDigest === null)) {
+    throw new Error("accepted index digest differs from continuity sequence state");
+  }
   return {
     name,
     indexUrl,
@@ -37,15 +43,16 @@ function parseSource(value: unknown, name: string): TapSourceState {
     enabled: bool(obj.enabled, "tap enabled"),
     currentTapKey,
     retiredTapKeyIds,
-    publisherPins: publisherPins(obj.publisherPins, name),
+    acceptedIndexDigest,
+    publisherPins,
   };
 }
 
-function publisherPins(value: unknown, tap: string): PublisherPinState {
+function parsePublisherPins(value: unknown, tap: string): PublisherPinState {
   const obj = record(value, "publisher pins");
   exact(obj, ["tap", "highestSequence", "publishers", "keyHistory", "coordinates", "revokedPackages", "revokedPublisherKeys"]);
   if (slug(obj.tap, "pin tap") !== tap) throw new Error("publisher pins belong to another tap");
-  return {
+  const pins: PublisherPinState = {
     tap,
     highestSequence: integer(obj.highestSequence, "highest sequence", -1),
     publishers: namedMap(obj.publishers, "publishers", (item) => publisherKey(item)),
@@ -54,6 +61,36 @@ function publisherPins(value: unknown, tap: string): PublisherPinState {
     revokedPackages: stringList(obj.revokedPackages, "revoked packages", DIGEST),
     revokedPublisherKeys: stringList(obj.revokedPublisherKeys, "revoked publisher keys"),
   };
+  assertPinRelationships(pins, tap);
+  return pins;
+}
+
+function assertPinRelationships(pins: PublisherPinState, tap: string): void {
+  assertActivePublisherPins(pins);
+  assertHistoryPublishers(pins);
+  assertCoordinateOwners(pins, tap);
+}
+
+function assertActivePublisherPins(pins: PublisherPinState): void {
+  for (const [publisher, key] of Object.entries(pins.publishers)) {
+    const history = pins.keyHistory[key.keyId];
+    if (history?.publisher !== publisher || history.publicKey !== key.publicKey) {
+      throw new Error(`active publisher key is missing from history: ${publisher}`);
+    }
+    if (pins.revokedPublisherKeys.includes(key.keyId)) throw new Error(`active publisher key is revoked: ${publisher}`);
+  }
+}
+
+function assertHistoryPublishers(pins: PublisherPinState): void {
+  for (const history of Object.values(pins.keyHistory)) {
+    if (!pins.publishers[history.publisher]) throw new Error(`key history names an unknown publisher: ${history.publisher}`);
+  }
+}
+
+function assertCoordinateOwners(pins: PublisherPinState, tap: string): void {
+  for (const coordinate of Object.keys(pins.coordinates)) {
+    if (parseTemplateCoordinate(coordinate).tap !== tap) throw new Error(`coordinate belongs to another tap: ${coordinate}`);
+  }
 }
 
 function parseHistory(value: unknown): { publisher: string; publicKey: string } {
@@ -110,6 +147,11 @@ function matched(value: unknown, label: string, pattern?: RegExp): string {
   const text = boundedText(value, label);
   if (pattern && !pattern.test(text)) throw new Error(`${label} has an invalid value`);
   return text;
+}
+
+function optionalDigest(value: unknown): string | null {
+  if (value === null) return null;
+  return matched(value, "accepted index digest", DIGEST);
 }
 
 function httpsUrl(value: unknown, label: string): string {

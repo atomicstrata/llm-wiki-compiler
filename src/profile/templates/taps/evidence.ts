@@ -3,6 +3,7 @@
  * @description Re-verification of the authoritative tap's accepted cached index.
  */
 import { parseSignedTapIndex } from "../signing/protocol.js";
+import { canonicalDigest } from "../signing/canonical.js";
 import { verifyAcceptedTapIndex, type VerifiedTapIndex } from "../signing/verify.js";
 import { readIndexCache } from "./cache.js";
 import type { TapPaths } from "./paths.js";
@@ -13,12 +14,13 @@ export async function loadAcceptedIndex(paths: TapPaths, source: TapSourceState)
   if (source.publisherPins.highestSequence < 0) throw new Error(`template tap has not been refreshed: ${source.name}`);
   const text = await readIndexCache(paths, source.name, source.publisherPins.highestSequence);
   const parsed = parseSignedTapIndex(text);
+  if (canonicalDigest(parsed) !== source.acceptedIndexDigest) throw new Error("cached tap index differs from the accepted index digest");
   const verified = verifyAcceptedTapIndex(parsed, source.name, source.currentTapKey, source.publisherPins);
   assertContinuityMatchesIndex(verified, source);
   return verified;
 }
 
-function assertContinuityMatchesIndex(index: VerifiedTapIndex, source: TapSourceState): void {
+export function assertContinuityMatchesIndex(index: VerifiedTapIndex, source: TapSourceState): void {
   for (const [publisher, announced] of Object.entries(index.publishers)) {
     const pinned = source.publisherPins.publishers[publisher];
     if (pinned?.keyId !== announced.keyId || pinned.publicKey !== announced.publicKey) {

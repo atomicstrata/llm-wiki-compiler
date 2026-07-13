@@ -66,6 +66,13 @@ describe("validateTemplatePackage", () => {
     expect(() => validate({ ...PACKAGE, version: "next" })).toThrow(/invalid template version/i);
   });
 
+  it("rejects terminal controls and oversized display metadata", () => {
+    for (const displayName of ["Team\nForged", "Team\u001b]8;;https://evil.example\u0007click", "x".repeat(257)]) {
+      expect(() => validate({ ...PACKAGE, displayName })).toThrow(/displayName.*single-line|displayName.*byte cap/i);
+    }
+    expect(() => validate({ ...PACKAGE, license: "MIT\rForged" })).toThrow(/license.*single-line/i);
+  });
+
   it("rejects sourceType self-attestation that does not match the caller context", () => {
     expect(() => validateTemplatePackage({ ...PACKAGE, sourceType: "builtin" }, { currentVersion: "0.11.0", sourceType: "local" })).toThrow(
       /template sourceType must be local for this install source/i,
