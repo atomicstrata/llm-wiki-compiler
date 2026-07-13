@@ -88,6 +88,17 @@ describe("confinedFetch transport byte cap", () => {
     expect(result).toEqual({ kind: "refused", reason: "connector response exceeds transport byte cap" });
   });
 
+  it("refuses a gzip body that expands beyond the decoded byte cap", async () => {
+    const { gzipSync } = await import("node:zlib");
+    const compressed = gzipSync(Buffer.from("x".repeat(128)));
+    const limits = { ...LIMITS, maxTransportBytes: compressed.length + 1 };
+    const result = await confinedFetch(
+      { url: "https://tap.example/index.json" }, limits, POLICY,
+      seams([{ statusCode: 200, headers: { "content-type": "application/json", "content-encoding": "gzip" }, body: Readable.from([compressed]) }]),
+    );
+    expect(result).toEqual({ kind: "refused", reason: "connector response exceeds byte cap" });
+  });
+
   it("destroys a rejected response body", async () => {
     const body = Readable.from(["ignored"]);
     const result = await confinedFetch({ url: "https://tap.example/index.json" }, LIMITS, POLICY, {

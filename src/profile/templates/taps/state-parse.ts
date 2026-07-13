@@ -5,11 +5,9 @@
 import { createPublicKey } from "node:crypto";
 import { parseBoundedUniqueJson } from "../signing/json.js";
 import type { PublisherKey, PublisherPinState } from "../signing/types.js";
+import { MAX_TAP_SOURCES, MAX_TAP_STATE_BYTES, MAX_TAP_STATE_ITEMS } from "./capacity.js";
 import type { TapOperatorState, TapSourceState } from "./state-types.js";
 
-export const MAX_TAP_STATE_BYTES = 4 * 1024 * 1024;
-const MAX_TAPS = 64;
-const MAX_ITEMS = 10_000;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DIGEST = /^sha256:[0-9a-f]{64}$/;
 
@@ -18,7 +16,7 @@ export function parseTapOperatorState(text: string): TapOperatorState {
   const root = record(parseBoundedUniqueJson(text, MAX_TAP_STATE_BYTES), "tap state");
   exact(root, ["schemaVersion", "taps"]);
   if (root.schemaVersion !== 1) throw new Error("tap state schemaVersion must be 1");
-  const taps = namedMap(root.taps, "taps", parseSource, MAX_TAPS);
+  const taps = namedMap(root.taps, "taps", parseSource, MAX_TAP_SOURCES);
   return { schemaVersion: 1, taps };
 }
 
@@ -51,7 +49,7 @@ function publisherPins(value: unknown, tap: string): PublisherPinState {
     tap,
     highestSequence: integer(obj.highestSequence, "highest sequence", -1),
     publishers: namedMap(obj.publishers, "publishers", (item) => publisherKey(item)),
-    keyHistory: namedMap(obj.keyHistory, "key history", parseHistory),
+    keyHistory: boundedMap(obj.keyHistory, "key history", parseHistory),
     coordinates: stringMap(obj.coordinates, "coordinates", DIGEST),
     revokedPackages: stringList(obj.revokedPackages, "revoked packages", DIGEST),
     revokedPublisherKeys: stringList(obj.revokedPublisherKeys, "revoked publisher keys"),
@@ -83,7 +81,7 @@ function assertEd25519(publicKey: string): void {
   }
 }
 
-function namedMap<T>(value: unknown, label: string, parse: (item: unknown, name: string) => T, cap = MAX_ITEMS): Record<string, T> {
+function namedMap<T>(value: unknown, label: string, parse: (item: unknown, name: string) => T, cap = MAX_TAP_STATE_ITEMS): Record<string, T> {
   const obj = record(value, label);
   if (Object.keys(obj).length > cap) throw new Error(`${label} exceeds its item cap`);
   return Object.fromEntries(Object.entries(obj).map(([name, item]) => [slug(name, `${label} key`), parse(item, name)]));
@@ -91,12 +89,18 @@ function namedMap<T>(value: unknown, label: string, parse: (item: unknown, name:
 
 function stringMap(value: unknown, label: string, pattern?: RegExp): Record<string, string> {
   const obj = record(value, label);
-  if (Object.keys(obj).length > MAX_ITEMS) throw new Error(`${label} exceeds its item cap`);
+  if (Object.keys(obj).length > MAX_TAP_STATE_ITEMS) throw new Error(`${label} exceeds its item cap`);
   return Object.fromEntries(Object.entries(obj).map(([key, item]) => [boundedText(key, `${label} key`), matched(item, label, pattern)]));
 }
 
+function boundedMap<T>(value: unknown, label: string, parse: (item: unknown) => T): Record<string, T> {
+  const obj = record(value, label);
+  if (Object.keys(obj).length > MAX_TAP_STATE_ITEMS) throw new Error(`${label} exceeds its item cap`);
+  return Object.fromEntries(Object.entries(obj).map(([key, item]) => [boundedText(key, `${label} key`), parse(item)]));
+}
+
 function stringList(value: unknown, label: string, pattern?: RegExp): string[] {
-  if (!Array.isArray(value) || value.length > MAX_ITEMS) throw new Error(`${label} must be a bounded array`);
+  if (!Array.isArray(value) || value.length > MAX_TAP_STATE_ITEMS) throw new Error(`${label} must be a bounded array`);
   const values = value.map((item) => matched(item, label, pattern));
   if (new Set(values).size !== values.length) throw new Error(`${label} contains duplicates`);
   return values;

@@ -6,10 +6,12 @@ import { rm } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { addTap } from "../src/profile/templates/taps/manage.js";
 import { removeTap } from "../src/profile/templates/taps/manage.js";
+import { readIndexCache } from "../src/profile/templates/taps/cache.js";
 import type { TapPaths } from "../src/profile/templates/taps/paths.js";
 import { refreshTap } from "../src/profile/templates/taps/refresh.js";
 import { readTapState } from "../src/profile/templates/taps/state-store.js";
 import { isolatedTapPaths, servesTemplateBytes, templateRegistryFixture, TAP_KEY } from "./fixtures/template-tap-runtime.js";
+import { signedIndex } from "./fixtures/template-signing.js";
 
 const roots: string[] = [];
 async function setup(): Promise<{ paths: TapPaths; index: string }> {
@@ -23,7 +25,7 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 describe("template tap refresh", () => {
   it("accepts a verified snapshot, caches it, and advances continuity", async () => {
     const fixture = await setup();
-    expect(await refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index))).toEqual({ tap: "official", sequence: 1, packages: 1 });
+    expect(await refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index))).toEqual({ tap: "official", sequence: 1, packages: 1, warnings: [] });
     const state = await readTapState(fixture.paths);
     expect(state.taps.official.publisherPins.highestSequence).toBe(1);
     expect(state.taps.official.publisherPins.coordinates).toHaveProperty("official/atomicstrata/team@1.0.0");
@@ -40,6 +42,15 @@ describe("template tap refresh", () => {
     const fixture = await setup();
     await refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index));
     await expect(refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index))).rejects.toThrow(/rollback or replay/);
+  });
+
+  it("prunes the superseded index cache after the next sequence commits", async () => {
+    const fixture = await setup();
+    await refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index));
+    const second = JSON.stringify(signedIndex({ sequence: 2 }));
+    await refreshTap(fixture.paths, "official", servesTemplateBytes(second));
+    await expect(readIndexCache(fixture.paths, "official", 1)).rejects.toThrow(/unavailable/);
+    expect(await readIndexCache(fixture.paths, "official", 2)).toContain('"sequence":2');
   });
 
   it("does not overwrite a tap disabled while its network fetch is in flight", async () => {

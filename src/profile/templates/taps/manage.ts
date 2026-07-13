@@ -6,6 +6,7 @@ import { createHash, createPublicKey } from "node:crypto";
 import { MAX_CONNECTOR_URL_BYTES } from "../../../connectors/confined-fetch.js";
 import { emptyPublisherPinState } from "../signing/continuity.js";
 import type { PublisherKey } from "../signing/types.js";
+import { tapStateCapacityWarnings } from "./capacity.js";
 import type { TapPaths } from "./paths.js";
 import { withTapStateLock } from "./operator-lock.js";
 import { readTapState, writeTapState } from "./state-store.js";
@@ -22,6 +23,7 @@ export interface TapSummary {
   keyId: string;
   keyFingerprint: string;
   highestSequence: number;
+  warnings: string[];
 }
 
 /** Add a fresh tap or re-enable its exact retained trust identity. */
@@ -50,10 +52,25 @@ export async function removeTap(paths: TapPaths, name: string): Promise<TapSumma
   });
 }
 
+/** Permanently delete one tap's roots and continuity after explicit consent. */
+export async function forgetTap(paths: TapPaths, name: string, confirmed: boolean): Promise<void> {
+  assertSlug(name, "tap name");
+  if (!confirmed) throw new Error("tap forget requires --yes because it permanently deletes trust history");
+  await withTapStateLock(paths, async () => {
+    const state = await readTapState(paths);
+    if (!state.taps[name]) throw new Error(`unknown template tap: ${name}`);
+    const taps = { ...state.taps };
+    delete taps[name];
+    await writeTapState(paths, { ...state, taps });
+  });
+}
+
 /** List configured taps without exposing raw key bytes. */
 export async function listTaps(paths: TapPaths): Promise<TapSummary[]> {
   const state = await readTapState(paths);
-  return Object.values(state.taps).map(summarize).sort((a, b) => a.name.localeCompare(b.name));
+  const warnings = tapStateCapacityWarnings(state);
+  return Object.values(state.taps).map((source) => summarize(source, warnings.filter((item) => item.startsWith(source.name) || item.startsWith("operator "))))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function newTapSource(input: { name: string; indexUrl: string; key: PublisherKey }): TapSourceState {
@@ -98,7 +115,7 @@ function assertSameRetainedTap(existing: TapSourceState, proposed: TapSourceStat
   if (!same) throw new Error("tap trust identity cannot be replaced; use a new tap name");
 }
 
-function summarize(source: TapSourceState): TapSummary {
+function summarize(source: TapSourceState, warnings: string[] = []): TapSummary {
   return {
     name: source.name,
     indexUrl: source.indexUrl,
@@ -107,6 +124,7 @@ function summarize(source: TapSourceState): TapSummary {
     keyId: source.currentTapKey.keyId,
     keyFingerprint: createHash("sha256").update(Buffer.from(source.currentTapKey.publicKey, "base64")).digest("hex"),
     highestSequence: source.publisherPins.highestSequence,
+    warnings,
   };
 }
 

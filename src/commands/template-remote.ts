@@ -13,12 +13,9 @@ export interface RemoteOutputOptions { json?: boolean }
 
 /** Search accepted signed indexes without downloading package bodies. */
 export async function templateSearchCommand(query: string, options: TemplateSearchOptions): Promise<number> {
-  const results = await searchRemoteTemplates(resolveTapPaths(), query, options.tap);
-  if (options.json) console.log(JSON.stringify(results, null, 2));
-  else {
-    console.log("Coordinate                                      Sequence  Status");
-    for (const item of results) console.log(`${item.coordinate.padEnd(47)} ${String(item.sequence).padEnd(9)} ${item.stale ? "stale" : "current"}`);
-  }
+  const search = await searchRemoteTemplates(resolveTapPaths(), query, options.tap);
+  if (options.json) console.log(JSON.stringify(search, null, 2));
+  else printSearch(search);
   return 0;
 }
 
@@ -54,4 +51,12 @@ function printDetails(details: Awaited<ReturnType<typeof inspectRemoteTemplate>>
   console.log(`publisherKey:${details.publisherKeyId}`);
   console.log(`tapSequence: ${details.sequence}`);
   console.log(`status:      ${details.stale ? "stale accepted evidence" : "current"}`);
+}
+
+function printSearch(search: Awaited<ReturnType<typeof searchRemoteTemplates>>): void {
+  console.log("Coordinate                                      Sequence  Status");
+  for (const item of search.results) {
+    console.log(`${item.coordinate.padEnd(47)} ${String(item.sequence).padEnd(9)} ${item.stale ? "stale" : "current"}`);
+  }
+  for (const warning of search.warnings) output.note(`Warning: tap '${warning.tap}' skipped: ${warning.reason}`);
 }

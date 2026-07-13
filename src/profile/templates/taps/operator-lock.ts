@@ -51,7 +51,7 @@ async function tryCreate(lockFile: string, token: string): Promise<boolean> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     await handle?.close().catch(() => {});
-    await unlink(lockFile).catch(() => {});
+    if (handle !== undefined) await unlink(lockFile).catch(() => {});
     throw error;
   }
 }

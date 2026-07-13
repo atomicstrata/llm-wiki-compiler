@@ -3,6 +3,7 @@
  * @description Non-authoritative confined cache for verified indexes and packages.
  */
 import path from "node:path";
+import { unlink } from "node:fs/promises";
 import { atomicWrite } from "../../../utils/atomic-write.js";
 import { readConfinedLeaf } from "../../../utils/confined-read.js";
 import type { TapPaths } from "./paths.js";
@@ -21,6 +22,15 @@ export async function writeIndexCache(paths: TapPaths, tap: string, sequence: nu
 /** Read one cached index as evidence, never as authority. */
 export async function readIndexCache(paths: TapPaths, tap: string, sequence: number): Promise<string> {
   return readCache(paths, indexCachePath(paths, tap, sequence), MAX_CACHED_INDEX_BYTES);
+}
+
+/** Best-effort removal of superseded non-authoritative index evidence. */
+export async function removeIndexCache(paths: TapPaths, tap: string, sequence: number): Promise<void> {
+  const leaf = indexCachePath(paths, tap, sequence);
+  const read = await readConfinedLeaf(paths.cacheRoot, leaf, path.dirname(leaf), MAX_CACHED_INDEX_BYTES);
+  if (read.kind === "absent") return;
+  if (read.kind !== "ok") throw new Error("template cache evidence is unavailable");
+  await unlink(leaf);
 }
 
 /** Write a fully verified package envelope by signed payload digest. */

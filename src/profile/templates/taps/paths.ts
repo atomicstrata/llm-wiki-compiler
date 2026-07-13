@@ -38,13 +38,18 @@ export function resolveTapPaths(inputs: TapPathInputs = {}): TapPaths {
 }
 
 function defaultConfigRoot(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: string): string {
-  if (platform === "win32" && env.APPDATA) return path.join(env.APPDATA, "llmwiki");
-  if (env.XDG_CONFIG_HOME) return path.join(env.XDG_CONFIG_HOME, "llmwiki");
+  if (platform === "win32" && absolute(platform, env.APPDATA)) return path.join(env.APPDATA!, "llmwiki");
+  if (absolute(platform, env.XDG_CONFIG_HOME)) return path.join(env.XDG_CONFIG_HOME!, "llmwiki");
   return path.join(home, ".config", "llmwiki");
 }
 
 function defaultCacheRoot(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: string): string {
-  if (platform === "win32" && env.LOCALAPPDATA) return path.join(env.LOCALAPPDATA, "llmwiki", "cache", "templates");
-  if (env.XDG_CACHE_HOME) return path.join(env.XDG_CACHE_HOME, "llmwiki", "templates");
+  if (platform === "win32" && absolute(platform, env.LOCALAPPDATA)) return path.join(env.LOCALAPPDATA!, "llmwiki", "cache", "templates");
+  if (absolute(platform, env.XDG_CACHE_HOME)) return path.join(env.XDG_CACHE_HOME!, "llmwiki", "templates");
   return path.join(home, ".cache", "llmwiki", "templates");
+}
+
+function absolute(platform: NodeJS.Platform, value: string | undefined): value is string {
+  const paths = platform === "win32" ? path.win32 : path;
+  return value !== undefined && paths.isAbsolute(value);
 }

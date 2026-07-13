@@ -9,7 +9,8 @@ import { advancePublisherPins } from "../signing/continuity.js";
 import { parseSignedTapIndex } from "../signing/protocol.js";
 import type { PublisherKey } from "../signing/types.js";
 import { verifyTapIndex, verifyTapKeyRotation } from "../signing/verify.js";
-import { writeIndexCache } from "./cache.js";
+import { removeIndexCache, writeIndexCache } from "./cache.js";
+import { tapStateCapacityWarnings } from "./capacity.js";
 import { withTapStateLock } from "./operator-lock.js";
 import type { TapPaths } from "./paths.js";
 import { readTapState, writeTapState } from "./state-store.js";
@@ -24,7 +25,7 @@ const INDEX_LIMITS = {
 };
 
 /** Public refresh result without raw keys or index bytes. */
-export interface TapRefreshResult { tap: string; sequence: number; packages: number }
+export interface TapRefreshResult { tap: string; sequence: number; packages: number; warnings: string[] }
 
 /** Refresh one enabled tap and commit continuity only if its snapshot is unchanged. */
 export async function refreshTap(paths: TapPaths, name: string, seams: ConfinedFetchSeams = {}): Promise<TapRefreshResult> {
@@ -37,8 +38,8 @@ export async function refreshTap(paths: TapPaths, name: string, seams: ConfinedF
   const verified = verifyTapIndex(parsed, name, key);
   const pins = advancePublisherPins(verified, initial.publisherPins);
   const successor = nextSource(initial, key, pins);
-  await commitRefresh(paths, initial, successor, fetched.text);
-  return { tap: name, sequence: verified.sequence, packages: verified.packages.length };
+  const warnings = await commitRefresh(paths, initial, successor, fetched.text);
+  return { tap: name, sequence: verified.sequence, packages: verified.packages.length, warnings };
 }
 
 async function fetchIndex(source: TapSourceState, seams: ConfinedFetchSeams): Promise<{ text: string }> {
@@ -75,12 +76,21 @@ function nextSource(source: TapSourceState, key: PublisherKey, pins: TapSourceSt
   };
 }
 
-async function commitRefresh(paths: TapPaths, initial: TapSourceState, next: TapSourceState, indexText: string): Promise<void> {
-  await withTapStateLock(paths, async () => {
+async function commitRefresh(paths: TapPaths, initial: TapSourceState, next: TapSourceState, indexText: string): Promise<string[]> {
+  return withTapStateLock(paths, async () => {
     const state = await readTapState(paths);
     const current = state.taps[initial.name];
     if (!current || canonicalDigest(current) !== canonicalDigest(initial)) throw new Error("tap state changed during refresh; retry");
     await writeIndexCache(paths, next.name, next.publisherPins.highestSequence, indexText);
-    await writeTapState(paths, { ...state, taps: { ...state.taps, [next.name]: next } });
+    const updated = { ...state, taps: { ...state.taps, [next.name]: next } };
+    await writeTapState(paths, updated);
+    await prunePreviousIndex(paths, initial);
+    return tapStateCapacityWarnings(updated);
   });
+}
+
+async function prunePreviousIndex(paths: TapPaths, source: TapSourceState): Promise<void> {
+  const sequence = source.publisherPins.highestSequence;
+  if (sequence < 0) return;
+  await removeIndexCache(paths, source.name, sequence).catch(() => {});
 }

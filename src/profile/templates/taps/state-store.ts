@@ -5,7 +5,8 @@
 import { lstat } from "node:fs/promises";
 import { atomicWrite } from "../../../utils/atomic-write.js";
 import { readConfinedLeaf } from "../../../utils/confined-read.js";
-import { parseTapOperatorState, MAX_TAP_STATE_BYTES } from "./state-parse.js";
+import { assertTapStateCapacity, MAX_TAP_STATE_BYTES } from "./capacity.js";
+import { parseTapOperatorState } from "./state-parse.js";
 import { emptyTapOperatorState, type TapOperatorState } from "./state-types.js";
 import type { TapPaths } from "./paths.js";
 import { ensurePrivateRoot } from "./private-root.js";
@@ -25,6 +26,7 @@ export async function readTapState(paths: TapPaths): Promise<TapOperatorState> {
 export async function writeTapState(paths: TapPaths, state: TapOperatorState): Promise<void> {
   await ensurePrivateRoot(paths.configRoot);
   const text = `${JSON.stringify(state, null, 2)}\n`;
+  assertTapStateCapacity(state, text);
   parseTapOperatorState(text);
   await atomicWrite(paths.stateFile, text, { confineRoot: paths.configRoot, durable: true, mode: 0o600 });
 }

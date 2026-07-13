@@ -8,6 +8,7 @@ import { loadAcceptedIndex } from "./evidence.js";
 import { resolveRemotePackage } from "./package.js";
 import type { TapPaths } from "./paths.js";
 import { readTapState } from "./state-store.js";
+import type { TapSourceState } from "./state-types.js";
 
 /** Index-only search result; no package body or raw key is exposed. */
 export interface RemoteTemplateSearchResult {
@@ -30,27 +31,62 @@ export interface RemoteTemplateDetails extends RemoteTemplateSearchResult {
   capabilities: ReturnType<typeof deriveTemplateCapabilities>;
 }
 
+/** Search envelope preserves healthy results while surfacing degraded taps. */
+export interface RemoteTemplateSearch {
+  results: RemoteTemplateSearchResult[];
+  warnings: Array<{ tap: string; reason: string }>;
+}
+
 /** Search only already accepted index coordinates, never package bodies. */
-export async function searchRemoteTemplates(paths: TapPaths, query: string, tap?: string): Promise<RemoteTemplateSearchResult[]> {
+export async function searchRemoteTemplates(paths: TapPaths, query: string, tap?: string): Promise<RemoteTemplateSearch> {
   const state = await readTapState(paths);
   if (tap && !state.taps[tap]) throw new Error(`unknown template tap: ${tap}`);
   if (tap && !state.taps[tap].enabled) throw new Error(`template tap is disabled: ${tap}`);
   const sources = Object.values(state.taps).filter((source) => source.enabled && (!tap || source.name === tap));
-  const groups = await Promise.all(sources.map(async (source) => {
+  if (tap) return searchOne(paths, sources[0], query);
+  const settled = await Promise.allSettled(sources.map(async (source) => {
     const index = await loadAcceptedIndex(paths, source);
-    return index.packages
-      .filter((entry) => evidenceIsActive(source, entry.publisher, entry.payloadDigest))
-      .map((entry) => searchResult(entry.coordinate, entry.payloadDigest, index.sequence, index.expiresAt));
+    return { source, index };
   }));
-  const needle = query.trim().toLowerCase();
-  return groups.flat().filter((item) => searchable(item).includes(needle)).sort((a, b) => a.coordinate.localeCompare(b.coordinate));
+  const warnings = settled.flatMap((item, index) => item.status === "rejected"
+    ? [{ tap: sources[index].name, reason: errorMessage(item.reason) }]
+    : []);
+  const groups = settled.flatMap((item) => item.status === "fulfilled"
+    ? activeResults(item.value.source, item.value.index)
+    : []);
+  return filterResults(groups, query, warnings);
 }
 
-function evidenceIsActive(source: Awaited<ReturnType<typeof readTapState>>["taps"][string], publisher: string, digest: string): boolean {
+async function searchOne(paths: TapPaths, source: TapSourceState, query: string): Promise<RemoteTemplateSearch> {
+  const index = await loadAcceptedIndex(paths, source);
+  return filterResults(activeResults(source, index), query, []);
+}
+
+function activeResults(source: TapSourceState, index: Awaited<ReturnType<typeof loadAcceptedIndex>>): RemoteTemplateSearchResult[] {
+  return index.packages
+      .filter((entry) => evidenceIsActive(source, entry.publisher, entry.payloadDigest))
+      .map((entry) => searchResult(entry.coordinate, entry.payloadDigest, index.sequence, index.expiresAt));
+}
+
+function filterResults(
+  groups: RemoteTemplateSearchResult[],
+  query: string,
+  warnings: RemoteTemplateSearch["warnings"],
+): RemoteTemplateSearch {
+  const needle = query.trim().toLowerCase();
+  const results = groups.filter((item) => searchable(item).includes(needle)).sort((a, b) => a.coordinate.localeCompare(b.coordinate));
+  return { results, warnings };
+}
+
+function evidenceIsActive(source: TapSourceState, publisher: string, digest: string): boolean {
   const keyId = source.publisherPins.publishers[publisher]?.keyId;
   return !source.publisherPins.revokedPackages.includes(digest)
     && keyId !== undefined
     && !source.publisherPins.revokedPublisherKeys.includes(keyId);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "template tap evidence is unavailable";
 }
 
 /** Fetch or reuse and verify one qualified remote package for display. */

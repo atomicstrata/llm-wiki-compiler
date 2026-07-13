@@ -71,11 +71,17 @@ llmwiki template tap add <name> <https-index-url> \
 llmwiki template tap list [--json]
 llmwiki template tap refresh <name> [--json]
 llmwiki template tap remove <name>
+llmwiki template tap forget <name> --yes
 ```
 
 `tap add`, `tap list`, and `tap remove` do not access the network. `tap remove`
 disables the source and retains its key, sequence, publisher pins, revocations,
 and coordinate history.
+
+`tap forget` is the destructive recovery path for a lost root key, moved
+infrastructure, or exhausted continuity store. It permanently deletes that
+tap's roots, publisher pins, revocations, and coordinate history, making a
+later add equivalent to trusting the source fresh. It requires `--yes`.
 
 ## Search signed indexes
 
@@ -86,6 +92,10 @@ llmwiki template search <query> [--tap <name>] [--json]
 Search reads only already accepted signed-index metadata. It does not download
 every matching package. Results from an expired but previously accepted index
 are marked `stale` and cannot introduce unseen coordinates.
+
+An unrefreshed or unavailable tap does not hide verified results from healthy
+taps: unscoped search returns those results plus a warning for each skipped
+tap. Search explicitly scoped with `--tap` remains fail closed.
 
 ## Inspect or verify a remote coordinate
 

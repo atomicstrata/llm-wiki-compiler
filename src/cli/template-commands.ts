@@ -18,10 +18,12 @@ import {
 import { runExitCodeCommand } from "./shared.js";
 import {
   templateTapAddCommand,
+  templateTapForgetCommand,
   templateTapListCommand,
   templateTapRefreshCommand,
   templateTapRemoveCommand,
   type TapAddOptions,
+  type TapForgetOptions,
   type TapOutputOptions,
 } from "../commands/template-tap.js";
 import {
@@ -103,6 +105,10 @@ function registerTapCommands(template: Command): void {
       runExitCodeCommand(() => templateTapAddCommand(name, url, options)));
   tap.command("remove <name>").description("Disable a tap and retain trust history").action(async (name: string) =>
     runExitCodeCommand(() => templateTapRemoveCommand(name)));
+  tap.command("forget <name>").description("Permanently delete a tap and all retained trust history")
+    .option("--yes", "Confirm the irreversible trust reset")
+    .action(async (name: string, options: TapForgetOptions) =>
+      runExitCodeCommand(() => templateTapForgetCommand(name, options)));
   tap.command("refresh <name>").option("--json", "Print stable JSON").action(async (name: string, options: TapOutputOptions) =>
     runExitCodeCommand(() => templateTapRefreshCommand(name, options)));
 }

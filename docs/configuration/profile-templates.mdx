@@ -146,3 +146,18 @@ llmwiki template tap remove community
 Removal disables the tap but intentionally retains its trust history. Re-adding
 the same name is allowed only with the exact same URL, origin, and root key. This
 prevents remove-and-readd from becoming an implicit trust reset.
+
+Continuity history is append-only and bounded. `tap list` and `tap refresh`
+warn when a tap approaches its persistence limit so operators can plan a new
+identity or an explicit reset before refresh is refused.
+
+If a tap's root key is lost or its retained history must be discarded, use the
+explicit destructive operation:
+
+```bash
+llmwiki template tap forget community --yes
+```
+
+This deletes only that tap's roots, publisher pins, revocations, and coordinate
+history. It does not delete project profiles. Re-adding the name afterward is a
+fresh trust decision and should use a key verified out of band.

@@ -55,6 +55,8 @@ describe("template tap CLI", () => {
     expect(JSON.parse(list.stdout)).toMatchObject([{ name: "community", enabled: true }]);
     expect(list.stdout).not.toContain(TAP_KEY.publicKey);
     expect(run(cwd, ["template", "tap", "remove", "community"]).status).toBe(0);
+    expect(run(cwd, ["template", "tap", "forget", "community"]).status).toBe(1);
+    expect(run(cwd, ["template", "tap", "forget", "community", "--yes"]).status).toBe(0);
     await expect(stat(path.join(cwd, ".llmwiki"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
@@ -64,7 +66,7 @@ describe("template tap CLI", () => {
     const search = run(cwd, ["template", "search", "team", "--json"]);
     const inspect = run(cwd, ["template", "inspect", "official/atomicstrata/team@1.0.0", "--json"]);
     const verify = run(cwd, ["template", "verify", "official/atomicstrata/team@1.0.0", "--json"]);
-    expect(JSON.parse(search.stdout)[0]).toMatchObject({ templateId: "team" });
+    expect(JSON.parse(search.stdout).results[0]).toMatchObject({ templateId: "team" });
     expect(JSON.parse(inspect.stdout)).toMatchObject({ displayName: "Team", templateId: "team" });
     expect(JSON.parse(verify.stdout)).toMatchObject({ verified: true, publisherKeyId: "publisher-key-1" });
     await expect(stat(path.join(cwd, ".llmwiki"))).rejects.toMatchObject({ code: "ENOENT" });
