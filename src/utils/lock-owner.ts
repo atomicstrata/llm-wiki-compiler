@@ -30,17 +30,19 @@ export interface LockOwner {
   startTime?: string;
 }
 
-/**
- * This process's OWN start time, read ONCE at module load. Cached because (a) it
- * never changes for the life of the process and (b) the read spawns a synchronous
- * `ps`, which must not run on every lock acquire / poll. `serializeOwner` and the
- * same-process stale short-circuit both reuse this value.
- */
-const SELF_START_TIME = readProcessStartTime(process.pid);
+/** This process's start time, populated only when lock behavior first needs it. */
+let cachedSelfStartTime: string | null | undefined;
+
+function selfStartTime(): string | null {
+  if (cachedSelfStartTime === undefined) {
+    cachedSelfStartTime = readProcessStartTime(process.pid);
+  }
+  return cachedSelfStartTime;
+}
 
 /** The serialized owner record written into a FRESH lock leaf (new format). */
 export function serializeOwner(pid: number): string {
-  const startTime = pid === process.pid ? SELF_START_TIME : readProcessStartTime(pid);
+  const startTime = pid === process.pid ? selfStartTime() : readProcessStartTime(pid);
   // Omit startTime when unreadable so a reader never treats "" as a real identity;
   // such a leaf simply degrades to PID-only liveness (best-effort, back-compat).
   return JSON.stringify(startTime === null ? { pid } : { pid, startTime });
@@ -122,7 +124,10 @@ export function isOwnerStale(owner: LockOwner): boolean {
   // FAST PATH: the leaf names OUR OWN live process (a concurrent same-process
   // writer holds it). It cannot be a reused PID, so compare against the cached
   // self start time and skip the per-poll `ps` spawn entirely.
-  if (owner.pid === process.pid) return SELF_START_TIME !== null && SELF_START_TIME !== owner.startTime;
+  if (owner.pid === process.pid) {
+    const current = selfStartTime();
+    return current !== null && current !== owner.startTime;
+  }
   const current = readProcessStartTime(owner.pid);
   if (current === null) return false; // unreadable → trust the recorded identity
   return current !== owner.startTime; // mismatch ⇒ PID reused ⇒ stale

@@ -216,8 +216,15 @@ function slug(value: unknown, label: string): string {
 
 function digest(value: unknown): string {
   const text = textField(value, "digest");
-  if (!/^sha256:[0-9a-f]{64}$/.test(text)) throw new Error("digest must be prefixed lowercase SHA-256 hex");
+  sha256DigestHex(text);
   return text;
+}
+
+/** Return the path-safe hex component of one canonical SHA-256 digest. */
+export function sha256DigestHex(value: string): string {
+  const match = /^sha256:([0-9a-f]{64})$/.exec(value);
+  if (!match) throw new Error("digest must be prefixed lowercase SHA-256 hex");
+  return match[1];
 }
 
 function base64(value: unknown, label: string): string {

@@ -6,7 +6,7 @@ import { TextDecoder } from "node:util";
 import packageJson from "../../../../package.json" with { type: "json" };
 import { confinedFetch, type ConfinedFetchSeams } from "../../../connectors/confined-fetch.js";
 import type { ProfileTemplatePackage } from "../types.js";
-import { parseSignedPackage, parseTemplateCoordinate } from "../signing/protocol.js";
+import { parseSignedPackage, parseTemplateCoordinate, sha256DigestHex } from "../signing/protocol.js";
 import { verifySignedPackage } from "../signing/verify.js";
 import { readPackageCache, writePackageCache } from "./cache.js";
 import { loadAcceptedIndex } from "./evidence.js";
@@ -135,8 +135,7 @@ async function assertSourceUnchanged(paths: TapPaths, expected: Awaited<ReturnTy
 
 /** Derive the immutable package endpoint from the signed digest only. */
 export function packageUrl(indexUrl: string, digest: string): string {
-  const hex = /^sha256:([0-9a-f]{64})$/.exec(digest)?.[1];
-  if (!hex) throw new Error("package digest is invalid");
+  const hex = sha256DigestHex(digest);
   return new URL(`packages/sha256/${hex}.json`, new URL(".", indexUrl)).toString();
 }
 

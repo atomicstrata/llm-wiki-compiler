@@ -3,7 +3,7 @@
  * @description Native Ed25519 verification for tap indexes, package claims,
  * payload digests, and publisher-key rotations.
  */
-import { createPublicKey, verify } from "node:crypto";
+import { createPublicKey, verify, type KeyObject } from "node:crypto";
 import type { ProfileTemplatePackage } from "../types.js";
 import { validateTemplatePackage } from "../validate.js";
 import { canonicalBytes, canonicalDigest, packageClaim, rotationClaim, tapRotationClaim } from "./canonical.js";
@@ -126,11 +126,21 @@ export function verifyTapKeyRotation(
 function verifySignature(bytes: Buffer, signature: Ed25519Signature, key: PublisherKey, code: string): void {
   if (signature.algorithm !== "ed25519") refuse("algorithm", "only Ed25519 signatures are supported");
   if (signature.keyId !== key.keyId) refuse("wrong-key", "signature key id does not match its verification key");
+  const publicKey = importEd25519PublicKey(key);
+  const signatureBytes = Buffer.from(signature.value, "base64");
+  if (signatureBytes.length !== 64 || !verify(null, bytes, publicKey, signatureBytes)) refuse(code, "signature verification failed");
+}
+
+/** Validate an independently selected verification key without exposing its bytes. */
+export function assertEd25519PublicKey(key: PublisherKey): void {
+  importEd25519PublicKey(key);
+}
+
+function importEd25519PublicKey(key: PublisherKey): KeyObject {
   try {
     const publicKey = createPublicKey({ key: Buffer.from(key.publicKey, "base64"), format: "der", type: "spki" });
     if (publicKey.asymmetricKeyType !== "ed25519") refuse("malformed-key", "verification key is not Ed25519");
-    const signatureBytes = Buffer.from(signature.value, "base64");
-    if (signatureBytes.length !== 64 || !verify(null, bytes, publicKey, signatureBytes)) refuse(code, "signature verification failed");
+    return publicKey;
   } catch (error) {
     if (error instanceof TemplateVerificationError) throw error;
     refuse("malformed-key", "Ed25519 public key is malformed");

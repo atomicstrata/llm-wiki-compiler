@@ -4,7 +4,7 @@
  * group is intentionally thin: parsing stays here, while registry inspection
  * and install behavior stay in `src/commands/template.ts`.
  */
-import type { Command } from "commander";
+import { Help, type Command } from "commander";
 import {
   templateInspectCommand,
   templateInitCommand,
@@ -33,12 +33,22 @@ import {
   type RemoteOutputOptions,
   type TemplateSearchOptions,
 } from "../commands/template-remote.js";
+import {
+  templatePublishVerifyCommand,
+  type TemplatePublishVerifyOptions,
+} from "../commands/template-publish.js";
 
 /** Register template list, inspect, and init commands. */
 export function registerTemplateCommands(program: Command): void {
   const template = program
     .command("template")
-    .description("List, inspect, and install profile templates");
+    .description("List, inspect, and install profile templates")
+    .configureHelp({
+      subcommandTerm: (command) => {
+        const term = new Help().subcommandTerm(command);
+        return command.name() === "verify" ? term.replace(" [options]", "") : term;
+      },
+    });
 
   template
     .command("list")
@@ -65,6 +75,19 @@ export function registerTemplateCommands(program: Command): void {
     .description("Verify one qualified remote template package")
     .option("--json", "Print stable JSON provenance")
     .action(async (coordinate: string, options: RemoteOutputOptions) => runExitCodeCommand(() => templateVerifyCommand(coordinate, options)));
+
+  const publish = template
+    .command("publish")
+    .description("Verify template publisher distributions");
+  publish
+    .command("verify <directory>")
+    .description("Verify a signed publisher distribution offline")
+    .requiredOption("--key-id <id>", "Trusted Ed25519 tap key id")
+    .requiredOption("--key-file <path>", "Read the trusted base64 SPKI DER tap key")
+    .option("--json", "Print a stable versioned JSON result")
+    .action(async (directory: string, options: TemplatePublishVerifyOptions) =>
+      runExitCodeCommand(() => templatePublishVerifyCommand(directory, options)),
+    );
 
   template
     .command("status")
