@@ -206,9 +206,11 @@ function guardImportsAndNetworkSource(): string[] {
     '  for (const name of dnsMethods(Resolver.prototype)) Resolver.prototype[name] = deny("network access");',
     '}',
     'globalThis.fetch = deny("network access");',
+    'globalThis.WebSocket = deny("network access");',
     'for (const name of ["exec", "execFile", "fork", "spawn", "execSync", "execFileSync", "spawnSync"]) {',
     '  childProcess[name] = deny("child process");',
     '}',
+    'childProcess.ChildProcess.prototype.spawn = deny("child process");',
     'workerThreads.Worker = deny("worker thread");',
   ];
 }
@@ -225,7 +227,9 @@ function guardFilesystemSource(): string[] {
     '  if (typeof fs[`${name}Sync`] === "function") fs[`${name}Sync`] = deny("filesystem write");',
     '  if (typeof fs.promises[name] === "function") fs.promises[name] = deny("filesystem write");',
     '}',
-    'const writeFlags = (flags) => typeof flags === "number" ? (flags & 3) !== 0 : /[aw+]/.test(flags);',
+    'const writeMask = fs.constants.O_WRONLY | fs.constants.O_RDWR | fs.constants.O_APPEND',
+    '  | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_EXCL;',
+    'const writeFlags = (flags) => typeof flags === "number" ? (flags & writeMask) !== 0 : /[aw+]/.test(flags);',
     'const open = fs.open; fs.open = function guardedOpen(path, flags, ...rest) {',
     '  return writeFlags(flags) ? deny("filesystem write")() : open.call(this, path, flags, ...rest);',
     '};',

@@ -3,7 +3,7 @@
  * @description Frozen Slice A filesystem oracle for bounded, no-follow,
  * path-confined, complete static-tree verification.
  */
-import { rename, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, it } from "vitest";
 import { makeFifo } from "./fixtures/fifo.js";
@@ -19,7 +19,9 @@ import {
 
 const fixtures: PublishDistribution[] = [];
 const fifoIt = it.skipIf(process.platform === "win32");
-const OVERSIZED_INPUT_BYTES = 2 * 1024 * 1024;
+const OVERSIZED_PACKAGE_BYTES = 2 * 1024 * 1024;
+const OVERSIZED_INDEX_BYTES = 4 * 1024 * 1024;
+const OVERSIZED_KEY_BYTES = 64 * 1024;
 
 async function fixture(): Promise<PublishDistribution> {
   const value = await createPublishDistribution();
@@ -41,6 +43,38 @@ describe("template publish verify filesystem hardening", () => {
     const extra = path.join(path.dirname(tree.packageFile), `${"b".repeat(64)}.json`);
     await writeFile(extra, JSON.stringify(signedPackage()), "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /extra|unreferenced|unexpected/i);
+  });
+
+  it("refuses nested files, unexpected directories, and unreferenced symlinks", async () => {
+    const nestedTree = await fixture();
+    const nested = path.join(path.dirname(nestedTree.packageFile), "nested");
+    await mkdir(nested);
+    await writeFile(path.join(nested, "extra.json"), JSON.stringify(signedPackage()), "utf8");
+    assertPublishVerifyFailure(runPublishVerify(nestedTree), /extra|unreferenced|unexpected|directory/i);
+
+    const directoryTree = await fixture();
+    await mkdir(path.join(directoryTree.directory, "unexpected"));
+    assertPublishVerifyFailure(runPublishVerify(directoryTree), /extra|unreferenced|unexpected|directory/i);
+
+    const symlinkTree = await fixture();
+    const extra = path.join(path.dirname(symlinkTree.packageFile), `${"b".repeat(64)}.json`);
+    await symlink(symlinkTree.keyFile, extra);
+    assertPublishVerifyFailure(runPublishVerify(symlinkTree), /extra|unreferenced|unexpected|symlink/i);
+  });
+
+  fifoIt("refuses an unreferenced special file during complete traversal", async () => {
+    const tree = await fixture();
+    const extra = path.join(path.dirname(tree.packageFile), `${"b".repeat(64)}.json`);
+    await makeFifo(extra);
+    assertPublishVerifyFailure(runPublishVerify(tree), /extra|unreferenced|unexpected|special|fifo/i);
+  });
+
+  it("refuses a symlinked distribution root", async () => {
+    const tree = await fixture();
+    const moved = path.join(tree.root, "actual-dist");
+    await rename(tree.directory, moved);
+    await symlink(moved, tree.directory, "dir");
+    assertPublishVerifyFailure(runPublishVerify(tree), /root|symlink|escape|confined|directory/i);
   });
 
   it("refuses two signed entries that alias the same digest path", async () => {
@@ -123,20 +157,20 @@ describe("template publish verify filesystem hardening", () => {
 
   it("refuses an oversized package envelope", async () => {
     const tree = await fixture();
-    await writeFile(tree.packageFile, `${JSON.stringify(tree.envelope)}${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
+    await writeFile(tree.packageFile, `${JSON.stringify(tree.envelope)}${" ".repeat(OVERSIZED_PACKAGE_BYTES)}`, "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
   });
 
   it("refuses an oversized otherwise-valid index", async () => {
     const tree = await fixture();
     const index = path.join(tree.directory, "index.json");
-    await writeFile(index, `${JSON.stringify(tree.index)}${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
+    await writeFile(index, `${JSON.stringify(tree.index)}${" ".repeat(OVERSIZED_INDEX_BYTES)}`, "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
   });
 
   it("refuses an oversized otherwise-valid key file", async () => {
     const tree = await fixture();
-    await writeFile(tree.keyFile, `${TAP_KEY.publicKey}\n${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
+    await writeFile(tree.keyFile, `${TAP_KEY.publicKey}\n${" ".repeat(OVERSIZED_KEY_BYTES)}`, "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
   });
 
