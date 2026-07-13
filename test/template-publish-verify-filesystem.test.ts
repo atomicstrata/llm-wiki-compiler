@@ -20,6 +20,7 @@ import {
 import {
   assertExactDistributionTree,
   closeDistributionPaths,
+  openTapPublicKey,
   resolveDistributionPaths,
 } from "../src/profile/templates/publish/filesystem.js";
 import { verifyPublisherDistribution } from "../src/profile/templates/publish/verify.js";
@@ -212,6 +213,26 @@ describe("template publish verify filesystem hardening", () => {
     const key = path.join(second.root, "key-link.txt");
     await symlink(second.keyFile, key);
     assertPublishVerifyFailure(runPublishVerify(second, [], TAP_KEY.keyId, key), /key.*symlink|symlink.*key|no.follow/i);
+  });
+
+  it("keeps the selected tap key bound when a symlinked parent is retargeted", async () => {
+    const tree = await fixture();
+    const trusted = path.join(tree.root, "trusted-key-parent");
+    const replacement = path.join(tree.root, "replacement-key-parent");
+    const selectedParent = path.join(tree.root, "selected-key-parent");
+    await Promise.all([mkdir(trusted), mkdir(replacement)]);
+    await copyFile(tree.keyFile, path.join(trusted, "tap-key.txt"));
+    await writeFile(path.join(replacement, "tap-key.txt"), "attacker-key\n", "utf8");
+    await symlink(trusted, selectedParent, "dir");
+    const selected = await openTapPublicKey(path.join(selectedParent, "tap-key.txt"));
+    try {
+      expect(await selected.read()).toBe(TAP_KEY.publicKey);
+      await rename(selectedParent, selectedParent + ".old");
+      await symlink(replacement, selectedParent, "dir");
+      await expect(selected.read()).rejects.toThrow(/changed|selected|parent|symlink/i);
+    } finally {
+      await selected.close();
+    }
   });
 
   fifoIt("refuses a special index file without blocking on it", async () => {

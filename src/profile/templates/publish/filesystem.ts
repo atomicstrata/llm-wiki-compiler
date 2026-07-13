@@ -84,22 +84,72 @@ export async function closeDistributionPaths(paths: DistributionPaths): Promise<
   await paths.rootHandle.close().catch(() => {});
 }
 
-/** Read and strictly decode the independently selected tap public key. */
-export async function readTapPublicKey(file: string): Promise<string> {
-  let handle: FileHandle;
-  try {
-    handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
-  } catch {
+/** One tap-key selection retained for the complete verification transaction. */
+export interface SelectedTapPublicKey {
+  read(): Promise<string>;
+  close(): Promise<void>;
+}
+
+/** Anchor the selected key leaf and canonical parent before reading trust-root bytes. */
+export async function openTapPublicKey(file: string): Promise<SelectedTapPublicKey> {
+  const selected = path.resolve(file);
+  const leaf = await lstat(selected).catch(() => null);
+  if (!leaf || leaf.isSymbolicLink()) {
     throw new Error("tap key file is unavailable, symlinked, or special");
   }
+  const canonical = await realpath(selected).catch(() => null);
+  if (!canonical) throw new Error("tap key file is unavailable, symlinked, or special");
+  const parentPath = path.dirname(canonical);
+  const parentHandle = await openDirectoryNoFollow(parentPath).catch(() => null);
+  if (!parentHandle) throw new Error("tap key parent cannot be anchored");
+  let handle: FileHandle | undefined;
   try {
+    const parentInfo = await parentHandle.stat();
+    if (!parentInfo.isDirectory()) throw new Error("tap key parent cannot be anchored");
+    handle = await open(
+      canonical,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
+    );
     const info = await handle.stat();
     if (!info.isFile()) throw new Error("tap key file must be a regular file and not a symlink or special file");
-    const bytes = await readBoundedFromHandle(handle, MAX_KEY_BYTES, "tap key file");
-    return keyFileText(decodeUtf8(bytes, "tap key file"));
-  } finally {
-    await handle.close().catch(() => {});
+    await assertSelectedTapKey(selected, canonical, parentPath, parentInfo, handle, info);
+    return {
+      read: async () => {
+        await assertSelectedTapKey(selected, canonical, parentPath, parentInfo, handle!, info);
+        const bytes = await readBoundedFromHandle(handle!, MAX_KEY_BYTES, "tap key file");
+        await assertSelectedTapKey(selected, canonical, parentPath, parentInfo, handle!, info);
+        return keyFileText(decodeUtf8(bytes, "tap key file"));
+      },
+      close: async () => {
+        await handle?.close().catch(() => {});
+        handle = undefined;
+        await parentHandle.close().catch(() => {});
+      },
+    };
+  } catch (error) {
+    await handle?.close().catch(() => {});
+    await parentHandle.close().catch(() => {});
+    throw error;
   }
+}
+
+async function assertSelectedTapKey(
+  selected: string,
+  canonical: string,
+  parentPath: string,
+  parentInfo: Stats,
+  handle: FileHandle,
+  info: Stats,
+): Promise<void> {
+  if (await realpath(selected).catch(() => null) !== canonical) {
+    throw new Error("tap key selected path changed during verification");
+  }
+  const current = await handle.stat().catch(() => null);
+  if (!current?.isFile() || !sameIdentity(identity(current), identity(info))) {
+    throw new Error("tap key handle changed during verification");
+  }
+  await assertPathMatchesHandle(parentPath, parentInfo, "tap key parent");
+  await assertPathMatchesHandle(canonical, info, "tap key file");
 }
 
 /** Strictly decode a base64 SPKI DER key with no ignored characters or trailing bytes. */

@@ -13,10 +13,11 @@ import {
   assertExactDistributionTree,
   closeDistributionPaths,
   decodeCanonicalBase64Key,
+  openTapPublicKey,
   readDistributionIndex,
   readDistributionPackage,
-  readTapPublicKey,
   resolveDistributionPaths,
+  type SelectedTapPublicKey,
 } from "./filesystem.js";
 
 const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
@@ -52,10 +53,12 @@ export async function verifyPublisherDistribution(
   assertSafeTap(expectedTap);
   assertSafeKeyId(keyId);
   const paths = await resolveDistributionPaths(directory);
+  let selectedKey: SelectedTapPublicKey | undefined;
   try {
+    selectedKey = await openTapPublicKey(keyFile);
     const [indexText, publicKey] = await Promise.all([
       readDistributionIndex(paths),
-      readTapPublicKey(keyFile),
+      selectedKey.read(),
     ]);
     const trustedKey = bindTrustedTapKey(keyId, publicKey);
     const indexBytesSha256 = contentSha256(indexText);
@@ -80,20 +83,21 @@ export async function verifyPublisherDistribution(
     await assertExactDistributionTree(paths, digests);
     await assertVerifiedBytesRemainSelected(
       paths,
-      keyFile,
+      selectedKey,
       indexBytesSha256,
       keyBytesSha256,
       packageBytesSha256,
     );
     return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
   } finally {
+    await selectedKey?.close();
     await closeDistributionPaths(paths);
   }
 }
 
 async function assertVerifiedBytesRemainSelected(
   paths: Awaited<ReturnType<typeof resolveDistributionPaths>>,
-  keyFile: string,
+  selectedKey: SelectedTapPublicKey,
   indexSha256: string,
   keySha256: string,
   packages: ReadonlyMap<string, string>,
@@ -101,7 +105,7 @@ async function assertVerifiedBytesRemainSelected(
   if (contentSha256(await readDistributionIndex(paths)) !== indexSha256) {
     throw new Error("index content changed after its bytes were verified");
   }
-  if (contentSha256(await readTapPublicKey(keyFile)) !== keySha256) {
+  if (contentSha256(await selectedKey.read()) !== keySha256) {
     throw new Error("tap key content changed after its bytes were verified");
   }
   for (const [digest, expectedSha256] of packages) {
