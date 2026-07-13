@@ -5,6 +5,7 @@
  * template validation decisions remain in the production signing modules.
  */
 import packageJson from "../../../../package.json" with { type: "json" };
+import { createHash } from "node:crypto";
 import { advancePublisherPins, emptyPublisherPinState } from "../signing/continuity.js";
 import { parseSignedPackage, parseSignedTapIndex } from "../signing/protocol.js";
 import { assertEd25519PublicKey, verifySignedPackage, verifyTapIndex } from "../signing/verify.js";
@@ -35,12 +36,18 @@ export interface DistributionVerificationResult {
   packageCount: number;
 }
 
+export interface DistributionVerificationOptions {
+  /** Test-only seam for replacing already-verified leaves before verdict binding. */
+  beforeFinalBindingCheckForTest?: () => Promise<void>;
+}
+
 /** Verify a complete static snapshot against an independently selected tap key. */
 export async function verifyPublisherDistribution(
   directory: string,
   expectedTap: string,
   keyId: string,
   keyFile: string,
+  options: DistributionVerificationOptions = {},
 ): Promise<DistributionVerificationResult> {
   assertSafeTap(expectedTap);
   assertSafeKeyId(keyId);
@@ -51,24 +58,61 @@ export async function verifyPublisherDistribution(
       readTapPublicKey(keyFile),
     ]);
     const trustedKey = bindTrustedTapKey(keyId, publicKey);
+    const indexBytesSha256 = contentSha256(indexText);
+    const keyBytesSha256 = contentSha256(publicKey);
     const parsed = parseSignedTapIndex(indexText);
     assertSnapshotContinuityScope(parsed);
     const verified = verifyTapIndex(parsed, expectedTap, trustedKey);
     const pins = advancePublisherPins(verified, emptyPublisherPinState(verified.tap));
     const digests = verified.packages.map((entry) => entry.payloadDigest);
+    const packageBytesSha256 = new Map<string, string>();
     await assertExactDistributionTree(paths, digests);
     for (const digest of digests) {
-      const envelope = parseSignedPackage(await readDistributionPackage(paths, digest));
+      const packageText = await readDistributionPackage(paths, digest);
+      const envelope = parseSignedPackage(packageText);
       if (envelope.payloadDigest !== digest) {
         throw new Error("package at content-addressed path does not match its signed digest entry");
       }
       verifySignedPackage(envelope, verified, pins, packageJson.version);
+      packageBytesSha256.set(digest, contentSha256(packageText));
     }
+    if (options.beforeFinalBindingCheckForTest) await options.beforeFinalBindingCheckForTest();
     await assertExactDistributionTree(paths, digests);
+    await assertVerifiedBytesRemainSelected(
+      paths,
+      keyFile,
+      indexBytesSha256,
+      keyBytesSha256,
+      packageBytesSha256,
+    );
     return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
   } finally {
     await closeDistributionPaths(paths);
   }
+}
+
+async function assertVerifiedBytesRemainSelected(
+  paths: Awaited<ReturnType<typeof resolveDistributionPaths>>,
+  keyFile: string,
+  indexSha256: string,
+  keySha256: string,
+  packages: ReadonlyMap<string, string>,
+): Promise<void> {
+  if (contentSha256(await readDistributionIndex(paths)) !== indexSha256) {
+    throw new Error("index content changed after its bytes were verified");
+  }
+  if (contentSha256(await readTapPublicKey(keyFile)) !== keySha256) {
+    throw new Error("tap key content changed after its bytes were verified");
+  }
+  for (const [digest, expectedSha256] of packages) {
+    if (contentSha256(await readDistributionPackage(paths, digest)) !== expectedSha256) {
+      throw new Error("package content changed after its bytes were verified");
+    }
+  }
+}
+
+function contentSha256(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 function bindTrustedTapKey(keyId: string, publicKey: string): { keyId: string; publicKey: string } {

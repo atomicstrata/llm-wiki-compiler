@@ -17,6 +17,7 @@ import {
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
 import { resolveDistributionPaths } from "../src/profile/templates/publish/filesystem.js";
+import { verifyPublisherDistribution } from "../src/profile/templates/publish/verify.js";
 
 const fixtures: PublishDistribution[] = [];
 const fifoIt = it.skipIf(process.platform === "win32");
@@ -96,6 +97,30 @@ describe("template publish verify filesystem hardening", () => {
       },
     })).rejects.toThrow(/root|symlink|changed|confined/i);
   });
+
+  it.each(["index", "package"] as const)(
+    "refuses a regular %s leaf replaced after its bytes were verified",
+    async (target) => {
+      const tree = await fixture();
+      const selected = target === "index"
+        ? path.join(tree.directory, "index.json")
+        : tree.packageFile;
+      const moved = path.join(tree.root, `${target}-verified-original.json`);
+
+      await expect(verifyPublisherDistribution(
+        tree.directory,
+        "official",
+        TAP_KEY.keyId,
+        tree.keyFile,
+        {
+          beforeFinalBindingCheckForTest: async () => {
+            await rename(selected, moved);
+            await writeFile(selected, '{"replacement":true}', "utf8");
+          },
+        },
+      )).rejects.toThrow(/changed.*verification|verified.*bytes|content/i);
+    },
+  );
 
   it("refuses two signed entries that alias the same digest path", async () => {
     const tree = await fixture();
