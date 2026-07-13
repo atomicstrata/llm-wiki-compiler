@@ -6,7 +6,7 @@
  * bounded read that resists concurrent growth, and decodes signed protocol
  * bytes as strict UTF-8.
  */
-import { constants as fsConstants, type Stats } from "node:fs";
+import { constants as fsConstants, type BigIntStats, type Stats } from "node:fs";
 import { lstat, open, opendir, realpath, type FileHandle } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 import path from "node:path";
@@ -26,6 +26,7 @@ export interface DistributionPaths {
   packageDirectory: string;
   rootHandle: FileHandle;
   rootIdentity: FileIdentity;
+  testSeams: DistributionResolveOptions;
 }
 
 interface FileIdentity {
@@ -33,9 +34,19 @@ interface FileIdentity {
   ino: number;
 }
 
+interface DirectoryMutationGuard {
+  handle: FileHandle;
+  info: Stats;
+  path: string;
+  ctimeNs: bigint;
+}
+
 export interface DistributionResolveOptions {
   /** Test-only seam for a deterministic root replacement after open. */
   afterRootOpenForTest?: () => Promise<void>;
+  /** Test-only seams for a deterministic swap around pathname-based opendir. */
+  beforeDirectoryStreamOpenForTest?: (directory: string, label: string) => Promise<void>;
+  afterDirectoryStreamOpenForTest?: (directory: string, label: string) => Promise<void>;
 }
 
 /** Open and retain a no-follow handle that binds all later reads to one root inode. */
@@ -60,6 +71,7 @@ export async function resolveDistributionPaths(
       packageDirectory: path.join(root, "packages", "sha256"),
       rootHandle,
       rootIdentity: identity(opened),
+      testSeams: options,
     };
   } catch (error) {
     await rootHandle?.close().catch(() => {});
@@ -159,10 +171,19 @@ async function assertDirectory(
   label: string,
 ): Promise<void> {
   const anchor = await openAnchoredDirectory(paths, directory, label);
+  const parent = await openDirectoryMutationGuard(paths, directory, label);
   try {
-    const seen = await scanDirectory(paths, directory, anchor.info, label, new Set(expectedNames));
+    const seen = await scanDirectory(
+      paths,
+      directory,
+      anchor.info,
+      parent,
+      label,
+      new Set(expectedNames),
+    );
     if (seen.size !== expectedNames.length) throw new Error("distribution contains a missing entry");
   } finally {
+    await parent.handle.close().catch(() => {});
     await anchor.handle.close().catch(() => {});
   }
 }
@@ -171,15 +192,26 @@ async function scanDirectory(
   paths: DistributionPaths,
   directory: string,
   anchor: Stats,
+  parent: DirectoryMutationGuard,
   label: string,
   expected: Set<string>,
 ): Promise<Set<string>> {
   let stream: Awaited<ReturnType<typeof opendir>> | undefined;
   try {
+    await assertDirectoryStillBound(paths, directory, anchor, parent, label);
+    if (paths.testSeams.beforeDirectoryStreamOpenForTest) {
+      await paths.testSeams.beforeDirectoryStreamOpenForTest(directory, label);
+    }
     stream = await opendir(directory);
-    return await readExpectedEntries(paths, directory, anchor, label, stream, expected);
+    if (paths.testSeams.afterDirectoryStreamOpenForTest) {
+      await paths.testSeams.afterDirectoryStreamOpenForTest(directory, label);
+    }
+    return await readExpectedEntries(paths, directory, anchor, parent, label, stream, expected);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("distribution contains")) throw error;
+    if (error instanceof Error && (
+      error.message.startsWith("distribution contains")
+      || error.message.includes("changed during enumeration")
+    )) throw error;
     throw new Error("distribution contains a missing, unreadable, or unexpected directory");
   } finally {
     await stream?.close().catch(() => {});
@@ -190,17 +222,46 @@ async function readExpectedEntries(
   paths: DistributionPaths,
   directory: string,
   anchor: Stats,
+  parent: DirectoryMutationGuard,
   label: string,
   stream: Awaited<ReturnType<typeof opendir>>,
   expected: Set<string>,
 ): Promise<Set<string>> {
   const seen = new Set<string>();
   for (;;) {
-    await assertDirectoryStillBound(paths, directory, anchor, label);
+    await assertDirectoryStillBound(paths, directory, anchor, parent, label);
     const entry = await stream.read();
-    await assertDirectoryStillBound(paths, directory, anchor, label);
+    await assertDirectoryStillBound(paths, directory, anchor, parent, label);
     if (entry === null) return seen;
     recordExpectedEntry(entry.name, expected, seen);
+  }
+}
+
+async function openDirectoryMutationGuard(
+  paths: DistributionPaths,
+  directory: string,
+  label: string,
+): Promise<DirectoryMutationGuard> {
+  const canonicalDirectory = path.join(
+    paths.canonicalRoot,
+    path.relative(paths.root, directory),
+  );
+  const parentPath = path.dirname(canonicalDirectory);
+  const handle = await openDirectoryNoFollow(parentPath).catch(() => null);
+  if (!handle) throw new Error(`${label} parent cannot be anchored for enumeration`);
+  try {
+    const [info, precise] = await Promise.all([
+      handle.stat(),
+      handle.stat({ bigint: true }),
+    ]);
+    if (!info.isDirectory() || !precise.isDirectory()) {
+      throw new Error(`${label} parent cannot be anchored for enumeration`);
+    }
+    await assertPathMatchesHandle(parentPath, info, `${label} parent`);
+    return { handle, info, path: parentPath, ctimeNs: precise.ctimeNs };
+  } catch (error) {
+    await handle.close().catch(() => {});
+    throw error;
   }
 }
 
@@ -261,10 +322,16 @@ async function assertDirectoryStillBound(
   paths: DistributionPaths,
   directory: string,
   opened: Stats,
+  parent: DirectoryMutationGuard,
   label: string,
 ): Promise<void> {
   await assertRootBound(paths);
   await assertPathMatchesHandle(directory, opened, label);
+  await assertPathMatchesHandle(parent.path, parent.info, `${label} parent`);
+  const current = await parent.handle.stat({ bigint: true }).catch(() => null) as BigIntStats | null;
+  if (!current?.isDirectory() || current.ctimeNs !== parent.ctimeNs) {
+    throw new Error(`${label} parent changed during enumeration`);
+  }
 }
 
 async function assertRootBound(paths: DistributionPaths): Promise<void> {

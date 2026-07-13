@@ -3,7 +3,7 @@
  * @description Frozen Slice A filesystem oracle for bounded, no-follow,
  * path-confined, complete static-tree verification.
  */
-import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, it } from "vitest";
 import { makeFifo } from "./fixtures/fifo.js";
@@ -16,7 +16,11 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
-import { resolveDistributionPaths } from "../src/profile/templates/publish/filesystem.js";
+import {
+  assertExactDistributionTree,
+  closeDistributionPaths,
+  resolveDistributionPaths,
+} from "../src/profile/templates/publish/filesystem.js";
 import { verifyPublisherDistribution } from "../src/profile/templates/publish/verify.js";
 
 const fixtures: PublishDistribution[] = [];
@@ -121,6 +125,37 @@ describe("template publish verify filesystem hardening", () => {
       )).rejects.toThrow(/changed.*verification|verified.*bytes|content/i);
     },
   );
+
+  it("refuses a digest directory swapped out for a clean decoy during opendir", async () => {
+    const tree = await fixture();
+    const digestDirectory = path.dirname(tree.packageFile);
+    const moved = path.join(tree.root, "real-sha256");
+    const decoy = path.join(tree.root, "decoy-sha256");
+    await mkdir(decoy);
+    await copyFile(tree.packageFile, path.join(decoy, path.basename(tree.packageFile)));
+    await writeFile(path.join(digestDirectory, "unreferenced.json"), "{}", "utf8");
+    const applies = (_directory: string, label: string) => label === "package digest directory";
+    const paths = await resolveDistributionPaths(tree.directory, {
+      beforeDirectoryStreamOpenForTest: async (directory, label) => {
+        if (!applies(directory, label)) return;
+        await rename(digestDirectory, moved);
+        await rename(decoy, digestDirectory);
+      },
+      afterDirectoryStreamOpenForTest: async (directory, label) => {
+        if (!applies(directory, label)) return;
+        await rename(digestDirectory, decoy);
+        await rename(moved, digestDirectory);
+      },
+    });
+    try {
+      await expect(assertExactDistributionTree(
+        paths,
+        [tree.envelope.payloadDigest],
+      )).rejects.toThrow(/changed.*enumeration|directory.*changed|concurrent/i);
+    } finally {
+      await closeDistributionPaths(paths);
+    }
+  });
 
   it("refuses two signed entries that alias the same digest path", async () => {
     const tree = await fixture();
