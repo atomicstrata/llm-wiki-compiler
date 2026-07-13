@@ -9,6 +9,7 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { expect } from "vitest";
 import { parseTemplateCoordinate } from "../../src/profile/templates/signing/protocol.js";
 import type { SignedPackageEnvelope, SignedTapIndex } from "../../src/profile/templates/signing/types.js";
 import { signedIndex, signedPackage, TAP_KEY } from "./template-signing.js";
@@ -42,14 +43,14 @@ export async function createPublishDistribution(
   const digest = digestHex(envelope.payloadDigest);
   const packageFile = path.join(directory, "packages", "sha256", `${digest}.json`);
   const keyFile = path.join(root, "tap-public-key.txt");
-  const networkGuard = path.join(root, "deny-network.mjs");
+  const executionGuard = path.join(root, "execution-guard.mjs");
   await Promise.all([
     path.dirname(packageFile),
     ...writableEnvironmentDirectories(root),
   ].map((directoryPath) => mkdir(directoryPath, { recursive: true })));
   await writeFile(packageFile, JSON.stringify(envelope), "utf8");
   await writeFile(keyFile, `${TAP_KEY.publicKey}\n`, "utf8");
-  await writeFile(networkGuard, networkGuardSource(), "utf8");
+  await writeFile(executionGuard, executionGuardSource(), "utf8");
   const index = currentIndex(envelope);
   await writeFile(path.join(directory, "index.json"), JSON.stringify(index), "utf8");
   return { root, directory, keyFile, packageFile, envelope, index };
@@ -103,6 +104,16 @@ export function diagnostics(result: VerifyResult): string {
   return `${result.stdout}\n${result.stderr}`;
 }
 
+/** Require a bounded, intentional CLI refusal that cannot masquerade as missing implementation. */
+export function assertPublishVerifyFailure(result: VerifyResult, reason: RegExp): void {
+  const output = diagnostics(result);
+  expect(result.status).not.toBe(0);
+  expect(output).toMatch(reason);
+  expect(output).not.toMatch(/unknown command ['"]?publish|TypeError|ReferenceError|\n\s+at /i);
+  expect(result.stdout).not.toMatch(/"verified"\s*:\s*true/);
+  expect(result.stderr.length).toBeLessThanOrEqual(4096);
+}
+
 /** Convert the protocol digest to its only permitted package filename. */
 export function digestHex(digest: string): string {
   const match = /^sha256:([0-9a-f]{64})$/.exec(digest);
@@ -125,7 +136,7 @@ function currentIndex(envelope: SignedPackageEnvelope): SignedTapIndex {
 }
 
 function offlineEnvironment(root: string): NodeJS.ProcessEnv {
-  const guard = `--import=${pathToFileURL(path.join(root, "deny-network.mjs")).href}`;
+  const guard = `--import=${pathToFileURL(path.join(root, "execution-guard.mjs")).href}`;
   const environmentRoot = path.join(root, "environment");
   return {
     ...process.env,
@@ -155,13 +166,79 @@ function writableEnvironmentDirectories(root: string): string[] {
     .map((name) => path.join(environmentRoot, name));
 }
 
-function networkGuardSource(): string {
+function executionGuardSource(): string {
   return [
-    'import net from "node:net";',
-    'net.Socket.prototype.connect = function denyNetwork() {',
-    '  throw new Error("offline verifier attempted network access");',
-    '};',
+    ...guardImportsAndNetworkSource(),
+    ...guardFilesystemSource(),
+    ...guardStickyFailureSource(),
   ].join("\n");
+}
+
+/** Build preload statements that make any network route fail and remain recorded. */
+function guardImportsAndNetworkSource(): string[] {
+  return [
+    'import dgram from "node:dgram";',
+    'import dns from "node:dns";',
+    'import fs from "node:fs";',
+    'import http from "node:http";',
+    'import https from "node:https";',
+    'import net from "node:net";',
+    'import tls from "node:tls";',
+    'import { syncBuiltinESMExports } from "node:module";',
+    'const attempts = new Set();',
+    'const deny = (kind) => function deniedOperation() {',
+    '  attempts.add(kind);',
+    '  throw new Error(`publisher verifier attempted forbidden ${kind}`);',
+    '};',
+    'for (const target of [http, https]) { target.request = deny("network access"); target.get = deny("network access"); }',
+    'net.connect = deny("network access"); net.createConnection = deny("network access");',
+    'net.Socket.prototype.connect = deny("network access"); tls.connect = deny("network access");',
+    'dgram.Socket.prototype.connect = deny("network access"); dgram.Socket.prototype.send = deny("network access");',
+    'for (const name of ["lookup", "resolve", "reverse"]) dns[name] = deny("network access");',
+    'for (const name of ["lookup", "resolve", "reverse"]) dns.promises[name] = deny("network access");',
+    'globalThis.fetch = deny("network access");',
+  ];
+}
+
+/** Build preload statements that detect even caught, transient filesystem writes. */
+function guardFilesystemSource(): string[] {
+  return [
+    'const mutators = ["appendFile", "chmod", "chown", "copyFile", "cp", "createWriteStream", "link",',
+    '  "lchmod", "lchown", "lutimes", "mkdir", "mkdtemp", "rename", "rm", "rmdir", "symlink",',
+    '  "truncate", "unlink", "utimes", "writeFile"];',
+    'for (const name of mutators) {',
+    '  if (typeof fs[name] === "function") fs[name] = deny("filesystem write");',
+    '  if (typeof fs[`${name}Sync`] === "function") fs[`${name}Sync`] = deny("filesystem write");',
+    '  if (typeof fs.promises[name] === "function") fs.promises[name] = deny("filesystem write");',
+    '}',
+    'const writeFlags = (flags) => typeof flags === "number" ? (flags & 3) !== 0 : /[aw+]/.test(flags);',
+    'const open = fs.open; fs.open = function guardedOpen(path, flags, ...rest) {',
+    '  return writeFlags(flags) ? deny("filesystem write")() : open.call(this, path, flags, ...rest);',
+    '};',
+    'const openSync = fs.openSync; fs.openSync = function guardedOpenSync(path, flags, ...rest) {',
+    '  return writeFlags(flags) ? deny("filesystem write")() : openSync.call(this, path, flags, ...rest);',
+    '};',
+    'const promiseOpen = fs.promises.open; fs.promises.open = function guardedPromiseOpen(path, flags, ...rest) {',
+    '  return writeFlags(flags) ? deny("filesystem write")() : promiseOpen.call(this, path, flags, ...rest);',
+    '};',
+  ];
+}
+
+/** Build preload statements that force a nonzero exit after any forbidden attempt. */
+function guardStickyFailureSource(): string[] {
+  return [
+    'syncBuiltinESMExports();',
+    'const reportAttempts = () => {',
+    '  if (attempts.size === 0) return false;',
+    '  process.stderr.write(`publisher verifier attempted forbidden operations: ${[...attempts].sort().join(", ")}\\n`);',
+    '  return true;',
+    '};',
+    'const originalExit = process.exit.bind(process);',
+    'process.exit = (code) => originalExit(reportAttempts() ? 86 : code);',
+    'process.on("beforeExit", () => {',
+    '  if (reportAttempts()) process.exitCode = 86;',
+    '});',
+  ];
 }
 
 async function snapshotEntries(root: string, relative: string): Promise<string[]> {

@@ -9,24 +9,34 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import {
+  COORDINATE,
   PUBLISHER_KEY,
   signedPackage,
   TAP_KEY,
 } from "./fixtures/template-signing.js";
 import {
   CLI_TIMEOUT_MS,
+  assertPublishVerifyFailure,
   createPublishDistribution,
-  diagnostics,
   removePublishDistribution,
   runPublishVerify,
   snapshotTree,
   writeSignedDistributionIndex,
   type PublishDistribution,
-  type VerifyResult,
 } from "./fixtures/template-publish-distribution.js";
 
 const CLI = path.resolve("dist/cli.js");
 const fixtures: PublishDistribution[] = [];
+const HUMAN_SUCCESS_OUTPUT = [
+  "Verified template publisher distribution.",
+  "Scope: snapshot",
+  "Continuity: not_applicable_no_rotations",
+  "Tap: official",
+  "Sequence: 1",
+  `Tap key: ${TAP_KEY.keyId}`,
+  "Packages: 1",
+  "",
+].join("\n");
 
 async function fixture(envelope = signedPackage()): Promise<PublishDistribution> {
   const value = await createPublishDistribution(envelope);
@@ -43,8 +53,8 @@ describe("template publish verify CLI", () => {
     const human = runPublishVerify(tree);
     const json = runPublishVerify(tree, ["--json"]);
     expect(human.status).toBe(0);
-    expect(human.stdout).toMatch(/verified.*snapshot|snapshot.*verified/is);
-    expect(human.stdout).toContain("not_applicable_no_rotations");
+    expect(human.stdout).toBe(HUMAN_SUCCESS_OUTPUT);
+    expect(human.stderr).toBe("");
     expect(json.status).toBe(0);
     expect(JSON.parse(json.stdout)).toEqual(successEnvelope());
     expect(await snapshotTree(tree.root)).toEqual(before);
@@ -66,13 +76,13 @@ describe("template publish verify CLI", () => {
     const tree = await fixture();
     const wrongKeyFile = path.join(tree.root, "wrong-key.txt");
     await writeFile(wrongKeyFile, PUBLISHER_KEY.publicKey, "utf8");
-    assertFailure(runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
-    assertFailure(runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
+    assertPublishVerifyFailure(runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
+    assertPublishVerifyFailure(runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
   });
 
   it("does not emit a JSON success object after verification fails", async () => {
     const tree = await fixture();
-    assertFailure(runPublishVerify(tree, ["--json"], "wrong-key-id"), /key id|trusted key|wrong key/i);
+    assertPublishVerifyFailure(runPublishVerify(tree, ["--json"], "wrong-key-id"), /key id|trusted key|wrong key/i);
   });
 
   it("fails closed for expired and future indexes", async () => {
@@ -81,12 +91,12 @@ describe("template publish verify CLI", () => {
       generatedAt: "2020-01-01T00:00:00Z",
       expiresAt: "2020-01-02T00:00:00Z",
     });
-    assertFailure(runPublishVerify(tree), /expired/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /expired/i);
     await writeSignedDistributionIndex(tree, {
       generatedAt: "2099-01-01T00:00:00Z",
       expiresAt: "2099-01-02T00:00:00Z",
     });
-    assertFailure(runPublishVerify(tree), /future|not yet valid/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /future|not yet valid/i);
   });
 
   it("fails closed for altered index and package bytes", async () => {
@@ -95,22 +105,32 @@ describe("template publish verify CLI", () => {
     const index = JSON.parse(await readFile(indexPath, "utf8"));
     index.sequence += 1;
     await writeFile(indexPath, JSON.stringify(index), "utf8");
-    assertFailure(runPublishVerify(tree), /signature/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /signature/i);
     await writeFile(indexPath, JSON.stringify(tree.index), "utf8");
     const envelope = JSON.parse(await readFile(tree.packageFile, "utf8"));
     envelope.payload.displayName = "Altered";
     await writeFile(tree.packageFile, JSON.stringify(envelope), "utf8");
-    assertFailure(runPublishVerify(tree), /digest|signature/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /digest|signature/i);
+  });
+
+  it("independently verifies the publisher signature and coordinate identity", async () => {
+    const envelope = signedPackage();
+    envelope.publisherSignature.value = corruptBase64(envelope.publisherSignature.value);
+    const signatureTree = await fixture(envelope);
+    assertPublishVerifyFailure(runPublishVerify(signatureTree), /signature/i);
+    const conflictingCoordinate = COORDINATE.replace("/team@", "/other@");
+    const identityTree = await fixture(signedPackage(signedPackage().payload, conflictingCoordinate));
+    assertPublishVerifyFailure(runPublishVerify(identityTree), /coordinate|identity|template.*match/i);
   });
 
   it("fails closed for a wrong package filename and invalid signed template", async () => {
     const tree = await fixture();
     const wrong = path.join(path.dirname(tree.packageFile), `${"a".repeat(64)}.json`);
     await rename(tree.packageFile, wrong);
-    assertFailure(runPublishVerify(tree), /missing|digest|filename/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /missing|digest|filename/i);
     const invalid = { ...signedPackage().payload, displayName: "" } as ProfileTemplatePackage;
     const invalidTree = await fixture(signedPackage(invalid));
-    assertFailure(runPublishVerify(invalidTree), /displayName|template|invalid/i);
+    assertPublishVerifyFailure(runPublishVerify(invalidTree), /displayName|template|invalid/i);
   });
 
   it("fails closed when a signed package digest or publisher key is revoked", async () => {
@@ -121,7 +141,7 @@ describe("template publish verify CLI", () => {
       reason: "withdrawn",
       revokedAt: new Date().toISOString(),
     }] });
-    assertFailure(runPublishVerify(tree), /revoked/i);
+    assertPublishVerifyFailure(runPublishVerify(tree), /revoked/i);
     const keyTree = await fixture();
     await writeSignedDistributionIndex(keyTree, { revocations: [{
       kind: "publisher-key",
@@ -129,7 +149,7 @@ describe("template publish verify CLI", () => {
       reason: "compromised",
       revokedAt: new Date().toISOString(),
     }] });
-    assertFailure(runPublishVerify(keyTree), /revoked/i);
+    assertPublishVerifyFailure(runPublishVerify(keyTree), /revoked/i);
   });
 
   it("distinguishes consumer verification from publisher distribution verification in help", () => {
@@ -164,11 +184,7 @@ function successEnvelope() {
   };
 }
 
-function assertFailure(result: VerifyResult, reason: RegExp): void {
-  const output = diagnostics(result);
-  expect(result.status).not.toBe(0);
-  expect(output).toMatch(reason);
-  expect(output).not.toMatch(/unknown command ['"]?publish|TypeError|ReferenceError|\n\s+at /i);
-  expect(result.stdout).not.toMatch(/"verified"\s*:\s*true/);
-  expect(result.stderr.length).toBeLessThanOrEqual(4096);
+function corruptBase64(value: string): string {
+  const replacement = value.startsWith("A") ? "B" : "A";
+  return `${replacement}${value.slice(1)}`;
 }
