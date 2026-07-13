@@ -177,13 +177,16 @@ function executionGuardSource(): string {
 /** Build preload statements that make any network route fail and remain recorded. */
 function guardImportsAndNetworkSource(): string[] {
   return [
+    'import childProcess from "node:child_process";',
     'import dgram from "node:dgram";',
     'import dns from "node:dns";',
     'import fs from "node:fs";',
     'import http from "node:http";',
+    'import http2 from "node:http2";',
     'import https from "node:https";',
     'import net from "node:net";',
     'import tls from "node:tls";',
+    'import workerThreads from "node:worker_threads";',
     'import { syncBuiltinESMExports } from "node:module";',
     'const attempts = new Set();',
     'const deny = (kind) => function deniedOperation() {',
@@ -191,12 +194,17 @@ function guardImportsAndNetworkSource(): string[] {
     '  throw new Error(`publisher verifier attempted forbidden ${kind}`);',
     '};',
     'for (const target of [http, https]) { target.request = deny("network access"); target.get = deny("network access"); }',
+    'http2.connect = deny("network access");',
     'net.connect = deny("network access"); net.createConnection = deny("network access");',
     'net.Socket.prototype.connect = deny("network access"); tls.connect = deny("network access");',
     'dgram.Socket.prototype.connect = deny("network access"); dgram.Socket.prototype.send = deny("network access");',
     'for (const name of ["lookup", "resolve", "reverse"]) dns[name] = deny("network access");',
     'for (const name of ["lookup", "resolve", "reverse"]) dns.promises[name] = deny("network access");',
     'globalThis.fetch = deny("network access");',
+    'for (const name of ["exec", "execFile", "fork", "spawn", "execSync", "execFileSync", "spawnSync"]) {',
+    '  childProcess[name] = deny("child process");',
+    '}',
+    'workerThreads.Worker = deny("worker thread");',
   ];
 }
 

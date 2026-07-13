@@ -123,6 +123,29 @@ describe("template publish verify CLI", () => {
     assertPublishVerifyFailure(runPublishVerify(identityTree), /coordinate|identity|template.*match/i);
   });
 
+  it("reuses strict production parsing for package envelopes and signed digest fields", async () => {
+    const unexpectedTree = await fixture();
+    const serialized = await readFile(unexpectedTree.packageFile, "utf8");
+    await writeFile(unexpectedTree.packageFile, serialized.replace("{", '{"unexpected":true,'), "utf8");
+    assertPublishVerifyFailure(runPublishVerify(unexpectedTree), /unexpected|unknown|key|field/i);
+
+    const duplicateTree = await fixture();
+    const duplicateSource = await readFile(duplicateTree.packageFile, "utf8");
+    await writeFile(
+      duplicateTree.packageFile,
+      duplicateSource.replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1'),
+      "utf8",
+    );
+    assertPublishVerifyFailure(runPublishVerify(duplicateTree), /duplicate.*key|key.*duplicate/i);
+
+    const digestTree = await fixture();
+    await writeSignedDistributionIndex(digestTree, { packages: [{
+      ...digestTree.index.packages[0],
+      payloadDigest: "sha256:../../outside" as `sha256:${string}`,
+    }] });
+    assertPublishVerifyFailure(runPublishVerify(digestTree), /digest|sha256|invalid/i);
+  });
+
   it("fails closed for a wrong package filename and invalid signed template", async () => {
     const tree = await fixture();
     const wrong = path.join(path.dirname(tree.packageFile), `${"a".repeat(64)}.json`);

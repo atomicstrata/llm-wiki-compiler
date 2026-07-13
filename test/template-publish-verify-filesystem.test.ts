@@ -69,6 +69,15 @@ describe("template publish verify filesystem hardening", () => {
     assertPublishVerifyFailure(runPublishVerify(tree), /symlink|escape|confined|regular/i);
   });
 
+  it("refuses an intermediate digest-directory symlink that escapes the selected tree", async () => {
+    const tree = await fixture();
+    const digestDirectory = path.dirname(tree.packageFile);
+    const moved = path.join(tree.root, "outside-sha256");
+    await rename(digestDirectory, moved);
+    await symlink(moved, digestDirectory, "dir");
+    assertPublishVerifyFailure(runPublishVerify(tree), /symlink|escape|confined|regular/i);
+  });
+
   fifoIt("does not follow a package symlink to a blocking outside file", async () => {
     const tree = await fixture();
     const outside = path.join(tree.root, "outside-blocking-package");
