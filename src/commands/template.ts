@@ -111,7 +111,8 @@ async function remoteInit(
   return 0;
 }
 
-function remoteInstallSummary(resolved: ResolvedRemotePackage) {
+/** Build the complete operator-review summary from verified release evidence. */
+export function remoteInstallSummary(resolved: ResolvedRemotePackage) {
   return {
     coordinate: resolved.coordinate,
     payloadDigest: resolved.payloadDigest,
@@ -121,12 +122,14 @@ function remoteInstallSummary(resolved: ResolvedRemotePackage) {
   };
 }
 
-function formatRemoteInstallConfirmation(summary: ReturnType<typeof remoteInstallSummary>): string {
+/** Format every security- and behavior-relevant remote install fact before confirmation. */
+export function formatRemoteInstallConfirmation(summary: ReturnType<typeof remoteInstallSummary>): string {
   return [
     `Install verified remote template ${summary.coordinate}?`,
     `Digest: ${summary.payloadDigest}`,
     `Publisher key: ${summary.publisherKeyId}`,
     `Tap sequence: ${summary.tapSequence}`,
+    `Connector bindings: ${summary.capabilities.connectors.join(", ") || "none"}`,
     `Capabilities: ${formatCapabilities(summary.capabilities)}`,
   ].join("\n");
 }

@@ -10,7 +10,16 @@ import { afterEach, describe, expect, it } from "vitest";
 import { collectTemplateStatus } from "../src/profile/templates/status.js";
 import { planRemoteTemplateUpdate } from "../src/profile/templates/remote-lifecycle.js";
 import { applyRemoteTemplateUpdate } from "../src/profile/templates/update-apply.js";
+import {
+  buildTemplateLock,
+  writeAdvisoryTemplateLock,
+} from "../src/profile/templates/install.js";
+import { remoteProvenanceForResolved } from "../src/profile/templates/remote-lifecycle.js";
 import { removeTap } from "../src/profile/templates/taps/manage.js";
+import { TEMPLATE_LOCK_FILE } from "../src/profile/templates/lock.js";
+import { PROFILE_FILE } from "../src/utils/constants.js";
+import { journalHealth } from "../src/trust/journal-health.js";
+import { openBatch, recordPreState } from "../src/trust/journal.js";
 import {
   remoteUpdateFixture,
   removeRemoteUpdateRoots,
@@ -70,13 +79,31 @@ describe("remote template update", () => {
     await expect(readLockVersion(fixture.project)).resolves.toBe("1.0.0");
   });
 
-  it("leaves an explicit fail-closed drift state when profile writing fails", async () => {
+  it("rolls back provenance when profile writing fails", async () => {
     const fixture = await remoteUpdateFixture(roots);
     await expect(applyRemoteTemplateUpdate(fixture.project, fixture.paths, "1.1.0", {
       writeProfileForTest: async () => { throw new Error("injected profile write failure"); },
     })).rejects.toThrow(/injected/);
-    await expect(readLockVersion(fixture.project)).resolves.toBe("1.1.0");
-    await expect(collectTemplateStatus(fixture.project, fixture.paths)).resolves.toMatchObject({ status: "locally-modified" });
+    await expect(readLockVersion(fixture.project)).resolves.toBe("1.0.0");
+    await expectHealthyTemplateState(fixture);
+  });
+
+  it("surfaces and recovers an interrupted two-file update before retry", async () => {
+    const fixture = await remoteUpdateFixture(roots);
+    const batch = await openBatch(fixture.project);
+    await recordPreState(batch, path.join(fixture.project, TEMPLATE_LOCK_FILE));
+    await recordPreState(batch, path.join(fixture.project, PROFILE_FILE));
+    await writeAdvisoryTemplateLock(fixture.project, buildTemplateLock(fixture.target.package, {
+      sourceType: "remote",
+      remote: remoteProvenanceForResolved(fixture.target),
+    }));
+
+    await expect(collectTemplateStatus(fixture.project, fixture.paths)).resolves.toMatchObject({
+      status: "interrupted-write",
+    });
+    await expect(applyRemoteTemplateUpdate(fixture.project, fixture.paths, "1.1.0"))
+      .resolves.toMatchObject({ kind: "updated", toCoordinate: TARGET_COORDINATE });
+    await expectHealthyTemplateState(fixture);
   });
 
   it("revalidates pending candidates under lock before writing", async () => {
@@ -122,4 +149,11 @@ function runCli(root: string, paths: { configRoot: string; cacheRoot: string }, 
 async function readLockVersion(root: string): Promise<string> {
   const text = await readFile(path.join(root, ".llmwiki/template-lock.json"), "utf8");
   return JSON.parse(text).version;
+}
+
+async function expectHealthyTemplateState(
+  fixture: Awaited<ReturnType<typeof remoteUpdateFixture>>,
+): Promise<void> {
+  await expect(collectTemplateStatus(fixture.project, fixture.paths)).resolves.toMatchObject({ status: "installed-clean" });
+  await expect(journalHealth(fixture.project)).resolves.toEqual({ status: "ok" });
 }

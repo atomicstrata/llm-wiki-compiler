@@ -5,6 +5,7 @@
  * determine whether the active profile matches what was installed.
  */
 import { profileDigest } from "../digest.js";
+import { journalHealth } from "../../trust/journal-health.js";
 import { loadProfile } from "../load.js";
 import { getBuiltinTemplate } from "./registry.js";
 import { compareTemplateVersions } from "./registry.js";
@@ -22,6 +23,7 @@ export type TemplateStatusKind =
   | "untracked"
   | "installed-clean"
   | "installed-stale"
+  | "interrupted-write"
   | "locally-modified"
   | "release-revoked"
   | "provenance-malformed"
@@ -48,6 +50,8 @@ export interface TemplateStatus {
 export async function collectTemplateStatus(root: string, paths: TapPaths = resolveTapPaths()): Promise<TemplateStatus> {
   const loaded = await loadProfile(root);
   const lockRead = await readTemplateLock(root);
+  const journal = await journalHealth(root);
+  if (journal.status !== "ok") return journalStatus(loaded.profile.profileId, loaded.digest, lockRead, journal.status);
   const base = baseStatus(loaded.profile.profileId, loaded.digest, lockRead);
   if (base) return base;
   const lock = (lockRead as Extract<TemplateLockRead, { kind: "ok" }>).lock;
@@ -55,6 +59,36 @@ export async function collectTemplateStatus(root: string, paths: TapPaths = reso
   const release = resolveTrustedRelease(lock);
   if (!release) return unavailableRelease(loaded.profile.profileId, loaded.digest, lock);
   return compareRelease(loaded.profile.profileId, loaded.digest, lock, release);
+}
+
+function journalStatus(
+  profileId: string,
+  digest: string,
+  read: TemplateLockRead,
+  health: "pending" | "unavailable",
+): TemplateStatus {
+  const kind = health === "pending" ? "interrupted-write" : "provenance-unavailable";
+  const detail = health === "pending"
+    ? "an interrupted project write is pending recovery; run 'llmwiki recover' before trusting template state"
+    : "the project journal is unavailable or unsafe; template state cannot be trusted";
+  return {
+    ...status(kind, profileId, digest, lockId(read), lockVersion(read), null, detail),
+    ...journalLockFields(read),
+  };
+}
+
+function lockId(read: TemplateLockRead): string | null {
+  return read.kind === "ok" ? read.lock.templateId : null;
+}
+
+function lockVersion(read: TemplateLockRead): string | null {
+  return read.kind === "ok" ? read.lock.version : null;
+}
+
+function journalLockFields(read: TemplateLockRead): Pick<TemplateStatus, "sourceType" | "coordinate"> {
+  if (read.kind !== "ok") return {};
+  const coordinate = read.lock.schemaVersion === 2 ? read.lock.remote?.coordinate : undefined;
+  return { sourceType: read.lock.sourceType, ...(coordinate ? { coordinate } : {}) };
 }
 
 async function remoteStatus(

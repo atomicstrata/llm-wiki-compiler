@@ -1,8 +1,8 @@
 /**
  * @file src/trust/journal-health.ts
- * @description The READ-ONLY journal health detector. A compile reroute that
- * crashes mid-batch leaves a `pending` journal (recovered by the next compile's
- * {@link recoverJournalBeforeCompile}); read surfaces should SURFACE that state
+ * @description The READ-ONLY journal health detector. A journal-backed project
+ * mutation that crashes mid-batch leaves a `pending` journal (recovered by the
+ * next compile's {@link recoverJournalBeforeCompile}); read surfaces should SURFACE that state
  * rather than silently serving partial post-crash bytes. {@link journalHealth}
  * inspects the journal directory and reports one of three states WITHOUT any
  * mutation — no write, no replay, no prune, no lock, and crucially no `.llmwiki`
@@ -24,7 +24,7 @@ import { classifyJournalFile, listBatchIds } from "./journal-classify.js";
  *    pending (a tamper-free, no-incomplete-compile state). A clean compile leaves
  *    zero journal files → `ok`;
  *  - `pending` — at least one cleanly-loadable `status:"pending"` batch (an
- *    incomplete compile whose partial bytes should not be served as final);
+ *    incomplete project mutation whose partial bytes should not be served as final);
  *  - `unavailable` — the journal/private dir symlink-escapes root, OR a pending
  *    file is malformed/unreadable, OR a recorded target escapes root (anything the
  *    strict gate would call `unsafe`). Tamper/corruption is NEVER `ok`/`pending`.

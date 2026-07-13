@@ -247,9 +247,16 @@ async function expectedLeafParentDir(targetPath: string, root: string): Promise<
  */
 export async function commitBatch(batch: JournalBatch): Promise<void> {
   batch.status = "committed";
-  await unlink(journalPath(batch.root, batch.batchId)).catch(() => {
-    // Already gone (e.g. a prior crash-recovery deleted it) — nothing to prune.
-  });
+  try {
+    await unlink(journalPath(batch.root, batch.batchId));
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return;
+    throw error;
+  }
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
 
 /**

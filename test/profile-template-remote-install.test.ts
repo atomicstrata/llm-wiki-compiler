@@ -7,6 +7,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadProfile } from "../src/profile/load.js";
+import { formatRemoteInstallConfirmation, remoteInstallSummary } from "../src/commands/template.js";
 import { installRemoteTemplate } from "../src/profile/templates/install.js";
 import { readTapState, writeTapState } from "../src/profile/templates/taps/state-store.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -35,6 +36,13 @@ async function project(): Promise<string> {
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
 
 describe("remote template install", () => {
+  it("shows connector bindings before asking for confirmation", async () => {
+    const { resolved } = await fixture();
+    const text = formatRemoteInstallConfirmation(remoteInstallSummary(resolved));
+    expect(text).toContain("Connector bindings: none");
+    expect(text).toContain(`Digest: ${resolved.payloadDigest}`);
+  });
+
   it("writes the verified profile and complete advisory provenance", async () => {
     const { paths, resolved } = await fixture();
     const root = await project();

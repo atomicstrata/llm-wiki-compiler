@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import { makeTempRoot } from "./fixtures/temp-root.js";
-import { installRunActionProfile } from "./fixtures/run-action-profile.js";
+import { installRunActionProfile, runActionProfile } from "./fixtures/run-action-profile.js";
 import { validateActionInputs } from "../src/workflows/action-input.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { ActionInputError } from "../src/workflows/errors.js";
@@ -104,6 +104,17 @@ describe("validateActionInputs — entityRef scope", () => {
 });
 
 describe("runAction — input gate fails BEFORE dispatch", () => {
+  it("uses the declared default rather than its presentation-fenced form", async () => {
+    const root = await makeTempRoot("ra-in-default");
+    const profile = runActionProfile();
+    profile.workflowActions!["build.start"].inputSchema = {
+      topic: { type: "string", default: "original default" },
+    };
+    await installRunActionProfile(root, profile);
+    const result = await runAction(root, "build.start", {}, "cli");
+    expect((result.result as { inputs: Record<string, unknown> }).inputs.topic).toBe("original default");
+  });
+
   it("rejects an unknown input key without minting a run", async () => {
     const root = await makeTempRoot("ra-in-unknown");
     await installRunActionProfile(root);

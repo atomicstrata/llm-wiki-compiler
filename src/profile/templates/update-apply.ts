@@ -3,14 +3,18 @@
  * @description Under-lock remote template update executor. Unlocked plans are
  * advisory; this module re-verifies and re-audits every condition before write.
  */
+import path from "node:path";
 import { acquireLockBlocking, releaseLock } from "../../utils/lock.js";
+import { PROFILE_FILE } from "../../utils/constants.js";
+import { openBatch, recordPreState, commitBatch } from "../../trust/journal.js";
+import { recoverJournalBeforeCompile } from "../../trust/journal-recovery.js";
 import { loadProfile } from "../load.js";
 import {
   buildTemplateLock,
   writeAdvisoryTemplateLock,
   writeInstalledProfile,
 } from "./install.js";
-import { readTemplateLock } from "./lock.js";
+import { readTemplateLock, TEMPLATE_LOCK_FILE } from "./lock.js";
 import {
   remoteProvenanceForResolved,
   resolveRemotePairFromLock,
@@ -20,7 +24,7 @@ import {
 } from "./remote-lifecycle.js";
 import { withTapStateLock } from "./taps/operator-lock.js";
 import type { TapPaths } from "./taps/paths.js";
-import type { TemplateLockV2 } from "./types.js";
+import type { TemplateLock, TemplateLockV2 } from "./types.js";
 import { planTemplateUpdate } from "./update.js";
 
 /** Test seams for deterministic pre-lock mutation and write-failure coverage. */
@@ -44,10 +48,12 @@ export async function applyRemoteTemplateUpdate(
   toVersion: string,
   options: RemoteUpdateApplyOptions = {},
 ): Promise<RemoteUpdateResult> {
+  await recoverBeforePlanning(root);
   const prefetched = await resolveRemoteUpdatePairForRoot(root, paths, toVersion, false);
   await options.afterPrefetchForTest?.();
   await acquireLockBlocking(root);
   try {
+    await recoverOrRefuse(root);
     return await withTapStateLock(paths, async () => applyLocked(root, paths, toVersion, prefetched, options));
   } finally {
     await releaseLock(root);
@@ -76,9 +82,43 @@ async function applyLocked(
     sourceType: "remote",
     remote: remoteProvenanceForResolved(current.candidate),
   });
-  await writeAdvisoryTemplateLock(root, nextLock);
-  await (options.writeProfileForTest ?? writeInstalledProfile)(root, current.candidate.package);
+  await writeUpdateTransaction(root, current.candidate.package, nextLock, options);
   return { kind: "updated", fromCoordinate: current.fromCoordinate, toCoordinate: current.toCoordinate, plan };
+}
+
+async function recoverBeforePlanning(root: string): Promise<void> {
+  await acquireLockBlocking(root);
+  try {
+    await recoverOrRefuse(root);
+  } finally {
+    await releaseLock(root);
+  }
+}
+
+async function writeUpdateTransaction(
+  root: string,
+  pkg: RemoteUpdatePair["candidate"]["package"],
+  nextLock: TemplateLock,
+  options: RemoteUpdateApplyOptions,
+): Promise<void> {
+  const batch = await openBatch(root);
+  try {
+    await recordPreState(batch, path.join(root, TEMPLATE_LOCK_FILE));
+    await recordPreState(batch, path.join(root, PROFILE_FILE));
+    await writeAdvisoryTemplateLock(root, nextLock);
+    await (options.writeProfileForTest ?? writeInstalledProfile)(root, pkg);
+    await commitBatch(batch);
+  } catch (error) {
+    await recoverOrRefuse(root);
+    throw error;
+  }
+}
+
+async function recoverOrRefuse(root: string): Promise<void> {
+  const recovery = await recoverJournalBeforeCompile(root);
+  if (recovery.status === "unsafe") {
+    throw new Error("project journal is unsafe; refusing remote template update");
+  }
 }
 
 async function currentRemoteLock(root: string): Promise<TemplateLockV2> {

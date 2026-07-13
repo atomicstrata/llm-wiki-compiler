@@ -1,6 +1,6 @@
 /**
  * @file src/trust/journal-health-warning.ts
- * @description The SHARED read-surface mapper for journal health. Every
+ * @description The SHARED read-surface mapper for project-mutation journal health. Every
  * content-exposing read surface (status, lint, viewer snapshot, JSON export,
  * SDK list/search/context) must SURFACE a `pending`/`unavailable` journal so an
  * agent or user is never silently served partial post-crash state. This module
@@ -32,13 +32,13 @@ export type JournalWarningCode =
 
 /** Human-readable copy for the `pending` (incomplete-compile) warning. */
 const INCOMPLETE_COMPILE_MESSAGE =
-  "A prior compile did not finish; run `llmwiki compile` to recover. " +
+  "A prior project mutation did not finish; run `llmwiki recover` to recover. " +
   "The wiki may reflect partial, post-crash state.";
 
 /** Human-readable copy for the `unavailable` (journal-unavailable) warning. */
 const JOURNAL_UNAVAILABLE_MESSAGE =
-  "The compile journal is unavailable (corrupt, unreadable, or escaping the " +
-  "project root); content may be partial or tampered. Run `llmwiki compile` to recover.";
+  "The project mutation journal is unavailable (corrupt, unreadable, or escaping the " +
+  "project root); content may be partial or tampered. Run `llmwiki recover` to recover.";
 
 /**
  * A neutral read-surface warning: a stable, scriptable `code` plus a
