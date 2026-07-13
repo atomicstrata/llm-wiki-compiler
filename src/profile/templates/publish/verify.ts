@@ -10,6 +10,8 @@ import { parseSignedPackage, parseSignedTapIndex } from "../signing/protocol.js"
 import { assertEd25519PublicKey, verifySignedPackage, verifyTapIndex } from "../signing/verify.js";
 import {
   assertExactDistributionTree,
+  closeDistributionPaths,
+  decodeCanonicalBase64Key,
   readDistributionIndex,
   readDistributionPackage,
   readTapPublicKey,
@@ -18,6 +20,8 @@ import {
 
 const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 const MAX_KEY_ID_BYTES = 4_096;
+/** Ed25519 SPKI DER length; a canonical public key decodes to exactly this. */
+const ED25519_SPKI_DER_BYTES = 44;
 
 /** Public, versioned result that deliberately excludes local paths and evidence bytes. */
 export interface DistributionVerificationResult {
@@ -34,29 +38,47 @@ export interface DistributionVerificationResult {
 /** Verify a complete static snapshot against an independently selected tap key. */
 export async function verifyPublisherDistribution(
   directory: string,
+  expectedTap: string,
   keyId: string,
   keyFile: string,
 ): Promise<DistributionVerificationResult> {
+  assertSafeTap(expectedTap);
   assertSafeKeyId(keyId);
   const paths = await resolveDistributionPaths(directory);
-  const [indexText, publicKey] = await Promise.all([
-    readDistributionIndex(paths),
-    readTapPublicKey(keyFile),
-  ]);
+  try {
+    const [indexText, publicKey] = await Promise.all([
+      readDistributionIndex(paths),
+      readTapPublicKey(keyFile),
+    ]);
+    const trustedKey = bindTrustedTapKey(keyId, publicKey);
+    const parsed = parseSignedTapIndex(indexText);
+    assertSnapshotContinuityScope(parsed);
+    const verified = verifyTapIndex(parsed, expectedTap, trustedKey);
+    const pins = advancePublisherPins(verified, emptyPublisherPinState(verified.tap));
+    const digests = verified.packages.map((entry) => entry.payloadDigest);
+    await assertExactDistributionTree(paths, digests);
+    for (const digest of digests) {
+      const envelope = parseSignedPackage(await readDistributionPackage(paths, digest));
+      if (envelope.payloadDigest !== digest) {
+        throw new Error("package at content-addressed path does not match its signed digest entry");
+      }
+      verifySignedPackage(envelope, verified, pins, packageJson.version);
+    }
+    await assertExactDistributionTree(paths, digests);
+    return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
+  } finally {
+    await closeDistributionPaths(paths);
+  }
+}
+
+function bindTrustedTapKey(keyId: string, publicKey: string): { keyId: string; publicKey: string } {
+  const decoded = decodeCanonicalBase64Key(publicKey, "tap key file");
+  if (decoded.length !== ED25519_SPKI_DER_BYTES) {
+    throw new Error("tap key file must be a base64 SPKI DER Ed25519 public key");
+  }
   const trustedKey = { keyId, publicKey };
   assertEd25519PublicKey(trustedKey);
-  const parsed = parseSignedTapIndex(indexText);
-  assertSnapshotContinuityScope(parsed);
-  const verified = verifyTapIndex(parsed, parsed.tap, trustedKey);
-  const pins = advancePublisherPins(verified, emptyPublisherPinState(verified.tap));
-  const digests = verified.packages.map((entry) => entry.payloadDigest);
-  await assertExactDistributionTree(paths, digests);
-  for (const digest of digests) {
-    const envelope = parseSignedPackage(await readDistributionPackage(paths, digest));
-    verifySignedPackage(envelope, verified, pins, packageJson.version);
-  }
-  await assertExactDistributionTree(paths, digests);
-  return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
+  return trustedKey;
 }
 
 function assertSafeKeyId(keyId: string): void {
@@ -65,6 +87,12 @@ function assertSafeKeyId(keyId: string): void {
   }
   if (TERMINAL_CONTROL.test(keyId)) {
     throw new Error("tap key id must not contain terminal control characters");
+  }
+}
+
+function assertSafeTap(tap: string): void {
+  if (Buffer.byteLength(tap, "utf8") > 4_096 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tap)) {
+    throw new Error("expected tap must be a bounded slug-safe identity");
   }
 }
 

@@ -16,6 +16,7 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
+import { resolveDistributionPaths } from "../src/profile/templates/publish/filesystem.js";
 
 const fixtures: PublishDistribution[] = [];
 const fifoIt = it.skipIf(process.platform === "win32");
@@ -83,6 +84,17 @@ describe("template publish verify filesystem hardening", () => {
     await rename(tree.directory, moved);
     await symlink(moved, tree.directory, "dir");
     assertPublishVerifyFailure(runPublishVerify(tree), /root|symlink|escape|confined|directory/i);
+  });
+
+  it("refuses a distribution root swapped after its no-follow handle is opened", async () => {
+    const tree = await fixture();
+    const moved = `${tree.directory}.moved`;
+    await expect(resolveDistributionPaths(tree.directory, {
+      afterRootOpenForTest: async () => {
+        await rename(tree.directory, moved);
+        await symlink(moved, tree.directory, "dir");
+      },
+    })).rejects.toThrow(/root|symlink|changed|confined/i);
   });
 
   it("refuses two signed entries that alias the same digest path", async () => {
@@ -180,6 +192,17 @@ describe("template publish verify filesystem hardening", () => {
     const tree = await fixture();
     await writeFile(tree.keyFile, `${TAP_KEY.publicKey}\n${" ".repeat(OVERSIZED_KEY_BYTES)}`, "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
+  });
+
+  it("refuses non-canonical base64 and trailing DER bytes in the tap key", async () => {
+    const malformed = await fixture();
+    await writeFile(malformed.keyFile, ` ${TAP_KEY.publicKey}\n`, "utf8");
+    assertPublishVerifyFailure(runPublishVerify(malformed), /base64|key.*malformed|canonical/i);
+
+    const trailing = await fixture();
+    const extended = Buffer.concat([Buffer.from(TAP_KEY.publicKey, "base64"), Buffer.from([0])]).toString("base64");
+    await writeFile(trailing.keyFile, extended, "utf8");
+    assertPublishVerifyFailure(runPublishVerify(trailing), /SPKI|Ed25519|key.*malformed/i);
   });
 
   it("refuses malformed UTF-8 before parsing signed protocol inputs", async () => {

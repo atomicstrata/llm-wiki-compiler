@@ -2,50 +2,118 @@
  * @file src/profile/templates/publish/filesystem.ts
  * @description Read-only filesystem boundary for offline publisher snapshots.
  * It accepts only the fixed static distribution layout, rejects symlinks and
- * special files, binds reads to confined open handles, caps every input, and
- * decodes signed protocol bytes as strict UTF-8.
+ * special files, binds reads to confined open handles, caps every input with a
+ * bounded read that resists concurrent growth, and decodes signed protocol
+ * bytes as strict UTF-8.
  */
-import { lstat, realpath, readdir } from "node:fs/promises";
+import { constants as fsConstants, type Stats } from "node:fs";
+import { lstat, open, opendir, realpath, type FileHandle } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 import path from "node:path";
-import { openConfinedLeaf, readCappedNoFollowBuffer } from "../../../utils/confined-read.js";
+import { openConfinedLeaf } from "../../../utils/confined-read.js";
 import { sha256DigestHex } from "../signing/protocol.js";
 
 const MAX_INDEX_BYTES = 4 * 1024 * 1024;
 const MAX_PACKAGE_BYTES = 2 * 1024 * 1024;
 const MAX_KEY_BYTES = 16 * 1024;
+/** Canonical base64 with correct padding; no ignored characters or trailing bytes. */
+const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 /** Canonical paths for a snapshot whose root passed the no-symlink gate. */
 export interface DistributionPaths {
   root: string;
   canonicalRoot: string;
   packageDirectory: string;
+  rootHandle: FileHandle;
+  rootIdentity: FileIdentity;
 }
 
-/** Require a real directory selected without a symlink at its root. */
-export async function resolveDistributionPaths(directory: string): Promise<DistributionPaths> {
+interface FileIdentity {
+  dev: number;
+  ino: number;
+}
+
+export interface DistributionResolveOptions {
+  /** Test-only seam for a deterministic root replacement after open. */
+  afterRootOpenForTest?: () => Promise<void>;
+}
+
+/** Open and retain a no-follow handle that binds all later reads to one root inode. */
+export async function resolveDistributionPaths(
+  directory: string,
+  options: DistributionResolveOptions = {},
+): Promise<DistributionPaths> {
   const root = path.resolve(directory);
-  const info = await lstat(root).catch(() => null);
-  if (!info?.isDirectory() || info.isSymbolicLink()) {
-    throw new Error("distribution root must be a non-symlink directory");
+  let rootHandle: FileHandle | undefined;
+  try {
+    rootHandle = await openDirectoryNoFollow(root);
+    const opened = await rootHandle.stat();
+    if (!opened.isDirectory()) throw new Error("distribution root must be a non-symlink directory");
+    if (options.afterRootOpenForTest) await options.afterRootOpenForTest();
+    const canonicalRoot = await realpath(root).catch(() => null);
+    if (!canonicalRoot) throw new Error("distribution root cannot be confined");
+    await assertPathMatchesHandle(root, opened, "distribution root");
+    await assertPathMatchesHandle(canonicalRoot, opened, "distribution root");
+    return {
+      root,
+      canonicalRoot,
+      packageDirectory: path.join(root, "packages", "sha256"),
+      rootHandle,
+      rootIdentity: identity(opened),
+    };
+  } catch (error) {
+    await rootHandle?.close().catch(() => {});
+    throw error instanceof Error ? error : new Error("distribution root cannot be confined");
   }
-  const canonicalRoot = await realpath(root).catch(() => null);
-  if (!canonicalRoot) throw new Error("distribution root cannot be confined");
-  return { root, canonicalRoot, packageDirectory: path.join(root, "packages", "sha256") };
+}
+
+/** Release the retained root inode after verification finishes. */
+export async function closeDistributionPaths(paths: DistributionPaths): Promise<void> {
+  await paths.rootHandle.close().catch(() => {});
 }
 
 /** Read and strictly decode the independently selected tap public key. */
 export async function readTapPublicKey(file: string): Promise<string> {
-  const read = await readCappedNoFollowBuffer(file, MAX_KEY_BYTES);
-  if (read.kind !== "ok") {
-    throw new Error(`tap key file is unavailable, symlinked, special, or larger than ${MAX_KEY_BYTES} bytes`);
+  let handle: FileHandle;
+  try {
+    handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+  } catch {
+    throw new Error("tap key file is unavailable, symlinked, or special");
   }
-  return decodeUtf8(read.body, "tap key file").trim();
+  try {
+    const info = await handle.stat();
+    if (!info.isFile()) throw new Error("tap key file must be a regular file and not a symlink or special file");
+    const bytes = await readBoundedFromHandle(handle, MAX_KEY_BYTES, "tap key file");
+    return keyFileText(decodeUtf8(bytes, "tap key file"));
+  } finally {
+    await handle.close().catch(() => {});
+  }
+}
+
+/** Strictly decode a base64 SPKI DER key with no ignored characters or trailing bytes. */
+export function decodeCanonicalBase64Key(text: string, label: string): Buffer {
+  if (text.length === 0 || !CANONICAL_BASE64.test(text)) {
+    throw new Error(`${label} must be canonical base64 with no ignored characters`);
+  }
+  const decoded = Buffer.from(text, "base64");
+  if (decoded.toString("base64") !== text) {
+    throw new Error(`${label} contains non-canonical base64 padding or trailing bytes`);
+  }
+  return decoded;
+}
+
+function keyFileText(text: string): string {
+  if (text.endsWith("\r\n")) return text.slice(0, -2);
+  if (text.endsWith("\n")) return text.slice(0, -1);
+  return text;
 }
 
 /** Read the fixed index leaf through a root-anchored, handle-bound open. */
-export function readDistributionIndex(paths: DistributionPaths): Promise<string> {
-  return readConfinedUtf8(paths.root, path.join(paths.root, "index.json"), paths.root, MAX_INDEX_BYTES, "index");
+export async function readDistributionIndex(paths: DistributionPaths): Promise<string> {
+  await assertRootBound(paths);
+  const result = await readConfinedUtf8(paths.root, path.join(paths.root, "index.json"), paths.root, MAX_INDEX_BYTES, "index");
+  await assertRootBound(paths);
+  return result;
 }
 
 /** Convert a signed digest to its only permitted content-addressed path. */
@@ -55,57 +123,173 @@ function packagePath(paths: DistributionPaths, digest: string): string {
 }
 
 /** Read one digest-derived package without following any path component. */
-export function readDistributionPackage(paths: DistributionPaths, digest: string): Promise<string> {
-  return readConfinedUtf8(
+export async function readDistributionPackage(paths: DistributionPaths, digest: string): Promise<string> {
+  await assertRootBound(paths);
+  const result = await readConfinedUtf8(
     paths.root,
     packagePath(paths, digest),
     paths.packageDirectory,
     MAX_PACKAGE_BYTES,
     "package",
   );
+  await assertRootBound(paths);
+  return result;
 }
 
 /** Require the complete static tree to contain exactly the signed package paths. */
 export async function assertExactDistributionTree(paths: DistributionPaths, digests: string[]): Promise<void> {
   const filenames = digests.map((digest) => path.basename(packagePath(paths, digest)));
   if (new Set(filenames).size !== filenames.length) throw new Error("duplicate signed entries alias the same package path");
-  await assertDirectory(paths.root, ["index.json", "packages"]);
-  await assertRegularLeaf(path.join(paths.root, "index.json"), "index");
+  await assertDirectory(paths, paths.root, ["index.json", "packages"], "distribution root");
+  await assertRegularLeaf(paths, path.join(paths.root, "index.json"), paths.root, "index");
   const packages = path.join(paths.root, "packages");
-  await assertCanonicalDirectory(paths, packages, "packages directory");
-  await assertDirectory(packages, ["sha256"]);
-  await assertCanonicalDirectory(paths, paths.packageDirectory, "package digest directory");
+  await assertDirectory(paths, packages, ["sha256"], "packages directory");
   for (const filename of filenames) {
-    await assertRegularLeaf(path.join(paths.packageDirectory, filename), "package");
+    await assertRegularLeaf(paths, path.join(paths.packageDirectory, filename), paths.packageDirectory, "package");
   }
-  await assertDirectory(paths.packageDirectory, filenames);
+  await assertDirectory(paths, paths.packageDirectory, filenames, "package digest directory");
+  await assertRootBound(paths);
 }
 
-async function assertDirectory(directory: string, expectedNames: string[]): Promise<void> {
-  let actual: string[];
+/** Stream at most the signed expected entry count plus one while an inode anchor is held. */
+async function assertDirectory(
+  paths: DistributionPaths,
+  directory: string,
+  expectedNames: string[],
+  label: string,
+): Promise<void> {
+  const anchor = await openAnchoredDirectory(paths, directory, label);
   try {
-    actual = (await readdir(directory)).sort();
-  } catch {
-    throw new Error("distribution contains a missing, unreadable, or unexpected directory");
+    const seen = await scanDirectory(paths, directory, anchor.info, label, new Set(expectedNames));
+    if (seen.size !== expectedNames.length) throw new Error("distribution contains a missing entry");
+  } finally {
+    await anchor.handle.close().catch(() => {});
   }
-  const expected = [...expectedNames].sort();
-  if (actual.length !== expected.length || actual.some((name, index) => name !== expected[index])) {
+}
+
+async function scanDirectory(
+  paths: DistributionPaths,
+  directory: string,
+  anchor: Stats,
+  label: string,
+  expected: Set<string>,
+): Promise<Set<string>> {
+  let stream: Awaited<ReturnType<typeof opendir>> | undefined;
+  try {
+    stream = await opendir(directory);
+    return await readExpectedEntries(paths, directory, anchor, label, stream, expected);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("distribution contains")) throw error;
+    throw new Error("distribution contains a missing, unreadable, or unexpected directory");
+  } finally {
+    await stream?.close().catch(() => {});
+  }
+}
+
+async function readExpectedEntries(
+  paths: DistributionPaths,
+  directory: string,
+  anchor: Stats,
+  label: string,
+  stream: Awaited<ReturnType<typeof opendir>>,
+  expected: Set<string>,
+): Promise<Set<string>> {
+  const seen = new Set<string>();
+  for (;;) {
+    await assertDirectoryStillBound(paths, directory, anchor, label);
+    const entry = await stream.read();
+    await assertDirectoryStillBound(paths, directory, anchor, label);
+    if (entry === null) return seen;
+    recordExpectedEntry(entry.name, expected, seen);
+  }
+}
+
+function recordExpectedEntry(name: string, expected: Set<string>, seen: Set<string>): void {
+  if (!expected.has(name) || seen.has(name) || seen.size >= expected.size) {
     throw new Error("distribution contains an extra, unreferenced, or unexpected entry");
   }
+  seen.add(name);
 }
 
-async function assertCanonicalDirectory(paths: DistributionPaths, directory: string, label: string): Promise<void> {
-  const info = await lstat(directory).catch(() => null);
-  if (!info?.isDirectory() || info.isSymbolicLink()) throw new Error(`${label} must be a non-symlink directory`);
+async function openAnchoredDirectory(
+  paths: DistributionPaths,
+  directory: string,
+  label: string,
+): Promise<{ handle: FileHandle; info: Stats }> {
+  await assertRootBound(paths);
+  const handle = await openDirectoryNoFollow(directory).catch(() => null);
+  if (!handle) throw new Error(`${label} must be a non-symlink directory`);
+  const info = await handle.stat().catch(() => null);
+  if (!info?.isDirectory()) {
+    await handle.close().catch(() => {});
+    throw new Error(`${label} must be a non-symlink directory`);
+  }
   const canonical = await realpath(directory).catch(() => null);
   const expected = path.join(paths.canonicalRoot, path.relative(paths.root, directory));
-  if (canonical !== expected) throw new Error(`${label} is symlinked or escapes confinement`);
+  if (canonical !== expected) {
+    await handle.close().catch(() => {});
+    throw new Error(`${label} is symlinked or escapes confinement`);
+  }
+  try {
+    await assertPathMatchesHandle(directory, info, label);
+    await assertPathMatchesHandle(canonical, info, label);
+    return { handle, info };
+  } catch (error) {
+    await handle.close().catch(() => {});
+    throw error;
+  }
 }
 
-async function assertRegularLeaf(file: string, label: string): Promise<void> {
-  const info = await lstat(file).catch(() => null);
-  if (!info) throw new Error(`${label} is missing`);
-  if (!info.isFile() || info.isSymbolicLink()) throw new Error(`${label} must be a regular file and not a symlink`);
+async function assertRegularLeaf(
+  paths: DistributionPaths,
+  file: string,
+  expectedDirectory: string,
+  label: string,
+): Promise<void> {
+  await assertRootBound(paths);
+  const opened = await openConfinedLeaf(paths.root, file, expectedDirectory);
+  if (opened.kind !== "confirmed") throw new Error(`${label} is missing or not a regular file and may not be a symlink`);
+  await opened.handle.close().catch(() => {});
+  await assertRootBound(paths);
+}
+
+async function openDirectoryNoFollow(directory: string): Promise<FileHandle> {
+  return open(directory, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK | fsConstants.O_DIRECTORY);
+}
+
+async function assertDirectoryStillBound(
+  paths: DistributionPaths,
+  directory: string,
+  opened: Stats,
+  label: string,
+): Promise<void> {
+  await assertRootBound(paths);
+  await assertPathMatchesHandle(directory, opened, label);
+}
+
+async function assertRootBound(paths: DistributionPaths): Promise<void> {
+  const opened = await paths.rootHandle.stat().catch(() => null);
+  if (!opened?.isDirectory() || !sameIdentity(identity(opened), paths.rootIdentity)) {
+    throw new Error("distribution root handle is unavailable or changed");
+  }
+  const canonical = await realpath(paths.root).catch(() => null);
+  if (canonical !== paths.canonicalRoot) throw new Error("distribution root changed during verification");
+  await assertPathMatchesHandle(paths.root, opened, "distribution root");
+}
+
+async function assertPathMatchesHandle(file: string, opened: Stats, label: string): Promise<void> {
+  const current = await lstat(file).catch(() => null);
+  if (!current || current.isSymbolicLink() || !sameIdentity(identity(current), identity(opened))) {
+    throw new Error(`${label} is symlinked, escaped, or changed during verification`);
+  }
+}
+
+function identity(info: Stats): FileIdentity {
+  return { dev: info.dev, ino: info.ino };
+}
+
+function sameIdentity(left: FileIdentity, right: FileIdentity): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
 }
 
 async function readConfinedUtf8(
@@ -119,10 +303,28 @@ async function readConfinedUtf8(
   if (opened.kind !== "confirmed") throw new Error(`${label} is missing, symlinked, or not a regular file`);
   try {
     if (opened.size > maxBytes) throw new Error(`${label} exceeds its bounded size limit`);
-    return decodeUtf8(await opened.handle.readFile(), label);
+    return decodeUtf8(await readBoundedFromHandle(opened.handle, maxBytes, label), label);
   } finally {
     await opened.handle.close().catch(() => {});
   }
+}
+
+/**
+ * Read at most `maxBytes` bytes from an already-confirmed regular-file handle,
+ * rejecting a file that grew past the cap between the fstat gate and the read.
+ * Reading `maxBytes + 1` and refusing a full buffer closes the size-check/read
+ * race a concurrently growing file would otherwise open.
+ */
+async function readBoundedFromHandle(handle: FileHandle, maxBytes: number, label: string): Promise<Buffer> {
+  const buffer = Buffer.allocUnsafe(maxBytes + 1);
+  let total = 0;
+  while (total < buffer.length) {
+    const { bytesRead } = await handle.read(buffer, total, buffer.length - total, total);
+    if (bytesRead === 0) break;
+    total += bytesRead;
+  }
+  if (total > maxBytes) throw new Error(`${label} exceeds its bounded size limit`);
+  return buffer.subarray(0, total);
 }
 
 function decodeUtf8(bytes: Buffer, label: string): string {

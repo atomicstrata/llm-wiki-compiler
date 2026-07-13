@@ -11,6 +11,7 @@ import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import {
   COORDINATE,
   PUBLISHER_KEY,
+  remotePackage,
   signedPackage,
   TAP_KEY,
 } from "./fixtures/template-signing.js";
@@ -18,6 +19,7 @@ import {
   CLI_TIMEOUT_MS,
   assertPublishVerifyFailure,
   createPublishDistribution,
+  digestHex,
   removePublishDistribution,
   runPublishVerify,
   snapshotTree,
@@ -78,6 +80,14 @@ describe("template publish verify CLI", () => {
     await writeFile(wrongKeyFile, PUBLISHER_KEY.publicKey, "utf8");
     assertPublishVerifyFailure(runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
     assertPublishVerifyFailure(runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
+  });
+
+  it("binds the signed index to an independently selected tap identity", async () => {
+    const tree = await fixture();
+    assertPublishVerifyFailure(
+      runPublishVerify(tree, [], TAP_KEY.keyId, tree.keyFile, "community"),
+      /expected tap|wrong tap|tap identity/i,
+    );
   });
 
   it("does not emit a JSON success object after verification fails", async () => {
@@ -164,6 +174,22 @@ describe("template publish verify CLI", () => {
     const invalid = { ...signedPackage().payload, displayName: "" } as ProfileTemplatePackage;
     const invalidTree = await fixture(signedPackage(invalid));
     assertPublishVerifyFailure(runPublishVerify(invalidTree), /displayName|template|invalid/i);
+  });
+
+  it("does not accept one valid package envelope under two signed digest paths", async () => {
+    const first = signedPackage();
+    const secondPayload = { ...remotePackage(), version: "1.0.1" };
+    const secondCoordinate = COORDINATE.replace("@1.0.0", "@1.0.1");
+    const second = signedPackage(secondPayload, secondCoordinate);
+    const tree = await fixture(first);
+    const secondFile = path.join(path.dirname(tree.packageFile), `${digestHex(second.payloadDigest)}.json`);
+    await writeFile(secondFile, JSON.stringify(second), "utf8");
+    await writeSignedDistributionIndex(tree, { packages: [
+      tree.index.packages[0],
+      { coordinate: second.coordinate, publisher: second.payload.publisher, payloadDigest: second.payloadDigest },
+    ] });
+    await writeFile(tree.packageFile, JSON.stringify(second), "utf8");
+    assertPublishVerifyFailure(runPublishVerify(tree), /content-addressed|signed digest|digest entry/i);
   });
 
   it("fails closed when a signed package digest or publisher key is revoked", async () => {

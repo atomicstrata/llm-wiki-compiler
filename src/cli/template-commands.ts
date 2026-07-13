@@ -82,6 +82,7 @@ export function registerTemplateCommands(program: Command): void {
   publish
     .command("verify <directory>")
     .description("Verify a signed publisher distribution offline")
+    .requiredOption("--tap <name>", "Expected tap identity selected through a trusted channel")
     .requiredOption("--key-id <id>", "Trusted Ed25519 tap key id")
     .requiredOption("--key-file <path>", "Read the trusted base64 SPKI DER tap key")
     .option("--json", "Print a stable versioned JSON result")

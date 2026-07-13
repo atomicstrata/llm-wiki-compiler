@@ -10,6 +10,7 @@ const MAX_ERROR_MESSAGE_BYTES = 3_800;
 
 /** Options required by `template publish verify`. */
 export interface TemplatePublishVerifyOptions {
+  tap: string;
   keyId: string;
   keyFile: string;
   json?: boolean;
@@ -21,7 +22,7 @@ export async function templatePublishVerifyCommand(
   options: TemplatePublishVerifyOptions,
 ): Promise<number> {
   try {
-    const result = await verifyPublisherDistribution(directory, options.keyId, options.keyFile);
+    const result = await verifyPublisherDistribution(directory, options.tap, options.keyId, options.keyFile);
     if (options.json) console.log(JSON.stringify(result, null, 2));
     else printHumanResult(result);
     return 0;

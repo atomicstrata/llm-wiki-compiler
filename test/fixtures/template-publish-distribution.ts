@@ -78,10 +78,11 @@ export function runPublishVerify(
   extraArgs: string[] = [],
   keyId = TAP_KEY.keyId,
   keyFile = fixture.keyFile,
+  tap = "official",
 ): VerifyResult {
   const result = spawnSync(process.execPath, [
     CLI, "template", "publish", "verify", fixture.directory,
-    "--key-id", keyId, "--key-file", keyFile, ...extraArgs,
+    "--tap", tap, "--key-id", keyId, "--key-file", keyFile, ...extraArgs,
   ], { cwd: fixture.root, encoding: "utf8", env: offlineEnvironment(fixture.root), timeout: CLI_TIMEOUT_MS });
   if (result.error) throw new Error(`publisher verifier subprocess failed: ${result.error.message}`);
   if (result.signal) throw new Error(`publisher verifier subprocess ended by ${result.signal}`);
