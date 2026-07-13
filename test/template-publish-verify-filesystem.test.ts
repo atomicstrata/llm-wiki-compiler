@@ -5,12 +5,13 @@
  */
 import { copyFile, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { makeFifo } from "./fixtures/fifo.js";
 import { COORDINATE, signedPackage, signedTapRotation, signedRotation, TAP_KEY } from "./fixtures/template-signing.js";
 import {
   assertPublishVerifyFailure,
   createPublishDistribution,
+  diagnostics,
   removePublishDistribution,
   runPublishVerify,
   writeSignedDistributionIndex,
@@ -288,6 +289,19 @@ describe("template publish verify filesystem hardening", () => {
     const tapTree = await fixture();
     await writeSignedDistributionIndex(tapTree, { tapKeyRotation: signedTapRotation() });
     assertPublishVerifyFailure(runPublishVerify(tapTree), /continuity|rotation.*snapshot|snapshot.*rotation/i);
+  });
+
+  it("authenticates a rotation-bearing index before classifying snapshot continuity", async () => {
+    const tree = await fixture();
+    const index = await writeSignedDistributionIndex(tree, { rotations: [signedRotation()] });
+    const first = index.signature.value[0] === "A" ? "B" : "A";
+    index.signature.value = `${first}${index.signature.value.slice(1)}`;
+    await writeFile(path.join(tree.directory, "index.json"), JSON.stringify(index), "utf8");
+
+    const result = runPublishVerify(tree);
+
+    assertPublishVerifyFailure(result, /signature/i);
+    expect(diagnostics(result)).not.toMatch(/snapshot continuity|snapshot.*rotation/i);
   });
 });
 

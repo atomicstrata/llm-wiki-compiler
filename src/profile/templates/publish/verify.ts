@@ -61,8 +61,8 @@ export async function verifyPublisherDistribution(
     const indexBytesSha256 = contentSha256(indexText);
     const keyBytesSha256 = contentSha256(publicKey);
     const parsed = parseSignedTapIndex(indexText);
-    assertSnapshotContinuityScope(parsed);
     const verified = verifyTapIndex(parsed, expectedTap, trustedKey);
+    assertSnapshotContinuityScope(parsed);
     const pins = advancePublisherPins(verified, emptyPublisherPinState(verified.tap));
     const digests = verified.packages.map((entry) => entry.payloadDigest);
     const packageBytesSha256 = new Map<string, string>();
