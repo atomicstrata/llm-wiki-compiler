@@ -14,6 +14,7 @@ import {
   TAP_KEY,
 } from "./fixtures/template-signing.js";
 import {
+  CLI_TIMEOUT_MS,
   createPublishDistribution,
   diagnostics,
   removePublishDistribution,
@@ -53,6 +54,7 @@ describe("template publish verify CLI", () => {
     const tree = await fixture();
     const result = runPublishVerify(tree, ["--json"]);
     expect(result.status).toBe(0);
+    expect(result.stderr).toBe("");
     expect(result.stdout).not.toContain(TAP_KEY.publicKey);
     expect(result.stdout).not.toContain(tree.root);
     expect(result.stdout).not.toContain(tree.envelope.publisherSignature.value);
@@ -66,6 +68,11 @@ describe("template publish verify CLI", () => {
     await writeFile(wrongKeyFile, PUBLISHER_KEY.publicKey, "utf8");
     assertFailure(runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
     assertFailure(runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
+  });
+
+  it("does not emit a JSON success object after verification fails", async () => {
+    const tree = await fixture();
+    assertFailure(runPublishVerify(tree, ["--json"], "wrong-key-id"), /key id|trusted key|wrong key/i);
   });
 
   it("fails closed for expired and future indexes", async () => {
@@ -126,8 +133,16 @@ describe("template publish verify CLI", () => {
   });
 
   it("distinguishes consumer verification from publisher distribution verification in help", () => {
-    const templateHelp = spawnSync(process.execPath, [CLI, "template", "--help"], { encoding: "utf8" });
-    const publishHelp = spawnSync(process.execPath, [CLI, "template", "publish", "--help"], { encoding: "utf8" });
+    const templateHelp = spawnSync(process.execPath, [CLI, "template", "--help"], {
+      encoding: "utf8", timeout: CLI_TIMEOUT_MS,
+    });
+    const publishHelp = spawnSync(process.execPath, [CLI, "template", "publish", "--help"], {
+      encoding: "utf8", timeout: CLI_TIMEOUT_MS,
+    });
+    expect(templateHelp.error).toBeUndefined();
+    expect(templateHelp.signal).toBeNull();
+    expect(publishHelp.error).toBeUndefined();
+    expect(publishHelp.signal).toBeNull();
     expect(templateHelp.status).toBe(0);
     expect(templateHelp.stdout).toMatch(/verify <coordinate>.*remote template package/i);
     expect(templateHelp.stdout).toMatch(/publish.*publisher|publish.*distribution/i);
@@ -154,6 +169,6 @@ function assertFailure(result: VerifyResult, reason: RegExp): void {
   expect(result.status).not.toBe(0);
   expect(output).toMatch(reason);
   expect(output).not.toMatch(/unknown command ['"]?publish|TypeError|ReferenceError|\n\s+at /i);
-  expect(result.stdout).not.toContain('"verified": true');
+  expect(result.stdout).not.toMatch(/"verified"\s*:\s*true/);
   expect(result.stderr.length).toBeLessThanOrEqual(4096);
 }

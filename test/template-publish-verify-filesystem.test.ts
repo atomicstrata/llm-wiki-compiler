@@ -19,6 +19,8 @@ import {
 } from "./fixtures/template-publish-distribution.js";
 
 const fixtures: PublishDistribution[] = [];
+const fifoIt = it.skipIf(process.platform === "win32");
+const OVERSIZED_INPUT_BYTES = 2 * 1024 * 1024;
 
 async function fixture(): Promise<PublishDistribution> {
   const value = await createPublishDistribution();
@@ -51,23 +53,23 @@ describe("template publish verify filesystem hardening", () => {
     assertFailure(runPublishVerify(tree), /duplicate|alias|same package path/i);
   });
 
-  it("refuses package leaf symlinks without exposing outside bytes", async () => {
+  fifoIt("refuses package leaf symlinks without reading outside the selected tree", async () => {
     const tree = await fixture();
-    const outside = path.join(tree.root, "outside-secret.json");
-    const secret = "OUTSIDE_PACKAGE_SECRET";
-    await writeFile(outside, secret, "utf8");
+    const outside = path.join(tree.root, "outside-blocking-package");
+    await makeFifo(outside);
     await rename(tree.packageFile, `${tree.packageFile}.real`);
     await symlink(outside, tree.packageFile);
-    const result = runPublishVerify(tree);
-    assertFailure(result, /symlink|regular file|no.follow/i);
-    expect(diagnostics(result)).not.toContain(secret);
+    assertFailure(runPublishVerify(tree), /symlink|regular file|no.follow/i);
   });
 
-  it("refuses a package directory symlink that escapes the selected tree", async () => {
+  fifoIt("refuses a package directory symlink that escapes the selected tree", async () => {
     const tree = await fixture();
     const packageRoot = path.join(tree.directory, "packages");
     const moved = path.join(tree.root, "outside-packages");
     await rename(packageRoot, moved);
+    const outsidePackage = path.join(moved, "sha256", path.basename(tree.packageFile));
+    await rename(outsidePackage, `${outsidePackage}.real`);
+    await makeFifo(outsidePackage);
     await symlink(moved, packageRoot, "dir");
     assertFailure(runPublishVerify(tree), /symlink|escape|confined|regular/i);
   });
@@ -84,7 +86,22 @@ describe("template publish verify filesystem hardening", () => {
     assertFailure(runPublishVerify(second, [], TAP_KEY.keyId, key), /key.*symlink|symlink.*key|no.follow/i);
   });
 
-  it("refuses a special package file without blocking on it", async () => {
+  fifoIt("refuses a special index file without blocking on it", async () => {
+    const tree = await fixture();
+    const index = path.join(tree.directory, "index.json");
+    await rename(index, `${index}.real`);
+    await makeFifo(index);
+    assertFailure(runPublishVerify(tree), /regular file|special|fifo/i);
+  });
+
+  fifoIt("refuses a special key file without blocking on it", async () => {
+    const tree = await fixture();
+    await rename(tree.keyFile, `${tree.keyFile}.real`);
+    await makeFifo(tree.keyFile);
+    assertFailure(runPublishVerify(tree), /regular file|special|fifo/i);
+  });
+
+  fifoIt("refuses a special package file without blocking on it", async () => {
     const tree = await fixture();
     await rename(tree.packageFile, `${tree.packageFile}.real`);
     await makeFifo(tree.packageFile);
@@ -93,7 +110,20 @@ describe("template publish verify filesystem hardening", () => {
 
   it("refuses an oversized package envelope", async () => {
     const tree = await fixture();
-    await writeFile(tree.packageFile, `${JSON.stringify(tree.envelope)}${" ".repeat(2 * 1024 * 1024)}`, "utf8");
+    await writeFile(tree.packageFile, `${JSON.stringify(tree.envelope)}${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
+    assertFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
+  });
+
+  it("refuses an oversized otherwise-valid index", async () => {
+    const tree = await fixture();
+    const index = path.join(tree.directory, "index.json");
+    await writeFile(index, `${JSON.stringify(tree.index)}${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
+    assertFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
+  });
+
+  it("refuses an oversized otherwise-valid key file", async () => {
+    const tree = await fixture();
+    await writeFile(tree.keyFile, `${TAP_KEY.publicKey}\n${" ".repeat(OVERSIZED_INPUT_BYTES)}`, "utf8");
     assertFailure(runPublishVerify(tree), /large|size|limit|bounded/i);
   });
 
@@ -112,6 +142,6 @@ function assertFailure(result: VerifyResult, reason: RegExp): void {
   expect(result.status).not.toBe(0);
   expect(output).toMatch(reason);
   expect(output).not.toMatch(/unknown command ['"]?publish|TypeError|ReferenceError|\n\s+at /i);
-  expect(result.stdout).not.toContain('"verified": true');
+  expect(result.stdout).not.toMatch(/"verified"\s*:\s*true/);
   expect(result.stderr.length).toBeLessThanOrEqual(4096);
 }
