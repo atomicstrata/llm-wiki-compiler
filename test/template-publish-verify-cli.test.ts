@@ -138,6 +138,16 @@ describe("template publish verify CLI", () => {
     );
     assertPublishVerifyFailure(runPublishVerify(duplicateTree), /duplicate.*key|key.*duplicate/i);
 
+    const duplicateIndexTree = await fixture();
+    const indexPath = path.join(duplicateIndexTree.directory, "index.json");
+    const indexSource = await readFile(indexPath, "utf8");
+    await writeFile(
+      indexPath,
+      indexSource.replace('"sequence":1', '"sequence":1,"sequence":1'),
+      "utf8",
+    );
+    assertPublishVerifyFailure(runPublishVerify(duplicateIndexTree), /duplicate.*key|key.*duplicate/i);
+
     const digestTree = await fixture();
     await writeSignedDistributionIndex(digestTree, { packages: [{
       ...digestTree.index.packages[0],
