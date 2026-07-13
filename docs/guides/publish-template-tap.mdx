@@ -1,0 +1,310 @@
+---
+title: "Publish a Signed Template Tap"
+sidebarTitle: "Publish a Template Tap"
+description: "Package, sign, host, and verify declarative llmwiki profile templates."
+---
+
+This guide is for template publishers and tap operators. It shows how to turn a
+validated declarative profile package into an immutable signed release that an
+llmwiki user can discover, verify, install, and update.
+
+llmwiki includes the verification client, not a private-key management or
+publisher CLI. Run the signing steps in your own release pipeline. Keep private
+keys outside the public tap and use the exact protocol below as the
+interoperability contract.
+
+<Warning>
+  A signature proves which key signed exact bytes. It does not certify that a
+  profile is useful or that its labels are safe instructions. Remote profiles
+  remain untrusted declarative input and pass the ordinary profile validator on
+  every install or update.
+</Warning>
+
+## What you publish
+
+A tap is a static HTTPS directory containing one signed index and immutable,
+content-addressed package envelopes:
+
+```text
+https://templates.example/community/index.json
+https://templates.example/community/packages/sha256/<payload-sha256>.json
+```
+
+If `index.json` is at `/community/index.json`, llmwiki derives each package URL
+as `/community/packages/sha256/<hex>.json`. The package must stay on the exact
+scheme, host, and port used by the index. Redirects to another origin are
+refused.
+
+Every release has a coordinate:
+
+```text
+tap/publisher/template@version
+community/acme/incident-response@1.0.0
+```
+
+Tap, publisher, and template names use lowercase slug-safe identifiers. A
+released coordinate is immutable: never publish different bytes under the same
+coordinate.
+
+## 1. Create separate signing keys
+
+Use separate Ed25519 keys for the tap and each publisher. The tap key signs the
+catalog snapshot. A publisher key signs that publisher's package claims.
+
+This Node.js example creates SPKI public bytes and PKCS8 private bytes in the
+base64 representation used by the protocol:
+
+```js
+import { generateKeyPairSync } from "node:crypto";
+
+const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+
+console.log(JSON.stringify({
+  publicKey: publicKey.export({ format: "der", type: "spki" }).toString("base64"),
+  privateKey: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64")
+}, null, 2));
+```
+
+Store private keys in a secrets manager or offline signing environment. Do not
+leave the example's private-key output in shell history or a shared build log.
+Publish only the SPKI public bytes. Assign stable, globally unambiguous key ids such as
+`acme-publisher-2026-01` and `community-tap-2026-01`.
+
+The tap root key must reach users through a trusted channel independent of the
+tap server. Users provide it explicitly when adding the tap; llmwiki does not
+use trust on first use.
+
+## 2. Build the template payload
+
+The signed payload is an ordinary `ProfileTemplatePackage` with
+`sourceType: "remote"`. The template id and profile id must match.
+
+```json
+{
+  "schemaVersion": 1,
+  "templateId": "incident-response",
+  "version": "1.0.0",
+  "displayName": "Incident Response",
+  "publisher": "acme",
+  "sourceType": "remote",
+  "license": "MIT",
+  "minLlmwikiVersion": "1.0.0",
+  "description": "Track incidents, evidence, mitigations, and reviews.",
+  "profile": {
+    "schemaVersion": 1,
+    "profileId": "incident-response",
+    "displayName": "Incident Response",
+    "entities": {
+      "incidents": {
+        "directory": "wiki/incidents",
+        "titleField": "title",
+        "requiredFields": ["title"],
+        "fields": {
+          "title": { "type": "string", "required": true }
+        }
+      }
+    }
+  }
+}
+```
+
+During authoring, test a copy with `sourceType: "local"` through `llmwiki
+template init --file`. Restore `sourceType: "remote"` before signing the release
+payload. Remote installation repeats package validation, profile validation,
+connector-binding checks, and minimum-version checks, so a signature cannot make
+an invalid package installable.
+
+## 3. Canonicalize, digest, and sign the package
+
+All digests and signatures use RFC 8785 canonical JSON bytes. Do not sign
+pretty-printed JSON or rely on object insertion order. The implementation uses
+the `canonicalize` npm package.
+
+```bash
+npm install canonicalize
+```
+
+The publisher signs the canonical claim `{ coordinate, payloadDigest }`, not
+the full envelope:
+
+```js
+import { createHash, createPrivateKey, sign } from "node:crypto";
+import canonicalize from "canonicalize";
+
+function canonicalBytes(value) {
+  const text = canonicalize(value);
+  if (text === undefined) throw new Error("value cannot be canonicalized");
+  return Buffer.from(text, "utf8");
+}
+
+function digest(value) {
+  return `sha256:${createHash("sha256").update(canonicalBytes(value)).digest("hex")}`;
+}
+
+function signature(claim, keyId, privateKeyBase64) {
+  const key = createPrivateKey({
+    key: Buffer.from(privateKeyBase64, "base64"),
+    format: "der",
+    type: "pkcs8"
+  });
+  return {
+    keyId,
+    algorithm: "ed25519",
+    value: sign(null, canonicalBytes(claim), key).toString("base64")
+  };
+}
+
+const coordinate = "community/acme/incident-response@1.0.0";
+const payloadDigest = digest(payload);
+const envelope = {
+  schemaVersion: 1,
+  coordinate,
+  payload,
+  payloadDigest,
+  publisherSignature: signature(
+    { coordinate, payloadDigest },
+    "acme-publisher-2026-01",
+    publisherPrivateKeyBase64
+  )
+};
+```
+
+Write the envelope as JSON to:
+
+```text
+packages/sha256/<payloadDigest-without-sha256-prefix>.json
+```
+
+The filename and signed index both identify the canonical payload digest. The
+client recomputes it and refuses any mismatch.
+
+## 4. Build and sign the tap index
+
+The index lists publisher public keys and every release currently available
+through the tap:
+
+```json
+{
+  "schemaVersion": 1,
+  "tap": "community",
+  "sequence": 1,
+  "generatedAt": "2026-07-13T12:00:00Z",
+  "expiresAt": "2026-08-12T12:00:00Z",
+  "publishers": {
+    "acme": {
+      "keyId": "acme-publisher-2026-01",
+      "publicKey": "<base64-spki-public-key>"
+    }
+  },
+  "packages": [
+    {
+      "coordinate": "community/acme/incident-response@1.0.0",
+      "publisher": "acme",
+      "payloadDigest": "sha256:<64-lowercase-hex-characters>"
+    }
+  ],
+  "rotations": [],
+  "revocations": [],
+  "signature": {
+    "keyId": "community-tap-2026-01",
+    "algorithm": "ed25519",
+    "value": "<base64-signature>"
+  }
+}
+```
+
+Construct the object without `signature`, sign that complete unsigned object
+with the tap private key using the same `canonicalBytes` and `signature`
+helpers, and then add the resulting signature field.
+
+For every new snapshot:
+
+1. Increase `sequence`; never reuse or decrease it.
+2. Set valid UTC `generatedAt` and `expiresAt` values.
+3. Keep every coordinate bound to its original digest forever, even if it is
+   temporarily absent from a later index.
+4. Publish package envelopes before replacing `index.json`.
+5. Replace `index.json` atomically at the hosting layer.
+
+The index is limited to 10,000 entries per bounded collection and 4 MiB. A
+package envelope is limited to 2 MiB.
+
+## 5. Verify from a clean client
+
+Distribute the tap public key, its fingerprint, and the index URL through an
+independent trusted channel. Then test exactly what users will run:
+
+```bash
+llmwiki template tap add community \
+  https://templates.example/community/index.json \
+  --key-id community-tap-2026-01 \
+  --key-file ./community-tap-public-key.txt
+
+llmwiki template tap refresh community
+llmwiki template search incident-response --tap community
+llmwiki template verify community/acme/incident-response@1.0.0
+```
+
+Test installation in an empty project:
+
+```bash
+mkdir verify-install && cd verify-install
+llmwiki template init community/acme/incident-response@1.0.0
+llmwiki template status
+llmwiki profile validate
+```
+
+The verification client checks the tap signature, sequence, expiry, publisher
+key continuity, revocations, package digest, publisher signature, coordinate
+identity, template manifest, and profile contract before installation.
+
+## 6. Publish an update
+
+Never replace an existing release. Create a new payload with a higher semantic
+version, sign a new envelope, upload it at its new digest path, and publish a
+higher-sequence index containing the new coordinate.
+
+Users can then preview and apply the update:
+
+```bash
+llmwiki template tap refresh community
+llmwiki template status
+llmwiki template update --to 1.1.0 --dry-run
+llmwiki template update --to 1.1.0 --yes
+```
+
+The update planner refuses local profile drift, incompatible existing content,
+pending review candidates, active workflow runs, or changed tap authority. The
+apply path journals the old profile and provenance so interruption is
+recoverable.
+
+## 7. Rotate or revoke deliberately
+
+Publisher key rotation is a signed chain. Each rotation record identifies the
+publisher, old key id, new public key, and effective sequence. The canonical
+rotation claim is signed by both the old and new private keys. Retain the
+rotation history in later indexes so clients that skipped snapshots can walk
+from their pinned key to the current key.
+
+Tap-root rotation uses the same dual-signature principle through
+`tapKeyRotation`. Users who cannot verify a cooperative rotation must explicitly
+forget and re-add the tap, which resets its trust history.
+
+To revoke evidence, add a `revocations` record with kind `package` and the
+payload digest, or kind `publisher-key` and the key id. Include a reason and UTC
+`revokedAt` timestamp. Revocations accumulate monotonically in client state;
+removing one from a later index does not restore trust.
+
+## Release checklist
+
+- The payload is declarative and validates with the target llmwiki version.
+- `templateId`, `profileId`, publisher, and coordinate agree.
+- The package claim and index use RFC 8785 canonical bytes.
+- Package files are uploaded before the new index becomes visible.
+- The sequence increased and the expiry window is intentional.
+- The tap root key is distributed outside the tap server.
+- A clean client can refresh, verify, install, and report clean status.
+- Previous coordinates still resolve to their original immutable bytes.
+
+The repository's [offline protocol fixture](https://github.com/atomicstrata/llm-wiki-compiler/tree/main/test/fixtures/template-registry)
+is the compatibility oracle for envelope and index implementations.

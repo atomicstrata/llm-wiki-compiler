@@ -142,6 +142,10 @@ stale accepted evidence, revocation, unavailable provenance, and the newest
 verified coordinate when an update is available. The advisory lock does not
 authorize behavior and cannot make a modified profile appear clean.
 
+If an update process stops between its journaled writes, status reports
+`interrupted-write`. Run `llmwiki recover`, or retry the update or compile, to
+restore the recorded pre-update profile and provenance before continuing.
+
 ## Preview or apply a remote update
 
 ```bash
@@ -160,3 +164,6 @@ publisher-authored labels or descriptions safe instructions. llmwiki treats
 non-builtin profile presentation strings as untrusted data when showing them to
 an agent. Remote documentation and example-content import are not part of this
 command surface.
+
+Tap operators and template publishers can follow [Publish a signed template
+tap](/guides/publish-template-tap) for the protocol and release workflow.

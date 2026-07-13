@@ -197,9 +197,11 @@ before locking, then re-resolves old and new releases and reruns the complete
 compatibility audit under the project and tap-state locks. A state change during
 review therefore refuses instead of applying a stale decision.
 
-An update writes advisory provenance before the authoritative profile. If the
-profile write then fails, status reports an explicit locally modified state;
-the system never presents a partially completed update as clean.
+An update journals the previous profile and advisory provenance before changing
+either file. If the process is interrupted, `llmwiki template status` reports
+`interrupted-write`. The next update, compile, or explicit `llmwiki recover`
+restores the recorded pre-update state before continuing, so a partial update
+cannot masquerade as a local profile modification or a clean install.
 
 ## Signatures and untrusted content
 
@@ -212,6 +214,10 @@ agent. This decision is derived from active profile bytes, not the mutable lock.
 Remote packages contain profile configuration only. Remote docs, examples,
 scripts, executable plugins, and automatic content seeding are not downloaded
 or run.
+
+Publishing a tap is a separate operator workflow. See [Publish a signed template
+tap](/guides/publish-template-tap) for the package envelope, index, signing,
+hosting, rotation, and client-verification procedure.
 
 ## Disable a tap
 

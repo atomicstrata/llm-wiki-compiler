@@ -96,7 +96,8 @@
                 "pages": [
                   "guides/clp/build-your-first-profile",
                   "guides/autosci-research-workflow",
-                  "guides/newsroom-editorial-workflow"
+                  "guides/newsroom-editorial-workflow",
+                  "guides/publish-template-tap"
                 ]
               }
             ]
