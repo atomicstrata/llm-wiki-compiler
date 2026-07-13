@@ -74,8 +74,10 @@ export function registerTemplateCommands(program: Command): void {
 
   template
     .command("update [id]")
-    .description("Preview compatibility with a builtin template update")
-    .option("--dry-run", "Required: inspect compatibility without writing")
+    .description("Preview a builtin update or safely apply an exact remote update")
+    .option("--dry-run", "Inspect compatibility without writing")
+    .option("--to <version>", "Target exact remote template version")
+    .option("--yes", "Confirm a compatible remote update non-interactively")
     .option("--json", "Print a stable JSON update plan")
     .action(async (id: string | undefined, options: TemplateUpdateOptions) =>
       runExitCodeCommand(() => templateUpdateCommand(id, options)),
@@ -83,9 +85,11 @@ export function registerTemplateCommands(program: Command): void {
 
   template
     .command("init [id]")
-    .description("Install a builtin or local profile template into .llmwiki/profile.json")
+    .description("Install a builtin, local, or qualified remote profile template")
     .option("--file <path>", "Install a local template package JSON file")
     .option("--force", "Overwrite an existing profile only when the typed corpus is empty")
+    .option("--yes", "Confirm a verified remote install non-interactively")
+    .option("--json", "Print a stable JSON result for remote installs")
     .action(async (id: string | undefined, options: TemplateInitOptions) =>
       runExitCodeCommand(() => templateInitCommand(id, options)),
     );

@@ -55,7 +55,9 @@ describe("listActions", () => {
     await writeProfile(actionProfile());
     const actions = await listActions(root);
     expect(actions.map((a) => a.actionId)).toEqual(["build.advance", "build.start"]);
-    expect(actions[1]).toEqual({ actionId: "build.start", label: "Start build", workflow: "build", operation: "start" });
+    expect(actions[1]).toMatchObject({ actionId: "build.start", workflow: "build", operation: "start" });
+    expect(actions[1].label).toContain("UNTRUSTED PROFILE CONFIG");
+    expect(actions[1].label).toContain("Start build");
   });
 
   it("returns [] for a default-profile project (no actions declared)", async () => {

@@ -17,6 +17,8 @@ import { auditCandidateArchive, auditWorkflowHistory } from "./history-audit.js"
 import { readTemplateLock } from "./lock.js";
 import { getBuiltinTemplate, getBuiltinTemplateRelease } from "./registry.js";
 
+const MAX_PENDING_CANDIDATE_ENTRIES = 10_000;
+
 /** One structured refusal reason from the corpus-wide compatibility audit. */
 export interface TemplateUpdateReason {
   kind: "drift" | "page" | "lint" | "candidate" | "workflow" | "artifact" | "store";
@@ -132,8 +134,16 @@ function isContentOnlyFinding(rule: string): boolean {
 async function candidateReasons(root: string): Promise<TemplateUpdateReason[]> {
   const pending = await confinedEntries(root, CANDIDATES_DIR);
   if (pending === "unavailable") return [{ kind: "store", message: "candidate store is unreadable or unsafe" }];
-  if (Array.isArray(pending) && pending.some(isJsonFile)) {
-    return [{ kind: "candidate", message: "pending review candidates must be resolved before update" }];
+  if (Array.isArray(pending)) {
+    if (pending.length > MAX_PENDING_CANDIDATE_ENTRIES) {
+      return [{ kind: "store", message: "candidate store exceeds its entry cap" }];
+    }
+    if (pending.some((entry) => entry !== "archive" && !isJsonFile(entry))) {
+      return [{ kind: "store", message: "candidate store contains unexpected entries" }];
+    }
+    if (pending.some(isJsonFile)) {
+      return [{ kind: "candidate", message: "pending review candidates must be resolved before update" }];
+    }
   }
   return (await auditCandidateArchive(root)).map((message) => ({ kind: "store", message }));
 }

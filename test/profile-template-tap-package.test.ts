@@ -11,7 +11,14 @@ import type { TapPaths } from "../src/profile/templates/taps/paths.js";
 import { removeTap } from "../src/profile/templates/taps/manage.js";
 import { addTap } from "../src/profile/templates/taps/manage.js";
 import { refreshTap } from "../src/profile/templates/taps/refresh.js";
-import { acceptTemplateTap, isolatedTapPaths, servesTemplateBytes, templateRegistryFixture } from "./fixtures/template-tap-runtime.js";
+import { readTapState, writeTapState } from "../src/profile/templates/taps/state-store.js";
+import {
+  acceptTemplateTap,
+  isolatedTapPaths,
+  resolveFixturePackage,
+  servesTemplateBytes,
+  templateRegistryFixture,
+} from "./fixtures/template-tap-runtime.js";
 import { PUBLISHER_KEY, remotePackage, signedIndex, signedPackage, TAP_KEY } from "./fixtures/template-signing.js";
 
 const roots: string[] = [];
@@ -46,7 +53,7 @@ describe("remote package resolution", () => {
 
   it("fetches, verifies, caches, then verifies again offline", async () => {
     const fixture = await accepted();
-    const online = await resolveRemotePackage(fixture.paths, COORDINATE, { seams: servesTemplateBytes(fixture.packageText) });
+    const online = await resolveFixturePackage(fixture.paths, COORDINATE);
     const offline = await resolveRemotePackage(fixture.paths, COORDINATE, { offline: true });
     expect(online.package.profile.profileId).toBe("team");
     expect(offline).toEqual(online);
@@ -82,6 +89,19 @@ describe("remote package resolution", () => {
     const fixture = await accepted();
     const tampered = fixture.packageText.replace('"displayName": "Team"', '"displayName": "Evil"');
     await expect(resolveRemotePackage(fixture.paths, COORDINATE, { seams: servesTemplateBytes(tampered) })).rejects.toThrow(/digest/);
+  });
+
+  it("refuses a known revocation before cache or network access", async () => {
+    const fixture = await accepted();
+    const state = await readTapState(fixture.paths);
+    const digest = state.taps.official.publisherPins.coordinates[COORDINATE];
+    state.taps.official.publisherPins.revokedPackages.push(digest);
+    await writeTapState(fixture.paths, state);
+    const seams = servesTemplateBytes(fixture.packageText);
+    let requests = 0;
+    seams.request = async () => { requests += 1; throw new Error("network should not run"); };
+    await expect(resolveRemotePackage(fixture.paths, COORDINATE, { seams })).rejects.toThrow(/revoked/);
+    expect(requests).toBe(0);
   });
 
   it("refuses a package when tap state changes during its fetch", async () => {

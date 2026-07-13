@@ -106,5 +106,57 @@ llmwiki template verify <tap/publisher/template@version> [--json]
 
 These commands fetch a missing content-addressed package from the tap's exact
 origin or reuse cached evidence, then re-run digest, signature, revocation,
-coordinate, and template validation. They do not install or update a project.
-Remote installation is intentionally not available in this release.
+coordinate, and template validation. They do not modify a project.
+
+## Install a signed remote release
+
+Remote installs require an exact qualified coordinate:
+
+```bash
+llmwiki template init community/acme/research@1.2.0
+```
+
+Before confirmation, llmwiki prints the coordinate, profile digest, signing-key
+id, accepted index sequence, and derived capabilities. Use `--yes` only after
+reviewing those values in automation:
+
+```bash
+llmwiki template init community/acme/research@1.2.0 --yes --json
+```
+
+A non-interactive invocation without `--yes` refuses without writing. The
+package is reverified from accepted cached evidence under the project and tap
+state locks before installation. Network I/O never occurs while those locks are
+held.
+
+## Check installed status
+
+```bash
+llmwiki template status
+llmwiki template status --json
+```
+
+For remote releases, status re-verifies the exact installed package and compares
+the active profile with those package bytes. It reports local modifications,
+stale accepted evidence, revocation, unavailable provenance, and the newest
+verified coordinate when an update is available. The advisory lock does not
+authorize behavior and cannot make a modified profile appear clean.
+
+## Preview or apply a remote update
+
+```bash
+llmwiki template update --to 1.3.0 --dry-run
+llmwiki template update --to 1.3.0 --yes
+```
+
+The dry run performs no project write. It checks exact old and new releases,
+profile drift, page and field compatibility, relations, artifacts, lifecycle
+requirements, pending review candidates, and active workflow runs. Apply
+repeats the complete check under lock and refuses if project state or tap
+authority changed after the preview.
+
+Remote signatures prove package origin and byte integrity; they do not make
+publisher-authored labels or descriptions safe instructions. llmwiki treats
+non-builtin profile presentation strings as untrusted data when showing them to
+an agent. Remote documentation and example-content import are not part of this
+command surface.

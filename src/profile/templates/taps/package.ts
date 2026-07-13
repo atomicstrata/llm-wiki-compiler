@@ -52,6 +52,7 @@ export async function resolveRemotePackage(
   const index = await loadAcceptedIndex(paths, source);
   const entry = index.packages.find((candidate) => candidate.coordinate === coordinate);
   if (!entry) throw new Error(`template coordinate is not accepted: ${coordinate}`);
+  assertEntryActive(source, entry.payloadDigest, entry.publisher, index.publishers[entry.publisher]?.keyId);
   const currentVersion = options.currentVersion ?? packageJson.version;
   const evidence = await packageEvidence(paths, coordinate, source.indexUrl, source.origin, entry.payloadDigest, index, source.publisherPins, currentVersion, options);
   const pkg = verifyPackageText(evidence.text, index, source.publisherPins, currentVersion);
@@ -65,6 +66,17 @@ export async function resolveRemotePackage(
     tapSequence: index.sequence,
     indexExpired: Date.parse(index.expiresAt) <= Date.now(),
   };
+}
+
+function assertEntryActive(
+  source: Awaited<ReturnType<typeof readTapState>>["taps"][string],
+  digest: string,
+  publisher: string,
+  publisherKeyId: string | undefined,
+): void {
+  if (!publisherKeyId) throw new Error(`template publisher is unavailable: ${publisher}`);
+  if (source.publisherPins.revokedPackages.includes(digest)) throw new Error("template package is revoked");
+  if (source.publisherPins.revokedPublisherKeys.includes(publisherKeyId)) throw new Error("template publisher key is revoked");
 }
 
 async function packageEvidence(

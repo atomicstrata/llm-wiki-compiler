@@ -10,8 +10,8 @@
  * shared logic lives in exactly one place (no duplication, no behavior change).
  */
 
-import { createInterface } from "node:readline";
 import * as output from "../utils/output.js";
+import { processTerminalLineIo } from "../utils/terminal-line.js";
 import { assertRawInputJsonWithinBounds, assertInputDepthWithinBounds } from "../workflows/input-bounds.js";
 import type { RunStatus } from "../workflows/status.js";
 import type { WorkflowRun } from "../workflows/types.js";
@@ -214,18 +214,5 @@ export function printRunPosition(run: WorkflowRun): void {
  * @returns A {@link HumanGateIo} bound to `process.stdin`/`process.stdout`.
  */
 export function processHumanGateIo(): HumanGateIo {
-  return {
-    stdinIsTty: process.stdin.isTTY === true,
-    stdoutIsTty: process.stdout.isTTY === true,
-    write: (text) => process.stdout.write(text),
-    readLine: () =>
-      new Promise<string | null>((resolve) => {
-        const rl = createInterface({ input: process.stdin });
-        rl.once("line", (line) => {
-          rl.close();
-          resolve(line);
-        });
-        rl.once("close", () => resolve(null));
-      }),
-  };
+  return processTerminalLineIo();
 }

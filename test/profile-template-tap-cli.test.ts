@@ -3,7 +3,7 @@
  * @description Compiled CLI proof for tap lifecycle and read-only discovery.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import { refreshTap } from "../src/profile/templates/taps/refresh.js";
 import { servesTemplateBytes, templateRegistryFixture, TAP_KEY } from "./fixtures/template-tap-runtime.js";
 
 const CLI = path.resolve("dist/cli.js");
+const COORDINATE = "official/atomicstrata/team@1.0.0";
 const roots: string[] = [];
 
 async function root(): Promise<string> {
@@ -41,7 +42,7 @@ async function seed(cwd: string): Promise<void> {
   const store = paths(cwd);
   await addTap(store, { name: "official", indexUrl: "https://tap.example/index.json", key: TAP_KEY });
   await refreshTap(store, "official", servesTemplateBytes(await templateRegistryFixture("index.json")));
-  await resolveRemotePackage(store, "official/atomicstrata/team@1.0.0", { seams: servesTemplateBytes(await templateRegistryFixture("package.json")) });
+  await resolveRemotePackage(store, COORDINATE, { seams: servesTemplateBytes(await templateRegistryFixture("package.json")) });
 }
 
 afterEach(async () => Promise.all(roots.splice(0).map((item) => rm(item, { recursive: true, force: true }))));
@@ -70,5 +71,32 @@ describe("template tap CLI", () => {
     expect(JSON.parse(inspect.stdout)).toMatchObject({ displayName: "Team", templateId: "team" });
     expect(JSON.parse(verify.stdout)).toMatchObject({ verified: true, publisherKeyId: "publisher-key-1" });
     await expect(stat(path.join(cwd, ".llmwiki"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("refuses non-interactive remote install without --yes", async () => {
+    const cwd = await root();
+    await seed(cwd);
+    const result = run(cwd, ["template", "init", COORDINATE]);
+    expect(result.status).toBe(1);
+    expect(result.stdout + result.stderr).toContain("confirmation or --yes");
+    await expect(stat(path.join(cwd, ".llmwiki"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("installs verified remote evidence with --yes", async () => {
+    const cwd = await root();
+    await seed(cwd);
+    const result = run(cwd, ["template", "init", COORDINATE, "--yes", "--json"]);
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      kind: "installed",
+      coordinate: COORDINATE,
+      publisherKeyId: "publisher-key-1",
+      tapSequence: 1,
+      capabilities: { entities: 1 },
+    });
+    expect(result.stdout).not.toContain("publicKey");
+    expect(result.stdout).not.toContain("publisherSignature");
+    const lock = JSON.parse(await readFile(path.join(cwd, ".llmwiki/template-lock.json"), "utf8"));
+    expect(lock).toMatchObject({ sourceType: "remote", remote: { coordinate: COORDINATE } });
   });
 });

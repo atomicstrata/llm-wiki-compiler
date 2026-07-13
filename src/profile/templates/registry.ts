@@ -4,6 +4,9 @@
  */
 import { deriveTemplateCapabilities } from "./capabilities.js";
 import type { ProfileTemplatePackage, ProfileTemplateSummary } from "./types.js";
+import { DEFAULT_PROFILE } from "../default.js";
+import { profileDigest } from "../digest.js";
+import type { ProfilePack } from "../types.js";
 import { AUTOSCI_TEMPLATE } from "./builtin/autosci.js";
 import { DEFAULT_TEMPLATE_SUMMARY } from "./builtin/default.js";
 import { NEWSROOM_TEMPLATE } from "./builtin/newsroom.js";
@@ -38,6 +41,13 @@ export function getBuiltinTemplateRelease(
   return BUILTIN_TEMPLATE_RELEASES.find((template) =>
     template.templateId === id && template.version === version && template.publisher === publisher,
   );
+}
+
+/** Whether profile bytes exactly match the implicit default or a shipped release. */
+export function isShippedBuiltinProfile(profile: ProfilePack): boolean {
+  const digest = profileDigest(profile);
+  if (digest === profileDigest(DEFAULT_PROFILE)) return true;
+  return BUILTIN_TEMPLATE_RELEASES.some((release) => profileDigest(release.profile) === digest);
 }
 
 function latestBuiltinTemplates(): ProfileTemplatePackage[] {

@@ -24,6 +24,7 @@ import { loadProfile } from "../profile/load.js";
 import { effectivePermission, SURFACE_HARD_CAP } from "./authority.js";
 import { loadLocalGrant } from "./local-config.js";
 import { UnknownActionError } from "./errors.js";
+import { actionDefForPresentation } from "../profile/presentation-trust.js";
 import type { CapabilityClass, ActionSurface, ActionInputField, WorkflowActionDef, ProfilePack } from "../profile/types.js";
 
 /** The declared {@link ActionSurface} values, derived from the surface-cap keys. */
@@ -90,7 +91,7 @@ export async function listActions(root: string): Promise<ActionSummary[]> {
   const { profile } = await loadProfile(root);
   const actions = profile.workflowActions ?? {};
   return Object.entries(actions)
-    .map(([actionId, def]) => toSummary(actionId, def))
+    .map(([actionId, def]) => toSummary(actionId, actionDefForPresentation(profile, def)))
     .sort((a, b) => a.actionId.localeCompare(b.actionId));
 }
 
@@ -131,7 +132,7 @@ async function computeEffectivePermissions(
  */
 export async function showAction(root: string, actionId: string): Promise<ActionDetail> {
   const { profile } = await loadProfile(root);
-  const def = lookupAction(profile, actionId);
+  const def = actionDefForPresentation(profile, lookupAction(profile, actionId));
   const effectivePermissions = await computeEffectivePermissions(root, def);
   return {
     ...toSummary(actionId, def),

@@ -25,9 +25,7 @@ The built-in list includes:
 | `newsroom` | A newsroom profile with articles, desks, bylines, a filing relation, and a story workflow. |
 
 The public template surface supports built-in templates, local template files,
-and explicitly trusted remote taps. Remote taps are read-only in this release:
-you can refresh, search, inspect, and verify signed releases, but you cannot
-install a remote release into a project yet.
+and signed releases from explicitly trusted remote taps.
 
 ## Inspect a template
 
@@ -138,6 +136,82 @@ conflict. Cached packages are rehashed and reverified on every use. The cache is
 evidence, not authority: deleting it cannot reset accepted sequences, keys,
 coordinates, or revocations. `tap refresh` can restore missing or malformed
 index evidence only from the exact signed snapshot already recorded in state.
+
+## Install a remote release
+
+Install by exact coordinate, never by a floating version or search result:
+
+```bash
+llmwiki template init community/acme/research@1.2.0
+```
+
+The confirmation summary identifies the coordinate, profile digest, publisher
+key id, accepted tap sequence, and derived capabilities. Non-interactive use
+requires explicit confirmation:
+
+```bash
+llmwiki template init community/acme/research@1.2.0 --yes --json
+```
+
+Immediately before writing, llmwiki re-verifies the cached signed package under
+both the project lock and the tap-state lock. It refuses stale evidence,
+revocation, changed authority, an occupied typed corpus, or a package whose
+identity no longer matches the requested coordinate. Remote network access
+finishes before either lock is acquired.
+
+The resulting v2 `template-lock.json` records the coordinate, package digest,
+tap, accepted index sequence, and publisher key id. This remains advisory
+provenance. Profile loading and runtime authority come only from the validated
+`.llmwiki/profile.json`; editing the lock cannot bless profile drift.
+
+## Check provenance and drift
+
+```bash
+llmwiki template status
+```
+
+Remote status re-verifies the exact installed release from accepted cached
+evidence and compares the active profile against the release profile. It can
+report a clean install, local modification, stale evidence, revocation,
+unavailable provenance, or a newer verified coordinate. It never trusts the
+lock's stored profile digest as proof that the active profile is unchanged.
+
+## Update an installed remote template
+
+Preview compatibility before writing:
+
+```bash
+llmwiki template update --to 1.3.0 --dry-run
+```
+
+Apply only an exact newer release:
+
+```bash
+llmwiki template update --to 1.3.0 --yes
+```
+
+The planner refuses local profile modifications, incompatible existing pages,
+relation or artifact violations, unsatisfied lifecycle requirements, pending
+review candidates, and non-terminal workflow runs. The apply path fetches
+before locking, then re-resolves old and new releases and reruns the complete
+compatibility audit under the project and tap-state locks. A state change during
+review therefore refuses instead of applying a stale decision.
+
+An update writes advisory provenance before the authoritative profile. If the
+profile write then fails, status reports an explicit locally modified state;
+the system never presents a partially completed update as clean.
+
+## Signatures and untrusted content
+
+Ed25519 signatures establish who signed exact bytes and whether tap continuity
+accepts them. They do not establish that publisher-authored display names,
+workflow labels, or descriptions are safe instructions. llmwiki nonce-fences
+presentation strings from every non-shipped profile before exposing them to an
+agent. This decision is derived from active profile bytes, not the mutable lock.
+
+Remote packages contain profile configuration only. Remote docs, examples,
+scripts, executable plugins, and automatic content seeding are not downloaded
+or run.
 
 ## Disable a tap
 

@@ -8,6 +8,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import type { ConfinedFetchSeams } from "../../src/connectors/confined-fetch.js";
 import { addTap } from "../../src/profile/templates/taps/manage.js";
+import { resolveRemotePackage } from "../../src/profile/templates/taps/package.js";
 import { resolveTapPaths, type TapPaths } from "../../src/profile/templates/taps/paths.js";
 import { refreshTap } from "../../src/profile/templates/taps/refresh.js";
 
@@ -43,4 +44,11 @@ export async function acceptTemplateTap(root: string, indexUrl = "https://tap.ex
   await addTap(paths, { name: "official", indexUrl, key: TAP_KEY });
   await refreshTap(paths, "official", servesTemplateBytes(await templateRegistryFixture("index.json")));
   return paths;
+}
+
+/** Resolve the checked-in signed package through the production verifier. */
+export async function resolveFixturePackage(paths: TapPaths, coordinate: string) {
+  return resolveRemotePackage(paths, coordinate, {
+    seams: servesTemplateBytes(await templateRegistryFixture("package.json")),
+  });
 }

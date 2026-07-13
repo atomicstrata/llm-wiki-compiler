@@ -67,6 +67,14 @@ describe("planTemplateUpdate", () => {
     expect(plan.reasons).toContainEqual(expect.objectContaining({ kind: "candidate" }));
   });
 
+  it("refuses unexpected pending-store entries instead of reading them as empty", async () => {
+    const root = await seededRoot("update-plan-candidate-unexpected");
+    await mkdir(path.join(root, ".llmwiki/candidates"), { recursive: true });
+    await writeFile(path.join(root, ".llmwiki/candidates/unknown.txt"), "unknown", "utf8");
+    const plan = await planBaseUpdate(root);
+    expect(plan.reasons).toContainEqual(expect.objectContaining({ kind: "store", message: expect.stringMatching(/unexpected/) }));
+  });
+
   it("refuses when archived candidate history is unreadable", async () => {
     const root = await seededRoot("update-plan-archive-fault");
     await seedCandidateArchive(root, "archive", "not a directory");
