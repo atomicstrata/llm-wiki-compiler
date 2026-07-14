@@ -165,6 +165,47 @@ non-builtin profile presentation strings as untrusted data when showing them to
 an agent. Remote documentation and example-content import are not part of this
 command surface.
 
+## Author and publish a tap
+
+Publishers use these commands to create keys, sign packages, and build a distribution.
+Everything runs offline; nothing is uploaded.
+
+```bash
+llmwiki template publish init ./my-tap --tap community --publisher acme
+llmwiki template publish add ./incident-response.json --workspace ./my-tap --version 1.0.0
+llmwiki template publish build --workspace ./my-tap --expires-in 30d --out ./dist
+```
+
+`init` creates separate Ed25519 tap and publisher keypairs `0600` under `my-tap/keys/`,
+never printing or overwriting a private key, and prints each public key's fingerprint.
+
+`add` validates the package with the production validator, signs its claim, and records
+the coordinate as immutable: the same coordinate may never resolve to different bytes.
+
+`build` advances the sequence, signs the index, writes packages before the index, and
+verifies the whole tree as a consumer would **before** publishing it. The sequence commits
+last, so a failed build leaves the workspace unchanged and a retry is a clean re-run. The
+output must live outside the workspace — otherwise it would publish your private keys. Pass
+`--force` to republish when nothing changed.
+
+### Rotate and revoke
+
+```bash
+llmwiki template publish rotate --workspace ./my-tap --publisher-key-id acme-publisher-2027-01
+llmwiki template publish rotate --workspace ./my-tap --tap-key-id community-tap-2027-01
+llmwiki template publish revoke --workspace ./my-tap --package-digest sha256:... --reason "superseded"
+llmwiki template publish revoke --workspace ./my-tap --publisher-key-id acme-publisher-2026-01 --reason "rotated"
+```
+
+Rotations and revocations are staged and signed by the next `build`, because a rotation
+claim carries the sequence of the index that publishes it and that sequence is only known
+at build time.
+
+A publisher-key rotation re-signs every package with the successor key: a package signed by
+a retired key stops verifying once the index announces its successor. Payloads and
+content-addressed filenames never change. Revoking the active publisher key requires
+rotating to a successor in the same build.
+
 ## Verify a publisher distribution offline
 
 Publishers use this before uploading a built tap. It reads a static distribution

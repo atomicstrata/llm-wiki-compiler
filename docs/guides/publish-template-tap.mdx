@@ -8,13 +8,14 @@ This guide is for template publishers and tap operators. It shows how to turn a
 validated declarative profile package into an immutable signed release that an
 llmwiki user can discover, verify, install, and update.
 
-llmwiki does not manage private keys, create releases, or push to a registry.
-Run the signing steps in your own release pipeline, keep private keys outside the
-public tap, and use the exact protocol below as the interoperability contract.
+llmwiki ships the publisher workflow: `template publish init | add | build | rotate |
+revoke | verify` creates keys, signs packages, builds a verified static tree, and
+manages key rotation and revocation. It does not upload: publishing the built tree to
+HTTPS hosting stays with your existing deploy tooling.
 
-llmwiki does ship one publisher-side command: `llmwiki template publish verify`
-checks a built distribution offline, before you upload it. It reads only, never
-signs, and never reaches the network.
+Everything below runs offline. Private keys never leave your workspace, and the protocol
+appendix at the end remains the interoperability contract for anyone implementing it
+independently.
 
 <Warning>
   A signature proves which key signed exact bytes. It does not certify that a
@@ -49,7 +50,93 @@ Tap, publisher, and template names use lowercase slug-safe identifiers. A
 released coordinate is immutable: never publish different bytes under the same
 coordinate.
 
-## 1. Create separate signing keys
+## 1. Create a workspace and keys
+
+```bash
+llmwiki template publish init ./my-tap --tap community --publisher acme
+```
+
+This creates separate Ed25519 keypairs for the tap root and the publisher, writes them
+`0600` under `my-tap/keys/`, and records a workspace at sequence 0. Private keys are never
+printed and are never overwritten. The command prints each public key's SHA-256
+fingerprint — publish those fingerprints through the channel your users trust.
+
+<Warning>
+  The workspace holds private keys. Never serve it, and never point `--out` inside it:
+  `build` refuses that, because it would publish your signing keys.
+</Warning>
+
+## 2. Sign a package
+
+```bash
+llmwiki template publish add ./incident-response.json \
+  --workspace ./my-tap --version 1.0.0
+```
+
+`add` validates the package with the same validator a consumer runs, derives its
+coordinate and payload digest, signs the package claim, and records the coordinate as
+immutable: the same coordinate may never resolve to different bytes.
+
+## 3. Build a distribution
+
+```bash
+llmwiki template publish build \
+  --workspace ./my-tap --expires-in 30d --out ./dist
+```
+
+`build` advances the sequence, signs the index, writes packages before the index, and
+**verifies the complete tree as a consumer would before publishing it**. Only then does it
+swap the tree into `--out` and commit the new sequence. A failed build leaves the
+workspace at its old sequence, so a retry is a clean re-run.
+
+Serve `./dist` from ordinary HTTPS hosting.
+
+## 4. Rotate and revoke
+
+```bash
+llmwiki template publish rotate --workspace ./my-tap --publisher-key-id acme-publisher-2027-01
+llmwiki template publish revoke --workspace ./my-tap --package-digest sha256:... --reason "superseded"
+```
+
+Rotations and revocations are **staged**, then signed by the next `build`. This is not an
+implementation detail: a rotation claim carries the sequence of the index that publishes
+it, and that sequence is only known at build time.
+
+A publisher-key rotation **re-signs every package** with the successor key. It must:
+a package signed by a retired key stops verifying the moment the index announces its
+successor, because a verifier resolves the publisher key by id from the current index.
+The payload never changes, so digests and filenames are stable.
+
+Revoking the *active* publisher key requires rotating to a successor in the same build —
+an index that announces a revoked key is one no client will accept.
+
+## 5. Verify before you publish
+
+```bash
+llmwiki template publish verify ./dist \
+  --tap community \
+  --key-id community-tap-2026-01 \
+  --key-file ./trusted/community-tap-public-key.txt
+```
+
+Pass the key from where you *distribute* it, not from inside the tree being verified: a key
+carried by the tree it verifies proves only self-consistency.
+
+`publish verify` checks one self-contained snapshot and refuses an index carrying
+rotations, because a latest-snapshot-only directory holds no pinned keys to walk a chain
+from. That is a scope limit, not a defect: `build` already verified the rotation against
+your workspace's own key history, and a real client verifies it against the keys it pinned
+from your previous release.
+
+---
+
+# Protocol appendix
+
+The rest of this guide is the wire contract. You do not need it to publish with the CLI
+above; it exists so anyone can implement the protocol independently, and so you can audit
+exactly what the CLI signs.
+
+## Create separate signing keys by hand
 
 Use separate Ed25519 keys for the tap and each publisher. The tap key signs the
 catalog snapshot. A publisher key signs that publisher's package claims.
