@@ -65,7 +65,7 @@ llmwiki status --json
 }
 ```
 
-`stateStatus` is `ok`, `missing` (no compile has run), or `corrupt` (unreadable `state.json` - run `llmwiki compile` to rebuild it). `stalePages` and `pendingChanges` are capped at 100 entries; `staleCount` and `pendingChangesCount` always carry the true totals. Projects with an active non-default profile additionally include a `profile` block with per-entity-type counts and any validation problems.
+`stateStatus` is `ok`, `missing` (no compile has run), `corrupt` (unreadable `state.json` - run `llmwiki compile` to rebuild it), or `too-new` (written by a newer llmwiki version - upgrade llmwiki rather than recompiling). The `stalePages`, `orphanedPages`, and `pendingChanges` lists are each capped at 100 entries; `staleCount`, `orphanedCount`, and `pendingChangesCount` always carry the true totals. Projects with an active non-default profile additionally include a `profile` block with per-entity-type counts and any validation problems.
 
 <Note>
   For deeper diagnostics than a status summary - broken wikilinks, citation problems, confidence and provenance rules - run [`llmwiki lint`](/cli/lint-eval). To repair the stale pages that status reports, run `llmwiki refresh --stale` (preview with `--dry-run`).

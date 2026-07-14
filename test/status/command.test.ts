@@ -101,6 +101,72 @@ describe("statusCommand", () => {
     expect(Array.isArray(parsed.pendingChanges)).toBe(true);
   });
 
+  it("too-new state recommends upgrading llmwiki, not recompiling", async () => {
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    await writeFile(
+      path.join(root, ".llmwiki", "state.json"),
+      JSON.stringify({ version: 3 }),
+      "utf-8",
+    );
+
+    const code = await statusCommand();
+
+    expect(code).toBe(0);
+    const out = logLines.join("\n");
+    expect(out).toMatch(/State: too-new/);
+    expect(out).toContain("upgrade llmwiki");
+    // Compile refuses a too-new state, so it must NOT be the recovery hint.
+    expect(out).not.toContain("`llmwiki compile`");
+  });
+
+  it("counts truncated stale pages from the true total, not the capped list", async () => {
+    await seedProject(root);
+    // Make a.md stale (hash mismatch) and give it 101 pages so staleCount
+    // exceeds the MAX_STATUS_LIST=100 cap on the stalePages array.
+    const state = { version: 1, indexHash: "", sources: {
+      "a.md": { hash: "stale-hash", concepts: [] as string[], compiledAt: "t" },
+    } };
+    for (let i = 0; i < 101; i++) {
+      const slug = `page-${String(i).padStart(3, "0")}`;
+      state.sources["a.md"].concepts.push(slug);
+      await writeFile(
+        path.join(root, "wiki", "concepts", `${slug}.md`),
+        `---\ntitle: Page ${i}\nsummary: S.\nsources: [a.md]\n---\n\nBody.\n`,
+        "utf-8",
+      );
+    }
+    await writeFile(path.join(root, ".llmwiki", "state.json"), JSON.stringify(state), "utf-8");
+
+    await statusCommand();
+
+    const staleLine = logLines.find((line) => line.includes("Stale:")) ?? "";
+    expect(staleLine).toContain("Stale: 101 page(s)");
+    // 101 stale total, 8 shown inline ⇒ remainder must come from staleCount
+    // (101-8=93), not from the capped 100-entry array (100-8=92).
+    expect(staleLine).toContain("(+93 more)");
+  });
+
+  it("gives orphaned pages a repair hint", async () => {
+    await mkdir(path.join(root, "wiki", "concepts"), { recursive: true });
+    await mkdir(path.join(root, ".llmwiki"), { recursive: true });
+    await writeFile(
+      path.join(root, ".llmwiki", "state.json"),
+      JSON.stringify({ version: 1, indexHash: "", sources: {} }),
+      "utf-8",
+    );
+    await writeFile(
+      path.join(root, "wiki", "concepts", "widowed.md"),
+      "---\ntitle: Widowed\nsummary: S.\nsources: [gone.md]\norphaned: true\n---\n\nBody.\n",
+      "utf-8",
+    );
+
+    await statusCommand();
+
+    const orphanLine = logLines.find((line) => line.includes("Orphaned:")) ?? "";
+    expect(orphanLine).toContain("widowed");
+    expect(orphanLine).toContain("llmwiki refresh --stale");
+  });
+
   it("--json stays pure when verbose mode is enabled", async () => {
     await seedProject(root);
     setVerbose(true);

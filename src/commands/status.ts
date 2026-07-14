@@ -71,12 +71,12 @@ function renderFreshness(status: WikiStatus): void {
   }
   if (status.staleCount > 0) {
     output.status("!", output.warn(
-      `Stale: ${status.staleCount} page(s): ${formatSlugList(status.stalePages)} — run \`llmwiki refresh --stale\``,
+      `Stale: ${status.staleCount} page(s): ${formatSlugList(status.stalePages, status.staleCount)} — run \`llmwiki refresh --stale\``,
     ));
   }
   if (status.orphanedCount > 0) {
     output.status("!", output.warn(
-      `Orphaned: ${status.orphanedCount} page(s): ${formatSlugList(status.orphanedPages)}`,
+      `Orphaned: ${status.orphanedCount} page(s): ${formatSlugList(status.orphanedPages, status.orphanedCount)} — run \`llmwiki refresh --stale\``,
     ));
   }
 }
@@ -107,21 +107,32 @@ function renderProfile(status: WikiStatus): void {
   ));
 }
 
+/** Per-state recovery hints; each names the command that actually fixes that state. */
+const STATE_HINTS: Record<Exclude<WikiStatus["stateStatus"], "ok">, string> = {
+  missing: "no compile has run yet — run `llmwiki compile`",
+  corrupt: "run `llmwiki compile` to rebuild it",
+  // Compile refuses a newer-versioned state, so recompiling is NOT the fix here.
+  "too-new": "written by a newer version — upgrade llmwiki (`npm install -g llm-wiki-compiler`)",
+};
+
 /** State-file health with a recovery hint when it is not ok. */
 function renderStateHealth(status: WikiStatus): void {
   if (status.stateStatus === "ok") {
     output.status("✓", output.success("State: ok"));
     return;
   }
-  const hint = status.stateStatus === "missing"
-    ? "no compile has run yet — run `llmwiki compile`"
-    : "run `llmwiki compile` to rebuild it";
-  output.status("!", output.warn(`State: ${status.stateStatus} — ${hint}`));
+  output.status("!", output.warn(
+    `State: ${status.stateStatus} — ${STATE_HINTS[status.stateStatus]}`,
+  ));
 }
 
-/** Join up to MAX_INLINE_SLUGS slugs, summarizing the remainder as "+N more". */
-function formatSlugList(slugs: string[]): string {
+/**
+ * Join up to MAX_INLINE_SLUGS slugs, summarizing the remainder as "+N more".
+ * The remainder is computed from `total` — the true count — because the slug
+ * array itself is capped at MAX_STATUS_LIST and may undercount.
+ */
+function formatSlugList(slugs: string[], total: number): string {
   const shown = slugs.slice(0, MAX_INLINE_SLUGS).join(", ");
-  const rest = slugs.length - MAX_INLINE_SLUGS;
+  const rest = total - Math.min(slugs.length, MAX_INLINE_SLUGS);
   return rest > 0 ? `${shown} (+${rest} more)` : shown;
 }
