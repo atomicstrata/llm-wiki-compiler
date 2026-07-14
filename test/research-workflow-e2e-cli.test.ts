@@ -47,6 +47,15 @@ afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
+/**
+ * Measured ~14-15s on an idle machine against the 30s default, so this test carries barely
+ * 2x headroom. It drives the whole CLI through many subprocess spawns, and vitest already
+ * caps workers because subprocess tests starve each other under load — on a slower CI runner
+ * that margin disappears and the test times out with nothing actually broken. Give it the
+ * headroom its measured cost demands.
+ */
+const SLOW_CLI_TIMEOUT_MS = 90_000;
+
 describe("research workflow — 9-stage happy path (headline)", () => {
   it("drives all nine stages to completed, lands the experiment at stage: complete, and wires both relations", async () => {
     const runId = await driveResearchToComplete(root, RESEARCH_GRANT, IDEA_SLUG);
@@ -63,7 +72,7 @@ describe("research workflow — 9-stage happy path (headline)", () => {
     expect(buildsOn?.to).toBe(`papers/${PAPER_SLUG}`);
     expect(tests?.from).toBe(`experiments/${EXPERIMENT_SLUG}`);
     expect(tests?.to).toBe(`ideas/${IDEA_SLUG}`);
-  });
+  }, SLOW_CLI_TIMEOUT_MS);
 });
 
 describe("research workflow — trust seam (import-paper)", () => {

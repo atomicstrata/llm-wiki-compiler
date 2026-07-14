@@ -123,6 +123,15 @@ async function stageCrossrefOffline(): Promise<void> {
   expect(res.kind).toBe("staged");
 }
 
+/**
+ * Measured ~14-15s on an idle machine against the 30s default, so this test carries barely
+ * 2x headroom. It drives the whole CLI through many subprocess spawns, and vitest already
+ * caps workers because subprocess tests starve each other under load — on a slower CI runner
+ * that margin disappears and the test times out with nothing actually broken. Give it the
+ * headroom its measured cost demands.
+ */
+const SLOW_CLI_TIMEOUT_MS = 90_000;
+
 describe("superset proof — six bullets over one research project via dist/cli.js", () => {
   it("bullet 1: the full entity + relation vocabulary is representable and live-visible", async () => {
     await buildResearchProject(root);
@@ -145,7 +154,7 @@ describe("superset proof — six bullets over one research project via dist/cli.
     expectCompleted(done);
     const status = await runCLI(["workflow", "status", runId], root, RESEARCH_GRANT);
     expect(status.stdout).toMatch(/completed/i);
-  });
+  }, SLOW_CLI_TIMEOUT_MS);
 
   it("bullet 3: artifacts are hash-pinned and required evidence is a runtime approval gate", async () => {
     await writeProfileFile(root, researchArtifactPreconditionProfile());
