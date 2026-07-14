@@ -87,7 +87,7 @@ export function registerTemplateCommands(program: Command): void {
     .requiredOption("--key-file <path>", "Read the trusted base64 SPKI DER tap key")
     .option("--json", "Print a stable versioned JSON result")
     .action(async (directory: string, options: TemplatePublishVerifyOptions) =>
-      runExitCodeCommand(() => templatePublishVerifyCommand(directory, options)),
+      runExitCodeCommand(() => templatePublishVerifyCommand(directory, options), { colorError: false }),
     );
 
   template

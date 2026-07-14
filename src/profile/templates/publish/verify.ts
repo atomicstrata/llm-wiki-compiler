@@ -13,11 +13,13 @@ import {
   assertExactDistributionTree,
   closeDistributionPaths,
   decodeCanonicalBase64Key,
+  openExactDistributionTreeGuard,
   openTapPublicKey,
   readDistributionIndex,
   readDistributionPackage,
   resolveDistributionPaths,
   type SelectedTapPublicKey,
+  type DistributionTreeGuard,
 } from "./filesystem.js";
 
 const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
@@ -40,6 +42,8 @@ export interface DistributionVerificationResult {
 export interface DistributionVerificationOptions {
   /** Test-only seam for replacing already-verified leaves before verdict binding. */
   beforeFinalBindingCheckForTest?: () => Promise<void>;
+  /** Test-only seam after final enumeration and leaf verification. */
+  beforeFinalVerdictForTest?: () => Promise<void>;
 }
 
 /** Verify a complete static snapshot against an independently selected tap key. */
@@ -54,6 +58,7 @@ export async function verifyPublisherDistribution(
   assertSafeKeyId(keyId);
   const paths = await resolveDistributionPaths(directory);
   let selectedKey: SelectedTapPublicKey | undefined;
+  let treeGuard: DistributionTreeGuard | undefined;
   try {
     selectedKey = await openTapPublicKey(keyFile);
     const [indexText, publicKey] = await Promise.all([
@@ -80,7 +85,7 @@ export async function verifyPublisherDistribution(
       packageBytesSha256.set(digest, contentSha256(packageText));
     }
     if (options.beforeFinalBindingCheckForTest) await options.beforeFinalBindingCheckForTest();
-    await assertExactDistributionTree(paths, digests);
+    treeGuard = await openExactDistributionTreeGuard(paths, digests);
     await assertVerifiedBytesRemainSelected(
       paths,
       selectedKey,
@@ -88,8 +93,11 @@ export async function verifyPublisherDistribution(
       keyBytesSha256,
       packageBytesSha256,
     );
+    if (options.beforeFinalVerdictForTest) await options.beforeFinalVerdictForTest();
+    await treeGuard.assertUnchanged();
     return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
   } finally {
+    await treeGuard?.close();
     await selectedKey?.close();
     await closeDistributionPaths(paths);
   }

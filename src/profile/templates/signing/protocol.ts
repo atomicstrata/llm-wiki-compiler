@@ -230,6 +230,9 @@ export function sha256DigestHex(value: string): string {
 function base64(value: unknown, label: string): string {
   const text = textField(value, label);
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(text)) throw new Error(`${label} must be base64`);
+  if (Buffer.from(text, "base64").toString("base64") !== text) {
+    throw new Error(`${label} must be canonical base64`);
+  }
   return text;
 }
 

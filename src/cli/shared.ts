@@ -15,12 +15,21 @@
  * Centralised so command actions stay one-liners and fallow does not
  * flag the try/catch+exitCode skeleton as duplicated across siblings.
  */
-export async function runExitCodeCommand(work: () => Promise<number>): Promise<void> {
+export async function runExitCodeCommand(
+  work: () => Promise<number>,
+  options: { colorError?: boolean } = {},
+): Promise<void> {
   try {
     const code = await work();
     if (code !== 0) process.exitCode = code;
   } catch (err) {
-    console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+    console.error(formatExitError(err, options.colorError));
     process.exit(1);
   }
+}
+
+function formatExitError(error: unknown, colorError: boolean | undefined): string {
+  const label = colorError === false ? "Error:" : "\x1b[31mError:\x1b[0m";
+  const message = error instanceof Error ? error.message : error;
+  return `${label} ${message}`;
 }
