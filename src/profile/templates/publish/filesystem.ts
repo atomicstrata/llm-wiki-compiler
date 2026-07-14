@@ -34,12 +34,8 @@ interface FileIdentity {
   ino: number;
 }
 
-interface DirectoryMutationGuard {
-  handle: FileHandle;
-  info: Stats;
-  path: string;
-  ctimeNs: bigint;
-}
+type DirectoryMutationGuard = { handle: FileHandle; info: Stats; path: string; ctimeNs: bigint };
+type AnchoredDirectory = { handle: FileHandle; info: Stats; ctimeNs: bigint };
 
 export interface DistributionResolveOptions {
   /** Test-only seam for a deterministic root replacement after open. */
@@ -226,7 +222,7 @@ async function assertDirectory(
     const seen = await scanDirectory(
       paths,
       directory,
-      anchor.info,
+      anchor,
       parent,
       label,
       new Set(expectedNames),
@@ -241,7 +237,7 @@ async function assertDirectory(
 async function scanDirectory(
   paths: DistributionPaths,
   directory: string,
-  anchor: Stats,
+  anchor: AnchoredDirectory,
   parent: DirectoryMutationGuard,
   label: string,
   expected: Set<string>,
@@ -271,7 +267,7 @@ async function scanDirectory(
 async function readExpectedEntries(
   paths: DistributionPaths,
   directory: string,
-  anchor: Stats,
+  anchor: AnchoredDirectory,
   parent: DirectoryMutationGuard,
   label: string,
   stream: Awaited<ReturnType<typeof opendir>>,
@@ -326,12 +322,14 @@ async function openAnchoredDirectory(
   paths: DistributionPaths,
   directory: string,
   label: string,
-): Promise<{ handle: FileHandle; info: Stats }> {
+): Promise<AnchoredDirectory> {
   await assertRootBound(paths);
   const handle = await openDirectoryNoFollow(directory).catch(() => null);
   if (!handle) throw new Error(`${label} must be a non-symlink directory`);
-  const info = await handle.stat().catch(() => null);
-  if (!info?.isDirectory()) {
+  const [info, precise] = await Promise.all(
+    [handle.stat().catch(() => null), handle.stat({ bigint: true }).catch(() => null)],
+  );
+  if (!info?.isDirectory() || !precise?.isDirectory()) {
     await handle.close().catch(() => {});
     throw new Error(`${label} must be a non-symlink directory`);
   }
@@ -344,7 +342,7 @@ async function openAnchoredDirectory(
   try {
     await assertPathMatchesHandle(directory, info, label);
     await assertPathMatchesHandle(canonical, info, label);
-    return { handle, info };
+    return { handle, info, ctimeNs: precise.ctimeNs };
   } catch (error) {
     await handle.close().catch(() => {});
     throw error;
@@ -371,15 +369,20 @@ async function openDirectoryNoFollow(directory: string): Promise<FileHandle> {
 async function assertDirectoryStillBound(
   paths: DistributionPaths,
   directory: string,
-  opened: Stats,
+  opened: AnchoredDirectory,
   parent: DirectoryMutationGuard,
   label: string,
 ): Promise<void> {
   await assertRootBound(paths);
-  await assertPathMatchesHandle(directory, opened, label);
+  await assertPathMatchesHandle(directory, opened.info, label);
   await assertPathMatchesHandle(parent.path, parent.info, `${label} parent`);
-  const current = await parent.handle.stat({ bigint: true }).catch(() => null) as BigIntStats | null;
-  if (!current?.isDirectory() || current.ctimeNs !== parent.ctimeNs) {
+  const [current, currentParent] = await Promise.all(
+    [opened.handle.stat({ bigint: true }).catch(() => null), parent.handle.stat({ bigint: true }).catch(() => null)],
+  ) as [BigIntStats | null, BigIntStats | null];
+  if (!current?.isDirectory() || current.ctimeNs !== opened.ctimeNs) {
+    throw new Error(`${label} changed during enumeration`);
+  }
+  if (!currentParent?.isDirectory() || currentParent.ctimeNs !== parent.ctimeNs) {
     throw new Error(`${label} parent changed during enumeration`);
   }
 }
