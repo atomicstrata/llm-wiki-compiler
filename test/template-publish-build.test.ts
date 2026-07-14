@@ -42,7 +42,7 @@ interface Publisher {
   keyFile: string;
   add: () => Promise<string>;
   addSecond: () => Promise<string>;
-  build: (force?: boolean) => Promise<{ sequence: number; packageCount: number }>;
+  build: (force?: boolean, refresh?: boolean) => Promise<{ sequence: number; packageCount: number }>;
 }
 
 /** A ready workspace plus an out-of-workspace output directory. */
@@ -73,8 +73,8 @@ async function publisher(): Promise<Publisher> {
       const result = await addPackage(paths, file, "1.0.0");
       return result.payloadDigest;
     },
-    build: async (force = false) =>
-      buildDistribution(paths, { out, expiresIn: "30d", force }),
+    build: async (force = false, refresh = false) =>
+      buildDistribution(paths, { out, expiresIn: "30d", force, refresh }),
   };
 }
 
@@ -148,13 +148,18 @@ describe("publisher build", () => {
     })).rejects.toThrow(/outside the publisher workspace/i);
   });
 
-  it("refuses a no-change rebuild but allows --force", async () => {
+  // A no-change rebuild is refused; --force overrides it, and --refresh renews an expiring
+  // index (same content, fresh lifetime) so a routine renewal never needs the blunt --force.
+  it.each([
+    { label: "--force", rebuild: (p: Publisher) => p.build(true) },
+    { label: "--refresh", rebuild: (p: Publisher) => p.build(false, true) },
+  ])("refuses a no-change rebuild but allows $label", async ({ rebuild }) => {
     const p = await publisher();
     await p.add();
     await p.build();
 
     await expect(p.build()).rejects.toThrow(/nothing to build since sequence 1/i);
-    await expect(p.build(true)).resolves.toMatchObject({ sequence: 2 });
+    await expect(rebuild(p)).resolves.toMatchObject({ sequence: 2 });
   });
 
   it("refuses an output path that exists and is not a directory", async () => {

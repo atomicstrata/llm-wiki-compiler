@@ -67,6 +67,22 @@ describe("publisher CLI end to end", () => {
     expect(verify.stdout).toContain("Verified template publisher distribution");
     expect(verify.stdout).toContain("Packages: 1");
 
+    // A no-change rebuild is refused; --refresh renews the same content under a fresh
+    // lifetime without the blunt --force override (a boolean flag Commander could mis-parse).
+    const stale = run([
+      "template", "publish", "build",
+      "--workspace", workspace, "--expires-in", "30d", "--out", out,
+    ]);
+    expect(stale.status).not.toBe(0);
+    expect(`${stale.stdout}${stale.stderr}`).toMatch(/pass --refresh to renew an expiring index/i);
+
+    const refresh = run([
+      "template", "publish", "build",
+      "--workspace", workspace, "--expires-in", "30d", "--out", out, "--refresh",
+    ]);
+    expect(refresh.status).toBe(0);
+    expect(refresh.stdout).toContain("Sequence: 2");
+
     // No private key byte may reach the published tree.
     const privateKeys = await Promise.all(
       keys.filter((f) => f.endsWith(".key"))

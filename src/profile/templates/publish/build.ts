@@ -30,6 +30,8 @@ export interface BuildOptions {
   out: string;
   expiresIn: string;
   force?: boolean;
+  /** Republish unchanged content under a fresh lifetime, to renew an expiring index. */
+  refresh?: boolean;
   now?: Date;
 }
 
@@ -71,7 +73,11 @@ export async function buildDistribution(paths: WorkspacePaths, options: BuildOpt
     // revocations, not the pre-build workspace. Used both to decide "is there anything to
     // build" and as the recorded lastBuild, so both sides speak of the same committed state.
     const effective = effectiveStateOf(workspace, built, intents);
-    assertHasSomethingToBuild(workspace, effective, packages, options.force === true);
+    // --refresh renews an expiring index (new lifetime, same content); --force is the blunt
+    // override. Both bypass the no-change guard, but --refresh names the routine intent so an
+    // operator scripting a renewal never has to reach for --force.
+    const bypassNoChangeGuard = options.force === true || options.refresh === true;
+    assertHasSomethingToBuild(workspace, effective, packages, bypassNoChangeGuard);
     const identity: LastBuild = {
       sequence,
       indexDigest: canonicalDigest(built.index),
@@ -127,18 +133,21 @@ async function indexSigningKey(paths: WorkspacePaths, workspace: PublisherWorksp
  * Refuse a no-change rebuild so an operator cannot silently burn sequence numbers — but
  * `add` records a package WITHOUT staging an intent, so `pending` alone cannot answer the
  * question. Compare the content this build would publish against the content the last build
- * did.
+ * did. `bypass` is set by --refresh (renew an expiring index) or --force (override).
  */
 function assertHasSomethingToBuild(
   workspace: PublisherWorkspace,
   effective: EffectiveState,
   packages: WorkspacePackage[],
-  force: boolean,
+  bypass: boolean,
 ): void {
-  if (force || workspace.lastBuild === undefined) return;
+  if (bypass || workspace.lastBuild === undefined) return;
   if (workspace.pending.length > 0) return;
   if (contentDigestOf(effective, packages) !== workspace.lastBuild.contentDigest) return;
-  throw new Error(`nothing to build since sequence ${workspace.sequence}; pass --force to republish`);
+  throw new Error(
+    `nothing to build since sequence ${workspace.sequence}; ` +
+      `pass --refresh to renew an expiring index, or --force to republish anyway`,
+  );
 }
 
 /**

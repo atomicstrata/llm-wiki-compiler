@@ -118,6 +118,7 @@ export function registerTemplateCommands(program: Command): void {
     .requiredOption("--workspace <path>", "Publisher workspace directory")
     .requiredOption("--out <path>", "Output directory, which must live outside the workspace")
     .requiredOption("--expires-in <duration>", "Index lifetime, such as 30d or 12h")
+    .option("--refresh", "Republish unchanged content under a fresh lifetime, to renew an expiring index")
     .option("--force", "Republish even when nothing changed since the last build")
     .option("--json", "Print a stable versioned JSON result")
     .action(async (options: TemplatePublishBuildOptions) =>

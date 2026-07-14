@@ -146,6 +146,7 @@ export interface TemplatePublishBuildOptions {
   workspace: string;
   out: string;
   expiresIn: string;
+  refresh?: boolean;
   force?: boolean;
   json?: boolean;
 }
@@ -156,6 +157,7 @@ export async function templatePublishBuildCommand(options: TemplatePublishBuildO
     const result = await buildDistribution(resolveWorkspacePaths(options.workspace), {
       out: options.out,
       expiresIn: options.expiresIn,
+      refresh: options.refresh === true,
       force: options.force === true,
     });
     if (options.json) console.log(JSON.stringify({ schemaVersion: 1, ...result }, null, 2));
