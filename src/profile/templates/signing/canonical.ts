@@ -18,6 +18,17 @@ export function canonicalDigest(value: unknown): string {
   return `sha256:${createHash("sha256").update(canonicalBytes(value)).digest("hex")}`;
 }
 
+/**
+ * The exact bytes a tap-index signature covers: the complete index WITHOUT its
+ * `signature` field. Producer and consumer MUST derive these bytes from this one
+ * function — a second derivation is precisely how a signed index becomes
+ * unverifiable, so `verifyTapIndex` consumes it too.
+ */
+export function tapIndexClaim(index: { signature?: unknown }): object {
+  const { signature: _signature, ...claim } = index;
+  return claim;
+}
+
 /** Publisher-signed package claim. */
 export function packageClaim(coordinate: string, payloadDigest: string): object {
   return { coordinate, payloadDigest };

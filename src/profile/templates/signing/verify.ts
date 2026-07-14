@@ -6,7 +6,7 @@
 import { createPublicKey, verify, type KeyObject } from "node:crypto";
 import type { ProfileTemplatePackage } from "../types.js";
 import { validateTemplatePackage } from "../validate.js";
-import { canonicalBytes, canonicalDigest, packageClaim, rotationClaim, tapRotationClaim } from "./canonical.js";
+import { canonicalBytes, canonicalDigest, packageClaim, rotationClaim, tapIndexClaim, tapRotationClaim } from "./canonical.js";
 import { parseTemplateCoordinate, type ParsedSignedPackage, type ParsedTapIndex } from "./protocol.js";
 import type {
   Ed25519Signature,
@@ -42,8 +42,7 @@ export function verifyTapIndex(
   if (Date.parse(index.generatedAt) > now.getTime() + MAX_INDEX_CLOCK_SKEW_MS) {
     refuse("not-yet-valid", "tap index generation time is too far in the future");
   }
-  const { signature, ...claim } = index;
-  verifySignature(canonicalBytes(claim), signature, trustedKey, "tap-signature");
+  verifySignature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
   return index as VerifiedTapIndex;
 }
 
@@ -59,8 +58,7 @@ export function verifyAcceptedTapIndex(
   }
   if (index.tap !== expectedTap) refuse("wrong-tap", `expected tap ${expectedTap}, received ${index.tap}`);
   if (index.signature.keyId !== trustedKey.keyId) refuse("wrong-key", "tap signature key does not match the trusted key");
-  const { signature, ...claim } = index;
-  verifySignature(canonicalBytes(claim), signature, trustedKey, "tap-signature");
+  verifySignature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
   return index as VerifiedTapIndex;
 }
 
