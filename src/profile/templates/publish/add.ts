@@ -10,13 +10,15 @@
 import packageJson from "../../../../package.json" with { type: "json" };
 import { readCappedNoFollow } from "../../../utils/confined-read.js";
 import { withExclusiveLock } from "../../../utils/exclusive-lock.js";
-import { canonicalDigest, packageClaim } from "../signing/canonical.js";
+import { createPublicKey, verify } from "node:crypto";
+import { canonicalBytes, canonicalDigest, packageClaim } from "../signing/canonical.js";
 import { parseSignedPackage, parseTemplateCoordinate } from "../signing/protocol.js";
 import { signClaim } from "../signing/sign.js";
 import { validateTemplatePackage } from "../validate.js";
 import { readPrivateKey } from "./keystore.js";
 import type { WorkspacePaths } from "./workspace-paths.js";
 import { readWorkspace, writeWorkspace } from "./workspace-store.js";
+import type { Ed25519Signature, PublisherKey } from "../signing/types.js";
 import type { PublisherWorkspace, WorkspacePackage } from "./workspace-types.js";
 
 const MAX_PACKAGE_FILE_BYTES = 2 * 1024 * 1024;
@@ -78,6 +80,10 @@ async function signPackage(
   const envelope = { schemaVersion: 1, coordinate, payload, payloadDigest, publisherSignature };
   const envelopeJson = JSON.stringify(envelope);
   parseSignedPackage(envelopeJson);
+  // Parsing proves shape, not authenticity. If the private key on disk does not match the
+  // public key the workspace announces, this records an envelope no client can verify — and
+  // the coordinate is immutable, so the mistake would be permanent.
+  assertSignatureMatchesAnnouncedKey(coordinate, payloadDigest, publisherSignature, workspace.publisherKey);
   return {
     coordinate,
     publisher: workspace.publisher,
@@ -85,6 +91,32 @@ async function signPackage(
     publisherSignature,
     envelopeJson,
   };
+}
+
+/** The signature must verify under the PUBLIC key the index will announce. */
+function assertSignatureMatchesAnnouncedKey(
+  coordinate: string,
+  payloadDigest: string,
+  signature: Ed25519Signature,
+  announced: PublisherKey,
+): void {
+  if (signature.keyId !== announced.keyId) {
+    throw new Error("signing key id does not match the workspace's announced publisher key");
+  }
+  const publicKey = createPublicKey({
+    key: Buffer.from(announced.publicKey, "base64"),
+    format: "der",
+    type: "spki",
+  });
+  const ok = verify(
+    null,
+    canonicalBytes(packageClaim(coordinate, payloadDigest)),
+    publicKey,
+    Buffer.from(signature.value, "base64"),
+  );
+  if (!ok) {
+    throw new Error("the private key on disk does not match the workspace's announced publisher key");
+  }
 }
 
 /** Read one operator-supplied package file through the production validator. */

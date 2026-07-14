@@ -9,7 +9,7 @@
  *  - a tap-rotating index must be signed by the SUCCESSOR key.
  */
 import packageJson from "../package.json" with { type: "json" };
-import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { addPackage } from "../src/profile/templates/publish/add.js";
@@ -27,6 +27,7 @@ import { readWorkspace, writeWorkspace } from "../src/profile/templates/publish/
 import { verifyBuiltDistribution } from "../src/profile/templates/publish/build-verify.js";
 import type { PublisherWorkspace, WorkspacePackage } from "../src/profile/templates/publish/workspace-types.js";
 import { parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";
+import { generateEd25519Keypair } from "../src/profile/templates/signing/sign.js";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
 const roots = publisherTempRoots();
@@ -241,7 +242,7 @@ describe("publisher adversarial-audit regressions", () => {
     await mkdir(p.out, { recursive: true });
     await writeFile(path.join(p.out, "index.html"), "<h1>my site</h1>", "utf8");
 
-    await expect(p.build()).rejects.toThrow(/not a previous distribution of this tap/i);
+    await expect(p.build()).rejects.toThrow(/not a tree this workspace published/i);
 
     expect(await readFile(path.join(p.out, "index.html"), "utf8")).toContain("my site");
   });
@@ -274,6 +275,60 @@ describe("publisher adversarial-audit regressions", () => {
     await p.addSecond();
 
     await expect(p.build()).resolves.toMatchObject({ sequence: 3 });
+  });
+});
+
+describe("publisher second-audit regressions", () => {
+  it("refuses an output tree it did not itself publish, even one that looks right", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    // A forged index that merely CLAIMS this tap is just bytes. Only a tree whose index
+    // digests to what we recorded publishing may be replaced — everything else is data we
+    // must not delete.
+    await writeFile(path.join(p.out, "index.json"), JSON.stringify({ forged: true }), "utf8");
+    await p.addSecond();
+
+    await expect(p.build()).rejects.toThrow(/not a tree this workspace published/i);
+
+    expect(await readFile(path.join(p.out, "index.json"), "utf8")).toContain("forged");
+  });
+
+  it("refuses to write a private key through a symlinked keys directory", async () => {
+    const p = await publisher();
+    const outside = await roots.create("key-escape");
+    await rm(p.paths.keysDir, { recursive: true, force: true });
+    await symlink(outside, p.paths.keysDir);
+
+    await expect(stageRotatePublisherKey(p.paths, "acme-publisher-2027-01"))
+      .rejects.toThrow(/escapes|confine|unsafe/i);
+
+    // The point of the guard: no key material may land outside the workspace.
+    expect((await readdir(outside)).filter((f) => f.endsWith(".key") || f.endsWith(".pub"))).toEqual([]);
+  });
+
+  it("never reuses a retired key id", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    const original = (await readWorkspace(p.paths)).publisherKey.keyId;
+    await stageRotatePublisherKey(p.paths, "acme-publisher-2027-01");
+    await p.build();
+
+    // Consumers record every key id they have ever accepted, so re-announcing a retired one
+    // yields a release every existing client rejects.
+    await expect(stageRotatePublisherKey(p.paths, original))
+      .rejects.toThrow(/already been used|never be reused/i);
+  });
+
+  it("refuses to record a package signed by a key the workspace does not announce", async () => {
+    const p = await publisher();
+    const ws = await readWorkspace(p.paths);
+    // The announced public key no longer matches the private key on disk.
+    const foreign = generateEd25519Keypair(ws.publisherKey.keyId);
+    await writeWorkspace(p.paths, { ...ws, publisherKey: foreign.publicKey });
+
+    await expect(p.add()).rejects.toThrow(/does not match the workspace's announced publisher key/i);
   });
 });
 

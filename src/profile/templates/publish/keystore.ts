@@ -8,10 +8,11 @@
  * only to `signClaim`; it is never printed, logged, or written to the manifest.
  */
 import { createHash } from "node:crypto";
-import { open } from "node:fs/promises";
+import { open, realpath } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../../../utils/atomic-write.js";
 import { readCappedNoFollowBuffer } from "../../../utils/confined-read.js";
+import { confineUnderRoot } from "../../../utils/path-confine.js";
 import { isSlugSafe } from "../../identity.js";
 import { generateEd25519Keypair, type PrivateSigningKey } from "../signing/sign.js";
 import type { PublisherKey } from "../signing/types.js";
@@ -30,9 +31,11 @@ export async function createKeypairFile(
 ): Promise<PublisherKey> {
   assertSlugKeyId(keyId);
   const generated = generateEd25519Keypair(keyId);
-  await writeExclusivePrivateKey(privateKeyPath(paths, role, keyId), generated.privateKey.privateKey, role, keyId);
-  await atomicWrite(publicKeyPath(paths, role, keyId), `${generated.publicKey.publicKey}\n`, {
-    confineRoot: paths.root,
+  await writeExclusivePrivateKey(await confinedKeyPath(paths, role, keyId, "key"), generated.privateKey.privateKey, role, keyId);
+  // Both the leaf and the confine root are realpath'd, so they cannot disagree about
+  // /var vs /private/var and silently refuse a legitimate write.
+  await atomicWrite(await confinedKeyPath(paths, role, keyId, "pub"), `${generated.publicKey.publicKey}\n`, {
+    confineRoot: await realpath(paths.root),
     durable: true,
   });
   return generated.publicKey;
@@ -45,7 +48,7 @@ export async function readPrivateKey(
   keyId: string,
 ): Promise<PrivateSigningKey> {
   assertSlugKeyId(keyId);
-  const read = await readCappedNoFollowBuffer(privateKeyPath(paths, role, keyId), MAX_KEY_FILE_BYTES);
+  const read = await readCappedNoFollowBuffer(await confinedKeyPath(paths, role, keyId, "key"), MAX_KEY_FILE_BYTES);
   if (read.kind !== "ok") throw new Error(`private key is missing, symlinked, or unreadable: ${role}/${keyId}`);
   let text: string;
   try {
@@ -55,6 +58,14 @@ export async function readPrivateKey(
   }
   if (text.length === 0) throw new Error(`private key is empty: ${role}/${keyId}`);
   return { keyId, privateKey: text };
+}
+
+/** Read one public key through the same confined directory. */
+export async function readPublicKey(paths: WorkspacePaths, role: KeyRole, keyId: string): Promise<string> {
+  assertSlugKeyId(keyId);
+  const read = await readCappedNoFollowBuffer(await confinedKeyPath(paths, role, keyId, "pub"), MAX_KEY_FILE_BYTES);
+  if (read.kind !== "ok") throw new Error(`public key is missing, symlinked, or unreadable: ${role}/${keyId}`);
+  return new TextDecoder("utf-8", { fatal: true }).decode(read.body).trim();
 }
 
 /** SHA-256 fingerprint of a public key's SPKI bytes, for out-of-band comparison. */
@@ -83,12 +94,19 @@ async function writeExclusivePrivateKey(
   }
 }
 
-function privateKeyPath(paths: WorkspacePaths, role: KeyRole, keyId: string): string {
-  return path.join(paths.keysDir, `${role}-${keyId}.key`);
-}
-
-function publicKeyPath(paths: WorkspacePaths, role: KeyRole, keyId: string): string {
-  return path.join(paths.keysDir, `${role}-${keyId}.pub`);
+/**
+ * Resolve one key leaf through a CONFINED, realpath'd `keys/` directory. A leaf-only
+ * no-follow check is not enough: a symlinked `keys/` directory would place a freshly
+ * generated PRIVATE key outside the workspace entirely.
+ */
+async function confinedKeyPath(
+  paths: WorkspacePaths,
+  role: KeyRole,
+  keyId: string,
+  extension: "key" | "pub",
+): Promise<string> {
+  const keysDir = await confineUnderRoot("keys", paths.root, { mustExist: true });
+  return path.join(keysDir, `${role}-${keyId}.${extension}`);
 }
 
 function assertSlugKeyId(keyId: string): void {

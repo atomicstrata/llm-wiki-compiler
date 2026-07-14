@@ -15,8 +15,6 @@
  * package with the successor key. The payload is unchanged, so the payload digest and the
  * content-addressed filename are unchanged; only the signature changes.
  */
-import path from "node:path";
-import { readCappedNoFollow } from "../../../utils/confined-read.js";
 import { packageClaim, rotationClaim, tapRotationClaim } from "../signing/canonical.js";
 import { signClaim } from "../signing/sign.js";
 import type {
@@ -26,12 +24,10 @@ import type {
   TapRevocation,
 } from "../signing/types.js";
 import { withExclusiveLock } from "../../../utils/exclusive-lock.js";
-import { createKeypairFile, readPrivateKey, type KeyRole } from "./keystore.js";
+import { createKeypairFile, readPrivateKey, readPublicKey, type KeyRole } from "./keystore.js";
 import type { WorkspacePaths } from "./workspace-paths.js";
 import { readWorkspace, writeWorkspace } from "./workspace-store.js";
 import type { PendingIntent, PublisherWorkspace, WorkspacePackage } from "./workspace-types.js";
-
-const MAX_PUBLIC_KEY_BYTES = 4_096;
 
 /** Everything a build needs from the staged intents, signed at the build's sequence. */
 export interface SignedIntents {
@@ -47,7 +43,7 @@ export interface SignedIntents {
 /** Stage a publisher-key rotation, generating the successor keypair now. */
 export async function stageRotatePublisherKey(paths: WorkspacePaths, newKeyId: string): Promise<void> {
   await stageIntent(paths, async (workspace) => {
-    if (newKeyId === workspace.publisherKey.keyId) throw new Error("rotation successor must use a new key id");
+    assertKeyIdUnused(workspace, newKeyId);
     assertNoPendingRotation(workspace, "rotate-publisher", "publisher");
     await createKeypairFile(paths, newKeyId, "publisher");
     return { kind: "rotate-publisher", fromKeyId: workspace.publisherKey.keyId, toKeyId: newKeyId };
@@ -57,7 +53,7 @@ export async function stageRotatePublisherKey(paths: WorkspacePaths, newKeyId: s
 /** Stage a tap-root rotation, generating the successor keypair now. */
 export async function stageRotateTapKey(paths: WorkspacePaths, newKeyId: string): Promise<void> {
   await stageIntent(paths, async (workspace) => {
-    if (newKeyId === workspace.tapKey.keyId) throw new Error("rotation successor must use a new key id");
+    assertKeyIdUnused(workspace, newKeyId);
     assertNoPendingRotation(workspace, "rotate-tap", "tap");
     await createKeypairFile(paths, newKeyId, "tap");
     return { kind: "rotate-tap", fromKeyId: workspace.tapKey.keyId, toKeyId: newKeyId };
@@ -93,6 +89,30 @@ export async function stageRevokePublisherKey(paths: WorkspacePaths, keyId: stri
     }
     return { kind: "revoke-publisher-key", keyId, reason: assertReason(reason) };
   });
+}
+
+/**
+ * A key id may never be REUSED, even after its key file is deleted. Consumers record every
+ * key id they have ever accepted (`registerKey` refuses a historical id), so a release that
+ * re-announces a retired id is one every existing client rejects — while the publisher's own
+ * gate, which only knows the current key, happily accepts it.
+ */
+function assertKeyIdUnused(workspace: PublisherWorkspace, keyId: string): void {
+  const used = new Set<string>([workspace.tapKey.keyId, workspace.publisherKey.keyId]);
+  for (const rotation of workspace.rotations) {
+    used.add(rotation.fromKeyId);
+    used.add(rotation.toKey.keyId);
+  }
+  for (const rotation of workspace.tapKeyRotations) {
+    used.add(rotation.fromKeyId);
+    used.add(rotation.toKey.keyId);
+  }
+  for (const intent of workspace.pending) {
+    if (intent.kind === "rotate-publisher" || intent.kind === "rotate-tap") used.add(intent.toKeyId);
+  }
+  if (used.has(keyId)) {
+    throw new Error(`key id has already been used by this tap and can never be reused: ${keyId}`);
+  }
 }
 
 /**
@@ -227,9 +247,7 @@ async function resignPackages(
 }
 
 async function publicKeyOf(paths: WorkspacePaths, role: KeyRole, keyId: string): Promise<string> {
-  const read = await readCappedNoFollow(path.join(paths.keysDir, `${role}-${keyId}.pub`), MAX_PUBLIC_KEY_BYTES);
-  if (read.kind !== "ok") throw new Error(`public key is missing or unreadable: ${role}/${keyId}`);
-  return read.body.trim();
+  return readPublicKey(paths, role, keyId);
 }
 
 function revocation(

@@ -28,16 +28,30 @@ function workspacePinState(workspace: PublisherWorkspace): PublisherPinState {
     ...empty,
     highestSequence: workspace.sequence,
     publishers: { [workspace.publisher]: workspace.publisherKey },
-    keyHistory: {
-      [workspace.publisherKey.keyId]: {
-        publisher: workspace.publisher,
-        publicKey: workspace.publisherKey.publicKey,
-      },
-    },
+    // The COMPLETE history a client holds — every key id it has ever accepted. Seeding only
+    // the current key would let a build that re-announces a RETIRED id pass our own gate
+    // while every existing client rejects it.
+    keyHistory: publisherKeyHistory(workspace),
     coordinates: { ...workspace.coordinates },
     revokedPackages: workspace.revocations.filter((r) => r.kind === "package").map((r) => r.value),
     revokedPublisherKeys: workspace.revocations.filter((r) => r.kind === "publisher-key").map((r) => r.value),
   };
+}
+
+/** Every publisher key id this tap has ever announced, as a client would have recorded it. */
+function publisherKeyHistory(workspace: PublisherWorkspace): PublisherPinState["keyHistory"] {
+  const history: PublisherPinState["keyHistory"] = {};
+  for (const rotation of workspace.rotations) {
+    history[rotation.toKey.keyId] = {
+      publisher: rotation.publisher,
+      publicKey: rotation.toKey.publicKey,
+    };
+  }
+  history[workspace.publisherKey.keyId] = {
+    publisher: workspace.publisher,
+    publicKey: workspace.publisherKey.publicKey,
+  };
+  return history;
 }
 
 /**

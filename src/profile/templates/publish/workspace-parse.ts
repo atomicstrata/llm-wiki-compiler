@@ -29,11 +29,11 @@ export function parsePublisherWorkspace(text: string): PublisherWorkspace {
     tapKey: publisherKey(root.tapKey, "workspace tap key"),
     publisherKey: publisherKey(root.publisherKey, "workspace publisher key"),
     sequence: naturalNumber(root.sequence, "workspace sequence"),
-    packages: boundedArray(root.packages, "workspace packages") as PublisherWorkspace["packages"],
-    rotations: boundedArray(root.rotations, "workspace rotations") as PublisherWorkspace["rotations"],
-    tapKeyRotations: boundedArray(root.tapKeyRotations, "workspace tap rotations") as PublisherWorkspace["tapKeyRotations"],
-    revocations: boundedArray(root.revocations, "workspace revocations") as PublisherWorkspace["revocations"],
-    pending: boundedArray(root.pending, "workspace pending") as PublisherWorkspace["pending"],
+    packages: boundedArray(root.packages, "workspace packages").map(workspacePackage),
+    rotations: boundedArray(root.rotations, "workspace rotations").map(publisherRotation),
+    tapKeyRotations: boundedArray(root.tapKeyRotations, "workspace tap rotations").map(tapKeyRotation),
+    revocations: boundedArray(root.revocations, "workspace revocations").map(revocation),
+    pending: boundedArray(root.pending, "workspace pending").map(pendingIntent),
     coordinates: coordinateMap(root.coordinates),
     ...(root.lastBuild === undefined ? {} : { lastBuild: lastBuild(root.lastBuild) }),
     ...(root.reservedSequence === undefined
@@ -64,6 +64,99 @@ function digest(value: unknown, label: string): string {
 function nonEmptyText(value: unknown, label: string): string {
   if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`);
   return value;
+}
+
+/**
+ * Every nested element is parsed, not cast. The workspace carries SIGNING IDENTITY: a
+ * permissive parser here is a signing-identity confusion bug, and a cast is not a parse.
+ */
+function workspacePackage(value: unknown): PublisherWorkspace["packages"][number] {
+  const obj = record(value, "workspace package");
+  exactKeysOf(obj, ["coordinate", "publisher", "payloadDigest", "publisherSignature", "envelopeJson"], "workspace package");
+  parseTemplateCoordinate(nonEmptyText(obj.coordinate, "package coordinate"));
+  return {
+    coordinate: obj.coordinate as string,
+    publisher: slug(obj.publisher, "package publisher"),
+    payloadDigest: digest(obj.payloadDigest, "package payloadDigest"),
+    publisherSignature: signature(obj.publisherSignature, "package signature"),
+    envelopeJson: nonEmptyText(obj.envelopeJson, "package envelopeJson"),
+  };
+}
+
+function signature(value: unknown, label: string): PublisherWorkspace["packages"][number]["publisherSignature"] {
+  const obj = record(value, label);
+  exactKeysOf(obj, ["keyId", "algorithm", "value"], label);
+  if (obj.algorithm !== "ed25519") throw new Error(`${label} algorithm must be ed25519`);
+  return {
+    keyId: nonEmptyText(obj.keyId, `${label} keyId`),
+    algorithm: "ed25519",
+    value: nonEmptyText(obj.value, `${label} value`),
+  };
+}
+
+function keyOf(value: unknown, label: string): PublisherWorkspace["tapKey"] {
+  return publisherKey(value, label);
+}
+
+function publisherRotation(value: unknown): PublisherWorkspace["rotations"][number] {
+  const obj = record(value, "workspace rotation");
+  exactKeysOf(obj, ["publisher", "fromKeyId", "toKey", "effectiveSequence", "oldSignature", "newSignature"], "workspace rotation");
+  return {
+    publisher: slug(obj.publisher, "rotation publisher"),
+    fromKeyId: nonEmptyText(obj.fromKeyId, "rotation fromKeyId"),
+    toKey: keyOf(obj.toKey, "rotation toKey"),
+    effectiveSequence: naturalNumber(obj.effectiveSequence, "rotation effectiveSequence"),
+    oldSignature: signature(obj.oldSignature, "rotation oldSignature"),
+    newSignature: signature(obj.newSignature, "rotation newSignature"),
+  };
+}
+
+function tapKeyRotation(value: unknown): PublisherWorkspace["tapKeyRotations"][number] {
+  const obj = record(value, "workspace tap rotation");
+  exactKeysOf(obj, ["fromKeyId", "toKey", "effectiveSequence", "oldSignature", "newSignature"], "workspace tap rotation");
+  return {
+    fromKeyId: nonEmptyText(obj.fromKeyId, "tap rotation fromKeyId"),
+    toKey: keyOf(obj.toKey, "tap rotation toKey"),
+    effectiveSequence: naturalNumber(obj.effectiveSequence, "tap rotation effectiveSequence"),
+    oldSignature: signature(obj.oldSignature, "tap rotation oldSignature"),
+    newSignature: signature(obj.newSignature, "tap rotation newSignature"),
+  };
+}
+
+function revocation(value: unknown): PublisherWorkspace["revocations"][number] {
+  const obj = record(value, "workspace revocation");
+  exactKeysOf(obj, ["kind", "value", "reason", "revokedAt"], "workspace revocation");
+  if (obj.kind !== "package" && obj.kind !== "publisher-key") {
+    throw new Error("revocation kind must be package or publisher-key");
+  }
+  return {
+    kind: obj.kind,
+    value: nonEmptyText(obj.value, "revocation value"),
+    reason: nonEmptyText(obj.reason, "revocation reason"),
+    revokedAt: nonEmptyText(obj.revokedAt, "revocation revokedAt"),
+  };
+}
+
+function pendingIntent(value: unknown): PublisherWorkspace["pending"][number] {
+  const obj = record(value, "workspace pending intent");
+  const kind = obj.kind;
+  if (kind === "rotate-publisher" || kind === "rotate-tap") {
+    exactKeysOf(obj, ["kind", "fromKeyId", "toKeyId"], "pending rotation");
+    return {
+      kind,
+      fromKeyId: nonEmptyText(obj.fromKeyId, "pending fromKeyId"),
+      toKeyId: nonEmptyText(obj.toKeyId, "pending toKeyId"),
+    };
+  }
+  if (kind === "revoke-package") {
+    exactKeysOf(obj, ["kind", "digest", "reason"], "pending revocation");
+    return { kind, digest: digest(obj.digest, "pending digest"), reason: nonEmptyText(obj.reason, "pending reason") };
+  }
+  if (kind === "revoke-publisher-key") {
+    exactKeysOf(obj, ["kind", "keyId", "reason"], "pending revocation");
+    return { kind, keyId: nonEmptyText(obj.keyId, "pending keyId"), reason: nonEmptyText(obj.reason, "pending reason") };
+  }
+  throw new Error("pending intent kind is unknown");
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
