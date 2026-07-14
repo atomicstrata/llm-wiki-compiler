@@ -43,14 +43,16 @@ export interface BuildResult {
 export async function buildDistribution(paths: WorkspacePaths, options: BuildOptions): Promise<BuildResult> {
   return withExclusiveLock(paths, async () => {
     const workspace = await readWorkspace(paths);
-    const out = await assertOutsideWorkspace(paths, options.out);
+    const out = await assertOutsideWorkspace(paths, options.out, workspace.tap);
     const now = options.now ?? new Date();
     const expiresAt = parseExpiresIn(options.expiresIn, now);
-    assertHasSomethingToBuild(workspace, options.force === true);
-
-    const sequence = workspace.sequence + 1;
+    // Skip past a reserved sequence: a crash after publishing but before committing leaves a
+    // signed index live at that sequence, and re-issuing it with different bytes would be a
+    // replay for any client that already fetched it.
+    const sequence = Math.max(workspace.sequence, workspace.reservedSequence ?? 0) + 1;
     const intents = await signPendingIntents(paths, workspace, sequence, now);
     const packages = emittedPackages(workspace, intents);
+    assertHasSomethingToBuild(workspace, packages, options.force === true);
     const built = buildSignedIndex(workspace, {
       sequence,
       generatedAt: now,
@@ -65,8 +67,9 @@ export async function buildDistribution(paths: WorkspacePaths, options: BuildOpt
     });
 
     verifyBuiltDistribution(workspace, built.indexJson, packages, packageJson.version);
+    await writeWorkspace(paths, { ...workspace, reservedSequence: sequence });
     await publishStagedTree(out, built.indexJson, packages);
-    await commitBuild(paths, workspace, built, intents, sequence, now);
+    await commitBuild(paths, workspace, built, intents, sequence, now, packages);
 
     return {
       sequence,
@@ -97,13 +100,27 @@ async function indexSigningKey(paths: WorkspacePaths, workspace: PublisherWorksp
   return readPrivateKey(paths, "tap", key.keyId);
 }
 
-/** Refuse a no-change rebuild so an operator cannot silently burn sequence numbers. */
-function assertHasSomethingToBuild(workspace: PublisherWorkspace, force: boolean): void {
+/**
+ * Refuse a no-change rebuild so an operator cannot silently burn sequence numbers — but
+ * `add` records a package WITHOUT staging an intent, so `pending` alone cannot answer the
+ * question. Compare the content this build would publish against the content the last build
+ * did.
+ */
+function assertHasSomethingToBuild(workspace: PublisherWorkspace, packages: WorkspacePackage[], force: boolean): void {
   if (force || workspace.lastBuild === undefined) return;
-  const unchanged = workspace.pending.length === 0 && workspace.lastBuild.sequence === workspace.sequence;
-  if (unchanged) {
-    throw new Error(`nothing to build since sequence ${workspace.sequence}; pass --force to republish`);
-  }
+  if (workspace.pending.length > 0) return;
+  if (contentDigestOf(workspace, packages) !== workspace.lastBuild.contentDigest) return;
+  throw new Error(`nothing to build since sequence ${workspace.sequence}; pass --force to republish`);
+}
+
+/** The published content's identity: what is served, and under which keys. */
+function contentDigestOf(workspace: PublisherWorkspace, packages: WorkspacePackage[]): string {
+  return canonicalDigest({
+    packages: packages.map((pkg) => pkg.payloadDigest).sort(),
+    revocations: workspace.revocations.map((revocation) => `${revocation.kind}:${revocation.value}`).sort(),
+    publisherKeyId: workspace.publisherKey.keyId,
+    tapKeyId: workspace.tapKey.keyId,
+  });
 }
 
 /**
@@ -151,8 +168,9 @@ async function commitBuild(
   intents: SignedIntents,
   sequence: number,
   now: Date,
+  packages: WorkspacePackage[],
 ): Promise<void> {
-  await writeWorkspace(paths, {
+  const committed: PublisherWorkspace = {
     ...workspace,
     tapKey: intents.nextTapKey ?? workspace.tapKey,
     publisherKey: intents.nextPublisherKey ?? workspace.publisherKey,
@@ -162,10 +180,15 @@ async function commitBuild(
     tapKeyRotations: built.tapKeyRotations,
     revocations: built.revocations,
     pending: [],
+  };
+  delete committed.reservedSequence;
+  await writeWorkspace(paths, {
+    ...committed,
     lastBuild: {
       sequence,
       indexDigest: canonicalDigest(built.index),
       builtAt: now.toISOString(),
+      contentDigest: contentDigestOf(committed, packages),
     },
   });
 }

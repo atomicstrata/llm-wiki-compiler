@@ -9,7 +9,7 @@
  *  - a tap-rotating index must be signed by the SUCCESSOR key.
  */
 import packageJson from "../package.json" with { type: "json" };
-import { chmod, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { addPackage } from "../src/profile/templates/publish/add.js";
@@ -23,7 +23,7 @@ import {
 import { initWorkspace } from "../src/profile/templates/publish/init.js";
 import { verifyPublisherDistribution } from "../src/profile/templates/publish/verify.js";
 import { resolveWorkspacePaths, type WorkspacePaths } from "../src/profile/templates/publish/workspace-paths.js";
-import { readWorkspace } from "../src/profile/templates/publish/workspace-store.js";
+import { readWorkspace, writeWorkspace } from "../src/profile/templates/publish/workspace-store.js";
 import { verifyBuiltDistribution } from "../src/profile/templates/publish/build-verify.js";
 import type { PublisherWorkspace, WorkspacePackage } from "../src/profile/templates/publish/workspace-types.js";
 import { parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";
@@ -38,6 +38,7 @@ interface Publisher {
   out: string;
   keyFile: string;
   add: () => Promise<string>;
+  addSecond: () => Promise<string>;
   build: (force?: boolean) => Promise<{ sequence: number; packageCount: number }>;
 }
 
@@ -55,6 +56,17 @@ async function publisher(): Promise<Publisher> {
     add: async () => {
       const file = path.join(root, "incident-response.json");
       await writeFile(file, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
+      const result = await addPackage(paths, file, "1.0.0");
+      return result.payloadDigest;
+    },
+    addSecond: async () => {
+      const second = {
+        ...PUBLISHER_TEMPLATE,
+        templateId: "postmortem",
+        profile: { ...PUBLISHER_TEMPLATE.profile, profileId: "postmortem" },
+      };
+      const file = path.join(root, "postmortem.json");
+      await writeFile(file, JSON.stringify(second), "utf8");
       const result = await addPackage(paths, file, "1.0.0");
       return result.payloadDigest;
     },
@@ -194,6 +206,74 @@ describe("publisher add", () => {
 
     expect(again).toMatch(/^sha256:/);
     expect((await readWorkspace(p.paths)).packages).toHaveLength(1);
+  });
+});
+
+describe("publisher adversarial-audit regressions", () => {
+  it("builds again after a package is added to a released workspace", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    // `add` records a package without staging an intent, so a `pending`-only dirty check
+    // refused the core workflow: release, add another template, release again.
+    await p.addSecond();
+
+    await expect(p.build()).resolves.toMatchObject({ sequence: 2, packageCount: 2 });
+  });
+
+  it("verifies a snapshot whose index carries RETAINED rotation history", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    await stageRotatePublisherKey(p.paths, "acme-publisher-2027-01");
+    await p.build();
+    // Rotations are retained in every later index forever. Refusing them outright made
+    // `publish verify` permanently unusable for any tap that had ever rotated a key.
+    await p.addSecond();
+    await p.build();
+
+    await expect(verifySnapshot(p)).resolves.toBeUndefined();
+  });
+
+  it("refuses an output directory holding unrelated operator data", async () => {
+    const p = await publisher();
+    await p.add();
+    await mkdir(p.out, { recursive: true });
+    await writeFile(path.join(p.out, "index.html"), "<h1>my site</h1>", "utf8");
+
+    await expect(p.build()).rejects.toThrow(/not a previous distribution of this tap/i);
+
+    expect(await readFile(path.join(p.out, "index.html"), "utf8")).toContain("my site");
+  });
+
+  it("refuses a second staged rotation for the same role", async () => {
+    const p = await publisher();
+    await stageRotatePublisherKey(p.paths, "acme-publisher-2027-01");
+
+    await expect(stageRotatePublisherKey(p.paths, "acme-publisher-2028-01"))
+      .rejects.toThrow(/already staged/i);
+  });
+
+  it("refuses revoking the key a staged rotation would make active", async () => {
+    const p = await publisher();
+    await stageRotatePublisherKey(p.paths, "acme-publisher-2027-01");
+
+    await expect(stageRevokePublisherKey(p.paths, "acme-publisher-2027-01", "oops"))
+      .rejects.toThrow(/would make active/i);
+  });
+
+  it("never reissues a sequence that was already handed to a published tree", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    // Simulate a crash after publishing but before committing: the sequence is reserved
+    // but not committed. Re-issuing it with different bytes would be a replay for any
+    // client that already fetched the published index.
+    const ws = await readWorkspace(p.paths);
+    await writeWorkspace(p.paths, { ...ws, reservedSequence: 2 });
+    await p.addSecond();
+
+    await expect(p.build()).resolves.toMatchObject({ sequence: 3 });
   });
 });
 

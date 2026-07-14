@@ -49,6 +49,13 @@ export interface LastBuild {
   sequence: number;
   indexDigest: string;
   builtAt: string;
+  /**
+   * Digest of the CONTENT this build published (packages, revocations, announced keys).
+   * `pending` alone cannot answer "is there anything to build": `add` records a package
+   * without staging an intent, so a content digest is what distinguishes a real change
+   * from a no-op republish.
+   */
+  contentDigest: string;
 }
 
 /** Authoritative publisher workspace state. */
@@ -70,4 +77,11 @@ export interface PublisherWorkspace {
   /** Coordinate -> payload digest, forever. */
   coordinates: Record<string, string>;
   lastBuild?: LastBuild;
+  /**
+   * A sequence handed to a published tree but not yet committed. A crash between
+   * publishing and committing leaves a signed index live at that sequence; re-issuing it
+   * with different bytes would be a rollback/replay for any client that fetched it. So the
+   * next build skips past a reserved sequence rather than reusing it.
+   */
+  reservedSequence?: number;
 }

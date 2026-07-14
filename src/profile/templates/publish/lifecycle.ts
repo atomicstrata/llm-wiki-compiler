@@ -48,6 +48,7 @@ export interface SignedIntents {
 export async function stageRotatePublisherKey(paths: WorkspacePaths, newKeyId: string): Promise<void> {
   await stageIntent(paths, async (workspace) => {
     if (newKeyId === workspace.publisherKey.keyId) throw new Error("rotation successor must use a new key id");
+    assertNoPendingRotation(workspace, "rotate-publisher", "publisher");
     await createKeypairFile(paths, newKeyId, "publisher");
     return { kind: "rotate-publisher", fromKeyId: workspace.publisherKey.keyId, toKeyId: newKeyId };
   });
@@ -57,6 +58,7 @@ export async function stageRotatePublisherKey(paths: WorkspacePaths, newKeyId: s
 export async function stageRotateTapKey(paths: WorkspacePaths, newKeyId: string): Promise<void> {
   await stageIntent(paths, async (workspace) => {
     if (newKeyId === workspace.tapKey.keyId) throw new Error("rotation successor must use a new key id");
+    assertNoPendingRotation(workspace, "rotate-tap", "tap");
     await createKeypairFile(paths, newKeyId, "tap");
     return { kind: "rotate-tap", fromKeyId: workspace.tapKey.keyId, toKeyId: newKeyId };
   });
@@ -79,12 +81,33 @@ export async function stageRevokePackage(paths: WorkspacePaths, digest: string, 
  */
 export async function stageRevokePublisherKey(paths: WorkspacePaths, keyId: string, reason: string): Promise<void> {
   await stageIntent(paths, async (workspace) => {
-    const rotating = workspace.pending.some((intent) => intent.kind === "rotate-publisher");
-    if (keyId === workspace.publisherKey.keyId && !rotating) {
+    const rotation = workspace.pending.find((intent) => intent.kind === "rotate-publisher");
+    if (keyId === workspace.publisherKey.keyId && rotation === undefined) {
       throw new Error("revoking the active publisher key requires rotating to a successor in the same build");
+    }
+    // Revoking the key a staged rotation is about to make ACTIVE would make every future
+    // build fail inside its own verification (assertNoRevokedActiveKeys), with no way to
+    // unstage the intent.
+    if (rotation?.kind === "rotate-publisher" && rotation.toKeyId === keyId) {
+      throw new Error("cannot revoke the key a staged rotation would make active");
     }
     return { kind: "revoke-publisher-key", keyId, reason: assertReason(reason) };
   });
+}
+
+/**
+ * One rotation per role per build. Two staged rotations both claim the CURRENT key as
+ * their predecessor at the same effective sequence, which continuity refuses as an
+ * ambiguous chain — and every later build would fail identically with no way out.
+ */
+function assertNoPendingRotation(
+  workspace: PublisherWorkspace,
+  kind: PendingIntent["kind"],
+  role: string,
+): void {
+  if (workspace.pending.some((intent) => intent.kind === kind)) {
+    throw new Error(`a ${role} key rotation is already staged; build it before staging another`);
+  }
 }
 
 /** Sign every staged intent at the sequence the index will actually carry. */

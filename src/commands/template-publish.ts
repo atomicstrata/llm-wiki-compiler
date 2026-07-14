@@ -182,9 +182,19 @@ export async function templatePublishRotateCommand(options: TemplatePublishRotat
     if ((options.tapKeyId === undefined) === (options.publisherKeyId === undefined)) {
       throw new Error("rotate requires exactly one of --tap-key-id or --publisher-key-id");
     }
-    if (options.publisherKeyId !== undefined) await stageRotatePublisherKey(paths, options.publisherKeyId);
-    else await stageRotateTapKey(paths, options.tapKeyId as string);
-    console.log("Staged key rotation. It is signed by the next build, at that build's sequence.");
+    if (options.publisherKeyId !== undefined) {
+      await stageRotatePublisherKey(paths, options.publisherKeyId);
+      console.log("Staged publisher key rotation. It is signed by the next build, at that build's sequence.");
+      console.log("Every package will be re-signed with the successor key; digests do not change.");
+      return 0;
+    }
+    await stageRotateTapKey(paths, options.tapKeyId as string);
+    console.log("Staged tap ROOT key rotation. It is signed by the next build.");
+    console.log("");
+    console.log("WARNING: a tap-root rotation is carried by exactly ONE index. A client that does");
+    console.log("not refresh while that index is the published one cannot verify the new root and");
+    console.log("must forget and re-add the tap, re-pinning your key out of band. Keep that index");
+    console.log("published long enough for your users to refresh, and announce the new fingerprint.");
     return 0;
   } catch (error) {
     throw new Error(boundedSafeError(error));

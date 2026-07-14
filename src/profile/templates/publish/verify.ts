@@ -182,9 +182,23 @@ function assertSafeTap(tap: string): void {
   }
 }
 
+/**
+ * A snapshot can only accept rotations that are already RETAINED HISTORY
+ * (`effectiveSequence < index.sequence`). Those are inert here: a fresh pin never walks a
+ * chain, because `acceptedPublisherKeys` returns the announced key when nothing is pinned.
+ *
+ * Anything at or after this sequence is unprovable from a latest-snapshot-only directory —
+ * verifying it needs the key a client pinned from the PREVIOUS release, which this directory
+ * does not have. A tap-key rotation is always unprovable for the same reason.
+ *
+ * Refusing retained history too (the original rule) made this command permanently unusable
+ * for every tap that had ever rotated a key, because rotations are re-emitted in every index
+ * forever.
+ */
 function assertSnapshotContinuityScope(index: ReturnType<typeof parseSignedTapIndex>): void {
-  if (index.rotations.length > 0 || index.tapKeyRotation !== undefined) {
-    throw new Error("snapshot continuity cannot verify publisher or tap-key rotations");
+  const unprovable = index.rotations.some((rotation) => rotation.effectiveSequence >= index.sequence);
+  if (unprovable || index.tapKeyRotation !== undefined) {
+    throw new Error("snapshot continuity cannot verify publisher or tap-key rotations at this sequence");
   }
 }
 

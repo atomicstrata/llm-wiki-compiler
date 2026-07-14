@@ -19,7 +19,7 @@ export function parsePublisherWorkspace(text: string): PublisherWorkspace {
   exactKeys(root, [
     "schemaVersion", "tap", "publisher", "tapKey", "publisherKey", "sequence",
     "packages", "rotations", "tapKeyRotations", "revocations", "pending",
-    "coordinates", "lastBuild",
+    "coordinates", "lastBuild", "reservedSequence",
   ]);
   if (root.schemaVersion !== 1) throw new Error("workspace schemaVersion must be 1");
   const workspace: PublisherWorkspace = {
@@ -35,9 +35,35 @@ export function parsePublisherWorkspace(text: string): PublisherWorkspace {
     revocations: boundedArray(root.revocations, "workspace revocations") as PublisherWorkspace["revocations"],
     pending: boundedArray(root.pending, "workspace pending") as PublisherWorkspace["pending"],
     coordinates: coordinateMap(root.coordinates),
-    ...(root.lastBuild === undefined ? {} : { lastBuild: root.lastBuild as PublisherWorkspace["lastBuild"] }),
+    ...(root.lastBuild === undefined ? {} : { lastBuild: lastBuild(root.lastBuild) }),
+    ...(root.reservedSequence === undefined
+      ? {}
+      : { reservedSequence: naturalNumber(root.reservedSequence, "workspace reservedSequence") }),
   };
   return workspace;
+}
+
+/** The last build's recorded identity, validated rather than cast (audit LOW finding). */
+function lastBuild(value: unknown): PublisherWorkspace["lastBuild"] {
+  const obj = record(value, "workspace lastBuild");
+  exactKeysOf(obj, ["sequence", "indexDigest", "builtAt", "contentDigest"], "workspace lastBuild");
+  return {
+    sequence: naturalNumber(obj.sequence, "lastBuild sequence"),
+    indexDigest: digest(obj.indexDigest, "lastBuild indexDigest"),
+    builtAt: nonEmptyText(obj.builtAt, "lastBuild builtAt"),
+    contentDigest: digest(obj.contentDigest, "lastBuild contentDigest"),
+  };
+}
+
+function digest(value: unknown, label: string): string {
+  const text = nonEmptyText(value, label);
+  sha256DigestHex(text);
+  return text;
+}
+
+function nonEmptyText(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length === 0) throw new Error(`${label} must be a non-empty string`);
+  return value;
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {

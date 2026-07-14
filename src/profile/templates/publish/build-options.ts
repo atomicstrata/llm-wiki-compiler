@@ -2,7 +2,8 @@
  * @file src/profile/templates/publish/build-options.ts
  * @description Build input validation: where output may go, and how long it lives.
  */
-import { lstat, mkdir, realpath } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
+import { parseSignedTapIndex } from "../signing/protocol.js";
 import path from "node:path";
 import type { WorkspacePaths } from "./workspace-paths.js";
 
@@ -15,7 +16,7 @@ const MAX_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
  * this is the key-exfiltration control. Both sides are resolved with `realpath` — a
  * lexical comparison is defeated by a symlinked path.
  */
-export async function assertOutsideWorkspace(paths: WorkspacePaths, out: string): Promise<string> {
+export async function assertOutsideWorkspace(paths: WorkspacePaths, out: string, tap: string): Promise<string> {
   const resolvedOut = path.resolve(out);
   await mkdir(path.dirname(resolvedOut), { recursive: true });
   const realWorkspace = await realpath(paths.root);
@@ -24,18 +25,40 @@ export async function assertOutsideWorkspace(paths: WorkspacePaths, out: string)
   if (contains(realWorkspace, realOut) || contains(realOut, realWorkspace)) {
     throw new Error("build output must live outside the publisher workspace: it would publish private keys");
   }
-  await assertDirectoryOrAbsent(resolvedOut);
+  await assertReplaceableOutput(resolvedOut, tap);
   return resolvedOut;
 }
 
 /**
- * Refuse an output path that exists and is not a directory. Publishing moves an existing
- * output aside and then deletes it, so a file here would be silently destroyed.
+ * Publishing REPLACES the whole output directory: it is renamed aside and then deleted. So
+ * the only things safe to point `--out` at are nothing, an empty directory, or a previous
+ * distribution OF THIS TAP. Anything else is somebody's data, and this command must not be
+ * the reason it disappears.
  */
-async function assertDirectoryOrAbsent(out: string): Promise<void> {
+async function assertReplaceableOutput(out: string, tap: string): Promise<void> {
   const info = await lstat(out).catch(() => null);
-  if (info !== null && !info.isDirectory()) {
-    throw new Error("build output path exists and is not a directory");
+  if (info === null) return;
+  if (!info.isDirectory()) throw new Error("build output path exists and is not a directory");
+
+  const entries = await readdir(out);
+  if (entries.length === 0) return;
+  if (!(await isDistributionOfTap(out, entries, tap))) {
+    throw new Error(
+      "build output directory is not empty and is not a previous distribution of this tap; "
+      + "publishing would delete its contents",
+    );
+  }
+}
+
+/** A prior distribution: exactly index.json + packages/, whose index names THIS tap. */
+async function isDistributionOfTap(out: string, entries: string[], tap: string): Promise<boolean> {
+  if (entries.sort().join(",") !== "index.json,packages") return false;
+  const text = await readFile(path.join(out, "index.json"), "utf8").catch(() => null);
+  if (text === null) return false;
+  try {
+    return parseSignedTapIndex(text).tap === tap;
+  } catch {
+    return false;
   }
 }
 

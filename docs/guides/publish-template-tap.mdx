@@ -102,6 +102,15 @@ Rotations and revocations are **staged**, then signed by the next `build`. This 
 implementation detail: a rotation claim carries the sequence of the index that publishes
 it, and that sequence is only known at build time.
 
+<Warning>
+  A **tap-root** rotation is carried by exactly one index. A client that does not refresh
+  while that index is the published one cannot verify the new root: it must forget and
+  re-add the tap, re-pinning your key through your trusted channel. Publisher-key rotation
+  has no such window — a client can walk the retained chain from any later index. Keep a
+  tap-root rotation published long enough for users to refresh, and announce the new
+  fingerprint out of band.
+</Warning>
+
 A publisher-key rotation **re-signs every package** with the successor key. It must:
 a package signed by a retired key stops verifying the moment the index announces its
 successor, because a verifier resolves the publisher key by id from the current index.
