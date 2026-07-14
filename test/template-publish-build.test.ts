@@ -375,6 +375,26 @@ describe("publisher third-audit regressions", () => {
     await expect(p.build(true)).resolves.toMatchObject({ sequence: 2 });
   });
 
+  it.each([
+    { label: "publisher rotation", stage: async (p: Publisher) => stageRotatePublisherKey(p.paths, "acme-publisher-2027-01") },
+    { label: "tap rotation", stage: async (p: Publisher) => stageRotateTapKey(p.paths, "community-tap-2027-01") },
+    { label: "package revocation", stage: async (p: Publisher) => {
+      const ws = await readWorkspace(p.paths);
+      await stageRevokePackage(p.paths, ws.coordinates[Object.keys(ws.coordinates)[0]], "superseded");
+    } },
+  ])("refuses a no-change build after a $label", async ({ stage }) => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    await stage(p);
+    await expect(p.build()).resolves.toMatchObject({ sequence: 2 });
+
+    // The recorded content identity must reflect the COMMITTED state (successor keys, new
+    // revocations). If it recorded the pre-build keys, this third build would see a false
+    // change and publish sequence 3.
+    await expect(p.build()).rejects.toThrow(/nothing to build since sequence 2/i);
+  });
+
   it("refuses a staged tree carrying a duplicate envelope in place of a package", async () => {
     const p = await publisher();
     await p.add();

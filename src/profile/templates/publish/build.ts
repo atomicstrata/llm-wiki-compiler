@@ -18,6 +18,7 @@ import { readPrivateKey } from "./keystore.js";
 import { buildSignedIndex } from "./index-builder.js";
 import { verifyBuiltDistribution } from "./build-verify.js";
 import { signPendingIntents, type SignedIntents } from "./lifecycle.js";
+import type { TapRevocation } from "../signing/types.js";
 import { assertOutsideWorkspace, parseExpiresIn } from "./build-options.js";
 import type { WorkspacePaths } from "./workspace-paths.js";
 import { readWorkspace, writeWorkspace } from "./workspace-store.js";
@@ -53,7 +54,6 @@ export async function buildDistribution(paths: WorkspacePaths, options: BuildOpt
     const sequence = Math.max(workspace.sequence, workspace.reservedBuild?.sequence ?? 0) + 1;
     const intents = await signPendingIntents(paths, workspace, sequence, now);
     const packages = emittedPackages(workspace, intents);
-    assertHasSomethingToBuild(workspace, packages, options.force === true);
     const built = buildSignedIndex(workspace, {
       sequence,
       generatedAt: now,
@@ -67,11 +67,16 @@ export async function buildDistribution(paths: WorkspacePaths, options: BuildOpt
       packages,
     });
 
+    // The identity of the state THIS build commits — successor keys and the build's
+    // revocations, not the pre-build workspace. Used both to decide "is there anything to
+    // build" and as the recorded lastBuild, so both sides speak of the same committed state.
+    const effective = effectiveStateOf(workspace, built, intents);
+    assertHasSomethingToBuild(workspace, effective, packages, options.force === true);
     const identity: LastBuild = {
       sequence,
       indexDigest: canonicalDigest(built.index),
       builtAt: now.toISOString(),
-      contentDigest: contentDigestOf(workspace, packages),
+      contentDigest: contentDigestOf(effective, packages),
     };
     const staging = await stageTree(out, built.indexJson, packages);
     try {
@@ -124,21 +129,52 @@ async function indexSigningKey(paths: WorkspacePaths, workspace: PublisherWorksp
  * question. Compare the content this build would publish against the content the last build
  * did.
  */
-function assertHasSomethingToBuild(workspace: PublisherWorkspace, packages: WorkspacePackage[], force: boolean): void {
+function assertHasSomethingToBuild(
+  workspace: PublisherWorkspace,
+  effective: EffectiveState,
+  packages: WorkspacePackage[],
+  force: boolean,
+): void {
   if (force || workspace.lastBuild === undefined) return;
   if (workspace.pending.length > 0) return;
-  if (contentDigestOf(workspace, packages) !== workspace.lastBuild.contentDigest) return;
+  if (contentDigestOf(effective, packages) !== workspace.lastBuild.contentDigest) return;
   throw new Error(`nothing to build since sequence ${workspace.sequence}; pass --force to republish`);
 }
 
-/** The published content's identity: what is served, and under which keys. */
-function contentDigestOf(workspace: PublisherWorkspace, packages: WorkspacePackage[]): string {
+/**
+ * The published content's identity: what is served, and under which keys. It MUST reflect
+ * the state this build commits — successor keys and the build's revocations — not the
+ * pre-build workspace. Digesting the old key ids here would make the NEXT build always see a
+ * false change (the committed key id no longer matches the recorded one), defeating the
+ * no-change guard after any rotation.
+ */
+function contentDigestOf(effective: EffectiveState, packages: WorkspacePackage[]): string {
   return canonicalDigest({
     packages: packages.map((pkg) => pkg.payloadDigest).sort(),
-    revocations: workspace.revocations.map((revocation) => `${revocation.kind}:${revocation.value}`).sort(),
-    publisherKeyId: workspace.publisherKey.keyId,
-    tapKeyId: workspace.tapKey.keyId,
+    revocations: effective.revocations.map((revocation) => `${revocation.kind}:${revocation.value}`).sort(),
+    publisherKeyId: effective.publisherKeyId,
+    tapKeyId: effective.tapKeyId,
   });
+}
+
+/** The keys and revocations a build COMMITS, after applying its staged intents. */
+interface EffectiveState {
+  publisherKeyId: string;
+  tapKeyId: string;
+  revocations: TapRevocation[];
+}
+
+/** Resolve the state a build commits: successor keys where rotated, the built revocations. */
+function effectiveStateOf(
+  workspace: PublisherWorkspace,
+  built: ReturnType<typeof buildSignedIndex>,
+  intents: SignedIntents,
+): EffectiveState {
+  return {
+    publisherKeyId: (intents.nextPublisherKey ?? workspace.publisherKey).keyId,
+    tapKeyId: (intents.nextTapKey ?? workspace.tapKey).keyId,
+    revocations: built.revocations,
+  };
 }
 
 /** Write the complete tree to a staging directory beside `--out`. */
