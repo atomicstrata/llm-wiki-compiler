@@ -9,7 +9,7 @@
  * not first verify as a consumer would verify it.
  */
 import packageJson from "../../../../package.json" with { type: "json" };
-import { mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { canonicalDigest } from "../signing/canonical.js";
 import { sha256DigestHex } from "../signing/protocol.js";
@@ -21,7 +21,8 @@ import { signPendingIntents, type SignedIntents } from "./lifecycle.js";
 import { assertOutsideWorkspace, parseExpiresIn } from "./build-options.js";
 import type { WorkspacePaths } from "./workspace-paths.js";
 import { readWorkspace, writeWorkspace } from "./workspace-store.js";
-import type { PublisherWorkspace, WorkspacePackage } from "./workspace-types.js";
+import { readDistributionOnDisk } from "./tree-read.js";
+import type { LastBuild, PublisherWorkspace, WorkspacePackage } from "./workspace-types.js";
 
 /** Options accepted by `template publish build`. */
 export interface BuildOptions {
@@ -43,13 +44,13 @@ export interface BuildResult {
 export async function buildDistribution(paths: WorkspacePaths, options: BuildOptions): Promise<BuildResult> {
   return withExclusiveLock(paths, async () => {
     const workspace = await readWorkspace(paths);
-    const out = await assertOutsideWorkspace(paths, options.out, workspace.lastBuild);
+    const out = await assertOutsideWorkspace(paths, options.out, [workspace.lastBuild, workspace.reservedBuild]);
     const now = options.now ?? new Date();
     const expiresAt = parseExpiresIn(options.expiresIn, now);
     // Skip past a reserved sequence: a crash after publishing but before committing leaves a
     // signed index live at that sequence, and re-issuing it with different bytes would be a
     // replay for any client that already fetched it.
-    const sequence = Math.max(workspace.sequence, workspace.reservedSequence ?? 0) + 1;
+    const sequence = Math.max(workspace.sequence, workspace.reservedBuild?.sequence ?? 0) + 1;
     const intents = await signPendingIntents(paths, workspace, sequence, now);
     const packages = emittedPackages(workspace, intents);
     assertHasSomethingToBuild(workspace, packages, options.force === true);
@@ -66,19 +67,27 @@ export async function buildDistribution(paths: WorkspacePaths, options: BuildOpt
       packages,
     });
 
+    const identity: LastBuild = {
+      sequence,
+      indexDigest: canonicalDigest(built.index),
+      builtAt: now.toISOString(),
+      contentDigest: contentDigestOf(workspace, packages),
+    };
     const staging = await stageTree(out, built.indexJson, packages);
     try {
       // Verify the tree that will actually be PUBLISHED, read back from disk — not the
-      // in-memory strings we happen to hold. A staged tree that is corrupt, short a package,
-      // or carrying an extra file must never be swapped into place.
-      await verifyStagedTree(workspace, staging, packages.length);
-      await writeWorkspace(paths, { ...workspace, reservedSequence: sequence });
+      // in-memory strings we happen to hold.
+      await verifyStagedTree(workspace, staging);
+      // Reserve the full IDENTITY, not just the number: if the commit below never lands, a
+      // retry must recognize the tree we published as ours instead of refusing it as foreign
+      // data and deadlocking the workspace.
+      await writeWorkspace(paths, { ...workspace, reservedBuild: identity });
     } catch (error) {
       await rm(staging, { recursive: true, force: true });
       throw error;
     }
     await swapIntoPlace(staging, out);
-    await commitBuild(paths, workspace, built, intents, sequence, now, packages);
+    await commitBuild(paths, workspace, built, intents, identity);
 
     return {
       sequence,
@@ -153,29 +162,16 @@ async function stageTree(out: string, indexJson: string, packages: WorkspacePack
 }
 
 /**
- * Read the staged tree back from disk and verify it as a consumer would. This is the gate
- * the whole design rests on, so it must inspect the BYTES THAT WILL BE SERVED — including
- * that the tree holds exactly the expected files and nothing more.
+ * Read the staged tree back FROM DISK and verify it as a consumer would. This is the gate
+ * the whole design rests on, so it inspects the bytes that will actually be served through
+ * the Slice A exact-tree verifier: digest-derived filenames, one-to-one coverage of the
+ * index's entries, no extra or symlinked files, bounded no-follow reads. A name-and-count
+ * check would accept two copies of one envelope standing in for another package.
  */
-async function verifyStagedTree(
-  workspace: PublisherWorkspace,
-  staging: string,
-  expectedPackages: number,
-): Promise<void> {
-  const entries = (await readdir(staging)).sort();
-  if (entries.join(",") !== "index.json,packages") {
-    throw new Error("staged distribution contains unexpected entries");
-  }
-  const digestDir = path.join(staging, "packages", "sha256");
-  const files = await readdir(digestDir);
-  if (files.length !== expectedPackages) {
-    throw new Error("staged distribution does not hold exactly the expected packages");
-  }
-  const indexJson = await readFile(path.join(staging, "index.json"), "utf8");
-  const staged = await Promise.all(files.map(async (file) => ({
-    envelopeJson: await readFile(path.join(digestDir, file), "utf8"),
-  }) as WorkspacePackage));
-  verifyBuiltDistribution(workspace, indexJson, staged, packageJson.version);
+async function verifyStagedTree(workspace: PublisherWorkspace, staging: string): Promise<void> {
+  const onDisk = await readDistributionOnDisk(staging);
+  const staged = onDisk.envelopes.map((envelopeJson) => ({ envelopeJson }) as WorkspacePackage);
+  verifyBuiltDistribution(workspace, onDisk.indexJson, staged, packageJson.version);
 }
 
 async function swapIntoPlace(staging: string, out: string): Promise<void> {
@@ -197,29 +193,20 @@ async function commitBuild(
   workspace: PublisherWorkspace,
   built: ReturnType<typeof buildSignedIndex>,
   intents: SignedIntents,
-  sequence: number,
-  now: Date,
-  packages: WorkspacePackage[],
+  identity: LastBuild,
 ): Promise<void> {
   const committed: PublisherWorkspace = {
     ...workspace,
     tapKey: intents.nextTapKey ?? workspace.tapKey,
     publisherKey: intents.nextPublisherKey ?? workspace.publisherKey,
-    sequence,
+    sequence: identity.sequence,
     packages: intents.resignedPackages ?? workspace.packages,
     rotations: built.rotations,
     tapKeyRotations: built.tapKeyRotations,
     revocations: built.revocations,
     pending: [],
+    lastBuild: identity,
   };
-  delete committed.reservedSequence;
-  await writeWorkspace(paths, {
-    ...committed,
-    lastBuild: {
-      sequence,
-      indexDigest: canonicalDigest(built.index),
-      builtAt: now.toISOString(),
-      contentDigest: contentDigestOf(committed, packages),
-    },
-  });
+  delete committed.reservedBuild;
+  await writeWorkspace(paths, committed);
 }

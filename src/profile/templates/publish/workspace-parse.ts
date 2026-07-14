@@ -19,7 +19,7 @@ export function parsePublisherWorkspace(text: string): PublisherWorkspace {
   exactKeys(root, [
     "schemaVersion", "tap", "publisher", "tapKey", "publisherKey", "sequence",
     "packages", "rotations", "tapKeyRotations", "revocations", "pending",
-    "coordinates", "lastBuild", "reservedSequence",
+    "coordinates", "lastBuild", "reservedBuild",
   ]);
   if (root.schemaVersion !== 1) throw new Error("workspace schemaVersion must be 1");
   const workspace: PublisherWorkspace = {
@@ -36,9 +36,7 @@ export function parsePublisherWorkspace(text: string): PublisherWorkspace {
     pending: boundedArray(root.pending, "workspace pending").map(pendingIntent),
     coordinates: coordinateMap(root.coordinates),
     ...(root.lastBuild === undefined ? {} : { lastBuild: lastBuild(root.lastBuild) }),
-    ...(root.reservedSequence === undefined
-      ? {}
-      : { reservedSequence: naturalNumber(root.reservedSequence, "workspace reservedSequence") }),
+    ...(root.reservedBuild === undefined ? {} : { reservedBuild: lastBuild(root.reservedBuild) }),
   };
   return workspace;
 }

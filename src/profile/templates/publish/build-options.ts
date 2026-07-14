@@ -3,12 +3,9 @@
  * @description Build input validation: where output may go, and how long it lives.
  */
 import { lstat, mkdir, readdir, realpath } from "node:fs/promises";
-import { readCappedNoFollow } from "../../../utils/confined-read.js";
 import { canonicalDigest } from "../signing/canonical.js";
-import { parseSignedTapIndex } from "../signing/protocol.js";
+import { readDistributionOnDisk } from "./tree-read.js";
 import type { LastBuild } from "./workspace-types.js";
-
-const MAX_INDEX_BYTES = 4 * 1024 * 1024;
 import path from "node:path";
 import type { WorkspacePaths } from "./workspace-paths.js";
 
@@ -24,7 +21,7 @@ const MAX_EXPIRY_MS = 365 * 24 * 60 * 60 * 1000;
 export async function assertOutsideWorkspace(
   paths: WorkspacePaths,
   out: string,
-  lastBuild: LastBuild | undefined,
+  known: (LastBuild | undefined)[],
 ): Promise<string> {
   const resolvedOut = path.resolve(out);
   await mkdir(path.dirname(resolvedOut), { recursive: true });
@@ -34,7 +31,7 @@ export async function assertOutsideWorkspace(
   if (contains(realWorkspace, realOut) || contains(realOut, realWorkspace)) {
     throw new Error("build output must live outside the publisher workspace: it would publish private keys");
   }
-  await assertReplaceableOutput(resolvedOut, lastBuild);
+  await assertReplaceableOutput(resolvedOut, known);
   return resolvedOut;
 }
 
@@ -48,14 +45,14 @@ export async function assertOutsideWorkspace(
  * index digests to exactly what `lastBuild` recorded — an identity we produced and stored,
  * so no attacker-supplied bytes can satisfy it.
  */
-async function assertReplaceableOutput(out: string, lastBuild: LastBuild | undefined): Promise<void> {
+async function assertReplaceableOutput(out: string, known: (LastBuild | undefined)[]): Promise<void> {
   const info = await lstat(out).catch(() => null);
   if (info === null) return;
   if (!info.isDirectory()) throw new Error("build output path exists and is not a directory");
 
   const entries = await readdir(out);
   if (entries.length === 0) return;
-  if (!(await isOurPreviousBuild(out, entries, lastBuild))) {
+  if (!(await isOurPublishedTree(out, known))) {
     throw new Error(
       "build output directory is not empty and is not a tree this workspace published; "
       + "publishing would delete its contents",
@@ -63,18 +60,21 @@ async function assertReplaceableOutput(out: string, lastBuild: LastBuild | undef
   }
 }
 
-/** Exactly index.json + packages/, whose index is byte-for-byte the one we last published. */
-async function isOurPreviousBuild(
-  out: string,
-  entries: string[],
-  lastBuild: LastBuild | undefined,
-): Promise<boolean> {
-  if (lastBuild === undefined) return false;
-  if (entries.sort().join(",") !== "index.json,packages") return false;
-  const read = await readCappedNoFollow(path.join(out, "index.json"), MAX_INDEX_BYTES);
-  if (read.kind !== "ok") return false;
+/**
+ * A tree THIS WORKSPACE published: an exact distribution (no extra, missing, symlinked, or
+ * special entries — enforced by the Slice A filesystem verifier) whose index digests to one
+ * we recorded publishing.
+ *
+ * Checking the index alone is not enough: an index is PUBLIC and copyable, so anyone can
+ * drop a legitimate index beside their own files. Only the exact-tree check proves the
+ * directory itself is a distribution and holds nothing else we would be deleting.
+ */
+async function isOurPublishedTree(out: string, known: (LastBuild | undefined)[]): Promise<boolean> {
+  const digests = known.filter((build) => build !== undefined).map((build) => build.indexDigest);
+  if (digests.length === 0) return false;
   try {
-    return canonicalDigest(parseSignedTapIndex(read.body)) === lastBuild.indexDigest;
+    const onDisk = await readDistributionOnDisk(out);
+    return digests.includes(canonicalDigest(onDisk.index));
   } catch {
     return false;
   }

@@ -16,6 +16,13 @@
  *    at `submit-manuscript` (non-zero exit; page never reaches `submitted`).
  */
 
+import { vi } from "vitest";
+// This suite drives the whole CLI through many subprocess spawns and runs ~25s of
+// subprocess work against the 30s default. vitest already caps workers because subprocess
+// tests starve each other under load, so on a slower CI runner any test here can breach 30s
+// with nothing broken. Raise the timeout for the whole FILE — the fix belongs at file scope,
+// not on one victim test at a time. No assertion is weakened.
+vi.setConfig({ testTimeout: 90_000 });
 import { describe, it, beforeEach, afterEach, expect } from "vitest";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import path from "node:path";

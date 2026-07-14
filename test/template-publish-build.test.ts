@@ -28,6 +28,8 @@ import { verifyBuiltDistribution } from "../src/profile/templates/publish/build-
 import type { PublisherWorkspace, WorkspacePackage } from "../src/profile/templates/publish/workspace-types.js";
 import { parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";
 import { generateEd25519Keypair } from "../src/profile/templates/signing/sign.js";
+import { canonicalDigest } from "../src/profile/templates/signing/canonical.js";
+import { readDistributionOnDisk } from "../src/profile/templates/publish/tree-read.js";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
 const roots = publisherTempRoots();
@@ -266,15 +268,19 @@ describe("publisher adversarial-audit regressions", () => {
   it("never reissues a sequence that was already handed to a published tree", async () => {
     const p = await publisher();
     await p.add();
-    await p.build();
-    // Simulate a crash after publishing but before committing: the sequence is reserved
-    // but not committed. Re-issuing it with different bytes would be a replay for any
-    // client that already fetched the published index.
+    const first = await p.build();
+    // Simulate a crash after publishing but before committing.
     const ws = await readWorkspace(p.paths);
-    await writeWorkspace(p.paths, { ...ws, reservedSequence: 2 });
+    await writeWorkspace(p.paths, {
+      ...ws,
+      reservedBuild: { ...ws.lastBuild!, sequence: 2, indexDigest: `sha256:${"c".repeat(64)}` },
+    });
     await p.addSecond();
 
+    // Re-issuing sequence 2 with different bytes would be a replay for any client that
+    // fetched the published index, so the retry moves past it.
     await expect(p.build()).resolves.toMatchObject({ sequence: 3 });
+    expect(first.sequence).toBe(1);
   });
 });
 
@@ -329,6 +335,58 @@ describe("publisher second-audit regressions", () => {
     await writeWorkspace(p.paths, { ...ws, publisherKey: foreign.publicKey });
 
     await expect(p.add()).rejects.toThrow(/does not match the workspace's announced publisher key/i);
+  });
+});
+
+describe("publisher third-audit regressions", () => {
+  it("refuses to delete a directory that merely holds a COPY of our index", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    // The index is PUBLIC and copyable. Dropping a legitimate index beside somebody's files
+    // must not make their directory look like ours and get it deleted.
+    const victim = path.join(await roots.create("victim"), "site");
+    await mkdir(path.join(victim, "packages"), { recursive: true });
+    await writeFile(path.join(victim, "index.json"), await readFile(path.join(p.out, "index.json"), "utf8"), "utf8");
+    await writeFile(path.join(victim, "packages", "do-not-delete.txt"), "PRECIOUS", "utf8");
+    await p.addSecond();
+
+    await expect(buildDistribution(p.paths, { out: victim, expiresIn: "30d" }))
+      .rejects.toThrow(/not a tree this workspace published/i);
+
+    expect(await readFile(path.join(victim, "packages", "do-not-delete.txt"), "utf8")).toBe("PRECIOUS");
+  });
+
+  it("recovers from a commit that never landed instead of deadlocking", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.build();
+    // Crash after the swap, before the commit: the workspace still names the OLD index while
+    // the NEW one is live. The retry must recognize the published tree as ours.
+    const ws = await readWorkspace(p.paths);
+    const published = JSON.parse(await readFile(path.join(p.out, "index.json"), "utf8")) as object;
+    await writeWorkspace(p.paths, {
+      ...ws,
+      sequence: 0,
+      lastBuild: undefined as never,
+      reservedBuild: { ...ws.lastBuild!, indexDigest: canonicalDigest(published) },
+    });
+
+    await expect(p.build(true)).resolves.toMatchObject({ sequence: 2 });
+  });
+
+  it("refuses a staged tree carrying a duplicate envelope in place of a package", async () => {
+    const p = await publisher();
+    await p.add();
+    await p.addSecond();
+    await p.build();
+    // A name-and-count check would accept two copies of one valid envelope standing in for
+    // another package. The exact-tree verifier derives filenames from the index's digests.
+    const digestDir = path.join(p.out, "packages", "sha256");
+    const [a, b] = (await readdir(digestDir)).sort();
+    await writeFile(path.join(digestDir, b), await readFile(path.join(digestDir, a), "utf8"), "utf8");
+
+    await expect(readDistributionOnDisk(p.out)).rejects.toThrow();
   });
 });
 

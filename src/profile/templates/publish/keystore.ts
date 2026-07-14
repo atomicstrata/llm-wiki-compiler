@@ -8,7 +8,7 @@
  * only to `signClaim`; it is never printed, logged, or written to the manifest.
  */
 import { createHash } from "node:crypto";
-import { open, realpath } from "node:fs/promises";
+import { lstat, open, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../../../utils/atomic-write.js";
 import { readCappedNoFollowBuffer } from "../../../utils/confined-read.js";
@@ -31,7 +31,7 @@ export async function createKeypairFile(
 ): Promise<PublisherKey> {
   assertSlugKeyId(keyId);
   const generated = generateEd25519Keypair(keyId);
-  await writeExclusivePrivateKey(await confinedKeyPath(paths, role, keyId, "key"), generated.privateKey.privateKey, role, keyId);
+  await writeExclusivePrivateKey(paths, await confinedKeyPath(paths, role, keyId, "key"), generated.privateKey.privateKey, role, keyId);
   // Both the leaf and the confine root are realpath'd, so they cannot disagree about
   // /var vs /private/var and silently refuse a legitimate write.
   await atomicWrite(await confinedKeyPath(paths, role, keyId, "pub"), `${generated.publicKey.publicKey}\n`, {
@@ -73,7 +73,18 @@ export function publicKeyFingerprint(key: PublisherKey): string {
   return createHash("sha256").update(Buffer.from(key.publicKey, "base64")).digest("hex");
 }
 
+/**
+ * Create the key file EMPTY, prove the thing we opened is the file we meant — same inode as
+ * the path, inside a parent that still realpaths into the workspace — and only THEN write
+ * the private bytes.
+ *
+ * Resolving the parent and then opening is a check-then-use: the directory can be swapped in
+ * between. Binding the open HANDLE to the verified path closes that window, because a swap
+ * makes the handle's inode and the path's inode disagree, and no key byte has been written
+ * yet. The file is removed if that check fails.
+ */
 async function writeExclusivePrivateKey(
+  paths: WorkspacePaths,
   file: string,
   privateKey: string,
   role: KeyRole,
@@ -82,15 +93,39 @@ async function writeExclusivePrivateKey(
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(file, "wx", 0o600);
+    await assertHandleStillConfined(paths, file, handle);
     await handle.writeFile(`${privateKey}\n`, "utf8");
     await handle.sync();
   } catch (error) {
+    await handle?.close().catch(() => {});
+    handle = undefined;
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
       throw new Error(`private key already exists and is never overwritten: ${role}/${keyId}`);
     }
+    // The empty leaf we just created must not survive a failed confinement check.
+    await unlink(file).catch(() => undefined);
     throw error;
   } finally {
     await handle?.close().catch(() => {});
+  }
+}
+
+/** The opened handle must BE the verified path, still inside the workspace. */
+async function assertHandleStillConfined(
+  paths: WorkspacePaths,
+  file: string,
+  handle: Awaited<ReturnType<typeof open>>,
+): Promise<void> {
+  const [opened, onPath, realRoot, realParent] = await Promise.all([
+    handle.stat(),
+    lstat(file),
+    realpath(paths.root),
+    realpath(path.dirname(file)),
+  ]);
+  const sameFile = opened.dev === onPath.dev && opened.ino === onPath.ino;
+  const insideRoot = realParent === realRoot || realParent.startsWith(`${realRoot}${path.sep}`);
+  if (!sameFile || onPath.isSymbolicLink() || !insideRoot) {
+    throw new Error("key directory changed while the key was being created; no key was written");
   }
 }
 

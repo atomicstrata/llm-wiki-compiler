@@ -78,10 +78,12 @@ export interface PublisherWorkspace {
   coordinates: Record<string, string>;
   lastBuild?: LastBuild;
   /**
-   * A sequence handed to a published tree but not yet committed. A crash between
-   * publishing and committing leaves a signed index live at that sequence; re-issuing it
-   * with different bytes would be a rollback/replay for any client that fetched it. So the
-   * next build skips past a reserved sequence rather than reusing it.
+   * A build that was handed to a published tree but whose commit did not land. It records
+   * the IDENTITY of what may already be live, not just the number:
+   *  - the next build skips past its sequence, because re-issuing a sequence with different
+   *    bytes is a replay for any client that fetched the first one;
+   *  - the output it published is recognized as OURS, so a retry can replace it instead of
+   *    refusing it as foreign data and deadlocking the workspace.
    */
-  reservedSequence?: number;
+  reservedBuild?: LastBuild;
 }
