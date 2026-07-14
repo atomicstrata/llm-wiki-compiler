@@ -34,7 +34,9 @@ import {
   type TemplateSearchOptions,
 } from "../commands/template-remote.js";
 import {
+  templatePublishInitCommand,
   templatePublishVerifyCommand,
+  type TemplatePublishInitOptions,
   type TemplatePublishVerifyOptions,
 } from "../commands/template-publish.js";
 
@@ -78,7 +80,20 @@ export function registerTemplateCommands(program: Command): void {
 
   const publish = template
     .command("publish")
-    .description("Verify template publisher distributions");
+    .description("Author, build, and verify template publisher distributions");
+
+  publish
+    .command("init <directory>")
+    .description("Create a publisher workspace with fresh tap and publisher keys")
+    .requiredOption("--tap <name>", "Tap identity this workspace publishes")
+    .requiredOption("--publisher <name>", "Publisher identity that signs packages")
+    .option("--tap-key-id <id>", "Override the generated tap key id")
+    .option("--publisher-key-id <id>", "Override the generated publisher key id")
+    .option("--json", "Print a stable versioned JSON result")
+    .action(async (directory: string, options: TemplatePublishInitOptions) =>
+      runExitCodeCommand(() => templatePublishInitCommand(directory, options), { colorError: false }),
+    );
+
   publish
     .command("verify <directory>")
     .description("Verify a signed publisher distribution offline")

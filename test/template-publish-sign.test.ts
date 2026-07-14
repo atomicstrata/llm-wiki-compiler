@@ -27,13 +27,19 @@ function unsignedIndex(publicKey: string): Omit<SignedTapIndex, "signature"> {
   };
 }
 
+/** Build one signed index and return it with the key that signed it. */
+function signedIndex(): { tap: ReturnType<typeof generateEd25519Keypair>; index: SignedTapIndex } {
+  const tap = generateEd25519Keypair("community-tap-1");
+  const unsigned = unsignedIndex(tap.publicKey.publicKey);
+  const signature = signClaim(tapIndexClaim(unsigned), tap.privateKey);
+  return { tap, index: { ...unsigned, signature } };
+}
+
 describe("publisher signing primitives", () => {
   it("produces an index signature the production verifier accepts", () => {
-    const tap = generateEd25519Keypair("community-tap-1");
-    const unsigned = unsignedIndex(tap.publicKey.publicKey);
-    const signature = signClaim(tapIndexClaim(unsigned), tap.privateKey);
+    const { tap, index } = signedIndex();
 
-    const parsed = parseSignedTapIndex(JSON.stringify({ ...unsigned, signature }));
+    const parsed = parseSignedTapIndex(JSON.stringify(index));
 
     expect(() => verifyTapIndex(parsed, "community", tap.publicKey)).not.toThrow();
   });
@@ -50,11 +56,9 @@ describe("publisher signing primitives", () => {
   });
 
   it("refuses a signature made over a mutated claim", () => {
-    const tap = generateEd25519Keypair("community-tap-1");
-    const unsigned = unsignedIndex(tap.publicKey.publicKey);
-    const signature = signClaim(tapIndexClaim(unsigned), tap.privateKey);
+    const { tap, index } = signedIndex();
 
-    const parsed = parseSignedTapIndex(JSON.stringify({ ...unsigned, sequence: 2, signature }));
+    const parsed = parseSignedTapIndex(JSON.stringify({ ...index, sequence: 2 }));
 
     expect(() => verifyTapIndex(parsed, "community", tap.publicKey))
       .toThrow(/signature verification failed/i);

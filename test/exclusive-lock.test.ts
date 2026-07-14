@@ -3,18 +3,16 @@
  * @description The generic token-owned file lock serializes holders and always
  * releases, including when the guarded operation throws.
  */
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { withExclusiveLock, type LockPaths } from "../src/utils/exclusive-lock.js";
+import { publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
-const roots: string[] = [];
-afterEach(async () => Promise.all(roots.splice(0).map((r) => rm(r, { recursive: true, force: true }))));
+const roots = publisherTempRoots();
+afterEach(roots.cleanup);
 
 async function lockPaths(): Promise<LockPaths> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "llmwiki-lock-"));
-  roots.push(root);
+  const root = await roots.create("lock");
   return { root, lockFile: path.join(root, "state.lock") };
 }
 
