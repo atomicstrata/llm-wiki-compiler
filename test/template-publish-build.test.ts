@@ -27,34 +27,11 @@ import { readWorkspace } from "../src/profile/templates/publish/workspace-store.
 import { verifyBuiltDistribution } from "../src/profile/templates/publish/build-verify.js";
 import type { PublisherWorkspace, WorkspacePackage } from "../src/profile/templates/publish/workspace-types.js";
 import { parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";
-import { publisherTempRoots } from "./fixtures/publisher-workspace.js";
+import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 
-const TEMPLATE = {
-  schemaVersion: 1,
-  templateId: "incident-response",
-  version: "1.0.0",
-  displayName: "Incident Response",
-  publisher: "acme",
-  sourceType: "remote",
-  license: "MIT",
-  minLlmwikiVersion: "1.0.0",
-  profile: {
-    schemaVersion: 1,
-    profileId: "incident-response",
-    displayName: "Incident Response",
-    entities: {
-      incidents: {
-        directory: "wiki/incidents",
-        titleField: "title",
-        requiredFields: ["title"],
-        fields: { title: { type: "string" } },
-      },
-    },
-  },
-};
 
 interface Publisher {
   paths: WorkspacePaths;
@@ -77,7 +54,7 @@ async function publisher(): Promise<Publisher> {
     keyFile: path.join(paths.keysDir, `tap-${init.tapKey.keyId}.pub`),
     add: async () => {
       const file = path.join(root, "incident-response.json");
-      await writeFile(file, JSON.stringify(TEMPLATE), "utf8");
+      await writeFile(file, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
       const result = await addPackage(paths, file, "1.0.0");
       return result.payloadDigest;
     },
@@ -204,7 +181,7 @@ describe("publisher add", () => {
     const root = path.dirname(p.paths.root);
     await p.add();
     const mutated = path.join(root, "mutated.json");
-    await writeFile(mutated, JSON.stringify({ ...TEMPLATE, displayName: "Changed" }), "utf8");
+    await writeFile(mutated, JSON.stringify({ ...PUBLISHER_TEMPLATE, displayName: "Changed" }), "utf8");
 
     await expect(addPackage(p.paths, mutated, "1.0.0")).rejects.toThrow(/immutable/i);
   });

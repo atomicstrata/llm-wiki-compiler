@@ -22,3 +22,28 @@ export async function outsideFile(root: string, name: string, content: string): 
   await writeFile(file, content, "utf8");
   return file;
 }
+
+/** A minimal, valid remote template package used by the publisher suites. */
+export const PUBLISHER_TEMPLATE = {
+  schemaVersion: 1,
+  templateId: "incident-response",
+  version: "1.0.0",
+  displayName: "Incident Response",
+  publisher: "acme",
+  sourceType: "remote",
+  license: "MIT",
+  minLlmwikiVersion: "1.0.0",
+  profile: {
+    schemaVersion: 1,
+    profileId: "incident-response",
+    displayName: "Incident Response",
+    entities: {
+      incidents: {
+        directory: "wiki/incidents",
+        titleField: "title",
+        requiredFields: ["title"],
+        fields: { title: { type: "string" } },
+      },
+    },
+  },
+};

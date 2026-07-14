@@ -11,72 +11,57 @@ import { spawnSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { publisherTempRoots } from "./fixtures/publisher-workspace.js";
+import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
 const CLI = path.resolve("dist/cli.js");
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 
-const TEMPLATE = {
-  schemaVersion: 1,
-  templateId: "incident-response",
-  version: "1.0.0",
-  displayName: "Incident Response",
-  publisher: "acme",
-  sourceType: "remote",
-  license: "MIT",
-  minLlmwikiVersion: "1.0.0",
-  profile: {
-    schemaVersion: 1,
-    profileId: "incident-response",
-    displayName: "Incident Response",
-    entities: {
-      incidents: {
-        directory: "wiki/incidents",
-        titleField: "title",
-        requiredFields: ["title"],
-        fields: { title: { type: "string" } },
-      },
-    },
-  },
-};
 
 function run(args: string[]) {
   return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
 }
 
+interface Published {
+  workspace: string;
+  out: string;
+  add: ReturnType<typeof run>;
+  build: ReturnType<typeof run>;
+}
+
+/** Init a workspace, record one package, and build it — the whole happy path. */
+async function publishOnce(root: string): Promise<Published> {
+  const workspace = path.join(root, "w");
+  const out = path.join(root, "dist");
+  const packageFile = path.join(root, "package.json");
+  await writeFile(packageFile, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
+  run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
+  const add = run(["template", "publish", "add", packageFile, "--workspace", workspace, "--package-version", "1.0.0"]);
+  const build = run(["template", "publish", "build", "--workspace", workspace, "--expires-in", "30d", "--out", out]);
+  return { workspace, out, add, build };
+}
+
+/** The tap key id init generated, read back from the keystore. */
+async function tapKeyIdOf(workspace: string): Promise<string> {
+  const keys = await readdir(path.join(workspace, "keys"));
+  return keys.find((f) => f.startsWith("tap-") && f.endsWith(".pub"))!
+    .replace(/^tap-/, "").replace(/\.pub$/, "");
+}
+
 describe("publisher CLI end to end", () => {
   it("initializes, adds, builds, and verifies a real distribution", async () => {
-    const root = await roots.create("cli-pub");
-    const workspace = path.join(root, "w");
-    const out = path.join(root, "dist");
-    const packageFile = path.join(root, "package.json");
-    await writeFile(packageFile, JSON.stringify(TEMPLATE), "utf8");
+    const { workspace, out, add, build } = await publishOnce(await roots.create("cli-pub"));
 
-    const init = run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
-    expect(init.status).toBe(0);
-
-    const add = run([
-      "template", "publish", "add", packageFile,
-      "--workspace", workspace, "--package-version", "1.0.0",
-    ]);
     expect(add.status).toBe(0);
     expect(add.stdout).toContain("Recorded signed package");
     expect(add.stdout).toContain("community/acme/incident-response@1.0.0");
 
-    const build = run([
-      "template", "publish", "build",
-      "--workspace", workspace, "--expires-in", "30d", "--out", out,
-    ]);
     expect(build.status).toBe(0);
     // The regression that mattered: an eaten --version silently produced ZERO packages
     // and still built a "valid" empty distribution.
     expect(build.stdout).toContain("Packages: 1");
 
-    const keys = await readdir(path.join(workspace, "keys"));
-    const tapKeyId = keys.find((f) => f.startsWith("tap-") && f.endsWith(".pub"))!
-      .replace(/^tap-/, "").replace(/\.pub$/, "");
-
+    const tapKeyId = await tapKeyIdOf(workspace);
     const verify = run([
       "template", "publish", "verify", out,
       "--tap", "community", "--key-id", tapKeyId,
@@ -88,14 +73,7 @@ describe("publisher CLI end to end", () => {
   });
 
   it("never writes private key bytes into the published tree", async () => {
-    const root = await roots.create("cli-leak");
-    const workspace = path.join(root, "w");
-    const out = path.join(root, "dist");
-    const packageFile = path.join(root, "package.json");
-    await writeFile(packageFile, JSON.stringify(TEMPLATE), "utf8");
-    run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
-    run(["template", "publish", "add", packageFile, "--workspace", workspace, "--package-version", "1.0.0"]);
-    run(["template", "publish", "build", "--workspace", workspace, "--expires-in", "30d", "--out", out]);
+    const { workspace, out } = await publishOnce(await roots.create("cli-leak"));
 
     const keysDir = path.join(workspace, "keys");
     const privateKeys = await Promise.all(
