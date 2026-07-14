@@ -120,7 +120,7 @@ function printInitResult(result: InitWorkspaceResult): void {
 }
 
 /** Options accepted by `template publish add`. */
-export interface TemplatePublishAddOptions { workspace: string; version: string; json?: boolean }
+export interface TemplatePublishAddOptions { workspace: string; packageVersion: string; json?: boolean }
 
 /** Validate, sign, and record one template package into the workspace. */
 export async function templatePublishAddCommand(
@@ -128,7 +128,7 @@ export async function templatePublishAddCommand(
   options: TemplatePublishAddOptions,
 ): Promise<number> {
   try {
-    const result = await addPackage(resolveWorkspacePaths(options.workspace), packageFile, options.version);
+    const result = await addPackage(resolveWorkspacePaths(options.workspace), packageFile, options.packageVersion);
     if (options.json) console.log(JSON.stringify({ schemaVersion: 1, ...result }, null, 2));
     else {
       console.log(result.alreadyPresent ? "Package already recorded." : "Recorded signed package.");

@@ -106,7 +106,7 @@ export function registerTemplateCommands(program: Command): void {
     .command("add <package-file>")
     .description("Validate, sign, and record one template package")
     .requiredOption("--workspace <path>", "Publisher workspace directory")
-    .requiredOption("--version <version>", "Version this package is published as")
+    .requiredOption("--package-version <version>", "Version this package is published as")
     .option("--json", "Print a stable versioned JSON result")
     .action(async (packageFile: string, options: TemplatePublishAddOptions) =>
       runExitCodeCommand(() => templatePublishAddCommand(packageFile, options), { colorError: false }),

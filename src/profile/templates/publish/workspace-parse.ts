@@ -7,7 +7,7 @@
  */
 import { isSlugSafe } from "../../identity.js";
 import { parseBoundedUniqueJson } from "../signing/json.js";
-import { sha256DigestHex } from "../signing/protocol.js";
+import { parseTemplateCoordinate, sha256DigestHex } from "../signing/protocol.js";
 import type { PublisherWorkspace } from "./workspace-types.js";
 
 export const MAX_WORKSPACE_BYTES = 4 * 1024 * 1024;
@@ -82,14 +82,20 @@ function boundedArray(value: unknown, label: string): unknown[] {
   return value;
 }
 
+/**
+ * Every key is validated by the production coordinate parser, so a hostile manifest
+ * cannot smuggle a non-coordinate key (`__proto__`, a traversal string) into the map
+ * that `add` consults for coordinate immutability.
+ */
 function coordinateMap(value: unknown): Record<string, string> {
   const obj = record(value, "workspace coordinates");
   if (Object.keys(obj).length > MAX_ITEMS) throw new Error("workspace coordinates exceeds its item cap");
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [coordinate, digest] of Object.entries(obj)) {
     if (typeof digest !== "string") throw new Error("workspace coordinate digest must be a string");
+    parseTemplateCoordinate(coordinate);
     sha256DigestHex(digest);
     result[coordinate] = digest;
   }
-  return result;
+  return { ...result };
 }
