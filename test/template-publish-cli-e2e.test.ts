@@ -2,10 +2,14 @@
  * @file test/template-publish-cli-e2e.test.ts
  * @description The publisher workflow through the REAL compiled CLI.
  *
- * This layer exists because unit tests call the functions directly and therefore cannot
- * see option-parsing faults. A `--version` flag on `publish add` was silently eaten by
- * Commander's global version flag: `add` never ran, and `build` happily published an
- * EMPTY distribution that still verified. Only a run through the built binary catches it.
+ * This layer exists because unit tests call the functions directly and therefore cannot see
+ * option-parsing faults. A `--version` flag on `publish add` was silently eaten by
+ * Commander's global version flag: `add` never ran, and `build` happily published an EMPTY
+ * distribution that still verified. Only a run through the built binary catches that.
+ *
+ * Every assertion rides ONE workflow run. Each CLI spawn is a full node start, and this
+ * suite runs beside long subprocess e2e suites that sit near the 30s timeout — so the
+ * coverage is kept and the process count is not.
  */
 import { spawnSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
@@ -17,67 +21,55 @@ const CLI = path.resolve("dist/cli.js");
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 
-
 function run(args: string[]) {
   return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
 }
 
-interface Published {
-  workspace: string;
-  out: string;
-  add: ReturnType<typeof run>;
-  build: ReturnType<typeof run>;
-}
-
-/** Init a workspace, record one package, and build it — the whole happy path. */
-async function publishOnce(root: string): Promise<Published> {
-  const workspace = path.join(root, "w");
-  const out = path.join(root, "dist");
-  const packageFile = path.join(root, "package.json");
-  await writeFile(packageFile, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
-  run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
-  const add = run(["template", "publish", "add", packageFile, "--workspace", workspace, "--package-version", "1.0.0"]);
-  const build = run(["template", "publish", "build", "--workspace", workspace, "--expires-in", "30d", "--out", out]);
-  return { workspace, out, add, build };
-}
-
-/** The tap key id init generated, read back from the keystore. */
-async function tapKeyIdOf(workspace: string): Promise<string> {
-  const keys = await readdir(path.join(workspace, "keys"));
-  return keys.find((f) => f.startsWith("tap-") && f.endsWith(".pub"))!
-    .replace(/^tap-/, "").replace(/\.pub$/, "");
-}
-
 describe("publisher CLI end to end", () => {
-  it("initializes, adds, builds, and verifies a real distribution", async () => {
-    const { workspace, out, add, build } = await publishOnce(await roots.create("cli-pub"));
+  it("initializes, adds, builds, verifies, and never publishes a private key", async () => {
+    const root = await roots.create("cli-pub");
+    const workspace = path.join(root, "w");
+    const out = path.join(root, "dist");
+    const packageFile = path.join(root, "package.json");
+    await writeFile(packageFile, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
 
+    const init = run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
+    expect(init.status).toBe(0);
+
+    const add = run([
+      "template", "publish", "add", packageFile,
+      "--workspace", workspace, "--package-version", "1.0.0",
+    ]);
     expect(add.status).toBe(0);
     expect(add.stdout).toContain("Recorded signed package");
     expect(add.stdout).toContain("community/acme/incident-response@1.0.0");
 
+    const build = run([
+      "template", "publish", "build",
+      "--workspace", workspace, "--expires-in", "30d", "--out", out,
+    ]);
     expect(build.status).toBe(0);
-    // The regression that mattered: an eaten --version silently produced ZERO packages
-    // and still built a "valid" empty distribution.
+    // The regression that mattered: an eaten --version silently produced ZERO packages and
+    // still built a "valid" empty distribution.
     expect(build.stdout).toContain("Packages: 1");
 
-    const tapKeyId = await tapKeyIdOf(workspace);
+    const keysDir = path.join(workspace, "keys");
+    const keys = await readdir(keysDir);
+    const tapKeyId = keys.find((f) => f.startsWith("tap-") && f.endsWith(".pub"))!
+      .replace(/^tap-/, "").replace(/\.pub$/, "");
+
     const verify = run([
       "template", "publish", "verify", out,
       "--tap", "community", "--key-id", tapKeyId,
-      "--key-file", path.join(workspace, "keys", `tap-${tapKeyId}.pub`),
+      "--key-file", path.join(keysDir, `tap-${tapKeyId}.pub`),
     ]);
     expect(verify.status).toBe(0);
     expect(verify.stdout).toContain("Verified template publisher distribution");
     expect(verify.stdout).toContain("Packages: 1");
-  });
 
-  it("never writes private key bytes into the published tree", async () => {
-    const { workspace, out } = await publishOnce(await roots.create("cli-leak"));
-
-    const keysDir = path.join(workspace, "keys");
+    // No private key byte may reach the published tree.
     const privateKeys = await Promise.all(
-      (await readdir(keysDir)).filter((f) => f.endsWith(".key"))
+      keys.filter((f) => f.endsWith(".key"))
         .map(async (f) => (await readFile(path.join(keysDir, f), "utf8")).trim()),
     );
     const digestDir = path.join(out, "packages", "sha256");
@@ -85,25 +77,18 @@ describe("publisher CLI end to end", () => {
       readFile(path.join(out, "index.json"), "utf8"),
       ...(await readdir(digestDir)).map((f) => readFile(path.join(digestDir, f), "utf8")),
     ]);
-
     expect(privateKeys.length).toBeGreaterThan(0);
     for (const key of privateKeys) {
       for (const blob of published) expect(blob).not.toContain(key);
     }
-  });
 
-  it("refuses an output directory inside the workspace", async () => {
-    const root = await roots.create("cli-inside");
-    const workspace = path.join(root, "w");
-    run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
-
-    const build = run([
+    // And the output may never live inside the workspace, which would publish those keys.
+    const inside = run([
       "template", "publish", "build",
       "--workspace", workspace, "--expires-in", "30d",
       "--out", path.join(workspace, "dist"),
     ]);
-
-    expect(build.status).not.toBe(0);
-    expect(`${build.stdout}${build.stderr}`).toMatch(/outside the publisher workspace/i);
+    expect(inside.status).not.toBe(0);
+    expect(`${inside.stdout}${inside.stderr}`).toMatch(/outside the publisher workspace/i);
   });
 });
