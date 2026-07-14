@@ -86,6 +86,8 @@ export async function verifyPublisherDistribution(
     }
     if (options.beforeFinalBindingCheckForTest) await options.beforeFinalBindingCheckForTest();
     treeGuard = await openExactDistributionTreeGuard(paths, digests);
+    if (options.beforeFinalVerdictForTest) await options.beforeFinalVerdictForTest();
+    await treeGuard.assertUnchanged();
     await assertVerifiedBytesRemainSelected(
       paths,
       selectedKey,
@@ -93,8 +95,6 @@ export async function verifyPublisherDistribution(
       keyBytesSha256,
       packageBytesSha256,
     );
-    if (options.beforeFinalVerdictForTest) await options.beforeFinalVerdictForTest();
-    await treeGuard.assertUnchanged();
     return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
   } finally {
     await treeGuard?.close();
