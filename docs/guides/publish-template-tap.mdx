@@ -8,10 +8,13 @@ This guide is for template publishers and tap operators. It shows how to turn a
 validated declarative profile package into an immutable signed release that an
 llmwiki user can discover, verify, install, and update.
 
-llmwiki includes the verification client, not a private-key management or
-publisher CLI. Run the signing steps in your own release pipeline. Keep private
-keys outside the public tap and use the exact protocol below as the
-interoperability contract.
+llmwiki does not manage private keys, create releases, or push to a registry.
+Run the signing steps in your own release pipeline, keep private keys outside the
+public tap, and use the exact protocol below as the interoperability contract.
+
+llmwiki does ship one publisher-side command: `llmwiki template publish verify`
+checks a built distribution offline, before you upload it. It reads only, never
+signs, and never reaches the network.
 
 <Warning>
   A signature proves which key signed exact bytes. It does not certify that a
@@ -229,7 +232,62 @@ For every new snapshot:
 The index is limited to 10,000 entries per bounded collection and 4 MiB. A
 package envelope is limited to 2 MiB.
 
-## 5. Verify from a clean client
+## 5. Verify the distribution offline before publishing
+
+Before uploading anything, verify the built tree exactly as a client would verify
+the bytes it downloads. This runs offline, reads only, and writes nothing.
+
+```bash
+llmwiki template publish verify ./dist \
+  --tap community \
+  --key-id community-tap-2026-01 \
+  --key-file ./community-tap-public-key.txt
+```
+
+The directory must be the exact static tree you intend to serve, and nothing else:
+
+```text
+dist/
+  index.json
+  packages/
+    sha256/
+      <payload-digest-hex>.json
+```
+
+Any extra, missing, or symlinked entry is a failure, not a warning. Each package
+filename must be the hex payload digest of the entry that the signed index names.
+
+The command re-runs the same parsers, Ed25519 verification, continuity, revocation,
+and profile validation that a real client runs, then prints bounded provenance:
+
+```text
+Verified template publisher distribution.
+Scope: snapshot
+Continuity: not_applicable_no_rotations
+Tap: community
+Sequence: 7
+Tap key: community-tap-2026-01
+Packages: 3
+```
+
+Use `--json` for the same result as a stable object. Failures exit non-zero with a
+bounded reason and never echo file contents or local paths.
+
+<Warning>
+  Pass the tap public key from wherever you *distribute* it, not from inside the
+  distribution you are checking. A key carried by the same tree it verifies proves
+  only that the tree is self-consistent. Verification is meaningful only when the
+  key reaches the verifier through the independent channel your users trust.
+</Warning>
+
+**Snapshot scope.** This command verifies one self-contained snapshot. It refuses any
+index carrying `rotations` or a `tapKeyRotation`, because a rotation chain is only
+meaningful against a client's previously pinned key, and a fresh offline check has no
+pins to walk from. That is why the output says `not_applicable_no_rotations`. Verify a
+rotation-bearing index the way a user experiences it: from a clean client that already
+pinned the old key, as in the next section. See [Rotate or revoke deliberately](#7-rotate-or-revoke-deliberately).
+
+## 6. Verify from a clean client
 
 Distribute the tap public key, its fingerprint, and the index URL through an
 independent trusted channel. Then test exactly what users will run:
@@ -258,7 +316,7 @@ The verification client checks the tap signature, sequence, expiry, publisher
 key continuity, revocations, package digest, publisher signature, coordinate
 identity, template manifest, and profile contract before installation.
 
-## 6. Publish an update
+## 7. Publish an update
 
 Never replace an existing release. Create a new payload with a higher semantic
 version, sign a new envelope, upload it at its new digest path, and publish a
@@ -278,7 +336,7 @@ pending review candidates, active workflow runs, or changed tap authority. The
 apply path journals the old profile and provenance so interruption is
 recoverable.
 
-## 7. Rotate or revoke deliberately
+## 8. Rotate or revoke deliberately
 
 Publisher key rotation is a signed chain. Each rotation record identifies the
 publisher, old key id, new public key, and effective sequence. The canonical
@@ -289,6 +347,14 @@ from their pinned key to the current key.
 Tap-root rotation uses the same dual-signature principle through
 `tapKeyRotation`. Users who cannot verify a cooperative rotation must explicitly
 forget and re-add the tap, which resets its trust history.
+
+<Note>
+  An index carrying `rotations` or a `tapKeyRotation` is refused by
+  `llmwiki template publish verify`, which checks one self-contained snapshot and
+  holds no pinned keys to walk a chain from. This is a scope limit, not a defect in
+  your index. Verify rotation-bearing snapshots from a clean client that already
+  pinned the previous key, exactly as your users will experience the rotation.
+</Note>
 
 To revoke evidence, add a `revocations` record with kind `package` and the
 payload digest, or kind `publisher-key` and the key id. Include a reason and UTC

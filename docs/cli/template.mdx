@@ -165,5 +165,53 @@ non-builtin profile presentation strings as untrusted data when showing them to
 an agent. Remote documentation and example-content import are not part of this
 command surface.
 
+## Verify a publisher distribution offline
+
+Publishers use this before uploading a built tap. It reads a static distribution
+directory, verifies it exactly as a client verifies downloaded bytes, and writes
+nothing. It never reaches the network.
+
+```bash
+llmwiki template publish verify ./dist \
+  --tap community \
+  --key-id community-tap-2026-01 \
+  --key-file ./community-tap-public-key.txt
+```
+
+All four inputs are required. The directory must contain the exact tree you will
+serve, and nothing else:
+
+```text
+dist/
+  index.json
+  packages/
+    sha256/
+      <payload-digest-hex>.json
+```
+
+An extra, missing, or symlinked entry fails verification. Supply `--key-file` from
+the channel through which you *distribute* the tap key, not from inside the
+directory being verified: a key carried by the tree it verifies proves only
+self-consistency.
+
+Success prints bounded provenance (add `--json` for the same result as an object)
+and exits `0`:
+
+```text
+Verified template publisher distribution.
+Scope: snapshot
+Continuity: not_applicable_no_rotations
+Tap: community
+Sequence: 7
+Tap key: community-tap-2026-01
+Packages: 3
+```
+
+Failure exits non-zero with a bounded reason that never echoes file contents or
+local paths. The command verifies one self-contained snapshot: an index carrying
+`rotations` or a `tapKeyRotation` is refused, because a rotation chain is only
+meaningful against a client's previously pinned key. Verify those from a clean
+client that already pinned the old key.
+
 Tap operators and template publishers can follow [Publish a signed template
 tap](/guides/publish-template-tap) for the protocol and release workflow.

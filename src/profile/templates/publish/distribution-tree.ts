@@ -15,7 +15,22 @@ import {
   type DistributionPaths,
 } from "./distribution-paths.js";
 
-type DirectoryMutationGuard = { handle: FileHandle; info: Stats; path: string; ctimeNs: bigint };
+type DirectoryMutationGuard = {
+  handle: FileHandle;
+  info: Stats;
+  path: string;
+  ctimeNs: bigint;
+  /**
+   * Whether this parent's ctime is a meaningful mutation signal. False for the
+   * distribution root's parent, which lies OUTSIDE the distribution: unrelated
+   * sibling activity there (a concurrent download, an editor swap file) bumps
+   * its ctime and would refuse a valid distribution. Replacing the root itself
+   * is still caught by the retained root handle's inode binding
+   * ({@link assertRootBound}), and entries added or removed INSIDE the root
+   * still change the root's own ctime, so nothing is detected only here.
+   */
+  tracksCtime: boolean;
+};
 type AnchoredDirectory = { handle: FileHandle; info: Stats; ctimeNs: bigint };
 type HeldDirectoryGuard = {
   directory: string;
@@ -199,11 +214,18 @@ async function openDirectoryMutationGuard(
       throw new Error(`${label} parent cannot be anchored for enumeration`);
     }
     await assertPathMatchesHandle(parentPath, info, `${label} parent`);
-    return { handle, info, path: parentPath, ctimeNs: precise.ctimeNs };
+    const tracksCtime = isInsideDistribution(paths, parentPath);
+    return { handle, info, path: parentPath, ctimeNs: precise.ctimeNs, tracksCtime };
   } catch (error) {
     await handle.close().catch(() => {});
     throw error;
   }
+}
+
+/** Whether one canonical path lies at or beneath the canonical distribution root. */
+function isInsideDistribution(paths: DistributionPaths, canonicalPath: string): boolean {
+  return canonicalPath === paths.canonicalRoot
+    || canonicalPath.startsWith(`${paths.canonicalRoot}${path.sep}`);
 }
 
 function recordExpectedEntry(name: string, expected: Set<string>, seen: Set<string>): void {
@@ -295,7 +317,10 @@ function assertDirectoryCtimes(
   if (!current?.isDirectory() || current.ctimeNs !== opened.ctimeNs) {
     throw new Error(`${label} changed during enumeration`);
   }
-  if (!currentParent?.isDirectory() || currentParent.ctimeNs !== parent.ctimeNs) {
+  if (!currentParent?.isDirectory()) {
+    throw new Error(`${label} parent changed during enumeration`);
+  }
+  if (parent.tracksCtime && currentParent.ctimeNs !== parent.ctimeNs) {
     throw new Error(`${label} parent changed during enumeration`);
   }
 }
