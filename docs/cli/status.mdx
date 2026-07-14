@@ -1,0 +1,72 @@
+---
+title: "llmwiki status - Inspect Project Health at a Glance"
+sidebarTitle: "Status"
+description: "llmwiki status reports page and source counts, stale and orphaned pages, pending changes, the review queue, and state-file health. Add --json for scripts."
+---
+
+`llmwiki status` prints a read-only snapshot of your project: how many pages and sources it has, when it last compiled, which pages are stale or orphaned, what is waiting to be compiled or reviewed, and whether `.llmwiki/state.json` is healthy. It is the same snapshot the MCP `wiki_status` tool and the SDK `status()` method return, surfaced on the command line.
+
+No LLM calls are made and no provider credentials are required - everything is derived from disk. Freshness is computed on demand by re-hashing sources against the recorded compile state, so the command's runtime grows with the size of `sources/`.
+
+## Basic usage
+
+```bash
+llmwiki status
+```
+
+Example output for a healthy project:
+
+```
+llmwiki status
+──────────────────
+i Pages: 12 concept(s), 3 quer(y/ies) — 15 total
+i Sources: 9
+i Last compiled: 2026-07-14T09:12:44.000Z
+✓ Fresh: no stale or orphaned pages
+✓ State: ok
+```
+
+When there is work to do, status says what and points at the next command:
+
+```
+! Stale: 3 page(s): transformer, self-attention, positional-encoding — run `llmwiki refresh --stale`
+~ Pending changes: 2 source(s) awaiting compile — run `llmwiki compile`
+? Pending review: 4 candidate(s) — run `llmwiki review list`
+! State: missing — no compile has run yet — run `llmwiki compile`
+```
+
+The command always exits `0` on a successful inspection; problems are reported in the output, not the exit code.
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Emit the full status snapshot as JSON on stdout instead of the human summary. The shape matches the MCP `wiki_status` tool and the SDK's `status()` return value, so scripts and agents can share one contract across all three surfaces. |
+
+## JSON output
+
+```bash
+llmwiki status --json
+```
+
+```json
+{
+  "pages": { "concepts": 12, "queries": 3, "total": 15 },
+  "sources": 9,
+  "lastCompiledAt": "2026-07-14T09:12:44.000Z",
+  "stalePages": [],
+  "staleCount": 0,
+  "orphanedPages": [],
+  "orphanedCount": 0,
+  "stateStatus": "ok",
+  "pendingCandidates": 0,
+  "pendingChanges": [],
+  "pendingChangesCount": 0
+}
+```
+
+`stateStatus` is `ok`, `missing` (no compile has run), or `corrupt` (unreadable `state.json` - run `llmwiki compile` to rebuild it). `stalePages` and `pendingChanges` are capped at 100 entries; `staleCount` and `pendingChangesCount` always carry the true totals. Projects with an active non-default profile additionally include a `profile` block with per-entity-type counts and any validation problems.
+
+<Note>
+  For deeper diagnostics than a status summary - broken wikilinks, citation problems, confidence and provenance rules - run [`llmwiki lint`](/cli/lint-eval). To repair the stale pages that status reports, run `llmwiki refresh --stale` (preview with `--dry-run`).
+</Note>

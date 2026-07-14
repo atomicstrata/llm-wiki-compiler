@@ -47,6 +47,7 @@
               "cli/compile",
               "cli/query",
               "cli/view",
+              "cli/status",
               "cli/lint-eval",
               "cli/export",
               "cli/import",

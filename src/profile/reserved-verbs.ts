@@ -19,5 +19,5 @@ export const RESERVED_CORE_VERBS: ReadonlySet<string> = new Set([
   "artifact", "cache", "compile", "connector", "context", "eval", "export", "import",
   "ingest", "ingest-session", "lint", "next", "profile", "query",
   "quickstart", "recover", "refresh", "review", "rules", "schema", "serve",
-  "state", "template", "view", "watch", "workflow",
+  "state", "status", "template", "view", "watch", "workflow",
 ]);
