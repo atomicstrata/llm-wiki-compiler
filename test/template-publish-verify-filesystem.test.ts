@@ -303,6 +303,20 @@ describe("template publish verify filesystem hardening", () => {
     assertPublishVerifyFailure(runPublishVerify(indexTree), /utf-?8|encoding|invalid byte/i);
   });
 
+  it("refuses UTF-8 BOMs in every signed input class", async () => {
+    const packageTree = await fixture();
+    await prefixUtf8Bom(packageTree.packageFile);
+    assertPublishVerifyFailure(runPublishVerify(packageTree), /byte order mark|BOM/i);
+
+    const indexTree = await fixture();
+    await prefixUtf8Bom(path.join(indexTree.directory, "index.json"));
+    assertPublishVerifyFailure(runPublishVerify(indexTree), /byte order mark|BOM/i);
+
+    const keyTree = await fixture();
+    await prefixUtf8Bom(keyTree.keyFile);
+    assertPublishVerifyFailure(runPublishVerify(keyTree), /byte order mark|BOM|canonical/i);
+  });
+
   it("refuses publisher and tap-key rotations as unverifiable snapshot continuity", async () => {
     const publisherTree = await fixture();
     await writeSignedDistributionIndex(publisherTree, { rotations: [signedRotation()] });
@@ -336,4 +350,10 @@ async function replaceMarkerWithMalformedUtf8(file: string, marker: string): Pro
     Buffer.from([0xc3, 0x28]),
     source.subarray(offset + needle.length),
   ]));
+}
+
+/** Prefix the byte sequence that TextDecoder otherwise consumes silently. */
+async function prefixUtf8Bom(file: string): Promise<void> {
+  const source = await readFile(file);
+  await writeFile(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), source]));
 }

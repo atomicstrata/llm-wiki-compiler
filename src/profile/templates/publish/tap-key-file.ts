@@ -20,6 +20,7 @@ const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9
 /** One tap-key selection retained for the complete verification transaction. */
 export interface SelectedTapPublicKey {
   read(): Promise<string>;
+  readBytes(): Promise<Buffer>;
   close(): Promise<void>;
 }
 
@@ -76,6 +77,9 @@ function selectedKey(
 ): SelectedTapPublicKey {
   return {
     read: async () => readSelectedTapKey(selected, canonical, parentPath, parentInfo, handle, info),
+    readBytes: async () => readSelectedTapKeyBytes(
+      selected, canonical, parentPath, parentInfo, handle, info,
+    ),
     close: async () => {
       await handle.close().catch(() => {});
       await parentHandle.close().catch(() => {});
@@ -91,11 +95,26 @@ async function readSelectedTapKey(
   handle: FileHandle,
   info: Stats,
 ): Promise<string> {
+  const bytes = await readSelectedTapKeyBytes(
+    selected, canonical, parentPath, parentInfo, handle, info,
+  );
+  return decodeTapPublicKey(bytes);
+}
+
+/** Read the retained key as exact bytes while reasserting its path binding. */
+async function readSelectedTapKeyBytes(
+  selected: string,
+  canonical: string,
+  parentPath: string,
+  parentInfo: Stats,
+  handle: FileHandle,
+  info: Stats,
+): Promise<Buffer> {
   try {
     await assertSelectedTapKey(selected, canonical, parentPath, parentInfo, handle, info);
     const bytes = await readBoundedFromHandle(handle, MAX_KEY_BYTES, "tap key file");
     await assertSelectedTapKey(selected, canonical, parentPath, parentInfo, handle, info);
-    return keyFileText(decodeUtf8(bytes, "tap key file"));
+    return bytes;
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("tap key ")) throw error;
     throw new Error("tap key file could not be read safely");
@@ -131,6 +150,11 @@ export function decodeCanonicalBase64Key(text: string, label: string): Buffer {
     throw new Error(`${label} contains non-canonical base64 padding or trailing bytes`);
   }
   return decoded;
+}
+
+/** Decode exact key-file bytes and remove only one permitted trailing newline. */
+export function decodeTapPublicKey(bytes: Buffer): string {
+  return keyFileText(decodeUtf8(bytes, "tap key file"));
 }
 
 function keyFileText(text: string): string {

@@ -24,26 +24,32 @@ export {
 } from "./distribution-tree.js";
 export {
   decodeCanonicalBase64Key,
+  decodeTapPublicKey,
   openTapPublicKey,
   type SelectedTapPublicKey,
 } from "./tap-key-file.js";
 
 /** Read the fixed index leaf through a root-anchored, handle-bound open. */
 export async function readDistributionIndex(paths: DistributionPaths): Promise<string> {
+  return decodeUtf8(await readDistributionIndexBytes(paths), "index");
+}
+
+/** Read the fixed index leaf as the exact selected bytes. */
+export async function readDistributionIndexBytes(paths: DistributionPaths): Promise<Buffer> {
   await assertRootBound(paths);
   const index = path.join(paths.root, "index.json");
-  const result = await readConfinedUtf8(paths, index, paths.root, MAX_INDEX_BYTES, "index");
+  const result = await readConfinedBytes(paths, index, paths.root, MAX_INDEX_BYTES, "index");
   await assertRootBound(paths);
   return result;
 }
 
-/** Read one digest-derived package without following any path component. */
-export async function readDistributionPackage(
+/** Read one digest-derived package as the exact selected bytes. */
+export async function readDistributionPackageBytes(
   paths: DistributionPaths,
   digest: string,
-): Promise<string> {
+): Promise<Buffer> {
   await assertRootBound(paths);
-  const result = await readConfinedUtf8(
+  const result = await readConfinedBytes(
     paths,
     packagePath(paths, digest),
     paths.packageDirectory,
@@ -54,13 +60,13 @@ export async function readDistributionPackage(
   return result;
 }
 
-async function readConfinedUtf8(
+async function readConfinedBytes(
   paths: DistributionPaths,
   file: string,
   expectedDirectory: string,
   maxBytes: number,
   label: string,
-): Promise<string> {
+): Promise<Buffer> {
   if (paths.testSeams.beforeLeafOpenForTest) {
     await paths.testSeams.beforeLeafOpenForTest(file, label);
   }
@@ -72,8 +78,7 @@ async function readConfinedUtf8(
   }
   try {
     if (opened.size > maxBytes) throw new Error(`${label} exceeds its bounded size limit`);
-    const bytes = await readBoundedFromHandle(opened.handle, maxBytes, label);
-    return decodeUtf8(bytes, label);
+    return await readBoundedFromHandle(opened.handle, maxBytes, label);
   } finally {
     await opened.handle.close().catch(() => {});
   }

@@ -6,6 +6,8 @@
 import type { FileHandle } from "node:fs/promises";
 import { TextDecoder } from "node:util";
 
+const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+
 /** Read at most the configured bytes, rejecting concurrent growth past it. */
 export async function readBoundedFromHandle(
   handle: FileHandle,
@@ -25,6 +27,9 @@ export async function readBoundedFromHandle(
 
 /** Decode protocol text without replacement-character recovery. */
 export function decodeUtf8(bytes: Buffer, label: string): string {
+  if (bytes.subarray(0, UTF8_BOM.length).equals(UTF8_BOM)) {
+    throw new Error(`${label} must not begin with a UTF-8 byte order mark`);
+  }
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {

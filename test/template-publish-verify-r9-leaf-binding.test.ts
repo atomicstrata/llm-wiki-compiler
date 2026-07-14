@@ -67,6 +67,25 @@ describe("template publish verify R9 final leaf binding", () => {
       )).rejects.toThrow(refusal);
     },
   );
+
+  it.each(leafRewriteCases)(
+    "refuses a BOM-prefixed same-inode rewrite of the selected $label",
+    async ({ selectedPath, refusal }) => {
+      const tree = await createPublishDistribution();
+      fixtures.push(tree);
+      const file = selectedPath(tree);
+      const original = await readFile(file);
+      const identity = await fileIdentity(file);
+
+      await expect(verifyPublisherDistribution(
+        tree.directory,
+        "official",
+        TAP_KEY.keyId,
+        tree.keyFile,
+        { beforeFinalVerdictForTest: () => prefixBom(file, original, identity) },
+      )).rejects.toThrow(refusal);
+    },
+  );
 });
 
 /** Rewrite selected bytes through the same pathname while retaining its inode. */
@@ -76,6 +95,12 @@ async function rewriteSelectedLeaf(
   identity: FileIdentity,
 ): Promise<void> {
   await writeFile(file, `${original}\n`, "utf8");
+  expect(await fileIdentity(file)).toEqual(identity);
+}
+
+/** Prefix a BOM through the selected pathname without replacing its inode. */
+async function prefixBom(file: string, original: Buffer, identity: FileIdentity): Promise<void> {
+  await writeFile(file, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), original]));
   expect(await fileIdentity(file)).toEqual(identity);
 }
 

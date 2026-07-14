@@ -13,14 +13,16 @@ import {
   assertExactDistributionTree,
   closeDistributionPaths,
   decodeCanonicalBase64Key,
+  decodeTapPublicKey,
   openExactDistributionTreeGuard,
   openTapPublicKey,
-  readDistributionIndex,
-  readDistributionPackage,
+  readDistributionIndexBytes,
+  readDistributionPackageBytes,
   resolveDistributionPaths,
   type SelectedTapPublicKey,
   type DistributionTreeGuard,
 } from "./filesystem.js";
+import { decodeUtf8 } from "./bounded-read.js";
 
 const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u;
 const MAX_KEY_ID_BYTES = 4_096;
@@ -61,29 +63,10 @@ export async function verifyPublisherDistribution(
   let treeGuard: DistributionTreeGuard | undefined;
   try {
     selectedKey = await openTapPublicKey(keyFile);
-    const [indexText, publicKey] = await Promise.all([
-      readDistributionIndex(paths),
-      selectedKey.read(),
-    ]);
-    const trustedKey = bindTrustedTapKey(keyId, publicKey);
-    const indexBytesSha256 = contentSha256(indexText);
-    const keyBytesSha256 = contentSha256(publicKey);
-    const parsed = parseSignedTapIndex(indexText);
-    const verified = verifyTapIndex(parsed, expectedTap, trustedKey);
-    assertSnapshotContinuityScope(parsed);
-    const pins = advancePublisherPins(verified, emptyPublisherPinState(verified.tap));
-    const digests = verified.packages.map((entry) => entry.payloadDigest);
-    const packageBytesSha256 = new Map<string, string>();
+    const snapshot = await verifyIndex(paths, selectedKey, expectedTap, keyId);
+    const { verified, digests, packageBytesSha256 } = snapshot;
     await assertExactDistributionTree(paths, digests);
-    for (const digest of digests) {
-      const packageText = await readDistributionPackage(paths, digest);
-      const envelope = parseSignedPackage(packageText);
-      if (envelope.payloadDigest !== digest) {
-        throw new Error("package at content-addressed path does not match its signed digest entry");
-      }
-      verifySignedPackage(envelope, verified, pins, packageJson.version);
-      packageBytesSha256.set(digest, contentSha256(packageText));
-    }
+    await verifyPackages(paths, snapshot);
     if (options.beforeFinalBindingCheckForTest) await options.beforeFinalBindingCheckForTest();
     treeGuard = await openExactDistributionTreeGuard(paths, digests);
     if (options.beforeFinalVerdictForTest) await options.beforeFinalVerdictForTest();
@@ -91,8 +74,8 @@ export async function verifyPublisherDistribution(
     await assertVerifiedBytesRemainSelected(
       paths,
       selectedKey,
-      indexBytesSha256,
-      keyBytesSha256,
+      snapshot.indexBytesSha256,
+      snapshot.keyBytesSha256,
       packageBytesSha256,
     );
     return successResult(verified.tap, verified.sequence, keyId, verified.packages.length);
@@ -103,6 +86,53 @@ export async function verifyPublisherDistribution(
   }
 }
 
+interface VerifiedSnapshot {
+  verified: ReturnType<typeof verifyTapIndex>;
+  pins: ReturnType<typeof advancePublisherPins>;
+  digests: string[];
+  indexBytesSha256: string;
+  keyBytesSha256: string;
+  packageBytesSha256: Map<string, string>;
+}
+
+async function verifyIndex(
+  paths: Awaited<ReturnType<typeof resolveDistributionPaths>>,
+  selectedKey: SelectedTapPublicKey,
+  expectedTap: string,
+  keyId: string,
+): Promise<VerifiedSnapshot> {
+  const [indexBytes, keyBytes] = await Promise.all([
+    readDistributionIndexBytes(paths), selectedKey.readBytes(),
+  ]);
+  const parsed = parseSignedTapIndex(decodeUtf8(indexBytes, "index"));
+  const publicKey = decodeTapPublicKey(keyBytes);
+  const verified = verifyTapIndex(parsed, expectedTap, bindTrustedTapKey(keyId, publicKey));
+  assertSnapshotContinuityScope(parsed);
+  return {
+    verified,
+    pins: advancePublisherPins(verified, emptyPublisherPinState(verified.tap)),
+    digests: verified.packages.map((entry) => entry.payloadDigest),
+    indexBytesSha256: contentSha256(indexBytes),
+    keyBytesSha256: contentSha256(keyBytes),
+    packageBytesSha256: new Map(),
+  };
+}
+
+async function verifyPackages(
+  paths: Awaited<ReturnType<typeof resolveDistributionPaths>>,
+  snapshot: VerifiedSnapshot,
+): Promise<void> {
+  for (const digest of snapshot.digests) {
+    const bytes = await readDistributionPackageBytes(paths, digest);
+    const envelope = parseSignedPackage(decodeUtf8(bytes, "package"));
+    if (envelope.payloadDigest !== digest) {
+      throw new Error("package at content-addressed path does not match its signed digest entry");
+    }
+    verifySignedPackage(envelope, snapshot.verified, snapshot.pins, packageJson.version);
+    snapshot.packageBytesSha256.set(digest, contentSha256(bytes));
+  }
+}
+
 async function assertVerifiedBytesRemainSelected(
   paths: Awaited<ReturnType<typeof resolveDistributionPaths>>,
   selectedKey: SelectedTapPublicKey,
@@ -110,21 +140,21 @@ async function assertVerifiedBytesRemainSelected(
   keySha256: string,
   packages: ReadonlyMap<string, string>,
 ): Promise<void> {
-  if (contentSha256(await readDistributionIndex(paths)) !== indexSha256) {
+  if (contentSha256(await readDistributionIndexBytes(paths)) !== indexSha256) {
     throw new Error("index content changed after its bytes were verified");
   }
-  if (contentSha256(await selectedKey.read()) !== keySha256) {
+  if (contentSha256(await selectedKey.readBytes()) !== keySha256) {
     throw new Error("tap key content changed after its bytes were verified");
   }
   for (const [digest, expectedSha256] of packages) {
-    if (contentSha256(await readDistributionPackage(paths, digest)) !== expectedSha256) {
+    if (contentSha256(await readDistributionPackageBytes(paths, digest)) !== expectedSha256) {
       throw new Error("package content changed after its bytes were verified");
     }
   }
 }
 
-function contentSha256(text: string): string {
-  return createHash("sha256").update(text, "utf8").digest("hex");
+function contentSha256(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function bindTrustedTapKey(keyId: string, publicKey: string): { keyId: string; publicKey: string } {
