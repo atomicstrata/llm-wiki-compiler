@@ -24,7 +24,7 @@ export function canonicalDigest(value: unknown): string {
  * function — a second derivation is precisely how a signed index becomes
  * unverifiable, so `verifyTapIndex` consumes it too.
  */
-export function tapIndexClaim(index: { signature?: unknown }): object {
+export function tapIndexClaim(index: object & { signature?: unknown }): object {
   const { signature: _signature, ...claim } = index;
   return claim;
 }

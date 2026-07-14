@@ -3,7 +3,16 @@
  * @description Stable CLI presentation for read-only offline verification of
  * a signed template publisher distribution snapshot.
  */
+import { addPackage } from "../profile/templates/publish/add.js";
+import { buildDistribution } from "../profile/templates/publish/build.js";
+import {
+  stageRevokePackage,
+  stageRevokePublisherKey,
+  stageRotatePublisherKey,
+  stageRotateTapKey,
+} from "../profile/templates/publish/lifecycle.js";
 import { initWorkspace, type InitWorkspaceOptions, type InitWorkspaceResult } from "../profile/templates/publish/init.js";
+import { resolveWorkspacePaths } from "../profile/templates/publish/workspace-paths.js";
 import { verifyPublisherDistribution } from "../profile/templates/publish/verify.js";
 
 const TERMINAL_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/gu;
@@ -108,4 +117,100 @@ function printInitResult(result: InitWorkspaceResult): void {
   console.log(`Publisher key: ${safeTerminalText(result.publisherKey.keyId)} (${result.fingerprints.publisher})`);
   console.log("Private keys are stored 0600 under keys/ and are never printed.");
   console.log("Distribute the tap public key through a channel independent of the tap.");
+}
+
+/** Options accepted by `template publish add`. */
+export interface TemplatePublishAddOptions { workspace: string; version: string; json?: boolean }
+
+/** Validate, sign, and record one template package into the workspace. */
+export async function templatePublishAddCommand(
+  packageFile: string,
+  options: TemplatePublishAddOptions,
+): Promise<number> {
+  try {
+    const result = await addPackage(resolveWorkspacePaths(options.workspace), packageFile, options.version);
+    if (options.json) console.log(JSON.stringify({ schemaVersion: 1, ...result }, null, 2));
+    else {
+      console.log(result.alreadyPresent ? "Package already recorded." : "Recorded signed package.");
+      console.log(`Coordinate: ${safeTerminalText(result.coordinate)}`);
+      console.log(`Digest: ${result.payloadDigest}`);
+    }
+    return 0;
+  } catch (error) {
+    throw new Error(boundedSafeError(error));
+  }
+}
+
+/** Options accepted by `template publish build`. */
+export interface TemplatePublishBuildOptions {
+  workspace: string;
+  out: string;
+  expiresIn: string;
+  force?: boolean;
+  json?: boolean;
+}
+
+/** Build, verify, and publish one static distribution. */
+export async function templatePublishBuildCommand(options: TemplatePublishBuildOptions): Promise<number> {
+  try {
+    const result = await buildDistribution(resolveWorkspacePaths(options.workspace), {
+      out: options.out,
+      expiresIn: options.expiresIn,
+      force: options.force === true,
+    });
+    if (options.json) console.log(JSON.stringify({ schemaVersion: 1, ...result }, null, 2));
+    else {
+      console.log("Built and verified distribution.");
+      console.log(`Sequence: ${result.sequence}`);
+      console.log(`Packages: ${result.packageCount}`);
+      console.log(`Index digest: ${result.indexDigest}`);
+      console.log(`Output: ${safeTerminalText(result.out)}`);
+    }
+    return 0;
+  } catch (error) {
+    throw new Error(boundedSafeError(error));
+  }
+}
+
+/** Options accepted by `template publish rotate`. */
+export interface TemplatePublishRotateOptions { workspace: string; tapKeyId?: string; publisherKeyId?: string }
+
+/** Stage a key rotation; it is signed by the next build at that build's sequence. */
+export async function templatePublishRotateCommand(options: TemplatePublishRotateOptions): Promise<number> {
+  try {
+    const paths = resolveWorkspacePaths(options.workspace);
+    if ((options.tapKeyId === undefined) === (options.publisherKeyId === undefined)) {
+      throw new Error("rotate requires exactly one of --tap-key-id or --publisher-key-id");
+    }
+    if (options.publisherKeyId !== undefined) await stageRotatePublisherKey(paths, options.publisherKeyId);
+    else await stageRotateTapKey(paths, options.tapKeyId as string);
+    console.log("Staged key rotation. It is signed by the next build, at that build's sequence.");
+    return 0;
+  } catch (error) {
+    throw new Error(boundedSafeError(error));
+  }
+}
+
+/** Options accepted by `template publish revoke`. */
+export interface TemplatePublishRevokeOptions {
+  workspace: string;
+  reason: string;
+  packageDigest?: string;
+  publisherKeyId?: string;
+}
+
+/** Stage a revocation; it is published by the next build and accumulates forever. */
+export async function templatePublishRevokeCommand(options: TemplatePublishRevokeOptions): Promise<number> {
+  try {
+    const paths = resolveWorkspacePaths(options.workspace);
+    if ((options.packageDigest === undefined) === (options.publisherKeyId === undefined)) {
+      throw new Error("revoke requires exactly one of --package-digest or --publisher-key-id");
+    }
+    if (options.packageDigest !== undefined) await stageRevokePackage(paths, options.packageDigest, options.reason);
+    else await stageRevokePublisherKey(paths, options.publisherKeyId as string, options.reason);
+    console.log("Staged revocation. It is published by the next build and accumulates permanently.");
+    return 0;
+  } catch (error) {
+    throw new Error(boundedSafeError(error));
+  }
 }
