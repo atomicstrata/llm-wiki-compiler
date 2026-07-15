@@ -33,17 +33,6 @@ A knowledge compiler CLI. Raw sources in, interlinked wiki out.
 - Keep comments up-to-date with code changes
 - Document any non-obvious behavior
 
-### Internal Documentation Routing
-
-- `localdocs/` is retired as a write location. Do not create, restore, or modify a `localdocs/` directory in this repository or any of its worktrees.
-- Any legacy `localdocs/` copy kept in a gitignored archive is historical only. Do not search for, read, cite, or update it unless the user explicitly asks for archive recovery or comparison.
-- The canonical tracked home for every internal document that would previously have been written under `localdocs/` is `/Users/ethan/projects/supernet/atomicmemory/am-research-internal/docs/llm-wiki-compiler`.
-- Preserve the path below `localdocs/` when routing a document. For example, `localdocs/plans/example.md` maps to `/Users/ethan/projects/supernet/atomicmemory/am-research-internal/docs/llm-wiki-compiler/plans/example.md`.
-- Read and update existing internal roadmaps, plans, specs, audits, reports, research, release notes, harness artifacts, and PRDs at that canonical location.
-- Before writing there, read any applicable `AGENTS.md` files in the internal repository and inspect its git status so unrelated changes are preserved.
-- If the canonical location is unavailable, stop and ask for direction. Do not fall back to `localdocs/`, another worktree, or an untracked copy.
-- Public product documentation that belongs in this repository's tracked `docs/` tree remains here; this routing rule applies only to material that would previously have gone into `localdocs/`.
-
 ### Pre-Commit Checks
 
 Before committing any work, and before considering any task complete, you must:
