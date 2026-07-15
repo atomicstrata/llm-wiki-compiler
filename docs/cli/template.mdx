@@ -186,7 +186,8 @@ the coordinate as immutable: the same coordinate may never resolve to different 
 verifies the whole tree as a consumer would **before** publishing it. The sequence commits
 last, so a failed build leaves the workspace unchanged and a retry is a clean re-run. The
 output must live outside the workspace — otherwise it would publish your private keys. Pass
-`--force` to republish when nothing changed.
+`--refresh` to renew an expiring index under a fresh lifetime, or `--force` to republish when
+nothing else changed.
 
 ### Rotate and revoke
 

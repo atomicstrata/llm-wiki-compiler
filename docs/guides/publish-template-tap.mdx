@@ -89,6 +89,11 @@ llmwiki template publish build \
 swap the tree into `--out` and commit the new sequence. A failed build leaves the
 workspace at its old sequence, so a retry is a clean re-run.
 
+To renew a distribution whose lifetime is expiring without changing its contents, rebuild
+with `--refresh`. It republishes the same tree under a fresh `--expires-in` window and
+advances the sequence. Without it, a build that finds nothing changed is refused, so an
+accidental rebuild never burns a sequence.
+
 Serve `./dist` from ordinary HTTPS hosting.
 
 ## 4. Rotate and revoke
