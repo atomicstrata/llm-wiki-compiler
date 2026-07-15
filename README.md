@@ -59,17 +59,24 @@ CLP turns llmwiki's knowledge compiler into a reusable substrate for domain-spec
 
 These rules are enforced by the runtime, not left as prompt conventions. The CLI, SDK, MCP server, viewer, context builder, lint, status, export, and OKF exchange surfaces all operate from the same profile contract. Invalid profiles and writes that bypass a declared gate fail closed.
 
-CLP is backward-compatible by construction: a project without `.llmwiki/profile.json` uses the built-in default concepts-and-queries profile and preserves the pre-1.0 behavior. New projects can start from a shipped declarative template:
+CLP is backward-compatible by construction: a project without `.llmwiki/profile.json` uses the built-in default concepts-and-queries profile and preserves the pre-1.0 behavior. You can start three ways — scaffold your own profile, install a built-in or local template, or install a signed template from a trusted tap:
 
 ```bash
+# author your own profile, one entity type at a time
+llmwiki profile init research --entity paper
+
+# or install a built-in or local declarative template
 llmwiki template list
 llmwiki template inspect autosci
 llmwiki template init autosci
+
 llmwiki profile validate
 llmwiki workflow list
 ```
 
 `autosci` is a practical research system with papers, ideas, experiments, manuscripts, evidence artifacts, workflows, and Crossref ingestion. `newsroom` applies the same generic machinery to articles, desks, bylines, and editorial workflows. Templates contain configuration and examples, never executable plugin code.
+
+Templates can also be distributed securely. Publishers build signed, offline distributions with `llmwiki template publish` — Ed25519 signing, key rotation, and package revocation — and verify them with `template publish verify`. Consumers add explicitly trusted taps, discover and inspect signed catalogs, and install or update templates with continuity, revocation, and compatibility checks enforced under lock.
 
 Read the [CLP concept guide](docs/concepts/configurable-lifecycle-profiles.mdx), follow the [AutoSci research workflow](docs/guides/autosci-research-workflow.mdx), or explore the [Newsroom editorial workflow](docs/guides/newsroom-editorial-workflow.mdx).
 
@@ -329,6 +336,12 @@ volta run --node 24 npx mint dev --port 3001
 ```
 
 ## Current release
+
+**Released `1.1.0`:**
+
+- Template distribution ecosystem: publishers author signed, offline distributions with `template publish init | add | build | rotate | revoke` (Ed25519 signing, key rotation, package revocation) and verify them with `template publish verify`.
+- Consumers configure explicitly trusted template taps, discover and inspect signed catalogs, and install or update templates with continuity, revocation, and compatibility checks under lock.
+- `llmwiki status` command: a readable snapshot of page and source counts, last compile, stale and orphaned pages, pending changes, the review queue, active profile, and state-file health.
 
 **Released `1.0.0`:**
 

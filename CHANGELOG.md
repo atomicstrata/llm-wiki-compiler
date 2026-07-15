@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-15
+
+Adds a security-first template distribution ecosystem — publishers sign and distribute profile templates offline, and consumers discover, install, update, and verify them through explicitly trusted taps — plus a guided path for authoring a first profile and the `llmwiki status` command. Every addition is opt-in; projects that do not use templates, taps, or profiles are unaffected.
+
+### Added
+
+- **Guided profile authoring** — `llmwiki profile init <profile-id> --entity <type>` scaffolds the smallest useful editable profile and a typed page. It validates before writing, serializes concurrent project mutations, and refuses to reinterpret an existing profile or typed corpus. There is no force mode, and a failed scaffold cleans up only the directories it created. A new "Build your first profile" guide and an interactive profile explorer teach the workflow end to end.
+- **Template lifecycle and signing foundations** — template status and read-only update planning with exact historical release resolution, local-drift detection, profile-identity protection, and compatibility audits across pages, artifacts, review history, and workflow state. Update plans are advisory and re-verified under lock. Ed25519 signing and provenance underpin the distribution surfaces below.
+- **Signed template taps and remote discovery** — configure explicitly trusted template taps, refresh signed catalogs, and search, inspect, and verify signed package evidence without installing or changing a profile. The tap layer is read-only and network-facing, with exact-origin fetch confinement, continuity state, and cache re-verification.
+- **Secure remote install and update** — install, inspect, and update signed templates discovered through taps. Packages resolve from cryptographically verified tap evidence; identity and revocation are rechecked under lock before any mutation; non-interactive installs require explicit consent; and updates refuse incompatible corpus changes, local profile drift, pending review candidates, and active workflow runs.
+- **Template publisher workflow** — `llmwiki template publish init | add | build | rotate | revoke` builds signed, verifiable, offline distributions. Private keys are exclusively created, stored `0600`, read no-follow, and never leave the workspace or appear in the manifest. `build` verifies the whole distribution as a consumer would before publishing and commits the sequence last, so a crash leaves the workspace at its prior sequence. `--refresh` renews an expiring index under a fresh lifetime, and a key rotation re-signs every package while content-addressed filenames never change. The output directory must live outside the workspace and be empty or a prior distribution of the same tap.
+- **Offline publisher verification** — `llmwiki template publish verify <directory>` verifies a signed distribution using the production tap-index and package parsers and Ed25519 verification with an independently selected tap key.
+- **`llmwiki status` command** — a readable snapshot of page and source counts, last compile time, stale and orphaned pages, pending changes, the review queue, active profile, and state-file health, with a next-command hint on each problem line. The status snapshot was previously reachable only over MCP (`wiki_status`) and the SDK (`status()`).
+
 ## [1.0.0] - 2026-07-10
 
 Introduces Configurable Lifecycle Profiles (CLP): declarative, fail-closed domain packs that turn llmwiki from a fixed two-directory compiler into a reusable substrate for typed entities, relations, lifecycle gates, workflows, artifacts, connectors, and installable templates. Projects without a profile retain the pre-CLP default behavior byte-for-byte across the guarded surfaces.
@@ -371,6 +385,7 @@ Initial release.
 - Atomic writes, lock-protected compilation, orphan marking for deleted sources.
 - `[[wikilink]]` resolution and auto-generated `wiki/index.md`.
 
+[1.1.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v0.11.0...v1.0.0
 [0.2.0]: https://github.com/atomicmemory/llm-wiki-compiler/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/atomicmemory/llm-wiki-compiler/compare/v0.1.0...v0.1.1

@@ -1,6 +1,6 @@
 {
   "name": "llm-wiki-compiler",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A knowledge compiler CLI — raw sources in, interlinked wiki out",
   "type": "module",
   "main": "./dist/index.js",
