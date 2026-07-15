@@ -169,6 +169,7 @@ The [`examples/basic/`](examples/basic/) directory includes a small pre-generate
 | `llmwiki query "question" [--save]` | Ask questions against the compiled wiki, optionally saving the answer. |
 | `llmwiki context "<prompt>" --json` | Build a citation-aware evidence pack for agents. |
 | `llmwiki view [--open]` | Start the read-only local browser viewer. |
+| `llmwiki status [--json]` | Report page/source counts, stale and orphaned pages, pending work, and state health. |
 | `llmwiki lint` | Validate wiki structure, citations, links, metadata, and freshness. |
 | `llmwiki eval [--suite fast\|full]` | Measure wiki quality and optional citation support. |
 | `llmwiki export --target <format>` | Export the wiki to portable formats, including Open Knowledge Format (`okf`). |
