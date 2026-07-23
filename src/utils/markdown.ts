@@ -22,11 +22,13 @@ const CITATION_MARKER_PATTERN = /\^\[([^\]]+)\]/g;
 const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:[,-]\s*(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
 
 /**
- * Regex matching a colon-form entry with two or more comma-separated line numbers,
- * e.g. `source.md:1, 12` or `source.md:3,7,42`. Captured `lines` is the raw
- * digit-and-comma string; each token expands into its own single-line SourceSpan.
+ * Regex matching a colon-form entry with two or more comma-separated line tokens,
+ * where each token is a single number or a hyphen range. This matches formats the
+ * compile-time normalizer emits (`source.md:1, 12`, `source.md:3,7,42`,
+ * `source.md:1-5, 12`). Captured `lines` is the raw token string; each token
+ * expands into its own SourceSpan.
  */
-const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:,\s*\d+)+)$/;
+const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:-\d+)?(?:,\s*\d+(?:-\d+)?)+)$/;
 
 /** The minimum valid line number in a source span (lines are 1-indexed). */
 const MIN_LINE_NUMBER = 1;
@@ -209,16 +211,24 @@ function parseSpanEntries(entry: string): SourceSpan[] {
   return single !== undefined ? [single] : [];
 }
 
-/** Expand a comma-separated line-number string into individual single-line spans. */
+/** Expand a comma-separated line-token string (numbers or hyphen ranges) into spans. */
 function parseCommaLines(file: string, linesStr: string): SourceSpan[] {
   const spans: SourceSpan[] = [];
   for (const token of linesStr.split(/,\s*/)) {
-    const lineNum = Number(token);
-    if (isValidLineRange(lineNum, lineNum)) {
-      spans.push({ file, lines: { start: lineNum, end: lineNum } });
+    const { start, end } = parseLineToken(token);
+    if (isValidLineRange(start, end)) {
+      spans.push({ file, lines: { start, end } });
     }
   }
   return spans;
+}
+
+/** Parse a single line token (`12` or `1-5`) into a start/end pair. */
+function parseLineToken(token: string): { start: number; end: number } {
+  const [startStr, endStr] = token.split("-");
+  const start = Number(startStr.trim());
+  const end = endStr === undefined ? start : Number(endStr.trim());
+  return { start, end };
 }
 
 /**
@@ -256,6 +266,13 @@ export function isMalformedCitationEntry(entry: string): boolean {
   const trimmed = entry.trim();
   if (trimmed.length === 0) return true;
   if (!trimmed.includes(":") && !trimmed.includes("#")) return false;
+  const multi = COLON_MULTILINE_PATTERN.exec(trimmed);
+  if (multi?.groups) {
+    return multi.groups.lines.split(",").some((token) => {
+      const { start, end } = parseLineToken(token);
+      return !isValidLineRange(start, end);
+    });
+  }
   const match = SPAN_SUFFIX_PATTERN.exec(trimmed);
   if (!match || !match.groups) return true;
   const { colonStart, colonEnd, hashStart, hashEnd } = match.groups;

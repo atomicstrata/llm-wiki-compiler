@@ -207,7 +207,7 @@ export function checkPageMalformedCitations(content: string, filePath: string): 
         rule: "malformed-claim-citation",
         severity: "error",
         file: filePath,
-        message: `Malformed claim citation ^[${captured}] — expected file.md, file.md:N-N, or file.md#LN-LN`,
+        message: `Malformed claim citation ^[${captured}] — expected file.md, file.md:N-N, file.md:N,N,…, or file.md#LN-LN`,
         line,
       });
     }

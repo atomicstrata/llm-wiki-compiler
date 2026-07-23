@@ -11,6 +11,7 @@ import {
   normalizeCitationsInBody,
   normalizeCitations,
 } from "../src/compiler/citation-normalize.js";
+import { checkPageMalformedCitations } from "../src/linter/rules-citations.js";
 import { makeNumberedContent } from "./fixtures/citation-content.js";
 
 // Alias for brevity in this test file.
@@ -261,5 +262,38 @@ describe("normalizeCitationsInBody — backward range handling", () => {
     const body = "Claim.^[81, 90]";
     const result = normalizeCitationsInBody(body, [source], content);
     expect(result).toBe(`Claim.^[${source}:81, 90]`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Drift guard: citations the normalizer is allowed to emit must pass the validator
+// ---------------------------------------------------------------------------
+
+describe("normalizer output is always accepted by the malformed-citation validator", () => {
+  const source = "source.md";
+  const rawShapes = [
+    "^[7]",
+    "^[3-9]",
+    "^[12,15,20]",
+    "^[1-5, 12]",
+    `^[${source}:4]`,
+    `^[${source}:4-8]`,
+    `^[${source}:12,15,20]`,
+    `^[${source}#L2-L6]`,
+  ];
+
+  it.each(rawShapes)("normalized %s yields no malformed-citation findings", (marker) => {
+    const content = makeContent(source, 100);
+    const body = `Claim.${marker}`;
+    const result = normalizeCitationsInBody(body, [source], content);
+    expect(checkPageMalformedCitations(result, "wiki/concepts/test.md")).toEqual([]);
+  });
+
+  it("multi-source marker normalizes to validator-clean entries", () => {
+    const sources = ["a.md", "b.md"];
+    const content = makeContent("a.md", 50) + "\n\n" + makeContent("b.md", 50);
+    const body = "Claim.^[a.md:1-5, b.md:10]";
+    const result = normalizeCitationsInBody(body, sources, content);
+    expect(checkPageMalformedCitations(result, "wiki/concepts/test.md")).toEqual([]);
   });
 });
