@@ -3,16 +3,27 @@
  *
  * Defines the LLMProvider interface and a factory function that reads
  * LLMWIKI_PROVIDER and LLMWIKI_MODEL env vars to instantiate the
- * appropriate backend (Anthropic, OpenAI, Ollama, or MiniMax).
+ * appropriate backend (Anthropic, OpenAI, Ollama, MiniMax, or Atlas Cloud).
  */
 
-import { DEFAULT_PROVIDER, PROVIDER_MODELS, OLLAMA_DEFAULT_HOST } from "./constants.js";
+import {
+  DEFAULT_PROVIDER,
+  PROVIDER_MODELS,
+  OLLAMA_DEFAULT_HOST,
+  SUPPORTED_PROVIDER_INPUTS,
+  normalizeProviderName,
+} from "./constants.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
 import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
+import {
+  AtlasCloudProvider,
+  resolveAtlasCloudApiKeyFromEnv,
+  resolveAtlasCloudBaseURLFromEnv,
+} from "../providers/atlascloud.js";
 import {
   resolveAnthropicAuthFromEnv,
   resolveAnthropicBaseURLFromEnv,
@@ -56,7 +67,15 @@ export interface LLMProvider {
   embedBatch?(texts: string[], inputType?: EmbeddingInputType): Promise<number[][]>;
 }
 
-const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);
+const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set([
+  "anthropic",
+  "claude-agent",
+  "openai",
+  "ollama",
+  "minimax",
+  "copilot",
+  "atlascloud",
+]);
 
 /**
  * Factory that returns the appropriate LLMProvider based on env vars.
@@ -89,6 +108,8 @@ export function getProvider(): LLMProvider {
       return getMiniMaxProvider();
     case "copilot":
       return getCopilotProvider();
+    case "atlascloud":
+      return getAtlasCloudProvider();
     default:
       throw new Error(`Unhandled provider: ${providerName}`);
   }
@@ -99,7 +120,7 @@ function readOptionalEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
-function getModelForProvider(providerName: "openai" | "ollama" | "minimax" | "copilot"): string {
+function getModelForProvider(providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud"): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
 
@@ -127,6 +148,21 @@ function getCopilotProvider(): CopilotProvider {
   return new CopilotProvider(getModelForProvider("copilot"), apiKey);
 }
 
+function getAtlasCloudProvider(): AtlasCloudProvider {
+  const apiKey = resolveAtlasCloudApiKeyFromEnv();
+  if (!apiKey) {
+    throw new Error(
+      "Atlas Cloud provider requires ATLASCLOUD_API_KEY or ATLAS_CLOUD_API_KEY environment variable.\n" +
+      "  Set one with: export ATLASCLOUD_API_KEY=your_key",
+    );
+  }
+  return new AtlasCloudProvider(
+    getModelForProvider("atlascloud"),
+    apiKey,
+    resolveAtlasCloudBaseURLFromEnv(),
+  );
+}
+
 function getAnthropicProvider(): AnthropicProvider {
   const model = resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
   const baseURL = resolveAnthropicBaseURLFromEnv();
@@ -149,10 +185,10 @@ function getClaudeAgentProvider(): ClaudeAgentProvider {
 }
 
 function getProviderName(): string {
-  const providerName = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
+  const providerName = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
   if (!SUPPORTED_PROVIDERS.has(providerName)) {
     throw new Error(
-      `Unknown provider "${providerName}". Supported: ${[...SUPPORTED_PROVIDERS].join(", ")}`,
+      `Unknown provider "${providerName}". Supported: ${SUPPORTED_PROVIDER_INPUTS.join(", ")}`,
     );
   }
   return providerName;
@@ -177,5 +213,10 @@ export function resolveActiveModelId(): string {
   if (providerName === "anthropic") {
     return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
   }
-  return getModelForProvider(providerName as "openai" | "ollama" | "minimax" | "copilot");
+  if (providerName === "claude-agent") {
+    return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS["claude-agent"];
+  }
+  return getModelForProvider(
+    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud",
+  );
 }

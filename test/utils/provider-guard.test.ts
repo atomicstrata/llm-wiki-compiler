@@ -39,6 +39,24 @@ describe("ensureProviderAvailable error taxonomy", () => {
     expect(err.missing).toContain("OPENAI_API_KEY");
   });
 
+  it("throws ProviderUnavailableError with both Atlas Cloud key aliases when missing", () => {
+    process.env.LLMWIKI_PROVIDER = "atlas-cloud";
+    delete process.env.ATLASCLOUD_API_KEY;
+    delete process.env.ATLAS_CLOUD_API_KEY;
+
+    const err = assertUnavailableError(catchGuardError(), "atlascloud");
+
+    expect(err.missing).toContain("ATLASCLOUD_API_KEY");
+    expect(err.missing).toContain("ATLAS_CLOUD_API_KEY");
+  });
+
+  it("accepts ATLAS_CLOUD_API_KEY for Atlas Cloud provider aliases", () => {
+    process.env.LLMWIKI_PROVIDER = "atlas";
+    process.env.ATLAS_CLOUD_API_KEY = "atlas-test-key";
+
+    expect(() => ensureProviderAvailable()).not.toThrow();
+  });
+
   it("throws UnknownProviderError for an unsupported provider", () => {
     process.env.LLMWIKI_PROVIDER = "bogus";
     const e = catchGuardError();
