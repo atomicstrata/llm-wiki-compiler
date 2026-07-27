@@ -48,7 +48,7 @@ const SAMPLE_PROVENANCE_VIOLATION: LintResult = {
   rule: "malformed-claim-citation",
   severity: "error",
   file: "wiki/concepts/sample.md",
-  message: "Malformed claim citation ^[file.md:abc] — expected file.md, file.md:N-N, or file.md#LN-LN",
+  message: "Malformed claim citation ^[file.md:abc] — expected file.md, file.md:N-N, file.md:N,N-M,…, or file.md#LN-LN",
 };
 
 describe("checkPageMalformedCitations — pure body lint", () => {

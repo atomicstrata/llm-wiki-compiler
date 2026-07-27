@@ -4,16 +4,18 @@
  * This family validates the `^[file.md]` citation markers that anchor wiki
  * prose to its sources: broken citations (source file missing or claim-level
  * line span out of bounds) and malformed claim citations (entries that don't
- * parse against the documented `file.md` / `file.md:N-N` / `file.md#LN-LN`
- * grammar). Each on-disk walker has a pure per-page variant so the in-memory
- * candidate-lint path (`compile --review`) surfaces the same findings before a
- * reviewer approves a candidate. Re-exported through {@link file://./rules.ts}.
+ * parse against the documented `file.md` / `file.md:N-N` / `file.md:N,N-M`
+ * / `file.md#LN-LN` grammar). Each on-disk walker has a pure per-page variant
+ * so the in-memory candidate-lint path (`compile --review`) surfaces the same
+ * findings before a reviewer approves a candidate. Re-exported through
+ * {@link file://./rules.ts}.
  */
 
 import { existsSync } from "fs";
 import path from "path";
 import {
   isMalformedCitationEntry,
+  parseCitationLineRanges,
   parseFrontmatter,
   safeReadFile,
   splitCitationMarker,
@@ -26,42 +28,9 @@ import {
   findMatchesInContent,
 } from "./rules-shared.js";
 
-/** Regex matching the `:start-end` span suffix on a citation entry. */
-const COLON_SPAN_PATTERN = /^[^:#]+:(\d+)(?:[,-]\s*(\d+))?$/;
-
-/** Regex matching the `#Lstart-Lend` span suffix on a citation entry. */
-const HASH_SPAN_PATTERN = /^[^:#]+#L(\d+)(?:-L(\d+))?$/;
-
-/** Parsed line range from a citation entry, or null if no range is present. */
-interface ParsedLineRange {
-  start: number;
-  end: number;
-}
-
 /** Strip an optional `:start-end` or `#Lstart-Lend` span suffix from a citation entry. */
 function stripSpanSuffix(entry: string): string {
-  const colonIdx = entry.indexOf(":");
-  const hashIdx = entry.indexOf("#");
-  const cuts = [colonIdx, hashIdx].filter((i) => i >= 0);
-  if (cuts.length === 0) return entry;
-  return entry.slice(0, Math.min(...cuts));
-}
-
-/** Extract the line range from a citation entry string, or return null if there is none. */
-function parseLineRange(entry: string): ParsedLineRange | null {
-  const colonMatch = COLON_SPAN_PATTERN.exec(entry);
-  if (colonMatch) {
-    const start = Number(colonMatch[1]);
-    const end = colonMatch[2] !== undefined ? Number(colonMatch[2]) : start;
-    return { start, end };
-  }
-  const hashMatch = HASH_SPAN_PATTERN.exec(entry);
-  if (hashMatch) {
-    const start = Number(hashMatch[1]);
-    const end = hashMatch[2] !== undefined ? Number(hashMatch[2]) : start;
-    return { start, end };
-  }
-  return null;
+  return entry.split(/[:#]/, 1)[0];
 }
 
 /** Count the number of lines in a file's text content. */
@@ -74,8 +43,9 @@ function countLines(content: string): number {
  * Find ^[filename.md] citations referencing source files that don't exist, and
  * flag claim-level spans whose line ranges exceed the source file's actual length.
  * Handles both single-source ^[file.md] and multi-source ^[a.md, b.md] forms,
- * plus the claim-level extension `^[file.md:42-58]` / `^[file.md#L42-L58]`.
- * Line counts are cached per source file to avoid redundant reads.
+ * plus claim-level spans such as `^[file.md:42-58]`, `^[file.md:1, 4-6]`,
+ * and `^[file.md#L42-L58]`. Line counts are cached per source file to avoid
+ * redundant reads.
  */
 export async function checkBrokenCitations(root: string): Promise<LintResult[]> {
   const pages = await collectAllPages(root);
@@ -150,10 +120,10 @@ async function collectBrokenForMarker(
       });
       continue;
     }
-    const range = parseLineRange(trimmed);
-    if (range === null) continue;
+    const ranges = parseCitationLineRanges(trimmed);
+    if (ranges === null || ranges.length === 0) continue;
     const lineCount = await resolveLineCount(citedPath, filename, lineCountCache);
-    if (range.end <= lineCount) continue;
+    if (ranges.every((range) => range.end <= lineCount)) continue;
     out.push({
       rule: "broken-citation",
       severity: "error",
@@ -207,7 +177,7 @@ export function checkPageMalformedCitations(content: string, filePath: string): 
         rule: "malformed-claim-citation",
         severity: "error",
         file: filePath,
-        message: `Malformed claim citation ^[${captured}] — expected file.md, file.md:N-N, file.md:N,N,…, or file.md#LN-LN`,
+        message: `Malformed claim citation ^[${captured}] — expected file.md, file.md:N-N, file.md:N,N-M,…, or file.md#LN-LN`,
         line,
       });
     }

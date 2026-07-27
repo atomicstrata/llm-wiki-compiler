@@ -276,9 +276,11 @@ describe("normalizer output is always accepted by the malformed-citation validat
     "^[3-9]",
     "^[12,15,20]",
     "^[1-5, 12]",
+    "^[1, 12-15]",
     `^[${source}:4]`,
     `^[${source}:4-8]`,
     `^[${source}:12,15,20]`,
+    `^[${source}:1, 12-15]`,
     `^[${source}#L2-L6]`,
   ];
 

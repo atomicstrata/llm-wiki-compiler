@@ -175,12 +175,12 @@ export function extractClaimCitations(body: string): ClaimCitation[] {
  * individual source-entry strings, without separating comma-separated line
  * numbers like the `12` in `source.md:1, 12`.
  *
- * The rule: split on every comma EXCEPT those followed by a purely-digit token
- * (which must be a line-number continuation). This correctly handles
- * digit-leading filenames such as `2024-notes.md`, `99problems.md`, and `1.md`.
+ * The rule: split on every comma EXCEPT those followed by a line-number token
+ * (`12` or `12-15`). This correctly handles digit-leading filenames such as
+ * `2024-notes.md`, `99problems.md`, and `1.md`.
  */
 export function splitCitationMarker(inner: string): string[] {
-  return inner.split(/,(?!\s*\d+\s*(?:,|$))/);
+  return inner.split(/,(?!\s*\d+(?:-\d+)?\s*(?:,|$))/);
 }
 
 /**
@@ -200,27 +200,18 @@ function parseCitationEntries(inner: string): SourceSpan[] {
 }
 
 /**
- * Dispatch a single trimmed citation entry to the right span parser.
- * Comma-separated line numbers (e.g. `file.md:1, 12`) expand into one
- * SourceSpan per line; everything else delegates to parseSpanEntry.
+ * Parse a single trimmed citation entry into SourceSpans: one per line range,
+ * or a single file-only span for paragraph-form citations. Returns an empty
+ * array when the span syntax or range semantics are invalid.
  */
 function parseSpanEntries(entry: string): SourceSpan[] {
-  const multi = COLON_MULTILINE_PATTERN.exec(entry);
-  if (multi?.groups) return parseCommaLines(multi.groups.file, multi.groups.lines);
-  const single = parseSpanEntry(entry);
-  return single !== undefined ? [single] : [];
-}
-
-/** Expand a comma-separated line-token string (numbers or hyphen ranges) into spans. */
-function parseCommaLines(file: string, linesStr: string): SourceSpan[] {
-  const spans: SourceSpan[] = [];
-  for (const token of linesStr.split(/,\s*/)) {
-    const { start, end } = parseLineToken(token);
-    if (isValidLineRange(start, end)) {
-      spans.push({ file, lines: { start, end } });
-    }
-  }
-  return spans;
+  const match = COLON_MULTILINE_PATTERN.exec(entry) ?? SPAN_SUFFIX_PATTERN.exec(entry);
+  // Unparseable entries, such as malformed spans like file.md:abc, are preserved as file-only spans so the malformed-citation linter can report them.
+  if (!match?.groups) return [{ file: entry }];
+  const file = match.groups.file;
+  const ranges = parseCitationLineRanges(entry);
+  if (ranges === null) return [];
+  return ranges.length > 0 ? ranges.map((lines) => ({ file, lines })) : [{ file }];
 }
 
 /** Parse a single line token (`12` or `1-5`) into a start/end pair. */
@@ -231,24 +222,27 @@ function parseLineToken(token: string): { start: number; end: number } {
   return { start, end };
 }
 
+/** Parse comma-separated line tokens, returning null if any token is invalid. */
+function parseLineTokens(linesStr: string): Array<{ start: number; end: number }> | null {
+  const ranges = linesStr.split(/,\s*/).map(parseLineToken);
+  return ranges.every(({ start, end }) => isValidLineRange(start, end)) ? ranges : null;
+}
+
 /**
- * Parse a single citation entry (`file.md` / `file.md:1-3` / `file.md#L1-L3`).
- * Returns undefined when the parsed line range is semantically invalid (line
- * numbers must be >= 1 and end must be >= start).
+ * Parse every line range from a citation entry. Returns an empty array for
+ * paragraph-form citations, or null when span syntax/range semantics are invalid.
  */
-function parseSpanEntry(entry: string): SourceSpan | undefined {
-  const match = SPAN_SUFFIX_PATTERN.exec(entry);
-  if (!match || !match.groups) {
-    return { file: entry };
-  }
-  const { file, colonStart, colonEnd, hashStart, hashEnd } = match.groups;
+export function parseCitationLineRanges(entry: string): Array<{ start: number; end: number }> | null {
+  const trimmed = entry.trim();
+  const multi = COLON_MULTILINE_PATTERN.exec(trimmed);
+  if (multi?.groups) return parseLineTokens(multi.groups.lines);
+  const match = SPAN_SUFFIX_PATTERN.exec(trimmed);
+  if (!match?.groups) return null;
+  const { colonStart, colonEnd, hashStart, hashEnd } = match.groups;
   const start = colonStart ?? hashStart;
   const end = colonEnd ?? hashEnd;
-  if (start === undefined) return { file };
-  const startLine = Number(start);
-  const endLine = end === undefined ? startLine : Number(end);
-  if (!isValidLineRange(startLine, endLine)) return undefined;
-  return { file, lines: { start: startLine, end: endLine } };
+  if (start === undefined) return [];
+  return parseLineTokens(end === undefined ? start : `${start}-${end}`);
 }
 
 /** Returns true when both lines are >= 1 and end is not before start. */
@@ -266,22 +260,7 @@ export function isMalformedCitationEntry(entry: string): boolean {
   const trimmed = entry.trim();
   if (trimmed.length === 0) return true;
   if (!trimmed.includes(":") && !trimmed.includes("#")) return false;
-  const multi = COLON_MULTILINE_PATTERN.exec(trimmed);
-  if (multi?.groups) {
-    return multi.groups.lines.split(",").some((token) => {
-      const { start, end } = parseLineToken(token);
-      return !isValidLineRange(start, end);
-    });
-  }
-  const match = SPAN_SUFFIX_PATTERN.exec(trimmed);
-  if (!match || !match.groups) return true;
-  const { colonStart, colonEnd, hashStart, hashEnd } = match.groups;
-  const start = colonStart ?? hashStart;
-  const end = colonEnd ?? hashEnd;
-  if (start === undefined) return false;
-  const startLine = Number(start);
-  const endLine = end === undefined ? startLine : Number(end);
-  return !isValidLineRange(startLine, endLine);
+  return parseCitationLineRanges(trimmed) === null;
 }
 
 /**

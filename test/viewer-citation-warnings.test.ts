@@ -80,4 +80,19 @@ describe("buildViewerSnapshot — citation warnings", () => {
     expect(codes).not.toContain("unresolved_citation");
     expect(codes).not.toContain("malformed_citation");
   });
+
+  it("does not treat comma-continuation lines as source filenames", async () => {
+    const root = await makeTempRoot("citation-warn-line-list");
+    await writeSource(root, "src.md");
+    await writePage(
+      path.join(root, "wiki/concepts"),
+      "alpha",
+      { title: "Alpha" },
+      "A claim ^[src.md:1, 12-15].",
+    );
+    const snapshot = await buildViewerSnapshot(root);
+    const codes = warningCodes(snapshot, "alpha");
+    expect(codes).not.toContain("unresolved_citation");
+    expect(codes).not.toContain("malformed_citation");
+  });
 });

@@ -69,6 +69,14 @@ describe("extractClaimCitations parser", () => {
     ]);
   });
 
+  it("keeps a non-leading comma range on the same file", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:1, 12-15]");
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 1, end: 1 } },
+      { file: "source.md", lines: { start: 12, end: 15 } },
+    ]);
+  });
+
   it("splits a digit-leading filename after a letter-leading one", () => {
     const citations = extractClaimCitations("A claim. ^[source.md, 2024-notes.md]");
     expect(citations).toHaveLength(1);
@@ -199,6 +207,7 @@ describe("isMalformedCitationEntry", () => {
   it("accepts comma-separated line numbers as a valid span form", () => {
     expect(isMalformedCitationEntry("file.md:8,12")).toBe(false);
     expect(isMalformedCitationEntry("file.md:1, 5")).toBe(false);
+    expect(isMalformedCitationEntry("file.md:1, 5-8")).toBe(false);
   });
 });
 
@@ -376,5 +385,20 @@ describe("checkBrokenCitations — out-of-bounds span detection", () => {
   it("reports no findings for a span well within a 100-line source", async () => {
     const results = await lintWithSpan(HUNDRED_LINE_SOURCE, "^[src.md:42-58]");
     expect(results).toHaveLength(0);
+  });
+
+  it("flags a comma-list line beyond the source line count", async () => {
+    const results = await lintWithSpan(THREE_LINE_SOURCE, "^[src.md:1,2,12]");
+    expectOutOfBounds(results);
+  });
+
+  it("flags the first range in a comma list when it is beyond the source", async () => {
+    const results = await lintWithSpan(THREE_LINE_SOURCE, "^[src.md:12,1]");
+    expectOutOfBounds(results);
+  });
+
+  it("flags a non-leading comma range beyond the source line count", async () => {
+    const results = await lintWithSpan(THREE_LINE_SOURCE, "^[src.md:1, 12-15]");
+    expectOutOfBounds(results);
   });
 });

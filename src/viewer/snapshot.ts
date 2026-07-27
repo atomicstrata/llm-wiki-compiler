@@ -25,7 +25,7 @@ import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified, isPlainObject } from "../utils/state.js";
 import { collectViewerPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
-import { isMalformedCitationEntry } from "../utils/markdown.js";
+import { isMalformedCitationEntry, splitCitationMarker } from "../utils/markdown.js";
 import { buildGraphData } from "./graph.js";
 import type { EntityPageNode, GraphBuildOptions, RelationEdge } from "./graph.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
@@ -234,13 +234,13 @@ function attachFreshness(page: ViewerPage, snapshot: FreshnessSnapshot): ViewerP
   };
 }
 
-/** Classify every comma-separated entry inside one `^[…]` marker. */
+/** Classify every source entry inside one `^[...]` marker. */
 function appendCitationWarningsForMarker(
   raw: string,
   sourceFiles: ReadonlySet<string>,
   into: ViewerWarning[],
 ): void {
-  for (const entry of raw.split(",")) {
+  for (const entry of splitCitationMarker(raw)) {
     const trimmed = entry.trim();
     if (trimmed.length === 0) continue;
     if (isMalformedCitationEntry(trimmed)) {
@@ -359,4 +359,3 @@ function buildRecentPages(pages: ViewerPage[]): ViewerRecentPage[] {
   rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return rows.slice(0, RECENT_PAGES_LIMIT);
 }
-
