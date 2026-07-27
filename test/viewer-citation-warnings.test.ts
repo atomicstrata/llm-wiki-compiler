@@ -27,6 +27,11 @@ function warningCodes(snapshot: { pages: Array<{ slug: string; warnings: Array<{
   return page.warnings.map((w) => w.code);
 }
 
+function expectNoCitationWarnings(codes: string[]): void {
+  expect(codes).not.toContain("unresolved_citation");
+  expect(codes).not.toContain("malformed_citation");
+}
+
 describe("buildViewerSnapshot — citation warnings", () => {
   it("emits `unresolved_citation` for a citation whose source file is not under sources/", async () => {
     const root = await makeTempRoot("citation-warn-unresolved");
@@ -77,8 +82,7 @@ describe("buildViewerSnapshot — citation warnings", () => {
     );
     const snapshot = await buildViewerSnapshot(root);
     const codes = warningCodes(snapshot, "alpha");
-    expect(codes).not.toContain("unresolved_citation");
-    expect(codes).not.toContain("malformed_citation");
+    expectNoCitationWarnings(codes);
   });
 
   it("does not treat comma-continuation lines as source filenames", async () => {
@@ -92,7 +96,6 @@ describe("buildViewerSnapshot — citation warnings", () => {
     );
     const snapshot = await buildViewerSnapshot(root);
     const codes = warningCodes(snapshot, "alpha");
-    expect(codes).not.toContain("unresolved_citation");
-    expect(codes).not.toContain("malformed_citation");
+    expectNoCitationWarnings(codes);
   });
 });
