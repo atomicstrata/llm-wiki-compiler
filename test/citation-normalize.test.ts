@@ -277,10 +277,15 @@ describe("normalizer output is always accepted by the malformed-citation validat
     "^[12,15,20]",
     "^[1-5, 12]",
     "^[1, 12-15]",
+    // The normalizer's bare-line pattern tolerates space on both sides of the
+    // comma, so the validator has to accept what that repairs into.
+    "^[81 , 90]",
+    "^[1-5 , 12]",
     `^[${source}:4]`,
     `^[${source}:4-8]`,
     `^[${source}:12,15,20]`,
     `^[${source}:1, 12-15]`,
+    `^[${source}:81 , 90]`,
     `^[${source}#L2-L6]`,
   ];
 

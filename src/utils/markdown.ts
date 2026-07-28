@@ -18,8 +18,14 @@ export { atomicWrite } from "./atomic-write.js";
 /** Regex matching `^[...]` citation markers (paragraph or claim-level). */
 const CITATION_MARKER_PATTERN = /\^\[([^\]]+)\]/g;
 
-/** Regex matching the optional `:start-end` or `#Lstart-Lend` span suffix on a citation entry. */
-const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:[,-]\s*(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
+/**
+ * Regex matching the optional `:start-end` or `#Lstart-Lend` span suffix on a
+ * citation entry. Only single spans reach this pattern; comma-separated lists
+ * are matched by {@link COLON_MULTILINE_PATTERN}, which every caller tries
+ * first. The colon separator is therefore a hyphen alone — admitting a comma
+ * here would let `81,90` be read as the range `81-90`.
+ */
+const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:-\s*(?<colonEnd>\d+))?)|(?:#L(?<hashStart>\d+)(?:-L(?<hashEnd>\d+))?))?$/;
 
 /**
  * Regex matching a colon-form entry with two or more comma-separated line tokens,
@@ -27,8 +33,13 @@ const SPAN_SUFFIX_PATTERN = /^(?<file>[^:#]+)(?:(?::(?<colonStart>\d+)(?:[,-]\s*
  * compile-time normalizer emits (`source.md:1, 12`, `source.md:3,7,42`,
  * `source.md:1-5, 12`). Captured `lines` is the raw token string; each token
  * expands into its own SourceSpan.
+ *
+ * Whitespace is allowed on BOTH sides of each comma because the normalizer's
+ * bare-line pattern accepts it, so `^[81 , 90]` is repaired to
+ * `^[source.md:81 , 90]` — a form this pattern has to admit or the normalizer
+ * would emit citations its own validator rejects.
  */
-const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:-\d+)?(?:,\s*\d+(?:-\d+)?)+)$/;
+const COLON_MULTILINE_PATTERN = /^(?<file>[^:#]+):(?<lines>\d+(?:-\d+)?(?:\s*,\s*\d+(?:-\d+)?)+)$/;
 
 /** The minimum valid line number in a source span (lines are 1-indexed). */
 const MIN_LINE_NUMBER = 1;
@@ -224,7 +235,7 @@ function parseLineToken(token: string): { start: number; end: number } {
 
 /** Parse comma-separated line tokens, returning null if any token is invalid. */
 function parseLineTokens(linesStr: string): Array<{ start: number; end: number }> | null {
-  const ranges = linesStr.split(/,\s*/).map(parseLineToken);
+  const ranges = linesStr.split(/\s*,\s*/).map(parseLineToken);
   return ranges.every(({ start, end }) => isValidLineRange(start, end)) ? ranges : null;
 }
 

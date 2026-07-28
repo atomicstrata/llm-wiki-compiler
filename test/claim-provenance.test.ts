@@ -77,6 +77,22 @@ describe("extractClaimCitations parser", () => {
     ]);
   });
 
+  it("reads a two-token comma list as two lines, not as a range", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:81,90]");
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 81, end: 81 } },
+      { file: "source.md", lines: { start: 90, end: 90 } },
+    ]);
+  });
+
+  it("tolerates space on either side of the separating comma", () => {
+    const citations = extractClaimCitations("A claim. ^[source.md:81 , 90]");
+    expect(citations[0].spans).toEqual([
+      { file: "source.md", lines: { start: 81, end: 81 } },
+      { file: "source.md", lines: { start: 90, end: 90 } },
+    ]);
+  });
+
   it("splits a digit-leading filename after a letter-leading one", () => {
     const citations = extractClaimCitations("A claim. ^[source.md, 2024-notes.md]");
     expect(citations).toHaveLength(1);
@@ -208,6 +224,12 @@ describe("isMalformedCitationEntry", () => {
     expect(isMalformedCitationEntry("file.md:8,12")).toBe(false);
     expect(isMalformedCitationEntry("file.md:1, 5")).toBe(false);
     expect(isMalformedCitationEntry("file.md:1, 5-8")).toBe(false);
+  });
+
+  it("accepts space on either side of the separating comma", () => {
+    expect(isMalformedCitationEntry("file.md:81 , 90")).toBe(false);
+    expect(isMalformedCitationEntry("file.md:81 ,90")).toBe(false);
+    expect(isMalformedCitationEntry("file.md:1-5 , 12")).toBe(false);
   });
 });
 
