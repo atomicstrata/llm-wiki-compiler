@@ -186,6 +186,12 @@ export interface CompileOptions {
    * the built-in default. Out-of-range values are clamped with a warning.
    */
   concurrency?: number;
+  /**
+   * Refresh semantic embeddings after compilation. Defaults to true.
+   * Set to false for a lexical-only build with no embedding-provider calls or
+   * pending-embedding retries.
+   */
+  embeddings?: boolean;
 }
 
 /**

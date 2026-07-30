@@ -346,7 +346,13 @@ async function seedThenFinalize(
   draft: CompileStateDraft | null,
 ): Promise<void> {
   await maybeSeedPages(root, schema, generation, options);
-  await finalizeWiki(root, draft, generation.writtenPages, generation.seedSlugs);
+  await finalizeWiki(
+    root,
+    draft,
+    generation.writtenPages,
+    generation.seedSlugs,
+    options.embeddings !== false,
+  );
 }
 
 /** Inner pipeline, runs under lock protection. Returns structured CompileResult. */
@@ -510,6 +516,7 @@ async function finalizeWiki(
   draft: CompileStateDraft | null,
   pages: MergedConcept[],
   seedSlugs: string[] = [],
+  embeddingsEnabled = true,
 ): Promise<void> {
   const conceptChangedSlugs = pages.map((entry) => entry.slug);
   const conceptNewSlugs = pages
@@ -534,7 +541,7 @@ async function finalizeWiki(
 
   await generateIndex(root);
   await generateMOC(root);
-  await safelyUpdateEmbeddings(root, allChangedSlugs);
+  if (embeddingsEnabled) await safelyUpdateEmbeddings(root, allChangedSlugs);
 }
 
 /**

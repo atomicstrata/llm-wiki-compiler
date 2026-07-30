@@ -80,6 +80,7 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   Run the incremental compile pipeline. Extracts concepts from new or changed sources, generates typed wiki pages, resolves `[[wikilinks]]`, and rebuilds the index. **Requires LLM credentials.**
 
   - `options.review` - when `true`, writes generated pages to `.llmwiki/candidates/` for review instead of directly to `wiki/`. Same behavior as `llmwiki compile --review`.
+  - `options.embeddings` - set to `false` to skip embedding generation and pending-embedding retries. Page generation, links, and the lexical index still run.
 
   Source content is sent to the configured LLM provider during compilation. Do not compile wikis containing confidential data unless the provider's data-handling policies are acceptable for that content.
 
