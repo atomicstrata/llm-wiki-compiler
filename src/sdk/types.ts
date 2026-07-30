@@ -90,6 +90,11 @@ export interface SdkCompileOptions {
    * False prevents embedding-provider calls and pending-embedding retries.
    */
   embeddings?: boolean;
+  /**
+   * Trusted caller policy appended to both compile-time system prompts.
+   * The compiler's built-in extraction and page-writing instructions remain.
+   */
+  systemPolicy?: string;
 }
 
 /** Options for `getContextPack`. Maps onto the subset of BuildContextPackOptions needed externally. */

@@ -192,6 +192,11 @@ export interface CompileOptions {
    * pending-embedding retries.
    */
   embeddings?: boolean;
+  /**
+   * Trusted caller policy appended to the built-in extraction and page-writing
+   * system instructions. The built-in instructions are never replaced.
+   */
+  systemPolicy?: string;
 }
 
 /**

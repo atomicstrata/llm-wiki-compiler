@@ -40,11 +40,13 @@ import type { PageGenerationResult } from "./types.js";
  * @param root - Project root directory.
  * @param schema - Resolved schema config.
  * @param generation - Result of the concept-page generation phase.
+ * @param systemPolicy - Optional trusted caller policy added to seed prompts.
  */
 export async function generateSeedPages(
   root: string,
   schema: SchemaConfig,
   generation: PageGenerationResult,
+  systemPolicy?: string,
 ): Promise<void> {
   if (schema.seedPages.length === 0) return;
   // Dedup seeds by slug FIRST-SEEN-WINS before rendering, mirroring
@@ -60,7 +62,7 @@ export async function generateSeedPages(
   // an error and is excluded from the batch (skip-not-abort, like generation).
   const writes: CompilePageWrite[] = [];
   for (const seed of dedupedSeeds) {
-    const result = await generateSingleSeedPage(root, schema, seed);
+    const result = await generateSingleSeedPage(root, schema, seed, systemPolicy);
     if (result.error) {
       generation.errors.push(result.error);
       continue;
@@ -136,11 +138,12 @@ async function generateSingleSeedPage(
   root: string,
   schema: SchemaConfig,
   seed: SeedPage,
+  systemPolicy?: string,
 ): Promise<SeedPageOutcome> {
   const slug = slugify(seed.title);
   const relatedContent = await loadSeedRelatedPages(root, seed.relatedSlugs ?? []);
   const rule = schema.kinds[seed.kind];
-  const system = buildSeedPagePrompt(seed, rule, relatedContent);
+  const system = buildSeedPagePrompt(seed, rule, relatedContent, systemPolicy);
   const pageBody = await callClaude({
     system,
     messages: [{ role: "user", content: `Write the ${seed.kind} page titled "${seed.title}".` }],

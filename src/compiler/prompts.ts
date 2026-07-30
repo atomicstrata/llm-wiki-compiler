@@ -34,7 +34,22 @@ function withLangLine(...lines: string[]): string[] {
  * downstream auditor can distinguish pages produced under different prompt
  * generations even when the model id is identical. Format is `vMAJOR`.
  */
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
+
+/**
+ * Append a trusted caller policy without replacing any built-in instruction.
+ * Empty policies are omitted so the default prompt stays byte-identical.
+ */
+function withSystemPolicy(lines: string[], systemPolicy?: string): string[] {
+  const policy = systemPolicy?.trim();
+  if (!policy) return lines;
+  return [
+    ...lines,
+    "",
+    "Additional system policy (follow in addition to every built-in instruction above):",
+    policy,
+  ];
+}
 
 /** Allowed provenance state strings emitted by the LLM tool schema. */
 const PROVENANCE_STATE_VALUES: ProvenanceState[] = [
@@ -114,17 +129,19 @@ export const CONCEPT_EXTRACTION_TOOL = {
  * Instructs the LLM to analyze a source document and identify distinct concepts.
  * @param sourceContent - The full text of the source document.
  * @param existingIndex - The current wiki index.md contents (may be empty).
+ * @param systemPolicy - Optional trusted caller policy appended to built-in instructions.
  * @returns System prompt string for the extraction call.
  */
 export function buildExtractionPrompt(
   sourceContent: string,
   existingIndex: string,
+  systemPolicy?: string,
 ): string {
   const indexSection = existingIndex
     ? `\n\nHere is the existing wiki index — avoid duplicating concepts already covered:\n\n${existingIndex}`
     : "\n\nNo existing wiki pages yet.";
 
-  return [
+  const instructions = [
     ...withLangLine(
       "You are a knowledge extraction engine. Analyze the following source document",
       "and identify 3-8 distinct, meaningful concepts worth documenting as wiki pages.",
@@ -141,6 +158,10 @@ export function buildExtractionPrompt(
     "    or 'ambiguous' if the source is contradictory or unclear.",
     "  - contradicted_by: slugs of other concepts (in this batch or the index)",
     "    whose evidence conflicts with this one.",
+  ];
+
+  return [
+    ...withSystemPolicy(instructions, systemPolicy),
     indexSection,
     "\n\n--- SOURCE DOCUMENT ---\n\n",
     sourceContent,
@@ -154,6 +175,7 @@ export function buildExtractionPrompt(
  * @param sourceContent - The source material to draw from.
  * @param existingPage - The current page content if updating (empty for new pages).
  * @param relatedPages - Concatenated content of related wiki pages for context.
+ * @param systemPolicy - Optional trusted caller policy appended to built-in instructions.
  * @returns System prompt string for the page generation call.
  */
 export function buildPagePrompt(
@@ -161,6 +183,7 @@ export function buildPagePrompt(
   sourceContent: string,
   existingPage: string,
   relatedPages: string,
+  systemPolicy?: string,
 ): string {
   const existingSection = existingPage
     ? `\n\nExisting page to update:\n\n${existingPage}`
@@ -170,7 +193,7 @@ export function buildPagePrompt(
     ? `\n\nRelated wiki pages for cross-referencing:\n\n${relatedPages}`
     : "";
 
-  return [
+  const instructions = [
     ...withLangLine(
       `You are a wiki author. Write a clear, well-structured markdown page about "${concept}".`,
       "Draw facts only from the provided source material.",
@@ -196,6 +219,10 @@ export function buildPagePrompt(
     "If a paragraph is your inference rather than a direct extraction, leave it",
     "uncited — downstream lint rules will count uncited paragraphs as 'inferred'",
     "so lint can surface excess-inferred-paragraphs warnings on review.",
+  ];
+
+  return [
+    ...withSystemPolicy(instructions, systemPolicy),
     existingSection,
     relatedSection,
     "\n\n--- SOURCE MATERIAL ---\n\n",
@@ -263,26 +290,29 @@ function mapRawConcept(c: RawConcept): ExtractedConcept {
  * @param seed - Seed page definition pulled from the schema.
  * @param rule - Per-kind rule (used for the description and link minimum).
  * @param relatedPagesContent - Concatenated content of related concept pages.
+ * @param systemPolicy - Optional trusted caller policy appended to built-in instructions.
  * @returns System prompt string for the page generation call.
  */
 export function buildSeedPagePrompt(
   seed: SeedPage,
   rule: PageKindRule,
   relatedPagesContent: string,
+  systemPolicy?: string,
 ): string {
   const minLinks = rule.minWikilinks;
   const linkExpectation = minLinks > 0
     ? `Include at least ${minLinks} [[wikilinks]] to related pages.`
     : "Use [[wikilinks]] when referencing other pages.";
+  const instructions = withLangLine(
+    `You are a wiki author. Write a ${seed.kind} page titled "${seed.title}".`,
+    `Page-kind guidance: ${rule.description}`,
+    `Summary line for context: ${seed.summary}`,
+    "Draw facts only from the related wiki pages provided below.",
+    linkExpectation,
+    "Write in a neutral, informative tone. Be concise but thorough.",
+  );
   return [
-    ...withLangLine(
-      `You are a wiki author. Write a ${seed.kind} page titled "${seed.title}".`,
-      `Page-kind guidance: ${rule.description}`,
-      `Summary line for context: ${seed.summary}`,
-      "Draw facts only from the related wiki pages provided below.",
-      linkExpectation,
-      "Write in a neutral, informative tone. Be concise but thorough.",
-    ),
+    ...withSystemPolicy(instructions, systemPolicy),
     "\n\n--- RELATED PAGES ---\n\n",
     relatedPagesContent,
   ].join("\n");

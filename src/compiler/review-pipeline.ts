@@ -65,7 +65,7 @@ export async function generateMergedPage(
   sourceStates: SourceStateMap,
   policy: ReviewPolicy,
 ): Promise<MergedPageOutcome> {
-  const fullPage = await renderMergedPageContent(root, entry, schema);
+  const fullPage = await renderMergedPageContent(root, entry, schema, options.systemPolicy);
   const diagnostics = await collectReviewDiagnostics(root, entry, fullPage, schema);
   const signals = buildPolicySignals(fullPage, diagnostics);
   const reasons = evaluatePolicy(signals, policy);

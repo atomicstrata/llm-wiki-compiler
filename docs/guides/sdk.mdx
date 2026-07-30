@@ -81,6 +81,7 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
 
   - `options.review` - when `true`, writes generated pages to `.llmwiki/candidates/` for review instead of directly to `wiki/`. Same behavior as `llmwiki compile --review`.
   - `options.embeddings` - set to `false` to skip embedding generation and pending-embedding retries. Page generation, links, and the lexical index still run.
+  - `options.systemPolicy` - a trusted caller policy appended to both extraction and page-writing system prompts. It supplements rather than replaces the compiler's built-in instructions.
 
   Source content is sent to the configured LLM provider during compilation. Do not compile wikis containing confidential data unless the provider's data-handling policies are acceptable for that content.
 

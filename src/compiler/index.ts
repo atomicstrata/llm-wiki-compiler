@@ -326,7 +326,7 @@ async function maybeSeedPages(
   options: CompileOptions,
 ): Promise<void> {
   if (!options.review && !options.skipSeedPages) {
-    await generateSeedPages(root, schema, generation);
+    await generateSeedPages(root, schema, generation, options.systemPolicy);
   }
 }
 
@@ -425,7 +425,14 @@ async function runCompilePipeline(
   // Resolve once so an invalid override warns a single time, then cap both the
   // extraction and page-generation fan-outs identically.
   const concurrency = resolveCompileConcurrency(options.concurrency);
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
+  const extractions = await runExtractionPhases(
+    root,
+    buckets.toCompile,
+    state,
+    changes,
+    concurrency,
+    options.systemPolicy,
+  );
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
   }

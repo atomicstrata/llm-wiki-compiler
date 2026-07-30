@@ -41,12 +41,14 @@ interface RenderableConcept {
  * @param root - Project root directory.
  * @param entry - The merged concept to render.
  * @param schema - Resolved schema config, used to stamp `kind` on frontmatter.
+ * @param systemPolicy - Optional trusted caller policy added to the page prompt.
  * @returns Full markdown content (frontmatter + body, trailing newline).
  */
 export async function renderMergedPageContent(
   root: string,
   entry: RenderableConcept,
   schema: SchemaConfig,
+  systemPolicy?: string,
 ): Promise<string> {
   const existingPage = await readWikiPageContentOrWarn(
     root, CONCEPTS_DIR, entry.slug, false /* new page — absence is normal */,
@@ -58,6 +60,7 @@ export async function renderMergedPageContent(
     entry.combinedContent,
     existingPage,
     relatedPages,
+    systemPolicy,
   );
 
   const rawPageBody = await callClaude({
