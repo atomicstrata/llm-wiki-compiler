@@ -19,9 +19,9 @@ import type { FreshnessSnapshot } from "../freshness/types.js";
 import type { StateStatus } from "../utils/state.js";
 
 export interface RefreshPlan {
-  /** Stale pages with a changed live owner — recompiled. Disjoint from the other outcome lists. */
+  /** Stale pages and partial-deletion pages rebuilt from live owners. */
   recompiledPages: string[];
-  /** Partial-deletion pages (a deleted owner but every live owner is unchanged) — status repaired, content kept. Disjoint. */
+  /** @deprecated Shared pages are rebuilt; retained as an empty compatibility field. */
   sharedKeptPages: string[];
   /** Pages whose owners are ALL deleted — recomputed as orphaned. Disjoint. */
   computedOrphanedPages: string[];
@@ -126,7 +126,7 @@ function classifyOnePage(
     changedLive.forEach((o) => c.changedOwners.add(o.file));
     deleted.forEach((o) => c.deletedOwners.add(o.file));
   } else if (deleted.length > 0) {
-    c.sharedKeptPages.push(slug);
+    c.recompiledPages.push(slug);
     deleted.forEach((o) => c.deletedOwners.add(o.file));
   }
   // else: all live and fresh — no action needed

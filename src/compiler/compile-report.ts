@@ -127,9 +127,9 @@ export function reportSchemaStatus(schema: SchemaConfig): void {
   }
 }
 
-/** Log frozen slugs (shared concepts whose deletion-pinned content must persist). */
+/** Log slugs held because at least one required source failed extraction. */
 export function reportFrozenSlugs(frozenSlugs: Set<string>): void {
   for (const slug of frozenSlugs) {
-    output.status("i", output.dim(`Frozen: ${slug} (shared with deleted source)`));
+    output.status("i", output.dim(`Frozen: ${slug} (required source extraction failed)`));
   }
 }

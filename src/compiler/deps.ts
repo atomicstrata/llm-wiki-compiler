@@ -59,29 +59,47 @@ function filesByStatus(
   );
 }
 
-/**
- * Collect co-contributors for a source's concepts, skipping files in the
- * exclusion sets. Mutates `out` by adding newly discovered contributors.
- */
-function collectSharedContributors(
+/** Flatten the old-state co-owners for every concept claimed by one source. */
+function knownCoOwners(
   sourceFile: string,
   state: WikiState,
   conceptMap: Map<string, string[]>,
-  excludeSets: Set<string>[],
-  out: Set<string>,
-): void {
-  const sourceEntry = state.sources[sourceFile];
-  if (!sourceEntry) return;
+): string[] {
+  const concepts = state.sources[sourceFile]?.concepts ?? [];
+  return concepts.flatMap((slug) => conceptMap.get(slug) ?? []);
+}
 
-  for (const slug of sourceEntry.concepts) {
-    const contributors = conceptMap.get(slug);
-    if (!contributors || contributors.length < 2) continue;
+/**
+ * Walk every live co-owner reachable from the seed sources to a fixed point.
+ * @param state - Persisted source-to-concept ownership graph.
+ * @param seeds - Sources whose known concepts seed graph traversal.
+ * @param excluded - Changed or deleted sources that must not enter the result.
+ * @param initialAffected - Live owners already known to require extraction.
+ */
+function expandSharedOwnerClosure(
+  state: WikiState,
+  seeds: Iterable<string>,
+  excluded: ReadonlySet<string>,
+  initialAffected: Iterable<string> = [],
+): string[] {
+  const conceptMap = buildConceptToSourcesMap(state.sources);
+  const affected = new Set(
+    [...initialAffected].filter((file) => !excluded.has(file)),
+  );
+  const queue = [...seeds, ...affected];
+  const visited = new Set<string>();
 
-    for (const contributor of contributors) {
-      const isExcluded = excludeSets.some((s) => s.has(contributor));
-      if (!isExcluded) out.add(contributor);
+  for (let index = 0; index < queue.length; index += 1) {
+    const sourceFile = queue[index];
+    if (visited.has(sourceFile)) continue;
+    visited.add(sourceFile);
+    for (const contributor of knownCoOwners(sourceFile, state, conceptMap)) {
+      if (excluded.has(contributor) || affected.has(contributor)) continue;
+      affected.add(contributor);
+      queue.push(contributor);
     }
   }
+  return [...affected];
 }
 
 /**
@@ -90,10 +108,12 @@ function collectSharedContributors(
  * concept regeneration — ensuring shared concepts are rebuilt with content
  * from ALL contributing sources.
  *
- * Deleted sources are intentionally excluded: recompiling a concept-mate of
- * a deleted source would regenerate the page from fewer sources, losing
- * content. Shared concepts from deleted sources are preserved as-is by
- * markOrphaned (which skips shared concepts).
+ * Deleted sources also seed affected-owner discovery. Their surviving
+ * co-contributors rebuild shared pages from the remaining evidence so deleted
+ * claims and citations do not stay frozen in the wiki.
+ *
+ * Persisted frozen slugs are legacy/retry reconciliation markers. Their live
+ * owners are scheduled even when every source hash is otherwise current.
  *
  * @param state - The current persisted WikiState.
  * @param directChanges - Changes detected by hash comparison.
@@ -106,66 +126,58 @@ export function findAffectedSources(
   const changedFiles = filesByStatus(directChanges, "new", "changed");
   const deletedFiles = filesByStatus(directChanges, "deleted");
   const conceptMap = buildConceptToSourcesMap(state.sources);
-  const affected = new Set<string>();
-
-  for (const changedFile of changedFiles) {
-    collectSharedContributors(
-      changedFile, state, conceptMap,
-      [changedFiles, deletedFiles, affected],
-      affected,
-    );
-  }
-
-  return Array.from(affected);
+  const excluded = new Set([...changedFiles, ...deletedFiles]);
+  const frozenOwners = findSlugOwners(
+    new Set(state.frozenSlugs ?? []),
+    conceptMap,
+    [excluded],
+  );
+  return expandSharedOwnerClosure(
+    state,
+    excluded,
+    excluded,
+    frozenOwners,
+  );
 }
 
 /**
- * Find concept slugs that must NOT be regenerated during this compile batch.
- * A slug is "frozen" when it was shared between a deleted source and at least
- * one surviving source. Regenerating it would overwrite the existing page
- * (which has combined content from all prior contributors) with content from
- * only the surviving sources, silently losing the deleted source's contribution.
+ * Find pages that require a clean rebuild or orphan reconciliation.
+ * Includes legacy frozen slugs plus concepts shared by a deleted source and at
+ * least one source that survives this compile.
  * @param state - Current persisted state.
  * @param changes - All detected source changes in this batch.
- * @returns Set of concept slugs that compileSource should skip.
+ * @returns Concept slugs whose old page must not be reused as prompt context.
  */
-export function findFrozenSlugs(
+export function findReconciliationSlugs(
   state: WikiState,
   changes: SourceChange[],
 ): Set<string> {
-  // Start with persisted frozen slugs from prior batches.
-  const frozen = new Set<string>(state.frozenSlugs ?? []);
-
-  // Add new frozen slugs from deletions in this batch.
-  const deletedFiles = changes
-    .filter((c) => c.status === "deleted")
-    .map((c) => c.file);
-
+  const reconciliation = new Set<string>(state.frozenSlugs ?? []);
+  const deletedFiles = new Set(
+    changes.filter((c) => c.status === "deleted").map((c) => c.file),
+  );
   const conceptMap = buildConceptToSourcesMap(state.sources);
 
   for (const file of deletedFiles) {
     const entry = state.sources[file];
     if (!entry) continue;
-
     for (const slug of entry.concepts) {
-      const contributors = conceptMap.get(slug);
-      if (contributors && contributors.length > 1) {
-        frozen.add(slug);
-      }
+      const owners = conceptMap.get(slug) ?? [];
+      if (owners.some((owner) => !deletedFiles.has(owner))) reconciliation.add(slug);
     }
   }
 
-  return frozen;
+  return reconciliation;
 }
 
 /**
- * Unfreeze slugs that were successfully regenerated by all their current
- * contributors, then persist the remaining frozen set to state.
+ * Persist extraction-frozen slugs that were not successfully regenerated by
+ * all their current contributors.
  * A slug is safe to unfreeze when every source that claims it in state
  * was compiled in this batch and successfully extracted it.
  * @param draft - In-memory CompileStateDraft the function reads/mutates instead of disk state,
  *   so freshly-compiled markers from this run are visible when making unfreeze decisions.
- * @param frozenSlugs - Set of concept slugs currently frozen (shared with a deleted source).
+ * @param frozenSlugs - Concept slugs held because a required extraction failed.
  * @param successfulExtractions - Extraction results from sources compiled in this batch.
  */
 export function persistFrozenSlugs(
@@ -260,19 +272,23 @@ function findSlugOwners(
  * @param extractions - Results from Phase 1 extraction.
  * @param state - Current persisted state.
  * @param allChanges - Full changes array including deleted/unchanged entries.
+ * @param alreadyExtracted - Sources completed by earlier fixed-point rounds.
  * @returns Filenames of unchanged sources that share concepts with compiled sources.
  */
 export function findLateAffectedSources(
   extractions: ExtractionResult[],
   state: WikiState,
   allChanges: SourceChange[],
+  alreadyExtracted: ReadonlySet<string> = new Set(),
 ): string[] {
   const compilingFiles = filesByStatus(allChanges, "new", "changed");
+  for (const file of alreadyExtracted) compilingFiles.add(file);
   const deletedFiles = filesByStatus(allChanges, "deleted");
   const conceptMap = buildConceptToSourcesMap(state.sources);
   const freshSlugs = collectFreshSlugs(extractions, state);
-
-  return findSlugOwners(freshSlugs, conceptMap, [compilingFiles, deletedFiles]);
+  const excluded = new Set([...compilingFiles, ...deletedFiles]);
+  const discovered = findSlugOwners(freshSlugs, conceptMap, [excluded]);
+  return expandSharedOwnerClosure(state, discovered, excluded, discovered);
 }
 
 /**

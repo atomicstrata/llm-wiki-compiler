@@ -176,6 +176,14 @@ describe("normalizeCitationsInBody — unknown filename entries", () => {
     const result = normalizeCitationsInBody(body, [source], content);
     expect(result).toBe("Claim.^[does-not-exist.md]");
   });
+
+  it("drops unknown entries only when a clean rebuild requests strict sources", () => {
+    const source = "real.md";
+    const content = makeContent(source, 10);
+    const body = "Claim.^[real.md:1-2, deleted.md:3-4]";
+    const result = normalizeCitationsInBody(body, [source], content, true);
+    expect(result).toBe("Claim.^[real.md:1-2]");
+  });
 });
 
 // ---------------------------------------------------------------------------

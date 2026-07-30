@@ -65,11 +65,11 @@ async function extractSourcesLimited(
 }
 
 /**
- * Phase 1: extract concepts for the directly-changed batch, then expand to
- * any unchanged sources whose concepts overlap with newly extracted slugs.
- * Both batches share one `pLimit(concurrency)` cap; the late-affected set is
- * computed only after the whole direct batch resolves, since
- * findLateAffectedSources reads every direct extraction.
+ * Phase 1: extract concepts for the directly-changed batch, then repeatedly
+ * expand to unchanged sources whose concepts overlap newly extracted slugs.
+ * Every batch shares one `pLimit(concurrency)` cap. Discovery continues to a
+ * fixed point because a late owner's extraction can reveal another owner that
+ * was absent from its prior state entry.
  */
 export async function runExtractionPhases(
   root: string,
@@ -81,12 +81,18 @@ export async function runExtractionPhases(
   const limit = pLimit(concurrency);
   const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
 
-  const lateAffected = findLateAffectedSources(extractions, state, allChanges);
-  for (const file of lateAffected) {
-    output.status("~", output.info(`${file} [shares concept with new source]`));
+  while (true) {
+    const extracted = new Set(extractions.map((result) => result.sourceFile));
+    const lateAffected = findLateAffectedSources(
+      extractions, state, allChanges, extracted,
+    );
+    if (lateAffected.length === 0) break;
+    for (const file of lateAffected) {
+      output.status("~", output.info(`${file} [shares concept with new source]`));
+    }
+    const batch = await extractSourcesLimited(root, lateAffected, limit);
+    extractions.push(...batch);
   }
-  const lateExtractions = await extractSourcesLimited(root, lateAffected, limit);
-  for (const result of lateExtractions) extractions.push(result);
 
   return extractions;
 }

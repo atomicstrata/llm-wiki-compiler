@@ -34,7 +34,7 @@ import {
 } from "./prompt-modifiers.js";
 import {
   findAffectedSources,
-  findFrozenSlugs,
+  findReconciliationSlugs,
   freezeFailedExtractions,
   persistFrozenSlugs,
   type ExtractionResult,
@@ -161,12 +161,13 @@ async function generatePagesPhase(
   root: string,
   extractions: ExtractionResult[],
   frozenSlugs: Set<string>,
+  reconciliationSlugs: ReadonlySet<string>,
   schema: SchemaConfig,
   options: CompileOptions,
   policy: ReviewPolicy,
   concurrency: number,
 ): Promise<PageGenerationResult> {
-  const merged = mergeExtractions(extractions, frozenSlugs);
+  const merged = mergeExtractions(extractions, frozenSlugs, reconciliationSlugs);
   // Build the per-source state snapshot once so each candidate can carry the
   // exact data needed to mark its sources compiled on approval.
   const shouldBuildSourceStates = options.review || !isPolicyOff(policy);
@@ -325,6 +326,21 @@ function applyChangeFilter(
 }
 
 /**
+ * Orphan and clear persisted frozen slugs that no source owns.
+ * @returns True when the draft was mutated and must be flushed.
+ */
+async function reconcileOwnerlessFrozen(
+  root: string,
+  draft: CompileStateDraft,
+  reconciliationSlugs: ReadonlySet<string>,
+): Promise<boolean> {
+  if (reconciliationSlugs.size === 0) return false;
+  await orphanUnownedFrozenPages(root, draft, new Set(reconciliationSlugs));
+  draft.setFrozen(new Set());
+  return true;
+}
+
+/**
  * Generate seed pages unless `skipSeedPages` is set or we are in review mode.
  * Centralises both guard conditions so each call site in the pipeline is a
  * single unconditional statement instead of an inline if-block.
@@ -383,6 +399,7 @@ async function runCompilePipeline(
   );
   await markUnchangedPendingSources(root, changes);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
+  const reconciliationSlugs = findReconciliationSlugs(state, changes);
 
   const buckets = bucketChanges(changes);
   if (buckets.toCompile.length === 0 && buckets.deleted.length === 0) {
@@ -391,6 +408,9 @@ async function runCompilePipeline(
     // no source files changed, so adding a seed page to schema.json takes
     // effect on the next compile without needing a source file edit.
     if (!options.review) {
+      const hasOwnerlessFrozen = await reconcileOwnerlessFrozen(
+        root, draft, reconciliationSlugs,
+      );
       const emptyGeneration: PageGenerationResult = {
         pages: [],
         writtenPages: [],
@@ -399,11 +419,15 @@ async function runCompilePipeline(
         review: { held: [], forced: [] },
         seedSlugs: [],
       };
-      // Null draft: this branch has no state mutations, so nothing is flushed.
-      // Routes seed + resolution through the SAME executor batches as the normal
-      // path (see seedThenFinalize) so the early branch cannot drift to a direct
-      // write.
-      await seedThenFinalize(root, schema, emptyGeneration, options, null);
+      // Ownerless frozen reconciliation mutates the draft; otherwise null keeps
+      // the no-change path from rewriting state unnecessarily.
+      await seedThenFinalize(
+        root,
+        schema,
+        emptyGeneration,
+        options,
+        hasOwnerlessFrozen ? draft : null,
+      );
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,
@@ -429,8 +453,9 @@ async function runCompilePipeline(
     await markDeletedAsOrphaned(root, buckets.deleted, draft);
   }
 
-  const frozenSlugs = findFrozenSlugs(state, changes);
-  reportFrozenSlugs(frozenSlugs);
+  // Only extraction failures in THIS run freeze a page. Deletion and persisted
+  // freezes are reconciliation work: their surviving owners rebuild cleanly.
+  const frozenSlugs = new Set<string>();
 
   // Resolve once so an invalid override warns a single time, then cap both the
   // extraction and page-generation fan-outs identically.
@@ -438,6 +463,7 @@ async function runCompilePipeline(
   const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
+    reportFrozenSlugs(frozenSlugs);
   }
 
   // Snapshot pages on disk before generation so the journal can tell which
@@ -447,6 +473,7 @@ async function runCompilePipeline(
     root,
     extractions,
     frozenSlugs,
+    reconciliationSlugs,
     schema,
     options,
     reviewPolicy,
@@ -455,8 +482,9 @@ async function runCompilePipeline(
 
   if (!options.review) {
     await persistExtractionStates(draft, extractions, generation.writtenPages);
-    if (frozenSlugs.size > 0) {
-      await orphanUnownedFrozenPages(root, draft, frozenSlugs);
+    const orphanCandidates = new Set([...reconciliationSlugs, ...frozenSlugs]);
+    if (orphanCandidates.size > 0) {
+      await orphanUnownedFrozenPages(root, draft, orphanCandidates);
     }
     persistFrozenSlugs(draft, frozenSlugs, extractions);
     // Seed + resolution route through the SAME executor batches as the

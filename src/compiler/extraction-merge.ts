@@ -19,6 +19,36 @@ import type { ExtractionResult } from "./deps.js";
 import type { ExtractedConcept } from "../utils/types.js";
 import type { MergedConcept } from "./types.js";
 
+/** Add one extracted concept to the slug-indexed merge accumulators. */
+function mergeConcept(
+  result: ExtractionResult,
+  concept: ExtractedConcept,
+  bySlug: Map<string, MergedConcept>,
+  slicesBySlug: Map<string, SourceSlice[]>,
+  rebuildSlugs: ReadonlySet<string>,
+): void {
+  const slug = slugify(concept.concept);
+  const existing = bySlug.get(slug);
+  if (existing) {
+    existing.concept = reconcileConceptMetadata(existing.concept, concept);
+    existing.sourceFiles.push(result.sourceFile);
+  } else {
+    const entry: MergedConcept = {
+      slug,
+      concept,
+      sourceFiles: [result.sourceFile],
+      combinedContent: "",
+    };
+    if (rebuildSlugs.has(slug)) entry.rebuild = true;
+    bySlug.set(slug, entry);
+    slicesBySlug.set(slug, []);
+  }
+  slicesBySlug.get(slug)!.push({
+    file: result.sourceFile,
+    content: result.sourceContent,
+  });
+}
+
 /**
  * Reconcile metadata from a later-extracted concept into an existing merged entry.
  * Called when multiple sources contribute the same slug — produces the most
@@ -74,11 +104,13 @@ export function reconcileConceptMetadata(
  * so popular concepts that appear in many overlapping sources do not blow
  * past the LLM provider's context window (issue #39). When the raw total
  * fits the budget, the output is byte-identical to the previous unbudgeted
- * concatenation.
+ * concatenation. Slugs in `rebuildSlugs` carry a clean-rebuild marker so page
+ * rendering does not feed stale content from removed sources back to the LLM.
  */
 export function mergeExtractions(
   extractions: ExtractionResult[],
   frozenSlugs: Set<string>,
+  rebuildSlugs: ReadonlySet<string> = new Set(),
 ): MergedConcept[] {
   const bySlug = new Map<string, MergedConcept>();
   const slicesBySlug = new Map<string, SourceSlice[]>();
@@ -89,24 +121,7 @@ export function mergeExtractions(
     for (const concept of result.concepts) {
       const slug = slugify(concept.concept);
       if (frozenSlugs.has(slug)) continue;
-
-      const existing = bySlug.get(slug);
-      if (existing) {
-        existing.concept = reconcileConceptMetadata(existing.concept, concept);
-        existing.sourceFiles.push(result.sourceFile);
-      } else {
-        bySlug.set(slug, {
-          slug,
-          concept,
-          sourceFiles: [result.sourceFile],
-          combinedContent: "",
-        });
-        slicesBySlug.set(slug, []);
-      }
-      slicesBySlug.get(slug)!.push({
-        file: result.sourceFile,
-        content: result.sourceContent,
-      });
+      mergeConcept(result, concept, bySlug, slicesBySlug, rebuildSlugs);
     }
   }
 

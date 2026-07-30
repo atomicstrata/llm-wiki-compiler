@@ -73,15 +73,15 @@ function rangeIsValid(entry: string, maxLine: number): boolean {
  * Returns the (possibly repaired) entry string, or null to signal the entry
  * should be dropped entirely.
  *
- * Only bare line numbers / ranges (no filename component at all) are
- * normalised here. Entries that contain a filename — even an unresolvable
- * or malformed one — are left as-is so the downstream provenance linter
- * (`broken-citation`, `malformed-claim-citation`) can classify them.
+ * Bare line numbers / ranges are normalised here. Unknown filename entries
+ * remain available to provenance lint during ordinary updates, but callers can
+ * drop them for a clean deletion-reconciliation rebuild.
  */
 function normalizeEntry(
   entry: string,
   sourceFiles: string[],
   maxLine: number,
+  dropUnknownSourceEntries: boolean,
 ): string | null {
   const trimmed = entry.trim();
   if (trimmed.length === 0) return null;
@@ -103,9 +103,10 @@ function normalizeEntry(
     return null;
   }
 
-  // Case 3: has a filename component (even if unresolvable or malformed) — leave
-  // as-is for the downstream provenance linter to handle.
-  return trimmed;
+  // Case 3: has an unknown filename component. Normal updates leave it for
+  // downstream provenance lint. Clean rebuilds drop it so a removed source
+  // cannot re-enter the reconciled page.
+  return dropUnknownSourceEntries ? null : trimmed;
 }
 
 /**
@@ -128,8 +129,8 @@ function rebuildMarker(entries: string[]): string | null {
  *   or dropped when the line exceeds the source's actual line count.
  * - Bare numbers on multi-source pages are dropped (ambiguous — can't determine
  *   which source the LLM intended).
- * - Entries with a filename component (even unresolvable or malformed) are left
- *   as-is for the downstream provenance linter to classify.
+ * - Unknown filename entries remain for provenance lint by default, or are
+ *   removed when `dropUnknownSourceEntries` is enabled for a clean rebuild.
  *
  * When all entries in a marker are dropped the entire `^[...]` marker is
  * removed. A trailing space before the removed marker is also collapsed so
@@ -138,18 +139,23 @@ function rebuildMarker(entries: string[]): string | null {
  * @param body - Raw LLM output page body to normalise.
  * @param sourceFiles - Valid source filenames for this page (basenames only).
  * @param combinedContent - The numbered combined-source text the LLM received.
+ * @param dropUnknownSourceEntries - Remove citations outside sourceFiles.
  * @returns The normalised body string.
  */
 export function normalizeCitations(
   body: string,
   sourceFiles: string[],
   combinedContent: string,
+  dropUnknownSourceEntries = false,
 ): string {
   const maxLine = maxLineNumber(combinedContent);
   MARKER_PATTERN.lastIndex = 0;
 
   return body.replace(MARKER_PATTERN, (fullMatch, inner: string) => {
-    const entries = splitCitationMarker(inner).map((e) => normalizeEntry(e, sourceFiles, maxLine));
+    const entries = splitCitationMarker(inner)
+      .map((entry) => normalizeEntry(
+        entry, sourceFiles, maxLine, dropUnknownSourceEntries,
+      ));
     const rebuilt = rebuildMarker(entries as string[]);
     if (rebuilt === null) {
       // Signal for post-replace space cleanup: return empty string; the
@@ -165,13 +171,23 @@ export function normalizeCitations(
  * marker was removed. A space immediately before a removed marker is collapsed.
  *
  * This is the public entry point used by the page renderer.
+ * @param body - Raw LLM output page body to normalise.
+ * @param sourceFiles - Valid source filenames for this page.
+ * @param combinedContent - Numbered source text supplied to the LLM.
+ * @param dropUnknownSourceEntries - Remove citations outside sourceFiles.
  */
 export function normalizeCitationsInBody(
   body: string,
   sourceFiles: string[],
   combinedContent: string,
+  dropUnknownSourceEntries = false,
 ): string {
-  const withSentinels = normalizeCitations(body, sourceFiles, combinedContent);
+  const withSentinels = normalizeCitations(
+    body,
+    sourceFiles,
+    combinedContent,
+    dropUnknownSourceEntries,
+  );
   // Remove sentinels and the optional preceding space.
   return withSentinels.replace(/ ?\x00REMOVED\x00/g, "");
 }

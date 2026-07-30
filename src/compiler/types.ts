@@ -25,6 +25,8 @@ export interface MergedConcept {
   concept: ExtractedConcept;
   sourceFiles: string[];
   combinedContent: string;
+  /** Rebuild from live sources without feeding the prior page back to the model. */
+  rebuild?: boolean;
 }
 
 /** Buckets of source changes used by the compile pipeline. */

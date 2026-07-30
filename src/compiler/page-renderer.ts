@@ -33,6 +33,7 @@ interface RenderableConcept {
   concept: ExtractedConcept;
   sourceFiles: string[];
   combinedContent: string;
+  rebuild?: boolean;
 }
 
 /**
@@ -56,7 +57,7 @@ export async function renderMergedPageContent(
   const system = buildPagePrompt(
     entry.concept.concept,
     entry.combinedContent,
-    existingPage,
+    entry.rebuild ? "" : existingPage,
     relatedPages,
   );
 
@@ -67,7 +68,12 @@ export async function renderMergedPageContent(
     ],
   });
 
-  const pageBody = normalizeCitationsInBody(rawPageBody, entry.sourceFiles, entry.combinedContent);
+  const pageBody = normalizeCitationsInBody(
+    rawPageBody,
+    entry.sourceFiles,
+    entry.combinedContent,
+    entry.rebuild === true,
+  );
 
   const frontmatter = buildMergedFrontmatter(entry, existingPage, schema);
   reportContradictionWarnings(entry.concept.concept, entry.concept);
