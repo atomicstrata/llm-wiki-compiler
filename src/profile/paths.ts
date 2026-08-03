@@ -8,12 +8,13 @@
  * guarantee the declared path is: repo-relative, segment-clean (no `..`, NUL,
  * or empty segment), rooted under `wiki/`, and non-overlapping with any
  * reserved root (sources, build output, the OKF export dir, the graph dir,
- * VCS/dependency dirs). Overlap is tested with `isInsideDir` in both
+ * VCS/dependency dirs). Overlap is tested with `isInsidePosixDir` in both
  * directions so neither a parent nor a child of a reserved root slips through.
+ * Every comparison here is POSIX-separated: these are declared, repo-relative
+ * paths, never native filesystem paths.
  */
 
 import path from "path";
-import { isInsideDir } from "../utils/path-confine.js";
 
 /** The directory every entity type's pages must live under. */
 const WIKI_ROOT = "wiki";
@@ -53,9 +54,29 @@ function normalizeDeclaredDir(dir: string): string {
   return segments.filter((s) => s !== "" && s !== ".").join(path.posix.sep);
 }
 
+/**
+ * True when `child` equals `dir` or sits beneath it, comparing CANONICAL
+ * REPO-RELATIVE POSIX paths — the `/`-joined form {@link normalizeDeclaredDir}
+ * produces.
+ *
+ * Deliberately NOT `isInsideDir` from `utils/path-confine.js`. That helper
+ * builds its prefix with the PLATFORM separator, which is right for the native
+ * absolute realpaths symlink confinement compares, and wrong here: declared
+ * directories are always `/`-joined, so on win32 `path.sep` ("\") made every
+ * nested directory fail containment and no profile could load (issue #163).
+ *
+ * Inputs are NOT normalized. A literal backslash must keep failing to match, so
+ * this can never widen containment the way rewriting `\` to `/` would — on
+ * POSIX a directory really named `a\b` is a different directory from `a/b`.
+ */
+export function isInsidePosixDir(child: string, dir: string): boolean {
+  if (child === dir) return true;
+  return child.startsWith(dir.endsWith(path.posix.sep) ? dir : dir + path.posix.sep);
+}
+
 /** True when `a` and `b` overlap: either is at or beneath the other. */
 function pathsOverlap(a: string, b: string): boolean {
-  return isInsideDir(a, b) || isInsideDir(b, a);
+  return isInsidePosixDir(a, b) || isInsidePosixDir(b, a);
 }
 
 /**
@@ -72,7 +93,7 @@ function pathsOverlap(a: string, b: string): boolean {
  */
 export function validateEntityDirectory(dir: string, reservedRoots: string[]): string {
   const clean = normalizeDeclaredDir(dir);
-  if (!isInsideDir(clean, WIKI_ROOT)) {
+  if (!isInsidePosixDir(clean, WIKI_ROOT)) {
     throw new ProfilePathError(`entity directory must be under '${WIKI_ROOT}/': ${dir}`);
   }
   for (const reserved of reservedRoots) {

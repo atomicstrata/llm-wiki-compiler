@@ -21,7 +21,15 @@ export async function safeRealpath(p: string): Promise<string | null> {
   }
 }
 
-/** True when `child` equals `dir` or sits beneath it. */
+/**
+ * True when `child` equals `dir` or sits beneath it.
+ *
+ * Takes NATIVE paths — absolute realpaths — and so compares with `path.sep`.
+ * For canonical repo-relative POSIX strings, such as profile-declared
+ * directories, use `isInsidePosixDir` from `../profile/paths.js` instead:
+ * comparing `/`-joined strings with `path.sep` rejects every nested path on
+ * win32 (issue #163).
+ */
 export function isInsideDir(child: string, dir: string): boolean {
   if (child === dir) return true;
   const prefix = dir.endsWith(path.sep) ? dir : dir + path.sep;

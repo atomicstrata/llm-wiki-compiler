@@ -51,8 +51,7 @@ import { assert, parseGrammarGate, lifecycleStates } from "./validate-helpers.js
 import { validateWorkflowActions } from "./validate-workflow-actions.js";
 import { assertRelationRequirementsDeclared } from "./validate-relation-requirements.js";
 import { assertArtifactRequirementsDeclared, collectArtifactOrderingWarnings } from "./validate-artifact-requirements.js";
-import { validateEntityDirectory } from "./paths.js";
-import { isInsideDir } from "../utils/path-confine.js";
+import { validateEntityDirectory, isInsidePosixDir } from "./paths.js";
 import { assertStructurallyValid } from "./schema-validator.js";
 import { ProfileValidationError } from "./errors.js";
 import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR, CONCEPTS_DIR, QUERIES_DIR, WORKFLOW_PROJECTION_DIR } from "../utils/constants.js";
@@ -487,7 +486,7 @@ function validateProjectionFile(wf: string, def: WorkflowDef): void {
     return; // unreachable: assert(false) throws; satisfies the definite-assignment check
   }
   assert(
-    isInsideDir(canonical, WORKFLOW_PROJECTION_DIR),
+    isInsidePosixDir(canonical, WORKFLOW_PROJECTION_DIR),
     `workflow '${wf}' projectionFile must live under '${WORKFLOW_PROJECTION_DIR}/': ${def.projectionFile}`,
   );
 }

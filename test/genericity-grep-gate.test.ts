@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { stripComments } from "./fixtures/strip-comments.js";
 
 const SRC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src");
 
@@ -44,15 +45,6 @@ const RELATION_TYPES = ["cites", "builds-on", "challenges", "introduces-concept"
 const PROFILE_ID_EQ = /(\btypeof\s+)?profileId\s*(?:===|!==|==|!=)\s*(['"])([^'"]*)\2/g;
 
 interface Violation { file: string; line: number; text: string; }
-
-/** Match strings/comments; used to blank comment bytes while preserving strings + newlines. */
-const STRINGS_OR_COMMENTS = /("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])*')|(`(?:\\.|[^`\\])*`)|(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)/g;
-
-/** Blank comment content (keep string literals verbatim, preserve newlines for line numbers). */
-function stripComments(src: string): string {
-  return src.replace(STRINGS_OR_COMMENTS, (m, dq, sq, tpl) =>
-    dq || sq || tpl ? m : m.replace(/[^\n]/g, " "));
-}
 
 /** An equality/`case` branch on any of `names`, matched as an exact quoted literal. */
 function branchLiteralRegex(names: string[]): RegExp {
