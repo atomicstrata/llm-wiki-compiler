@@ -38,7 +38,9 @@ function hits(pattern: RegExp): string[] {
   for (const relativePath of LEXICAL_MODULES) {
     const source = readFileSync(path.join(SRC_DIR, relativePath), "utf8");
     stripComments(source).split("\n").forEach((line, index) => {
-      if (pattern.test(line)) found.push(`${relativePath}:${index + 1} — ${line.trim()}`);
+      // .search(), not .test(): stays flag-independent if a pattern here ever gains
+      // the stateful /g flag, which would advance lastIndex and skip alternating matches.
+      if (line.search(pattern) !== -1) found.push(`${relativePath}:${index + 1} — ${line.trim()}`);
     });
   }
   return found;
