@@ -13,9 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Windows: broken links in the generated wiki index** — the same separator bug on the output side. Entity-page links in `wiki/index.md` are built from `path.relative`, which emits `\` on win32, so a NESTED entity directory produced the unusable link `research\papers/foo.md`. Link targets are now normalized to POSIX. Single-level directories were unaffected, which is why this went unnoticed (#163).
 
-### Changed
-
-- **CI now runs on Windows as well as Linux.** A Linux-only matrix is what allowed the two path-separator bugs above to ship. The Windows leg is non-blocking for now so it reports the platform's real state without gating merges, and should be made required once green.
+- **`npm test` could not run on Windows at all** — vitest's global setup shelled out to `npx`, which is `npx.cmd` there and has not been resolvable by `child_process` without `shell: true` since the Node 22 hardening for CVE-2024-27980. The setup threw, collection aborted, and vitest reported the unrelated "No test files found". It now invokes the build directly with the running Node binary, needing no shell on any platform.
 
 ## [1.1.0] - 2026-07-15
 

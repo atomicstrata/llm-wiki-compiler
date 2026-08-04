@@ -10,9 +10,10 @@
  * Invokes tsup's CLI with the Node binary ALREADY running this process, rather
  * than through `npx`. On Windows `npx` is `npx.cmd`, and since the Node 22
  * hardening for CVE-2024-27980 `child_process` no longer resolves `.cmd`/`.bat`
- * without `shell: true` — so `execFile("npx", …)` fails with ENOENT there. That
- * threw inside globalSetup, which aborted vitest before it collected anything
- * and reported the confusingly unrelated "No test files found" (#163).
+ * without `shell: true` — so `execFile("npx", …)` failed with ENOENT there,
+ * aborting collection before a single test loaded. vitest then reported the
+ * confusingly unrelated "No test files found", which points nowhere near the
+ * cause. CI is Linux-only today, so nothing caught it.
  *
  * `shell: true` would also fix it, but re-opens the argument-quoting hole that
  * hardening closed. Resolving the CLI entry and running it directly needs no

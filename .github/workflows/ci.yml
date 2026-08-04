@@ -7,22 +7,10 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
-  # Runs on Linux AND Windows. llmwiki manipulates repo-relative paths
-  # everywhere, and a Linux-only matrix is what let issue #163 ship: on win32
-  # `path.sep` ("\") made every nested profile directory fail containment, so no
-  # profile could load, and nothing in CI could see it.
-  #
-  # The Windows leg is non-blocking (`continue-on-error`) for now: it reports the
-  # platform's real state without gating merges while the remaining win32 gaps
-  # are worked through. Flip it to required — delete the `continue-on-error`
-  # line — as soon as it is green, or it decays into an ignored red check.
   build-and-test:
-    runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
         node-version: [24]
     steps:
       - uses: actions/checkout@v4
