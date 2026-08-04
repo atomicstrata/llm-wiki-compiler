@@ -37,6 +37,32 @@ export function isInsideDir(child: string, dir: string): boolean {
 }
 
 /**
+ * Rewrite a NATIVE relative path to its POSIX form (`\` → `/` on win32, identity
+ * elsewhere).
+ *
+ * `path.relative`/`path.join` emit the PLATFORM separator, which is wrong the
+ * moment the result stops being a filesystem argument and becomes portable
+ * content — a markdown link, a stored id, a serialized record. On win32 those
+ * silently gain backslashes and break for every consumer that expects `/`
+ * (issue #163, same class as the profile-path fix).
+ *
+ * Only for RELATIVE paths: an absolute win32 path (`C:\...`) is not made
+ * meaningful by swapping separators.
+ *
+ * Splits on `sep` ALONE, never on `[\\/]`: on POSIX a backslash is a legal
+ * filename character, so rewriting it there would corrupt a real file name.
+ * `sep` is a parameter purely as a test seam — it lets the win32 behaviour be
+ * asserted from a POSIX runner, which is the only way this stays verified until
+ * the Windows CI job is green.
+ *
+ * @param relativePath - A relative path in the separator convention of `sep`.
+ * @param sep - Separator to split on. Defaults to the running platform's.
+ */
+export function toPosixPath(relativePath: string, sep: string = path.sep): string {
+  return relativePath.split(sep).join(path.posix.sep);
+}
+
+/**
  * Resolve `dir`/`name` to its real path IF it is a confined REGULAR FILE — i.e.
  * a real file (not a symlink, not a directory) whose realpath stays within `dir`.
  * Returns null otherwise. This is the single definition of "a source file": a

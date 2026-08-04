@@ -10,6 +10,7 @@ import { readdir } from "fs/promises";
 import path from "path";
 import { atomicWrite, parseFrontmatter } from "../utils/markdown.js";
 import { readWikiPageInDirOrWarn } from "./confined-wiki-read.js";
+import { toPosixPath } from "../utils/path-confine.js";
 import { CONCEPTS_DIR, QUERIES_DIR, INDEX_FILE } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import type { PageSummary } from "../utils/types.js";
@@ -185,6 +186,9 @@ function entityTypeHeading(entityType: string): string {
  *
  * The link target is derived from the page's already-confined `directory`/`slug`
  * (relativized against `wiki/`), so this only renders what the collector validated.
+ * The relative segment is forced back to POSIX: `path.relative` emits `path.sep`,
+ * so on win32 a NESTED entity directory (`wiki/research/papers`) produced the
+ * broken link `research\papers/foo.md` (issue #163, output-side instance).
  *
  * @param entityPages - The non-default profile's collected entity pages.
  * @returns The markdown lines for the typed sections (empty when no pages).
@@ -203,7 +207,7 @@ function buildEntitySections(entityPages: EntityPage[]): string[] {
     const pages = byType.get(entityType)!.sort((a, b) => a.slug.localeCompare(b.slug));
     lines.push("", `## ${entityTypeHeading(entityType)}`, "");
     for (const page of pages) {
-      const link = `${path.relative(WIKI_ROOT, page.directory)}/${page.slug}.md`;
+      const link = `${toPosixPath(path.relative(WIKI_ROOT, page.directory))}/${page.slug}.md`;
       lines.push(`- **[${page.title ?? page.slug}](${link})** — \`${page.id}\``);
     }
   }

@@ -41,6 +41,18 @@ function isUnsafeSegment(segment: string): boolean {
  * e.g. `wiki/papers` and `wiki/papers/.` both yield `wiki/papers`. This makes
  * the canonical form the single value used for both uniqueness and scanning, so
  * two entities can't bypass directory uniqueness with a `.`-padded alias.
+ *
+ * SEPARATOR RULE — this function is the ONE place that decides it. Splitting on
+ * `[\\/]` makes a backslash a SEPARATOR, so a profile authored on Windows
+ * (`wiki\papers`) canonicalizes to `wiki/papers` and loads everywhere. Two
+ * consequences follow, and both are intended:
+ *  - a directory whose NAME literally contains a backslash (legal on POSIX) is
+ *    not addressable from a profile — it is read as two segments;
+ *  - `..` is checked AFTER the split, so `wiki\..\..\etc` is rejected rather
+ *    than smuggled past a `/`-only split. Treating `\` as a separator is what
+ *    keeps that fail-closed.
+ * Everything downstream therefore receives `/`-joined text and may compare it
+ * lexically — see {@link isInsidePosixDir}.
  */
 function normalizeDeclaredDir(dir: string): string {
   if (dir.includes("\0")) throw new ProfilePathError(`directory contains a NUL byte: ${JSON.stringify(dir)}`);
@@ -65,9 +77,12 @@ function normalizeDeclaredDir(dir: string): string {
  * directories are always `/`-joined, so on win32 `path.sep` ("\") made every
  * nested directory fail containment and no profile could load (issue #163).
  *
- * Inputs are NOT normalized. A literal backslash must keep failing to match, so
- * this can never widen containment the way rewriting `\` to `/` would — on
- * POSIX a directory really named `a\b` is a different directory from `a/b`.
+ * Inputs are NOT normalized here, and must not be: separator resolution belongs
+ * to {@link normalizeDeclaredDir}, which has already run on everything this
+ * receives. Adding a `\`→`/` rewrite would make the helper accept a RAW declared
+ * path, silently duplicating that decision in a second place — the way these two
+ * drift apart. A backslash reaching this function means a caller skipped
+ * canonicalization; failing to match is the correct, fail-closed answer.
  */
 export function isInsidePosixDir(child: string, dir: string): boolean {
   if (child === dir) return true;

@@ -12,7 +12,7 @@
  */
 import { readdir, readFile, stat } from "fs/promises";
 import path from "path";
-import { safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { safeRealpath, isInsideDir, toPosixPath } from "../utils/path-confine.js";
 import { parseFrontmatterStatus } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import { DEFAULT_OKF_LIMITS } from "./okf-limits.js";
@@ -37,7 +37,7 @@ async function listMarkdown(
     const abs = path.join(dir, entry.name);
     if (entry.isDirectory()) await listMarkdown(root, abs, limits, acc, visited);
     else if (entry.isFile() && entry.name.endsWith(".md")) {
-      acc.push(path.relative(root, abs).split(path.sep).join("/"));
+      acc.push(toPosixPath(path.relative(root, abs)));
       if (acc.length > limits.maxFiles) throw new Error(`OKF import: bundle exceeds max file count (> ${limits.maxFiles})`);
     }
   }

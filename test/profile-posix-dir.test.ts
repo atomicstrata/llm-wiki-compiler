@@ -1,37 +1,50 @@
 /**
  * @file test/profile-posix-dir.test.ts
- * @description Direct behavioral test for `isInsidePosixDir` (#163): pins the
- * no-normalization invariant its own docstring asserts but that no test
- * previously exercised.
+ * @description Pins WHERE separator resolution happens in the profile path
+ * layer (#163), across the two functions that together decide it.
  *
- * `isInsidePosixDir` (`src/profile/paths.ts`) compares CANONICAL repo-relative
- * POSIX strings and, by design, does NOT normalize its inputs. A literal
- * backslash must keep failing to match a `/` separator, because on POSIX
- * (Linux/macOS) `\` is a legal filename character: a directory really named
- * `wiki\papers` is one segment — a sibling of `wiki`, not a child of it.
- * Rewriting `\` to `/` before comparing would make that sibling read as
- * contained, which is a real POSIX containment escape, not a Windows
- * compatibility fix.
+ * The layer has exactly one rule: `normalizeDeclaredDir` resolves separators,
+ * and everything downstream compares the `/`-joined result lexically. Both
+ * halves need pinning, because a change to either alone silently breaks the
+ * other:
  *
- * That property is currently pinned by prose alone. It is unreachable through
- * the rest of the suite because `normalizeDeclaredDir` — the only production
- * caller path — splits on `/[\\/]/` and so strips every backslash before
- * `isInsidePosixDir` is ever invoked; no higher-level test can therefore see a
- * backslash reach this function. `test/profile-posix-path-gate.test.ts` does
- * not cover it either: it is a grep gate over the source text of
- * `profile/paths.ts` and `profile/validate.ts` (banning the `isInsideDir` and
- * `path.sep` tokens), not a behavioral test of what `isInsidePosixDir` returns.
+ *  - `normalizeDeclaredDir` splits on `[\\/]`, so a Windows-authored
+ *    `wiki\papers` canonicalizes to `wiki/papers` and loads everywhere. That is
+ *    what makes the `..` check meaningful — it runs on the split segments, so
+ *    `wiki\..\..\etc` is rejected instead of passing a `/`-only split as one
+ *    opaque segment.
+ *  - `isInsidePosixDir` does NOT normalize. It is only ever handed canonical
+ *    output from the function above, so a backslash arriving here means a
+ *    caller skipped canonicalization, and refusing to match is the fail-closed
+ *    answer. A future contributor could "harden" it with `.replace(/\\/g, "/")`
+ *    — plausible-looking Windows normalization — and pass `tsc`, the build, and
+ *    the grep gate; the result would be a second, divergent place deciding what
+ *    a separator is, which is exactly the split-brain this file exists to stop.
  *
- * Without this file, a future contributor could "harden" the helper with
- * `.replace(/\\/g, "/")` — plausible-looking Windows-path normalization — and
- * pass `tsc`, the build, the full test suite, and the grep gate, while quietly
- * reopening the escape this function exists to close.
+ * `test/profile-posix-path-gate.test.ts` does not cover any of this: it greps
+ * the source text of the profile modules for native-separator tokens, and never
+ * calls these functions.
  */
 import { describe, it, expect } from "vitest";
-import { isInsidePosixDir } from "../src/profile/paths.js";
+import { isInsidePosixDir, validateEntityDirectory } from "../src/profile/paths.js";
 
-describe("isInsidePosixDir", () => {
-  it("never treats a literal backslash as a separator (#163)", () => {
+describe("normalizeDeclaredDir — the one place separators are resolved", () => {
+  it("treats a backslash as a separator so Windows-authored profiles load", () => {
+    expect(validateEntityDirectory("wiki\\papers", [])).toBe("wiki/papers");
+    expect(validateEntityDirectory("wiki\\a\\b", [])).toBe("wiki/a/b");
+  });
+
+  it("checks '..' on the split segments, so a backslash cannot smuggle traversal", () => {
+    expect(() => validateEntityDirectory("wiki\\..\\..\\etc", [])).toThrow(/'\.\.' or NUL segment/);
+  });
+
+  it("still rejects a canonicalized path that overlaps a reserved root", () => {
+    expect(() => validateEntityDirectory("wiki\\papers", ["wiki/papers"])).toThrow(/reserved root/);
+  });
+});
+
+describe("isInsidePosixDir — compares canonical input, never normalizes it", () => {
+  it("does not treat a literal backslash as a separator (#163)", () => {
     expect(isInsidePosixDir("wiki\\papers", "wiki")).toBe(false);
     expect(isInsidePosixDir("sources\\evil/x.md", "sources")).toBe(false);
   });

@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Windows: profile path validation rejected every declared directory** — on win32, `llmwiki template init` failed for every template with `entity directory must be under 'wiki/'`, any profile declaring a workflow `projectionFile` failed to load, and an entity directory declared as `wiki/` was wrongly accepted despite containing every reserved subtree — on win32 it was the only entity directory that loaded at all. Declared directories canonicalize to `/`-joined repo-relative paths, but the containment check built its prefix with the platform separator (`\` on Windows), so no nested path ever matched. The lexical profile-path checks now compare POSIX paths directly; native path confinement is unchanged. Reported and diagnosed by @squ1ddy (#163).
 
+- **Windows: broken links in the generated wiki index** — the same separator bug on the output side. Entity-page links in `wiki/index.md` are built from `path.relative`, which emits `\` on win32, so a NESTED entity directory produced the unusable link `research\papers/foo.md`. Link targets are now normalized to POSIX. Single-level directories were unaffected, which is why this went unnoticed (#163).
+
+### Changed
+
+- **CI now runs on Windows as well as Linux.** A Linux-only matrix is what allowed the two path-separator bugs above to ship. The Windows leg is non-blocking for now so it reports the platform's real state without gating merges, and should be made required once green.
+
 ## [1.1.0] - 2026-07-15
 
 Adds a security-first template distribution ecosystem — publishers sign and distribute profile templates offline, and consumers discover, install, update, and verify them through explicitly trusted taps — plus a guided path for authoring a first profile and the `llmwiki status` command. Every addition is opt-in; projects that do not use templates, taps, or profiles are unaffected.
