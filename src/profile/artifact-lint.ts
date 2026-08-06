@@ -39,7 +39,7 @@
  */
 import path from "path";
 import { scanEntityDir } from "../wiki/collect.js";
-import { safeRealpath } from "../utils/path-confine.js";
+import { safeRealpath, toPosixPath } from "../utils/path-confine.js";
 import { parseArtifactRef, formatArtifactRef, type ArtifactRef } from "../artifacts/ref.js";
 import { resolveArtifactRef, type ArtifactHealth } from "../artifacts/resolve.js";
 import { refValuesFor } from "./artifact-ref-validate.js";
@@ -233,9 +233,16 @@ export async function collectArtifactRefPageSources(root: string, profile: Profi
   return sources;
 }
 
-/** Relativize a `LintResult.file` against `root` when it is an absolute page path; an already-relative store-level label passes through unchanged. */
+/**
+ * Relativize a `LintResult.file` against `root` when it is an absolute page path;
+ * an already-relative store-level label passes through unchanged.
+ *
+ * The result is POSIX on every platform: it lands in the public
+ * {@link EntityProblemView.path}, which is portable content rather than a
+ * filesystem argument, and `path.relative` emits the platform separator (#163).
+ */
 function relativizeFile(file: string, canonicalRoot: string): string {
-  return path.isAbsolute(file) ? path.relative(canonicalRoot, file) : file;
+  return path.isAbsolute(file) ? toPosixPath(path.relative(canonicalRoot, file)) : file;
 }
 
 /**

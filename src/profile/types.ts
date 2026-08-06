@@ -13,6 +13,7 @@
  */
 
 import path from "path";
+import { toPosixPath } from "../utils/path-confine.js";
 import type { ConnectorBindingDef } from "../connectors/types.js";
 import type { EntityProblem, EntityProblemKind } from "./collect.js";
 
@@ -443,7 +444,11 @@ export interface EntityProblemView {
    * (`relation-store`) problem, which is not scoped to any entity type.
    */
   entityType?: string;
-  /** Project-relative offending page path; ABSENT for directory-level problems. Never absolute. */
+  /**
+   * Project-relative offending page path; ABSENT for directory-level problems.
+   * Never absolute, and always `/`-separated on every platform — this is
+   * portable content, not a filesystem argument.
+   */
   path?: string;
   message: string;
 }
@@ -451,10 +456,15 @@ export interface EntityProblemView {
 /**
  * Map an internal {@link EntityProblem} to its public {@link EntityProblemView}.
  *
- * Drops the absolute `filePath` in favour of a project-relative `path`
- * (`path.relative(root, filePath)`), OMITTING the key entirely when the problem
- * is directory-level (no `filePath`) so an absent path is never a misleading
- * empty string and an absolute path can never leak.
+ * Drops the absolute `filePath` in favour of a project-relative `path`,
+ * OMITTING the key entirely when the problem is directory-level (no `filePath`)
+ * so an absent path is never a misleading empty string and an absolute path can
+ * never leak.
+ *
+ * The relative path is forced back to POSIX: `path.relative` emits the PLATFORM
+ * separator, so on win32 this public view would otherwise promise
+ * `wiki/notes/x.md` and hand every consumer `wiki\notes\x.md` (issue #163, one
+ * layer out from the declared-path fix).
  *
  * @param problem - The internal structured collector problem.
  * @param root - Absolute project root, used to relativize `filePath`.
@@ -464,7 +474,7 @@ export function toEntityProblemView(problem: EntityProblem, root: string): Entit
   return {
     kind: problem.kind,
     entityType: problem.entityType,
-    ...(problem.filePath !== undefined ? { path: path.relative(root, problem.filePath) } : {}),
+    ...(problem.filePath !== undefined ? { path: toPosixPath(path.relative(root, problem.filePath)) } : {}),
     message: problem.message,
   };
 }
