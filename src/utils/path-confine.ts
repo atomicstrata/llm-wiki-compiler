@@ -51,9 +51,10 @@ export function isInsideDir(child: string, dir: string): boolean {
  *
  * Splits on `sep` ALONE, never on `[\\/]`: on POSIX a backslash is a legal
  * filename character, so rewriting it there would corrupt a real file name.
- * `sep` is a parameter purely as a test seam — it lets the win32 behaviour be
- * asserted from a POSIX runner, which is the only way this stays verified until
- * the Windows CI job is green.
+ * `sep` is a parameter purely as a test seam. CI runs Linux only (see the note
+ * in `.github/workflows/ci.yml`), so asserting the win32 behaviour from a POSIX
+ * runner is the ONLY coverage this has — not a stopgap until a Windows job
+ * lands.
  *
  * @param relativePath - A relative path in the separator convention of `sep`.
  * @param sep - Separator to split on. Defaults to the running platform's.

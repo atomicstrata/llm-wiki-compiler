@@ -7,6 +7,20 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
+  # Linux only — a deliberate, revisitable choice, recorded here because it is
+  # what let issue #163 ship: on win32 `path.sep` ("\") made every nested profile
+  # directory fail containment, so no profile could load, and nothing here saw it.
+  #
+  # A windows-latest leg was tried in #172 and taken back out. It confirmed the
+  # separator fix holds on win32, then surfaced 64 unrelated failures across 44
+  # files — chiefly that O_NOFOLLOW is POSIX-only, so every "fails closed on a
+  # symlinked leaf" guard quietly degrades to a plain open there. Nor is
+  # `continue-on-error` a way to land the leg non-blocking: the workflow run goes
+  # green but the job's check-run still reports failure and blocks the merge.
+  #
+  # So win32 behaviour is held by the `sep` test seam in `src/utils/path-confine.ts`,
+  # NOT by CI. Restoring this leg means fixing those 64 failures first — worth
+  # doing as its own change, and not free.
   build-and-test:
     runs-on: ubuntu-latest
     strategy:
