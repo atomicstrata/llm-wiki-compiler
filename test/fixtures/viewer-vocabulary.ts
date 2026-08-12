@@ -26,9 +26,11 @@ export interface EntityType {
   type: string;
   pageCount: number;
   /**
-   * The profile's declared `directory` for this type. Required on the wire, and
-   * NOT interchangeable with the type id — the collector scans this — so it is
-   * carried here rather than reconstructed by any client under test.
+   * The profile's declared `directory` for this type: a canonical
+   * PROJECT-RELATIVE path, which every shipped template spells `wiki/<name>`.
+   * Required on the wire, and NOT interchangeable with the type id — the
+   * collector scans this — so it is carried here rather than reconstructed by
+   * any client under test.
    */
   directory?: string;
 }
@@ -47,14 +49,15 @@ export interface TypedPage {
 
 /**
  * Build the entity-type block from `[id, count, directory?]` tuples, in
- * declaration order. `directory` defaults to the type id — the common profile —
- * and is passed explicitly by the tests that need the two to differ.
+ * declaration order. `directory` defaults to `wiki/<type>` — what every shipped
+ * template declares — and is passed explicitly by the tests that need the
+ * directory and the type id to diverge.
  */
 export function types(...pairs: [string, number, string?][]): EntityType[] {
   return pairs.map(([type, pageCount, directory]) => ({
     type,
     pageCount,
-    directory: directory ?? type,
+    directory: directory ?? `wiki/${type}`,
   }));
 }
 
@@ -63,7 +66,7 @@ export function manyTypes(count: number): EntityType[] {
   return Array.from({ length: count }, (_, i) => ({
     type: `type-${i}`,
     pageCount: count - i,
-    directory: `type-${i}`,
+    directory: `wiki/type-${i}`,
   }));
 }
 

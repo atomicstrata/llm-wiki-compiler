@@ -95,9 +95,14 @@ export function renderEntityTypeList(main, envelope, type) {
  * write pages, nothing would appear, and this same screen would still say the
  * type is empty. With no declaration on the envelope the sentence says where to
  * look instead of naming a path it cannot know.
+ *
+ * The declared directory is printed VERBATIM. `EntityTypeDef.directory` is a
+ * canonical PROJECT-RELATIVE path — every shipped template spells it
+ * `wiki/<name>`, and `scanEntityDir` resolves it against the project root, not
+ * against `wiki/` — so prefixing it here would name `wiki/wiki/papers/`.
  */
 function noTypedPagesState(type, directory) {
-  const where = directory ? `under wiki/${directory}/` : "in the directory your profile declares";
+  const where = directory ? `under ${directory}/` : "in the directory your profile declares";
   return emptyState(
     `No ${type} yet`,
     `Your profile declares ${type} as an entity type. Author them as Markdown ${where} and they appear here with their citations.`,

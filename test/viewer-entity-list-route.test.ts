@@ -90,7 +90,7 @@ describe("a declared but empty type", () => {
  * reads it, nothing appears, and this same screen still reports the type empty.
  */
 describe("the directory a declared-but-empty type points an author at", () => {
-  const RENAMED = types(["articles", 2, "articles"], ["ideas", 0, "ideas-v2"]);
+  const RENAMED = types(["articles", 2], ["ideas", 0, "wiki/ideas-v2"]);
 
   /** Mount `entityTypes` at `hash` and return the empty state's body text. */
   async function emptyBodyFor(entityTypes: unknown, hash: string): Promise<string> {
@@ -100,13 +100,24 @@ describe("the directory a declared-but-empty type points an author at", () => {
 
   it("names the declared directory, not the type id", async () => {
     const body = await emptyBodyFor(RENAMED, "#/_type/ideas");
-    expect(body).toContain("wiki/ideas-v2/");
+    expect(body).toContain("under wiki/ideas-v2/");
     expect(body).not.toContain("wiki/ideas/");
   });
 
-  it("still names the directory when it does match the type id", async () => {
+  // `EntityTypeDef.directory` is a canonical PROJECT-RELATIVE path — every
+  // shipped template spells it `wiki/<name>` and `scanEntityDir` resolves it
+  // against the project root — so the renderer prints it verbatim. Re-adding a
+  // `wiki/` prefix here would send an author to `wiki/wiki/desks/`.
+  it("prints the project-relative path verbatim, without re-prefixing it", async () => {
     const body = await emptyBodyFor(types(["desks", 0]), "#/_type/desks");
-    expect(body).toContain("wiki/desks/");
+    expect(body).toContain("under wiki/desks/");
+    expect(body).not.toContain("wiki/wiki/");
+  });
+
+  it("does not double a prefix for a directory outside wiki/ either", async () => {
+    const body = await emptyBodyFor(types(["desks", 0, "newsroom/desks"]), "#/_type/desks");
+    expect(body).toContain("under newsroom/desks/");
+    expect(body).not.toContain("wiki/newsroom");
   });
 
   it("names no path at all when the envelope declares none", async () => {
