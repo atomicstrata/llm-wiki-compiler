@@ -55,7 +55,7 @@ async function mountHome(
     graph: { nodeCount: 12, edgeCount: 20, danglingCount: 0 },
     index: { available: true, href: "/#/index" },
   });
-  const { dom } = await mountViewerDom([], envelopeBootstrapResponse(envelope));
+  const { dom } = await mountViewerDom(envelopeBootstrapResponse(envelope));
   return dom.window.document;
 }
 

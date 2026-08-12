@@ -4,17 +4,22 @@
  * Three responsibilities, kept deliberately small:
  *   1. First paint renders the sidebar nav from an empty model
  *      (`renderSidebar({})`) so the chrome appears before any fetch settles.
+ *      The server embeds no page data in the shell, so this is the only first
+ *      paint there is — see `src/viewer/shell.ts`.
  *   2. `/api/pages` and `/api/health`, fetched once in parallel via
  *      `loadBootstrapData()` and cached in `bootstrapData` — fill in the
  *      sidebar's counts and lint badge, the header's whole-wiki verdict
  *      pill (which reads both), and render the dashboard home.
- *   3. Hash router (`#/`, `#/<directory>/<slug>` — where directory is
- *      `concepts`, `queries`, or any entity type the active profile declares —
- *      `#/_type/<entity-type>` for that type's list, `#/index`, `#/health`,
- *      `#/reviews`, `#/workflows`, `#/pipeline`) that
- *      fetches `/api/page/...`, `/api/index`, `/api/health`, `/api/reviews`, or
- *      `/api/workflow-runs` and drops the result into the main pane. The
- *      server returns already-sanitized HTML in `html` (see
+ *   3. Hash router. Home is `#/`; a page is `#/<directory>/<slug>`, where
+ *      directory is `concepts`, `queries`, or any entity type the active
+ *      profile declares; a profile type's list is `#/_type/<entity-type>`; and
+ *      the static routes are `#/index`, `#/health`, `#/graph`, `#/concepts`,
+ *      `#/queries`, `#/sources`, `#/reviews`, `#/workflows` and `#/pipeline`
+ *      (the full set is {@link STATIC_ROUTES} — this list and that map are the
+ *      same nine). Routes fetch `/api/page/...`, `/api/index`, `/api/health`,
+ *      `/api/reviews` or `/api/workflow-runs`; the four list routes and the
+ *      graph read the already-fetched bootstrap envelope and issue nothing of
+ *      their own. The server returns already-sanitized HTML in `html` (see
  *      `src/viewer/render.ts`), so the client only has to set `innerHTML`
  *      and link up the support rail.
  *

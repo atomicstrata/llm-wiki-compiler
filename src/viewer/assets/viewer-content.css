@@ -439,3 +439,8 @@ a.list-title:hover, a.list-title:focus-visible { color: var(--accent-hover); tex
 /* The command that unparks the run. Mono and dimmed — it is a fact to copy,
  * not a control: the viewer is read-only and cannot run it. */
 .workflow-next { margin: 2px 0 0; font: var(--type-provenance); color: var(--fg-faint); }
+
+/* Prose, not a command: the trust-gate note explains why the obvious approval
+ * is the wrong one, so it takes the body face and the warn colour the parked
+ * rail already uses — it must be read, where the command below it is copied. */
+.workflow-note { margin: 2px 0 0; font: var(--type-body); color: var(--warn); }

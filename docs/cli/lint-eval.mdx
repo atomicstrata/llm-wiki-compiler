@@ -45,7 +45,7 @@ Both are surfaced by `llmwiki lint` and are also visible in the local viewer, JS
 
 ### Lint cache
 
-After every run, lint writes a summary to `.llmwiki/last-lint.json`, including a per-rule breakdown of which rules produced error or warning findings, how many files each one touched, and its most-flagged file. The local viewer (`llmwiki view`) reads this file to display health counts in the sidebar without re-running lint. The MCP `lint_wiki` tool returns the same structured diagnostics programmatically.
+After every run, lint writes a summary to `.llmwiki/last-lint.json`, including a per-rule breakdown of which rules produced error or warning findings, how many files each one touched, and its most-flagged file. The local viewer (`llmwiki view`) reads this file without re-running lint: the sidebar's **Health & lint** entry carries the total finding count as a badge, and the **Health & lint** screen (`#/health`) shows the error/warning totals with the per-rule breakdown beneath them. The MCP `lint_wiki` tool returns the same structured diagnostics programmatically.
 
 Treat the file as generated output, not as something to edit. Readers reject a malformed cache outright and report it as "lint has never run". A cache that parses but whose per-rule rows contradict the error and warning totals - rows that do not sum back to those totals, or a row flagging more files or more findings in one file than the rule produced - keeps its totals and loses only the breakdown, so the viewer shows accurate counts without a bar that disagrees with them. Re-run `llmwiki lint` to restore the breakdown.
 

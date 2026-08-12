@@ -42,7 +42,7 @@ function responderFor(withProfile: boolean): FetchResponder {
 
 /** The dashboard's recent panel, mounted for a default or profile project. */
 async function recentPanel(withProfile: boolean): Promise<Element> {
-  const { dom } = await mountViewerDom([], responderFor(withProfile));
+  const { dom } = await mountViewerDom(responderFor(withProfile));
   await flushMicrotasks();
   const panels = [...dom.window.document.querySelectorAll("[data-main-pane] .panel")];
   return panels.find((p) => /Recently/.test(p.textContent ?? ""))!;

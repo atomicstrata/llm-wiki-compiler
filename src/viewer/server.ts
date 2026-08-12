@@ -23,7 +23,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
 import { handleApiPage, handleApiPages } from "./api-pages.js";
-import { loadShellTemplate, substitutePageIndex } from "./shell.js";
+import { loadShellTemplate } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { searchPages } from "./search.js";
 import { workflowStatus } from "../workflows/status.js";
@@ -150,7 +150,7 @@ async function routeRegistered(
   snapshot: ViewerSnapshot,
   isLoopback: boolean,
 ): Promise<void> {
-  if (parsedUrl.pathname === "/") return handleShell(res, snapshot);
+  if (parsedUrl.pathname === "/") return handleShell(res);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
   const snapshotOnly = SNAPSHOT_ONLY_HANDLERS.get(parsedUrl.pathname);
   if (snapshotOnly) return snapshotOnly(res, snapshot);
@@ -309,22 +309,22 @@ function normalizeHostnameForOrigin(host: string): string {
 }
 
 /**
- * Serve the templated viewer shell. Reads `index.html` lazily through
- * `loadShellTemplate` (process-cached), substitutes the page-index JSON
- * blob, and returns the result with `Content-Type: text/html`. A missing
- * template surfaces as a 500 `shell_missing` so the rest of the routes
- * stay usable when the asset bundle is incomplete.
+ * Serve the viewer shell. Reads `index.html` lazily through `loadShellTemplate`
+ * (process-cached) and returns it verbatim with `Content-Type: text/html` — the
+ * shell carries no per-request data, so the client's own `/api/pages` fetch is
+ * the single source of the page list (see `shell.ts`). A missing template
+ * surfaces as a 500 `shell_missing` so the rest of the routes stay usable when
+ * the asset bundle is incomplete.
  */
-async function handleShell(res: ServerResponse, snapshot: ViewerSnapshot): Promise<void> {
+async function handleShell(res: ServerResponse): Promise<void> {
   const template = await loadShellTemplate(ASSETS_DIR);
   if (template === null) {
     writeJsonError(res, 500, "shell_missing", "Viewer shell template not found on disk.");
     return;
   }
-  const body = substitutePageIndex(template, snapshot.pages);
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.end(body);
+  res.end(template);
 }
 
 /** `/api/index` — rendered `wiki/index.md` with resolved outgoing links. */

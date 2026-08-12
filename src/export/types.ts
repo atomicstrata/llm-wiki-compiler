@@ -69,19 +69,26 @@ export interface ExportPage {
   /** Taxonomy tags (from frontmatter). */
   tags: string[];
   /**
-   * ISO-8601 creation timestamp, read verbatim from frontmatter. `""` when the
+   * ISO-8601 creation timestamp, read verbatim from frontmatter. ABSENT when the
    * page declares none — the export never substitutes its own run time, for the
    * same reason it omits an unset {@link ExportPage.kind}: an invented value is
    * indistinguishable from a recorded one once it reaches a consumer.
+   *
+   * Absent rather than `""` because every writer renders this field, and an
+   * empty string is not "no date" — it is an assertion that the date is the
+   * empty string. `"dateCreated": ""` is schema-invalid JSON-LD a consumer must
+   * special-case, and `created:  | updated:` in llms.txt reads as a rendering
+   * fault. A writer that cannot state a date declines to state one.
    */
-  createdAt: string;
+  createdAt?: string;
   /**
    * ISO-8601 last-updated timestamp: the page's `updatedAt`, falling back to
    * {@link ExportPage.createdAt} (a saved query declares only the latter, and
    * `query --save` rewrites the whole file on every save, so there `createdAt`
-   * *is* the last-written time). `""` when the page declares neither.
+   * *is* the last-written time). ABSENT when the page declares neither, for the
+   * reason above.
    */
-  updatedAt: string;
+  updatedAt?: string;
   /** Slugs of other pages this page links to via [[wikilinks]]. */
   links: string[];
   /** Full markdown body (without frontmatter). */

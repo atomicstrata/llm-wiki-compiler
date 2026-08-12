@@ -56,7 +56,7 @@ const responder: FetchResponder = (url) => {
 
 /** Mount at a hash and return the main pane. */
 async function mountAt(hash: string): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], responder, hash);
+  const { dom } = await mountViewerDom(responder, hash);
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
 }
 
@@ -97,7 +97,7 @@ describe("#/concepts", () => {
       freshness: { freshnessStatus: "unverified", contradicted: false, archived: false },
       citationCount: 0, unresolvedCitationCount: 0,
     };
-    const { dom } = await mountViewerDom([], responderWithEnvelope({ pages: [page] }), "#/concepts");
+    const { dom } = await mountViewerDom(responderWithEnvelope({ pages: [page] }), "#/concepts");
     const dot = dom.window.document.querySelector(".list-dot");
     expect(dot?.className).toContain("is-ok");
     expect(dot?.className).not.toContain("is-warn");
@@ -109,7 +109,7 @@ describe("#/concepts", () => {
   });
 
   it("narrows the list when the filter changes to stale", async () => {
-    const { dom } = await mountViewerDom([], responder, "#/concepts");
+    const { dom } = await mountViewerDom(responder, "#/concepts");
     const doc = dom.window.document;
     const select = doc.querySelector("[data-freshness-filter]") as HTMLSelectElement;
     select.value = "stale";
@@ -141,7 +141,7 @@ describe("#/sources", () => {
   });
 
   it("renders the design system's empty state, with the real CLI command", async () => {
-    const { dom } = await mountViewerDom([], responderWithEnvelope({ sourceFilenames: [] }), "#/sources");
+    const { dom } = await mountViewerDom(responderWithEnvelope({ sourceFilenames: [] }), "#/sources");
     const main = dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
     const state = main.querySelector(".empty-state");
     expect(state).toBeTruthy();
@@ -151,7 +151,7 @@ describe("#/sources", () => {
 
 describe("empty-state copy", () => {
   it("distinguishes a filtered-to-empty list from an empty project", async () => {
-    const { dom } = await mountViewerDom([], responderWithEnvelope({ pages: [] }), "#/concepts");
+    const { dom } = await mountViewerDom(responderWithEnvelope({ pages: [] }), "#/concepts");
     const doc = dom.window.document;
     expect(doc.querySelector(".empty-state-title")?.textContent).toBe("No concepts yet");
     const select = doc.querySelector("[data-freshness-filter]") as HTMLSelectElement;
@@ -161,7 +161,7 @@ describe("empty-state copy", () => {
   });
 
   it("names only commands the CLI actually registers", async () => {
-    const { dom } = await mountViewerDom([], responderWithEnvelope({ pages: [] }), "#/queries");
+    const { dom } = await mountViewerDom(responderWithEnvelope({ pages: [] }), "#/queries");
     const command = dom.window.document.querySelector(".empty-state-command")?.textContent ?? "";
     // The design system's own example said `llmwiki ask`, which does not exist.
     expect(command).not.toContain("llmwiki ask");

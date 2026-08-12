@@ -82,6 +82,40 @@ describe("a declared but empty type", () => {
   });
 });
 
+/**
+ * `EntityTypeDef.directory` is required and declared independently of the type
+ * id, and `profile/collect.ts` scans the DIRECTORY. So an empty state that
+ * reconstructs the path from the id misdirects every profile where the two
+ * differ: the author writes pages under the named directory, the collector never
+ * reads it, nothing appears, and this same screen still reports the type empty.
+ */
+describe("the directory a declared-but-empty type points an author at", () => {
+  const RENAMED = types(["articles", 2, "articles"], ["ideas", 0, "ideas-v2"]);
+
+  /** Mount `entityTypes` at `hash` and return the empty state's body text. */
+  async function emptyBodyFor(entityTypes: unknown, hash: string): Promise<string> {
+    const doc = await mountVocabulary(entityTypes as never, { hash });
+    return doc.querySelector(".empty-state-body")?.textContent ?? "";
+  }
+
+  it("names the declared directory, not the type id", async () => {
+    const body = await emptyBodyFor(RENAMED, "#/_type/ideas");
+    expect(body).toContain("wiki/ideas-v2/");
+    expect(body).not.toContain("wiki/ideas/");
+  });
+
+  it("still names the directory when it does match the type id", async () => {
+    const body = await emptyBodyFor(types(["desks", 0]), "#/_type/desks");
+    expect(body).toContain("wiki/desks/");
+  });
+
+  it("names no path at all when the envelope declares none", async () => {
+    const body = await emptyBodyFor([{ type: "desks", pageCount: 0 }], "#/_type/desks");
+    expect(body).not.toContain("wiki/");
+    expect(body).toContain("the directory your profile declares");
+  });
+});
+
 describe("a hash naming no declared type", () => {
   it("still falls back to home", async () => {
     const main = await mainAt("#/nonsense");
@@ -104,7 +138,7 @@ describe("a cold deep link to a typed list route", () => {
     const { responder, release } = deferredVocabularyResponder(
       vocabularyEnvelope(NEWSROOM, PAGES),
     );
-    const { dom } = await mountViewerDom([], responder, "#/_type/articles");
+    const { dom } = await mountViewerDom(responder, "#/_type/articles");
     const main = dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
     expect(main.querySelector(".placeholder")?.textContent).toContain("Loading");
     release();

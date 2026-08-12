@@ -67,6 +67,18 @@ export interface ReviewCandidateRow {
   heldReasons: HeldReason[];
   /** Wiki subdir approval writes into; absent when the candidate does not set one. */
   targetDirectory?: string;
+  /**
+   * Declared entity type approval routes a TYPED candidate to; absent on a
+   * default candidate.
+   *
+   * Carried because it, not `targetDirectory`, decides where `review approve`
+   * writes: `routeApprovedPageWrite` sends a candidate with this field through
+   * the typed planner to `wiki/<targetEntityType>/<slug>.md`, and only a
+   * candidate WITHOUT it takes the concepts/queries path. A row projecting the
+   * directory alone therefore names the wrong destination for exactly the
+   * candidates whose destination is not obvious.
+   */
+  targetEntityType?: string;
 }
 
 /**
@@ -96,6 +108,7 @@ function toReviewRow(candidate: ReviewCandidate): ReviewCandidateRow {
     heldReasons: candidate.heldReasons,
   };
   if (candidate.targetDirectory !== undefined) row.targetDirectory = candidate.targetDirectory;
+  if (candidate.targetEntityType !== undefined) row.targetEntityType = candidate.targetEntityType;
   return row;
 }
 

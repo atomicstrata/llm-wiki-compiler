@@ -39,6 +39,7 @@ interface ReviewRow {
   reviewMode: string;
   heldReasons: { code: string; detail?: string }[];
   targetDirectory?: string;
+  targetEntityType?: string;
   body?: string;
 }
 
@@ -111,6 +112,25 @@ describe("llmwiki view — /api/reviews", () => {
     expect(row?.heldReasons).toEqual([{ code: "low-confidence", detail: "confidence 0.4 < 0.6" }]);
     expect(typeof row?.generatedAt).toBe("string");
     expect(typeof row?.id).toBe("string");
+  });
+
+  // `routeApprovedPageWrite` branches on `targetEntityType`, not on
+  // `targetDirectory`: a typed candidate lands in `wiki/<entityType>/`. Dropping
+  // the field left the list route stating a destination approval never uses.
+  it("carries a typed candidate's target entity type, which is where approval writes", async () => {
+    const root = await makeTempRoot("viewer-reviews-typed");
+    await seedCandidate(root, { slug: "attention", targetEntityType: "papers" });
+    const handle = await startViewer(root);
+    const { body } = await fetchJson(handle, "/api/reviews");
+    expect(rowsOf(body)[0].targetEntityType).toBe("papers");
+  });
+
+  it("omits the typed target on a default candidate", async () => {
+    const root = await makeTempRoot("viewer-reviews-untyped");
+    await seedCandidate(root);
+    const handle = await startViewer(root);
+    const { body } = await fetchJson(handle, "/api/reviews");
+    expect("targetEntityType" in rowsOf(body)[0]).toBe(false);
   });
 
   it("omits `body` — the whole generated page — from every row", async () => {

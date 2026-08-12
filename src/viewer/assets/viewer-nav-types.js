@@ -42,6 +42,31 @@ export function navTypeLabel(type) {
 }
 
 /**
+ * The wiki subdirectory the profile DECLARES for `type`, or null when the
+ * envelope carries no declaration for it.
+ *
+ * `EntityTypeDef.directory` is required and declared INDEPENDENTLY of the type
+ * id — `profile/collect.ts` scans `def.directory`, not the id — so a profile is
+ * free to store `ideas` under `ideas-v2/`. Reading the declaration is the only
+ * way to be right about one that does; reconstructing the path from the id
+ * would tell an author to create a directory the collector never reads.
+ *
+ * Lives here beside {@link navTypeLabel} because both answer "how does this
+ * declared type appear to a reader", and both must read the profile rather than
+ * guess from the id.
+ *
+ * @param {{type?: string, directory?: string}[]} [entityTypes] - The envelope's
+ *   `profilePipeline.entityTypes`, absent on a default project.
+ * @param {string} type - The declared entity type id.
+ * @returns {string|null} The declared directory, or null.
+ */
+export function typeDirectory(entityTypes, type) {
+  if (!Array.isArray(entityTypes)) return null;
+  const declared = entityTypes.find((entry) => entry?.type === type)?.directory;
+  return typeof declared === "string" ? declared : null;
+}
+
+/**
  * Project the envelope's declared entity types into nav items, in the order
  * BROWSE lists them.
  *

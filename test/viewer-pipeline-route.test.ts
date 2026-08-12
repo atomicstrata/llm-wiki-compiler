@@ -79,7 +79,7 @@ const ENVELOPE = {
 
 /** Mount at `#/pipeline` and return the rendered document. */
 async function mountPipeline(): Promise<Document> {
-  const { dom } = await mountViewerDom([], envelopeBootstrapResponse(ENVELOPE), "#/pipeline");
+  const { dom } = await mountViewerDom(envelopeBootstrapResponse(ENVELOPE), "#/pipeline");
   return dom.window.document;
 }
 

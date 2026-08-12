@@ -27,7 +27,7 @@ const responder: FetchResponder = (url) => {
 
 describe("viewer JSDOM harness", () => {
   it("registers every viewer-*.js module in the window registry", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const registry = (dom.window as unknown as { __viewerModules: Record<string, unknown> })
       .__viewerModules;
     expect(registry["./viewer-search.js"]).toBeTruthy();
@@ -36,7 +36,7 @@ describe("viewer JSDOM harness", () => {
   });
 
   it("exposes each module's named exports as callable functions", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, Record<string, unknown>>;
     }).__viewerModules;
@@ -45,12 +45,12 @@ describe("viewer JSDOM harness", () => {
   });
 
   it("still renders the shell so existing DOM tests keep working", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     expect(dom.window.document.querySelector("[data-main-pane]")).toBeTruthy();
   });
 
   it("stubs viewer-graph.js instead of evaluating the real D3-dependent module", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, { staleIdsFromEnvelope: (envelope: unknown) => Set<string> }>;
     }).__viewerModules;
@@ -91,7 +91,7 @@ describe("viewer JSDOM harness — export form support", () => {
         'export const tempConstExport = () => "ok";\n',
       "utf-8",
     );
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, Record<string, unknown>>;
     }).__viewerModules;
@@ -102,7 +102,7 @@ describe("viewer JSDOM harness — export form support", () => {
 
   it("fails loudly, naming the file, for an unsupported export form", async () => {
     await writeFile(UNSUPPORTED_FIXTURE, "export default function tempDefaultExport() {}\n", "utf-8");
-    await expect(mountViewerDom([], responder)).rejects.toThrow(/viewer-export-default-check\.js/);
+    await expect(mountViewerDom(responder)).rejects.toThrow(/viewer-export-default-check\.js/);
   });
 });
 
@@ -128,7 +128,7 @@ describe("viewer JSDOM harness — multi-line imports", () => {
         "}\n",
       "utf-8",
     );
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, { tempMultilineImportCheck: () => boolean }>;
     }).__viewerModules;

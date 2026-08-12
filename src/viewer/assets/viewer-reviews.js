@@ -154,7 +154,24 @@ function reviewSummaryText(review) {
 function reviewSourcesText(review) {
   const sources = Array.isArray(review.sources) ? review.sources : [];
   const from = sources.length > 0 ? sources.join(" · ") : "No sources recorded";
-  return `${from} → wiki/${review.targetDirectory || DEFAULT_TARGET_DIRECTORY}/`;
+  return `${from} → wiki/${targetDirectoryOf(review)}/`;
+}
+
+/**
+ * Where approving this candidate actually writes.
+ *
+ * `review approve` routes on `targetEntityType` FIRST: a typed candidate goes
+ * through the profile-validated planner to `wiki/<entityType>/`, and only a
+ * candidate without one falls to the concepts/queries path. Reading the
+ * directory first — or defaulting a typed candidate to `concepts` — would state
+ * a destination approval never uses, on the one screen whose job is to tell a
+ * reviewer what they are about to accept.
+ */
+function targetDirectoryOf(review) {
+  if (typeof review.targetEntityType === "string" && review.targetEntityType.length > 0) {
+    return review.targetEntityType;
+  }
+  return review.targetDirectory || DEFAULT_TARGET_DIRECTORY;
 }
 
 /** Build the chip row naming every reason the candidate is held. */

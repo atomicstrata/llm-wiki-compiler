@@ -57,7 +57,7 @@ function responderWithLint(lint: unknown): FetchResponder {
 
 /** Mount and return the sidebar element. */
 async function mountSidebar(lint: unknown, startHash?: string): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], responderWithLint(lint), startHash);
+  const { dom } = await mountViewerDom(responderWithLint(lint), startHash);
   return dom.window.document.querySelector(".sidebar") as HTMLElement;
 }
 
@@ -156,7 +156,7 @@ async function renderedNavEntries(): Promise<NavEntry[]> {
 
 /** Mount at `href` and report what the main pane and the sidebar did with it. */
 async function visitHref(href: string): Promise<{ painted: boolean; current: string | null }> {
-  const { dom } = await mountViewerDom([], responderWithLint(null), href);
+  const { dom } = await mountViewerDom(responderWithLint(null), href);
   const doc = dom.window.document;
   const main = doc.querySelector("[data-main-pane]") as HTMLElement;
   const current = doc.querySelector('.sidebar a[aria-current="page"]');

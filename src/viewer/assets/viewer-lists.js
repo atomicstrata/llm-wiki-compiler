@@ -13,7 +13,7 @@
 
 import { el, emptyState, heading } from "./viewer-dom.js";
 import { isWarnFreshness, relativeAge } from "./viewer-format.js";
-import { navTypeLabel } from "./viewer-nav-types.js";
+import { navTypeLabel, typeDirectory } from "./viewer-nav-types.js";
 
 /** Filter options offered on the concepts route. */
 const FRESHNESS_FILTERS = [
@@ -81,21 +81,26 @@ export function renderEntityTypeList(main, envelope, type) {
   main.appendChild(heading("h1", navTypeLabel(type)));
   const body = el("div", "list-body");
   main.appendChild(body);
-  renderRows(body, pages, () => noTypedPagesState(type));
+  const directory = typeDirectory(envelope?.profilePipeline?.entityTypes, type);
+  renderRows(body, pages, () => noTypedPagesState(type, directory));
 }
 
 /**
  * Empty state for a type the profile declares but that has no valid page yet.
  *
  * No command: entity pages are AUTHORED, not compiled, so there is nothing for
- * the CLI to run — naming the directory is the actionable part. The literal
- * type id is what appears here, not the nav's title-cased label, because it is
- * also the directory name the reader has to create.
+ * the CLI to run — naming the directory is the actionable part, which is why it
+ * comes from the profile's declaration rather than from the type id. Guessing
+ * would send an author to a directory the collector never scans; they would
+ * write pages, nothing would appear, and this same screen would still say the
+ * type is empty. With no declaration on the envelope the sentence says where to
+ * look instead of naming a path it cannot know.
  */
-function noTypedPagesState(type) {
+function noTypedPagesState(type, directory) {
+  const where = directory ? `under wiki/${directory}/` : "in the directory your profile declares";
   return emptyState(
     `No ${type} yet`,
-    `Your profile declares ${type} as an entity type. Author them as Markdown under wiki/${type}/ and they appear here with their citations.`,
+    `Your profile declares ${type} as an entity type. Author them as Markdown ${where} and they appear here with their citations.`,
   );
 }
 

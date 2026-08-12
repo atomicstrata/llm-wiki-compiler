@@ -46,7 +46,7 @@ function responderFor(entityTypes: { type: string; pageCount: number }[] | null)
 
 /** Every nav label the sidebar renders, in order. */
 async function navLabels(entityTypes: { type: string; pageCount: number }[] | null): Promise<string[]> {
-  const { dom } = await mountViewerDom([], responderFor(entityTypes));
+  const { dom } = await mountViewerDom(responderFor(entityTypes));
   await flushMicrotasks();
   return [...dom.window.document.querySelectorAll("[data-sidebar] .nav-link .nav-label")].map(
     (el) => el.textContent ?? "",

@@ -75,18 +75,22 @@ describe("llmwiki view — readiness and snapshot", () => {
     expect(counts.concepts).toBe(1);
   });
 
-  it("/ serves the templated viewer shell with an embedded page-index blob", async () => {
+  // The shell carries NO page data. It used to embed a `#page-index` blob for
+  // first paint; the Nebula sidebar renders from an empty model and fills from
+  // `/api/pages`, so the blob had no reader and shipping the whole page list
+  // into every HTML response bought nothing. `/api/pages` is now the single
+  // source of the page list, and this pins that.
+  it("/ serves the viewer shell verbatim, with no page data embedded in it", async () => {
     const root = await makeTempRoot("viewer-server-shell");
     await writePage(path.join(root, "wiki/concepts"), "alpha", { title: "Alpha" }, "B.");
     const handle = await startViewer(root);
     const out = await fetchText(handle, "/");
     expect(out.status).toBe(200);
     expect(out.contentType).toMatch(/^text\/html/);
-    expect(out.body).toContain('<script type="application/json" id="page-index">');
-    expect(out.body).toContain('"concepts/alpha"');
-    expect(out.body).toContain("Alpha");
-    // The marker should have been replaced; no raw HTML comment left behind.
+    expect(out.body).toContain("data-main-pane");
+    expect(out.body).not.toContain('id="page-index"');
     expect(out.body).not.toContain("<!--PAGE_INDEX-->");
+    expect(out.body).not.toContain('"concepts/alpha"');
   });
 
   it("/assets/viewer.js serves the bundled client script", async () => {

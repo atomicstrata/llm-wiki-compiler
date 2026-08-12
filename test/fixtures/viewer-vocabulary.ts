@@ -21,10 +21,16 @@ import {
 /** The profile id a profile-project envelope reports. */
 export const PROFILE_ID = "newsroom";
 
-/** One entity type on the wire: its id and its valid-page count. */
+/** One entity type on the wire: its id, its declared directory, and its valid-page count. */
 export interface EntityType {
   type: string;
   pageCount: number;
+  /**
+   * The profile's declared `directory` for this type. Required on the wire, and
+   * NOT interchangeable with the type id — the collector scans this — so it is
+   * carried here rather than reconstructed by any client under test.
+   */
+  directory?: string;
 }
 
 /** One page row, reduced to the fields a list route reads. */
@@ -39,14 +45,26 @@ export interface TypedPage {
   citationCount?: number;
 }
 
-/** Build the entity-type block from `[id, count]` pairs, in declaration order. */
-export function types(...pairs: [string, number][]): EntityType[] {
-  return pairs.map(([type, pageCount]) => ({ type, pageCount }));
+/**
+ * Build the entity-type block from `[id, count, directory?]` tuples, in
+ * declaration order. `directory` defaults to the type id — the common profile —
+ * and is passed explicitly by the tests that need the two to differ.
+ */
+export function types(...pairs: [string, number, string?][]): EntityType[] {
+  return pairs.map(([type, pageCount, directory]) => ({
+    type,
+    pageCount,
+    directory: directory ?? type,
+  }));
 }
 
 /** `count` entity types named `type-0`… with descending page counts. */
 export function manyTypes(count: number): EntityType[] {
-  return Array.from({ length: count }, (_, i) => ({ type: `type-${i}`, pageCount: count - i }));
+  return Array.from({ length: count }, (_, i) => ({
+    type: `type-${i}`,
+    pageCount: count - i,
+    directory: `type-${i}`,
+  }));
 }
 
 /** Build a typed entity page row for `/api/pages.pages`. */
@@ -134,7 +152,7 @@ export async function mountVocabulary(
   options: { pages?: TypedPage[]; hash?: string } = {},
 ): Promise<Document> {
   const envelope = vocabularyEnvelope(entityTypes, options.pages);
-  const { dom } = await mountViewerDom([], vocabularyResponder(envelope), options.hash);
+  const { dom } = await mountViewerDom(vocabularyResponder(envelope), options.hash);
   await flushMicrotasks();
   return dom.window.document;
 }

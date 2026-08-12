@@ -44,6 +44,16 @@ export interface PipelineLifecycle {
 /** One entity type's declaration, before counts are joined onto it. */
 export interface PipelineEntityTypeDef {
   type: string;
+  /**
+   * The wiki subdirectory the profile DECLARES for this type.
+   *
+   * Carried because it is independently declared and required — `profile/collect.ts`
+   * scans `def.directory`, never the type id — so the two are free to differ
+   * (`ideas` stored under `ideas-v2/`). A client that reconstructs the directory
+   * from the type id is guessing, and when it guesses wrong it tells an author to
+   * write pages somewhere the collector never reads.
+   */
+  directory: string;
   lifecycle?: PipelineLifecycle;
 }
 
@@ -102,11 +112,12 @@ export function buildPipelineDefinitions(profile: ProfilePack): PipelineDefiniti
 
 /** Project one entity type's declaration, omitting `lifecycle` when it declares none. */
 function entityTypeDefinition(type: string, def: EntityTypeDef): PipelineEntityTypeDef {
-  if (def.lifecycle === undefined) return { type };
+  if (def.lifecycle === undefined) return { type, directory: def.directory };
   const { field, initial, terminal, transitions } = def.lifecycle;
   const declared = def.fields?.[field]?.enum;
   return {
     type,
+    directory: def.directory,
     lifecycle: {
       field,
       initial,

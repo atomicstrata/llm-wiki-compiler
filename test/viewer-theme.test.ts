@@ -18,19 +18,19 @@ const responder: FetchResponder = (url) => {
 
 describe("theme", () => {
   it("defaults to dark when nothing is stored", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     expect(dom.window.document.documentElement.dataset.theme).toBe("dark");
   });
 
   it("renders a toggle button that names the target theme", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const button = dom.window.document.querySelector("[data-theme-toggle]");
     expect(button).toBeTruthy();
     expect(button?.getAttribute("aria-label")).toMatch(/light/i);
   });
 
   it("flips data-theme and persists on click", async () => {
-    const { dom, flush } = await mountViewerDom([], responder);
+    const { dom, flush } = await mountViewerDom(responder);
     const doc = dom.window.document;
     const button = doc.querySelector("[data-theme-toggle]") as HTMLButtonElement;
     button.click();
@@ -40,9 +40,9 @@ describe("theme", () => {
   });
 
   it("restores a stored preference on next mount", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.localStorage.setItem("llmwiki-viewer-theme", "light");
-    const second = await mountViewerDom([], responder);
+    const second = await mountViewerDom(responder);
     second.dom.window.localStorage.setItem("llmwiki-viewer-theme", "light");
     // Re-run the boot script against the stored value.
     second.dom.window.eval("window.__llmwikiResolveTheme();");

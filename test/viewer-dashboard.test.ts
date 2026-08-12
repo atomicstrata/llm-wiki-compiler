@@ -58,7 +58,7 @@ async function mountDashboardWithEnvelope(
   envelope: unknown,
   lint: unknown = null,
 ): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], dashboardResponder(envelope, lint));
+  const { dom } = await mountViewerDom(dashboardResponder(envelope, lint));
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
 }
 
@@ -216,14 +216,14 @@ describe("dashboard panels", () => {
  */
 describe("dashboard graph panel controls", () => {
   it("renders Fit as a real button with an accessible name, not an inert span", async () => {
-    const { dom } = await mountViewerDom([], dashboardResponder(envelopeWith(0, 0)));
+    const { dom } = await mountViewerDom(dashboardResponder(envelopeWith(0, 0)));
     const fit = dom.window.document.querySelector("[data-graph-fit]");
     expect(fit?.tagName).toBe("BUTTON");
     expect(fit?.textContent?.trim()).toBe("Fit");
   });
 
   it("renders the expand control as a link to #/graph with an accessible name", async () => {
-    const { dom } = await mountViewerDom([], dashboardResponder(envelopeWith(0, 0)));
+    const { dom } = await mountViewerDom(dashboardResponder(envelopeWith(0, 0)));
     const expand = dom.window.document.querySelector(".graph-panel .panel-controls a");
     expect(expand?.tagName).toBe("A");
     expect(expand?.getAttribute("href")).toBe("#/graph");
@@ -232,7 +232,7 @@ describe("dashboard graph panel controls", () => {
 
   it("starts Fit disabled and enables it once loadGraph resolves a handle", async () => {
     const { dom, resolveGraphHandle, flush } = await mountViewerDom(
-      [], dashboardResponder(envelopeWith(0, 0)), undefined, "deferred",
+      dashboardResponder(envelopeWith(0, 0)), undefined, "deferred",
     );
     const fit = dom.window.document.querySelector("[data-graph-fit]") as HTMLButtonElement;
     expect(fit.disabled).toBe(true);
@@ -243,7 +243,7 @@ describe("dashboard graph panel controls", () => {
 
   it("keeps Fit disabled when loadGraph yields no handle", async () => {
     const { dom, resolveGraphHandle, flush } = await mountViewerDom(
-      [], dashboardResponder(envelopeWith(0, 0)), undefined, "deferred",
+      dashboardResponder(envelopeWith(0, 0)), undefined, "deferred",
     );
     resolveGraphHandle("none");
     await flush();
@@ -252,7 +252,7 @@ describe("dashboard graph panel controls", () => {
   });
 
   it("invokes the graph handle's fit() when Fit is clicked", async () => {
-    const { dom, graphFitMock } = await mountViewerDom([], dashboardResponder(envelopeWith(0, 0)));
+    const { dom, graphFitMock } = await mountViewerDom(dashboardResponder(envelopeWith(0, 0)));
     const fit = dom.window.document.querySelector("[data-graph-fit]") as HTMLButtonElement;
     fit.click();
     expect(graphFitMock).toHaveBeenCalledTimes(1);

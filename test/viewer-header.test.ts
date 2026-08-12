@@ -85,7 +85,7 @@ async function mountWith(scenario: Scenario): Promise<Document> {
     if (url.endsWith("/api/health")) return jsonResponse({ lint: scenario.lint ?? null });
     return null;
   };
-  const { dom } = await mountViewerDom([], responder);
+  const { dom } = await mountViewerDom(responder);
   return dom.window.document;
 }
 

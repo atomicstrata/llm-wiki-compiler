@@ -14,6 +14,13 @@
  * is as far as this goes: the viewer is a read-only snapshot with no write path,
  * and a button implying otherwise would be a lie.
  *
+ * The command has to be the one that WORKS, which is why the row branches on the
+ * classifier's hint fields rather than on the park flags alone: a stage-output
+ * park names the declared `--kind`/type it submits against, and a `trust:` gate
+ * — which no `gate approve` can clear — names the trusted-write grant instead. A
+ * command that fails on paste is worse than none, at the moment a reader is
+ * least able to tell why.
+ *
  * A `problem` row (an unavailable or malformed run store) renders AS a problem.
  * The endpoint deliberately reports a broken store as a fail-visible row rather
  * than an empty list — dropping it here, or dressing it as a normal run, would
@@ -38,6 +45,28 @@ const CLASSIFICATION_LABELS = {
 
 /** Shown in place of the stage id when a run sits on no stage (e.g. a finished run). */
 const NO_STAGE = "no stage";
+
+/**
+ * Placeholder for a submit hint whose stage declares no write entity type. The
+ * server sends `nextSubmitEntityType` whenever the stage declares one, so this
+ * appears only for a stage that declares none — and an angle-bracketed
+ * placeholder says "you supply this" where a silently missing flag would leave a
+ * command that fails on paste. Same wording as the CLI's `submitCommand`.
+ */
+const ENTITY_TYPE_PLACEHOLDER = "<entity-type>";
+
+/** The flags every `workflow submit` needs beyond its kind-specific target. */
+const SUBMIT_TAIL = "--slug <slug> --body-file <path>";
+
+/**
+ * What a `trust:` gate actually needs. A trust gate is NOT cleared by
+ * `gate approve` — `vouchGate` throws `TrustGateNotHereError` for exactly that
+ * call. The Trust Guard clears it on a successful write, so the operator grants
+ * the profile's writes and re-submits the SAME run.
+ */
+const TRUST_GATE_NOTE =
+  "This write is trust-gated: `gate approve` cannot clear it. " +
+  "Set LLMWIKI_TRUSTED_WRITE to grant this profile's writes, then re-submit.";
 
 /**
  * The command that lists what the active profile declares. It is the right
@@ -173,34 +202,85 @@ function buildFlag(text, parked) {
  * The parked states, in the order they must be cleared: a stage output is
  * submitted before the gate guarding that stage can be approved, so a run
  * carrying both reads top-to-bottom as the sequence of work it needs.
+ *
+ * A `trust:` gate is named as one. It parks the run exactly like a human/agent
+ * gate but is cleared by a different act entirely, and a chip that called both
+ * "Awaiting gate" would send the reader to the command that fails.
  */
 function parkLabels(run) {
   const labels = [];
   if (run.awaitingOutput === true) labels.push("Awaiting stage output");
-  if (typeof run.awaitingGate === "string") labels.push(`Awaiting gate · ${run.awaitingGate}`);
+  if (typeof run.awaitingGate === "string") labels.push(gateLabel(run));
   return labels;
 }
 
+/** The chip text for a gate park, distinguishing a trust gate from an approvable one. */
+function gateLabel(run) {
+  const kind = run.awaitingTrustGate === true ? "Trust gate" : "Awaiting gate";
+  return `${kind} · ${run.awaitingGate}`;
+}
+
 /**
- * Append one command line per parked state — the CLI that unparks the run.
- * Text only, never a control: this viewer cannot mutate a run, and the row must
- * not imply that it can.
+ * Append the unpark guidance: the trust-gate note when one applies, then one
+ * command line per parked state. Text only, never a control: this viewer cannot
+ * mutate a run, and the row must not imply that it can.
  */
 function appendNextCommands(row, run) {
+  if (run.awaitingTrustGate === true) row.appendChild(el("p", "workflow-note", TRUST_GATE_NOTE));
   for (const command of nextCommands(run)) {
     row.appendChild(el("p", "workflow-next", command));
   }
 }
 
-/** The unpark commands for a run, in the same order as {@link parkLabels}. */
+/**
+ * The unpark commands for a run, in the same order as {@link parkLabels} and
+ * matching what the CLI's own `next:` hint prints (`workflow-shared.ts`).
+ *
+ * Two branches are load-bearing rather than cosmetic. `workflow submit` needs
+ * `--kind` before anything else — `buildStageOutput` requires it first — so the
+ * declared submit target the server sends is spelled out rather than left to the
+ * reader. And a `trust:` gate gets a submit line and NO `gate approve` line:
+ * that approval throws, and the re-submit the note describes is the act that
+ * clears the gate.
+ */
 function nextCommands(run) {
   const runId = String(run.runId ?? "");
   const commands = [];
-  if (run.awaitingOutput === true) commands.push(`$ llmwiki workflow submit ${runId}`);
-  if (typeof run.awaitingGate === "string") {
+  if (needsSubmit(run)) commands.push(`$ ${submitCommand(run, runId)}`);
+  if (needsGateApproval(run)) {
     commands.push(`$ llmwiki workflow gate approve ${runId} ${run.awaitingGate}`);
   }
   return commands;
+}
+
+/**
+ * True when the run needs a `workflow submit`: it is parked for a stage output,
+ * or parked on a trust gate — which the Trust Guard clears on the next
+ * successful write, i.e. on a re-submission of the same run.
+ */
+function needsSubmit(run) {
+  return run.awaitingOutput === true || run.awaitingTrustGate === true;
+}
+
+/** True when the run is parked on a gate `gate approve` can actually clear. */
+function needsGateApproval(run) {
+  return typeof run.awaitingGate === "string" && run.awaitingTrustGate !== true;
+}
+
+/**
+ * The concrete `workflow submit` for a write-park. A stage declaring an artifact
+ * write and no entity write submits `--kind artifact`; every other write-park
+ * submits `--kind page`. Mirrors the CLI's `submitCommand` so the two surfaces
+ * never print different commands for the same parked run.
+ */
+function submitCommand(run, runId) {
+  const base = `llmwiki workflow submit ${runId}`;
+  const entityType = run.nextSubmitEntityType;
+  if (typeof entityType !== "string" && typeof run.nextSubmitArtifactType === "string") {
+    return `${base} --kind artifact --artifact-type ${run.nextSubmitArtifactType} ${SUBMIT_TAIL}`;
+  }
+  const target = typeof entityType === "string" ? entityType : ENTITY_TYPE_PLACEHOLDER;
+  return `${base} --kind page --entity-type ${target} ${SUBMIT_TAIL}`;
 }
 
 /**

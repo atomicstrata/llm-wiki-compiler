@@ -47,19 +47,25 @@ function renderOkf(pages: ExportPage[]): string {
 
 /**
  * The six formats the fabricated instant reached, each paired with its renderer
- * and with how that format spells a page's updated timestamp. One table so the
- * determinism check and the cross-format agreement check cannot drift apart.
+ * and with how that format spells a page's timestamps. One table so the
+ * determinism check, the cross-format agreement check, and the empty-value check
+ * cannot drift apart.
+ *
+ * Passing `""` to a marker yields exactly how that format would spell a
+ * PRESENT-but-empty timestamp — the shape the undated-page test forbids. `okf`
+ * carries no creation field at all, so it declares no `createdMarker`.
  */
 const AFFECTED_FORMATS: ReadonlyArray<{
   name: string;
   render: (pages: ExportPage[]) => string;
   updatedMarker: (timestamp: string) => string;
+  createdMarker?: (timestamp: string) => string;
 }> = [
-  { name: "llms-txt", render: (p) => buildLlmsTxt(p, TITLE), updatedMarker: (t) => `updated: ${t}` },
-  { name: "llms-full-txt", render: (p) => buildLlmsFullTxt(p, TITLE), updatedMarker: (t) => `Updated: ${t}` },
-  { name: "marp", render: (p) => buildMarp(p, TITLE, "all"), updatedMarker: (t) => `updated: ${t}` },
-  { name: "json-ld", render: buildJsonLd, updatedMarker: (t) => `"dateModified": "${t}"` },
-  { name: "graphml", render: buildGraphml, updatedMarker: (t) => `<data key="updatedAt">${t}</data>` },
+  { name: "llms-txt", render: (p) => buildLlmsTxt(p, TITLE), updatedMarker: (t) => `updated: ${t}`, createdMarker: (t) => `created: ${t}` },
+  { name: "llms-full-txt", render: (p) => buildLlmsFullTxt(p, TITLE), updatedMarker: (t) => `Updated: ${t}`, createdMarker: (t) => `Created: ${t}` },
+  { name: "marp", render: (p) => buildMarp(p, TITLE, "all"), updatedMarker: (t) => `updated: ${t}`, createdMarker: (t) => `created: ${t}` },
+  { name: "json-ld", render: buildJsonLd, updatedMarker: (t) => `"dateModified": "${t}"`, createdMarker: (t) => `"dateCreated": "${t}"` },
+  { name: "graphml", render: buildGraphml, updatedMarker: (t) => `<data key="updatedAt">${t}</data>`, createdMarker: (t) => `<data key="createdAt">${t}</data>` },
   { name: "okf", render: renderOkf, updatedMarker: (t) => `timestamp: "${t}"` },
 ];
 
@@ -109,9 +115,11 @@ describe("export timestamps are read, never invented", () => {
     });
   });
 
-  it("leaves both timestamps empty for a page that declares neither", async () => {
+  it("carries no timestamp key at all for a page that declares neither", async () => {
     const pages = await collectAt(await seedWiki(), FIRST_RUN);
-    expect(pageOf(pages, "undated")).toMatchObject({ createdAt: "", updatedAt: "" });
+    const undated = pageOf(pages, "undated");
+    expect(undated).not.toHaveProperty("createdAt");
+    expect(undated).not.toHaveProperty("updatedAt");
   });
 
   it("collects identical pages across a clock jump", async () => {
@@ -151,5 +159,36 @@ describe("export timestamps are read, never invented", () => {
   it("omits the OKF timestamp entirely for a page that declares none", async () => {
     const pages = await collectAt(await seedWiki(), FIRST_RUN);
     expect(mapPageToOkfFrontmatter(pageOf(pages, "undated")).timestamp).toBeUndefined();
+  });
+});
+
+/**
+ * Not inventing the instant at COLLECTION is only half the fix: an absent
+ * timestamp that every writer renders anyway becomes a present-but-empty one at
+ * SERIALIZATION. `"dateCreated": ""` is schema-invalid for a schema.org Date,
+ * and `created:  | updated:` reads as a rendering fault — both are the export
+ * asserting something the page never said. A format with nothing to state
+ * declines to state it.
+ *
+ * The undated page renders ALONE here: the dated fixtures in the same wiki carry
+ * the very substrings under test as prefixes of their real values.
+ */
+describe("an undated page states no date, in any format", () => {
+  it("renders no empty timestamp anywhere", async () => {
+    const pages = await collectAt(await seedWiki(), FIRST_RUN);
+    const undated = [pageOf(pages, "undated")];
+    for (const { name, render, createdMarker, updatedMarker } of AFFECTED_FORMATS) {
+      const out = render(undated);
+      expect(out, name).not.toContain(updatedMarker(""));
+      if (createdMarker) expect(out, name).not.toContain(createdMarker(""));
+    }
+  });
+
+  it("still renders the page itself in every format", async () => {
+    const pages = await collectAt(await seedWiki(), FIRST_RUN);
+    const undated = [pageOf(pages, "undated")];
+    for (const { name, render } of AFFECTED_FORMATS) {
+      expect(render(undated), name).toContain("Undated");
+    }
   });
 });

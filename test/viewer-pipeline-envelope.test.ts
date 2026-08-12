@@ -18,12 +18,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { startViewerServer } from "../src/viewer/server.js";
+import { buildPipelineDefinitions } from "../src/viewer/pipeline.js";
+import type { ProfilePack } from "../src/profile/types.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { PIPELINE_PROFILE, seedPipelinePages } from "./fixtures/pipeline-project.js";
 
 interface PipelineRow {
   type: string;
+  directory: string;
   pageCount: number;
   stateCounts?: Record<string, number>;
   lifecycle?: {
@@ -99,6 +102,31 @@ describe("/api/pages — profilePipeline on a profile project", () => {
     const row = await rowFor("desks");
     expect(row.pageCount).toBe(3);
     expect(row.stateCounts).toEqual({ active: 2, archived: 1 });
+  });
+
+  // `profile/collect.ts` scans `def.directory`, which is declared independently
+  // of the type id. A client that rebuilds the path from the id is guessing, and
+  // the typed-list empty state guesses out loud — it tells an author which
+  // directory to create.
+  it("carries each type's DECLARED directory, not its id", async () => {
+    const pipeline = await pipelineEnvelope();
+    const onWire = Object.fromEntries(pipeline.entityTypes.map((row) => [row.type, row.directory]));
+    const declared = Object.fromEntries(
+      Object.entries(PIPELINE_PROFILE.entities).map(([type, def]) => [type, def.directory]),
+    );
+    expect(onWire).toEqual(declared);
+  });
+
+  it("carries a directory that differs from the type id verbatim", () => {
+    const renamed: ProfilePack = {
+      ...PIPELINE_PROFILE,
+      entities: {
+        ...PIPELINE_PROFILE.entities,
+        desks: { ...PIPELINE_PROFILE.entities.desks, directory: "desks-v2" },
+      },
+    };
+    const definitions = buildPipelineDefinitions(renamed);
+    expect(definitions.entityTypes.find((d) => d.type === "desks")?.directory).toBe("desks-v2");
   });
 
   it("carries relation endpoints and direction from the profile", async () => {

@@ -98,8 +98,8 @@ function readXOkf(meta: Record<string, unknown>): XOkfSnapshot | undefined {
 
 /** The two ISO-8601 instants every export format reports for a page. */
 interface PageTimestamps {
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /** Read `field` from frontmatter when it holds a non-empty string. */
@@ -116,8 +116,10 @@ function readNonEmptyString(meta: Record<string, unknown>, field: string): strin
  * and it did two kinds of damage: two exports of an unchanged wiki differed,
  * and `llmwiki import --okf` mapped the invented instant back into real
  * frontmatter, where nothing distinguishes it from one the compiler recorded.
- * An undeclared field therefore degrades to `""`, the same way `summary` does a
- * few lines below and `src/pages/list.ts` reads these same two fields.
+ * An undeclared field is therefore OMITTED — the key is absent, not empty —
+ * matching how `src/pages/list.ts` reads these same two fields. Emitting `""`
+ * would only move the invention downstream: every writer renders these fields,
+ * and an empty date is a claim, not a silence.
  *
  * `updatedAt` falls back to `createdAt` — never the reverse. `query --save`
  * stamps a fresh `createdAt` on every save and rewrites the whole file through
@@ -128,8 +130,12 @@ function readNonEmptyString(meta: Record<string, unknown>, field: string): strin
  * viewer.
  */
 function readPageTimestamps(meta: Record<string, unknown>): PageTimestamps {
-  const createdAt = readNonEmptyString(meta, "createdAt") ?? "";
-  return { createdAt, updatedAt: readNonEmptyString(meta, "updatedAt") ?? createdAt };
+  const createdAt = readNonEmptyString(meta, "createdAt");
+  const updatedAt = readNonEmptyString(meta, "updatedAt") ?? createdAt;
+  return {
+    ...(createdAt === undefined ? {} : { createdAt }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
+  };
 }
 
 /** Validate and return PageKind from frontmatter, or undefined. */

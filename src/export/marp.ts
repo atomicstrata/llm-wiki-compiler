@@ -14,6 +14,7 @@
 
 import type { ExportPage, MarpSource } from "./types.js";
 import { exportBodyText, exportFieldText } from "./connector-content.js";
+import { timestampClauses } from "./timestamps.js";
 
 /** Maximum characters of body text to include per slide. */
 const SLIDE_BODY_MAX_CHARS = 300;
@@ -32,11 +33,15 @@ function extractFirstParagraph(body: string): string {
   return `${stripped.slice(0, SLIDE_BODY_MAX_CHARS)}…`;
 }
 
-/** Build the speaker-notes block for a slide containing metadata. */
-function buildSpeakerNotes(page: ExportPage): string {
-  const parts: string[] = [`created: ${page.createdAt}`, `updated: ${page.updatedAt}`];
+/**
+ * Build the speaker-notes block for a slide containing metadata, or `null` when
+ * the page declares none of it. An undated, sourceless page yields an EMPTY
+ * comment, which is a slide artefact rather than a note — so the slide omits it.
+ */
+function buildSpeakerNotes(page: ExportPage): string | null {
+  const parts = timestampClauses(page, "created", "updated");
   if (page.sources.length > 0) parts.push(`sources: ${page.sources.join(", ")}`);
-  return `<!-- ${parts.join(" | ")} -->`;
+  return parts.length > 0 ? `<!-- ${parts.join(" | ")} -->` : null;
 }
 
 /** Render one ExportPage as a Marp slide. */
@@ -52,7 +57,7 @@ function pageToSlide(page: ExportPage): string {
     "",
     excerpt,
     "",
-    notes,
+    ...(notes === null ? [] : [notes]),
   ].join("\n");
 }
 

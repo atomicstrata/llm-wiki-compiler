@@ -15,6 +15,7 @@
 
 import type { ExportPage } from "./types.js";
 import { exportBodyText, exportFieldText } from "./connector-content.js";
+import { timestampClauses } from "./timestamps.js";
 
 /**
  * Build the wiki-relative path for a page based on its source directory.
@@ -33,8 +34,9 @@ function buildEntryNote(page: ExportPage): string {
   if (page.summary) parts.push(exportFieldText(page, "summary", page.summary));
   if (page.tags.length > 0) parts.push(`tags: ${page.tags.join(", ")}`);
   if (page.sources.length > 0) parts.push(`sources: ${page.sources.join(", ")}`);
-  parts.push(`created: ${page.createdAt}`);
-  parts.push(`updated: ${page.updatedAt}`);
+  // Every other clause here is already conditional on having something to say;
+  // the two timestamps are now no different (see ./timestamps.ts).
+  parts.push(...timestampClauses(page, "created", "updated"));
   return parts.join(" | ");
 }
 
@@ -87,11 +89,14 @@ export function buildLlmsFullTxt(pages: ExportPage[], projectTitle: string): str
     const tags = page.tags.length > 0 ? `\nTags: ${page.tags.join(", ")}` : "";
     const sources = page.sources.length > 0 ? `\nSources: ${page.sources.join(", ")}` : "";
     const summary = exportFieldText(page, "summary", page.summary);
+    // An undated page drops the whole line rather than heading a section with a
+    // labelled blank (see ./timestamps.ts).
+    const dates = timestampClauses(page, "Created", "Updated").join(" | ");
     const header = [
       "---",
       `## ${page.title}`,
       `> ${summary}${tags}${sources}`,
-      `Created: ${page.createdAt} | Updated: ${page.updatedAt}`,
+      ...(dates.length > 0 ? [dates] : []),
       "",
     ].join("\n");
     sections.push(`${header}\n${exportBodyText(page).trim()}\n`);

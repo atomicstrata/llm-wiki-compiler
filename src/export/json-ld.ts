@@ -19,15 +19,22 @@ function pageIri(slug: string): string {
   return `${LOCAL_BASE}${slug}`;
 }
 
-/** Serialise one ExportPage as a JSON-LD Article node. */
+/**
+ * Serialise one ExportPage as a JSON-LD Article node.
+ *
+ * An undated page OMITS `dateCreated`/`dateModified` rather than emitting `""`:
+ * schema.org types both as a Date, and the empty string is not a Date — it is a
+ * value a linked-data consumer has to special-case, where an absent property is
+ * simply an unstated one.
+ */
 function pageToJsonLd(page: ExportPage): Record<string, unknown> {
   const node: Record<string, unknown> = {
     "@id": pageIri(page.slug),
     "@type": "Article",
     name: page.title,
     description: page.summary,
-    dateCreated: page.createdAt,
-    dateModified: page.updatedAt,
+    ...(page.createdAt ? { dateCreated: page.createdAt } : {}),
+    ...(page.updatedAt ? { dateModified: page.updatedAt } : {}),
   };
 
   if (page.tags.length > 0) {

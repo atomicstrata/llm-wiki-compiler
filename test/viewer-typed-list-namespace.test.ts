@@ -47,7 +47,6 @@ async function mountAutosci(hash?: string) {
   const envelope = vocabularyEnvelope(AUTOSCI, PAGES, { sourceFilenames: SOURCE_FILENAMES });
   const served = vocabularyResponder(envelope);
   const mounted = await mountViewerDom(
-    [],
     (url) =>
       url.includes("/api/page/")
         ? jsonResponse({ title: "ALPHA", pageDirectory: "papers", html: "<p>body</p>", warnings: [] })

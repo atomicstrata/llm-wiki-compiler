@@ -18,7 +18,9 @@ export interface ExportPageOptions {
 export function makeExportPage(slug: string, opts: ExportPageOptions = {}): ExportPage {
   const { pageDirectory = "concepts", body = "b\n", okfPath } = opts;
   return {
-    slug, pageDirectory, title: slug, summary: "s", sources: [], tags: [], createdAt: "", updatedAt: "",
+    // No createdAt/updatedAt: they are optional, and a page that declares none
+    // omits the keys rather than carrying an empty instant.
+    slug, pageDirectory, title: slug, summary: "s", sources: [], tags: [],
     links: [], body, citations: [], freshnessStatus: "unverified", contradicted: false, archived: false,
     contentHash: "", sourceHashes: [], path: "", ...(okfPath ? { xOkf: { okfPath, originalFrontmatter: {} } } : {}),
   } as ExportPage;

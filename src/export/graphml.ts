@@ -35,6 +35,18 @@ const KEY_DEFS = [
   '<key id="updatedAt" for="node" attr.name="updatedAt" attr.type="string"/>',
 ].join("\n  ");
 
+/**
+ * One `<data>` element, or nothing when the page declares no value.
+ *
+ * GraphML treats an absent `<data>` as "this node does not carry that
+ * attribute", which is exactly what an undeclared timestamp means. An empty
+ * element would instead assert the attribute IS the empty string — a value a
+ * consumer parsing dates has to special-case.
+ */
+function optionalData(key: string, value: string | undefined): string[] {
+  return value ? [`    <data key="${key}">${escapeXml(value)}</data>`] : [];
+}
+
 /** Serialise one ExportPage as a GraphML <node> element. */
 function pageToNode(page: ExportPage): string {
   const tags = page.tags.join(", ");
@@ -45,8 +57,8 @@ function pageToNode(page: ExportPage): string {
     `    <data key="summary">${escapeXml(page.summary)}</data>`,
     `    <data key="tags">${escapeXml(tags)}</data>`,
     `    <data key="sources">${escapeXml(sources)}</data>`,
-    `    <data key="createdAt">${escapeXml(page.createdAt)}</data>`,
-    `    <data key="updatedAt">${escapeXml(page.updatedAt)}</data>`,
+    ...optionalData("createdAt", page.createdAt),
+    ...optionalData("updatedAt", page.updatedAt),
     `  </node>`,
   ].join("\n");
 }

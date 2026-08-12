@@ -47,7 +47,7 @@ You don't need to run a dedicated freshness check to know about stale pages. The
 
 **`llmwiki status`** (and the MCP `wiki_status` tool) returns a structured snapshot that includes stale and orphaned page counts, the full list of affected slugs, and a `stateStatus` field that reports whether `.llmwiki/state.json` is `ok`, `missing`, or `corrupt`.
 
-**Local viewer** (`llmwiki view`): each page card displays a badge for its freshness status - **STALE**, **ORPHANED**, **CONTRADICTED**, or **ARCHIVED**. The sidebar health pane shows aggregate counts. You can filter the page list by freshness axis. If `.llmwiki/state.json` is missing or corrupt, a corrupt-state banner appears at the top of the viewer.
+**Local viewer** (`llmwiki view`): an open page's metadata rail displays a badge for its freshness status - **STALE**, **ORPHANED**, **CONTRADICTED**, or **ARCHIVED**. The **Concepts** screen (`#/concepts`) marks each row with a freshness dot and filters the list by freshness axis; **Health & lint** (`#/health`) shows the aggregate counts, and the header pill reports the whole-wiki verdict. If `.llmwiki/state.json` is missing or corrupt, a corrupt-state banner appears at the top of the viewer and the header reports freshness as unverified rather than fresh.
 
 **MCP `get_context_pack`**: the evidence pack includes a `freshnessStatus` field per page, so agents consuming the pack know which pages may be outdated before reasoning over them.
 

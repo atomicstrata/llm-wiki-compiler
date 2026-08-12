@@ -143,7 +143,7 @@ function pagesResponder(stateStatus: string): FetchResponder {
 
 /** Mount the viewer with a given bootstrap stateStatus and return its document. */
 async function mountWithStateStatus(stateStatus: string): Promise<Document> {
-  const { dom } = await mountViewerDom([], pagesResponder(stateStatus));
+  const { dom } = await mountViewerDom(pagesResponder(stateStatus));
   await flushMicrotasks();
   return dom.window.document;
 }

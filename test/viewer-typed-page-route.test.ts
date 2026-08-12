@@ -55,7 +55,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("typed entity page routing", () => {
   it("routes a profile entity-type hash to the page pane, not home", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.location.hash = "#/articles/harbour-lease-records";
     await flushMicrotasks();
     const main = dom.window.document.querySelector("[data-main-pane]")!;
@@ -64,7 +64,7 @@ describe("typed entity page routing", () => {
   });
 
   it("does not render the dashboard for a typed page hash", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.location.hash = "#/articles/harbour-lease-records";
     await flushMicrotasks();
     // The dashboard's stat grid is the tell: before the fix the hash fell
@@ -73,7 +73,7 @@ describe("typed entity page routing", () => {
   });
 
   it("renders not-found for a directory the server rejects", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.location.hash = "#/not-a-type/whatever";
     await flushMicrotasks();
     const main = dom.window.document.querySelector("[data-main-pane]")!;
@@ -82,7 +82,7 @@ describe("typed entity page routing", () => {
   });
 
   it("still falls back to home for a single-segment unknown hash", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.location.hash = "#/nonsense";
     await flushMicrotasks();
     // Single-segment hashes never reach the page pattern, so the nav-integrity

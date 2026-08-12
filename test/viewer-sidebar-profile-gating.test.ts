@@ -42,7 +42,7 @@ function responderFor(profileId: string): FetchResponder {
 
 /** The nav entry for `route`, or null when the sidebar omitted it. */
 async function navEntry(profileId: string, route: string, startHash?: string): Promise<Element | null> {
-  const { dom } = await mountViewerDom([], responderFor(profileId), startHash);
+  const { dom } = await mountViewerDom(responderFor(profileId), startHash);
   await flushMicrotasks();
   return dom.window.document.querySelector(`[data-sidebar] a[data-route="${route}"]`);
 }

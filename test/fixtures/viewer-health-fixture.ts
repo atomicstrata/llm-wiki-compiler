@@ -65,7 +65,7 @@ export async function renderHealthRoute(
   health: Payload,
   pages: Payload = pagesEnvelope(),
 ): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], healthResponder(health, pages));
+  const { dom } = await mountViewerDom(healthResponder(health, pages));
   dom.window.location.hash = "#/health";
   await flushMicrotasks();
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;

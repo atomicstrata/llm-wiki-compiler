@@ -48,14 +48,14 @@ function throwingStorage() {
 
 describe("pattern strip dismiss control", () => {
   it("states dismissibility through the button alone, with no caption narrating it", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const head = dom.window.document.querySelector(".pattern-head");
     expect(head?.querySelector("[data-pattern-dismiss]")).toBeTruthy();
     expect(head?.textContent).not.toMatch(/dismiss/i);
   });
 
   it("renders the dismiss control as a real button with an accessible name, not a bare glyph", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const button = dom.window.document.querySelector("[data-pattern-dismiss]");
     expect(button?.tagName).toBe("BUTTON");
     const label = button?.getAttribute("aria-label");
@@ -65,7 +65,7 @@ describe("pattern strip dismiss control", () => {
   });
 
   it("removes the strip from the DOM immediately on click", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     expect(dom.window.document.querySelector(".pattern-strip")).toBeTruthy();
     const button = dom.window.document.querySelector("[data-pattern-dismiss]") as HTMLButtonElement;
     button.click();
@@ -73,14 +73,14 @@ describe("pattern strip dismiss control", () => {
   });
 
   it("persists the dismissal to localStorage on click", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     const button = dom.window.document.querySelector("[data-pattern-dismiss]") as HTMLButtonElement;
     button.click();
     expect(dom.window.localStorage.getItem(STORAGE_KEY)).toBeTruthy();
   });
 
   it("does not build the strip on a render where the dismissal is already stored", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     dom.window.localStorage.setItem(STORAGE_KEY, "1");
     // Force a fresh dashboard render against the now-stored dismissal —
     // hashchange re-runs renderDashboard, which calls buildPatternStrip()
@@ -93,7 +93,7 @@ describe("pattern strip dismiss control", () => {
   });
 
   it("still renders the strip, and the rest of the dashboard, when a storage read throws", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     Object.defineProperty(dom.window, "localStorage", { configurable: true, value: throwingStorage() });
     dom.window.location.hash = "#/graph";
     await flushMicrotasks();
@@ -106,7 +106,7 @@ describe("pattern strip dismiss control", () => {
   });
 
   it("still removes the strip on click when persisting the dismissal throws", async () => {
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     Object.defineProperty(dom.window, "localStorage", { configurable: true, value: throwingStorage() });
     const button = dom.window.document.querySelector("[data-pattern-dismiss]") as HTMLButtonElement;
     expect(() => button.click()).not.toThrow();

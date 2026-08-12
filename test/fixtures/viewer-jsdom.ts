@@ -204,13 +204,18 @@ async function readOptional(name: string): Promise<string | null> {
   }
 }
 
-/** Page row shape the shell's `<script id="page-index">` blob carries. */
-export interface EmbeddedPage {
+/**
+ * One `/api/pages` page row, reduced to the fields the shell and support-rail
+ * suites build envelopes from. The client's only page list comes from that
+ * endpoint — the server-embedded `#page-index` blob it used to read is gone
+ * (see `src/viewer/shell.ts`) — so this is a wire shape, not a shell shape.
+ */
+export interface PageRow {
   id: string;
   pageDirectory: "concepts" | "queries";
   slug: string;
   title: string;
-  /** Frontmatter `kind` — used by the sidebar to group concepts on first paint. */
+  /** Resolved page kind; the sidebar groups concepts by it. */
   kind?: string;
 }
 
@@ -309,17 +314,15 @@ function setupGraphStub(
  *   Fit-style control in its not-yet-resolved state first.
  */
 export async function mountViewerDom(
-  pages: EmbeddedPage[],
   responder: FetchResponder,
   startHash?: string,
   graphHandle: GraphHandleMode = "present",
 ): Promise<MountResult> {
-  const [shell, entrySrc, moduleFiles] = await Promise.all([
+  const [html, entrySrc, moduleFiles] = await Promise.all([
     readFile(SHELL_PATH, "utf-8"),
     readFile(path.join(ASSETS_DIR, ENTRY_SCRIPT), "utf-8"),
     listModuleFiles(),
   ]);
-  const html = embedPageIndex(shell, pages);
   const fetchMock = vi.fn(async (input: string | URL) => {
     const url = typeof input === "string" ? input : input.toString();
     const response = await responder(url);
@@ -345,15 +348,6 @@ export async function mountViewerDom(
   dom.window.eval(rewriteImports(entrySrc));
   await flushMicrotasks();
   return { dom, fetchMock, flush: flushMicrotasks, graphFitMock, resolveGraphHandle };
-}
-
-/** Drop a JSON-escaped page-index blob into the shell template marker. */
-function embedPageIndex(shell: string, pages: EmbeddedPage[]): string {
-  const json = JSON.stringify({ pages }).replace(/</g, "\\u003c");
-  return shell.replace(
-    "<!--PAGE_INDEX-->",
-    `<script type="application/json" id="page-index">${json}</script>`,
-  );
 }
 
 /**

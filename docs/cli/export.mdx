@@ -129,11 +129,17 @@ The `json` target produces a `wiki.json` file with a top-level envelope and an a
 | `citations` | array | Flattened list of `{ source, lines? }` citations from the page body |
 | `aliases` | array | Alternate names declared in frontmatter |
 | `freshness` | string | `fresh`, `stale`, or `orphaned` based on source state |
+| `createdAt` | string | Creation timestamp from frontmatter; omitted when the page declares none |
+| `updatedAt` | string | Last-updated timestamp, falling back to `createdAt`; omitted when the page declares neither |
 | `body` | string | Full page body (markdown) |
 
 <Tip>
   The `freshness` field lets downstream consumers filter out stale or orphaned pages before using the content. A page is `stale` when its sources have changed since the last compile; `orphaned` when all its sources have been deleted.
 </Tip>
+
+<Note>
+  Timestamps are read from the page, never from the export run. A page that declares neither `createdAt` nor `updatedAt` — every page written by `llmwiki query --save` declares only the former — exports **no** timestamp rather than an empty one: JSON and JSON-LD omit the keys, GraphML omits the `<data>` elements, and llms.txt, llms-full.txt and Marp omit the `created:`/`updated:` clauses. Two exports of an unchanged wiki are therefore byte-identical.
+</Note>
 
 ---
 

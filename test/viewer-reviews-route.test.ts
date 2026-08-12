@@ -48,6 +48,24 @@ const REVIEWS = [
 ];
 
 /**
+ * A TYPED candidate: staged by the typed planner, so `review approve` routes it
+ * on `targetEntityType` to `wiki/papers/`. It carries no `targetDirectory` —
+ * typed staging sets the entity type, not the directory — which is exactly the
+ * shape that used to fall through to the literal "concepts".
+ */
+const TYPED_REVIEW = {
+  id: "attention-is-all-you-need-c9d0e1f2",
+  title: "Attention Is All You Need",
+  slug: "attention-is-all-you-need",
+  summary: "The transformer architecture.",
+  sources: ["crossref.json"],
+  generatedAt: "2026-08-03T00:00:00.000Z",
+  reviewMode: "connector-fetched",
+  heldReasons: [{ code: "connector-fetched" }],
+  targetEntityType: "papers",
+};
+
+/**
  * Responder serving the given `/api/reviews` payload over an empty project.
  * `total` defaults to the row count — the un-truncated case — and is passed
  * explicitly to mimic a queue the endpoint's cap cut short.
@@ -61,7 +79,7 @@ function responderWithReviews(reviews: unknown[], total = reviews.length): Fetch
 
 /** Mount at `#/reviews` with the given rows and return the main pane. */
 async function mountReviews(reviews: unknown[], total?: number): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], responderWithReviews(reviews, total), "#/reviews");
+  const { dom } = await mountViewerDom(responderWithReviews(reviews, total), "#/reviews");
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
 }
 
@@ -94,6 +112,35 @@ describe("#/reviews", () => {
   it("does not link a candidate title — the page it proposes does not exist yet", async () => {
     const main = await mountReviews(REVIEWS);
     expect(main.querySelector(".list-row a")).toBeNull();
+  });
+});
+
+describe("#/reviews — where approval actually writes", () => {
+  // `routeApprovedPageWrite` branches on `targetEntityType` FIRST: a typed
+  // candidate goes through the profile-validated planner to
+  // `wiki/<entityType>/<slug>.md`, and only a candidate without one takes the
+  // concepts/queries path. The review queue is the screen whose whole job is to
+  // tell a reviewer what they are about to accept, so it must name the same
+  // destination approval uses.
+  it("names the declared entity type for a typed candidate", async () => {
+    const main = await mountReviews([TYPED_REVIEW]);
+    expect(main.querySelector(".review-sources")?.textContent).toContain("→ wiki/papers/");
+  });
+
+  it("does not label a typed candidate a concept", async () => {
+    const main = await mountReviews([TYPED_REVIEW]);
+    expect(main.querySelector(".review-sources")?.textContent).not.toContain("concepts");
+  });
+
+  it("still names the directory for a default candidate", async () => {
+    const main = await mountReviews(REVIEWS);
+    expect(main.querySelector(".review-sources")?.textContent).toContain("→ wiki/concepts/");
+  });
+
+  it("falls back to concepts only when the candidate declares neither", async () => {
+    const { targetDirectory: _omitted, ...untargeted } = REVIEWS[0];
+    const main = await mountReviews([untargeted]);
+    expect(main.querySelector(".review-sources")?.textContent).toContain("→ wiki/concepts/");
   });
 });
 
@@ -147,7 +194,7 @@ describe("#/reviews — a queue larger than the endpoint's cap", () => {
 
 /** Mount on the home route, click the sidebar's Reviews entry, and settle. */
 async function clickSidebarReviews(): Promise<Window> {
-  const mounted = await mountViewerDom([], responderWithReviews(REVIEWS));
+  const mounted = await mountViewerDom(responderWithReviews(REVIEWS));
   const win = mounted.dom.window as unknown as Window;
   (win.document.querySelector('a[data-route="reviews"]') as HTMLElement).click();
   await mounted.flush();
@@ -156,7 +203,7 @@ async function clickSidebarReviews(): Promise<Window> {
 
 describe("sidebar Reviews entry", () => {
   it("points at #/reviews, not #/health", async () => {
-    const { dom } = await mountViewerDom([], responderWithReviews([]));
+    const { dom } = await mountViewerDom(responderWithReviews([]));
     const link = dom.window.document.querySelector('a[data-route="reviews"]');
     expect(link?.getAttribute("href")).toBe("#/reviews");
   });

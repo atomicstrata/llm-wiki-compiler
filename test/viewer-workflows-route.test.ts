@@ -36,7 +36,11 @@ const PARKED_ON_GATE = {
   awaitingGate: "edited",
 };
 
-/** A run parked needing a stage output: it needs `workflow submit` to move. */
+/**
+ * A run parked needing a stage output: it needs `workflow submit` to move. The
+ * two `nextSubmit*` hints ride along exactly as the classifier sets them — a
+ * write-declaring stage always names a concrete `--entity-type`.
+ */
 const PARKED_ON_OUTPUT = {
   runId: "run-0002",
   classification: "current",
@@ -44,6 +48,35 @@ const PARKED_ON_OUTPUT = {
   currentStage: "draft-article",
   workflow: "story-pipeline",
   awaitingOutput: true,
+  nextSubmitEntityType: "articles",
+};
+
+/** A run parked on an artifact-only stage: it submits `--kind artifact`, not `--kind page`. */
+const PARKED_ON_ARTIFACT = {
+  runId: "run-0004",
+  classification: "current",
+  status: "running",
+  currentStage: "produce-result",
+  workflow: "story-pipeline",
+  awaitingOutput: true,
+  nextSubmitArtifactType: "result",
+};
+
+/**
+ * A run parked on a `trust:` gate. It looks like a gate park and is NOT one:
+ * `gate approve` throws `TrustGateNotHereError`, and only the trusted-write
+ * grant plus a re-submit clears it.
+ */
+const PARKED_ON_TRUST_GATE = {
+  runId: "run-0005",
+  classification: "current",
+  status: "running",
+  currentStage: "publish-article",
+  workflow: "story-pipeline",
+  awaitingGate: "trusted-write",
+  awaitingTrustGate: true,
+  awaitingOutput: true,
+  nextSubmitEntityType: "articles",
 };
 
 /** A finished run — nothing to act on, and the control case for "parked". */
@@ -74,7 +107,7 @@ function responderWithRuns(runs: unknown[]): FetchResponder {
 
 /** Mount at `#/workflows` with the given rows and return the main pane. */
 async function mountWorkflows(runs: unknown[]): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom([], responderWithRuns(runs), "#/workflows");
+  const { dom } = await mountViewerDom(responderWithRuns(runs), "#/workflows");
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
 }
 
@@ -147,10 +180,24 @@ describe("#/workflows — the CLI that unparks a run", () => {
     expect(next?.textContent).toBe("$ llmwiki workflow gate approve run-0001 edited");
   });
 
-  it("names `workflow submit` for an output-parked run", async () => {
+  // `workflow submit` requires `--kind` before anything else — `buildStageOutput`
+  // calls `requireOption(options.kind, "--kind")` first — so a bare
+  // `workflow submit <run-id>` fails the moment it is pasted. The stage's own
+  // declared write type is what makes the printed command runnable.
+  it("names `workflow submit` for an output-parked run, with the kind and type it needs", async () => {
     const main = await mountWorkflows(RUNS);
     const next = rowFor(main, "run-0002")?.querySelector(".workflow-next");
-    expect(next?.textContent).toBe("$ llmwiki workflow submit run-0002");
+    expect(next?.textContent).toBe(
+      "$ llmwiki workflow submit run-0002 --kind page --entity-type articles --slug <slug> --body-file <path>",
+    );
+  });
+
+  it("submits `--kind artifact` for a stage declaring only an artifact write", async () => {
+    const main = await mountWorkflows([PARKED_ON_ARTIFACT]);
+    const next = rowFor(main, "run-0004")?.querySelector(".workflow-next");
+    expect(next?.textContent).toBe(
+      "$ llmwiki workflow submit run-0004 --kind artifact --artifact-type result --slug <slug> --body-file <path>",
+    );
   });
 
   it("offers no button, link, or form — nothing that implies the viewer can act", async () => {
@@ -163,6 +210,46 @@ describe("#/workflows — the CLI that unparks a run", () => {
   it("names no command for a run that is not parked", async () => {
     const main = await mountWorkflows([COMPLETED]);
     expect(rowFor(main, "run-0003")?.querySelector(".workflow-next")).toBeNull();
+  });
+});
+
+describe("#/workflows — a trust gate is not an approvable gate", () => {
+  // `vouchGate` throws `TrustGateNotHereError` for a `trust:` gate: the Trust
+  // Guard clears it on a successful write, so the row must send the reader to
+  // the grant and a re-submit, never to an approval that cannot work.
+  it("offers no `gate approve` command line for a trust-gated run", async () => {
+    const main = await mountWorkflows([PARKED_ON_TRUST_GATE]);
+    const commands = Array.from(
+      rowFor(main, "run-0005")?.querySelectorAll(".workflow-next") ?? [],
+    ).map((p) => p.textContent ?? "");
+    expect(commands.some((c) => c.includes("gate approve"))).toBe(false);
+  });
+
+  it("names the trusted-write grant and the re-submit that clears it", async () => {
+    const main = await mountWorkflows([PARKED_ON_TRUST_GATE]);
+    const row = rowFor(main, "run-0005");
+    expect(row?.querySelector(".workflow-note")?.textContent).toContain("LLMWIKI_TRUSTED_WRITE");
+    expect(row?.querySelector(".workflow-next")?.textContent).toContain(
+      "workflow submit run-0005 --kind page --entity-type articles",
+    );
+  });
+
+  it("labels the park a trust gate, not the approvable kind", async () => {
+    const main = await mountWorkflows([PARKED_ON_TRUST_GATE]);
+    const flags = Array.from(
+      rowFor(main, "run-0005")?.querySelectorAll(".workflow-flag.is-parked") ?? [],
+    ).map((f) => f.textContent);
+    expect(flags).toContain("Trust gate · trusted-write");
+    expect(flags).not.toContain("Awaiting gate · trusted-write");
+  });
+
+  it("still prints `gate approve` for an ordinary gate park", async () => {
+    const main = await mountWorkflows([PARKED_ON_GATE]);
+    const row = rowFor(main, "run-0001");
+    expect(row?.querySelector(".workflow-note")).toBeNull();
+    expect(row?.querySelector(".workflow-next")?.textContent).toBe(
+      "$ llmwiki workflow gate approve run-0001 edited",
+    );
   });
 });
 
@@ -255,7 +342,7 @@ describe("#/workflows — only the documented status fields reach the DOM", () =
 
 /** Mount on the home route, click the sidebar's Workflows entry, and settle. */
 async function clickSidebarWorkflows(): Promise<Window> {
-  const mounted = await mountViewerDom([], responderWithRuns(RUNS));
+  const mounted = await mountViewerDom(responderWithRuns(RUNS));
   const win = mounted.dom.window as unknown as Window;
   (win.document.querySelector('a[data-route="workflows"]') as HTMLElement).click();
   await mounted.flush();
@@ -264,7 +351,7 @@ async function clickSidebarWorkflows(): Promise<Window> {
 
 describe("sidebar Workflows entry", () => {
   it("sits in MAINTAIN and points at #/workflows", async () => {
-    const { dom } = await mountViewerDom([], responderWithRuns([]));
+    const { dom } = await mountViewerDom(responderWithRuns([]));
     const link = dom.window.document.querySelector('a[data-route="workflows"]');
     expect(link?.getAttribute("href")).toBe("#/workflows");
     expect(link?.closest(".nav-section")?.textContent).toContain("MAINTAIN");

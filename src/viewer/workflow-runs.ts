@@ -9,8 +9,11 @@
  * than reported as an empty list, so a broken store never reads as clean.
  *
  * The mapping deliberately exposes ONLY status fields (runId, classification,
- * status, currentStage, workflow, problem, awaiting-* flags) — never the
- * machine-local run-file paths or any other internal record detail.
+ * status, currentStage, workflow, problem, awaiting-* flags, and the classifier's
+ * declared submit-type hints) — never the machine-local run-file paths or any
+ * other internal record detail. The two `nextSubmit*` hints are profile-DECLARED
+ * type ids, the same vocabulary `/api/pages` already projects for BROWSE; they
+ * carry no instance data and no path.
  */
 
 import type { RunStatus } from "../workflows/status.js";
@@ -31,8 +34,45 @@ export interface WorkflowRunRow {
   problem?: string;
   /** Gate id the current stage is parked on, when awaiting a `gate approve`. */
   awaitingGate?: string;
+  /**
+   * True when the `awaitingGate` above is a `trust:` gate — one `gate approve`
+   * CANNOT clear. Carried so the renderer hints the trusted-write grant plus a
+   * re-submit rather than a `gate approve` that would throw `TrustGateNotHereError`.
+   */
+  awaitingTrustGate?: boolean;
   /** True when the current stage is parked needing a stage-output `submit`. */
   awaitingOutput?: boolean;
+  /**
+   * A DECLARED write entity type of the current stage — a valid `--entity-type`
+   * for the submit hint. Present only alongside {@link awaitingOutput}.
+   */
+  nextSubmitEntityType?: string;
+  /**
+   * A DECLARED artifact type of the current stage — a valid `--artifact-type`
+   * for the submit hint. Present only alongside {@link awaitingOutput}, and
+   * independent of {@link nextSubmitEntityType}.
+   */
+  nextSubmitArtifactType?: string;
+}
+
+/**
+ * Copy the park-related hints onto `row`, mirroring `applyParkHints` in
+ * `src/workflows/status.ts` field-for-field.
+ *
+ * The classifier sets these so a renderer can name a command that WORKS, and a
+ * renderer that receives only half of them names one that does not: a submit
+ * without its declared type prints a `workflow submit` missing the `--kind`
+ * `buildStageOutput` requires first, and a gate without `awaitingTrustGate`
+ * prints a `gate approve` that `vouchGate` refuses on a `trust:` gate. So the
+ * hint fields travel together or the row misinstructs.
+ */
+function copyParkHints(row: WorkflowRunRow, status: RunStatus): void {
+  if (status.awaitingGate !== undefined) row.awaitingGate = status.awaitingGate;
+  if (status.awaitingTrustGate === true) row.awaitingTrustGate = true;
+  if (status.awaitingOutput !== true) return;
+  row.awaitingOutput = true;
+  if (status.nextSubmitEntityType !== undefined) row.nextSubmitEntityType = status.nextSubmitEntityType;
+  if (status.nextSubmitArtifactType !== undefined) row.nextSubmitArtifactType = status.nextSubmitArtifactType;
 }
 
 /**
@@ -48,8 +88,7 @@ function toRunRow(status: RunStatus): WorkflowRunRow {
     row.workflow = status.run.workflowId;
   }
   if (status.problem !== undefined) row.problem = status.problem;
-  if (status.awaitingGate !== undefined) row.awaitingGate = status.awaitingGate;
-  if (status.awaitingOutput === true) row.awaitingOutput = true;
+  copyParkHints(row, status);
   return row;
 }
 

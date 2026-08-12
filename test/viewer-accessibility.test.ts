@@ -101,7 +101,7 @@ function defaultViewerResponder(): FetchResponder {
 
 /** Mount the shell at its default (home) route and return the document. */
 async function mountDefaultViewer(): Promise<Document> {
-  const { dom } = await mountViewerDom([], defaultViewerResponder());
+  const { dom } = await mountViewerDom(defaultViewerResponder());
   return dom.window.document;
 }
 
@@ -111,7 +111,7 @@ afterEach(() => {
 
 describe("shell template — accessibility landmarks + skip link", () => {
   it("ships the four named landmarks plus a skip link to the main pane", async () => {
-    const { dom } = await mountViewerDom([], makeResponder([]));
+    const { dom } = await mountViewerDom(makeResponder([]));
     const doc = dom.window.document;
     expect(doc.querySelector("header.app-header")).not.toBeNull();
     const logo = doc.querySelector(".app-logo") as HTMLImageElement | null;
@@ -176,7 +176,6 @@ function makeDeferredResponder(searchByQuery: Record<string, Response | "defer">
 describe("search UI — input wires up and renders results", () => {
   it("debounces input and renders search results from /api/search", async () => {
     const { dom } = await mountViewerDom(
-      [{ id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" }],
       makeResponder([
         {
           id: "concepts/alpha",
@@ -200,7 +199,6 @@ describe("search UI — input wires up and renders results", () => {
 
   it("cancels a pending debounced fetch when the input is cleared", async () => {
     const { dom, fetchMock } = await mountViewerDom(
-      [],
       makeResponder([
         { id: "concepts/x", pageDirectory: "concepts", title: "X", snippet: "x", matchedIn: "title" },
       ]),
@@ -219,7 +217,7 @@ describe("search UI — input wires up and renders results", () => {
 
   it("discards a stale older response when a newer query supersedes it", async () => {
     const { responder, resolve } = makeDeferredResponder({ alpha: "defer", beta: "defer" });
-    const { dom } = await mountViewerDom([], responder);
+    const { dom } = await mountViewerDom(responder);
     // Both fetches need to be in flight before we resolve them out of
     // order — wait past the debounce window after each typed query.
     await typeIntoSearch(dom, "alpha", 250);
@@ -269,10 +267,7 @@ describe("search UI — input wires up and renders results", () => {
       }
       return null;
     };
-    const { dom } = await mountViewerDom(
-      [{ id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" }],
-      responder,
-    );
+    const { dom } = await mountViewerDom(responder);
     await typeIntoSearch(dom, "alpha", 250);
     const link = dom.window.document.querySelector(
       "a[data-search-result]",
@@ -289,7 +284,7 @@ describe("search UI — input wires up and renders results", () => {
   });
 
   it("focuses and selects the search input on Ctrl+K, without leaking the shortcut to other fields", async () => {
-    const { dom } = await mountViewerDom([], makeResponder([]));
+    const { dom } = await mountViewerDom(makeResponder([]));
     const doc = dom.window.document;
     const input = doc.querySelector("[data-search-input]") as HTMLInputElement;
     input.value = "stale query";
@@ -320,7 +315,6 @@ describe("search UI — input wires up and renders results", () => {
 describe("/#/health route — dashboard renders from /api/health", () => {
   it("renders concepts/queries/sources/pendingReviews from the payload", async () => {
     const { dom } = await mountViewerDom(
-      [],
       makeResponder([], {
         concepts: 3,
         queries: 2,
@@ -349,7 +343,6 @@ describe("/#/health route — dashboard renders from /api/health", () => {
 
   it("renders cached lint summary when present", async () => {
     const { dom } = await mountViewerDom(
-      [],
       makeResponder([], {
         concepts: 0, queries: 0, sources: 0, sourceFiles: 0, pendingReviews: 0,
         lint: { warnings: 2, errors: 1, at: "2026-05-12T00:00:00.000Z" },
@@ -370,7 +363,7 @@ describe("/#/health route — dashboard renders from /api/health", () => {
 
 describe("sidebar — Health entry routes to #/health", () => {
   it("renders a Health link with href=#/health in the sidebar", async () => {
-    const { dom } = await mountViewerDom([], makeResponder([]));
+    const { dom } = await mountViewerDom(makeResponder([]));
     const link = dom.window.document.querySelector(
       "[data-route='health']",
     ) as HTMLAnchorElement | null;

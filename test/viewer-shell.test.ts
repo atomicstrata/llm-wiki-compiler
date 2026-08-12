@@ -13,11 +13,11 @@ import {
   flushMicrotasks,
   jsonResponse,
   mountViewerDom,
-  type EmbeddedPage,
+  type PageRow,
   type FetchResponder,
 } from "./fixtures/viewer-jsdom.js";
 
-function pagesEnvelope(pages: EmbeddedPage[]): Record<string, unknown> {
+function pagesEnvelope(pages: PageRow[]): Record<string, unknown> {
   return {
     project: { title: "demo-wiki", rootName: "demo-wiki" },
     counts: { concepts: 1, queries: 1, sourceFiles: 0, pendingReviews: 0 },
@@ -28,7 +28,7 @@ function pagesEnvelope(pages: EmbeddedPage[]): Record<string, unknown> {
   };
 }
 
-function pagePayload(page: EmbeddedPage, html: string): Record<string, unknown> {
+function pagePayload(page: PageRow, html: string): Record<string, unknown> {
   return {
     id: page.id,
     title: page.title,
@@ -46,7 +46,7 @@ function pagePayload(page: EmbeddedPage, html: string): Record<string, unknown> 
 }
 
 function pageAndIndexResponder(
-  pages: EmbeddedPage[],
+  pages: PageRow[],
   htmlBySlug: Record<string, string> = {},
 ): FetchResponder {
   return (url) => {
@@ -68,11 +68,11 @@ afterEach(() => {
 
 describe("viewer.js — first paint + sidebar", () => {
   it("renders the sidebar nav before any fetch settles", async () => {
-    const pages: EmbeddedPage[] = [
+    const pages: PageRow[] = [
       { id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" },
       { id: "queries/q1", pageDirectory: "queries", slug: "q1", title: "Q1" },
     ];
-    const { dom } = await mountViewerDom(pages, pageAndIndexResponder(pages));
+    const { dom } = await mountViewerDom(pageAndIndexResponder(pages));
     const sidebar = dom.window.document.querySelector("[data-sidebar]")!;
     // Nav structure is data-independent (renderSidebar({}) paints it before
     // /api/pages settles). The full label/route contract is pinned in
@@ -85,10 +85,10 @@ describe("viewer.js — first paint + sidebar", () => {
   });
 
   it("renders the home dashboard with project title from /api/pages", async () => {
-    const pages: EmbeddedPage[] = [
+    const pages: PageRow[] = [
       { id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" },
     ];
-    const { dom } = await mountViewerDom(pages, pageAndIndexResponder(pages));
+    const { dom } = await mountViewerDom(pageAndIndexResponder(pages));
     expect(dom.window.document.querySelector("[data-app-title]")!.textContent).toBe("demo-wiki");
     // The project title also reaches the dashboard's compile receipt (its
     // "Root" row reads envelope.project.rootName). The receipt now renders
@@ -104,7 +104,7 @@ describe("viewer.js — first paint + sidebar", () => {
     // that painting happens to finish before mountViewerDom's fixed flush
     // window, which a fetch-then-paint regression would still slip through.
     const neverResolves: FetchResponder = () => new Promise(() => {});
-    const { dom } = await mountViewerDom([], neverResolves);
+    const { dom } = await mountViewerDom(neverResolves);
     const sidebar = dom.window.document.querySelector("[data-sidebar]")!;
     expect(sidebar.textContent).toContain("BROWSE");
     expect(sidebar.textContent).toContain("MAINTAIN");
@@ -113,14 +113,11 @@ describe("viewer.js — first paint + sidebar", () => {
 
 describe("viewer.js — hash router", () => {
   it("renders the server-sanitized HTML returned by /api/page", async () => {
-    const pages: EmbeddedPage[] = [
+    const pages: PageRow[] = [
       { id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" },
     ];
     const html = "<p>Body text for the <strong>alpha</strong> page.</p>";
-    const { dom } = await mountViewerDom(
-      pages,
-      pageAndIndexResponder(pages, { alpha: html }),
-    );
+    const { dom } = await mountViewerDom(pageAndIndexResponder(pages, { alpha: html }));
     dom.window.location.hash = "#/concepts/alpha";
     await flushMicrotasks();
     const main = dom.window.document.querySelector("[data-main-pane]")!;
@@ -130,10 +127,10 @@ describe("viewer.js — hash router", () => {
   });
 
   it("falls back to a generic 'No rendered content.' note when html is empty", async () => {
-    const pages: EmbeddedPage[] = [
+    const pages: PageRow[] = [
       { id: "concepts/empty", pageDirectory: "concepts", slug: "empty", title: "Empty" },
     ];
-    const { dom } = await mountViewerDom(pages, pageAndIndexResponder(pages));
+    const { dom } = await mountViewerDom(pageAndIndexResponder(pages));
     dom.window.location.hash = "#/concepts/empty";
     await flushMicrotasks();
     const main = dom.window.document.querySelector("[data-main-pane]")!;
@@ -144,10 +141,10 @@ describe("viewer.js — hash router", () => {
 
 describe("viewer.js — malformed hash routes", () => {
   it("treats a hash with malformed percent-encoding as the home route, without throwing", async () => {
-    const pages: EmbeddedPage[] = [
+    const pages: PageRow[] = [
       { id: "concepts/alpha", pageDirectory: "concepts", slug: "alpha", title: "Alpha" },
     ];
-    const { dom, fetchMock } = await mountViewerDom(pages, pageAndIndexResponder(pages));
+    const { dom, fetchMock } = await mountViewerDom(pageAndIndexResponder(pages));
     fetchMock.mockClear();
     dom.window.location.hash = "#/concepts/%E0%A4%A";
     await flushMicrotasks();
