@@ -9,7 +9,7 @@ import { profileDigest } from "../digest.js";
 import type { ProfilePack } from "../types.js";
 import { AUTOSCI_TEMPLATE, AUTOSCI_TEMPLATE_RELEASES } from "./builtin/autosci.js";
 import { DEFAULT_TEMPLATE_SUMMARY } from "./builtin/default.js";
-import { NEWSROOM_TEMPLATE } from "./builtin/newsroom.js";
+import { NEWSROOM_TEMPLATE, NEWSROOM_TEMPLATE_RELEASES } from "./builtin/newsroom.js";
 
 // Retain historical releases here when a builtin advances. Secure update
 // planning must resolve the exact installed release, not reinterpret it as the
@@ -17,6 +17,7 @@ import { NEWSROOM_TEMPLATE } from "./builtin/newsroom.js";
 const BUILTIN_TEMPLATE_RELEASES: readonly ProfileTemplatePackage[] = [
   ...AUTOSCI_TEMPLATE_RELEASES,
   AUTOSCI_TEMPLATE,
+  ...NEWSROOM_TEMPLATE_RELEASES,
   NEWSROOM_TEMPLATE,
 ];
 

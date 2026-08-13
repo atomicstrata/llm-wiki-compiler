@@ -4,10 +4,12 @@
  */
 import type { ProfilePack } from "../../types.js";
 import type { ProfileTemplatePackage } from "../types.js";
+import { withoutTitleFields } from "../title-fields.js";
 
 export const newsroomEntities = {
   articles: {
     directory: "wiki/articles",
+    titleField: "headline",
     fields: {
       headline: { type: "string", required: true },
       stage: { type: "enum", enum: ["draft", "edited", "published"], required: true },
@@ -19,6 +21,7 @@ export const newsroomEntities = {
   },
   desks: {
     directory: "wiki/desks",
+    titleField: "name",
     fields: {
       name: { type: "string", required: true },
       stage: { type: "enum", enum: ["active", "archived"], required: true },
@@ -30,6 +33,7 @@ export const newsroomEntities = {
   },
   bylines: {
     directory: "wiki/bylines",
+    titleField: "reporter",
     fields: {
       reporter: { type: "string", required: true },
       stage: { type: "enum", enum: ["pending", "confirmed"], required: true },
@@ -73,7 +77,7 @@ export const newsroomWorkflowActions = {
 const profile: ProfilePack = {
   schemaVersion: 1,
   profileId: "newsroom",
-  profileVersion: "0.1.0",
+  profileVersion: "0.2.0",
   displayName: "Newsroom",
   entities: newsroomEntities,
   relations: newsroomRelations,
@@ -81,8 +85,16 @@ const profile: ProfilePack = {
   workflowActions: newsroomWorkflowActions,
 };
 
-/** Builtin install package for newsroom projects. */
-export const NEWSROOM_TEMPLATE: ProfileTemplatePackage = {
+const DESCRIPTION =
+  "Newsroom profile with articles, desks, bylines, a filing relation, and a story pipeline workflow.";
+
+/**
+ * The superseded `0.1.0` release, retained so update planning can resolve the
+ * EXACT installed release. Its entity block is `0.2.0` minus the title
+ * declarations — see {@link withoutTitleFields} for why it is derived and how
+ * the derivation is checked.
+ */
+const NEWSROOM_TEMPLATE_0_1_0: ProfileTemplatePackage = {
   schemaVersion: 1,
   templateId: "newsroom",
   version: "0.1.0",
@@ -91,6 +103,29 @@ export const NEWSROOM_TEMPLATE: ProfileTemplatePackage = {
   sourceType: "builtin",
   license: "MIT",
   minLlmwikiVersion: "1.0.0",
-  description: "Newsroom profile with articles, desks, bylines, a filing relation, and a story pipeline workflow.",
+  description: DESCRIPTION,
+  profile: {
+    ...profile,
+    profileVersion: "0.1.0",
+    entities: withoutTitleFields(newsroomEntities),
+  },
+};
+
+/** Every published newsroom release, newest last. */
+export const NEWSROOM_TEMPLATE_RELEASES: readonly ProfileTemplatePackage[] = [
+  NEWSROOM_TEMPLATE_0_1_0,
+];
+
+/** Builtin install package for newsroom projects. */
+export const NEWSROOM_TEMPLATE: ProfileTemplatePackage = {
+  schemaVersion: 1,
+  templateId: "newsroom",
+  version: "0.2.0",
+  displayName: "Newsroom",
+  publisher: "atomicstrata",
+  sourceType: "builtin",
+  license: "MIT",
+  minLlmwikiVersion: "1.0.0",
+  description: DESCRIPTION,
   profile,
 };
