@@ -23,10 +23,15 @@
 const LINKABLE_SCHEMES = new Set(["http:", "https:"]);
 
 /**
- * A DOI: the `10.<registrant>/<suffix>` form, with no whitespace and no
- * character that could re-steer the path it is concatenated into.
+ * A DOI: the `10.<registrant>/<suffix>` form.
+ *
+ * The suffix is deliberately PERMISSIVE — any run of non-whitespace. A DOI
+ * suffix may contain almost anything, slashes included (`10.5061/dryad.abc/1`
+ * is a real DOI), so an over-tight grammar silently degrades valid identifiers
+ * to plain text. Safety does not come from the grammar here: it comes from
+ * {@link resolvedUnder}, which rejects any value that leaves the fixed origin.
  */
-const DOI_PATTERN = /^10\.\d{4,9}\/[^\s/\\?#]+$/;
+const DOI_PATTERN = /^10\.\d{4,9}\/\S+$/;
 
 /** An arXiv id: modern `2401.01234v2`, or legacy `math.GT/0309136`. */
 const ARXIV_PATTERN = /^(\d{4}\.\d{4,5}(v\d+)?|[a-z-]+(\.[A-Z]{2})?\/\d{7}(v\d+)?)$/;
@@ -38,9 +43,29 @@ const ARXIV_PATTERN = /^(\d{4}\.\d{4,5}(v\d+)?|[a-z-]+(\.[A-Z]{2})?\/\d{7}(v\d+)
  */
 const RESOLVERS = Object.assign(Object.create(null), {
   url: passThroughHttpUrl,
-  doi: (value) => (DOI_PATTERN.test(value) ? `https://doi.org/${value}` : null),
-  arxiv: (value) => (ARXIV_PATTERN.test(value) ? `https://arxiv.org/abs/${value}` : null),
+  doi: (value) => (DOI_PATTERN.test(value) ? resolvedUnder("https://doi.org/", value) : null),
+  arxiv: (value) => (ARXIV_PATTERN.test(value) ? resolvedUnder("https://arxiv.org/abs/", value) : null),
 });
+
+/**
+ * Resolve `value` against a FIXED resolver base and return the result only if it
+ * stayed on that origin.
+ *
+ * This is the actual containment, rather than the identifier grammar: a value
+ * that is absolute (`https://evil.test`), protocol-relative (`//evil.test`), or
+ * anything else that re-bases lands on a different origin and is refused.
+ * Traversal WITHIN the origin (`../x`) is harmless and allowed. Returning
+ * `url.href` also normalises the percent-encoding, so the string that was
+ * validated is the string that gets navigated.
+ */
+function resolvedUnder(base, value) {
+  try {
+    const url = new URL(value, base);
+    return url.origin === new URL(base).origin ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The external href for a declared format and a page-supplied value, or `null`

@@ -6,8 +6,14 @@
  * The FORMAT comes from the profile; the VALUE comes from a wiki page, i.e. from
  * whatever an author or a connector wrote. So the value is untrusted input and
  * every branch fails closed: a `url` must parse and carry an http(s) scheme, and
- * a `doi`/`arxiv` id must match a conservative grammar before it is placed in a
- * fixed resolver path. The resolver ORIGIN is never author-controlled.
+ * a `doi`/`arxiv` id must match its identifier grammar AND resolve to the fixed
+ * resolver origin.
+ *
+ * The containment is the ORIGIN check, not the grammar. That distinction is
+ * load-bearing: an earlier version tried to contain by forbidding `/`, `?` and
+ * `#` in a DOI suffix, which does not make the link safer (the origin is a
+ * literal) and silently dropped real DOIs like `10.5061/dryad.abc/1` to plain
+ * text. The grammar now identifies; the origin check contains.
  *
  * Returning null means "render as text", which is the answer whenever the guard
  * is not certain — a value shown as text is merely unhelpful, while a value
@@ -66,6 +72,16 @@ describe("formatHref refuses anything it is not certain about", () => {
     expect(formatHref("arxiv", "https://evil.test")).toBeNull();
   });
 
+  // Containment is the ORIGIN check, not the identifier grammar — so it must
+  // hold for a value that clears the grammar and still tries to re-base.
+  it("refuses anything that leaves the fixed resolver origin", () => {
+    expect(formatHref("doi", "10.1000/x")).toBe("https://doi.org/10.1000/x");
+    for (const escape of ["//evil.test/x", "https://evil.test", "\\\\evil.test"]) {
+      expect(formatHref("doi", escape), escape).toBeNull();
+      expect(formatHref("arxiv", escape), escape).toBeNull();
+    }
+  });
+
   it("refuses a doi that does not match the registrant grammar", () => {
     expect(formatHref("doi", "not-a-doi")).toBeNull();
     expect(formatHref("doi", "10.1/short")).toBeNull();
@@ -92,4 +108,28 @@ describe("formatHref refuses anything it is not certain about", () => {
     expect(formatHref("constructor", "https://example.org")).toBeNull();
     expect(formatHref("toString", "https://example.org")).toBeNull();
   });
+});
+
+/**
+ * A DOI suffix may contain almost any character, slashes included. An
+ * over-tight grammar does not make the link safer — the origin is a fixed
+ * literal — it just drops valid identifiers to plain text with no explanation.
+ */
+describe("formatHref resolves real-world DOI suffixes", () => {
+  it("links a suffix containing a slash", () => {
+    expect(formatHref("doi", "10.5061/dryad.abc/1")).toBe("https://doi.org/10.5061/dryad.abc/1");
+  });
+
+  it("links the punctuation-heavy legacy Wiley form", () => {
+    const doi = "10.1002/(SICI)1097-0258(19980815)17:15<1661::AID-SIM968>3.0.CO;2-2";
+    const href = formatHref("doi", doi);
+    expect(href).not.toBeNull();
+    expect(href!.startsWith("https://doi.org/10.1002/")).toBe(true);
+  });
+
+  it("normalises percent-encoding, so the validated string is the navigated one", () => {
+    const href = formatHref("doi", "10.1000/a b".replace(" ", "%20"));
+    expect(href).toBe("https://doi.org/10.1000/a%20b");
+  });
+
 });

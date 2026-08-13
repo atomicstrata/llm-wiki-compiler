@@ -99,7 +99,12 @@ export function renderSupportRail(payload, fieldDefs, titleField) {
   const shown = withoutTitleField(fieldDefs, titleField);
   const declared = buildEntityFields(shown, frontmatter);
   if (declared) support.appendChild(declared);
-  appendFrontmatterDl(support, frontmatter, renderedFieldNames(shown, frontmatter));
+  // Suppression is computed from the UNFILTERED declarations: a `titleField`
+  // that happens to name a fixed-list key (`kind`, `tags`, …) is hidden from the
+  // declared block because the heading shows it, and must stay hidden in the
+  // fixed list too — otherwise removing it from one list would resurrect it in
+  // the other, beside the heading it duplicates.
+  appendFrontmatterDl(support, frontmatter, renderedFieldNames(fieldDefs, frontmatter));
   const warnings = extractWarnings(payload);
   if (warnings.length > 0) support.appendChild(buildRailWarnings(warnings));
   appendFreshnessCaption(support, payload);
