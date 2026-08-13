@@ -36,9 +36,28 @@ export type FieldType =
   | "artifactRef"
   | "artifactRef[]";
 
+/**
+ * Declarative PRESENTATION hints for a text field: enough for a read surface to
+ * build an external link generically, and nothing more.
+ *
+ * A CLOSED vocabulary rather than a URL template. A template would be an
+ * author-supplied string a renderer interpolates into an href — executable
+ * profile behaviour reaching a read surface — whereas these three name a
+ * resolver the READER already knows, so the origin stays out of profile control.
+ * An unknown value is rejected at load, so no renderer has to guess.
+ */
+export type FieldFormat = "url" | "doi" | "arxiv";
+
 /** Declarative definition of a single frontmatter field on an entity type. */
 export interface FieldDef {
   type: FieldType;
+  /**
+   * How a read surface may linkify this field's text. Valid only on `string` and
+   * `string[]` (see `validateTitleField`'s neighbour in validate.ts): a format is
+   * a hint about how to read text, and on any other type it would be config no
+   * renderer could act on.
+   */
+  format?: FieldFormat;
   required?: boolean;
   default?: unknown;
   enum?: string[];

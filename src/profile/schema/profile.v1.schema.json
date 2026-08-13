@@ -67,6 +67,7 @@
         "type": { "$ref": "#/$defs/fieldType" },
         "required": { "type": "boolean" },
         "default": {},
+        "format": { "enum": ["url", "doi", "arxiv"] },
         "artifactTypes": { "type": "array", "items": { "type": "string" } },
         "enum": { "type": "array", "items": { "type": "string" } },
         "min": { "type": "number" },

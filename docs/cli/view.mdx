@@ -131,6 +131,10 @@ For the per-count detail behind the verdict, open `#/health`. To narrow the conc
 
 **Page metadata.** Each page shows its frontmatter fields - kind, contributing sources, confidence score, provenance state, creation and update timestamps - in the metadata rail on the right of the page.
 
+**A typed entity page shows the fields its own type declares**, above that list and in the order the profile declares them. Values render by their declared type: an array becomes a list, an `enum` becomes a state chip, a boolean reads as Yes or No, and a field carrying a [`format`](/configuration/profiles#field-formats) becomes an external link. A field the record does not carry is left out rather than shown empty, and an `artifactRef` is named but marked unverified - the viewer does not yet read the artifact store to check it.
+
+Those fields lead because the list below them is the default profile's vocabulary and describes a contract a typed page was never under. Anything that list would have shown still shows, minus any key the profile declares as a field of its own - so nothing disappears and nothing is stated twice.
+
 **Freshness badges.** Pages whose underlying sources have changed since the last compile are labelled `STALE`. Pages whose sources were all deleted are labelled `ORPHANED`. Pages that declare contradictions in their frontmatter are labelled `CONTRADICTED`. Archived candidates show an `ARCHIVED` badge.
 
 **Provenance and citation chips.** Each paragraph's `^[source.md]` citation renders as a clickable chip. On loopback (`127.0.0.1`), citation chips include an editor link that opens the source file at the relevant line range directly in your default editor. Specific claim citations (`^[source.md:42-58]`) pin to the exact line range.

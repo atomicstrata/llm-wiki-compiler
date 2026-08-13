@@ -90,6 +90,10 @@ const MODULE_ORDER = [
   "viewer-routes.js",
   "viewer-nav-types.js",
   "viewer-dashboard-vocabulary.js",
+  // Imported by viewer-entity-fields.js, which sorts before it.
+  "viewer-field-format.js",
+  // Imported by viewer-rail.js, and sorts after it in directory order.
+  "viewer-entity-fields.js",
   "viewer-rail.js",
   "viewer-pattern.js",
   "viewer-stat-card.js",

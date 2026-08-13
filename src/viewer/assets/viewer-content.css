@@ -174,6 +174,51 @@
 
 /* ---- Support rail: warnings block ---- */
 
+/*
+ * A typed page's DECLARED fields. The `<dl>` itself needs no rule — the rail's
+ * own `.support-rail dt/dd` already style it — so only the pieces the fixed list
+ * has no equivalent for are defined here.
+ *
+ * The label is MONO because it is a frontmatter key, not prose: it is the exact
+ * string the author typed and the reader may have to type back. Same reasoning
+ * as the run id on a workflow row.
+ */
+/* Scoped to `.support-rail` to out-specify `.support-rail dt` in
+ * viewer-chrome.css (0-1-1) — a bare `.entity-field-label` (0-1-0) loses to it
+ * and the label would silently render in the sans face this comment denies. */
+.support-rail .entity-field-label { font: var(--type-metadata); color: var(--fg-dim); }
+.entity-field-list { list-style: none; margin: 0; padding: 0; }
+.entity-field-item { color: var(--fg-body); }
+/* A formatted field leaves the viewer, so it looks like a link rather than
+ * inheriting the rail's plain body colour. `--accent-text`, not `--accent`:
+ * the latter is the graphics fill (graph nodes, gradients), and text uses the
+ * readable-on-background variant. */
+.entity-field-link { color: var(--accent-text); text-decoration: underline; }
+
+/* An enum value is a state, not free text — so it takes the neutral chip recipe
+ * this stylesheet already uses for `.workflow-flag`, rather than #/pipeline's,
+ * which is tuned for a denser panel and sits in its own sheet. */
+.entity-field-state {
+  display: inline-block;
+  font: var(--type-badge);
+  color: var(--fg-dim);
+  background: var(--bg-chip);
+  border: 1px solid var(--border-chip);
+  padding: 3px 6px;
+  border-radius: var(--radius-badge);
+}
+
+/* An artifact ref is a machine handle; the note beside it says it is unchecked.
+ * `--fg-dim` rather than a fainter rung: the whole point of the note is that it
+ * gets read, and the fainter tokens do not clear 4.5:1 at this size. */
+.entity-field-ref { font: var(--type-provenance); color: var(--fg-body); }
+.entity-field-unresolved {
+  display: block;
+  font: var(--type-metadata);
+  color: var(--fg-dim);
+  font-style: italic;
+}
+
 .support-rail-warnings {
   margin-top: var(--space-16);
   padding-top: var(--space-12);

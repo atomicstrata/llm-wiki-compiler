@@ -176,11 +176,15 @@ function entityListRoute(key) {
   return { kind: "entityList", type };
 }
 
+/** The envelope's declared entity-type rows, or an empty list before it settles. */
+function declaredTypeRows() {
+  const entityTypes = bootstrapData.pages?.profilePipeline?.entityTypes;
+  return Array.isArray(entityTypes) ? entityTypes : [];
+}
+
 /** The entity type ids the cached envelope declares; empty until it settles. */
 function declaredEntityTypes() {
-  const entityTypes = bootstrapData.pages?.profilePipeline?.entityTypes;
-  if (!Array.isArray(entityTypes)) return [];
-  return entityTypes.map((entry) => entry?.type);
+  return declaredTypeRows().map((entry) => entry?.type);
 }
 
 /** Resolve a `#/<directory>/<slug>` hash; non-matches return home. */
@@ -381,7 +385,7 @@ function handleIndexError(main, err) {
 async function renderPagePane(main, directory, slug) {
   try {
     const payload = await fetchJson(pageApiPath(directory, slug));
-    renderPagePayload(main, payload, slug);
+    renderPagePayload(main, payload, slug, await declaredFieldsFor(payload.entityType));
   } catch (err) {
     handlePageError(main, err, directory, slug);
   }
@@ -393,7 +397,7 @@ function pageApiPath(directory, slug) {
 }
 
 /** Render the body of a successful /api/page response into the main pane. */
-function renderPagePayload(main, payload, slug) {
+function renderPagePayload(main, payload, slug, fieldDefs) {
   const title = payload.title || slug;
   main.innerHTML = "";
   main.appendChild(heading("h1", title));
@@ -403,7 +407,43 @@ function renderPagePayload(main, payload, slug) {
   appendWarnings(main, payload.warnings || []);
   const body = appendRenderedBody(main, payload.html);
   removeDuplicateLeadingHeading(body, title);
-  renderSupportRail(payload);
+  renderSupportRail(payload, fieldDefs, titleFieldFor(payload.entityType));
+}
+
+/**
+ * The fields the active profile declares for `entityType`, or undefined.
+ *
+ * AWAITS the envelope rather than reading whatever `bootstrapData` holds right
+ * now. `main()` renders the route twice — once immediately, once after
+ * `/api/pages` settles — and `unsettledOrPageRoute` deliberately lets a page
+ * route resolve without the envelope. A synchronous read would therefore make
+ * the two passes render DIFFERENT rails, and since each pass issues its own
+ * `/api/page` fetch with no ordering guarantee between them, a cold deep link
+ * whose first response landed second would be left permanently without its
+ * declared fields. Awaiting makes both passes produce the same rail, so which
+ * one wins stops mattering. Same idiom the index and dashboard routes use.
+ *
+ * Resolved here rather than in the rail because this module is already the one
+ * place that reads `bootstrapData`; the rail stays a pure renderer of what it is
+ * handed. A default page carries no `entityType`, so it never awaits and its
+ * rail is byte-identical to before.
+ */
+async function declaredFieldsFor(entityType) {
+  if (typeof entityType !== "string") return undefined;
+  if (bootstrapData.pages === null) await loadBootstrapData();
+  return declaredTypeRows().find((entry) => entry?.type === entityType)?.fields;
+}
+
+/**
+ * The frontmatter key this entity type titles pages by, or undefined.
+ *
+ * Read synchronously from the cached envelope: it only ever SUPPRESSES a rail
+ * row that duplicates the heading, so a miss before the envelope settles costs
+ * one redundant row on the first of two paints rather than a wrong one.
+ */
+function titleFieldFor(entityType) {
+  if (typeof entityType !== "string") return undefined;
+  return declaredTypeRows().find((entry) => entry?.type === entityType)?.titleField;
 }
 
 /** Question banner shown above the body for saved-query pages. */

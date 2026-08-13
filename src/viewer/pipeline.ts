@@ -195,6 +195,7 @@ const PROJECTED_FIELD_FACETS: Record<ProjectedFieldFacet, true> = {
   required: true,
   enum: true,
   artifactTypes: true,
+  format: true,
 };
 
 /**

@@ -35,6 +35,7 @@ const PACK: ProfilePack = {
         wordCount: { type: "integer", min: 0, max: 5000 },
         stage: { type: "enum", enum: ["draft", "filed"], default: "draft" },
         assets: { type: "artifactRef[]", artifactTypes: ["photo"] },
+        homepage: { type: "string", format: "url" },
       },
     },
     desks: { directory: "wiki/desks" },
@@ -66,10 +67,11 @@ describe("profilePipeline carries each type's declared schema", () => {
       "wordCount",
       "stage",
       "assets",
+      "homepage",
     ]);
   });
 
-  it("carries type, required, enum and artifactTypes verbatim", () => {
+  it("carries type, required, enum, artifactTypes and format verbatim", () => {
     const byName = Object.fromEntries(
       (typeRow("articles").fields ?? []).map((field) => [field.name, field]),
     );
@@ -80,6 +82,7 @@ describe("profilePipeline carries each type's declared schema", () => {
       type: "artifactRef[]",
       artifactTypes: ["photo"],
     });
+    expect(byName.homepage).toEqual({ name: "homepage", type: "string", format: "url" });
   });
 
   it("omits both keys for a type declaring neither", () => {
@@ -165,6 +168,7 @@ describe("the envelope carries the schema through the count join", () => {
       "wordCount",
       "stage",
       "assets",
+      "homepage",
     ]);
     expect(row?.pageCount).toBe(0);
   });

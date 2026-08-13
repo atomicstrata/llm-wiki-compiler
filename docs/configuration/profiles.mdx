@@ -76,6 +76,34 @@ Supported field types:
 Fields can be required with `required: true`, or by listing them in the entity's
 `requiredFields` array. Both forms are enforced on typed page writes.
 
+### Field formats
+
+`format` tells a read surface how to linkify a field's text. It is valid only on
+`string` and `string[]`, and takes one of three values:
+
+| Format | Renders as |
+|---|---|
+| `url` | The value itself, linked — only when it parses as an absolute `http`/`https` URL |
+| `doi` | A link through `https://doi.org/<value>` |
+| `arxiv` | A link through `https://arxiv.org/abs/<value>` |
+
+```json
+{ "doi": { "type": "string", "format": "doi" } }
+```
+
+The vocabulary is closed and the resolver origins are fixed — a profile names a
+resolver the reader already knows rather than supplying a URL template, so a
+profile can never point a reader at an origin of its choosing. An unknown format
+is rejected at load, and a value that does not match its format's grammar renders
+as plain text rather than as a link built anyway.
+
+<Note>
+  Adding `format` to an existing profile changes that profile's digest, and its
+  template's digest if it is a builtin. It does **not** affect in-flight workflow
+  runs: run classification compares the digest of the individual workflow
+  definition, not the profile's.
+</Note>
+
 ### Page titles
 
 `titleField` names the frontmatter key an entity type carries its display title
