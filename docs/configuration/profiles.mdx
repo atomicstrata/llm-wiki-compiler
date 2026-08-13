@@ -76,6 +76,32 @@ Supported field types:
 Fields can be required with `required: true`, or by listing them in the entity's
 `requiredFields` array. Both forms are enforced on typed page writes.
 
+### Page titles
+
+`titleField` names the frontmatter key an entity type carries its display title
+under. It must name a declared `string` field of that type, and a profile
+declaring one that names nothing — or names a non-string field — is rejected at
+load.
+
+```json
+{
+  "entities": {
+    "people": {
+      "directory": "wiki/people",
+      "titleField": "name",
+      "fields": { "name": { "type": "string" } }
+    }
+  }
+}
+```
+
+Every read surface uses it: `llmwiki status`, JSON and OKF export, context packs,
+the wiki index, lint, and the local viewer's page list, page header and graph
+labels. A type that declares no `titleField` falls back to the literal `title`
+key, and a page whose title field is missing, blank, or not a string falls back
+to its slug — so adding `titleField` to an existing profile changes what those
+surfaces display for its pages.
+
 ## Relations
 
 Relations declare typed edges between entity types:

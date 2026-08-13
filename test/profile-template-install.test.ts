@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import { profileDigest } from "../src/profile/digest.js";
 import { loadProfile, ProfileLoadError } from "../src/profile/load.js";
 import { installBuiltinTemplate } from "../src/profile/templates/install.js";
+import { getBuiltinTemplate } from "../src/profile/templates/registry.js";
 import { CANDIDATES_ARCHIVE_DIR, PROFILE_FILE, RELATIONS_FILE } from "../src/utils/constants.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
 import { listProjectFiles } from "./fixtures/project-files.js";
@@ -25,19 +26,30 @@ async function expectProjectLockReleased(root: string): Promise<void> {
   if (acquired) await releaseLock(root);
 }
 
+/**
+ * The version the registry currently ships for `autosci`.
+ *
+ * Read rather than spelled: these tests are about install MECHANICS — what lands
+ * on disk, what the lock records, what happens when the lock cannot be written —
+ * and pinning a literal here made a routine template bump fail three tests that
+ * are not about versioning. Which version is current is pinned once, where it is
+ * the subject: test/profile-template-autosci-releases.test.ts.
+ */
+const AUTOSCI_VERSION = getBuiltinTemplate("autosci")!.version;
+
 describe("installBuiltinTemplate", () => {
   it("installs autosci profile and advisory lock into an empty project", async () => {
     const root = await makeTempRoot("template-install-autosci");
 
     const result = await installBuiltinTemplate(root, "autosci", { force: false, currentVersion: "1.0.0" });
 
-    expect(result).toMatchObject({ kind: "installed", templateId: "autosci", version: "0.1.0", lockWritten: true });
+    expect(result).toMatchObject({ kind: "installed", templateId: "autosci", version: AUTOSCI_VERSION, lockWritten: true });
     const loaded = await loadProfile(root);
     expect(loaded.profile.profileId).toBe("autosci");
     expect(await readJson(root, LOCK_FILE)).toMatchObject({
       schemaVersion: 2,
       templateId: "autosci",
-      version: "0.1.0",
+      version: AUTOSCI_VERSION,
       publisher: "atomicstrata",
       sourceType: "builtin",
       profileDigest: profileDigest(loaded.profile),
@@ -107,7 +119,7 @@ describe("installBuiltinTemplate", () => {
 
     const result = await installBuiltinTemplate(root, "autosci", { force: false, currentVersion: "1.0.0" });
 
-    expect(result).toMatchObject({ templateId: "autosci", version: "0.1.0", lockWritten: false });
+    expect(result).toMatchObject({ templateId: "autosci", version: AUTOSCI_VERSION, lockWritten: false });
     expect((await loadProfile(root)).profile.profileId).toBe("autosci");
     await expectProjectLockReleased(root);
   });

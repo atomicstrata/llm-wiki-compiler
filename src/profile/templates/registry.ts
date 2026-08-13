@@ -7,7 +7,7 @@ import type { ProfileTemplatePackage, ProfileTemplateSummary } from "./types.js"
 import { DEFAULT_PROFILE } from "../default.js";
 import { profileDigest } from "../digest.js";
 import type { ProfilePack } from "../types.js";
-import { AUTOSCI_TEMPLATE } from "./builtin/autosci.js";
+import { AUTOSCI_TEMPLATE, AUTOSCI_TEMPLATE_RELEASES } from "./builtin/autosci.js";
 import { DEFAULT_TEMPLATE_SUMMARY } from "./builtin/default.js";
 import { NEWSROOM_TEMPLATE } from "./builtin/newsroom.js";
 
@@ -15,6 +15,7 @@ import { NEWSROOM_TEMPLATE } from "./builtin/newsroom.js";
 // planning must resolve the exact installed release, not reinterpret it as the
 // newest package carrying the same template id.
 const BUILTIN_TEMPLATE_RELEASES: readonly ProfileTemplatePackage[] = [
+  ...AUTOSCI_TEMPLATE_RELEASES,
   AUTOSCI_TEMPLATE,
   NEWSROOM_TEMPLATE,
 ];

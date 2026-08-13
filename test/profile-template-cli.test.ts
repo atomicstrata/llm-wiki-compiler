@@ -10,6 +10,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { AUTOSCI_TEMPLATE } from "../src/profile/templates/builtin/autosci.js";
+import { getBuiltinTemplate } from "../src/profile/templates/registry.js";
 
 const CLI = path.resolve("dist/cli.js");
 
@@ -80,7 +81,12 @@ describe("template CLI", () => {
     await withRoot(async (root) => {
       const result = run(root, ["template", "init", "autosci"]);
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("Installed template 'autosci' 0.1.0");
+      // The version is read, not spelled: this test is about the CLI reporting
+      // what it installed, not about which release is current. That is pinned
+      // once, in test/profile-template-autosci-releases.test.ts.
+      expect(result.stdout).toContain(
+        `Installed template 'autosci' ${getBuiltinTemplate("autosci")!.version}`,
+      );
       const profilePath = path.join(root, ".llmwiki/profile.json");
       const lockPath = path.join(root, ".llmwiki/template-lock.json");
       const profile = JSON.parse(await readFile(profilePath, "utf8")) as Record<string, unknown>;

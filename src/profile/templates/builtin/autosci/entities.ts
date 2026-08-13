@@ -8,6 +8,7 @@ import type { ProfilePack } from "../../../types.js";
 export const autosciEntities = {
   papers: {
     directory: "wiki/papers",
+    titleField: "title",
     contentTiers: ["title", "body"],
     fields: {
       title: { type: "string", required: true },
@@ -30,6 +31,7 @@ export const autosciEntities = {
   },
   sources: {
     directory: "wiki/sources",
+    titleField: "title",
     requiredFields: ["title", "kind", "stage"],
     contentTiers: ["title", "body"],
     fields: {
@@ -47,6 +49,7 @@ export const autosciEntities = {
   },
   ideas: {
     directory: "wiki/ideas",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       rationale: { type: "string", required: true },
@@ -61,6 +64,7 @@ export const autosciEntities = {
   },
   experiments: {
     directory: "wiki/experiments",
+    titleField: "title",
     requiredFields: ["title", "hypothesis", "stage"],
     fields: {
       title: { type: "string" },
@@ -88,6 +92,7 @@ export const autosciEntities = {
   },
   manuscripts: {
     directory: "wiki/manuscripts",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       abstract: { type: "string", required: true },
@@ -105,6 +110,7 @@ export const autosciEntities = {
   },
   topics: {
     directory: "wiki/topics",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       description: { type: "string" },
@@ -117,6 +123,7 @@ export const autosciEntities = {
   },
   "research-concepts": {
     directory: "wiki/research-concepts",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       definition: { type: "string", required: true },
@@ -129,6 +136,7 @@ export const autosciEntities = {
   },
   methods: {
     directory: "wiki/methods",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       summary: { type: "string", required: true },
@@ -141,6 +149,7 @@ export const autosciEntities = {
   },
   foundations: {
     directory: "wiki/foundations",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       kind: { type: "enum", enum: ["dataset", "tool", "theory", "benchmark"], required: true },
@@ -153,6 +162,7 @@ export const autosciEntities = {
   },
   people: {
     directory: "wiki/people",
+    titleField: "name",
     fields: {
       name: { type: "string", required: true },
       affiliation: { type: "string" },
@@ -165,6 +175,7 @@ export const autosciEntities = {
   },
   reviews: {
     directory: "wiki/reviews",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       summary: { type: "string" },
@@ -177,6 +188,7 @@ export const autosciEntities = {
   },
   "research-outputs": {
     directory: "wiki/research-outputs",
+    titleField: "title",
     fields: {
       title: { type: "string", required: true },
       outputKind: { type: "enum", enum: ["model", "dataset", "report", "code"], required: true },

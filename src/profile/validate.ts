@@ -184,6 +184,33 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
 }
 
 /**
+ * `titleField` must name a DECLARED field that can actually hold a title.
+ *
+ * It is schema-typed as a bare string and was checked against nothing, so a
+ * profile could title by a field it never declared and load clean — pages would
+ * then silently show their slug with no diagnostic on any surface, which is the
+ * failure mode the field exists to prevent.
+ *
+ * Only `string` qualifies. A number, boolean, date or enum is not a name; an
+ * `artifactRef` is a pointer to bytes; and `slug` is excluded deliberately,
+ * because the slug is already what an untitled page falls back to, so titling by
+ * one would be a no-op dressed as a choice. `string[]` is excluded too: a title
+ * is one value, and picking an element would be a rule the profile never stated.
+ */
+function validateTitleField(entityType: string, def: EntityTypeDef): void {
+  if (def.titleField === undefined) return;
+  const field = def.fields?.[def.titleField];
+  assert(
+    field !== undefined,
+    `entity '${entityType}' titleField '${def.titleField}' is not a declared field`,
+  );
+  assert(
+    field.type === "string",
+    `entity '${entityType}' titleField '${def.titleField}' must be a 'string' field, not '${field.type}'`,
+  );
+}
+
+/**
  * Every `contentTiers` entry must be a declared field OR the reserved
  * {@link BODY_TIER_TOKEN}, and entries must be unique. An omitted or empty
  * `contentTiers` is valid (means "no projection"). A field literally named
@@ -328,6 +355,7 @@ function validateEntity(entityType: string, def: EntityTypeDef, declaredArtifact
   assertFiniteNumbers(entityType, def);
   validateArtifactTypesScope(entityType, def, declaredArtifactTypes);
   validateRequiredFields(entityType, def);
+  validateTitleField(entityType, def);
   validateContentTiers(entityType, def);
   const warnings = def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
   return { canonicalDirectory, warnings };

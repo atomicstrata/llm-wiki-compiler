@@ -178,13 +178,43 @@ function validateScan(
 }
 
 /**
+ * The page's display title, read from the type's DECLARED title field.
+ *
+ * `EntityTypeDef.titleField` names the frontmatter key a type carries its
+ * display name under. It had been in the schema since the profile format
+ * shipped and was read by nothing, so a type whose name lives under another key
+ * (AutoSci's `people`, keyed `name`) had no title at all and every surface fell
+ * back to its slug.
+ *
+ * Resolved HERE rather than in any one reader so `status`, the JSON export,
+ * context packs, index generation, lint and the viewer all read one declaration
+ * one way — a reader-local fix would give a single declaration two meanings.
+ *
+ * `undefined` — never `""` — is the answer for anything unusable, because every
+ * downstream surface already falls back to the slug on undefined and a blank
+ * string would replace that fallback with an empty line.
+ *
+ * A type declaring NO `titleField` keeps the previous behaviour byte-for-byte,
+ * down to `parseStatus.hasTitle`'s non-empty (untrimmed) test. The declared path
+ * additionally trims, so a title of `"   "` is treated as absent rather than
+ * rendered as a blank heading; the asymmetry is deliberate — the existing path
+ * was left exactly as it was.
+ */
+function pageTitle(def: EntityTypeDef, scan: RawEntityScan): string | undefined {
+  if (def.titleField === undefined) {
+    return scan.parseStatus.hasTitle ? (scan.frontmatter.title as string) : undefined;
+  }
+  const declared = scan.frontmatter[def.titleField];
+  return typeof declared === "string" && declared.trim().length > 0 ? declared : undefined;
+}
+
+/**
  * Build a content-carrying `EntityPage` (identity PLUS the scan's
  * `frontmatter`/`body`/`title`) for a valid page, or `null` (with a problem)
  * for an invalid identity. Field-contract violations are surfaced but the page
  * is still produced. Shares all validation with {@link validateScan}.
  *
- * The `title` is the frontmatter title only when the scan flagged one present
- * (`parseStatus.hasTitle`); otherwise it is `undefined`.
+ * The `title` comes from the type's declared title field — see {@link pageTitle}.
  */
 function pageFromScan(
   def: EntityTypeDef,
@@ -194,7 +224,7 @@ function pageFromScan(
 ): EntityPage | null {
   const stem = validateScan(def, entityType, scan, problems);
   if (stem === null) return null;
-  const title = scan.parseStatus.hasTitle ? (scan.frontmatter.title as string) : undefined;
+  const title = pageTitle(def, scan);
   return {
     entityType,
     directory: def.directory,
