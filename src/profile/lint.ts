@@ -89,9 +89,26 @@ function problemToResult(problem: EntityProblem): LintResult {
  *
  * Each finding is tagged with the page's `entityType`.
  */
+/**
+ * The title `empty-page` judges a page against: the LITERAL `title` frontmatter
+ * key, never the type's declared display title.
+ *
+ * The rule asks whether a page that ANNOUNCES a title has prose beneath it, and
+ * the announcement is the `title` key. `EntityPage.title` now resolves through
+ * `EntityTypeDef.titleField`, so reading it here would newly flag every
+ * frontmatter-only record type — a `desks` row keyed `name`, a `people` row
+ * keyed `name`, a `bylines` row keyed `reporter` — whose normal shape is fields
+ * with no prose at all. That would turn adopting a shipped template into a
+ * health-score regression for a project that did nothing wrong.
+ */
+function announcedTitle(page: EntityPage): string | undefined {
+  const declared = page.frontmatter.title;
+  return typeof declared === "string" ? declared : undefined;
+}
+
 function lintEntityPageContent(page: EntityPage): LintResult[] {
   const findings = [
-    ...checkPageEmpty({ title: page.title, body: page.body, filePath: page.filePath }),
+    ...checkPageEmpty({ title: announcedTitle(page), body: page.body, filePath: page.filePath }),
     ...checkPageMalformedCitations(page.body, page.filePath),
   ];
   return findings.map((finding) => ({ ...finding, entityType: page.entityType }));

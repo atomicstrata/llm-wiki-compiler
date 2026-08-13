@@ -110,9 +110,22 @@ function buildEntityXLlmwiki(page: EntityPage, def: EntityTypeDef, collided: Rec
   };
 }
 
-/** Overlay the OKF standard fields (title/description/tags/timestamp) from the entity page's frontmatter. */
+/**
+ * Overlay the OKF standard fields (title/description/tags/timestamp) from the
+ * entity page's frontmatter.
+ *
+ * `title` is read from the LITERAL frontmatter key, not from `EntityPage.title`.
+ * That field now resolves through `EntityTypeDef.titleField`, and using it here
+ * would widen a published interchange format: a `desks` record keyed `name`
+ * would gain an OKF `title` it never had, while `collectDomainFields` — which
+ * suppresses only a field literally named `title` — would keep exporting `name`
+ * too, shipping one value under two keys. A display title is a viewer and TOC
+ * concern (see {@link toEntityDoc}, which does use the resolved title); the
+ * bundle carries what the page actually wrote.
+ */
 function applyEntityStandardFields(fm: Record<string, unknown>, page: EntityPage): void {
-  if (page.title) fm.title = page.title;
+  const title = readString(page.frontmatter, "title");
+  if (title) fm.title = title;
   const description = readString(page.frontmatter, "summary");
   if (description) fm.description = description;
   const tags = page.frontmatter.tags;

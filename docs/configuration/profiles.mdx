@@ -95,12 +95,20 @@ load.
 }
 ```
 
-Every read surface uses it: `llmwiki status`, JSON and OKF export, context packs,
-the wiki index, lint, and the local viewer's page list, page header and graph
-labels. A type that declares no `titleField` falls back to the literal `title`
-key, and a page whose title field is missing, blank, or not a string falls back
-to its slug — so adding `titleField` to an existing profile changes what those
-surfaces display for its pages.
+A type that declares no `titleField` falls back to the literal `title` key, and a
+page whose title field is missing, blank, or not a string falls back to its slug.
+
+It is a **display** title, and only display surfaces use it: `llmwiki status`,
+the JSON export, context packs, the wiki index, an Open Knowledge Format bundle's
+table of contents, and the local viewer's page list, page header and graph
+labels. Adding `titleField` to an existing profile changes what those show.
+
+Two surfaces deliberately keep reading the literal `title` key instead:
+
+| Surface | Why |
+|---|---|
+| The `empty-page` lint rule | It asks whether a page that *announces* a title has prose beneath it. Reading the display title would flag every record type whose normal shape is fields with no prose. |
+| OKF frontmatter | A bundle carries what the page wrote. Deriving `title` from another field would add a key the page never had, while that field still exports under its own name. |
 
 ## Relations
 
