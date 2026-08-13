@@ -24,9 +24,24 @@ import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { PIPELINE_PROFILE, seedPipelinePages } from "./fixtures/pipeline-project.js";
 
+interface PipelineFieldRow {
+  name: string;
+  type: string;
+  required?: boolean;
+  enum?: string[];
+  artifactTypes?: string[];
+}
+interface PipelineArtifactRow {
+  type: string;
+  fileName: string;
+  contentKind: string;
+  metadata?: PipelineFieldRow[];
+}
 interface PipelineRow {
   type: string;
   directory: string;
+  titleField?: string;
+  fields?: PipelineFieldRow[];
   pageCount: number;
   stateCounts?: Record<string, number>;
   lifecycle?: {
@@ -40,6 +55,7 @@ interface PipelineRow {
 interface PipelineEnvelope {
   entityTypes: PipelineRow[];
   relationTypes?: { type: string; from: string[]; to: string[]; direction: string; count: number }[];
+  artifactTypes?: PipelineArtifactRow[];
 }
 
 const handles: { close(): Promise<void> }[] = [];
@@ -127,6 +143,23 @@ describe("/api/pages — profilePipeline on a profile project", () => {
     };
     const definitions = buildPipelineDefinitions(renamed);
     expect(definitions.entityTypes.find((d) => d.type === "desks")?.directory).toBe("desks-v2");
+  });
+
+  // The declared SCHEMA half of the block. `buildPipelineDefinitions` is unit
+  // tested in viewer-profile-schema.test.ts; these two assert it survives the
+  // join onto counts and reaches the wire, which is a separate function.
+  it("carries each type's declared titleField and fields through to the wire", async () => {
+    const row = await rowFor("articles");
+    expect(row.titleField).toBe(PIPELINE_PROFILE.entities.articles.titleField);
+    expect(row.fields?.map((field) => field.name)).toEqual(
+      Object.keys(PIPELINE_PROFILE.entities.articles.fields ?? {}),
+    );
+  });
+
+  it("carries the profile's declared artifact types alongside the entity rows", async () => {
+    const pipeline = await pipelineEnvelope();
+    const declared = Object.keys(PIPELINE_PROFILE.artifacts ?? {});
+    expect(pipeline.artifactTypes?.map((row) => row.type) ?? []).toEqual(declared);
   });
 
   it("carries relation endpoints and direction from the profile", async () => {
