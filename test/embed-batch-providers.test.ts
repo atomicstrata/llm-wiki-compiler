@@ -11,6 +11,7 @@ import { OpenAIProvider } from "../src/providers/openai.js";
 import { voyageEmbed, voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 import { CopilotProvider } from "../src/providers/copilot.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
+import { OrcaRouterProvider } from "../src/providers/orcarouter.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
 function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvider {
@@ -100,14 +101,17 @@ describe("CopilotProvider.embedBatch", () => {
   });
 });
 
-describe("MiniMaxProvider embeddings", () => {
-  it("throws explicit unsupported errors instead of inheriting OpenAI embeddings", async () => {
-    const p = new MiniMaxProvider("MiniMax-M2.7", "test-key");
+describe("providers without an embeddings endpoint", () => {
+  it.each<[string, () => OpenAIProvider, RegExp]>([
+    ["MiniMax", () => new MiniMaxProvider("MiniMax-M2.7", "test-key"), /MiniMax.*does not support embeddings/i],
+    ["OrcaRouter", () => new OrcaRouterProvider("openai/gpt-4o-mini", "test-key"), /OrcaRouter.*does not support embeddings/i],
+  ])("%s throws explicit unsupported errors instead of inheriting OpenAI embeddings", async (_name, make, message) => {
+    const p = make();
     Reflect.set(p, "embeddingsClient", {
       embeddings: { create: async () => ({ data: [{ embedding: [1] }] }) },
     });
 
-    await expect(p.embed("a")).rejects.toThrow(/MiniMax.*does not support embeddings/i);
-    await expect(p.embedBatch!(["a"])).rejects.toThrow(/MiniMax.*does not support embeddings/i);
+    await expect(p.embed("a")).rejects.toThrow(message);
+    await expect(p.embedBatch!(["a"])).rejects.toThrow(message);
   });
 });

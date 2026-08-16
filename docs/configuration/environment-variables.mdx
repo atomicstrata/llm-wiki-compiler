@@ -14,7 +14,7 @@ You don't need to set everything - only the variables relevant to your chosen pr
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
+| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `orcarouter`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model. For `codex-agent`, unset delegates model choice to Codex and a set value is passed through with `--model` |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
 | `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
@@ -119,6 +119,14 @@ update with `npm install -g @openai/codex@latest`.
 | `ATLASCLOUD_BASE_URL` | No | Override the API base URL. `ATLAS_CLOUD_BASE_URL` is accepted as an alternative |
 
 Model names are namespaced by publisher (e.g. `qwen/qwen3.5-35b-a3b`, the default). An override set through `LLMWIKI_MODEL` must be a model Atlas Cloud lists as supporting tools, because `compile` extracts concepts through a tool call.
+
+---
+
+## OrcaRouter
+
+| Variable | Required | Description |
+|---|---|---|
+| `ORCAROUTER_API_KEY` | Yes (for `orcarouter` provider) | API key for the [OrcaRouter](https://www.orcarouter.ai) gateway (`sk-orca-...`). Model names are namespaced by upstream provider (e.g. `openai/gpt-4o-mini`); the default model is `openai/gpt-4o-mini` and `LLMWIKI_MODEL` overrides it |
 
 ---
 
