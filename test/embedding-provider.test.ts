@@ -76,7 +76,7 @@ describe("getEmbeddingProvider — explicit override", () => {
   });
 
   it("rejects providers whose embed() throws, naming the valid values", () => {
-    for (const name of ["copilot", "minimax", "not-a-provider"]) {
+    for (const name of ["copilot", "minimax", "orcarouter", "not-a-provider"]) {
       setEnv({ LLMWIKI_EMBEDDING_PROVIDER: name });
       expect(() => getEmbeddingProvider()).toThrow(/anthropic.*claude-agent.*openai.*ollama/s);
     }

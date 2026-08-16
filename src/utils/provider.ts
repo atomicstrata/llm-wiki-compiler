@@ -3,7 +3,7 @@
  *
  * Defines the LLMProvider interface and a factory function that reads
  * LLMWIKI_PROVIDER and LLMWIKI_MODEL env vars to instantiate the
- * appropriate backend (Anthropic, OpenAI, Ollama, or MiniMax).
+ * appropriate backend (Anthropic, OpenAI, Ollama, MiniMax, or OrcaRouter).
  */
 
 import { DEFAULT_PROVIDER, PROVIDER_MODELS, OLLAMA_DEFAULT_HOST } from "./constants.js";
@@ -11,6 +11,7 @@ import { AnthropicProvider } from "../providers/anthropic.js";
 import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
+import { OrcaRouterProvider } from "../providers/orcarouter.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
 import {
@@ -56,7 +57,7 @@ export interface LLMProvider {
   embedBatch?(texts: string[], inputType?: EmbeddingInputType): Promise<number[][]>;
 }
 
-const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot"]);
+const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(["anthropic", "claude-agent", "openai", "ollama", "minimax", "copilot", "orcarouter"]);
 
 /**
  * Construct the provider named `providerName`, independent of which provider is
@@ -86,6 +87,8 @@ export function buildProvider(providerName: string): LLMProvider {
       });
     case "minimax":
       return getMiniMaxProvider();
+    case "orcarouter":
+      return getOrcaRouterProvider();
     case "copilot":
       return getCopilotProvider();
     default:
@@ -107,7 +110,7 @@ function readOptionalEnv(name: string): string | undefined {
   return value ? value : undefined;
 }
 
-function getModelForProvider(providerName: "openai" | "ollama" | "minimax" | "copilot"): string {
+function getModelForProvider(providerName: "openai" | "ollama" | "minimax" | "orcarouter" | "copilot"): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
 
@@ -120,6 +123,17 @@ function getMiniMaxProvider(): MiniMaxProvider {
     );
   }
   return new MiniMaxProvider(getModelForProvider("minimax"), apiKey);
+}
+
+function getOrcaRouterProvider(): OrcaRouterProvider {
+  const apiKey = process.env.ORCAROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "OrcaRouter provider requires ORCAROUTER_API_KEY environment variable.\n" +
+      '  Set it with: export ORCAROUTER_API_KEY=your_key',
+    );
+  }
+  return new OrcaRouterProvider(getModelForProvider("orcarouter"), apiKey);
 }
 
 function getCopilotProvider(): CopilotProvider {
@@ -185,5 +199,5 @@ export function resolveActiveModelId(): string {
   if (providerName === "anthropic") {
     return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
   }
-  return getModelForProvider(providerName as "openai" | "ollama" | "minimax" | "copilot");
+  return getModelForProvider(providerName as "openai" | "ollama" | "minimax" | "orcarouter" | "copilot");
 }

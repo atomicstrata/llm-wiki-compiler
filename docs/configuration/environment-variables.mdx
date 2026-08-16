@@ -14,7 +14,7 @@ You don't need to set everything - only the variables relevant to your chosen pr
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent` |
+| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `orcarouter` |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
 | `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
@@ -76,6 +76,14 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 | Variable | Required | Description |
 |---|---|---|
 | `GITHUB_TOKEN` | Yes (for `copilot` provider) | GitHub OAuth token with the `copilot` scope. Obtain with `gh auth token` after running `gh auth refresh --scopes copilot`. Classic PATs are not supported |
+
+---
+
+## OrcaRouter
+
+| Variable | Required | Description |
+|---|---|---|
+| `ORCAROUTER_API_KEY` | Yes (for `orcarouter` provider) | API key for the [OrcaRouter](https://www.orcarouter.ai) gateway (`sk-orca-...`). Model names are namespaced by upstream provider (e.g. `openai/gpt-4o-mini`); the default model is `openai/gpt-4o-mini` and `LLMWIKI_MODEL` overrides it |
 
 ---
 
