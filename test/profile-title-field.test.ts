@@ -8,10 +8,12 @@
  * display name lives under another key (AutoSci's `people`, keyed `name`) had no
  * title at all and every read surface fell back to its slug.
  *
- * Resolution belongs in the COLLECTOR rather than in one reader, so `status`,
- * the JSON export, context packs, index generation, lint and the viewer all read
- * one declaration one way. A viewer-only fix would give a single declaration two
- * meanings, which is the dual-source problem this codebase keeps removing.
+ * Resolution belongs in the COLLECTOR rather than in one reader, so every
+ * surface that renders a display title reads one declaration one way: the
+ * viewer, context packs, index generation and the JSON export. A viewer-only fix
+ * would give a single declaration two meanings, which is the dual-source problem
+ * this codebase keeps removing. Lint and the OKF export deliberately read the
+ * literal key instead, which `profile-title-field-blast-radius.test.ts` pins.
  *
  * Scope is deliberately narrow, and these tests pin all three edges of it: the
  * declared field is read when `titleField` is present; the literal `title` key
@@ -89,6 +91,34 @@ describe("an unusable titleField value leaves the title undefined", () => {
     expect(page?.title).toBeUndefined();
   });
 
+  it("trims the resolved title rather than carrying padding to every surface", async () => {
+    const page = await collectOne("wiki/people", "ada", 'name: "   Ada Lovelace   "');
+    expect(page?.title).toBe("Ada Lovelace");
+  });
+
+  // Validation rejects a titleField naming an inherited property, so reaching
+  // the collector with one means an unvalidated profile — the SDK, or a test.
+  // `Object.prototype.constructor` resolves to a FUNCTION, so the `string` test
+  // is what turns it into an absent title; this pins that, not a guard.
+  it("leaves it undefined when the declared field names an inherited property", async () => {
+    const root = await makeTempRoot("profile-title-field");
+    roots.push(root);
+    await writeMarkdownPage(root, "wiki/people", "ada", "---\naffiliation: none\n---\n\nBody.");
+    const unvalidated: ProfilePack = {
+      schemaVersion: 1,
+      profileId: "newsroom",
+      entities: {
+        people: {
+          directory: "wiki/people",
+          titleField: "constructor",
+          fields: { affiliation: { type: "string" } },
+        },
+      },
+    };
+    const { pages } = await collectEntityPages(root, unvalidated);
+    expect(pages[0]?.title).toBeUndefined();
+  });
+
   it("leaves it undefined when the declared field holds a non-string", async () => {
     const page = await collectOne("wiki/people", "ada", "name: 42");
     expect(page?.title).toBeUndefined();
@@ -126,6 +156,18 @@ describe("titleField is validated against the fields it claims to name", () => {
   it("rejects a field the type does not declare", () => {
     expect(() => validateProfileShape(packTitledBy("headline"))).toThrow(/titleField/);
   });
+
+  it.each(["constructor", "toString", "hasOwnProperty"])(
+    "reports %s as undeclared rather than as a mistyped field",
+    (inherited) => {
+      // A bare index resolved these off Object.prototype, so the undeclared
+      // check passed and the type check rejected them as "not 'undefined'" —
+      // the right outcome reported as the wrong problem.
+      expect(() => validateProfileShape(packTitledBy(inherited))).toThrow(
+        /is not a declared field/,
+      );
+    },
+  );
 
   it("rejects a declared field that cannot hold a title", () => {
     expect(() => validateProfileShape(packTitledBy("active"))).toThrow(/titleField/);

@@ -338,8 +338,12 @@ export interface EntityPageRef {
  *
  * Where `EntityPageRef` is identity-only, `EntityPage` additionally carries the
  * page's parsed `frontmatter`, its markdown `body`, and a convenience `title`
- * (the frontmatter title when present). It is produced by the content-carrying
- * collector so downstream read surfaces can render a page without re-reading it.
+ * resolved from the type's declared `titleField` (falling back to the literal
+ * `title` key for a type that declares none), or `undefined` when the page
+ * carries no usable one. It is produced by the content-carrying collector so
+ * downstream read surfaces can render a page without re-reading it. Surfaces
+ * that must judge or publish what the page literally WROTE read the frontmatter
+ * key directly instead — see `pageTitle` in collect.ts.
  *
  * This is the INTERNAL collector output: it carries an ABSOLUTE `filePath`
  * (inherited from `EntityPageRef`). Never expose it directly on a public read

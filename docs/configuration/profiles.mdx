@@ -95,13 +95,18 @@ load.
 }
 ```
 
-A type that declares no `titleField` falls back to the literal `title` key, and a
-page whose title field is missing, blank, or not a string falls back to its slug.
+A type that declares no `titleField` falls back to the literal `title` key,
+unchanged: whatever that key holds is used as written.
 
-It is a **display** title, and only display surfaces use it: `llmwiki status`,
-the JSON export, context packs, the wiki index, an Open Knowledge Format bundle's
-table of contents, and the local viewer's page list, page header and graph
-labels. Adding `titleField` to an existing profile changes what those show.
+For a type that DOES declare one, a page whose title field is missing, blank, or
+not a string falls back to its slug, and a title carrying surrounding whitespace
+is trimmed before it is displayed.
+
+It is a **display** title, and only display surfaces use it: the JSON export,
+context packs, the wiki index, an Open Knowledge Format bundle's table of
+contents, and the local viewer's page list, page header and graph labels. Adding
+`titleField` to an existing profile changes what those show. `llmwiki status`
+is unaffected: it counts pages rather than naming them.
 
 Two surfaces deliberately keep reading the literal `title` key instead:
 

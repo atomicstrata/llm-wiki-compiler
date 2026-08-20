@@ -186,9 +186,16 @@ function validateScan(
  * (AutoSci's `people`, keyed `name`) had no title at all and every surface fell
  * back to its slug.
  *
- * Resolved HERE rather than in any one reader so `status`, the JSON export,
- * context packs, index generation, lint and the viewer all read one declaration
- * one way — a reader-local fix would give a single declaration two meanings.
+ * Resolved HERE rather than in any one reader, so every surface that renders a
+ * display title reads one declaration one way: the viewer, context packs, index
+ * generation and the JSON export. A reader-local fix would give a single
+ * declaration two meanings.
+ *
+ * Two surfaces deliberately do NOT consume it, and both say so at their own
+ * call site: `empty-page` in lint.ts judges the LITERAL `title` key, because a
+ * frontmatter-only record type is not an empty page; and the OKF export carries
+ * the literal key too, because publishing the resolved title would ship one
+ * value under two keys. `status` reads neither — it counts pages.
  *
  * `undefined` — never `""` — is the answer for anything unusable, because every
  * downstream surface already falls back to the slug on undefined and a blank
@@ -196,16 +203,26 @@ function validateScan(
  *
  * A type declaring NO `titleField` keeps the previous behaviour byte-for-byte,
  * down to `parseStatus.hasTitle`'s non-empty (untrimmed) test. The declared path
- * additionally trims, so a title of `"   "` is treated as absent rather than
- * rendered as a blank heading; the asymmetry is deliberate — the existing path
- * was left exactly as it was.
+ * trims: `"   "` reads as absent rather than as a blank heading, and `"  Ada  "`
+ * resolves to `"Ada"` rather than carrying padding into every surface that
+ * renders it. The asymmetry is deliberate; the existing path was left as it was.
+ *
+ * The `string` test is also what confines an inherited name. `titleField` is
+ * validated to name a declared own field, but this indexes user-authored
+ * frontmatter with a profile-supplied key, and an unvalidated profile reaching
+ * here (the SDK, a test) could name `constructor` or `toString` — which resolve
+ * off `Object.prototype` to FUNCTIONS, never strings, and so fall out here as
+ * absent. An own-property guard would be redundant with it, and no test could
+ * tell the two apart.
  */
 function pageTitle(def: EntityTypeDef, scan: RawEntityScan): string | undefined {
   if (def.titleField === undefined) {
     return scan.parseStatus.hasTitle ? (scan.frontmatter.title as string) : undefined;
   }
   const declared = scan.frontmatter[def.titleField];
-  return typeof declared === "string" && declared.trim().length > 0 ? declared : undefined;
+  if (typeof declared !== "string") return undefined;
+  const trimmed = declared.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 /**

@@ -196,14 +196,23 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
  * because the slug is already what an untitled page falls back to, so titling by
  * one would be a no-op dressed as a choice. `string[]` is excluded too: a title
  * is one value, and picking an element would be a rule the profile never stated.
+ *
+ * The declared-field test is confined to OWN properties. `titleField` comes from
+ * profile JSON and indexes a plain object, so a bare read resolves inherited
+ * names: `titleField: "constructor"` returned `Object.prototype.constructor`,
+ * slipped past the undeclared-field check, and was rejected by the type check
+ * below as "must be a 'string' field, not 'undefined'" — the right outcome
+ * reported as the wrong problem, telling an author their field is mistyped when
+ * it does not exist.
  */
 function validateTitleField(entityType: string, def: EntityTypeDef): void {
   if (def.titleField === undefined) return;
-  const field = def.fields?.[def.titleField];
+  const fields = def.fields ?? {};
   assert(
-    field !== undefined,
+    Object.hasOwn(fields, def.titleField),
     `entity '${entityType}' titleField '${def.titleField}' is not a declared field`,
   );
+  const field = fields[def.titleField];
   assert(
     field.type === "string",
     `entity '${entityType}' titleField '${def.titleField}' must be a 'string' field, not '${field.type}'`,
