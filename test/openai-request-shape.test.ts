@@ -73,26 +73,42 @@ describe("tokenLimitParams", () => {
 });
 
 describe("reasoningParams", () => {
-  it("sends nothing when unconfigured", () => {
-    expect(reasoningParams()).toEqual({});
+  it("sends nothing for a model with no opinion on reasoning", () => {
+    expect(reasoningParams("gpt-4o-mini")).toEqual({});
+  });
+
+  it.each(["gpt-5", "gpt-5.6-luna", "GPT-5-mini"])(
+    "defaults %s to none, because it rejects tools without an effort",
+    model => {
+      expect(reasoningParams(model)).toEqual({ reasoning_effort: "none" });
+    },
+  );
+
+  it("leaves the o-series alone rather than guessing a value it may reject", () => {
+    expect(reasoningParams("o3-mini")).toEqual({});
   });
 
   it.each(["none", "minimal", "low", "medium", "high", "xhigh"])(
     "passes %s through",
     effort => {
       setEnv({ [REASONING_EFFORT_ENV]: effort });
-      expect(reasoningParams()).toEqual({ reasoning_effort: effort });
+      expect(reasoningParams("gpt-4o-mini")).toEqual({ reasoning_effort: effort });
     },
   );
 
+  it("lets the override win over the model default", () => {
+    setEnv({ [REASONING_EFFORT_ENV]: "high" });
+    expect(reasoningParams("gpt-5.6-luna")).toEqual({ reasoning_effort: "high" });
+  });
+
   it("normalizes whitespace and case", () => {
     setEnv({ [REASONING_EFFORT_ENV]: "  NONE  " });
-    expect(reasoningParams()).toEqual({ reasoning_effort: "none" });
+    expect(reasoningParams("gpt-4o-mini")).toEqual({ reasoning_effort: "none" });
   });
 
   it("rejects an unknown effort instead of sending it", () => {
     setEnv({ [REASONING_EFFORT_ENV]: "maximum" });
-    expect(() => reasoningParams()).toThrow(OpenAIRequestConfigError);
+    expect(() => reasoningParams("gpt-4o-mini")).toThrow(OpenAIRequestConfigError);
   });
 });
 

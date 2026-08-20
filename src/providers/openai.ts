@@ -229,7 +229,7 @@ export class OpenAIProvider implements LLMProvider {
     return {
       model: this.model,
       ...tokenLimitParams(this.model, maxTokens),
-      ...reasoningParams(),
+      ...reasoningParams(this.model),
       messages: [{ role: "system", content: system }, ...messages],
     };
   }

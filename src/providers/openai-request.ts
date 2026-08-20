@@ -69,18 +69,47 @@ export function tokenLimitParams(
 }
 
 /**
- * The `reasoning_effort` fragment, or nothing when unconfigured — so a request
- * for a model that has no opinion on reasoning is unchanged.
+ * The `reasoning_effort` fragment for `model`, or nothing when neither the
+ * model nor the operator asks for one — so a request for a model with no
+ * opinion on reasoning is unchanged.
  */
-export function reasoningParams(): Pick<OpenAI.ChatCompletionCreateParams, "reasoning_effort"> | object {
+export function reasoningParams(
+  model: string,
+): Pick<OpenAI.ChatCompletionCreateParams, "reasoning_effort"> | object {
   const raw = process.env[REASONING_EFFORT_ENV]?.trim().toLowerCase();
-  if (!raw) return {};
+  if (!raw) return defaultReasoningParams(model);
   if (!(REASONING_EFFORTS as readonly string[]).includes(raw)) {
     throw new OpenAIRequestConfigError(
       `${REASONING_EFFORT_ENV} must be one of ${REASONING_EFFORTS.join(", ")} (got "${raw}")`,
     );
   }
   return { reasoning_effort: raw as OpenAI.ReasoningEffort };
+}
+
+/**
+ * The effort a model needs when nobody configured one.
+ *
+ * Deliberately narrower than MAX_COMPLETION_TOKEN_PREFIXES. The GPT-5 family
+ * rejects a request carrying function tools unless `reasoning_effort` is
+ * present, and llmwiki's extraction pass always sends tools — so without this
+ * the very first call fails. The o-series accepts a request with the field
+ * absent, and does not accept every value listed in REASONING_EFFORTS, so
+ * guessing on its behalf would trade a working default for a 400.
+ *
+ * `none` rather than a thinking budget because extraction and page generation
+ * are structured tool calls, where reasoning tokens cost latency without
+ * improving the result. Override with REASONING_EFFORT_ENV to buy thinking back.
+ */
+const DEFAULT_REASONING_EFFORT_PREFIXES = ["gpt-5"];
+
+/** The default effort for a model id, or nothing when it needs no opinion. */
+function defaultReasoningParams(
+  model: string,
+): Pick<OpenAI.ChatCompletionCreateParams, "reasoning_effort"> | object {
+  const id = model.toLowerCase();
+  return DEFAULT_REASONING_EFFORT_PREFIXES.some(prefix => id.startsWith(prefix))
+    ? { reasoning_effort: "none" as OpenAI.ReasoningEffort }
+    : {};
 }
 
 /** Resolve the token parameter from the env override, else from the model id. */
