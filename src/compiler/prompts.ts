@@ -12,6 +12,7 @@ import type {
 } from "../utils/types.js";
 import type { PageKindRule, SeedPage } from "../schema/index.js";
 import { languageDirective } from "../utils/output-language.js";
+import { sourcesSectionEnabled } from "../utils/sources-section.js";
 
 /**
  * Build a list of optional prompt lines, omitting empty entries so the
@@ -22,6 +23,16 @@ import { languageDirective } from "../utils/output-language.js";
 function withLangLine(...lines: string[]): string[] {
   const lang = languageDirective();
   return lang ? [...lines, lang] : lines;
+}
+
+/**
+ * The page-generation instruction for the trailing `## Sources` section, or
+ * nothing when the project opted out. Spreadable so the default prompt keeps
+ * its exact wording instead of gaining a blank line where the request was.
+ */
+function sourcesSectionLines(): string[] {
+  if (!sourcesSectionEnabled()) return [];
+  return ["Include a ## Sources section at the end listing the source document."];
 }
 
 /**
@@ -174,7 +185,7 @@ export function buildPagePrompt(
     ...withLangLine(
       `You are a wiki author. Write a clear, well-structured markdown page about "${concept}".`,
       "Draw facts only from the provided source material.",
-      "Include a ## Sources section at the end listing the source document.",
+      ...sourcesSectionLines(),
       "Suggest [[wikilinks]] to related concepts where appropriate.",
       "Write in a neutral, informative tone. Be concise but thorough.",
     ),
