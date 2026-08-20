@@ -10,6 +10,7 @@ import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
+import { reasoningParams, tokenLimitParams } from "./openai-request.js";
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -208,12 +209,29 @@ export class OpenAIProvider implements LLMProvider {
   /** Send a single non-streaming completion request. */
   async complete(system: string, messages: LLMMessage[], maxTokens: number): Promise<string> {
     const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: maxTokens,
-      messages: [{ role: "system", content: system }, ...messages],
+      ...this.requestBase(system, messages, maxTokens),
     });
 
     return response.choices[0]?.message?.content ?? "";
+  }
+
+  /**
+   * The request fields every completion shares, with the token limit spelled
+   * the way this model accepts it and `reasoning_effort` attached when the
+   * project configured one. Kept in one place so the three call sites below
+   * cannot drift apart.
+   */
+  private requestBase(
+    system: string,
+    messages: LLMMessage[],
+    maxTokens: number,
+  ): OpenAI.ChatCompletionCreateParamsNonStreaming {
+    return {
+      model: this.model,
+      ...tokenLimitParams(this.model, maxTokens),
+      ...reasoningParams(),
+      messages: [{ role: "system", content: system }, ...messages],
+    };
   }
 
   /** Stream a completion, invoking onToken for each text chunk. */
@@ -224,9 +242,7 @@ export class OpenAIProvider implements LLMProvider {
     onToken?: (text: string) => void,
   ): Promise<string> {
     const stream = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: maxTokens,
-      messages: [{ role: "system", content: system }, ...messages],
+      ...this.requestBase(system, messages, maxTokens),
       stream: true,
     });
 
@@ -252,9 +268,7 @@ export class OpenAIProvider implements LLMProvider {
     const openaiTools = tools.map(translateToolToOpenAI);
 
     const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: maxTokens,
-      messages: [{ role: "system", content: system }, ...messages],
+      ...this.requestBase(system, messages, maxTokens),
       tools: openaiTools,
       tool_choice: "required",
     });

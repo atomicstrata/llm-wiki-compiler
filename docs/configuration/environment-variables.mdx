@@ -59,6 +59,12 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 | `OPENAI_BASE_URL` | For custom or local endpoints | Base URL for chat and tool calls. **Must include `/v1`** |
 | `OPENAI_EMBEDDINGS_BASE_URL` | No | Separate base URL for embeddings requests. When unset, embeddings use the same client and base URL as chat |
 | `OPENAI_EMBEDDINGS_API_KEY` | No | Credential for embeddings requests. When unset, embeddings reuse `OPENAI_API_KEY` - set this whenever the embeddings endpoint belongs to someone else |
+| `LLMWIKI_OPENAI_TOKEN_PARAM` | No | Force the token-limit field: `max_tokens` or `max_completion_tokens`. Detected from the model id by default (`o1`, `o3`, `o4`, and `gpt-5` prefixes get `max_completion_tokens`). Set it when a gateway serves a reasoning model under an id those prefixes do not match |
+| `LLMWIKI_OPENAI_REASONING_EFFORT` | No | Send `reasoning_effort` on every chat request. One of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. Unset sends nothing. Some reasoning models reject a tool-carrying request that omits it |
+
+<Note>
+  Reasoning models reject `max_tokens` outright — the request fails with `Unsupported parameter: 'max_tokens' is not supported with this model`. llmwiki picks the right field from the model id, so `LLMWIKI_OPENAI_TOKEN_PARAM` is only needed when the id itself does not reveal the model family, which is common behind OpenAI-compatible gateways.
+</Note>
 
 ---
 
