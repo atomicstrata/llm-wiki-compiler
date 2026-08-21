@@ -243,12 +243,34 @@ function declaredSchema(def: EntityTypeDef): Partial<PipelineEntityTypeDef> {
   };
 }
 
+/**
+ * Read `key` off `record` only when the record OWNS it.
+ *
+ * Every lookup below indexes a plain object with a PROFILE-DECLARED name — an
+ * entity type, a relation type, a lifecycle field. The profile schema puts no
+ * `propertyNames` constraint on any of those name positions, so a bare index
+ * resolves inherited members: a type named `constructor` reads
+ * `Object.prototype.constructor`, which is a function, and then reads as a
+ * truthy `stateCounts`, as a `count`/`pageCount` that `JSON.stringify` silently
+ * drops from the row, or as an `enum` read off a function. Confining to own
+ * properties makes each of those an honest "not declared" instead. Same guard
+ * and same reasoning as `validateTitleField` (`src/profile/validate.ts`), which
+ * hit this on `titleField`.
+ *
+ * @param record - The map to read, or `undefined`.
+ * @param key - A profile-supplied name.
+ * @returns The own value, or `undefined`.
+ */
+function own<T>(record: Record<string, T> | undefined, key: string): T | undefined {
+  return record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 /** Project one entity type's declaration, omitting `lifecycle` when it declares none. */
 function entityTypeDefinition(type: string, def: EntityTypeDef): PipelineEntityTypeDef {
   const base = { type, directory: def.directory, ...declaredSchema(def) };
   if (def.lifecycle === undefined) return base;
   const { field, initial, terminal, transitions } = def.lifecycle;
-  const declared = def.fields?.[field]?.enum;
+  const declared = own(def.fields, field)?.enum;
   return {
     ...base,
     lifecycle: {
@@ -284,7 +306,7 @@ export function buildPipelineEnvelope(
   if (!definitions || !summary) return undefined;
   const relationTypes = definitions.relationTypes.map((def) => ({
     ...def,
-    count: summary.relationCounts?.[def.type] ?? 0,
+    count: own(summary.relationCounts, def.type) ?? 0,
   }));
   return {
     entityTypes: definitions.entityTypes.map((def) => entityTypeRow(def, summary)),
@@ -303,10 +325,10 @@ function entityTypeRow(
   def: PipelineEntityTypeDef,
   summary: ProfileSummaryBlock,
 ): PipelineEntityTypeRow {
-  const stateCounts = summary.lifecycleStates?.[def.type];
+  const stateCounts = own(summary.lifecycleStates, def.type);
   return {
     ...def,
-    pageCount: summary.entityCounts[def.type] ?? 0,
+    pageCount: own(summary.entityCounts, def.type) ?? 0,
     ...(stateCounts ? { stateCounts } : {}),
   };
 }

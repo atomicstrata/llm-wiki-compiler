@@ -18,7 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { startViewerServer } from "../src/viewer/server.js";
-import { buildPipelineDefinitions } from "../src/viewer/pipeline.js";
+import { buildPipelineDefinitions, buildPipelineEnvelope } from "../src/viewer/pipeline.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";
@@ -131,6 +131,33 @@ describe("/api/pages — profilePipeline on a profile project", () => {
       Object.entries(PIPELINE_PROFILE.entities).map(([type, def]) => [type, def.directory]),
     );
     expect(onWire).toEqual(declared);
+  });
+
+  // Counts are joined onto declarations by indexing summary maps with a
+  // PROFILE-DECLARED type name, and the schema puts no `propertyNames` on the
+  // entity map — so a type named `constructor` resolves an inherited member on a
+  // bare index. The join then reports a function as the count, which
+  // `JSON.stringify` drops, so the row reaches the client missing the key it is
+  // required to carry. Same class as the `titleField` lookup fixed in #187.
+  it("counts a type whose name is an inherited Object property as zero, not as a function", () => {
+    const odd: ProfilePack = {
+      ...PIPELINE_PROFILE,
+      entities: {
+        ...PIPELINE_PROFILE.entities,
+        constructor: { ...PIPELINE_PROFILE.entities.desks, directory: "wiki/odd" },
+      },
+    };
+    const envelope = buildPipelineEnvelope(buildPipelineDefinitions(odd), {
+      profileId: "p",
+      entityCounts: {},
+      relationCounts: {},
+      lifecycleStates: {},
+    } as never);
+    const row = envelope?.entityTypes.find((r) => r.type === "constructor");
+
+    expect(row?.pageCount).toBe(0);
+    expect(row).not.toHaveProperty("stateCounts");
+    expect(JSON.parse(JSON.stringify(row))).toHaveProperty("pageCount", 0);
   });
 
   it("carries a directory that differs from the type id verbatim", () => {

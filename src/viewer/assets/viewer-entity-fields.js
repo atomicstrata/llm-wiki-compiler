@@ -68,7 +68,7 @@ export function buildEntityFields(fieldDefs, frontmatter) {
     // typed in frontmatter, and inventing a display name the profile never
     // declared is exactly the substitution this surface exists to avoid.
     list.appendChild(el("dt", "entity-field-label", def.name));
-    list.appendChild(renderValue(def, frontmatter[def.name]));
+    list.appendChild(renderValue(def, ownValue(frontmatter, def.name)));
   }
   return list;
 }
@@ -88,7 +88,33 @@ export function renderedFieldNames(fieldDefs, frontmatter) {
 /** The declared fields the record actually carries a usable value for. */
 function presentFields(fieldDefs, frontmatter) {
   const defs = Array.isArray(fieldDefs) ? fieldDefs : [];
-  return defs.filter((def) => isPresent(frontmatter?.[def?.name]));
+  return defs.filter((def) => isPresent(ownValue(frontmatter, def?.name)));
+}
+
+/**
+ * One declared field's value off a record, or `undefined` when the record does
+ * not carry it.
+ *
+ * `Object.hasOwn` rather than a bare index, because both sides arrive from
+ * outside: `frontmatter` is JSON off the wire, so it carries `Object.prototype`,
+ * and `def.name` is a field name the PROFILE declares, which the schema does not
+ * constrain (`fields` has no `propertyNames`). A type declaring `constructor`
+ * would otherwise resolve `Object.prototype.constructor` on every page of that
+ * type and render `function Object() { [native code] }` as the field's value —
+ * a value the record does not carry, displayed as though it does, which is the
+ * one thing this surface exists not to do. `toString` and `valueOf` do the same.
+ *
+ * `FIELD_RENDERERS` above already takes the null-prototype form of this
+ * precaution for the declared TYPE; this is the same precaution for the
+ * declared NAME, which is the half the profile schema leaves open.
+ *
+ * @param {Record<string, unknown>} record - The page's raw frontmatter.
+ * @param {string} name - The declared field name.
+ * @returns {unknown} The own value, or `undefined`.
+ */
+function ownValue(record, name) {
+  if (record === null || typeof record !== "object") return undefined;
+  return Object.hasOwn(record, name) ? record[name] : undefined;
 }
 
 /**

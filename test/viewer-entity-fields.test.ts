@@ -215,6 +215,34 @@ describe("the three reachable value states", () => {
       expect(block?.textContent, type).toContain("a value");
     }
   });
+
+  // The same hazard on the other half of a declaration. The profile schema
+  // constrains a field's TYPE to a closed enum but puts no `propertyNames` on
+  // `fields`, so the NAME is the open half: a type may declare `constructor`,
+  // and frontmatter arrives as JSON off the wire, carrying `Object.prototype`.
+  // A bare `frontmatter[def.name]` therefore resolves an inherited member and
+  // renders a value the record does not carry — the one thing this surface
+  // exists not to do. Same class as the `titleField` lookup fixed in #187.
+  it("omits a declared field naming an inherited Object property when the record lacks it", async () => {
+    for (const name of ["constructor", "toString", "valueOf"]) {
+      const doc = await mountPage({
+        fields: [{ name, type: "string" }],
+        frontmatter: { headline: "Ada" },
+      });
+      const block = doc.querySelector("[data-entity-fields]");
+      expect(block?.textContent ?? "", name).not.toContain("native code");
+      expect(block?.textContent ?? "", name).not.toContain("function");
+    }
+  });
+
+  it("still renders such a field when the record genuinely carries it", async () => {
+    const doc = await mountPage({
+      fields: [{ name: "constructor", type: "string" }],
+      frontmatter: { constructor: "hand-built" },
+    });
+
+    expect(rows(doc.querySelector("[data-entity-fields]"))).toEqual([["constructor", "hand-built"]]);
+  });
 });
 
 describe("the block is confined to typed pages", () => {
