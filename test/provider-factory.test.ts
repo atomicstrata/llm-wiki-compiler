@@ -12,6 +12,7 @@ import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { OllamaProvider } from "../src/providers/ollama.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
+import { OrcaRouterProvider } from "../src/providers/orcarouter.js";
 
 const TEST_SETTINGS_PATH_ENV = "LLMWIKI_CLAUDE_SETTINGS_PATH";
 const tempDirs: string[] = [];
@@ -63,6 +64,7 @@ describe("getProvider", () => {
     delete process.env.OLLAMA_EMBEDDINGS_HOST;
     delete process.env[TEST_SETTINGS_PATH_ENV];
     delete process.env.MINIMAX_API_KEY;
+    delete process.env.ORCAROUTER_API_KEY;
 
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -132,6 +134,19 @@ describe("getProvider", () => {
     process.env.LLMWIKI_PROVIDER = "minimax";
     delete process.env.MINIMAX_API_KEY;
     expect(() => getProvider()).toThrow("MINIMAX_API_KEY");
+  });
+
+  it("returns OrcaRouterProvider when LLMWIKI_PROVIDER=orcarouter", () => {
+    process.env.LLMWIKI_PROVIDER = "orcarouter";
+    process.env.ORCAROUTER_API_KEY = "test-key";
+    const provider = getProvider();
+    expect(provider).toBeInstanceOf(OrcaRouterProvider);
+  });
+
+  it("throws when ORCAROUTER_API_KEY is absent for orcarouter provider", () => {
+    process.env.LLMWIKI_PROVIDER = "orcarouter";
+    delete process.env.ORCAROUTER_API_KEY;
+    expect(() => getProvider()).toThrow("ORCAROUTER_API_KEY");
   });
 
   it("respects LLMWIKI_MODEL override", () => {

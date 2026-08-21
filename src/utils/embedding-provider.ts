@@ -25,10 +25,11 @@ import type { LLMProvider } from "./provider.js";
 import { buildProvider, getActiveProviderName, getProvider } from "./provider.js";
 
 /**
- * Providers that can actually serve embeddings. `minimax` and `copilot` override
- * `embed()` to throw because their APIs expose no embeddings endpoint, so naming
- * one here would only defer a guaranteed failure to compile time. Matches the
- * EMBEDDING_MODELS / EMBED_BATCH_SIZES keys in constants.ts.
+ * Providers that can actually serve embeddings. `minimax`, `copilot`, and
+ * `orcarouter` override `embed()` to throw because their APIs expose no
+ * embeddings endpoint, so naming one here would only defer a guaranteed failure
+ * to compile time. Matches the EMBEDDING_MODELS / EMBED_BATCH_SIZES keys in
+ * constants.ts.
  */
 const EMBEDDING_CAPABLE_PROVIDERS: ReadonlySet<string> = new Set([
   "anthropic",

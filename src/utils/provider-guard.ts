@@ -46,6 +46,7 @@ const PROVIDER_KEY_VARS: Record<string, string | null> = {
   openai: "OPENAI_API_KEY",
   ollama: null,
   minimax: "MINIMAX_API_KEY",
+  orcarouter: "ORCAROUTER_API_KEY",
   copilot: "GITHUB_TOKEN",
 };
 
