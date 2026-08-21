@@ -20,7 +20,9 @@ export class MiniMaxProvider extends OpenAIProvider {
   override async embed(_text: string): Promise<number[]> {
     throw new Error(
       "MiniMax provider does not support embeddings in llmwiki yet.\n" +
-      "  For semantic search, use LLMWIKI_PROVIDER=openai, anthropic, claude-agent, or ollama.",
+      "  For semantic search, route embeddings to another backend and keep this\n" +
+      "  provider for chat: export LLMWIKI_EMBEDDING_PROVIDER=openai (or anthropic,\n" +
+      "  claude-agent, ollama).",
     );
   }
 

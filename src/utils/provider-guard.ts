@@ -17,7 +17,12 @@
  * surface fired the guard.
  */
 
-import { DEFAULT_PROVIDER } from "./constants.js";
+import {
+  ATLASCLOUD_API_KEY_ENV_VARS,
+  DEFAULT_PROVIDER,
+  SUPPORTED_PROVIDER_INPUTS,
+  normalizeProviderName,
+} from "./constants.js";
 import { resolveAnthropicAuthFromEnv } from "./claude-settings.js";
 import { findEmbeddingProviderProblem } from "./embedding-provider.js";
 
@@ -39,15 +44,26 @@ export class UnknownProviderError extends Error {
   }
 }
 
-/** Map of provider name to the env var that satisfies it. Null = no key needed. */
-const PROVIDER_KEY_VARS: Record<string, string | null> = {
+/**
+ * Map of provider name to the env var(s) that satisfy it. Null = no key needed.
+ *
+ * A LIST means any one of them satisfies the check, in the order a message
+ * should name them.
+ */
+const PROVIDER_KEY_VARS: Record<string, string | readonly string[] | null> = {
   anthropic: "ANTHROPIC_API_KEY",
   "claude-agent": null,
   openai: "OPENAI_API_KEY",
   ollama: null,
   minimax: "MINIMAX_API_KEY",
   copilot: "GITHUB_TOKEN",
+  atlascloud: ATLASCLOUD_API_KEY_ENV_VARS,
 };
+
+/** One-or-many credential names as a list, so the check has a single shape. */
+function normalizeKeyVars(keyVars: string | readonly string[]): string[] {
+  return typeof keyVars === "string" ? [keyVars] : [...keyVars];
+}
 
 /**
  * Throw if LLMWIKI_EMBEDDING_PROVIDER names a backend that cannot serve
@@ -80,7 +96,7 @@ function ensureEmbeddingProviderAvailable(): void {
  */
 export function ensureProviderAvailable(): void {
   ensureEmbeddingProviderAvailable();
-  const provider = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
+  const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
 
   if (provider === "anthropic") {
     const auth = resolveAnthropicAuthFromEnv();
@@ -97,7 +113,7 @@ export function ensureProviderAvailable(): void {
 
   const keyVar = PROVIDER_KEY_VARS[provider];
   if (keyVar === undefined) {
-    const supported = Object.keys(PROVIDER_KEY_VARS);
+    const supported = [...SUPPORTED_PROVIDER_INPUTS];
     throw new UnknownProviderError(
       provider,
       supported,
@@ -105,12 +121,14 @@ export function ensureProviderAvailable(): void {
     );
   }
 
-  if (keyVar && !process.env[keyVar]) {
-    throw new ProviderUnavailableError(
-      provider,
-      [keyVar],
-      `${keyVar} environment variable is required for the "${provider}" provider.\n` +
-        `  Set it with: export ${keyVar}=<your-key>`,
-    );
-  }
+  if (!keyVar) return;
+
+  const keyVars = normalizeKeyVars(keyVar);
+  if (keyVars.some((name) => Boolean(process.env[name]?.trim()))) return;
+  throw new ProviderUnavailableError(
+    provider,
+    keyVars,
+    `${keyVars.join(" or ")} environment variable is required for the "${provider}" provider.\n` +
+      `  Set one with: export ${keyVars[0]}=<your-key>`,
+  );
 }

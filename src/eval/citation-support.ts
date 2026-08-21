@@ -17,7 +17,12 @@ import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import { callClaude } from "../utils/llm.js";
-import { SOURCES_DIR, DEFAULT_PROVIDER, PROVIDER_MODELS } from "../utils/constants.js";
+import {
+  SOURCES_DIR,
+  DEFAULT_PROVIDER,
+  PROVIDER_MODELS,
+  normalizeProviderName,
+} from "../utils/constants.js";
 import { resolveSourceFile } from "./source-path.js";
 import type { LLMTool } from "../utils/provider.js";
 import type { CitationJudgement, CitationSupportResult } from "./types.js";
@@ -212,7 +217,7 @@ async function appendCachedJudgement(root: string, judgement: CitationJudgement)
 
 /** Resolve the current model identifier for recording in judgements. */
 function resolveModel(): string {
-  const provider = process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER;
+  const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[provider] ?? provider;
 }
 

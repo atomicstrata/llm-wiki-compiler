@@ -1,7 +1,7 @@
 ---
 title: "LLM Provider Setup and Configuration Guide for llmwiki"
 sidebarTitle: "Providers"
-description: "Configure llmwiki to use Anthropic, OpenAI-compatible endpoints, Ollama, GitHub Copilot, or the Claude Agent SDK provider for local login."
+description: "Configure llmwiki to use Anthropic, OpenAI-compatible endpoints, Ollama, GitHub Copilot, Atlas Cloud, or the Claude Agent SDK provider for local login."
 ---
 
 llmwiki is provider-portable. Whether you have an Anthropic API key, a GitHub Copilot subscription, a locally-running Ollama server, or just a Claude Code login, you can point llmwiki at the right backend with a handful of environment variables - no config files required for most setups. Choose the provider that matches your existing credentials and infrastructure.
@@ -219,6 +219,44 @@ export OPENAI_EMBEDDINGS_API_KEY=<your-key>
 <Warning>
   `GITHUB_TOKEN` must be a GitHub OAuth token obtained via `gh auth token` after running `gh auth refresh --scopes copilot`. Classic personal access tokens (PATs) are rejected by the Copilot API and will not work.
 </Warning>
+
+  </Tab>
+  <Tab title="Atlas Cloud">
+
+The `atlascloud` provider routes calls through [Atlas Cloud](https://www.atlascloud.ai), a hosted gateway exposing an OpenAI-compatible API across models from several vendors. Model names are namespaced by publisher (for example `qwen/qwen3.5-35b-a3b`).
+
+`LLMWIKI_PROVIDER` also accepts `atlas-cloud` and `atlas` as aliases.
+
+**Variables**
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_PROVIDER` | Yes | Set to `atlascloud` (or `atlas-cloud`, `atlas`) |
+| `ATLASCLOUD_API_KEY` | Yes | Your Atlas Cloud API key. `ATLAS_CLOUD_API_KEY` is accepted as an alternative |
+| `LLMWIKI_MODEL` | No | Model override. Must be a namespaced id such as `deepseek-ai/deepseek-v3.2` |
+| `ATLASCLOUD_BASE_URL` | No | Override the API base URL. `ATLAS_CLOUD_BASE_URL` is accepted as an alternative |
+
+**Setup**
+
+```bash
+export LLMWIKI_PROVIDER=atlascloud
+export ATLASCLOUD_API_KEY=<your-key>
+llmwiki compile
+```
+
+**Choosing a model**
+
+`llmwiki compile` extracts concepts through a tool call and requires the model to return tool arguments, so an override must be a model Atlas Cloud lists as supporting tools. The default, `qwen/qwen3.5-35b-a3b`, does. A model without tool support fails on the first extraction request rather than degrading.
+
+**Embeddings**
+
+Atlas Cloud embeddings are not wired up in llmwiki, so the provider fails closed rather than inheriting OpenAI's embedding semantics. To keep Atlas Cloud for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+
+```bash
+export LLMWIKI_PROVIDER=atlascloud
+export LLMWIKI_EMBEDDING_PROVIDER=openai
+export OPENAI_EMBEDDINGS_API_KEY=<your-key>
+```
 
   </Tab>
 </Tabs>

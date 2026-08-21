@@ -45,7 +45,7 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, eval, and OKF import/export from TypeScript without shelling out.
 - **Open Knowledge Format exchange.** Export and import OKF bundles for portable, markdown-native knowledge exchange. External OKF imports are staged through the review queue by default; trusted bundles can be written live explicitly.
 - **Other portable exports.** Export JSON, JSON-LD, GraphML, Marp slides, and `llms.txt` for downstream systems.
-- **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI-compatible servers, Ollama, GitHub Copilot, and local OpenAI-compatible runtimes.
+- **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI-compatible servers, Ollama, GitHub Copilot, Atlas Cloud, and local OpenAI-compatible runtimes.
 
 ## Configurable Lifecycle Profiles (CLP)
 
@@ -276,6 +276,7 @@ Provider selection is environment-driven:
 | OpenAI-compatible | `LLMWIKI_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_BASE_URL` |
 | Ollama | `LLMWIKI_PROVIDER=ollama`, `OLLAMA_HOST` |
 | GitHub Copilot | `LLMWIKI_PROVIDER=copilot`, `GITHUB_TOKEN=$(gh auth token)` |
+| Atlas Cloud | `LLMWIKI_PROVIDER=atlascloud`, `ATLASCLOUD_API_KEY` |
 
 See [`docs/configuration/providers.mdx`](docs/configuration/providers.mdx) and [`docs/configuration/environment-variables.mdx`](docs/configuration/environment-variables.mdx).
 

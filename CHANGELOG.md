@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Atlas Cloud provider** — `LLMWIKI_PROVIDER=atlascloud` (aliases `atlas-cloud`, `atlas`) routes chat and tool calls through the [Atlas Cloud](https://www.atlascloud.ai) gateway, which exposes an OpenAI-compatible API across models from several publishers. Authenticate with `ATLASCLOUD_API_KEY` or `ATLAS_CLOUD_API_KEY`; `ATLASCLOUD_BASE_URL` overrides the endpoint.
+
+  Model ids are namespaced by publisher, and `compile` extracts concepts through a tool call, so the default is a model Atlas Cloud lists as supporting tools. Embeddings are not wired up: the provider fails closed rather than inheriting OpenAI's semantics, so route them elsewhere with `LLMWIKI_EMBEDDING_PROVIDER` for semantic search.
+
+  Contributed by **@binyangzhu000-sudo** (#167).
+
 - **Separate embedding provider** — `LLMWIKI_EMBEDDING_PROVIDER` selects the backend that serves embeddings, independently of `LLMWIKI_PROVIDER`. This makes split setups possible, such as Claude Agent SDK for generation with a local vLLM instance serving embeddings over its OpenAI-compatible endpoint. Valid values are `anthropic`, `claude-agent`, `openai`, and `ollama`. `minimax` and `copilot` expose no embeddings API, and naming one now fails with a clear error listing the valid values instead of an opaque failure from the provider's `embed()`. When the variable is set, the provider's own credential is required — `VOYAGE_API_KEY` for `anthropic` and `claude-agent`, `OPENAI_API_KEY` for `openai` — unless `OPENAI_EMBEDDINGS_BASE_URL` points at a self-hosted endpoint, which needs no key. Behaviour is unchanged when the variable is unset.
 
   Thanks to **@knew-inventai** for the request (#154).

@@ -26,9 +26,18 @@ describe("CopilotProvider", () => {
     );
   });
 
-  it("embed() error message mentions switching to the openai provider", async () => {
+  // The remedy is LLMWIKI_EMBEDDING_PROVIDER, not LLMWIKI_PROVIDER: #154 exists
+  // so a project can keep Copilot for chat and route only embeddings elsewhere.
+  // Telling the user to change LLMWIKI_PROVIDER costs them the provider they
+  // chose, and contradicts what the docs prescribe.
+  it("embed() points at the embedding-provider override, not at switching provider", async () => {
     const provider = new CopilotProvider("gpt-4o", "ghp_test");
-    await expect(provider.embed("hello")).rejects.toThrow("LLMWIKI_PROVIDER=openai");
+    await expect(provider.embed("hello")).rejects.toThrow("LLMWIKI_EMBEDDING_PROVIDER=openai");
+  });
+
+  it("embed() does not tell the user to abandon Copilot for chat", async () => {
+    const provider = new CopilotProvider("gpt-4o", "ghp_test");
+    await expect(provider.embed("hello")).rejects.not.toThrow("LLMWIKI_PROVIDER=openai");
   });
 });
 
