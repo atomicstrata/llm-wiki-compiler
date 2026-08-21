@@ -62,6 +62,13 @@ export interface ProvenanceMetadata {
   provenanceState?: ProvenanceState;
   /** Slugs of other concepts/pages whose evidence contradicts this one. */
   contradictedBy?: ContradictionRef[];
+  /**
+   * The prompt modifiers active when the page was generated, as `key=value`
+   * pairs sorted by key. Absent when none were selected, and absent on pages
+   * compiled before this was stamped. Distinguishes two pages carrying the same
+   * `promptVersion`, which names the prompt implementation and not the run.
+   */
+  promptModifiers?: string[];
 }
 
 /** A single concept extracted from a source by the LLM. */
@@ -100,6 +107,13 @@ export interface WikiState {
    * migration to `version: 2`.
    */
   frozenEntities?: EntityId[];
+  /**
+   * Digest of the user-selected prompt modifiers the last compile ran under —
+   * see `promptModifiersDigest` in compiler/prompt-modifiers.ts. `""` records
+   * "none selected", and an ABSENT field reads the same way — see
+   * `promptModifiersChanged` for why absence is not its own third state.
+   */
+  promptModifiers?: string;
 }
 
 /** Change detection result for a single source file. */
@@ -245,6 +259,17 @@ export interface ReviewCandidate {
    * regenerate on every subsequent compile.
    */
   sourceStates?: Record<string, SourceState>;
+  /**
+   * Digest of the prompt modifiers this candidate was GENERATED under — see
+   * `promptModifiersDigest` in compiler/prompt-modifiers.ts.
+   *
+   * Compile skips a source whose pending candidate already covers it, which is
+   * only true when that candidate was produced under the same selection. The
+   * source hash alone cannot say so: the bytes are identical across a modifier
+   * change while the candidate's wording is stale. Absent on candidates written
+   * before this was recorded, and read as "none selected" like the state field.
+   */
+  promptModifiers?: string;
   /**
    * Schema lint violations detected at candidate-generation time.
    *

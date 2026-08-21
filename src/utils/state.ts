@@ -280,6 +280,17 @@ export function removeSourceFrom(state: WikiState, sourceFile: string): WikiStat
  * `persistFrozenSlugs` (`{ ...state, frozenSlugs: [...] }`) so the disk path and
  * the compile draft share one frozen-list normalization.
  */
+/**
+ * Record the prompt-modifier digest this compile ran under, in place.
+ *
+ * Mirrors {@link applyFrozenSlugs}: an in-place transform shared by the draft
+ * and any direct writer, so both paths persist the field the same way.
+ */
+export function applyPromptModifiers(state: WikiState, digest: string): WikiState {
+  state.promptModifiers = digest;
+  return state;
+}
+
 export function applyFrozenSlugs(state: WikiState, slugs: Set<string>): WikiState {
   state.frozenSlugs = Array.from(slugs);
   return state;

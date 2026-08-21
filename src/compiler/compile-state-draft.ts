@@ -24,6 +24,7 @@ import {
   applySourceState,
   removeSourceFrom,
   applyFrozenSlugs,
+  applyPromptModifiers,
 } from "../utils/state.js";
 import type { SourceState, WikiState } from "../utils/types.js";
 
@@ -52,6 +53,17 @@ export class CompileStateDraft {
    */
   read(): WikiState {
     return this.state;
+  }
+
+  /**
+   * Record the prompt-modifier digest this compile ran under.
+   *
+   * Written on EVERY compile, including one that changed nothing, so the field
+   * is present from the first compile after upgrading and the "absent means
+   * untracked" allowance stops applying to that project.
+   */
+  setPromptModifiers(digest: string): void {
+    applyPromptModifiers(this.state, digest);
   }
 
   /** Set a source's entry in memory (mirrors `updateSourceState`). */

@@ -167,6 +167,13 @@ export interface ExportPage {
    * stamped at compile time. Absent for pre-provenance pages.
    */
   promptVersion?: string;
+  /**
+   * Prompt modifiers the page was compiled under, as sorted `key=value` pairs
+   * (export provenance). Absent when the run selected none, and absent for
+   * pages compiled before this was stamped. `promptVersion` names the prompt
+   * implementation and is identical either way; this is what separates them.
+   */
+  promptModifiers?: string[];
 }
 
 /**

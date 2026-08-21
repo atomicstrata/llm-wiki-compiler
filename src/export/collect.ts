@@ -193,6 +193,10 @@ function toExportPage(
     sourceHashes: resolveSourceHashes(sources, sourceHashes),
     ...(typeof meta.modelId === "string" ? { modelId: meta.modelId } : {}),
     ...(typeof meta.promptVersion === "string" ? { promptVersion: meta.promptVersion } : {}),
+    ...(Array.isArray(meta.promptModifiers) &&
+    meta.promptModifiers.every((entry) => typeof entry === "string")
+      ? { promptModifiers: meta.promptModifiers as string[] }
+      : {}),
   };
 }
 

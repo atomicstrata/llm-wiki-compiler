@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Changing the output language left existing pages untouched** — `llmwiki compile --lang Japanese` over an already-compiled project reported "Nothing to compile" and every page kept its previous language, because change detection classified a source by the SHA-256 of its bytes alone and a prompt modifier is not part of the source. The selected modifiers are now recorded in `.llmwiki/state.json`, and flipping one invalidates the pages it would have changed. Setting `LLMWIKI_OUTPUT_LANG` has the same effect as the flag.
+
+  Pages also carry a `promptModifiers` frontmatter entry naming the modifiers active when they were generated, surfaced per page in the JSON export. `promptVersion` names the prompt implementation and is identical whether or not a modifier was selected, so it could not tell two such pages apart.
+
+  A project that never set a modifier pays nothing on upgrade: its first compile records "none selected" and finds no difference. A project already running with `--lang` when it upgrades recompiles once, because a state file predating this cannot establish what its pages were generated under.
+
 - **Windows: profile path validation rejected every declared directory** — on win32, `llmwiki template init` failed for every template with `entity directory must be under 'wiki/'`, any profile declaring a workflow `projectionFile` failed to load, and an entity directory declared as `wiki/` was wrongly accepted despite containing every reserved subtree — on win32 it was the only entity directory that loaded at all. Declared directories canonicalize to `/`-joined repo-relative paths, but the containment check built its prefix with the platform separator (`\` on Windows), so no nested path ever matched. The lexical profile-path checks now compare POSIX paths directly; native path confinement is unchanged. Reported and diagnosed by @squ1ddy (#163).
 
 - **Windows: broken links in the generated wiki index** — the same separator bug on the output side. Entity-page links in `wiki/index.md` are built from `path.relative`, which emits `\` on win32, so a NESTED entity directory produced the unusable link `research\papers/foo.md`. Link targets are now normalized to POSIX. Single-level directories were unaffected, which is why this went unnoticed (#163).

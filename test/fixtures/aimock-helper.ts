@@ -184,3 +184,37 @@ export function useAimockLifecycle(workspacePrefix: string): AimockLifecycle {
 
   return lifecycle;
 }
+
+/**
+ * Stub the two model calls a compile makes — concept extraction and the page
+ * body — so a CLI compile completes without a real provider.
+ *
+ * Lives here rather than in each test because more than one suite needs a
+ * compile to simply SUCCEED while it asserts on something else (which sources
+ * were recompiled, what state recorded). A suite that cares about the concepts
+ * themselves should stub its own.
+ *
+ * @param handle - The running aimock handle to program.
+ * @param concept - Concept title, so two suites' fixtures stay distinguishable.
+ */
+export function stubCannedCompile(handle: MockClaudeHandle, concept = "Canned Concept"): void {
+  handle.mock.onToolCall("extract_concepts", {
+    toolCalls: [
+      {
+        name: "extract_concepts",
+        arguments: {
+          concepts: [
+            {
+              concept,
+              summary: `Concept emitted by aimock for ${concept}.`,
+              is_new: true,
+              tags: ["canned"],
+              confidence: 0.9,
+            },
+          ],
+        },
+      },
+    ],
+  });
+  handle.mock.onMessage(/.*/, { content: `Page body produced for ${concept}.` });
+}

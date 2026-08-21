@@ -10,11 +10,18 @@
 import * as output from "../utils/output.js";
 import { resolveActiveModelId } from "../utils/provider.js";
 import { PROMPT_VERSION } from "./prompts.js";
+import { promptModifierPairs } from "./prompt-modifiers.js";
 import type { ExtractedConcept } from "../utils/types.js";
 
 /**
  * Stamp compile-time lineage onto a page's frontmatter: the model id that the
- * active provider would use and the named prompt-contract version. Written when
+ * active provider would use, the named prompt-contract version, and the prompt
+ * modifiers the run selected.
+ *
+ * `promptVersion` names the prompt IMPLEMENTATION, so it is identical for a page
+ * compiled with `--lang` and one compiled without. `promptModifiers` is what
+ * separates them, and it is omitted entirely when none were selected so a page
+ * from a default run keeps exactly the frontmatter it has today. Written when
  * the page is (re)generated, so it records the model/prompt that actually
  * produced the page's current content — unlike an export-time env read, which
  * can attribute a page to a model that never touched it. Surfaced per-page in
@@ -24,6 +31,8 @@ import type { ExtractedConcept } from "../utils/types.js";
 export function addModelProvenanceMeta(fields: Record<string, unknown>): void {
   fields.modelId = resolveActiveModelId();
   fields.promptVersion = PROMPT_VERSION;
+  const modifiers = promptModifierPairs();
+  if (modifiers.length > 0) fields.promptModifiers = modifiers;
 }
 
 /**

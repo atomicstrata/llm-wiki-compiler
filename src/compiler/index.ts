@@ -27,6 +27,7 @@ import {
 } from "./prompts.js";
 import { loadSchema, type SchemaConfig } from "../schema/index.js";
 import { detectChanges, hashFile } from "./hasher.js";
+import { promoteForPromptModifiers, promptModifiersDigest } from "./prompt-modifiers.js";
 import {
   findAffectedSources,
   findFrozenSlugs,
@@ -346,7 +347,13 @@ async function seedThenFinalize(
   draft: CompileStateDraft | null,
 ): Promise<void> {
   await maybeSeedPages(root, schema, generation, options);
-  await finalizeWiki(root, draft, generation.writtenPages, generation.seedSlugs);
+  await finalizeWiki(
+    root,
+    draft,
+    generation.writtenPages,
+    generation.seedSlugs,
+    options.changeFilter !== undefined,
+  );
 }
 
 /** Inner pipeline, runs under lock protection. Returns structured CompileResult. */
@@ -364,7 +371,10 @@ async function runCompilePipeline(
   const draft = await CompileStateDraft.load(root);
   const state = draft.read();
   const detected = await detectChanges(root, state);
-  const changes = applyChangeFilter(detected, options.changeFilter);
+  const changes = promoteForPromptModifiers(
+    applyChangeFilter(detected, options.changeFilter),
+    state,
+  );
   await markUnchangedPendingSources(root, changes);
   augmentWithAffectedSources(changes, findAffectedSources(state, changes));
 
@@ -454,28 +464,51 @@ async function runCompilePipeline(
   return summarizeCompile(buckets, generation, extractions, options);
 }
 
-/** Treat unchanged pending-candidate sources as skipped to avoid LLM churn. */
+/**
+ * Treat unchanged pending-candidate sources as skipped to avoid LLM churn.
+ *
+ * A candidate only covers this run's work when it matches on BOTH counts: the
+ * source bytes, and the prompt modifiers it was generated under. The bytes stay
+ * identical across a modifier change while the candidate's wording goes stale,
+ * so a hash-only test demotes the promotion made moments earlier and reports
+ * "Nothing to compile" with a candidate nobody asked for still pending.
+ *
+ * The candidate's OWN digest is the comparison, not the project's. Review mode
+ * never flushes state, so a project whose only compiles were `--review` has no
+ * recorded digest at all — and comparing against that absent value would make
+ * clearing a modifier look like no change, because "none selected" is exactly
+ * what an absent digest means.
+ */
 async function markUnchangedPendingSources(root: string, changes: SourceChange[]): Promise<void> {
-  const pendingHashes = await collectPendingSourceHashes(root);
-  if (pendingHashes.size === 0) return;
+  const pending = await collectPendingSourceStates(root);
+  if (pending.size === 0) return;
+  const requested = promptModifiersDigest();
   for (const change of changes) {
     if (change.status !== "new" && change.status !== "changed") continue;
-    const pendingHash = pendingHashes.get(change.file);
-    if (!pendingHash) continue;
+    const entry = pending.get(change.file);
+    if (!entry || entry.modifiers !== requested) continue;
     const currentHash = await hashFile(path.join(root, SOURCES_DIR, change.file));
-    if (currentHash === pendingHash) change.status = "unchanged";
+    if (currentHash === entry.hash) change.status = "unchanged";
   }
 }
 
-/** Source hash snapshots currently held inside pending candidates. */
-async function collectPendingSourceHashes(root: string): Promise<Map<string, string>> {
-  const hashes = new Map<string, string>();
+/**
+ * Source hash + modifier snapshots currently held inside pending candidates.
+ *
+ * A candidate written before the digest was recorded reads as "none selected",
+ * matching how an absent state digest is read.
+ */
+async function collectPendingSourceStates(
+  root: string,
+): Promise<Map<string, { hash: string; modifiers: string }>> {
+  const states = new Map<string, { hash: string; modifiers: string }>();
   for (const candidate of await listCandidates(root)) {
+    const modifiers = candidate.promptModifiers ?? "";
     for (const [source, entry] of Object.entries(candidate.sourceStates ?? {})) {
-      hashes.set(source, entry.hash);
+      states.set(source, { hash: entry.hash, modifiers });
     }
   }
-  return hashes;
+  return states;
 }
 
 /** Append affected-source changes (logging each addition) to the change list. */
@@ -510,6 +543,7 @@ async function finalizeWiki(
   draft: CompileStateDraft | null,
   pages: MergedConcept[],
   seedSlugs: string[] = [],
+  scoped = false,
 ): Promise<void> {
   const conceptChangedSlugs = pages.map((entry) => entry.slug);
   const conceptNewSlugs = pages
@@ -530,7 +564,22 @@ async function finalizeWiki(
   // re-runs the whole compile from the prior on-disk state (no half-marked
   // sources). The no-source-changes early-return path passes a null draft —
   // it has no state mutations, so there is nothing to flush.
-  if (draft) await draft.flush(root);
+  //
+  // The modifier digest is recorded HERE rather than at load, so a compile that
+  // crashes mid-run leaves the previous digest on disk and the re-run still sees
+  // the difference. Recording it up front would mark the run as done under the
+  // new modifiers before any page was written under them.
+  //
+  // A SCOPED run (`refresh --stale`, which supplies a changeFilter) recompiles a
+  // subset by design, so it must not record the selection as true of the whole
+  // project: the sources it filtered out still carry the previous wording, and
+  // advancing the digest would retire the only signal that says so. Leaving the
+  // old digest costs the pages it did refresh a second regeneration on the next
+  // full compile, which is the safe direction to be wrong in.
+  if (draft) {
+    if (!scoped) draft.setPromptModifiers(promptModifiersDigest());
+    await draft.flush(root);
+  }
 
   await generateIndex(root);
   await generateMOC(root);

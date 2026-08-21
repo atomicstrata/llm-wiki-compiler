@@ -14,6 +14,7 @@ import {
   parseProvenanceMetadata,
   validateWikiPage,
 } from "../utils/markdown.js";
+import { promptModifiersDigest } from "./prompt-modifiers.js";
 import { pickStatesForSources } from "./source-state.js";
 import { renderMergedPageContent } from "./page-renderer.js";
 import { deleteCandidateBySlug, writeCandidate } from "./candidates.js";
@@ -148,6 +149,7 @@ async function persistReviewCandidate(
     sources: entry.sourceFiles,
     body: fullPage,
     sourceStates: pickStatesForSources(sourceStates, entry.sourceFiles),
+    promptModifiers: promptModifiersDigest(),
     schemaViolations:
       diagnostics.schemaViolations.length > 0 ? diagnostics.schemaViolations : undefined,
     provenanceViolations:
