@@ -154,6 +154,7 @@ new hosts.
 | Variable | Default | Description |
 |---|---|---|
 | `LLMWIKI_OUTPUT_LANG` | *(model default, typically English)* | Language for generated wiki content. Applies to every prompt in the compile and query pipelines. Examples: `zh-CN`, `Chinese`, `ja`, `Japanese`. The `--lang` CLI flag on `llmwiki compile` and `llmwiki query` overrides this for a single invocation |
+| `LLMWIKI_SOURCES_SECTION` | *(enabled)* | Set to `off`, `false`, `0`, or `no` to stop asking the model for a trailing `## Sources` section in generated pages. Useful when your own renderer already displays the `sources:` frontmatter, which would otherwise appear twice. Does not change provenance: the frontmatter and the inline `^[file.md:1-5]` citation markers come from the compiler, not from this instruction. The `--no-sources-section` flag on `llmwiki compile` sets it for a single invocation |
 | `LLMWIKI_PROMPT_BUDGET_CHARS` | `200000` | Character ceiling for combined per-concept source content sent to the LLM. Raise for larger-context models; lower for small-context local models. A stderr warning prints when the cap fires |
 
 ---

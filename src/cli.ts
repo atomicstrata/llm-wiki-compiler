@@ -27,6 +27,7 @@ import quickstartCommand from "./commands/quickstart.js";
 import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
+import { applySourcesSectionOption } from "./utils/sources-section.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
 import { parseConcurrencyFlag } from "./compiler/concurrency.js";
@@ -117,14 +118,25 @@ program
     "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
   )
   .option(
+    "--no-sources-section",
+    "Omit the trailing ## Sources section from generated pages. Source attribution stays in the sources: frontmatter and the inline ^[...] citation markers. Equivalent to setting LLMWIKI_SOURCES_SECTION=off.",
+  )
+  .option(
     "--concurrency <n>",
     "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
   )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
+  .action(async (options: {
+    review?: boolean;
+    lang?: string;
+    sourcesSection?: boolean;
+    concurrency?: string;
+    verbose?: boolean;
+  }) => {
     try {
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
+      applySourcesSectionOption(options.sourcesSection);
       requireProvider();
       await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {

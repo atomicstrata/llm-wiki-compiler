@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   An index written before llmwiki recorded the endpoint carries only its model name. It is preserved while you run without `LLMWIKI_EMBEDDING_PROVIDER` or an endpoint override, so upgrading does not re-embed an existing project; under either override the model name cannot establish where the vectors came from, so the next compile rebuilds the index once and records the full configuration from then on.
 
+- **Optional `## Sources` section** — `LLMWIKI_SOURCES_SECTION=off`, or `--no-sources-section` on `llmwiki compile`, stops page generation from asking the model for a trailing `## Sources` section. Unset preserves the prompt byte-for-byte.
+
+  This is for projects that render source attribution themselves. A page already carries its provenance twice — the `sources:` frontmatter, which the compiler builds from the source files it actually read rather than from anything the model writes, and the inline `^[file.md:1-5]` citation markers — so a consumer that displays either one shows the same list a third time in the prose. Nothing downstream reads the section: it is a prompt instruction only, and no linter, exporter, or citation rule parses it.
+
+  Suppressing the request is the only reliable way to not have the section, because it is not a stable string to strip. Under `--lang` the model localizes that heading along with the rest of the page, so a downstream matcher keyed on `## Sources` silently stops matching the moment a project sets an output language.
+
+  `PROMPT_VERSION` is unchanged. The constant was introduced with the optional language directive already in the page prompt, so `v1` already denotes a contract with user-selected prompt modifiers in it, and the default path here is byte-identical. Say the word if you would rather it move.
+
 ### Fixed
 
 - **Windows: profile path validation rejected every declared directory** — on win32, `llmwiki template init` failed for every template with `entity directory must be under 'wiki/'`, any profile declaring a workflow `projectionFile` failed to load, and an entity directory declared as `wiki/` was wrongly accepted despite containing every reserved subtree — on win32 it was the only entity directory that loaded at all. Declared directories canonicalize to `/`-joined repo-relative paths, but the containment check built its prefix with the platform separator (`\` on Windows), so no nested path ever matched. The lexical profile-path checks now compare POSIX paths directly; native path confinement is unchanged. Reported and diagnosed by @squ1ddy (#163).
