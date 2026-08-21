@@ -13,6 +13,7 @@ import ingestCommand from "./commands/ingest.js";
 import ingestSessionCommand from "./commands/ingest-session.js";
 import viewCommand from "./commands/view.js";
 import compileCommand from "./commands/compile.js";
+import { rmCommand } from "./commands/rm.js";
 import queryCommand from "./commands/query.js";
 import watchCommand from "./commands/watch.js";
 import lintCommand from "./commands/lint.js";
@@ -127,6 +128,20 @@ program
       applyLanguageOption(options.lang);
       requireProvider();
       await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
+    } catch (err) {
+      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("rm <source>")
+  .description("Delete a source and the concept pages derived exclusively from it")
+  .option("--dry-run", "Print what would be deleted and kept without changing anything")
+  .action(async (source: string, options: { dryRun?: boolean }) => {
+    try {
+      const code = await rmCommand(source, { dryRun: options.dryRun });
+      process.exit(code);
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

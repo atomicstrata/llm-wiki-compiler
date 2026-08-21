@@ -45,6 +45,7 @@
             "pages": [
               "cli/ingest",
               "cli/compile",
+              "cli/rm",
               "cli/query",
               "cli/view",
               "cli/status",

@@ -7,7 +7,7 @@
  * filesystem layer over it. Read-only-ish (delete aside), no LLM.
  */
 import path from "path";
-import { readdir, readFile, unlink } from "fs/promises";
+import { lstat, readdir, readFile, unlink } from "fs/promises";
 import { confinedRegularFile, resolveSourcesDir } from "../utils/path-confine.js";
 import {
   assertSafeSourceId,
@@ -66,6 +66,37 @@ export async function deleteSource(root: string, id: string): Promise<boolean> {
     return true;
   } catch (err) {
     if ((err as { code?: string }).code === "ENOENT") return false;
+    throw err;
+  }
+}
+
+/**
+ * True when `sources/<id>` is genuinely ABSENT — nothing at that path at all.
+ *
+ * Deliberately narrower than "`getSource` returned null", which also covers
+ * present-but-not-a-valid-source: a symlink, a directory, an unreadable entry.
+ * `llmwiki rm` needs the distinction to tell "a previous removal already
+ * unlinked this file" (resumable — see `planRemoval` in `./removal.ts`) from
+ * "this name is occupied by something that was never a source" (not
+ * resumable, and never silently deleted around).
+ *
+ * `lstat`, not `stat`: a DANGLING symlink is present, not absent, and must not
+ * be mistaken for an interrupted removal.
+ *
+ * @param root - Absolute project root.
+ * @param id - Bare source basename including `.md`.
+ * @returns `true` when nothing exists at `sources/<id>`, `false` when
+ *   something does — of any kind.
+ */
+export async function sourceFileMissing(root: string, id: string): Promise<boolean> {
+  assertSafeSourceId(id);
+  const dir = await resolveSourcesDir(root);
+  if (dir === null) return true;
+  try {
+    await lstat(path.join(dir, id));
+    return false;
+  } catch (err) {
+    if ((err as { code?: string }).code === "ENOENT") return true;
     throw err;
   }
 }

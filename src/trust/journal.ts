@@ -271,8 +271,12 @@ async function reconfineTarget(targetPath: string, root: string): Promise<string
   return confineUnderRoot(rel, root, { mustExist: false });
 }
 
-/** Delete a confined target via a path re-confined at delete time (absent pre-state). */
-async function confinedUnlink(targetPath: string, root: string): Promise<void> {
+/**
+ * Re-confine `targetPath` under root and unlink it. Exported so the wiki page
+ * delete batch (`src/wiki/delete-page.ts`) reuses the SAME re-confinement the
+ * journal's own revert path uses, rather than hand-rolling a second unlink.
+ */
+export async function confinedUnlink(targetPath: string, root: string): Promise<void> {
   const confinedPath = await reconfineTarget(targetPath, root);
   try {
     await unlink(confinedPath);
