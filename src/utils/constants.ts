@@ -66,6 +66,27 @@ export const RETRY_MULTIPLIER = 4;
 /** Default provider when LLMWIKI_PROVIDER is not set. */
 export const DEFAULT_PROVIDER = "anthropic";
 
+/** Provider names accepted by LLMWIKI_PROVIDER, including aliases. */
+export const SUPPORTED_PROVIDER_INPUTS = [
+  "anthropic",
+  "claude-agent",
+  "openai",
+  "ollama",
+  "minimax",
+  "copilot",
+  "atlascloud",
+  "atlas-cloud",
+  "atlas",
+] as const;
+
+/** Normalize accepted LLMWIKI_PROVIDER aliases to provider implementation names. */
+export function normalizeProviderName(providerName: string): string {
+  if (providerName === "atlas-cloud" || providerName === "atlas") {
+    return "atlascloud";
+  }
+  return providerName;
+}
+
 /** Default model per provider. */
 export const PROVIDER_MODELS: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
@@ -74,6 +95,15 @@ export const PROVIDER_MODELS: Record<string, string> = {
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",
   copilot: "gpt-4o",
+  // Atlas Cloud's catalogue marks tool support per model in `supported_features`,
+  // and `qwen/qwen3.5-flash` carries no such entry while 35 of its 136 models
+  // advertise `["json_mode","structured_outputs","tools"]`. Compile's extraction
+  // pass goes through `toolCall` with `tool_choice: "required"`, so a default
+  // that cannot return tool calls fails on the first request rather than
+  // degrading — the provider would look installed and not work. This is the
+  // smallest catalogue model that does advertise tools, keeping the cheap-and-fast
+  // intent of the original default.
+  atlascloud: "qwen/qwen3.5-35b-a3b",
 };
 
 /** Default Ollama API base URL. */
@@ -81,6 +111,15 @@ export const OLLAMA_DEFAULT_HOST = "http://localhost:11434/v1";
 
 /** GitHub Copilot API base URL (OpenAI-compatible, requires OAuth token). */
 export const COPILOT_BASE_URL = "https://api.githubcopilot.com";
+
+/** Atlas Cloud OpenAI-compatible API base URL. */
+export const ATLASCLOUD_BASE_URL = "https://api.atlascloud.ai/v1";
+
+/** Atlas Cloud API key env vars, checked in order. */
+export const ATLASCLOUD_API_KEY_ENV_VARS = ["ATLASCLOUD_API_KEY", "ATLAS_CLOUD_API_KEY"] as const;
+
+/** Atlas Cloud base URL env vars, checked in order. */
+export const ATLASCLOUD_BASE_URL_ENV_VARS = ["ATLASCLOUD_BASE_URL", "ATLAS_CLOUD_BASE_URL"] as const;
 
 /**
  * Default request timeout for cloud OpenAI-compatible providers (10 minutes).

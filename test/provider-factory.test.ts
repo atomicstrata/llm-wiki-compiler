@@ -7,11 +7,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { getProvider } from "../src/utils/provider.js";
+import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { OllamaProvider } from "../src/providers/ollama.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
+import { AtlasCloudProvider } from "../src/providers/atlascloud.js";
+import { ATLASCLOUD_BASE_URL, PROVIDER_MODELS } from "../src/utils/constants.js";
 
 const TEST_SETTINGS_PATH_ENV = "LLMWIKI_CLAUDE_SETTINGS_PATH";
 const tempDirs: string[] = [];
@@ -63,6 +65,10 @@ describe("getProvider", () => {
     delete process.env.OLLAMA_EMBEDDINGS_HOST;
     delete process.env[TEST_SETTINGS_PATH_ENV];
     delete process.env.MINIMAX_API_KEY;
+    delete process.env.ATLASCLOUD_API_KEY;
+    delete process.env.ATLAS_CLOUD_API_KEY;
+    delete process.env.ATLASCLOUD_BASE_URL;
+    delete process.env.ATLAS_CLOUD_BASE_URL;
 
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -132,6 +138,46 @@ describe("getProvider", () => {
     process.env.LLMWIKI_PROVIDER = "minimax";
     delete process.env.MINIMAX_API_KEY;
     expect(() => getProvider()).toThrow("MINIMAX_API_KEY");
+  });
+
+  it.each(["atlascloud", "atlas-cloud", "atlas"])(
+    "returns AtlasCloudProvider when LLMWIKI_PROVIDER=%s",
+    (providerName) => {
+      process.env.LLMWIKI_PROVIDER = providerName;
+      process.env.ATLASCLOUD_API_KEY = "atlas-test-key";
+
+      const provider = getProvider();
+
+      expect(provider).toBeInstanceOf(AtlasCloudProvider);
+      expect(Reflect.get(provider, "model")).toBe(PROVIDER_MODELS.atlascloud);
+      expectClientBaseURL(provider, "client", ATLASCLOUD_BASE_URL);
+    },
+  );
+
+  it("uses ATLAS_CLOUD_API_KEY when ATLASCLOUD_API_KEY is absent", () => {
+    process.env.LLMWIKI_PROVIDER = "atlascloud";
+    process.env.ATLAS_CLOUD_API_KEY = "atlas-alias-key";
+
+    const provider = getProvider();
+
+    expect(provider).toBeInstanceOf(AtlasCloudProvider);
+  });
+
+  it("passes configured Atlas Cloud base URL alias", () => {
+    process.env.LLMWIKI_PROVIDER = "atlascloud";
+    process.env.ATLASCLOUD_API_KEY = "atlas-test-key";
+    process.env.ATLAS_CLOUD_BASE_URL = "https://atlas-proxy.example/v1";
+
+    const provider = getProvider();
+
+    expect(provider).toBeInstanceOf(AtlasCloudProvider);
+    expectClientBaseURL(provider, "client", "https://atlas-proxy.example/v1");
+  });
+
+  it("resolves the Atlas Cloud default model for provider aliases", () => {
+    process.env.LLMWIKI_PROVIDER = "atlas";
+
+    expect(resolveActiveModelId()).toBe(PROVIDER_MODELS.atlascloud);
   });
 
   it("respects LLMWIKI_MODEL override", () => {

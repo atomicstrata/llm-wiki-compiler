@@ -14,7 +14,7 @@ You don't need to set everything - only the variables relevant to your chosen pr
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent` |
+| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
 | `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
@@ -76,6 +76,17 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 | Variable | Required | Description |
 |---|---|---|
 | `GITHUB_TOKEN` | Yes (for `copilot` provider) | GitHub OAuth token with the `copilot` scope. Obtain with `gh auth token` after running `gh auth refresh --scopes copilot`. Classic PATs are not supported |
+
+---
+
+## Atlas Cloud
+
+| Variable | Required | Description |
+|---|---|---|
+| `ATLASCLOUD_API_KEY` | Yes (for `atlascloud` provider) | API key for the [Atlas Cloud](https://www.atlascloud.ai) gateway. `ATLAS_CLOUD_API_KEY` is accepted as an alternative; whichever is set first in that order wins |
+| `ATLASCLOUD_BASE_URL` | No | Override the API base URL. `ATLAS_CLOUD_BASE_URL` is accepted as an alternative |
+
+Model names are namespaced by publisher (e.g. `qwen/qwen3.5-35b-a3b`, the default). An override set through `LLMWIKI_MODEL` must be a model Atlas Cloud lists as supporting tools, because `compile` extracts concepts through a tool call.
 
 ---
 
