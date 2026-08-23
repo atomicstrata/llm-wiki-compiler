@@ -347,13 +347,9 @@ async function seedThenFinalize(
   draft: CompileStateDraft | null,
 ): Promise<void> {
   await maybeSeedPages(root, schema, generation, options);
-  await finalizeWiki(
-    root,
-    draft,
-    generation.writtenPages,
-    generation.seedSlugs,
-    options.changeFilter !== undefined,
-  );
+  await finalizeWiki(root, draft, generation.writtenPages, generation.seedSlugs, {
+    scoped: options.changeFilter !== undefined,
+  });
 }
 
 /** Inner pipeline, runs under lock protection. Returns structured CompileResult. */
@@ -531,6 +527,25 @@ async function markDeletedAsOrphaned(
 }
 
 /**
+ * Behavioural switches for {@link finalizeWiki}, named rather than positional.
+ *
+ * They arrive as an object because they are same-typed booleans that each
+ * INVERT a behaviour: as adjacent positional parameters, transposing two of
+ * them type-checks silently and the compile does the opposite of what the
+ * caller asked, on paths whose whole point is that they run less than the
+ * default. One flag was tolerable; a second one arriving is the signal to name
+ * them rather than to add a sixth parameter.
+ */
+interface FinalizeFlags {
+  /**
+   * The run recompiled a SUBSET by design (`refresh --stale` supplies a
+   * `changeFilter`), so it must not record the prompt-modifier selection as
+   * true of the whole project — see the flush below.
+   */
+  scoped?: boolean;
+}
+
+/**
  * Resolve interlinks, regenerate index/MOC, refresh embeddings
  * post-write. Seed-page slugs are folded into both the changed-slug
  * set (so embeddings refresh covers them) and the new-slug set (so
@@ -543,8 +558,9 @@ async function finalizeWiki(
   draft: CompileStateDraft | null,
   pages: MergedConcept[],
   seedSlugs: string[] = [],
-  scoped = false,
+  flags: FinalizeFlags = {},
 ): Promise<void> {
+  const { scoped = false } = flags;
   const conceptChangedSlugs = pages.map((entry) => entry.slug);
   const conceptNewSlugs = pages
     .filter((entry) => entry.concept.is_new)
