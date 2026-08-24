@@ -25,6 +25,12 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
+## Link repair
+
+After pages are written and interlinks resolved, compile repairs wikilinks whose target does not exist but unambiguously names a page that does. Generation tends to link a concept by its short canonical name (`[[Argo CD]]`) while the page carries a longer descriptive title (`argo-cd-image-update-ownership-model`); the link is repointed to it and the displayed text is left exactly as written.
+
+A link whose slug prefixes two pages, or none, is not touched. Guessing between two candidates would be wrong half the time, and a link to a concept your wiki genuinely lacks is worth keeping — `llmwiki lint` still reports it as `broken-wikilink`, which is how you find the pages your sources justify but extraction never created.
+
 ## Incremental behaviour
 
 Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. Sources that haven't changed are skipped entirely - no API calls, no rewrites. This means re-running `llmwiki compile` after editing a single source touches only the pages that source contributed to, even in a large wiki.

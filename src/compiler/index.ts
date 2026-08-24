@@ -36,6 +36,7 @@ import {
 } from "./deps.js";
 import { markOrphaned, orphanUnownedFrozenPages } from "./orphan.js";
 import { resolveAndApplyLinks } from "./resolver.js";
+import { repairAndApplyLinks } from "./link-repair.js";
 import { generateIndex } from "./indexgen.js";
 import { generateMOC } from "./obsidian.js";
 import { qualifiedPageId } from "../utils/page-id.js";
@@ -523,6 +524,11 @@ async function finalizeWiki(
     // Compute + apply the resolution rewrites as ONE journalled batch. compile
     // holds the project lock for its whole pipeline → the lock-free seam.
     await resolveAndApplyLinks(root, allChangedSlugs, allNewSlugs);
+    // Resolution adds links for titles it recognises; repair fixes links the
+    // model already wrote against a page whose slug is longer than the name it
+    // used. Ordered after resolution so a link resolution has just created is
+    // already valid and never looks repairable.
+    await repairAndApplyLinks(root);
   }
 
   // SINGLE durable state write of the whole compile: the buffered draft is

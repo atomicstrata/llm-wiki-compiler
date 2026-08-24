@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Wikilinks naming an existing page too briefly never resolved** — page generation writes a concept's short canonical name while the page it means carries a longer descriptive title, so `[[Argo CD]]` sat broken next to `argo-cd-image-update-ownership-model`. Extraction chooses page titles and generation chooses link text, independently and in that order, and nothing reconciled the two. Compile now runs a repair pass after interlink resolution that repoints a link when its slug prefixes exactly one page: `[[Argo CD]]` becomes `[[argo-cd-image-update-ownership-model|Argo CD]]`.
+
+  Only the link target is rewritten, never the text around it, so rendered output is byte-identical and the worst a bad match can do is point a link at the wrong page rather than alter prose. A slug prefixing two pages is left alone rather than guessed at, and so is one prefixing none — a link to a concept the wiki genuinely lacks says something about what is missing and is not noise to hide. Targets awaiting review are skipped too, since they resolve on approval.
+
+  Measured across five compiles of a mixed corpus (two PDFs plus five prose documents), this repaired 21.3% of broken wikilinks on a GPT-5-class model and 16.7% on `gpt-4o-mini`, with no page's prose changed.
+
 - **Windows: profile path validation rejected every declared directory** — on win32, `llmwiki template init` failed for every template with `entity directory must be under 'wiki/'`, any profile declaring a workflow `projectionFile` failed to load, and an entity directory declared as `wiki/` was wrongly accepted despite containing every reserved subtree — on win32 it was the only entity directory that loaded at all. Declared directories canonicalize to `/`-joined repo-relative paths, but the containment check built its prefix with the platform separator (`\` on Windows), so no nested path ever matched. The lexical profile-path checks now compare POSIX paths directly; native path confinement is unchanged. Reported and diagnosed by @squ1ddy (#163).
 
 - **Windows: broken links in the generated wiki index** — the same separator bug on the output side. Entity-page links in `wiki/index.md` are built from `path.relative`, which emits `\` on win32, so a NESTED entity directory produced the unusable link `research\papers/foo.md`. Link targets are now normalized to POSIX. Single-level directories were unaffected, which is why this went unnoticed (#163).
