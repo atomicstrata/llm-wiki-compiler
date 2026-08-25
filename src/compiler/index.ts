@@ -358,6 +358,7 @@ async function seedThenFinalize(
   await maybeSeedPages(root, schema, generation, options);
   await finalizeWiki(root, draft, generation.writtenPages, generation.seedSlugs, {
     scoped: options.changeFilter !== undefined,
+    embeddings: options.embeddings !== false,
   });
 }
 
@@ -547,6 +548,16 @@ async function markDeletedAsOrphaned(
  */
 interface FinalizeFlags {
   /**
+   * Refresh the embedding store after the durable state write. `false` skips it
+   * entirely, including the pending-embeddings drain, for a caller that keeps
+   * its own semantic index.
+   *
+   * Not a prompt modifier: it changes what runs AFTER pages are written, never
+   * what any prompt asks for, so it must not enter the modifier digest or
+   * invalidate a page that is byte-identical under it.
+   */
+  embeddings?: boolean;
+  /**
    * The run recompiled a SUBSET by design (`refresh --stale` supplies a
    * `changeFilter`), so it must not record the prompt-modifier selection as
    * true of the whole project — see the flush below.
@@ -569,7 +580,7 @@ async function finalizeWiki(
   seedSlugs: string[] = [],
   flags: FinalizeFlags = {},
 ): Promise<void> {
-  const { scoped = false } = flags;
+  const { scoped = false, embeddings = true } = flags;
   const conceptChangedSlugs = pages.map((entry) => entry.slug);
   const conceptNewSlugs = pages
     .filter((entry) => entry.concept.is_new)
@@ -608,7 +619,7 @@ async function finalizeWiki(
 
   await generateIndex(root);
   await generateMOC(root);
-  await safelyUpdateEmbeddings(root, allChangedSlugs);
+  if (embeddings) await safelyUpdateEmbeddings(root, allChangedSlugs);
 }
 
 /**

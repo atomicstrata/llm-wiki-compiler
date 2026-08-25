@@ -218,6 +218,12 @@ export interface CompileOptions {
    * policy, and its digest is recorded per page. See compiler/prompt-modifiers.ts.
    */
   systemPolicy?: string;
+  /**
+   * Refresh semantic embeddings after compilation. Defaults to true.
+   * Set to false for a lexical-only build with no embedding-provider calls or
+   * pending-embedding retries.
+   */
+  embeddings?: boolean;
 }
 
 /**

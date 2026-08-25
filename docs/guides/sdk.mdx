@@ -85,6 +85,7 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
     It is **advisory, not enforceable**. A policy makes the model more likely to follow a rule; it cannot make it obey one, and nothing verifies that it did. Anything that must hold belongs in a lint rule or a trust gate.
 
     Changing it **regenerates the pages compiled under the previous policy**, the same way changing the output language does, so it costs a full compile of the affected pages. Each page records the policy's digest (never its text) in `promptModifiers`.
+  - `options.embeddings` - set to `false` to skip embedding generation and pending-embedding retries. Page generation, links, and the lexical index still run.
 
   Source content is sent to the configured LLM provider during compilation. Do not compile wikis containing confidential data unless the provider's data-handling policies are acceptable for that content.
 
