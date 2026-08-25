@@ -97,6 +97,11 @@ export interface SdkCompileOptions {
    * way changing the output language does.
    */
   systemPolicy?: string;
+  /**
+   * Refresh semantic embeddings after compilation. Defaults to true.
+   * False prevents embedding-provider calls and pending-embedding retries.
+   */
+  embeddings?: boolean;
 }
 
 /** Options for `getContextPack`. Maps onto the subset of BuildContextPackOptions needed externally. */

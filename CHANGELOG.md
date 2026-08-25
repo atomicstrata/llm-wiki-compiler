@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Skip embeddings on compile** — `compile({ embeddings: false })` runs page generation, links and the lexical index without any embedding-provider call or pending-embedding retry, for an SDK host that maintains its own semantic index. Omitting it is unchanged.
+
+  The flag closes a gap that is provider-specific. With `anthropic` or `claude-agent` a caller can already opt out by not setting `VOYAGE_API_KEY`, but the `openai` embedding credential falls back to `OPENAI_API_KEY` and `ollama` needs no key at all, so those callers had no way to compile without embedding except to break chat.
+
+  Contributed by **@TigerOfCountryYao** (#169).
+
 - **Caller system policy on compile** — `compile({ systemPolicy })` appends deployment-specific editorial or publication guidance to the built-in compile prompts, for SDK hosts that need it without forking the prompts. It is additive rather than a replacement, sits before the source material, and blank or omitted leaves the prompt byte-identical.
 
   It is advisory rather than enforceable: a policy makes a model more likely to follow a rule, and nothing downstream verifies that it did. Anything that must hold belongs in a lint rule or a trust gate.
