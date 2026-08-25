@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Caller system policy on compile** — `compile({ systemPolicy })` appends deployment-specific editorial or publication guidance to the built-in compile prompts, for SDK hosts that need it without forking the prompts. It is additive rather than a replacement, sits before the source material, and blank or omitted leaves the prompt byte-identical.
+
+  It is advisory rather than enforceable: a policy makes a model more likely to follow a rule, and nothing downstream verifies that it did. Anything that must hold belongs in a lint rule or a trust gate.
+
+  The policy is a prompt modifier, so changing or clearing it regenerates the pages compiled under the previous one, and replaces a pending review candidate produced under it. Each page records the policy's **digest**, never its text, since the modifier set travels into `state.json`, page frontmatter and the JSON export. `PROMPT_VERSION` advances to `v2`.
+
+  Groundwork by **@TigerOfCountryYao** (#170), and see #144 for the request this partly answers.
+
 - **Atlas Cloud provider** — `LLMWIKI_PROVIDER=atlascloud` (aliases `atlas-cloud`, `atlas`) routes chat and tool calls through the [Atlas Cloud](https://www.atlascloud.ai) gateway, which exposes an OpenAI-compatible API across models from several publishers. Authenticate with `ATLASCLOUD_API_KEY` or `ATLAS_CLOUD_API_KEY`; `ATLASCLOUD_BASE_URL` overrides the endpoint.
 
   Model ids are namespaced by publisher, and `compile` extracts concepts through a tool call, so the default is a model Atlas Cloud lists as supporting tools. Embeddings are not wired up: the provider fails closed rather than inheriting OpenAI's semantics, so route them elsewhere with `LLMWIKI_EMBEDDING_PROVIDER` for semantic search.

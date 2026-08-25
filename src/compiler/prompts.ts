@@ -12,6 +12,7 @@ import type {
 } from "../utils/types.js";
 import type { PageKindRule, SeedPage } from "../schema/index.js";
 import { languageDirective } from "../utils/output-language.js";
+import { activeSystemPolicy } from "./prompt-modifiers.js";
 
 /**
  * Build a list of optional prompt lines, omitting empty entries so the
@@ -34,7 +35,35 @@ function withLangLine(...lines: string[]): string[] {
  * downstream auditor can distinguish pages produced under different prompt
  * generations even when the model id is identical. Format is `vMAJOR`.
  */
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
+
+/**
+ * The caller's system policy as prompt lines, or nothing when none is set.
+ *
+ * ADDITIVE by construction: the policy lands after every built-in instruction
+ * and is introduced as something to follow *in addition to* them, never as a
+ * replacement. It is also placed before the source material, so the whole
+ * instruction block still precedes the untrusted content it describes.
+ *
+ * This is advisory prompt text, not an enforceable boundary. A policy makes a
+ * model more likely to follow an editorial or publication rule; it cannot make
+ * the model obey one, and nothing downstream verifies that it did. Anything
+ * that must hold should be a lint rule or a trust gate instead.
+ *
+ * Read from run state rather than taken as a parameter so the three prompt
+ * builders keep their signatures and the option does not have to be threaded
+ * through extraction, page rendering, the review pipeline and seed pages, none
+ * of which otherwise need to know it exists.
+ */
+function systemPolicyLines(): string[] {
+  const policy = activeSystemPolicy();
+  if (!policy) return [];
+  return [
+    "",
+    "Additional system policy (follow in addition to every built-in instruction above):",
+    policy,
+  ];
+}
 
 /** Allowed provenance state strings emitted by the LLM tool schema. */
 const PROVENANCE_STATE_VALUES: ProvenanceState[] = [
@@ -141,6 +170,7 @@ export function buildExtractionPrompt(
     "    or 'ambiguous' if the source is contradictory or unclear.",
     "  - contradicted_by: slugs of other concepts (in this batch or the index)",
     "    whose evidence conflicts with this one.",
+    ...systemPolicyLines(),
     indexSection,
     "\n\n--- SOURCE DOCUMENT ---\n\n",
     sourceContent,
@@ -196,6 +226,7 @@ export function buildPagePrompt(
     "If a paragraph is your inference rather than a direct extraction, leave it",
     "uncited — downstream lint rules will count uncited paragraphs as 'inferred'",
     "so lint can surface excess-inferred-paragraphs warnings on review.",
+    ...systemPolicyLines(),
     existingSection,
     relatedSection,
     "\n\n--- SOURCE MATERIAL ---\n\n",
@@ -283,6 +314,7 @@ export function buildSeedPagePrompt(
       linkExpectation,
       "Write in a neutral, informative tone. Be concise but thorough.",
     ),
+    ...systemPolicyLines(),
     "\n\n--- RELATED PAGES ---\n\n",
     relatedPagesContent,
   ].join("\n");

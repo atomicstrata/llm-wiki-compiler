@@ -80,6 +80,11 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   Run the incremental compile pipeline. Extracts concepts from new or changed sources, generates typed wiki pages, resolves `[[wikilinks]]`, and rebuilds the index. **Requires LLM credentials.**
 
   - `options.review` - when `true`, writes generated pages to `.llmwiki/candidates/` for review instead of directly to `wiki/`. Same behavior as `llmwiki compile --review`.
+  - `options.systemPolicy` - extra instructions appended to the built-in compile prompts, for deployment-specific editorial or publication guidance without forking the prompts. Additive: it never replaces a built-in instruction, and it is placed before the source material. Blank or omitted leaves the prompt unchanged.
+
+    It is **advisory, not enforceable**. A policy makes the model more likely to follow a rule; it cannot make it obey one, and nothing verifies that it did. Anything that must hold belongs in a lint rule or a trust gate.
+
+    Changing it **regenerates the pages compiled under the previous policy**, the same way changing the output language does, so it costs a full compile of the affected pages. Each page records the policy's digest (never its text) in `promptModifiers`.
 
   Source content is sent to the configured LLM provider during compilation. Do not compile wikis containing confidential data unless the provider's data-handling policies are acceptable for that content.
 
