@@ -51,6 +51,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A shared page kept by `llmwiki rm` could never be rebuilt** — `rm` records each kept slug in `state.frozenSlugs`, the same marker compile sets when it notices a deleted source, and that marker was terminal: `mergeExtractions` skipped a frozen slug outright and nothing removed a slug from the set. The page kept the removed source's prose and its citations permanently, `llmwiki lint` reported `broken-citation` at error severity on a page no command could repair, and deleting the page to force a rebuild lost it for good.
+
+  A slug frozen because the current run's extraction failed is still skipped and preserved. A slug carried in persisted state is now a reconciliation marker instead: the page is rebuilt from whatever owners survive, with the removed source's contribution dropped, and a page no live source owns is orphaned rather than held. Fixes #194.
+
+  Contributed by **@TigerOfCountryYao** (#171).
+
 - **Interlink resolution corrupted prose containing `$` sequences** — when compile linked a page, it spliced the rewritten body back in with a string replacement, and `String.replace` interprets `$&`, `` $` ``, `$'` and `$$` there. A page reading `The PID is $$` lost a `$`; one containing a backtick-dollar had its own frontmatter spliced into the middle of the sentence; `$&` duplicated the body. Shell, sed, awk and Makefile pages carry those sequences as ordinary prose. The rewritten body is now inserted verbatim.
 
 - **Changing the output language left existing pages untouched** — `llmwiki compile --lang Japanese` over an already-compiled project reported "Nothing to compile" and every page kept its previous language, because change detection classified a source by the SHA-256 of its bytes alone and a prompt modifier is not part of the source. The selected modifiers are now recorded in `.llmwiki/state.json`, and flipping one invalidates the pages it would have changed. Setting `LLMWIKI_OUTPUT_LANG` has the same effect as the flag.

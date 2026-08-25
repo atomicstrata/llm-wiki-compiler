@@ -47,6 +47,17 @@ function page(cwd: string): Promise<string | null> {
   return readFile(path.join(cwd, "wiki/concepts/shared-topic.md"), "utf-8").catch(() => null);
 }
 
+/** Compile, then remove alpha.md, returning the project and its env. */
+async function compiledThenRemovedAlpha(
+  handle: import("./fixtures/aimock-helper.js").MockClaudeHandle,
+): Promise<{ cwd: string; env: NodeJS.ProcessEnv }> {
+  const cwd = await sharedPageProject(handle);
+  const env = mockClaudeEnv(handle);
+  expectCLIExit(await runCLI(["compile"], cwd, env), 0);
+  expectCLIExit(await runCLI(["rm", "alpha.md"], cwd, env), 0);
+  return { cwd, env };
+}
+
 describe("a page kept by rm is rebuilt, not frozen forever", () => {
   it("drops the removed source's citation on the next compile", async () => {
     const handle = await aimock.start();
@@ -74,11 +85,7 @@ describe("a page kept by rm is rebuilt, not frozen forever", () => {
 
   it("clears the marker, so the page is not rebuilt again on every later compile", async () => {
     const handle = await aimock.start();
-    const cwd = await sharedPageProject(handle);
-    const env = mockClaudeEnv(handle);
-
-    expectCLIExit(await runCLI(["compile"], cwd, env), 0);
-    expectCLIExit(await runCLI(["rm", "alpha.md"], cwd, env), 0);
+    const { cwd, env } = await compiledThenRemovedAlpha(handle);
     expectCLIExit(await runCLI(["compile"], cwd, env), 0);
 
     const before = handle.mock.getRequests().length;
