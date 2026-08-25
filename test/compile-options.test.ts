@@ -38,3 +38,30 @@ describe("compile options", () => {
     expect(result.pages).toContain("alpha");
     expect(embedSpy).not.toHaveBeenCalled();
   });
+
+  /** Compile with `options`, returning whether the embedding refresh ran. */
+  async function compileAndWatchEmbeddings(
+    options?: Parameters<ReturnType<typeof createWiki>["compile"]>[0],
+  ): Promise<{ refreshed: boolean; pages: string[] }> {
+    stubCompile();
+    const embedSpy = vi
+      .spyOn(embeddings, "updateEmbeddingsLockedCore")
+      .mockResolvedValue({ embedded: [], eligible: [] });
+    const result = await createWiki({ root: ctx.dir }).compile(options);
+    return { refreshed: embedSpy.mock.calls.length > 0, pages: result.pages };
+  }
+
+  // The negative case alone cannot distinguish "the flag works" from
+  // "embeddings are broken for everyone": a build that never refreshes
+  // satisfies it. The default path is what the flag promises to leave alone,
+  // so these are what give the case above its meaning.
+  it("still refreshes embeddings when the option is omitted", async () => {
+    const run = await compileAndWatchEmbeddings();
+    expect(run.pages).toContain("alpha");
+    expect(run.refreshed).toBe(true);
+  });
+
+  it("still refreshes embeddings when the option is explicitly true", async () => {
+    expect((await compileAndWatchEmbeddings({ embeddings: true })).refreshed).toBe(true);
+  });
+});
