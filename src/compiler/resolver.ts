@@ -203,13 +203,23 @@ function namespaceForPath(filePath: string): CompilePageNamespace {
   return "concepts";
 }
 
-/** Build the rewritten-page write for a PageInfo, or null when its body is unchanged. */
+/**
+ * Build the rewritten-page write for a PageInfo, or null when its body is unchanged.
+ *
+ * The replacement is a FUNCTION, not the string itself. `String.replace`
+ * interprets `$&`, `` $` ``, `$'` and `$$` in a string replacement even when the
+ * search argument is a plain string, and `linked` is page prose: a page reading
+ * "the PID is $$" lost a `$`, and one containing a backtick-dollar had this
+ * page's own frontmatter spliced into the middle of the sentence. Passing a
+ * function suppresses that substitution entirely, so the rewritten body is
+ * inserted verbatim.
+ */
 function rewritePage(page: PageInfo, content: string, linked: string, body: string): CompilePageWrite | null {
   if (linked === body) return null;
   return {
     namespace: namespaceForPath(page.filePath),
     slug: page.slug,
-    body: content.replace(body, linked),
+    body: content.replace(body, () => linked),
   };
 }
 

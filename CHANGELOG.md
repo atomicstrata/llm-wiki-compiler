@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Interlink resolution corrupted prose containing `$` sequences** — when compile linked a page, it spliced the rewritten body back in with a string replacement, and `String.replace` interprets `$&`, `` $` ``, `$'` and `$$` there. A page reading `The PID is $$` lost a `$`; one containing a backtick-dollar had its own frontmatter spliced into the middle of the sentence; `$&` duplicated the body. Shell, sed, awk and Makefile pages carry those sequences as ordinary prose. The rewritten body is now inserted verbatim.
+
 - **Changing the output language left existing pages untouched** — `llmwiki compile --lang Japanese` over an already-compiled project reported "Nothing to compile" and every page kept its previous language, because change detection classified a source by the SHA-256 of its bytes alone and a prompt modifier is not part of the source. The selected modifiers are now recorded in `.llmwiki/state.json`, and flipping one invalidates the pages it would have changed. Setting `LLMWIKI_OUTPUT_LANG` has the same effect as the flag.
 
   Pages also carry a `promptModifiers` frontmatter entry naming the modifiers active when they were generated, surfaced per page in the JSON export. `promptVersion` names the prompt implementation and is identical whether or not a modifier was selected, so it could not tell two such pages apart.
