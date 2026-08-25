@@ -200,6 +200,24 @@ export interface CompileOptions {
    * the built-in default. Out-of-range values are clamped with a warning.
    */
   concurrency?: number;
+  /**
+   * Extra instructions appended to the built-in compile prompts, for a host
+   * that needs deployment-specific editorial or publication guidance without
+   * forking the prompts.
+   *
+   * ADDITIVE: it never replaces a built-in instruction, and it is placed before
+   * the source material so the full instruction block still precedes the
+   * content it describes. Blank or whitespace-only is the same as omitting it,
+   * and omitting it leaves the prompt byte-identical.
+   *
+   * ADVISORY, not enforceable. It makes a model more likely to follow a rule; it
+   * cannot make it obey one, and nothing verifies that it did. Anything that
+   * must hold belongs in a lint rule or a trust gate.
+   *
+   * A prompt modifier: changing it invalidates pages compiled under the previous
+   * policy, and its digest is recorded per page. See compiler/prompt-modifiers.ts.
+   */
+  systemPolicy?: string;
 }
 
 /**

@@ -85,6 +85,18 @@ export interface SdkCompileOptions {
    * out-of-range values are clamped with a warning.
    */
   concurrency?: number;
+  /**
+   * Extra instructions appended to the built-in compile prompts, for a host that
+   * needs deployment-specific editorial or publication guidance without forking
+   * the prompts. Additive, never a replacement; blank is the same as omitted.
+   *
+   * Advisory rather than enforceable: it makes the model more likely to follow a
+   * rule, and nothing verifies that it did.
+   *
+   * Changing it invalidates pages compiled under the previous policy, the same
+   * way changing the output language does.
+   */
+  systemPolicy?: string;
 }
 
 /** Options for `getContextPack`. Maps onto the subset of BuildContextPackOptions needed externally. */

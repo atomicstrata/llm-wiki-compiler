@@ -27,7 +27,11 @@ import {
 } from "./prompts.js";
 import { loadSchema, type SchemaConfig } from "../schema/index.js";
 import { detectChanges, hashFile } from "./hasher.js";
-import { promoteForPromptModifiers, promptModifiersDigest } from "./prompt-modifiers.js";
+import {
+  promoteForPromptModifiers,
+  promptModifiersDigest,
+  withRunSystemPolicy,
+} from "./prompt-modifiers.js";
 import {
   findAffectedSources,
   findFrozenSlugs,
@@ -132,7 +136,12 @@ export async function compileAndReport(
     if (recovery.status === "unsafe") {
       throw new JournalUnsafeError("pre-compile journal recovery unsafe");
     }
-    return await runCompilePipeline(root, options);
+    // The policy is established for the WHOLE run, before change detection, so
+    // the modifier digest it contributes is visible to the invalidation check
+    // rather than only to the prompt builders further down.
+    return await withRunSystemPolicy(options.systemPolicy, () =>
+      runCompilePipeline(root, options),
+    );
   } finally {
     await releaseLock(root);
   }
