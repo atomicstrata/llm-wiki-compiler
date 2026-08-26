@@ -38,6 +38,13 @@ function pickOverride(override: number | undefined): OverrideSource {
  * input so a typo like `--concurrency eight` reports "eight", not "NaN" — and
  * yields undefined so resolution falls through to the env var / default. A
  * valid integer is returned as-is; out-of-range clamping is the resolver's job.
+ *
+ * The rejection goes to stderr via `note`, not to stdout via `status`, because
+ * the CLI evaluates this while assembling a command's arguments, before that
+ * command's body can enable quiet mode. Anything written to stdout from here is
+ * therefore unsuppressible, and in a `--json` run it lands ahead of the
+ * envelope and breaks the parse for a caller that still sees exit 0. stderr
+ * keeps the diagnostic visible without touching the data channel.
  * @param raw - The flag value Commander parsed, or undefined when not passed.
  * @returns A positive integer, or undefined to defer to env/default.
  */
@@ -45,8 +52,8 @@ export function parseConcurrencyFlag(raw?: string): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) {
-    output.status("!", output.warn(
-      `--concurrency value "${raw}" is not a positive integer; ignoring it.`,
+    output.note(output.warn(
+      `! --concurrency value "${raw}" is not a positive integer; ignoring it.`,
     ));
     return undefined;
   }

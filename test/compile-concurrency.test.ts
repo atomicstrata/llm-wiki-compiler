@@ -21,19 +21,25 @@ import {
   ENV_COMPILE_CONCURRENCY,
 } from "../src/utils/constants.js";
 
-/** Run fn while capturing console.log (output.status writes there) and return the joined text. */
-function captureStatus(fn: () => void): string {
-  const logs: string[] = [];
-  const spy = vi.spyOn(console, "log").mockImplementation((m?: unknown) => {
-    logs.push(String(m));
+/** Run fn while capturing one console channel, and return the joined text. */
+function capture(channel: "log" | "warn", fn: () => void): string {
+  const lines: string[] = [];
+  const spy = vi.spyOn(console, channel).mockImplementation((m?: unknown) => {
+    lines.push(String(m));
   });
   try {
     fn();
   } finally {
     spy.mockRestore();
   }
-  return logs.join("\n");
+  return lines.join("\n");
 }
+
+/** Capture stdout, where `output.status` writes. */
+const captureStatus = (fn: () => void): string => capture("log", fn);
+
+/** Capture stderr, where `output.note` writes. */
+const captureNote = (fn: () => void): string => capture("warn", fn);
 import { compileAndReport } from "../src/compiler/index.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
@@ -100,9 +106,18 @@ describe("parseConcurrencyFlag", () => {
     expect(parseConcurrencyFlag("999")).toBe(999);
   });
 
-  it("rejects a non-integer flag and echoes the raw input the user typed", () => {
-    const out = captureStatus(() => expect(parseConcurrencyFlag("eight")).toBeUndefined());
-    expect(out).toContain('"eight"');
+  it("rejects a non-integer flag on stderr, echoing the raw input, and leaves stdout clean", () => {
+    let stdout = "";
+    const stderr = captureNote(() => {
+      stdout = captureStatus(() => expect(parseConcurrencyFlag("eight")).toBeUndefined());
+    });
+
+    expect(stderr).toContain('"eight"');
+    // The CLI parses this flag while assembling a command's arguments, before
+    // the command body can enable quiet mode, so a stdout write here is
+    // unsuppressible and corrupts a --json envelope. See
+    // test/quickstart-json-stdout.test.ts for that contract end to end.
+    expect(stdout).toBe("");
   });
 });
 
