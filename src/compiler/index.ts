@@ -250,15 +250,25 @@ async function persistExtractionStates(
   draft: CompileStateDraft,
   extractions: ExtractionResult[],
   writtenPages: MergedConcept[],
+  retained: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   // Build a set of live slugs per source: slugs from writtenPages that list
   // this source as a contributor.
   const liveSlugsForSource = buildLiveSlugsForSource(writtenPages);
   for (const result of extractions) {
     if (result.concepts.length === 0) continue;
-    const liveSlugs = liveSlugsForSource.get(result.sourceFile) ?? [];
+    const liveSlugs = new Set(liveSlugsForSource.get(result.sourceFile) ?? []);
+    // A slug held for another attempt is still OWNED by the source that
+    // extracted it. Recording only WRITTEN slugs drops that claim, and unlike a
+    // review hold nothing re-adds it: the retry re-extracts whichever sources
+    // still list the concept, so a survivor erased here never returns and the
+    // page is rebuilt without its contribution.
+    for (const concept of result.concepts) {
+      const slug = slugify(concept.concept);
+      if (retained.has(slug)) liveSlugs.add(slug);
+    }
     await persistSourceStateFiltered(
-      draft, result.sourcePath, result.sourceFile, result.concepts, new Set(liveSlugs),
+      draft, result.sourcePath, result.sourceFile, result.concepts, liveSlugs,
     );
   }
 }
@@ -481,14 +491,18 @@ async function runCompilePipeline(
   );
 
   if (!options.review) {
-    await persistExtractionStates(draft, extractions, generation.writtenPages);
+    const written = new Set(generation.writtenPages.map((entry) => entry.slug));
+    const retained = new Set(
+      [...reconciliationSlugs, ...frozenSlugs].filter((slug) => !written.has(slug)),
+    );
+    await persistExtractionStates(draft, extractions, generation.writtenPages, retained);
     const orphanCandidates = new Set([...reconciliationSlugs, ...frozenSlugs]);
     if (orphanCandidates.size > 0) {
       await orphanUnownedFrozenPages(root, draft, orphanCandidates);
     }
     persistFrozenSlugs(draft, frozenSlugs, extractions, {
       pending: reconciliationSlugs,
-      replaced: new Set(generation.writtenPages.map((entry) => entry.slug)),
+      replaced: written,
     });
     // Seed + resolution route through the SAME executor batches as the
     // no-source-changes branch (see seedThenFinalize). The draft flush is the
