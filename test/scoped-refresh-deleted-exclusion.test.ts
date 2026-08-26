@@ -29,8 +29,13 @@ const ctx = useCompileProject({
   sourceContent: "# Topic X\n\nA contributes to X.",
 });
 
-/** a owns X; b owns X and Y; d owns Y — so the closure can walk a -> b -> d. */
-async function arrange(): Promise<{ extractedFiles: string[] }> {
+/** What b.md reports, mutable so a test can widen it between compiles. */
+interface SharedOwner {
+  concepts: string[];
+}
+
+/** a owns X; d owns Y; b owns whatever `bOwner` currently says. */
+async function arrange(bOwner: SharedOwner): Promise<{ extractedFiles: string[] }> {
   await writeFile(path.join(ctx.dir, "sources", "b.md"), "# Topic X\n\nB contributes to X and Y.", "utf-8");
   await writeFile(path.join(ctx.dir, "sources", "d.md"), "# Topic Y\n\nD contributes to Y.", "utf-8");
   const extractedFiles: string[] = [];
@@ -39,11 +44,9 @@ async function arrange(): Promise<{ extractedFiles: string[] }> {
       : system.includes("B contributes") ? "b"
       : system.includes("D contributes") ? "d" : "other";
     extractedFiles.push(which);
-    const concepts = which === "b"
-      ? [{ concept: "Topic X", summary: "s", is_new: true }, { concept: "Topic Y", summary: "s", is_new: true }]
-      : which === "d"
-        ? [{ concept: "Topic Y", summary: "s", is_new: true }]
-        : [{ concept: "Topic X", summary: "s", is_new: true }];
+    const named = which === "b" ? bOwner.concepts
+      : which === "d" ? ["Topic Y"] : ["Topic X"];
+    const concepts = named.map((concept) => ({ concept, summary: "s", is_new: true }));
     return JSON.stringify({ concepts });
   });
   vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue("Body. ^[b.md:1-2]");
@@ -59,31 +62,55 @@ async function deleteBothSources(probe: { extractedFiles: string[] }): Promise<v
   probe.extractedFiles.length = 0;
 }
 
+/**
+ * Run the scoped compile that acts on a.md alone, then assert the excluded
+ * deletion d.md was neither read nor retired.
+ */
+async function expectScopedRunSparesDeletion(
+  probe: { extractedFiles: string[] },
+): Promise<void> {
+  const result = await compileAndReport(ctx.dir, {
+    changeFilter: (change) => change.file === "a.md",
+  });
+
+  // The scoped run succeeds rather than aborting on a missing file.
+  expect(result.errors).toEqual([]);
+  // d.md is neither read nor extracted.
+  expect(probe.extractedFiles).not.toContain("d");
+  // and it stays in state, still pending for a later full compile.
+  const state = await readState(ctx.dir);
+  expect(Object.keys(state.sources)).toContain("d.md");
+}
+
+/** Seed the wiki, then remove both sources so only b.md survives. */
+async function seedThenDeleteBoth(bOwner: SharedOwner): Promise<{ extractedFiles: string[] }> {
+  const probe = await arrange(bOwner);
+  await compileAndReport(ctx.dir);
+  await deleteBothSources(probe);
+  return probe;
+}
+
 describe("a scoped compile and a deleted source the filter excluded", () => {
   it("never schedules the excluded deletion, and leaves it pending", async () => {
-    const probe = await arrange();
-    await compileAndReport(ctx.dir);
+    // b already owns Y, so the PRE-extraction closure walks a -> b -> d.
+    const probe = await seedThenDeleteBoth({ concepts: ["Topic X", "Topic Y"] });
 
-    // Both a.md and d.md are gone, but this run is scoped to a.md only.
-    await deleteBothSources(probe);
+    await expectScopedRunSparesDeletion(probe);
+  });
 
-    const result = await compileAndReport(ctx.dir, {
-      changeFilter: (change) => change.file === "a.md",
-    });
+  it("never schedules an excluded deletion that only late discovery reaches", async () => {
+    // b starts owning X alone, so Y is genuinely NEW to it on the second run.
+    // The pre-extraction closure never sees that slug; only late discovery
+    // resolves its other owner, which is the excluded deletion d.md.
+    const bOwner = { concepts: ["Topic X"] };
+    const probe = await seedThenDeleteBoth(bOwner);
+    bOwner.concepts = ["Topic X", "Topic Y"];
 
-    // The scoped run succeeds rather than aborting on a missing file.
-    expect(result.errors).toEqual([]);
-    // d.md is neither read nor extracted.
-    expect(probe.extractedFiles).not.toContain("d");
-    // and it stays in state, still pending for a later full compile.
-    const state = await readState(ctx.dir);
-    expect(Object.keys(state.sources)).toContain("d.md");
+    await expectScopedRunSparesDeletion(probe);
   });
 
   it("still processes every deletion on an ordinary unscoped compile", async () => {
-    const probe = await arrange();
-    await compileAndReport(ctx.dir);
-    await deleteBothSources(probe);
+    await seedThenDeleteBoth({ concepts: ["Topic X", "Topic Y"] });
 
     await compileAndReport(ctx.dir);
 

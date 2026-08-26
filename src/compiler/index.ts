@@ -470,7 +470,9 @@ async function runCompilePipeline(
   // Resolve once so an invalid override warns a single time, then cap both the
   // extraction and page-generation fan-outs identically.
   const concurrency = resolveCompileConcurrency(options.concurrency);
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
+  const extractions = await runExtractionPhases(
+    root, buckets.toCompile, state, { scoped: changes, detected }, concurrency,
+  );
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
     reportFrozenSlugs(frozenSlugs);

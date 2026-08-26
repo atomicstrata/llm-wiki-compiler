@@ -65,6 +65,18 @@ async function extractSourcesLimited(
 }
 
 /**
+ * The two views a compile has of its own changes. They answer different
+ * questions and are NOT interchangeable, so they travel as one named pair
+ * rather than as two same-typed positional arguments that can be swapped.
+ */
+export interface ChangeSets {
+  /** What this run acts on, after any `changeFilter`. */
+  scoped: SourceChange[];
+  /** Everything found on disk, before any `changeFilter`. */
+  detected: SourceChange[];
+}
+
+/**
  * Phase 1: extract concepts for the directly-changed batch, then repeatedly
  * expand to unchanged sources whose concepts overlap newly extracted slugs.
  * Every batch shares one `pLimit(concurrency)` cap. Discovery continues to a
@@ -75,7 +87,7 @@ export async function runExtractionPhases(
   root: string,
   toCompile: SourceChange[],
   state: WikiState,
-  allChanges: SourceChange[],
+  changeSets: ChangeSets,
   concurrency: number,
 ): Promise<ExtractionResult[]> {
   const limit = pLimit(concurrency);
@@ -84,7 +96,7 @@ export async function runExtractionPhases(
   while (true) {
     const extracted = new Set(extractions.map((result) => result.sourceFile));
     const lateAffected = findLateAffectedSources(
-      extractions, state, allChanges, extracted,
+      extractions, state, changeSets.scoped, extracted, changeSets.detected,
     );
     if (lateAffected.length === 0) break;
     for (const file of lateAffected) {

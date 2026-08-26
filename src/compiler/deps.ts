@@ -307,8 +307,9 @@ function findSlugOwners(
  *   2. Changed sources may gain concepts they didn't previously have.
  * @param extractions - Results from Phase 1 extraction.
  * @param state - Current persisted state.
- * @param allChanges - Full changes array including deleted/unchanged entries.
+ * @param allChanges - Changes this run acts on, including deleted/unchanged entries.
  * @param alreadyExtracted - Sources completed by earlier fixed-point rounds.
+ * @param allDetected - Every change found on disk, before any `changeFilter`.
  * @returns Filenames of unchanged sources that share concepts with compiled sources.
  */
 export function findLateAffectedSources(
@@ -316,10 +317,16 @@ export function findLateAffectedSources(
   state: WikiState,
   allChanges: SourceChange[],
   alreadyExtracted: ReadonlySet<string> = new Set(),
+  allDetected: SourceChange[] = allChanges,
 ): string[] {
+  // Which files are COMPILING is a property of this run, so it reads the
+  // filtered list. Which files no longer EXIST is not, so it reads the
+  // complete detection - same split as findAffectedSources above. Late
+  // discovery needs its own copy of that rule because it runs after
+  // extraction, on slugs the pre-extraction closure could not know about.
   const compilingFiles = filesByStatus(allChanges, "new", "changed");
   for (const file of alreadyExtracted) compilingFiles.add(file);
-  const deletedFiles = filesByStatus(allChanges, "deleted");
+  const deletedFiles = filesByStatus(allDetected, "deleted");
   const conceptMap = buildConceptToSourcesMap(state.sources);
   const freshSlugs = collectFreshSlugs(extractions, state);
   const excluded = new Set([...compilingFiles, ...deletedFiles]);
