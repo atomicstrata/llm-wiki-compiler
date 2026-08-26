@@ -408,7 +408,7 @@ async function runCompilePipeline(
     state,
   );
   await markUnchangedPendingSources(root, changes);
-  augmentWithAffectedSources(changes, findAffectedSources(state, changes));
+  augmentWithAffectedSources(changes, findAffectedSources(state, changes, detected));
   const reconciliationSlugs = findReconciliationSlugs(state, changes);
 
   const buckets = bucketChanges(changes);

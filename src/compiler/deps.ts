@@ -122,11 +122,20 @@ function expandSharedOwnerClosure(
 export function findAffectedSources(
   state: WikiState,
   directChanges: SourceChange[],
+  allDetected: SourceChange[] = directChanges,
 ): string[] {
   const changedFiles = filesByStatus(directChanges, "new", "changed");
   const deletedFiles = filesByStatus(directChanges, "deleted");
+  // Exclusion uses EVERY detected deletion, not only the ones this run acts on.
+  // A scoped run (`refresh --stale`) narrows what to compile with a
+  // `changeFilter`, but "what should this run act on" and "what no longer
+  // exists" are different questions. Answering the second from the filtered
+  // list makes an excluded deletion look like a live co-owner: the closure
+  // schedules it and extraction reads a file that is gone. It stays in state,
+  // pending for a later unscoped compile.
+  const detectedDeletions = filesByStatus(allDetected, "deleted");
   const conceptMap = buildConceptToSourcesMap(state.sources);
-  const excluded = new Set([...changedFiles, ...deletedFiles]);
+  const excluded = new Set([...changedFiles, ...deletedFiles, ...detectedDeletions]);
   const frozenOwners = findSlugOwners(
     new Set(state.frozenSlugs ?? []),
     conceptMap,
