@@ -137,10 +137,9 @@ function buildRefreshSummary(liveRefreshed: number, heldCount: number, orphanedC
 
 /**
  * Invoke the provider guard only when the plan will trigger an LLM extraction.
- * Concept extraction runs solely for changed owners and their known-affected
- * co-contributors; with no changed owners, knownAffected is empty too
- * (findAffectedSources expands only from changed/new sources), so cleanup-only
- * plans (orphan/shared state repair) skip the guard and need no key.
+ * Concept extraction runs for changed owners and their known-affected
+ * co-contributors. A deleted owner can contribute knownAffected survivors
+ * because partial-deletion pages are rebuilt from live evidence.
  */
 function maybeEnsureProvider(plan: RefreshPlan, ensureProvider?: () => void): void {
   const needsLLM = plan.changedOwners.length > 0 || plan.knownAffected.length > 0;
@@ -177,7 +176,6 @@ function printPlan(plan: RefreshPlan): void {
   output.status("~", output.info(
     `Recompiling ${plan.recompiledPages.length} page(s) from ${modelSources} source(s) ` +
     `(${plan.changedOwners.length} changed + ${plan.knownAffected.length} known affected; more may be found during the run); ` +
-    `${plan.sharedKeptPages.length} kept (shared, content not rebuilt); ` +
     `cleaning up ${plan.computedOrphanedPages.length} orphaned page(s).`,
   ));
   for (const [items, label, icon] of planDetailRows(plan)) {
@@ -187,8 +185,7 @@ function printPlan(plan: RefreshPlan): void {
 
 /**
  * True when the plan has any actionable work: pages to recompile, orphaned
- * pages to clean up, OR shared (partial-deletion) pages whose state needs
- * repairing (the deleted owner removed from state, content kept).
+ * pages to clean up, or a legacy sharedKeptPages entry.
  */
 function hasWork(plan: RefreshPlan): boolean {
   return (
@@ -202,7 +199,6 @@ function hasWork(plan: RefreshPlan): boolean {
 function planDetailRows(plan: RefreshPlan): PlanDetailRow[] {
   return [
     [plan.recompiledPages, "recompiled", "~"],
-    [plan.sharedKeptPages, "kept (shared) — content not regenerated", "i"],
     [plan.computedOrphanedPages, "cleaned up (orphaned)", "⚠"],
     [plan.alreadyOrphanedPages, "already orphaned — no action", "i"],
     [plan.knownAffected, "known affected sources (more may be found during the run)", "~"],

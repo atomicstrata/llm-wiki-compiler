@@ -65,28 +65,46 @@ async function extractSourcesLimited(
 }
 
 /**
- * Phase 1: extract concepts for the directly-changed batch, then expand to
- * any unchanged sources whose concepts overlap with newly extracted slugs.
- * Both batches share one `pLimit(concurrency)` cap; the late-affected set is
- * computed only after the whole direct batch resolves, since
- * findLateAffectedSources reads every direct extraction.
+ * The two views a compile has of its own changes. They answer different
+ * questions and are NOT interchangeable, so they travel as one named pair
+ * rather than as two same-typed positional arguments that can be swapped.
+ */
+export interface ChangeSets {
+  /** What this run acts on, after any `changeFilter`. */
+  scoped: SourceChange[];
+  /** Everything found on disk, before any `changeFilter`. */
+  detected: SourceChange[];
+}
+
+/**
+ * Phase 1: extract concepts for the directly-changed batch, then repeatedly
+ * expand to unchanged sources whose concepts overlap newly extracted slugs.
+ * Every batch shares one `pLimit(concurrency)` cap. Discovery continues to a
+ * fixed point because a late owner's extraction can reveal another owner that
+ * was absent from its prior state entry.
  */
 export async function runExtractionPhases(
   root: string,
   toCompile: SourceChange[],
   state: WikiState,
-  allChanges: SourceChange[],
+  changeSets: ChangeSets,
   concurrency: number,
 ): Promise<ExtractionResult[]> {
   const limit = pLimit(concurrency);
   const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
 
-  const lateAffected = findLateAffectedSources(extractions, state, allChanges);
-  for (const file of lateAffected) {
-    output.status("~", output.info(`${file} [shares concept with new source]`));
+  while (true) {
+    const extracted = new Set(extractions.map((result) => result.sourceFile));
+    const lateAffected = findLateAffectedSources(
+      extractions, state, changeSets.scoped, extracted, changeSets.detected,
+    );
+    if (lateAffected.length === 0) break;
+    for (const file of lateAffected) {
+      output.status("~", output.info(`${file} [shares concept with new source]`));
+    }
+    const batch = await extractSourcesLimited(root, lateAffected, limit);
+    extractions.push(...batch);
   }
-  const lateExtractions = await extractSourcesLimited(root, lateAffected, limit);
-  for (const result of lateExtractions) extractions.push(result);
 
   return extractions;
 }

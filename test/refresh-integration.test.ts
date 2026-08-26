@@ -7,9 +7,8 @@
  *
  *  1. A stale page (changed source hash) IS recompiled.
  *  2. A new source (not in state) is skipped — refresh does not compile new sources.
- *  3. A partial-deletion "shared" page has its state REPAIRED (deleted owner
- *     removed from state.sources) but its content byte-for-byte UNCHANGED — the
- *     unchanged live owner is NOT recompiled (v1 limitation: no force-rebuild).
+ *  3. A partial-deletion shared page is rebuilt from its surviving owner and
+ *     the deleted owner is removed from state.
  *  4. When a review policy is active, a refreshed page that trips policy is held
  *     as a candidate (not written to wiki/) and the command reports it as held,
  *     NOT as "refreshed".
@@ -61,6 +60,21 @@ async function writeLowConfidencePolicy(root: string): Promise<void> {
  */
 async function makeTmpRoot(suffix: string): Promise<string> {
   return makeCompileProjectRoot({ dirSuffix: `refresh-integ-${suffix}` });
+}
+
+/** Configure the stubbed Anthropic provider environment for a test. */
+function configureProviderEnv(): void {
+  process.env.LLMWIKI_PROVIDER = "anthropic";
+  process.env.ANTHROPIC_API_KEY = "test-key";
+}
+
+/** Restore global test state and remove a temporary project root. */
+async function cleanupTestRoot(root: string): Promise<void> {
+  vi.restoreAllMocks();
+  delete process.env.LLMWIKI_PROVIDER;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.LLMWIKI_COMPILE_CONCURRENCY;
+  await rm(root, { recursive: true, force: true });
 }
 
 /** Silence compile output and run resolveStaleRefresh + compileAndReport. */
@@ -115,8 +129,7 @@ async function setupStaleTopicA(root: string): Promise<string> {
 
 describe("refresh --stale (real run, stubbed provider)", () => {
   it("recompiles a stale page and leaves a new source uncompiled", async () => {
-    process.env.LLMWIKI_PROVIDER = "anthropic";
-    process.env.ANTHROPIC_API_KEY = "test-key";
+    configureProviderEnv();
     const root = await makeTmpRoot("stale");
 
     try {
@@ -137,21 +150,17 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       // Only a.md was extracted; new.md was filtered out by changeFilter.
       expect(extractSpy).toHaveBeenCalledTimes(1);
     } finally {
-      vi.restoreAllMocks();
-      delete process.env.LLMWIKI_PROVIDER;
-      delete process.env.ANTHROPIC_API_KEY;
-      await rm(root, { recursive: true, force: true });
+      await cleanupTestRoot(root);
     }
   });
 
   // -------------------------------------------------------------------------
-  // Test 2: partial-deletion shared page — status repaired, content kept
+  // Test 2: partial-deletion shared page rebuilt from surviving evidence
   // -------------------------------------------------------------------------
 
-  it("status-repairs a partial-deletion shared page but does NOT regenerate its content (v1)", async () => {
-    process.env.LLMWIKI_PROVIDER = "anthropic";
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    const root = await makeTmpRoot("shared-kept");
+  it("rebuilds a partial-deletion shared page from its surviving owner", async () => {
+    configureProviderEnv();
+    const root = await makeTmpRoot("shared-rebuilt");
 
     try {
       const aContent = "# Topic X\n\nAbout X from A.";
@@ -162,34 +171,35 @@ describe("refresh --stale (real run, stubbed provider)", () => {
         "b.md": { hash: "some-old-hash", concepts: ["topic-x"] },
       });
       await writeConceptPage(root, "topic-x", "Topic X", ["a.md", "b.md"], "Existing body of X.");
-      const originalContent = await readFile(path.join(root, CONCEPTS_DIR, "topic-x.md"), "utf-8");
-
-      // Spy: extraction must NOT fire (a.md is unchanged; no changed owners).
       const extractSpy = stubProviderCalls("Topic X");
       vi.spyOn(console, "log").mockImplementation(() => {});
 
       const { plan } = await resolveStaleRefresh(root);
       expect(plan).not.toBeNull();
-      // Sanity: page is shared-kept, not recompiled.
-      expect(plan!.sharedKeptPages).toContain("topic-x");
+      // Sanity: the survivor is scheduled for recompilation.
+      expect(plan!.recompiledPages).toContain("topic-x");
+      expect(plan!.sharedKeptPages).not.toContain("topic-x");
       expect(plan!.changedOwners).not.toContain("a.md");
       expect(plan!.deletedOwners).toContain("b.md");
+      expect(plan!.knownAffected).toContain("a.md");
 
-      await compileAndReport(root, { changeFilter: plan!.changeFilter, skipSeedPages: true });
+      const result = await compileAndReport(root, {
+        changeFilter: plan!.changeFilter,
+        skipSeedPages: true,
+      });
 
       // Deletion bookkeeping: b.md removed from state.
       const { state } = await readStateClassified(root);
       expect("b.md" in state.sources).toBe(false);
-      // Content kept: topic-x.md byte-for-byte UNCHANGED.
+      // Content is rebuilt from a.md; the old mixed-source body is gone.
       const afterContent = await readFile(path.join(root, CONCEPTS_DIR, "topic-x.md"), "utf-8");
-      expect(afterContent).toBe(originalContent);
-      // a.md NOT extracted — unchanged live owner skipped in v1.
-      expect(extractSpy).not.toHaveBeenCalled();
+      expect(afterContent).toContain(STUB_BODY);
+      expect(afterContent).not.toContain("Existing body of X.");
+      expect(result.pages).toContain("topic-x");
+      // The unchanged survivor is force-reconciled because b.md was deleted.
+      expect(extractSpy).toHaveBeenCalledTimes(1);
     } finally {
-      vi.restoreAllMocks();
-      delete process.env.LLMWIKI_PROVIDER;
-      delete process.env.ANTHROPIC_API_KEY;
-      await rm(root, { recursive: true, force: true });
+      await cleanupTestRoot(root);
     }
   });
 
@@ -198,8 +208,7 @@ describe("refresh --stale (real run, stubbed provider)", () => {
   // -------------------------------------------------------------------------
 
   it("reports a policy-held page as held for review, not as refreshed", async () => {
-    process.env.LLMWIKI_PROVIDER = "anthropic";
-    process.env.ANTHROPIC_API_KEY = "test-key";
+    configureProviderEnv();
     const root = await makeTmpRoot("policy-held");
 
     try {
@@ -237,17 +246,12 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       expect(allOutput).toMatch(/held.*for review/i);
       expect(allOutput).not.toMatch(/Refreshed \d+ page\(s\)/);
     } finally {
-      vi.restoreAllMocks();
-      delete process.env.LLMWIKI_PROVIDER;
-      delete process.env.ANTHROPIC_API_KEY;
-      await rm(root, { recursive: true, force: true });
+      await cleanupTestRoot(root);
     }
   });
 
   it("forwards the concurrency option into the recompile (serial cap keeps peak at 1)", async () => {
-    process.env.LLMWIKI_PROVIDER = "anthropic";
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    delete process.env.LLMWIKI_COMPILE_CONCURRENCY;
+    configureProviderEnv();
     const root = await makeTmpRoot("concurrency");
     try {
       await writeSourceFile(root, "a.md", "# A\n\nabout a");
@@ -276,10 +280,7 @@ describe("refresh --stale (real run, stubbed provider)", () => {
       // stale extractions overlap (peak 2). The flag must serialize them to peak 1.
       expect(peak()).toBe(1);
     } finally {
-      vi.restoreAllMocks();
-      delete process.env.LLMWIKI_PROVIDER;
-      delete process.env.ANTHROPIC_API_KEY;
-      await rm(root, { recursive: true, force: true });
+      await cleanupTestRoot(root);
     }
   });
 });

@@ -258,26 +258,27 @@ export interface RemovalApplyResult {
  *
  * ## Freezing
  *
- * FREEZES the source's still-shared concepts before writing state, mirroring
- * what `compile`'s deletion path does for the exact same situation
- * (`findFrozenSlugs`, `src/compiler/deps.ts:132-159`). A kept page's FILE
- * survives on disk, but its on-disk CONTENT is a merge that includes the
- * now-removed source's contribution — the file alone carries no memory of
- * that. Adding the slug to `state.frozenSlugs` is what MARKS the page as
- * having lost a contributor, so `compile` applies its frozen-slug policy to it
- * instead of treating it as an ordinary page. Without the mark, the next
+ * MARKS the source's still-shared concepts before writing state, the same way
+ * `compile`'s own deletion path marks them. A kept page's FILE survives on
+ * disk, but its on-disk CONTENT is a merge that includes the now-removed
+ * source's contribution — the file alone carries no memory of that. Recording
+ * the slug in `state.frozenSlugs` is what says so. Without it the next
  * recompile of a remaining contributor rebuilds the page from live sources as
  * if nothing had been removed, and the removed source's contribution silently
  * vanishes with no record that it was ever there.
  *
- * What that policy DOES with a frozen slug belongs to `compile`, not to `rm`:
- * today `mergeExtractions` (`src/compiler/extraction-merge.ts:91`) skips
- * regenerating it, preserving the merged body as-is. This function's contract
- * is only that the mark is set. The set is UNIONED with whatever is already
- * persisted (never replaced via {@link applyFrozenSlugs}), mirroring
- * `findFrozenSlugs`' own "start with persisted frozen slugs from prior
- * batches" behaviour (`deps.ts:137`), so an earlier removal's or compile's
- * frozen slugs are never dropped by a later one.
+ * A persisted slug is a RECONCILIATION marker, not a permanent hold. What
+ * compile does with it belongs to compile, not to `rm`: it rebuilds the page
+ * cleanly from whatever owners survive, dropping the removed source's
+ * contribution, and orphans a page no live source owns any more. The marker is
+ * retired only once that replacement is actually committed — if extraction or
+ * page validation fails, the marker and the survivors' ownership are both
+ * preserved so a later compile tries again.
+ *
+ * This function's contract is only that the mark is set. The set is UNIONED
+ * with whatever is already persisted (never replaced via
+ * {@link applyFrozenSlugs}), so an earlier removal's or compile's markers are
+ * never dropped by a later one.
  *
  * @param root - Absolute project root.
  * @param plan - The plan produced by {@link planRemoval}.

@@ -1,7 +1,7 @@
 /**
  * Tests for resolveStaleRefresh — the read-only resolver that computes a
- * RefreshPlan from a single freshness snapshot. Covers all four page outcomes
- * (recompiled, shared-kept, computed-orphaned, already-orphaned) plus the
+ * RefreshPlan from a single freshness snapshot. Covers rebuilt,
+ * computed-orphaned, and already-orphaned page outcomes plus the
  * newSkipped/changeFilter/knownAffected helpers and corrupt-state short-circuit.
  */
 
@@ -54,7 +54,7 @@ describe("resolveStaleRefresh", () => {
     expect(plan!.recompiledPages).toEqual([]);
   });
 
-  it("classifies a partial-deletion page (live unchanged + deleted owner) as shared-kept, not recompiled", async () => {
+  it("classifies a partial-deletion page for rebuild from its live owner", async () => {
     const { root, writeConceptPage } = await makeLintTempRoot("refresh-plan-shared");
     await writeConceptPage(
       "x",
@@ -69,10 +69,11 @@ describe("resolveStaleRefresh", () => {
     // b.md NOT written → deleted
 
     const { plan } = await resolveStaleRefresh(root);
-    expect(plan!.sharedKeptPages).toContain("x");
-    expect(plan!.recompiledPages).not.toContain("x");
+    expect(plan!.sharedKeptPages).not.toContain("x");
+    expect(plan!.recompiledPages).toContain("x");
     expect(plan!.changedOwners).not.toContain("a.md");
     expect(plan!.deletedOwners).toContain("b.md");
+    expect(plan!.knownAffected).toContain("a.md");
   });
 
   it("reports a frontmatter-orphaned page with no owners as already-orphaned (no action)", async () => {

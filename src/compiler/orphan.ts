@@ -2,12 +2,12 @@
  * Orphan management for deleted source files.
  *
  * When a source is deleted, its exclusively-owned concept pages are marked
- * orphaned (orphaned: true in frontmatter). Shared concepts are preserved
- * to avoid losing combined content from prior compilations.
+ * orphaned (orphaned: true in frontmatter). Shared concepts are deferred so
+ * the compiler can rebuild them from their surviving owners in the same run.
  *
- * After compilation, frozen slugs (shared concepts that lost a contributor)
- * are checked against the updated state. Any that lost ALL owners are
- * orphaned as a cleanup pass.
+ * After compilation, reconciliation candidates and extraction-frozen slugs
+ * are checked against the updated state. Any that lost ALL owners are orphaned
+ * as a cleanup pass.
  */
 
 import path from "path";
@@ -26,8 +26,8 @@ import type { CompileStateDraft } from "./compile-state-draft.js";
 /**
  * Mark wiki pages as orphaned when their source is deleted.
  * Only orphans concepts exclusively owned by the deleted source.
- * Shared concepts (contributed to by other live sources) are preserved
- * as-is to avoid losing combined content from prior compilations.
+ * Shared concepts (contributed to by other live sources) are deferred to the
+ * deletion-reconciliation generation pass.
  * @param root - Project root directory (needed for the confined file write; stays first).
  * @param sourceFile - Source file path being deleted.
  * @param draft - In-memory CompileStateDraft the function reads/mutates instead of disk state.
@@ -63,13 +63,13 @@ export async function markOrphaned(
 
 /**
  * Check frozen slugs against the updated state after compilation.
- * If no source still claims a frozen slug, orphan its page so it doesn't
- * linger as an untracked stale file.
+ * If no source still claims a reconciliation candidate, orphan its page so it
+ * doesn't linger as an untracked stale file.
  * @param root - Project root directory (needed for the confined file write; stays first).
  *   root stays first (needed for the confined file write); draft follows.
  * @param draft - In-memory CompileStateDraft the function reads to check current ownership
  *   instead of disk state, so un-flushed markers from this run are visible.
- * @param frozenSlugs - Set of concept slugs that were frozen (shared with a deleted source).
+ * @param frozenSlugs - Reconciliation candidates and extraction-frozen slugs.
  */
 export async function orphanUnownedFrozenPages(
   root: string,

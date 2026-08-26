@@ -34,7 +34,7 @@ import {
 } from "./prompt-modifiers.js";
 import {
   findAffectedSources,
-  findFrozenSlugs,
+  findReconciliationSlugs,
   freezeFailedExtractions,
   persistFrozenSlugs,
   type ExtractionResult,
@@ -161,12 +161,13 @@ async function generatePagesPhase(
   root: string,
   extractions: ExtractionResult[],
   frozenSlugs: Set<string>,
+  reconciliationSlugs: ReadonlySet<string>,
   schema: SchemaConfig,
   options: CompileOptions,
   policy: ReviewPolicy,
   concurrency: number,
 ): Promise<PageGenerationResult> {
-  const merged = mergeExtractions(extractions, frozenSlugs);
+  const merged = mergeExtractions(extractions, frozenSlugs, reconciliationSlugs);
   // Build the per-source state snapshot once so each candidate can carry the
   // exact data needed to mark its sources compiled on approval.
   const shouldBuildSourceStates = options.review || !isPolicyOff(policy);
@@ -249,15 +250,25 @@ async function persistExtractionStates(
   draft: CompileStateDraft,
   extractions: ExtractionResult[],
   writtenPages: MergedConcept[],
+  retained: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   // Build a set of live slugs per source: slugs from writtenPages that list
   // this source as a contributor.
   const liveSlugsForSource = buildLiveSlugsForSource(writtenPages);
   for (const result of extractions) {
     if (result.concepts.length === 0) continue;
-    const liveSlugs = liveSlugsForSource.get(result.sourceFile) ?? [];
+    const liveSlugs = new Set(liveSlugsForSource.get(result.sourceFile) ?? []);
+    // A slug held for another attempt is still OWNED by the source that
+    // extracted it. Recording only WRITTEN slugs drops that claim, and unlike a
+    // review hold nothing re-adds it: the retry re-extracts whichever sources
+    // still list the concept, so a survivor erased here never returns and the
+    // page is rebuilt without its contribution.
+    for (const concept of result.concepts) {
+      const slug = slugify(concept.concept);
+      if (retained.has(slug)) liveSlugs.add(slug);
+    }
     await persistSourceStateFiltered(
-      draft, result.sourcePath, result.sourceFile, result.concepts, new Set(liveSlugs),
+      draft, result.sourcePath, result.sourceFile, result.concepts, liveSlugs,
     );
   }
 }
@@ -325,6 +336,21 @@ function applyChangeFilter(
 }
 
 /**
+ * Orphan and clear persisted frozen slugs that no source owns.
+ * @returns True when the draft was mutated and must be flushed.
+ */
+async function reconcileOwnerlessFrozen(
+  root: string,
+  draft: CompileStateDraft,
+  reconciliationSlugs: ReadonlySet<string>,
+): Promise<boolean> {
+  if (reconciliationSlugs.size === 0) return false;
+  await orphanUnownedFrozenPages(root, draft, new Set(reconciliationSlugs));
+  draft.setFrozen(new Set());
+  return true;
+}
+
+/**
  * Generate seed pages unless `skipSeedPages` is set or we are in review mode.
  * Centralises both guard conditions so each call site in the pipeline is a
  * single unconditional statement instead of an inline if-block.
@@ -382,7 +408,8 @@ async function runCompilePipeline(
     state,
   );
   await markUnchangedPendingSources(root, changes);
-  augmentWithAffectedSources(changes, findAffectedSources(state, changes));
+  augmentWithAffectedSources(changes, findAffectedSources(state, changes, detected));
+  const reconciliationSlugs = findReconciliationSlugs(state, changes);
 
   const buckets = bucketChanges(changes);
   if (buckets.toCompile.length === 0 && buckets.deleted.length === 0) {
@@ -391,6 +418,9 @@ async function runCompilePipeline(
     // no source files changed, so adding a seed page to schema.json takes
     // effect on the next compile without needing a source file edit.
     if (!options.review) {
+      const hasOwnerlessFrozen = await reconcileOwnerlessFrozen(
+        root, draft, reconciliationSlugs,
+      );
       const emptyGeneration: PageGenerationResult = {
         pages: [],
         writtenPages: [],
@@ -399,11 +429,15 @@ async function runCompilePipeline(
         review: { held: [], forced: [] },
         seedSlugs: [],
       };
-      // Null draft: this branch has no state mutations, so nothing is flushed.
-      // Routes seed + resolution through the SAME executor batches as the normal
-      // path (see seedThenFinalize) so the early branch cannot drift to a direct
-      // write.
-      await seedThenFinalize(root, schema, emptyGeneration, options, null);
+      // Ownerless frozen reconciliation mutates the draft; otherwise null keeps
+      // the no-change path from rewriting state unnecessarily.
+      await seedThenFinalize(
+        root,
+        schema,
+        emptyGeneration,
+        options,
+        hasOwnerlessFrozen ? draft : null,
+      );
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,
@@ -429,15 +463,19 @@ async function runCompilePipeline(
     await markDeletedAsOrphaned(root, buckets.deleted, draft);
   }
 
-  const frozenSlugs = findFrozenSlugs(state, changes);
-  reportFrozenSlugs(frozenSlugs);
+  // Only extraction failures in THIS run freeze a page. Deletion and persisted
+  // freezes are reconciliation work: their surviving owners rebuild cleanly.
+  const frozenSlugs = new Set<string>();
 
   // Resolve once so an invalid override warns a single time, then cap both the
   // extraction and page-generation fan-outs identically.
   const concurrency = resolveCompileConcurrency(options.concurrency);
-  const extractions = await runExtractionPhases(root, buckets.toCompile, state, changes, concurrency);
+  const extractions = await runExtractionPhases(
+    root, buckets.toCompile, state, { scoped: changes, detected }, concurrency,
+  );
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
+    reportFrozenSlugs(frozenSlugs);
   }
 
   // Snapshot pages on disk before generation so the journal can tell which
@@ -447,6 +485,7 @@ async function runCompilePipeline(
     root,
     extractions,
     frozenSlugs,
+    reconciliationSlugs,
     schema,
     options,
     reviewPolicy,
@@ -454,11 +493,19 @@ async function runCompilePipeline(
   );
 
   if (!options.review) {
-    await persistExtractionStates(draft, extractions, generation.writtenPages);
-    if (frozenSlugs.size > 0) {
-      await orphanUnownedFrozenPages(root, draft, frozenSlugs);
+    const written = new Set(generation.writtenPages.map((entry) => entry.slug));
+    const retained = new Set(
+      [...reconciliationSlugs, ...frozenSlugs].filter((slug) => !written.has(slug)),
+    );
+    await persistExtractionStates(draft, extractions, generation.writtenPages, retained);
+    const orphanCandidates = new Set([...reconciliationSlugs, ...frozenSlugs]);
+    if (orphanCandidates.size > 0) {
+      await orphanUnownedFrozenPages(root, draft, orphanCandidates);
     }
-    persistFrozenSlugs(draft, frozenSlugs, extractions);
+    persistFrozenSlugs(draft, frozenSlugs, extractions, {
+      pending: reconciliationSlugs,
+      replaced: written,
+    });
     // Seed + resolution route through the SAME executor batches as the
     // no-source-changes branch (see seedThenFinalize). The draft flush is the
     // single durable state write, done inside finalizeWiki after resolution
