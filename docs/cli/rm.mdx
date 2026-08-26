@@ -35,7 +35,11 @@ No LLM provider credentials are required. `rm` never calls the chat model, and i
 | `wiki/index.md` and `wiki/MOC.md` | Regenerated |
 | Vectors for the deleted pages in `.llmwiki/embeddings.json` | Pruned |
 
-A kept page's body is a merge of contributions from every source that produced it, including the one just removed - the file itself carries no record of that. So `rm` records each kept slug in `state.json`'s `frozenSlugs`, the same marker `compile` already sets when it notices a deleted source. The mark is what tells the next `compile` that this page lost a contributor, instead of rebuilding it from the remaining sources as though nothing had been removed.
+A kept page's body is a merge of contributions from every source that produced it, including the one just removed - the file itself carries no record of that. So `rm` records each kept slug in `state.json`'s `frozenSlugs`, the same marker `compile` already sets when it notices a deleted source.
+
+The mark tells the next `compile` to rebuild that page cleanly from the sources that survive, dropping the removed source's contribution and its citations rather than leaving them in place. A page no live source owns any more is orphaned instead.
+
+The mark is cleared only once the replacement page is actually written. If extraction or page validation fails during that rebuild, the mark and the surviving sources' ownership are both preserved, so a later `compile` tries again rather than leaving the page stale with nothing to say so.
 
 ## Limitations
 
