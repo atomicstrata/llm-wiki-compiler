@@ -180,10 +180,26 @@ export function findReconciliationSlugs(
  * @param frozenSlugs - Concept slugs held because a required extraction failed.
  * @param successfulExtractions - Extraction results from sources compiled in this batch.
  */
+/**
+ * What a run asked reconciliation to rebuild, and what it actually committed.
+ *
+ * `pending` is the set computed for this run; `replaced` is the set whose page
+ * reached `writtenPages`. A pending slug missing from `replaced` stays frozen
+ * so a later compile tries again.
+ */
+export interface ReconciliationOutcome {
+  pending: ReadonlySet<string>;
+  replaced: ReadonlySet<string>;
+}
+
+/** Default for callers with nothing pending: nothing to retain. */
+const NOTHING_PENDING: ReconciliationOutcome = { pending: new Set(), replaced: new Set() };
+
 export function persistFrozenSlugs(
   draft: CompileStateDraft,
   frozenSlugs: Set<string>,
   successfulExtractions: ExtractionResult[],
+  reconciliation: ReconciliationOutcome = NOTHING_PENDING,
 ): void {
   // Read the draft (reflects this run's compiled markers), not disk, so the
   // unfreeze decision sees freshly-compiled owners.
@@ -213,6 +229,17 @@ export function persistFrozenSlugs(
       && extractedBy.has(slug);
 
     if (!allOwnersCompiled) remaining.add(slug);
+  }
+
+  // A reconciliation marker is retired by a COMMITTED replacement, never by a
+  // successful extraction. Validation lives one frame above the renderer
+  // (`validateWikiPage` in review-pipeline.ts): an invalid body returns an
+  // error and no live write, so the slug never reaches `writtenPages` even
+  // though every stage before it succeeded. Retiring on extraction leaves the
+  // old page orphaned with nothing left to say it is stale, which is the
+  // terminal state reconciliation exists to end.
+  for (const slug of reconciliation.pending) {
+    if (!reconciliation.replaced.has(slug)) remaining.add(slug);
   }
 
   draft.setFrozen(remaining);

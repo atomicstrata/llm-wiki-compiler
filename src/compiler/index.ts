@@ -486,7 +486,10 @@ async function runCompilePipeline(
     if (orphanCandidates.size > 0) {
       await orphanUnownedFrozenPages(root, draft, orphanCandidates);
     }
-    persistFrozenSlugs(draft, frozenSlugs, extractions);
+    persistFrozenSlugs(draft, frozenSlugs, extractions, {
+      pending: reconciliationSlugs,
+      replaced: new Set(generation.writtenPages.map((entry) => entry.slug)),
+    });
     // Seed + resolution route through the SAME executor batches as the
     // no-source-changes branch (see seedThenFinalize). The draft flush is the
     // single durable state write, done inside finalizeWiki after resolution
