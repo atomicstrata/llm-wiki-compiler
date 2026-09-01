@@ -130,7 +130,7 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_COMPILE_CONCURRENCY` | `5` | Maximum LLM calls run in parallel during a compile, across both concept extraction and page generation. Raise it to cut wall-clock on cold starts and large refreshes; lower it to ease a provider's rate limits. Non-positive or non-integer values fall back to the default, and any value above `50` is clamped down with a warning. The `--concurrency` flag on `llmwiki compile`, `llmwiki refresh`, `llmwiki watch`, and `llmwiki quickstart` overrides this for a single run. An invalid `--concurrency` flag value is ignored with a warning, so this variable (or the default) still applies |
+| `LLMWIKI_COMPILE_CONCURRENCY` | `5` | Maximum LLM calls run in parallel during a compile, across both concept extraction and page generation. Raise it to cut wall-clock on cold starts and large refreshes; lower it to ease a provider's rate limits. Non-positive or non-integer values fall back to the default, and any value above `50` is clamped down with a warning. The `--concurrency` flag on `llmwiki compile`, `llmwiki refresh`, `llmwiki watch`, and `llmwiki quickstart` overrides this for a single run. An invalid `--concurrency` flag value is ignored with a warning, so this variable (or the default) still applies; `quickstart --json` writes that warning to stderr to keep stdout parseable, while human output keeps the warning on stdout |
 
 ---
 

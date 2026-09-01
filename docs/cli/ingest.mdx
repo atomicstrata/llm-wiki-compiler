@@ -111,7 +111,7 @@ Under the hood, `quickstart` runs `ingest` then `compile`. Compile requires LLM 
 | `--provider <name>` | Override `LLMWIKI_PROVIDER` for this invocation only (e.g. `openai`, `ollama`, `claude-agent`). |
 | `--lang <code>` | Generate wiki content in the specified language (e.g. `zh-CN`, `Japanese`, `ja`). Equivalent to setting `LLMWIKI_OUTPUT_LANG` for this run. |
 | `--concurrency <n>` | Maximum LLM calls run in parallel during the compile step (extraction and page generation). Overrides `LLMWIKI_COMPILE_CONCURRENCY`; defaults to `5`, clamped to `1`–`50`. Useful when quickstarting a large source. |
-| `--json` | Emit a machine-readable JSON envelope instead of human output. Implies `--no-open`. The envelope includes `ingest`, `compile`, and `viewer` sub-objects plus a `next` recommended action. |
+| `--json` | Emit one machine-readable JSON envelope on stdout instead of human output. Implies `--no-open`; option warnings remain visible on stderr. The envelope includes `ingest`, `compile`, and `viewer` sub-objects plus a `next` recommended action. |
 
 ### Examples
 
