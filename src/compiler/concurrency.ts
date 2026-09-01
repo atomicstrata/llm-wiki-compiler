@@ -39,15 +39,22 @@ function pickOverride(override: number | undefined): OverrideSource {
  * yields undefined so resolution falls through to the env var / default. A
  * valid integer is returned as-is; out-of-range clamping is the resolver's job.
  * @param raw - The flag value Commander parsed, or undefined when not passed.
+ * @param diagnosticTarget - Stream for invalid-value warnings; human commands
+ *                           retain stdout while JSON callers can protect it.
  * @returns A positive integer, or undefined to defer to env/default.
  */
-export function parseConcurrencyFlag(raw?: string): number | undefined {
+export function parseConcurrencyFlag(
+  raw?: string,
+  diagnosticTarget: "stdout" | "stderr" = "stdout",
+): number | undefined {
   if (raw === undefined) return undefined;
   const n = Number(raw);
   if (!Number.isInteger(n) || n <= 0) {
-    output.status("!", output.warn(
+    const warning = output.warn(
       `--concurrency value "${raw}" is not a positive integer; ignoring it.`,
-    ));
+    );
+    if (diagnosticTarget === "stderr") output.note(`! ${warning}`);
+    else output.status("!", warning);
     return undefined;
   }
   return n;

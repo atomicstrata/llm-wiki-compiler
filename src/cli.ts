@@ -386,7 +386,9 @@ program
       provider: options.provider,
       lang: options.lang,
       json: options.json,
-      concurrency: parseConcurrencyFlag(options.concurrency),
+      // Choose the warning channel here: argument expressions evaluate before the callee body runs.
+      // Quickstart's own JSON quiet mode therefore can never intercept this warning.
+      concurrency: parseConcurrencyFlag(options.concurrency, options.json ? "stderr" : "stdout"),
     }));
   });
 
