@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **OpenAI Codex CLI provider** — `LLMWIKI_PROVIDER=codex-agent` or
+  `--provider codex-agent` delegates chat and structured generation to a locally
+  authenticated Codex CLI. The same one-run `--provider` override is now
+  available on `compile`, `refresh`, `query`, `watch`, `rules extract`, `eval`,
+  and `quickstart`. Codex runs non-interactively in an ephemeral read-only
+  sandbox with a minimal environment, bounded output and process-tree lifetime,
+  interruption cleanup, and independently validated structured results. It
+  never reads project `.env` files or falls back to API-key authentication when
+  explicitly selected; embeddings require an explicit existing backend.
+
 - **Skip embeddings on compile** — `compile({ embeddings: false })` runs page generation, links and the lexical index without any embedding-provider call or pending-embedding retry, for an SDK host that maintains its own semantic index. Omitting it is unchanged.
 
   The flag closes a gap that is provider-specific. With `anthropic` or `claude-agent` a caller can already opt out by not setting `VOYAGE_API_KEY`, but the `openai` embedding credential falls back to `OPENAI_API_KEY` and `ollama` needs no key at all, so those callers had no way to compile without embedding except to break chat.

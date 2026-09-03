@@ -22,6 +22,7 @@ const NON_RETRIABLE_RE = /^4(?!29)\d\d\b/;
 
 /** Return true for client errors that will never succeed on retry (e.g. 401, 403). */
 function isNonRetriable(error: unknown): boolean {
+  if ((error as { nonRetryable?: unknown })?.nonRetryable === true) return true;
   const msg = error instanceof Error ? error.message : String(error);
   return NON_RETRIABLE_RE.test(msg);
 }

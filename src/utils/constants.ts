@@ -70,6 +70,7 @@ export const DEFAULT_PROVIDER = "anthropic";
 export const SUPPORTED_PROVIDER_INPUTS = [
   "anthropic",
   "claude-agent",
+  "codex-agent",
   "openai",
   "ollama",
   "minimax",
@@ -91,6 +92,7 @@ export function normalizeProviderName(providerName: string): string {
 export const PROVIDER_MODELS: Record<string, string> = {
   anthropic: "claude-sonnet-4-6",
   "claude-agent": "claude-sonnet-4-6",
+  "codex-agent": "codex-cli-default",
   openai: "gpt-4o",
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",

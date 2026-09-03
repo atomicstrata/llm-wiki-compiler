@@ -6,7 +6,6 @@
  * Designed for `npx llmwiki` or global install via `npm install -g llm-wiki-compiler`.
  */
 
-import "dotenv/config";
 import { createRequire } from "module";
 import { Command } from "commander";
 import ingestCommand from "./commands/ingest.js";
@@ -42,6 +41,14 @@ import { registerReviewCommands } from "./cli/review-commands.js";
 import { registerEvalCommands } from "./cli/eval-commands.js";
 import { registerWorkflowCommands } from "./cli/workflow-commands.js";
 import { registerConnectorCommands } from "./cli/connector-commands.js";
+import {
+  addProviderOption,
+  applyProviderOption,
+  type ProviderOption,
+} from "./cli/provider-option.js";
+import { loadCliEnvironment } from "./cli/environment.js";
+
+loadCliEnvironment();
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -106,9 +113,7 @@ program
     }
   });
 
-program
-  .command("compile")
-  .description("Compile sources/ into an interlinked wiki")
+addProviderOption(program.command("compile").description("Compile sources/ into an interlinked wiki"))
   .option(
     "--review",
     "Write generated pages as review candidates under .llmwiki/candidates/ instead of mutating wiki/. Orphan-marking for deleted sources is deferred until the next non-review compile.",
@@ -122,8 +127,9 @@ program
     "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
   )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
+  .action(async (options: ProviderOption & { review?: boolean; lang?: string; concurrency?: string; verbose?: boolean }) => {
     try {
+      applyProviderOption(options);
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       requireProvider();
@@ -148,9 +154,7 @@ program
     }
   });
 
-program
-  .command("refresh")
-  .description("Recompile only stale/changed pages without touching unrelated new sources")
+addProviderOption(program.command("refresh").description("Recompile only stale/changed pages without touching unrelated new sources"))
   .option("--stale", "Resolve stale/orphaned pages and recompile them")
   .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
   .option(
@@ -158,8 +162,9 @@ program
     "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
   )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
+  .action(async (options: ProviderOption & { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
     try {
+      applyProviderOption(options);
       setVerbose(verboseEnabled(options.verbose));
       const code = await refreshCommand(
         { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
@@ -190,9 +195,7 @@ program
 
 registerRulesCommand(program, requireProvider);
 
-program
-  .command("query <question>")
-  .description("Ask a question against the wiki")
+addProviderOption(program.command("query <question>").description("Ask a question against the wiki"))
   .option("--save", "Save the answer as a wiki page")
   .option("--debug", "Print which pages and chunks were selected and their scores")
   .option(
@@ -203,9 +206,10 @@ program
   .action(
     async (
       question: string,
-      options: { save?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
+      options: ProviderOption & { save?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
     ) => {
       try {
+        applyProviderOption(options);
         setVerbose(verboseEnabled(options.verbose));
         applyLanguageOption(options.lang);
         requireProvider();
@@ -217,15 +221,14 @@ program
     },
   );
 
-program
-  .command("watch")
-  .description("Watch sources/ and auto-recompile on changes")
+addProviderOption(program.command("watch").description("Watch sources/ and auto-recompile on changes"))
   .option(
     "--concurrency <n>",
     "Max concurrent LLM calls per recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
   )
-  .action(async (options: { concurrency?: string }) => {
+  .action(async (options: ProviderOption & { concurrency?: string }) => {
     try {
+      applyProviderOption(options);
       requireProvider();
       await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
@@ -360,7 +363,7 @@ program
   .option("--no-open", "Skip the viewer handoff after a successful compile")
   .option(
     "--provider <name>",
-    "Override LLMWIKI_PROVIDER for this run only (e.g. anthropic, openai, ollama, atlascloud)",
+    "Override LLMWIKI_PROVIDER for this run only (e.g. anthropic, codex-agent, openai, ollama)",
   )
   .option(
     "--lang <code>",

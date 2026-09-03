@@ -4,7 +4,7 @@
  * Defines the LLMProvider interface and a factory function that reads
  * LLMWIKI_PROVIDER and LLMWIKI_MODEL env vars to instantiate the
  * appropriate backend (Anthropic, Claude Agent SDK, OpenAI, Ollama, MiniMax,
- * GitHub Copilot, or Atlas Cloud).
+ * GitHub Copilot, Codex CLI, or Atlas Cloud).
  */
 
 import {
@@ -20,6 +20,7 @@ import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
+import { CodexAgentProvider } from "../providers/codex-agent.js";
 import {
   AtlasCloudProvider,
   resolveAtlasCloudApiKeyFromEnv,
@@ -93,6 +94,8 @@ export function buildProvider(providerName: string): LLMProvider {
       return getAnthropicProvider();
     case "claude-agent":
       return getClaudeAgentProvider();
+    case "codex-agent":
+      return new CodexAgentProvider(readOptionalEnv("LLMWIKI_MODEL"));
     case "openai":
       return new OpenAIProvider(getModelForProvider("openai"), {
         baseURL: readOptionalEnv("OPENAI_BASE_URL"),
@@ -228,6 +231,9 @@ export function resolveActiveModelId(): string {
   }
   if (providerName === "claude-agent") {
     return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS["claude-agent"];
+  }
+  if (providerName === "codex-agent") {
+    return readOptionalEnv("LLMWIKI_MODEL") ?? PROVIDER_MODELS["codex-agent"];
   }
   return getModelForProvider(
     providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud",

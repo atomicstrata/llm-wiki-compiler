@@ -1,7 +1,7 @@
 ---
 title: "Installing llmwiki: npm Setup and Provider Configuration"
 sidebarTitle: "Installation"
-description: "Install llmwiki globally with npm and configure your LLM provider - Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, or Claude Agent SDK."
+description: "Install llmwiki globally with npm and configure Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, Claude Agent SDK, or Codex CLI."
 ---
 
 llmwiki is a Node.js CLI that you install once globally with npm. After installation, you point it at an LLM provider by setting a handful of environment variables - or in some cases, no variables at all if you're already logged into Claude Code. This page covers the full installation process and every supported provider.
@@ -78,6 +78,35 @@ llmwiki calls an LLM during the compile and query phases. It does **not** requir
     <Warning>
       The `claude-agent` provider drives your Claude Code / Agent SDK session programmatically. Before using it, review Anthropic's current [Claude Code](https://www.anthropic.com/legal/consumer-terms) and Agent SDK terms to ensure your intended use complies with them.
     </Warning>
+  </Tab>
+
+  <Tab title="OpenAI Codex CLI">
+    The `codex-agent` provider uses your local Codex CLI login and ChatGPT
+    subscription. llmwiki never handles the stored credential or an OpenAI API
+    key. Install and authenticate Codex first, then choose an existing embedding
+    backend explicitly:
+
+    ```bash
+    npm install -g @openai/codex@latest
+    codex login
+    export LLMWIKI_PROVIDER=codex-agent
+    export LLMWIKI_EMBEDDING_PROVIDER=ollama
+    export OLLAMA_HOST=http://localhost:11434/v1
+    llmwiki compile
+    ```
+
+    You can also select it for one run with
+    `llmwiki compile --provider codex-agent`. Codex runs non-interactively in an
+    ephemeral read-only sandbox and a throwaway directory. It does not expose a
+    `maxTokens` option; model overrides pass through via `LLMWIKI_MODEL`.
+
+    The minimum verified compatible Codex CLI version is **0.152.1**. Run
+    `codex --version` to check it; if llmwiki reports an incompatible binary,
+    update `@openai/codex` to the latest release.
+
+    Explicit Codex Agent selection bypasses the project `.env` file so llmwiki
+    cannot accidentally read API keys stored there. Export the provider,
+    embedding backend, model, and related embedding settings in your shell.
   </Tab>
 
   <Tab title="OpenAI-compatible">

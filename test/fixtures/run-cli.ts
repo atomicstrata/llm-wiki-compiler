@@ -99,7 +99,7 @@ export async function runCLI(
     // it via the normal CLIResult shape instead of as a raw throw.
     await access(cwd);
 
-    const { stdout, stderr } = await exec("node", [CLI, ...args], {
+    const { stdout, stderr } = await exec(process.execPath, [CLI, ...args], {
       cwd,
       env: { ...process.env, ...envOverrides },
     });
