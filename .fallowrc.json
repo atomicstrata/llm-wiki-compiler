@@ -3,7 +3,9 @@
   "entry": [
     "src/viewer/assets/viewer.js",
     "scripts/copy-viewer-assets.mjs",
-    "src/viewer/assets/viewer-theme-boot.js"
+    "src/viewer/assets/viewer-theme-boot.js",
+    "test/fixtures/mock-embeddings.mjs",
+    "test/fixtures/track-dotenv-read.mjs"
   ],
   "ignorePatterns": [
     "docs/**",

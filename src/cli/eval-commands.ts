@@ -15,6 +15,7 @@ import evalCommand, {
   evalHistoryCommand,
   evalJudgementsCommand,
 } from "../commands/eval.js";
+import { addProviderOption, applyProviderOption, type ProviderOption } from "./provider-option.js";
 
 /** Register the `eval cache` sub-group (`clear`, `show`) under the parent `eval` command. */
 function registerEvalCacheCommands(evalCmd: Command): void {
@@ -39,14 +40,15 @@ function registerEvalCacheCommands(evalCmd: Command): void {
 
 /** Register the `eval` command group (root eval + `cache`/`report`/`history`/`judgements`) on `program`. */
 export function registerEvalCommands(program: Command): void {
-  const evalCmd = program
-    .command("eval")
-    .description("Evaluate wiki quality (health, citation coverage, LLM judge)")
+  const evalCmd = addProviderOption(
+    program.command("eval").description("Evaluate wiki quality (health, citation coverage, LLM judge)"),
+  )
     .option("--suite <level>", "fast (deterministic) or full (+ LLM judge)", "fast")
     .option("--out <format>", "terminal or json", "terminal")
     .option("--sample <n>", "number of citations to judge in full suite", "20")
-    .action(async (opts) => {
+    .action(async (opts: ProviderOption & { suite: string; out: string; sample: string }) => {
       try {
+        applyProviderOption(opts);
         await evalCommand(opts);
       } catch (err) {
         console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);

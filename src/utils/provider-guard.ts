@@ -24,7 +24,10 @@ import {
   normalizeProviderName,
 } from "./constants.js";
 import { resolveAnthropicAuthFromEnv } from "./claude-settings.js";
-import { findEmbeddingProviderProblem } from "./embedding-provider.js";
+import {
+  findEmbeddingProviderProblem,
+  isEmbeddingProviderExplicit,
+} from "./embedding-provider.js";
 
 /** Thrown when the active provider has no usable credentials. */
 export class ProviderUnavailableError extends Error {
@@ -53,6 +56,7 @@ export class UnknownProviderError extends Error {
 const PROVIDER_KEY_VARS: Record<string, string | readonly string[] | null> = {
   anthropic: "ANTHROPIC_API_KEY",
   "claude-agent": null,
+  "codex-agent": null,
   openai: "OPENAI_API_KEY",
   ollama: null,
   minimax: "MINIMAX_API_KEY",
@@ -97,6 +101,15 @@ function ensureEmbeddingProviderAvailable(): void {
 export function ensureProviderAvailable(): void {
   ensureEmbeddingProviderAvailable();
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
+
+  if (provider === "codex-agent" && !isEmbeddingProviderExplicit()) {
+    throw new ProviderUnavailableError(
+      provider,
+      ["LLMWIKI_EMBEDDING_PROVIDER"],
+      `The "codex-agent" provider cannot serve embeddings and never degrades silently.\n` +
+        `  Set LLMWIKI_EMBEDDING_PROVIDER to an existing embedding backend such as "ollama" or "openai".`,
+    );
+  }
 
   if (provider === "anthropic") {
     const auth = resolveAnthropicAuthFromEnv();

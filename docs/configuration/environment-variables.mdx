@@ -14,14 +14,26 @@ You don't need to set everything - only the variables relevant to your chosen pr
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
-| `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model |
+| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
+| `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model. For `codex-agent`, unset delegates model choice to Codex and a set value is passed through with `--model` |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
 | `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
 
 When you set `LLMWIKI_EMBEDDING_PROVIDER`, the named provider's own credential is required: `VOYAGE_API_KEY` for `anthropic` or `claude-agent`, `OPENAI_API_KEY` (or `OPENAI_EMBEDDINGS_API_KEY`) for `openai`, and no key for `ollama`. Setting `OPENAI_EMBEDDINGS_BASE_URL` marks a self-hosted OpenAI-compatible endpoint that needs no key, so `OPENAI_API_KEY` is not required in that case. This check only runs when `LLMWIKI_EMBEDDING_PROVIDER` is set - leaving it unset keeps today's behavior unchanged.
 
 The check runs at startup, before any compile or query work begins, so a misspelled provider name or a missing key fails immediately instead of part-way through a run.
+
+`codex-agent` is the exception to the default embedding-provider value: because
+Codex cannot embed, it requires `LLMWIKI_EMBEDDING_PROVIDER` to be set
+explicitly. A missing or unusable embedding backend fails actionably rather
+than silently degrading. The keyless combination is `codex-agent` chat plus
+`ollama` embeddings.
+
+When `codex-agent` is selected explicitly through `--provider` or a
+shell-exported `LLMWIKI_PROVIDER`, llmwiki does not open the project `.env`
+file, because that file may contain API keys. Export the Codex model, embedding
+provider, and embedding-backend settings in the shell for that run. Other
+providers retain the existing shell-over-`.env` precedence.
 
 <Warning>
   If you point `OPENAI_EMBEDDINGS_BASE_URL` at a host you do not operate, set `OPENAI_EMBEDDINGS_API_KEY` as well. Without it the embeddings client reuses `OPENAI_API_KEY`, which sends your cloud OpenAI key to that host. llmwiki warns when this happens, except for endpoints on `localhost`.
@@ -59,6 +71,26 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 | `OPENAI_BASE_URL` | For custom or local endpoints | Base URL for chat and tool calls. **Must include `/v1`** |
 | `OPENAI_EMBEDDINGS_BASE_URL` | No | Separate base URL for embeddings requests. When unset, embeddings use the same client and base URL as chat |
 | `OPENAI_EMBEDDINGS_API_KEY` | No | Credential for embeddings requests. When unset, embeddings reuse `OPENAI_API_KEY` - set this whenever the embeddings endpoint belongs to someone else |
+
+---
+
+## OpenAI Codex CLI
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_PROVIDER` | Yes | Set to `codex-agent` |
+| `LLMWIKI_MODEL` | No | Passed to `codex exec --model`; when unset, Codex chooses its own available default |
+| `LLMWIKI_EMBEDDING_PROVIDER` | Yes | Existing provider that serves embeddings; use `ollama` for a keyless setup |
+
+Authentication is managed only by the installed Codex CLI (`codex login`).
+llmwiki does not read Codex auth files or any OpenAI API key for chat. The CLI
+does not expose a `maxTokens` control, so llmwiki cannot honor that internal
+hint for this provider. Each request has a fixed 10-minute timeout and 1 MiB
+process/final-output caps.
+
+The minimum verified compatible Codex CLI version is **0.152.1**. If an older
+binary rejects a required secure flag, llmwiki reports it as incompatible;
+update with `npm install -g @openai/codex@latest`.
 
 ---
 
@@ -214,5 +246,5 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 <Note>
-  The `.env` file is read from your project root at startup. It is a convenience for projects where you don't want to export variables in your shell every session. Shell environment variables always take precedence over `.env` values, so you can override any `.env` setting with a one-off `export` without editing the file.
+  Except for explicitly selected `codex-agent` runs, the `.env` file is read from your project root at startup. It is a convenience for projects where you don't want to export variables in your shell every session. Shell environment variables always take precedence over `.env` values, so you can override any `.env` setting with a one-off `export` without editing the file.
 </Note>

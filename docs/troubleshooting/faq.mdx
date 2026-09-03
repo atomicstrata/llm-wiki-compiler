@@ -44,11 +44,12 @@ If you don't have an Anthropic API key, see the next question for keyless altern
 </Accordion>
 
 <Accordion title="Can I use llmwiki without an Anthropic API key?">
-Yes. llmwiki supports three keyless or non-Anthropic providers:
+Yes. llmwiki supports four keyless or non-Anthropic providers:
 
 | Provider | How to activate | Notes |
 |---|---|---|
 | `claude-agent` | `LLMWIKI_PROVIDER=claude-agent` | Uses your local Claude Code login (OAuth/subscription). No `ANTHROPIC_API_KEY` needed - if `claude` runs in your terminal, this works. |
+| `codex-agent` | `LLMWIKI_PROVIDER=codex-agent` | Uses the installed Codex CLI and its local ChatGPT login. Requires an explicit existing embedding provider; pair with `ollama` for a keyless setup. |
 | `ollama` | `LLMWIKI_PROVIDER=ollama` | Runs entirely against a local Ollama instance. Set `LLMWIKI_MODEL` and `OLLAMA_HOST`. |
 | `copilot` | `LLMWIKI_PROVIDER=copilot` | Uses your GitHub Copilot subscription. Requires an OAuth token with the `copilot` scope (`gh auth refresh --scopes copilot`). Classic PATs are not supported. |
 
@@ -60,6 +61,16 @@ llmwiki compile
 ```
 
 Review the [provider terms of service](https://www.anthropic.com/legal/consumer-terms) that apply to your account type before using `claude-agent` for automated compilation workloads.
+
+For Codex, run `codex login`, set `LLMWIKI_PROVIDER=codex-agent`, and set
+`LLMWIKI_EMBEDDING_PROVIDER`. A missing binary or unusable login fails with a
+Codex-specific error and never falls back to an API key.
+
+Codex Agent requires a compatible Codex CLI; the minimum verified version is
+0.152.1. Update with `npm install -g @openai/codex@latest` if llmwiki reports
+that the installed CLI does not support its required secure flags. Export Codex
+Agent and embedding settings in the shell: explicit Codex selection bypasses
+the project `.env` file so llmwiki never opens a file that may contain API keys.
 </Accordion>
 
 <Accordion title="How do I switch providers mid-project?">

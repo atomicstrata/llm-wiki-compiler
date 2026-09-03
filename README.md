@@ -45,7 +45,7 @@ Do not use llmwiki as a general static-site generator, a heavy ontology database
 - **SDK.** `createWiki({ root })` drives ingest, compile, query, context, status, export, eval, and OKF import/export from TypeScript without shelling out.
 - **Open Knowledge Format exchange.** Export and import OKF bundles for portable, markdown-native knowledge exchange. External OKF imports are staged through the review queue by default; trusted bundles can be written live explicitly.
 - **Other portable exports.** Export JSON, JSON-LD, GraphML, Marp slides, and `llms.txt` for downstream systems.
-- **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI-compatible servers, Ollama, GitHub Copilot, Atlas Cloud, and local OpenAI-compatible runtimes.
+- **Provider portable.** Anthropic, Claude Agent SDK local login, OpenAI Codex CLI local login, OpenAI-compatible servers, Ollama, GitHub Copilot, Atlas Cloud, and local OpenAI-compatible runtimes.
 
 ## Configurable Lifecycle Profiles (CLP)
 
@@ -273,6 +273,7 @@ Provider selection is environment-driven:
 |---|---|
 | Anthropic | `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` |
 | Claude Agent SDK | Local Claude Code login, `LLMWIKI_PROVIDER=claude-agent` |
+| OpenAI Codex CLI | Local Codex login / ChatGPT subscription, `LLMWIKI_PROVIDER=codex-agent`; explicit embedding provider required |
 | OpenAI-compatible | `LLMWIKI_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_BASE_URL` |
 | Ollama | `LLMWIKI_PROVIDER=ollama`, `OLLAMA_HOST` |
 | GitHub Copilot | `LLMWIKI_PROVIDER=copilot`, `GITHUB_TOKEN=$(gh auth token)` |

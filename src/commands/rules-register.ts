@@ -14,6 +14,7 @@ import {
   rulesListCommand,
   rulesRejectCommand,
 } from "./rules.js";
+import { addProviderOption, applyProviderOption, type ProviderOption } from "../cli/provider-option.js";
 
 /** Provider guard injected by the CLI entrypoint. */
 type RequireProvider = () => void;
@@ -39,11 +40,14 @@ export function registerRulesCommand(program: Command, requireProvider: RequireP
 
 /** Register `rules extract`. */
 function registerExtract(rulesCommand: Command, requireProvider: RequireProvider): void {
-  rulesCommand
-    .command("extract")
-    .description("Extract rule candidates from changed sources (writes .llmwiki/rule-candidates/)")
-    .action(async () =>
+  addProviderOption(
+    rulesCommand
+      .command("extract")
+      .description("Extract rule candidates from changed sources (writes .llmwiki/rule-candidates/)"),
+  )
+    .action(async (options: ProviderOption) =>
       runRulesAction(async () => {
+        applyProviderOption(options);
         requireProvider();
         await rulesExtractCommand();
       }),

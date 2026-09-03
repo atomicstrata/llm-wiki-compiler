@@ -1,7 +1,7 @@
 ---
 title: "LLM Provider Setup and Configuration Guide for llmwiki"
 sidebarTitle: "Providers"
-description: "Configure llmwiki to use Anthropic, OpenAI-compatible endpoints, Ollama, GitHub Copilot, Atlas Cloud, or the Claude Agent SDK provider for local login."
+description: "Configure llmwiki to use Anthropic, OpenAI-compatible endpoints, Ollama, GitHub Copilot, Atlas Cloud, Claude Agent SDK, or OpenAI Codex CLI."
 ---
 
 llmwiki is provider-portable. Whether you have an Anthropic API key, a GitHub Copilot subscription, a locally-running Ollama server, or just a Claude Code login, you can point llmwiki at the right backend with a handful of environment variables - no config files required for most setups. Choose the provider that matches your existing credentials and infrastructure.
@@ -99,6 +99,79 @@ LLMWIKI_DEBUG=1 LLMWIKI_PROVIDER=claude-agent llmwiki compile
 <Warning>
   This provider drives your Claude Code / Agent SDK session programmatically to compile wikis. That is not automatically appropriate for every account type, plan, or environment. Before using it, review Anthropic's current [Claude Code](https://www.anthropic.com/legal/consumer-terms) and [Agent SDK](https://docs.anthropic.com/en/api/agent-sdk/overview) terms and usage policies, and make sure your intended use complies with them.
 </Warning>
+
+  </Tab>
+  <Tab title="OpenAI Codex CLI">
+
+The `codex-agent` provider delegates every completion and structured extraction
+request to the locally installed OpenAI Codex CLI. Authentication belongs
+entirely to Codex, so a ChatGPT subscriber can use an existing `codex login`;
+llmwiki does not require, read, copy, store, or log an OpenAI API key.
+
+**Setup**
+
+```bash
+npm install -g @openai/codex@latest
+codex login
+
+export LLMWIKI_PROVIDER=codex-agent
+export LLMWIKI_EMBEDDING_PROVIDER=ollama
+export OLLAMA_HOST=http://localhost:11434/v1
+llmwiki compile
+
+# Equivalent one-run selection:
+llmwiki compile --provider codex-agent
+```
+
+The `--provider` override is available on `compile`, `refresh`, `query`,
+`watch`, `rules extract`, `eval`, and `quickstart`. If Codex is missing or its
+login is unusable, llmwiki exits nonzero with a Codex-specific remediation;
+there is no fallback to an API-key provider.
+
+llmwiki's minimum verified compatible Codex CLI version is **0.152.1**. Older
+versions may not support the secure non-interactive flags this provider
+requires. If llmwiki reports an incompatible Codex CLI, update with
+`npm install -g @openai/codex@latest` and verify with `codex --version`.
+
+<Warning>
+  When `codex-agent` is selected by `--provider` or a shell-exported
+  `LLMWIKI_PROVIDER`, llmwiki deliberately does not open the project `.env`
+  file because it may contain API keys. Export `LLMWIKI_EMBEDDING_PROVIDER`,
+  `LLMWIKI_MODEL`, and any embedding-backend settings in the shell for that
+  run; do not rely on `.env` for Codex Agent configuration.
+</Warning>
+
+**Execution and option semantics**
+
+- Every request is a new non-interactive `codex exec` process with
+  `--ephemeral`, `--sandbox read-only`, ignored user config/rules, and an empty
+  throwaway working directory that is removed on success and failure.
+- The child receives a minimal environment allowlist for PATH, the local Codex
+  home/login location, temporary-directory selection, locale, and TLS trust.
+  API-key/token variables and unrelated parent variables are never forwarded.
+- A request is terminated after 10 minutes, first with `SIGTERM` and then with
+  `SIGKILL` after a one-second grace period. Retained stderr diagnostics are
+  capped at 1 MiB; stdout is drained without retention because the final message
+  is read from its separately capped 1 MiB file. The provider does not request
+  Codex's unused JSON event stream. Child diagnostics are never echoed in errors,
+  so credential-like output cannot escape into logs. Parent interruption
+  terminates the active Codex process tree and removes its throwaway directory
+  before llmwiki exits.
+- `LLMWIKI_MODEL`, when set, is passed to `codex exec --model`. When it is
+  unset, the Codex CLI chooses its own subscription-available default.
+- The Codex CLI has no `maxTokens` option, so llmwiki's internal `maxTokens`
+  hints cannot be honored by this provider and are not passed. Streaming is
+  buffered by Codex and delivered as one final chunk rather than token-by-token.
+- Structured requests use `--output-schema` and llmwiki independently validates
+  the returned JSON against that schema before the compiler can consume it.
+
+**Embeddings fail closed**
+
+Codex has no embeddings interface. `codex-agent` therefore requires an explicit
+`LLMWIKI_EMBEDDING_PROVIDER` naming an existing embedding backend; it never
+silently falls back to lexical-only behavior. Use `ollama` for a fully keyless
+setup, or configure `openai`, `anthropic`, or `claude-agent` embeddings with
+that backend's existing settings.
 
   </Tab>
   <Tab title="OpenAI-Compatible">
