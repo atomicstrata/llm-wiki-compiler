@@ -54,6 +54,11 @@ const REQUIRED_ASSETS = [
   "dist/viewer/assets/viewer-pipeline-model.js",
   "dist/viewer/assets/viewer-pipeline.css",
   "dist/viewer/assets/viewer-graph.css",
+  // Imported by viewer-rail.js. A page route fails to render without them, and
+  // the failure would be a bare import 404 in the browser console rather than
+  // anything the server reports — which is why they are guarded here.
+  "dist/viewer/assets/viewer-entity-fields.js",
+  "dist/viewer/assets/viewer-field-format.js",
 ];
 
 interface PackEntry {

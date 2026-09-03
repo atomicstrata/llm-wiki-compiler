@@ -133,6 +133,11 @@ const BODY_TEXT_PAIRS: [string, string][] = [
   ["--fg-body", "--bg-card"],
   ["--fg-muted", "--bg-card"],
   ["--fg", "--bg-shell"],
+  // .entity-field-link (viewer-content.css), body-sized, in the support rail.
+  // The rail declares no background, so it inherits the app shell's. This is
+  // the only interactive text the declared-field block renders, so it is the
+  // one pairing there a reader has to be able to read AND recognise as a link.
+  ["--accent-text", "--bg-shell"],
 ];
 
 describe("muted-token contrast — --fg-ghost / --fg-faint / --warn-muted / --fg-disabled", () => {

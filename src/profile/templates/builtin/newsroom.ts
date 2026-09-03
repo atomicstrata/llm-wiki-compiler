@@ -4,7 +4,7 @@
  */
 import type { ProfilePack } from "../../types.js";
 import type { ProfileTemplatePackage } from "../types.js";
-import { withoutTitleFields } from "../title-fields.js";
+import { withoutTitleFields } from "../prior-releases.js";
 
 export const newsroomEntities = {
   articles: {

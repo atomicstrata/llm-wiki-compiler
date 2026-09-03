@@ -30,6 +30,8 @@
  * `renderSupportRail`; every other route calls `clearSupportRail`.
  */
 
+import { buildEntityFields, renderedFieldNames } from "./viewer-entity-fields.js";
+
 const SUPPORT_SELECTOR = "[data-support-rail]";
 
 const RAIL_FIELDS = [
@@ -71,16 +73,51 @@ export function renderDashboardRail(panels) {
 /**
  * Render the page metadata into the support rail. Replaces whatever
  * was there before — callers don't need to clear separately.
+ *
+ * On a TYPED entity page the page's own declared fields lead, because
+ * {@link RAIL_FIELDS} below is the DEFAULT profile's vocabulary and describes a
+ * contract a typed page was never under. The fixed list still runs after them,
+ * minus any key the profile declares: an undeclared extra a page happens to
+ * carry (a stray `tags`, a hand-written `updatedAt`) keeps rendering exactly as
+ * before, and nothing is stated twice.
+ *
+ * The type's own title field is skipped: the page heading already shows that
+ * value, so a row repeating it would state the same thing twice in the same
+ * viewport — the very duplication this function avoids between the two lists.
+ *
+ * @param {object} payload - The `/api/page/:dir/:slug` response.
+ * @param {{name: string, type: string}[]} [fieldDefs] - The declared fields of
+ *   this page's entity type, from `profilePipeline`. Absent on a default page.
+ * @param {string} [titleField] - The key this type titles pages by, if any.
  */
-export function renderSupportRail(payload) {
+export function renderSupportRail(payload, fieldDefs, titleField) {
   const support = document.querySelector(SUPPORT_SELECTOR);
   if (!support) return;
   support.innerHTML = "";
   appendFreshnessBadges(support, payload);
-  appendFrontmatterDl(support, extractFrontmatter(payload));
+  const frontmatter = extractFrontmatter(payload);
+  const shown = withoutTitleField(fieldDefs, titleField);
+  const declared = buildEntityFields(shown, frontmatter);
+  if (declared) support.appendChild(declared);
+  // Suppression is computed from the UNFILTERED declarations: a `titleField`
+  // that happens to name a fixed-list key (`kind`, `tags`, …) is hidden from the
+  // declared block because the heading shows it, and must stay hidden in the
+  // fixed list too — otherwise removing it from one list would resurrect it in
+  // the other, beside the heading it duplicates.
+  appendFrontmatterDl(support, frontmatter, renderedFieldNames(fieldDefs, frontmatter));
   const warnings = extractWarnings(payload);
   if (warnings.length > 0) support.appendChild(buildRailWarnings(warnings));
   appendFreshnessCaption(support, payload);
+}
+
+/**
+ * The declared fields minus the one the heading already shows. Returns the list
+ * unchanged when the type declares no title field, so a type whose title is not
+ * a declared field keeps every row it had.
+ */
+function withoutTitleField(fieldDefs, titleField) {
+  if (!Array.isArray(fieldDefs) || typeof titleField !== "string") return fieldDefs;
+  return fieldDefs.filter((def) => def?.name !== titleField);
 }
 
 /** Clear the support rail entirely (used on non-page routes). */
@@ -101,10 +138,17 @@ function extractWarnings(payload) {
   return payload.warnings;
 }
 
-/** Build and attach the frontmatter <dl> when at least one field rendered. */
-function appendFrontmatterDl(support, fm) {
+/**
+ * Build and attach the fixed-list <dl> when at least one field rendered,
+ * skipping any key the page's profile declares — those are already rendered
+ * above, by their declared type rather than by this list's assumption about them.
+ */
+function appendFrontmatterDl(support, fm, declaredNames) {
   const dl = document.createElement("dl");
-  for (const field of RAIL_FIELDS) appendRailField(dl, field, fm[field.key]);
+  for (const field of RAIL_FIELDS) {
+    if (declaredNames.has(field.key)) continue;
+    appendRailField(dl, field, fm[field.key]);
+  }
   if (dl.children.length > 0) support.appendChild(dl);
 }
 

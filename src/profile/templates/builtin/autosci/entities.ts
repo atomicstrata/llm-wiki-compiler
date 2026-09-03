@@ -15,8 +15,8 @@ export const autosciEntities = {
       authors: { type: "string[]", required: true },
       year: { type: "integer" },
       venue: { type: "string" },
-      doi: { type: "string" },
-      arxivId: { type: "string" },
+      doi: { type: "string", format: "doi" },
+      arxivId: { type: "string", format: "arxiv" },
       triageNote: { type: "string" },
       distilledSummary: { type: "string" },
       stage: { type: "enum", enum: ["imported", "triaged", "distilled"], required: true },
@@ -37,7 +37,7 @@ export const autosciEntities = {
     fields: {
       title: { type: "string" },
       kind: { type: "enum", enum: ["paper", "repo", "video", "web"] },
-      locator: { type: "string" },
+      locator: { type: "string", format: "url" },
       stage: { type: "enum", enum: ["imported", "triaged"] },
     },
     lifecycle: {

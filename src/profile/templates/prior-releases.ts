@@ -1,6 +1,6 @@
 /**
- * @file src/profile/templates/title-fields.ts
- * @description Deriving a builtin template's PRE-`titleField` release.
+ * @file src/profile/templates/prior-releases.ts
+ * @description Deriving a builtin template's PRIOR releases from its current one.
  *
  * Lives OUTSIDE `builtin/` on purpose. That directory is the template-DATA
  * allowlist `test/profile-template-genericity.test.ts` enumerates — the only
@@ -41,6 +41,39 @@ export function withoutTitleFields(entities: ProfilePack["entities"]): ProfilePa
     Object.entries(entities).map(([type, def]) => {
       const { titleField: _dropped, ...rest } = def;
       return [type, rest];
+    }),
+  );
+}
+
+/**
+ * The same entity block with every field's `format` declaration removed.
+ *
+ * The second such derivation, and it composes with the first: a release two
+ * versions back is `withoutTitleFields(withoutFieldFormats(current))`. Each is a
+ * single named change, so the composition reads as the changelog it is.
+ *
+ * @param entities - The CURRENT release's entity block.
+ * @returns The block as the pre-`format` release published it.
+ */
+export function withoutFieldFormats(entities: ProfilePack["entities"]): ProfilePack["entities"] {
+  return Object.fromEntries(
+    Object.entries(entities).map(([type, def]) => {
+      // Spread-then-overwrite would give a field-less type an explicit
+      // `fields: undefined`, i.e. a KEY the published release did not have.
+      // Canonicalization happens to drop it, but a retained release should be
+      // shaped like what it published rather than rely on that.
+      if (def.fields === undefined) return [type, def];
+      return [type, { ...def, fields: strippedFields(def.fields) }];
+    }),
+  );
+}
+
+/** A field map with each field's `format` declaration removed. */
+function strippedFields(fields: Record<string, { format?: unknown }>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(fields).map(([name, field]) => {
+      const { format: _dropped, ...rest } = field;
+      return [name, rest];
     }),
   );
 }

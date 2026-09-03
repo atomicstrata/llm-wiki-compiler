@@ -184,6 +184,38 @@ function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
 }
 
 /**
+ * Field types a declarative `format` can describe. A format is a hint about how
+ * to read TEXT, so on a boolean, number, date, enum or artifactRef it would be
+ * config no renderer could act on — rejected at load rather than ignored later.
+ */
+const FORMATTABLE_TYPES: ReadonlySet<FieldType> = new Set<FieldType>(["string", "string[]"]);
+
+/**
+ * A declared `format` must sit on a field whose type it can describe.
+ *
+ * Applied to EVERY `FieldDef` carrier, not just entity fields: the schema
+ * resolves relation `attributes` and artifact `metadata` to the same
+ * `$defs/fieldDef`, so all three would otherwise accept a format the contract
+ * says is invalid — and artifact metadata is projected onto the wire. Same
+ * placement discipline as {@link assertArtifactTypesScoped}, which is wired into
+ * all three for the same reason.
+ */
+function assertFieldFormatScoped(where: string, name: string, field: FieldDef): void {
+  if (field.format === undefined) return;
+  assert(
+    FORMATTABLE_TYPES.has(field.type),
+    `${where} field '${name}': format '${field.format}' is not valid on type '${field.type}'`,
+  );
+}
+
+/** Every declared `format` on an entity's fields must describe a text type. */
+function validateFieldFormats(entityType: string, def: EntityTypeDef): void {
+  for (const [name, field] of Object.entries(def.fields ?? {})) {
+    assertFieldFormatScoped(`entity '${entityType}'`, name, field);
+  }
+}
+
+/**
  * `titleField` must name a DECLARED field that can actually hold a title.
  *
  * It is schema-typed as a bare string and was checked against nothing, so a
@@ -365,6 +397,7 @@ function validateEntity(entityType: string, def: EntityTypeDef, declaredArtifact
   validateArtifactTypesScope(entityType, def, declaredArtifactTypes);
   validateRequiredFields(entityType, def);
   validateTitleField(entityType, def);
+  validateFieldFormats(entityType, def);
   validateContentTiers(entityType, def);
   const warnings = def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
   return { canonicalDirectory, warnings };
@@ -405,6 +438,7 @@ function validateRelationAttributes(rel: string, def: RelationTypeDef, declaredA
   for (const [name, field] of Object.entries(attributes)) {
     assertFieldDefFinite(`relation '${rel}' attribute '${name}'`, field);
     assertArtifactTypesScoped(`relation '${rel}'`, name, field, declaredArtifactTypes);
+    assertFieldFormatScoped(`relation '${rel}'`, name, field);
   }
   for (const name of def.requiredAttributes ?? []) {
     assert(name in attributes, `relation '${rel}' requiredAttributes references undeclared attribute '${name}'`);
@@ -590,6 +624,7 @@ function validateArtifacts(profile: ProfilePack, declaredArtifactTypes: Set<stri
       assert(fd.type !== "artifactRef" && fd.type !== "artifactRef[]",
         `artifact ${JSON.stringify(id)} metadata field ${JSON.stringify(field)} is artifactRef-typed — nested artifact refs are not supported in v0`);
       assertArtifactTypesScoped(`artifact ${JSON.stringify(id)} metadata`, field, fd, declaredArtifactTypes);
+      assertFieldFormatScoped(`artifact ${JSON.stringify(id)} metadata`, field, fd);
     }
   }
 }
