@@ -153,8 +153,9 @@ function getMiniMaxProvider(): MiniMaxProvider {
   return new MiniMaxProvider(getModelForProvider("minimax"), apiKey);
 }
 
+/** Build the gateway client with the same nonblank-key rule as the guard. */
 function getOrcaRouterProvider(): OrcaRouterProvider {
-  const apiKey = process.env.ORCAROUTER_API_KEY;
+  const apiKey = readOptionalEnv("ORCAROUTER_API_KEY");
   if (!apiKey) {
     throw new Error(
       "OrcaRouter provider requires ORCAROUTER_API_KEY environment variable.\n" +

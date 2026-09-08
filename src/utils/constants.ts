@@ -74,6 +74,7 @@ export const SUPPORTED_PROVIDER_INPUTS = [
   "openai",
   "ollama",
   "minimax",
+  "orcarouter",
   "copilot",
   "atlascloud",
   "atlas-cloud",

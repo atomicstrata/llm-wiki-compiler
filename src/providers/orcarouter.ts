@@ -2,7 +2,8 @@
  * OrcaRouter LLM provider implementation.
  *
  * Extends OpenAIProvider since OrcaRouter exposes an OpenAI-compatible API.
- * Overrides only the constructor to set OrcaRouter's base URL and API key.
+ * Sets OrcaRouter's base URL and API key, and disables embeddings until
+ * that integration is wired up in llmwiki.
  */
 
 import { OpenAIProvider } from "./openai.js";
@@ -16,11 +17,11 @@ export class OrcaRouterProvider extends OpenAIProvider {
     super(model, { baseURL: ORCAROUTER_BASE_URL, apiKey });
   }
 
-  /** OrcaRouter embedding support is unverified; fail closed instead of inheriting OpenAI semantics. */
+  /** Embeddings are not wired up in llmwiki; fail closed rather than inheriting OpenAI semantics. */
   override async embed(_text: string): Promise<number[]> {
     throw new Error(
       "OrcaRouter provider does not support embeddings in llmwiki yet.\n" +
-      "  For semantic search, use LLMWIKI_PROVIDER=openai, anthropic, claude-agent, or ollama.",
+      "  For semantic search, set LLMWIKI_EMBEDDING_PROVIDER=openai, anthropic, claude-agent, or ollama.",
     );
   }
 

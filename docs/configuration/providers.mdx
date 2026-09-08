@@ -293,9 +293,12 @@ export OPENAI_EMBEDDINGS_API_KEY=<your-key>
   `GITHUB_TOKEN` must be a GitHub OAuth token obtained via `gh auth token` after running `gh auth refresh --scopes copilot`. Classic personal access tokens (PATs) are rejected by the Copilot API and will not work.
 </Warning>
 
+  </Tab>
   <Tab title="OrcaRouter">
 
 The `orcarouter` provider routes calls through [OrcaRouter](https://www.orcarouter.ai), a hosted multi-provider AI gateway that exposes an OpenAI-compatible API. Model names are namespaced by upstream provider (for example `openai/gpt-4o-mini`), and the built-in default model is `openai/gpt-4o-mini`.
+
+The default is a smaller model to keep compilation costs down. For more demanding source material, set `LLMWIKI_MODEL` to a stronger namespaced model that supports tool calls; concept extraction requires structured tool arguments.
 
 **Variables**
 
@@ -315,7 +318,7 @@ llmwiki compile
 
 **Embeddings**
 
-OrcaRouter's embeddings endpoint is unverified in llmwiki, so the provider fails closed instead of inheriting OpenAI's embedding semantics. To keep OrcaRouter for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+OrcaRouter embeddings are not wired up in llmwiki, so the provider fails closed instead of inheriting OpenAI's embedding semantics. To keep OrcaRouter for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
 
 ```bash
 export LLMWIKI_PROVIDER=orcarouter
