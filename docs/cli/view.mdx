@@ -69,6 +69,10 @@ An entity page that violates its profile's field contract - a missing required f
 
 Typed entity pages carry the same citation chips and provenance as compiled pages. They do not carry a freshness verdict: freshness is derived from the sources a page was compiled from, and entity pages are authored rather than compiled, so they always read as unverified rather than being labelled fresh on no evidence.
 
+Typed pages also show their immediate related entities, grouped by relation type and incoming, outgoing, or symmetric direction. Missing or invalid endpoints remain visible as unresolved rather than becoming broken links. Neighborhoods and source evidence are sorted and limited to 100 entries, with the full count shown when truncated. These descriptions are captured when the viewer starts; restart it after changing pages or relations.
+
+The evidence section distinguishes a connector's metadata fetch from an original publication. A connector URL is not proof that publication bytes were stored. Explicit citations and source declarations link to raw ingested source entries at `#/_source/<filename>`; citation links carry physical line ranges, including frontmatter. Empty relation and evidence sections say when nothing is attached. Ordinary default-profile pages retain their existing layout.
+
 Each entity type your profile declares gets a row in the sidebar's **BROWSE** section and a list route of its own at `#/_type/<entity-type>`, and every page on it opens at `#/<entity-type>/<slug>`. See **Sidebar navigation** below for how BROWSE is built.
 
 ## What the viewer includes

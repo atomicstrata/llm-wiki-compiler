@@ -55,6 +55,8 @@ export interface TypedViewerInputs {
    * different profile than the one that produced the corpus beside it.
    */
   pipeline: PipelineDefinitions;
+  /** Full internal contract used by confined artifact access, not the wire projection. */
+  artifactDefinitions: ProfilePack["artifacts"];
 }
 
 /**
@@ -80,6 +82,7 @@ export async function collectTypedViewerInputs(
       relations: await readTypedRelations(root, loaded.profile),
     },
     pipeline: buildPipelineDefinitions(loaded.profile),
+    artifactDefinitions: structuredClone(loaded.profile.artifacts ?? {}),
   };
 }
 

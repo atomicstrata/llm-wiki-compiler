@@ -47,6 +47,7 @@ import { renderPipeline } from "./viewer-pipeline.js";
 import { renderDashboard } from "./viewer-dashboard.js";
 import { buildHealthView } from "./viewer-health.js";
 import { typeListHashType } from "./viewer-routes.js";
+import { renderEntityContext, renderSourceEntry } from "./viewer-entity-context.js";
 
 const MAIN_SELECTOR = "[data-main-pane]";
 
@@ -135,7 +136,15 @@ function parseRoute(hash) {
  * namespace is consulted before {@link parsePageRoute} ever sees the hash.
  */
 function namedRoute(key) {
-  return STATIC_ROUTES.get(key) ?? entityListRoute(key);
+  return STATIC_ROUTES.get(key) ?? sourceEntryRoute(key) ?? entityListRoute(key);
+}
+
+/** Reserve raw source entries independently of a profile's typed source entities. */
+function sourceEntryRoute(key) {
+  const match = /^#\/_source\/([^/?]+)(?:\?.*)?$/.exec(key);
+  if (!match) return undefined;
+  const filename = decodeSlug(match[1]);
+  return filename ? { kind: "sourceEntry", filename } : { kind: "home" };
 }
 
 /**
@@ -219,6 +228,7 @@ const ROUTE_RENDERERS = {
   reviews: (main) => renderFetchedRoute(main, "/api/reviews", renderReviewsList),
   workflows: (main) => renderFetchedRoute(main, "/api/workflow-runs", renderWorkflowRunsList),
   pipeline: (main) => renderListRoute(main, renderPipeline),
+  sourceEntry: (main, route) => renderListRoute(main, (pane, envelope) => renderSourceEntry(pane, envelope, route.filename)),
 };
 
 /**
@@ -260,7 +270,7 @@ async function renderRoute() {
   // route needs the type the hash named as well.
   if (route.kind === "entityList") return renderEntityListRoute(main, route.type);
   const handler = ROUTE_RENDERERS[route.kind];
-  if (handler) return handler(main);
+  if (handler) return handler(main, route);
   return renderPagePane(main, route.directory, route.slug);
 }
 
@@ -383,10 +393,14 @@ function handleIndexError(main, err) {
 
 /** Fetch /api/page/:dir/:slug and render. */
 async function renderPagePane(main, directory, slug) {
+  const routeHash = location.hash;
   try {
     const payload = await fetchJson(pageApiPath(directory, slug));
-    renderPagePayload(main, payload, slug, await declaredFieldsFor(payload.entityType));
+    const fields = await declaredFieldsFor(payload.entityType);
+    if (location.hash !== routeHash) return;
+    renderPagePayload(main, payload, slug, fields);
   } catch (err) {
+    if (location.hash !== routeHash) return;
     handlePageError(main, err, directory, slug);
   }
 }
@@ -407,6 +421,7 @@ function renderPagePayload(main, payload, slug, fieldDefs) {
   appendWarnings(main, payload.warnings || []);
   const body = appendRenderedBody(main, payload.html);
   removeDuplicateLeadingHeading(body, title);
+  renderEntityContext(main, payload);
   renderSupportRail(payload, fieldDefs, titleFieldFor(payload.entityType));
 }
 

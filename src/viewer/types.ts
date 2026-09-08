@@ -13,6 +13,8 @@
  */
 
 import type { ClaimCitation } from "../utils/types.js";
+import type { EntityContext } from "./entity-context.js";
+import type { ProfilePack } from "../profile/types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { PageFreshness } from "../freshness/types.js";
 import type { ProfileSummaryBlock } from "../profile/block.js";
@@ -106,6 +108,8 @@ export interface ViewerPage {
    * surface branches on to tell the two kinds of page apart.
    */
   entityType?: string;
+  /** Bounded relation/provenance projection, captured once for typed pages. */
+  entityContext?: EntityContext;
   /** Display title. Falls back to slug when frontmatter has no title. */
   title: string;
   /** Absolute path on disk, used for editor links in the support rail. */
@@ -332,4 +336,6 @@ export interface ViewerSnapshot {
    * one copy of each fact instead of two views of the same numbers.
    */
   pipeline?: PipelineDefinitions;
+  /** Internal request-time artifact validation contract; never a wire field. */
+  artifactDefinitions?: ProfilePack["artifacts"];
 }
