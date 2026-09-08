@@ -5,7 +5,8 @@
  *
  * A modifier is a knob that changes what the page prompt ASKS FOR without
  * changing the committed prompt wording: the output language, set by `--lang`
- * or `LLMWIKI_OUTPUT_LANG`, and the caller policy passed to `compile`. Two facts follow from that, and this
+ * or `LLMWIKI_OUTPUT_LANG`, the Sources-section preference, and the caller policy
+ * passed to `compile`. Two facts follow from that, and this
  * module is the single source for both:
  *
  *  - **Change detection.** `detectChanges` classifies a source purely by the
@@ -27,6 +28,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { getOutputLanguage } from "../utils/output-language.js";
+import { sourcesSectionEnabled } from "../utils/sources-section.js";
 import type { SourceChange, WikiState } from "../utils/types.js";
 
 /**
@@ -39,6 +41,7 @@ export function activePromptModifiers(): Record<string, string> {
   const modifiers: Record<string, string> = {};
   const lang = getOutputLanguage();
   if (lang) modifiers.lang = lang;
+  if (!sourcesSectionEnabled()) modifiers.sourcesSection = "off";
   const policy = activeSystemPolicy();
   if (policy) modifiers.policy = sha256(policy);
   return modifiers;

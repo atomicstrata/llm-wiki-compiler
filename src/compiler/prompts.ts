@@ -13,6 +13,7 @@ import type {
 import type { PageKindRule, SeedPage } from "../schema/index.js";
 import { languageDirective } from "../utils/output-language.js";
 import { activeSystemPolicy } from "./prompt-modifiers.js";
+import { sourcesSectionEnabled } from "../utils/sources-section.js";
 
 /**
  * Build a list of optional prompt lines, omitting empty entries so the
@@ -26,6 +27,16 @@ function withLangLine(...lines: string[]): string[] {
 }
 
 /**
+ * The page-generation instruction for the trailing `## Sources` section, or
+ * nothing when the project opted out. Spreadable so the default prompt keeps
+ * its exact wording instead of gaining a blank line where the request was.
+ */
+function sourcesSectionLines(): string[] {
+  if (!sourcesSectionEnabled()) return [];
+  return ["Include a ## Sources section at the end listing the source document."];
+}
+
+/**
  * Named version of the extraction + page-generation prompt contract.
  *
  * Bump this whenever the wording of the extraction tool schema, the
@@ -35,7 +46,7 @@ function withLangLine(...lines: string[]): string[] {
  * downstream auditor can distinguish pages produced under different prompt
  * generations even when the model id is identical. Format is `vMAJOR`.
  */
-export const PROMPT_VERSION = "v2";
+export const PROMPT_VERSION = "v3";
 
 /**
  * The caller's system policy as prompt lines, or nothing when none is set.
@@ -204,7 +215,7 @@ export function buildPagePrompt(
     ...withLangLine(
       `You are a wiki author. Write a clear, well-structured markdown page about "${concept}".`,
       "Draw facts only from the provided source material.",
-      "Include a ## Sources section at the end listing the source document.",
+      ...sourcesSectionLines(),
       "Suggest [[wikilinks]] to related concepts where appropriate.",
       "Write in a neutral, informative tone. Be concise but thorough.",
     ),

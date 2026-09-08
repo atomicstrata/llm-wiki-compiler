@@ -23,6 +23,7 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 | `--review` | Write generated pages to `.llmwiki/candidates/` instead of `wiki/`. Pages are held for human review and don't appear in the live wiki until you approve them with `llmwiki review approve <id>`. |
 | `--provider <name>` | Override `LLMWIKI_PROVIDER` for this compile only. Use `codex-agent` to delegate both compile phases to non-interactive `codex exec`. |
 | `--lang <code>` | Override the output language for this compile run (e.g. `zh-CN`, `Chinese`, `ja`, `Japanese`). Wins over the `LLMWIKI_OUTPUT_LANG` environment variable. Unset preserves the model's default behaviour. Changing it regenerates already-compiled pages — see [Prompt modifiers and recompilation](#prompt-modifiers-and-recompilation). |
+| `--no-sources-section` | Stop asking the model for a trailing `## Sources` section in generated pages. Provenance is unaffected: the `sources:` frontmatter and the inline `^[file.md:1-5]` citation markers are produced by the compiler and stay exactly as they are. Equivalent to setting `LLMWIKI_SOURCES_SECTION=off`. |
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
@@ -131,7 +132,14 @@ For a deeper look at how the two-phase pipeline works, see [How It Works](/conce
 
 A **prompt modifier** is a setting that changes what the page prompt asks for
 without changing llmwiki's own prompt wording. Today that is the output
-language, set by `--lang` or `LLMWIKI_OUTPUT_LANG`.
+language, set by `--lang` or `LLMWIKI_OUTPUT_LANG`, and the Sources-section
+preference, set by `--no-sources-section` or `LLMWIKI_SOURCES_SECTION=off`.
+
+The Sources flag only disables the request. To restore the default, omit the
+flag and unset `LLMWIKI_SOURCES_SECTION` (or set it to `on`). Setting or clearing
+this preference regenerates affected pages, including already-compiled pages.
+It changes the instruction sent to the model; it does not strip a heading from
+the response or guarantee that a model will never include one.
 
 Compile is incremental: it normally skips a source whose bytes have not changed.
 A modifier is an input to the page prompt exactly as the source text is, so
