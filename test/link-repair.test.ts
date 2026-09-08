@@ -6,33 +6,28 @@
  * refuse to guess: a slug prefixing two pages or none is left exactly as it is.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtemp, writeFile, mkdir, readFile, rm, symlink } from "fs/promises";
+import { describe, it, expect, beforeEach } from "vitest";
+import { writeFile, mkdir, readFile, symlink } from "fs/promises";
 import path from "path";
-import os from "os";
 import { execFileSync } from "node:child_process";
 import { repairLinks } from "../src/compiler/link-repair.js";
 import { applyCompilePageWritesLocked } from "../src/compiler/compile-write.js";
-import { buildFrontmatter } from "../src/utils/markdown.js";
 import { writeCandidate } from "../src/compiler/candidates.js";
+import { useTempRoot } from "./fixtures/temp-root.js";
+import { writePage as writeFixturePage } from "./fixtures/write-page.js";
 
 describe("repairLinks", () => {
+  const ctx = useTempRoot();
   let tmpDir: string;
   let conceptsDir: string;
 
-  beforeEach(async () => {
-    tmpDir = await mkdtemp(path.join(os.tmpdir(), "llmwiki-link-repair-"));
+  beforeEach(() => {
+    tmpDir = ctx.dir;
     conceptsDir = path.join(tmpDir, "wiki", "concepts");
-    await mkdir(conceptsDir, { recursive: true });
-  });
-
-  afterEach(async () => {
-    await rm(tmpDir, { recursive: true, force: true });
   });
 
   async function writePage(slug: string, body: string): Promise<void> {
-    const fm = buildFrontmatter({ title: slug, summary: "test" });
-    await writeFile(path.join(conceptsDir, `${slug}.md`), `${fm}\n\n${body}\n`, "utf-8");
+    await writeFixturePage(conceptsDir, slug, { title: slug, summary: "test" }, body);
   }
 
   async function readPage(slug: string): Promise<string> {
@@ -86,7 +81,7 @@ describe("repairLinks", () => {
     await writePage("argo-cd-guide", "Details.");
     await writePage("deployment", "See [[Argo CD]].");
     const queries = path.join(tmpDir, "wiki/queries");
-    await mkdir(queries);
+    await mkdir(queries, { recursive: true });
     await writeFile(path.join(queries, "argo-cd-guide.md"), "Query details.");
     expect(await repairLinks(tmpDir)).toEqual([]);
   });
