@@ -271,6 +271,7 @@ function pagePayload(
     createdAt:
       typeof page.frontmatter.createdAt === "string" ? (page.frontmatter.createdAt as string) : "",
     generatedAt: snapshot.generatedAt,
+    ...(page.entityType !== undefined && page.entityContext ? { entityContext: page.entityContext } : {}),
     ...entityTypeField(page),
   };
 }

@@ -36,6 +36,7 @@ import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js"
 import { collectProfileSummary } from "../profile/block.js";
 import { journalHealthWarning } from "../trust/journal-health-warning.js";
 import { collectTypedViewerInputs } from "./typed-pages.js";
+import { attachEntityContexts } from "./entity-context.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import { UNRESOLVED_CITATION_CODE } from "./types.js";
 import type {
@@ -73,7 +74,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
   const decorate = buildPageDecorator(sourceFilenames, freshnessSnapshot);
   const annotatedDefault = defaultPages.map(decorate);
   const annotatedTyped = decorateEntityPages(typed?.pages ?? [], defaultPages).map(decorate);
-  const pages = [...annotatedDefault, ...annotatedTyped];
+  const pages = attachEntityContexts([...annotatedDefault, ...annotatedTyped], typed?.graph.relations ?? [], sourceFilenames);
   // Surface a pending/unavailable compile journal so the viewer never renders
   // partial post-crash or tampered state as silently healthy. ABSENT when the
   // journal is ok, so the default snapshot is byte-identical (parity-safe).
@@ -95,7 +96,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
     graph: buildGraphData(annotatedDefault, typed?.graph),
     ...(journalWarning ? { warnings: [journalWarning] } : {}),
     ...(profile ? { profile } : {}),
-    ...(typed ? { entityTypes: typed.entityTypes, pipeline: typed.pipeline } : {}),
+    ...(typed ? { entityTypes: typed.entityTypes, pipeline: typed.pipeline, artifactDefinitions: typed.artifactDefinitions } : {}),
   };
 }
 
