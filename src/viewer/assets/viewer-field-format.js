@@ -43,9 +43,27 @@ const ARXIV_PATTERN = /^(\d{4}\.\d{4,5}(v\d+)?|[a-z-]+(\.[A-Z]{2})?\/\d{7}(v\d+)
  */
 const RESOLVERS = Object.assign(Object.create(null), {
   url: passThroughHttpUrl,
-  doi: (value) => (DOI_PATTERN.test(value) ? resolvedUnder("https://doi.org/", value) : null),
+  doi: resolveDoi,
   arxiv: (value) => (ARXIV_PATTERN.test(value) ? resolvedUnder("https://arxiv.org/abs/", value) : null),
 });
+
+/**
+ * A DOI is identifier text, not URL syntax. Encode each segment so literal
+ * percent signs, backslashes, fragments and query delimiters reach the resolver
+ * intact while embedded DOI slashes remain path separators. Reject identifiers
+ * the URL parser would normalize to a different path (such as dot segments).
+ */
+function resolveDoi(value) {
+  if (!DOI_PATTERN.test(value)) return null;
+  try {
+    const encoded = value.split("/").map(encodeURIComponent).join("/");
+    const href = resolvedUnder("https://doi.org/", encoded);
+    if (!href) return null;
+    return decodeURIComponent(new URL(href).pathname.slice(1)) === value ? href : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Resolve `value` against a FIXED resolver base and return the result only if it
