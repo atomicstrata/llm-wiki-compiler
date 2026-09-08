@@ -43,12 +43,13 @@ const PUBLISHED_DIGESTS: Record<string, Record<string, string>> = {
   autosci: {
     "0.1.0": "bf48a4e77f9f40e06d8c56514851e678c59dfa217e4542f38d0fc8ef5e9e5489",
     "0.2.0": "7492d386a0fb8df534849981c40ebbe1a578aadc9bff30898c989bb164731798",
+    "0.3.0": "b9bbb962813afe3235904cc7d059aca3cf52941495320fb438f3eb4b4b80814c",
   },
   newsroom: { "0.1.0": "866882812c21c769e469d3f842b5bbdcc1d14cab4195cdb701d4c4181e4000ae" },
 };
 
 /** The version each template currently ships. */
-const CURRENT_VERSIONS: Record<string, string> = { autosci: "0.3.0", newsroom: "0.2.0" };
+const CURRENT_VERSIONS: Record<string, string> = { autosci: "0.4.0", newsroom: "0.2.0" };
 
 /** The title field each template's types are expected to declare. */
 const EXPECTED_TITLE_FIELDS: Record<string, Record<string, string>> = {
@@ -153,10 +154,11 @@ describe.each(TEMPLATE_IDS)("%s 0.1.0 stays exactly resolvable", (id) => {
     }
   });
 
-  it("differs from the current release by nothing but those declarations", () => {
+  it("differs from the format-only release by nothing but those declarations", () => {
+    const formatRelease = id === "autosci" ? retained(id, "0.3.0")! : current(id);
     for (const version of Object.keys(PUBLISHED_DIGESTS[id])) {
       expect(stripAdded(retained(id, version)!.profile.entities as never), version).toEqual(
-        stripAdded(current(id).profile.entities as never),
+        stripAdded(formatRelease.profile.entities as never),
       );
     }
   });

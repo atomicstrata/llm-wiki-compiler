@@ -223,12 +223,29 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
 export async function readWithinCapOrElse<T>(opened: Extract<ConfinedLeafOpen, { kind: "confirmed" }>, maxBytes: number, onOversize: (actualBytes: number) => T): Promise<CappedLeafRead | T> {
   try {
     if (opened.size > maxBytes) return onOversize(opened.size);
-    return { kind: "ok", body: await opened.handle.readFile("utf-8") };
+    const bytes = await readBoundedBytes(opened.handle, maxBytes);
+    if (bytes.length > maxBytes) return onOversize((await opened.handle.stat()).size);
+    return { kind: "ok", body: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
   } catch {
     return { kind: "unavailable" };
   } finally {
     await opened.handle.close().catch(() => {});
   }
+}
+
+/** Read at most one byte beyond the cap, including when the inode grows mid-read. */
+async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let length = 0;
+  const chunkBytes = 64 * 1024;
+  while (length <= maxBytes) {
+    const chunk = Buffer.alloc(Math.min(chunkBytes, maxBytes + 1 - length));
+    const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+    if (bytesRead === 0) break;
+    chunks.push(chunk.subarray(0, bytesRead));
+    length += bytesRead;
+  }
+  return Buffer.concat(chunks, length);
 }
 
 /**

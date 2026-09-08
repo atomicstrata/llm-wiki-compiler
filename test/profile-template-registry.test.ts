@@ -185,9 +185,9 @@ describe("builtin template registry", () => {
     });
     expect(summaries.find((s) => s.templateId === "autosci")?.capabilities).toMatchObject({
       entities: 12,
-      relations: 12,
+      relations: 15,
       workflows: 5,
-      artifacts: 7,
+      artifacts: 9,
       connectors: ["crossref"],
     });
     expect(summaries.find((s) => s.templateId === "newsroom")?.capabilities).toMatchObject({

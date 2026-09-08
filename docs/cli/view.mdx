@@ -4,7 +4,7 @@ sidebarTitle: "View"
 description: "llmwiki view starts a private local web server for browsing, searching, and inspecting your compiled wiki with provenance chips and a graph view."
 ---
 
-After compiling your wiki, `llmwiki view` gives you a private local web interface for browsing, searching, and inspecting what was generated. The viewer renders your compiled Markdown pages with their frontmatter metadata, shows citation and provenance chips for each claim, provides a full-text search across your compiled pages, and includes a force-directed graph at `#/graph` for exploring how concepts link to each other. Everything runs locally - no data leaves your machine.
+After compiling your wiki, `llmwiki view` gives you a private local web interface for browsing, searching, and inspecting what was generated. The viewer renders your compiled Markdown pages with their frontmatter metadata, shows citation and provenance chips for each claim, provides a full-text search across your compiled pages, and includes a force-directed graph at `#/graph` for exploring how concepts link to each other. The viewer runs locally. Opening a DOI, arXiv or URL locator navigates to that external service; it does not make the viewer acquire or store the original publication.
 
 ## Starting the viewer
 
@@ -135,7 +135,7 @@ For the per-count detail behind the verdict, open `#/health`. To narrow the conc
 
 **Page metadata.** Each page shows its frontmatter fields - kind, contributing sources, confidence score, provenance state, creation and update timestamps - in the metadata rail on the right of the page.
 
-**A typed entity page shows the fields its own type declares**, above that list and in the order the profile declares them. Values render by their declared type: an array becomes a list, an `enum` becomes a state chip, a boolean reads as Yes or No, and a field carrying a [`format`](/configuration/profiles#field-formats) becomes an external link. A field the record does not carry is left out rather than shown empty, and an `artifactRef` is named but marked unverified - the viewer does not yet read the artifact store to check it.
+**A typed entity page shows the fields its own type declares**, above that list and in the order the profile declares them. Values render by their declared type: an array becomes a list, an `enum` becomes a state chip, a boolean reads as Yes or No, and a field carrying a [`format`](/configuration/profiles#field-formats) becomes an external link. A field the record does not carry is left out rather than shown empty. Artifact references show their current verification result and declared metadata; healthy artifacts offer local preview and download controls.
 
 Those fields lead because the list below them is the default profile's vocabulary and describes a contract a typed page was never under. Anything that list would have shown still shows, minus any key the profile declares as a field of its own - so nothing disappears and nothing is stated twice.
 
@@ -146,6 +146,18 @@ Those fields lead because the list below them is the default profile's vocabular
 **Force-directed graph.** The full explorer lives at `#/graph`; a compact version of the same graph sits on the Overview dashboard. The canvas is label-free - hover a node for a tooltip with its title, kind, and connection count, and click a node to open that page. Node colour reflects one property at a time: **dangling** for a linked page that doesn't exist yet, **stale** for a page whose source has changed since the last compile (stale takes priority over kind), and otherwise **concept** or **entity** by kind. The hovered node takes a halo ring so it stays visible while everything else dims - colouring nodes by staleness is new, since earlier versions of the graph carried no freshness signal at all. Scroll to zoom and drag to pan; the full explorer also lets you drag individual nodes and shows a legend for colours, edge types, and node size.
 
 ## Security model
+
+### Raw sources and artifacts
+
+On a typed-profile project, source entries open at `#/_source/<filename>`. This is the raw ingested file in `sources/`, not a typed entity in `wiki/sources` and not necessarily a copy of an original publication. A recorded HTTP(S) origin is a clickable locator; for a Crossref import, it may identify the retrieved metadata rather than the original paper.
+
+Local source previews support filenames ending in lowercase `.md` and preserve physical file lines, including frontmatter. Citation links can select a range with `?start=N&end=M`. Previews are inert text, limited to 1 MiB, and unavailable for unsafe, missing, unreadable or unsupported files. Source listing membership is frozen at viewer startup; content is read again when requested.
+
+Artifact details show the pinned reference, declared filename, verification health, manifest and declared JSON metadata fields. Every metadata, preview and download request rechecks the confined file, manifest, pinned SHA-256 and schema. A failed check suppresses bytes; the viewer never serves a different read after verification. Text and JSON preview as text, not executable HTML. Binary formats are not supported. Pages with no references say **No artifacts attached**; verification is bounded to the first 100 references with an explicit total when truncated.
+
+Both source and artifact bytes require a loopback binding (`127.0.0.1` or `::1`). LAN mode retains metadata and health but provides no source or artifact bytes or filesystem paths. These routes use `Cache-Control: no-store`; the normal origin, Host and content-security checks still apply. Compiled page content remains visible in LAN mode as described below.
+
+AutoSci template `0.4.0` adds optional locators and artifact links for foundations and research outputs, reviews-to-manuscripts links, and people authorship/contribution relations. These use the same generic renderer as other profiles. Existing projects receive declarations through an explicit template update; no source files or historical relationships are invented. Prior template releases remain resolvable.
 
 The viewer is **read-only by design** - it renders compiled wiki pages but cannot write to `sources/`, `wiki/`, or `.llmwiki/`. All write operations go through the CLI or the MCP server.
 

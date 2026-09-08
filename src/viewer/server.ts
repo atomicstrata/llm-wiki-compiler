@@ -8,10 +8,10 @@
  * including 404s for unregistered paths and 403s for bad origin — see
  * `handleRequest` for the ordering rationale.
  *
- * The server reads from the frozen `ViewerSnapshot` for every request.
- * The single exception is `/api/health`, which calls `readLintCache`
- * per request — that's a documented cheap atomic-JSON contract, not a
- * filesystem rescan of the wiki.
+ * Page and graph data come from the frozen `ViewerSnapshot`. Health, reviews,
+ * and workflow receipts have their existing live read contracts. Resource
+ * endpoints re-verify confined source/artifact bytes per request: a successful
+ * startup snapshot must never authorize serving bytes changed afterwards.
  *
  * The two page endpoints live in `api-pages.ts` and the shared response
  * writers in `respond.ts`, so this file stays about transport: bind,
@@ -23,6 +23,8 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
 import { handleApiPage, handleApiPages } from "./api-pages.js";
+import { handleApiArtifact } from "./api-artifacts.js";
+import { handleApiSource } from "./api-sources.js";
 import { loadShellTemplate } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { searchPages } from "./search.js";
@@ -156,6 +158,8 @@ async function routeRegistered(
   if (snapshotOnly) return snapshotOnly(res, snapshot);
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
+  if (ARTIFACT_PATHS.has(parsedUrl.pathname)) return handleApiArtifact(res, snapshot, parsedUrl, isLoopback);
+  if (parsedUrl.pathname.startsWith("/api/source/")) return handleApiSource(res, snapshot, parsedUrl.pathname, isLoopback);
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
@@ -188,6 +192,9 @@ const SNAPSHOT_ONLY_HANDLERS: ReadonlyMap<
  * Exact-path registered routes for v1. Kept as a Set so additions are
  * just a string in one place and the membership test stays O(1).
  */
+const ARTIFACT_PATHS: ReadonlySet<string> = new Set(["/api/artifact", "/api/artifact/content"]);
+
+/** Exact registered paths, sharing artifact membership with dispatch. */
 const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
   "/",
   "/api/pages",
@@ -197,10 +204,11 @@ const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
   "/api/graph",
   "/api/workflow-runs",
   "/api/reviews",
+  ...ARTIFACT_PATHS,
 ]);
 
 /** Prefix-based registered routes (assets and per-page API). */
-const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/"];
+const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/", "/api/source/"];
 
 /** True when (method, path) is one of the v1 registered routes. */
 function isRouteRegistered(method: string | undefined, pathname: string): boolean {

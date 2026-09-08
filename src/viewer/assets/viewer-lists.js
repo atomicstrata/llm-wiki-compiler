@@ -123,9 +123,10 @@ function noTypedPagesState(type, directory) {
 // fallow-ignore-next-line complexity
 export function renderSourcesList(main, envelope) {
   const names = Array.isArray(envelope?.sourceFilenames) ? envelope.sourceFilenames : [];
+  const typed = Boolean(envelope?.profilePipeline);
   main.innerHTML = "";
   main.className = "main-pane list-pane";
-  main.appendChild(heading("h1", "Sources"));
+  main.appendChild(heading("h1", typed ? "Raw sources" : "Sources"));
   main.appendChild(buildSourcesCaption(envelope?.counts));
   const body = el("div", "list-body");
   main.appendChild(body);
@@ -139,7 +140,7 @@ export function renderSourcesList(main, envelope) {
     );
     return;
   }
-  for (const name of names) body.appendChild(buildSourceRow(name));
+  for (const name of names) body.appendChild(buildSourceRow(name, typed));
 }
 
 /** Caption stating how many of the files on disk have been compiled. */
@@ -158,9 +159,11 @@ function buildSourcesCaption(counts) {
  * `renderSourcesList` for why per-row status is not something this route
  * can show.
  */
-function buildSourceRow(name) {
+function buildSourceRow(name, typed) {
   const row = el("div", "list-row");
-  row.appendChild(el("span", "list-title", name));
+  const label = el(typed ? "a" : "span", "list-title", name);
+  if (typed) label.href = `#/_source/${encodeURIComponent(name)}`;
+  row.appendChild(label);
   return row;
 }
 

@@ -131,14 +131,6 @@ function sourceItem(source) {
   return item;
 }
 
-/** A source entry is snapshot metadata, not a read of the source file. */
-export function renderSourceEntry(main, envelope, filename) {
-  main.replaceChildren(heading("h1", filename));
-  const present = envelope?.sourceFilenames?.includes(filename);
-  main.appendChild(el("p", undefined, present ? "Raw ingested source entry" : "Unresolved source entry"));
-  main.appendChild(placeholder("Content preview is not available in this view."));
-}
-
 /** Render only typed pages carrying the server's context projection. */
 export function renderEntityContext(main, payload) {
   if (!payload.entityType || !payload.entityContext) return;

@@ -116,16 +116,18 @@ it("renders explicit empty states and leaves malformed provenance absent", async
   expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("No source evidence attached.");
 });
 
-it("opens a byte-free raw source entry independently from typed source pages", async () => {
+it("opens a line-selected raw source independently from typed source pages", async () => {
   const requests: string[] = [];
   const { dom, flush } = await mountViewerDom(url => {
     requests.push(url);
     if (url.endsWith("/api/pages")) return jsonResponse({ project: {}, pages: [], counts: {}, sourceFilenames: ["report one.md"] });
     if (url.endsWith("/api/health")) return jsonResponse({ lint: null });
+    if (url.endsWith("/api/source/report%20one.md/content")) return new Response("---\ntitle: Report\n---\nPhysical fourth line");
+    if (url.endsWith("/api/source/report%20one.md")) return jsonResponse({ title: "Report", health: "ok", contentAccess: "available" });
     return null;
   }, "#/_source/report%20one.md?start=4&end=4");
   await flush();
-  expect(dom.window.document.querySelector("[data-main-pane]")?.textContent).toContain("Raw ingested source entry");
-  expect(dom.window.document.querySelector("[data-main-pane]")?.textContent).toContain("Content preview is not available");
-  expect(requests.some(url => url.includes("/api/source/") || url.includes("/api/page/"))).toBe(false);
+  expect(dom.window.document.querySelector("[data-main-pane]")?.textContent).toContain("Raw ingested source");
+  expect(dom.window.document.querySelector("mark")?.textContent).toContain("4  Physical fourth line");
+  expect(requests.some(url => url.includes("/api/page/"))).toBe(false);
 });

@@ -9,6 +9,7 @@ import { autosciEntities } from "./autosci/entities.js";
 import { autosciRelations } from "./autosci/relations.js";
 import { autosciWorkflowActions, autosciWorkflows } from "./autosci/workflows.js";
 import { withoutFieldFormats, withoutTitleFields } from "../prior-releases.js";
+import { autosciDrilldown } from "./autosci/drilldown.js";
 
 const profile: ProfilePack = {
   schemaVersion: 1,
@@ -32,7 +33,7 @@ const profile: ProfilePack = {
 const DESCRIPTION =
   "AutoSci-style research profile with papers, ideas, experiments, manuscripts, artifacts, workflows, and Crossref import.";
 
-/** One superseded AutoSci release, built from the current pack's shared envelope. */
+/** One superseded AutoSci release, built from the retained 0.3.0 envelope. */
 function priorRelease(version: string, entities: ProfilePack["entities"]): ProfileTemplatePackage {
   return {
     schemaVersion: 1,
@@ -54,31 +55,33 @@ function priorRelease(version: string, entities: ProfilePack["entities"]): Profi
  * sharing its template id. Without them, `planBuiltinTemplateUpdate` throws for
  * every project still on one.
  *
- * Each entity block is DERIVED from the current one by undoing exactly the
+ * Each older entity block is DERIVED from the retained 0.3.0 block by undoing the
  * change that release did not have, and the derivations compose backwards:
  * `0.2.0` is `0.3.0` without the field formats, and `0.1.0` is that without the
  * title declarations. Each published digest is pinned in
  * `test/profile-template-releases.test.ts`, so a later edit that corrupts
  * a derivation fails there rather than silently mis-describing an installed
- * project. See {@link withoutFieldFormats}.
+ * project. The 0.4.0 additions use a separate extension, leaving these entity,
+ * relation and artifact objects unchanged. See {@link withoutFieldFormats}.
  */
 const AUTOSCI_0_2_0_ENTITIES = withoutFieldFormats(autosciEntities);
 
 export const AUTOSCI_TEMPLATE_RELEASES: readonly ProfileTemplatePackage[] = [
   priorRelease("0.1.0", withoutTitleFields(AUTOSCI_0_2_0_ENTITIES)),
   priorRelease("0.2.0", AUTOSCI_0_2_0_ENTITIES),
+  priorRelease("0.3.0", autosciEntities),
 ];
 
 /** Builtin install package for AutoSci-derived research projects. */
 export const AUTOSCI_TEMPLATE: ProfileTemplatePackage = {
   schemaVersion: 1,
   templateId: "autosci",
-  version: "0.3.0",
+  version: "0.4.0",
   displayName: "AutoSci",
   publisher: "atomicstrata",
   sourceType: "builtin",
   license: "MIT",
   minLlmwikiVersion: "1.0.0",
   description: DESCRIPTION,
-  profile,
+  profile: { ...profile, profileVersion: "0.4.0", ...autosciDrilldown },
 };

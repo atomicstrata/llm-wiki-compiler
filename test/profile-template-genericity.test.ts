@@ -16,6 +16,7 @@ const TEMPLATE_DATA_FILES = [
   `builtin${path.sep}autosci${path.sep}entities.ts`,
   `builtin${path.sep}autosci${path.sep}relations.ts`,
   `builtin${path.sep}autosci${path.sep}artifacts.ts`,
+  `builtin${path.sep}autosci${path.sep}drilldown.ts`,
   `builtin${path.sep}autosci${path.sep}workflows.ts`,
   `builtin${path.sep}autosci.ts`,
   `builtin${path.sep}newsroom.ts`,

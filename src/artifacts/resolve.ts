@@ -3,7 +3,8 @@
  * ACTUAL bytes — never trusting the manifest hash alone (that would miss a bytes-only
  * tamper). Reads manifest + bytes through the confined readers, recomputes sha256 over
  * the bytes, and compares bytes↔manifest, ref↔recomputed, and (json) schema-over-bytes.
- * Bodies are read but NEVER returned (no-body-exposure).
+ * The metadata resolver never returns bodies; the verified reader returns only
+ * the exact content whose integrity it checked, for loopback viewer access.
  */
 import type { ProfilePack, ArtifactTypeDef } from "../profile/types.js";
 import type { ArtifactRef } from "./ref.js";
@@ -35,6 +36,9 @@ export interface ArtifactResolution {
   manifest?: ArtifactManifest;
   storeFault?: StoreFaultReason;
 }
+
+/** A verified content snapshot; unhealthy results never carry a body. */
+export type VerifiedArtifactRead = ArtifactResolution & { body?: string };
 
 /**
  * True when the loaded profile declares at least one artifact type. Shared by
@@ -100,8 +104,9 @@ function manifestIntegrityLie(def: ArtifactTypeDef, ref: ArtifactRef, m: Artifac
   return undefined;
 }
 
-export async function resolveArtifactRef(root: string, profile: ProfilePack, ref: ArtifactRef): Promise<ArtifactResolution> {
-  const def = profile.artifacts?.[ref.artifactType];
+/** Verify and return the same bounded content snapshot, never re-opening its path. */
+export async function readVerifiedArtifact(root: string, profile: Pick<ProfilePack, "artifacts">, ref: ArtifactRef): Promise<VerifiedArtifactRead> {
+  const def = declaredArtifact(profile, ref.artifactType);
   if (!def) return { health: "artifact-dangling" }; // undeclared type resolves to dangling on read; no manifest could ever exist
   const paths = artifactPaths(root, ref.artifactType, ref.slug, def.fileName);
   const manifest = await readArtifactManifest(root, paths);
@@ -133,5 +138,18 @@ export async function resolveArtifactRef(root: string, profile: ProfilePack, ref
     // (benign policy — stays a park/warning, not an alarm).
     return { health: body.actualBytes !== m.bytes ? "artifact-bytes-tampered" : "artifact-unreadable", manifest: m };
   }
-  return { ...verifyOkBody(def, ref, m, body.body), manifest: m };
+  const verdict = verifyOkBody(def, ref, m, body.body);
+  return { ...verdict, manifest: m, ...(verdict.health === "ok" ? { body: body.body } : {}) };
+}
+
+/** Prototype properties are not profile declarations, even for structurally valid ids. */
+function declaredArtifact(profile: Pick<ProfilePack, "artifacts">, type: string): ArtifactTypeDef | undefined {
+  const definitions = profile.artifacts ?? {};
+  return Object.hasOwn(definitions, type) ? definitions[type] : undefined;
+}
+
+/** Metadata-only resolution remains body-free for lint, status and SDK consumers. */
+export async function resolveArtifactRef(root: string, profile: ProfilePack, ref: ArtifactRef): Promise<ArtifactResolution> {
+  const { body: _body, ...resolution } = await readVerifiedArtifact(root, profile, ref);
+  return resolution;
 }

@@ -212,6 +212,24 @@
  * `--fg-dim` rather than a fainter rung: the whole point of the note is that it
  * gets read, and the fainter tokens do not clear 4.5:1 at this size. */
 .entity-field-ref { font: var(--type-provenance); color: var(--fg-body); }
+
+/* Verified material stays legible without widening the support rail or executing markup. */
+.access-metadata { margin: var(--space-9) 0; overflow-wrap: anywhere; }
+.access-label { font: var(--type-metadata); color: var(--fg-dim); margin-top: var(--space-9); }
+.access-value { margin: 0; color: var(--fg-body); }
+.source-preview, .artifact-preview {
+  max-width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+  padding: var(--space-12);
+  background: var(--bg-inset);
+  color: var(--fg-body);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+.source-preview mark { background: var(--bg-chip); color: var(--fg-strong); }
+.artifact-download { margin-left: var(--space-9); color: var(--accent-text); }
+.artifact-limit, .artifact-empty, .source-access-note { color: var(--fg-dim); }
 .entity-field-unresolved {
   display: block;
   font: var(--type-metadata);

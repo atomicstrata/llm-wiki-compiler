@@ -47,7 +47,8 @@ import { renderPipeline } from "./viewer-pipeline.js";
 import { renderDashboard } from "./viewer-dashboard.js";
 import { buildHealthView } from "./viewer-health.js";
 import { typeListHashType } from "./viewer-routes.js";
-import { renderEntityContext, renderSourceEntry } from "./viewer-entity-context.js";
+import { renderEntityContext } from "./viewer-entity-context.js";
+import { renderSourceDetail, decorateArtifactRefs } from "./viewer-access-detail.js";
 
 const MAIN_SELECTOR = "[data-main-pane]";
 
@@ -144,7 +145,8 @@ function sourceEntryRoute(key) {
   const match = /^#\/_source\/([^/?]+)(?:\?.*)?$/.exec(key);
   if (!match) return undefined;
   const filename = decodeSlug(match[1]);
-  return filename ? { kind: "sourceEntry", filename } : { kind: "home" };
+  const params = new URLSearchParams(key.split("?")[1] ?? "");
+  return filename ? { kind: "sourceEntry", filename, start: Number(params.get("start")), end: Number(params.get("end")) } : { kind: "home" };
 }
 
 /**
@@ -228,7 +230,7 @@ const ROUTE_RENDERERS = {
   reviews: (main) => renderFetchedRoute(main, "/api/reviews", renderReviewsList),
   workflows: (main) => renderFetchedRoute(main, "/api/workflow-runs", renderWorkflowRunsList),
   pipeline: (main) => renderListRoute(main, renderPipeline),
-  sourceEntry: (main, route) => renderListRoute(main, (pane, envelope) => renderSourceEntry(pane, envelope, route.filename)),
+  sourceEntry: (main, route) => { clearSupportRail(); return renderSourceDetail(main, route); },
 };
 
 /**
@@ -423,6 +425,12 @@ function renderPagePayload(main, payload, slug, fieldDefs) {
   removeDuplicateLeadingHeading(body, title);
   renderEntityContext(main, payload);
   renderSupportRail(payload, fieldDefs, titleFieldFor(payload.entityType));
+  decorateEntityArtifacts(main, payload);
+}
+
+/** Artifact slots live in the support rail as well as the main entity context. */
+function decorateEntityArtifacts(main, payload) {
+  if (payload.entityType) void decorateArtifactRefs(main.closest(".app-layout") || main, payload);
 }
 
 /**
