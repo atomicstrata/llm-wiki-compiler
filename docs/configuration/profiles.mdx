@@ -97,6 +97,12 @@ profile can never point a reader at an origin of its choosing. An unknown format
 is rejected at load, and a value that does not match its format's grammar renders
 as plain text rather than as a link built anyway.
 
+Store a DOI as the identifier itself, without URL-encoding it first. The viewer
+encodes reserved characters such as `#`, `?`, `%`, and backslash as path data
+while preserving embedded `/` separators, so the resolver receives the complete
+identifier. If a value cannot survive URL normalization unchanged, it remains
+plain text.
+
 <Note>
   Adding `format` to an existing profile changes that profile's digest, and its
   template's digest if it is a builtin. It does **not** affect in-flight workflow

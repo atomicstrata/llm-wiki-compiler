@@ -127,9 +127,27 @@ describe("formatHref resolves real-world DOI suffixes", () => {
     expect(href!.startsWith("https://doi.org/10.1002/")).toBe(true);
   });
 
-  it("normalises percent-encoding, so the validated string is the navigated one", () => {
+  it("preserves a literal percent escape as identifier text", () => {
     const href = formatHref("doi", "10.1000/a b".replace(" ", "%20"));
-    expect(href).toBe("https://doi.org/10.1000/a%20b");
+    expect(href).toBe("https://doi.org/10.1000/a%2520b");
+  });
+
+  it.each([
+    "10.1002/(SICI)1099-0518(199611)34:15<3129::AID-POLA9>3.0.CO;2-#",
+    "10.1234/abc?x=1", "10.1234/percent%2Fand%23", "10.1234/back\\slash",
+    "10.1234/path/part?#%\\tail",
+  ])("sends the complete DOI as path data: %s", (doi) => {
+    const href = formatHref("doi", doi);
+    expect(href).not.toBeNull();
+    const url = new URL(href!);
+    expect(url.origin).toBe("https://doi.org");
+    expect(url.search).toBe("");
+    expect(url.hash).toBe("");
+    expect(decodeURIComponent(url.pathname.slice(1))).toBe(doi);
+  });
+
+  it.each(["10.1234/a/../b", "10.1234/\uD800"])("keeps an unrepresentable identifier as text: %s", doi => {
+    expect(formatHref("doi", doi)).toBeNull();
   });
 
 });
