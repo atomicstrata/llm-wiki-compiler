@@ -294,6 +294,39 @@ export OPENAI_EMBEDDINGS_API_KEY=<your-key>
 </Warning>
 
   </Tab>
+  <Tab title="OrcaRouter">
+
+The `orcarouter` provider routes calls through [OrcaRouter](https://www.orcarouter.ai), a hosted multi-provider AI gateway that exposes an OpenAI-compatible API. Model names are namespaced by upstream provider (for example `openai/gpt-4o-mini`), and the built-in default model is `openai/gpt-4o-mini`.
+
+The default is a smaller model to keep compilation costs down. For more demanding source material, set `LLMWIKI_MODEL` to a stronger namespaced model that supports tool calls; concept extraction requires structured tool arguments.
+
+**Variables**
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_PROVIDER` | Yes | Set to `orcarouter` |
+| `ORCAROUTER_API_KEY` | Yes | Your OrcaRouter API key (`sk-orca-...`) |
+| `LLMWIKI_MODEL` | No | Model name override. OrcaRouter requires a namespaced id such as `openai/gpt-4o-mini` or `anthropic/claude-sonnet-4-6` |
+
+**Setup**
+
+```bash
+export LLMWIKI_PROVIDER=orcarouter
+export ORCAROUTER_API_KEY=sk-orca-...
+llmwiki compile
+```
+
+**Embeddings**
+
+OrcaRouter embeddings are not wired up in llmwiki, so the provider fails closed instead of inheriting OpenAI's embedding semantics. To keep OrcaRouter for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+
+```bash
+export LLMWIKI_PROVIDER=orcarouter
+export LLMWIKI_EMBEDDING_PROVIDER=openai
+export OPENAI_EMBEDDINGS_API_KEY=<your-key>
+```
+
+  </Tab>
   <Tab title="Atlas Cloud">
 
 The `atlascloud` provider routes calls through [Atlas Cloud](https://www.atlascloud.ai), a hosted gateway exposing an OpenAI-compatible API across models from several vendors. Model names are namespaced by publisher (for example `qwen/qwen3.5-35b-a3b`).

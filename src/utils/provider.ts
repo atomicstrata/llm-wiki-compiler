@@ -3,8 +3,7 @@
  *
  * Defines the LLMProvider interface and a factory function that reads
  * LLMWIKI_PROVIDER and LLMWIKI_MODEL env vars to instantiate the
- * appropriate backend (Anthropic, Claude Agent SDK, OpenAI, Ollama, MiniMax,
- * GitHub Copilot, Codex CLI, or Atlas Cloud).
+ * appropriate backend.
  */
 
 import {
@@ -18,6 +17,7 @@ import { AnthropicProvider } from "../providers/anthropic.js";
 import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
+import { OrcaRouterProvider } from "../providers/orcarouter.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
 import { CodexAgentProvider } from "../providers/codex-agent.js";
@@ -111,6 +111,8 @@ export function buildProvider(providerName: string): LLMProvider {
       });
     case "minimax":
       return getMiniMaxProvider();
+    case "orcarouter":
+      return getOrcaRouterProvider();
     case "copilot":
       return getCopilotProvider();
     case "atlascloud":
@@ -135,7 +137,7 @@ function readOptionalEnv(name: string): string | undefined {
 }
 
 function getModelForProvider(
-  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud",
+  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
 ): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
@@ -149,6 +151,18 @@ function getMiniMaxProvider(): MiniMaxProvider {
     );
   }
   return new MiniMaxProvider(getModelForProvider("minimax"), apiKey);
+}
+
+/** Build the gateway client with the same nonblank-key rule as the guard. */
+function getOrcaRouterProvider(): OrcaRouterProvider {
+  const apiKey = readOptionalEnv("ORCAROUTER_API_KEY");
+  if (!apiKey) {
+    throw new Error(
+      "OrcaRouter provider requires ORCAROUTER_API_KEY environment variable.\n" +
+      '  Set it with: export ORCAROUTER_API_KEY=your_key',
+    );
+  }
+  return new OrcaRouterProvider(getModelForProvider("orcarouter"), apiKey);
 }
 
 function getCopilotProvider(): CopilotProvider {
@@ -236,6 +250,6 @@ export function resolveActiveModelId(): string {
     return readOptionalEnv("LLMWIKI_MODEL") ?? PROVIDER_MODELS["codex-agent"];
   }
   return getModelForProvider(
-    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud",
+    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
   );
 }
