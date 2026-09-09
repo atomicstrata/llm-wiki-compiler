@@ -498,13 +498,6 @@ function prefersReducedMotion() {
 }
 
 /**
- * Cap close-up magnification without preventing large layouts from fitting.
- */
-function clampZoomScale(scale) {
-  return Math.min(scale, ZOOM_SCALE_EXTENT[1]);
-}
-
-/**
  * Compute the axis-aligned bounding box of each node's current simulation
  * position. Reads live `.x`/`.y` (not a cached layout captured at render
  * time) so "Fit" reflects wherever the simulation and any drag have
@@ -538,8 +531,9 @@ function nodeBoundingBox(nodes) {
 function fitTransform(box, width, height) {
   const boxWidth  = Math.max(box.maxX - box.minX, FIT_MIN_EXTENT);
   const boxHeight = Math.max(box.maxY - box.minY, FIT_MIN_EXTENT);
-  const scale = clampZoomScale(
+  const scale = Math.min(
     Math.min((width - FIT_PADDING_PX * 2) / boxWidth, (height - FIT_PADDING_PX * 2) / boxHeight),
+    ZOOM_SCALE_EXTENT[1],
   );
   const centerX = (box.minX + box.maxX) / 2;
   const centerY = (box.minY + box.maxY) / 2;
@@ -678,7 +672,7 @@ function renderEmptyState(container) {
  * User zoom/pan is not subsequently overridden by a deferred automatic fit.
  * @returns {Promise<{fit: () => void}|null>} A control handle exposing
  *   `fit()` (see `makeFitAction`), or `null` when nothing was rendered — no
- *   data, an empty graph, or a failed fetch. Callers use the `null` case to
+ *   data, an empty graph, a failed fetch, or cancellation on navigation. Callers use the `null` case to
  *   know a "Fit" affordance has nothing to act on (see viewer-dashboard.js's
  *   `mountGraphPanel`).
  */

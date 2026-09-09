@@ -36,8 +36,11 @@ it.each([[24, false], [24, true], [500, false], [500, true]] as const)("fits %s 
   const svg = container.querySelector("svg")!;
   const transform = dom.window.eval("d3.zoomTransform(document.querySelector('svg'))");
   expect(svg.querySelector("g")?.getAttribute("transform")).toBeTruthy();
+  expect(svg.style.visibility).toBe("");
+  expect(container.querySelector('[role="status"]')).toBeNull();
   for (const circle of container.querySelectorAll(".graph-node")) {
     const node = (circle as unknown as { __data__: { x: number; y: number } }).__data__;
+    expect(circle.parentElement!.getAttribute("transform")).toBe(`translate(${node.x},${node.y})`);
     const [x, y] = transform.apply([node.x, node.y]);
     const radius = Number(circle.getAttribute("r")) * transform.k;
     expect(x - radius).toBeGreaterThanOrEqual(0);
@@ -49,13 +52,19 @@ it.each([[24, false], [24, true], [500, false], [500, true]] as const)("fits %s 
 
 it("yields during layout and cancels when the graph is removed", async () => {
   let yielded = false;
+  let stoppedX = 0;
+  let point: { x: number } | undefined;
   const { handle } = await graph(500, true, (container) => {
     yielded = true;
-    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector("svg")!.style.visibility).toBe("hidden");
+    expect(container.querySelector('[role="status"]')!.textContent).toBe("Arranging graph…");
+    point = (container.querySelector(".graph-node") as unknown as { __data__: { x: number } }).__data__;
+    stoppedX = point.x;
     container.remove();
   });
   expect(yielded).toBe(true);
   expect(handle).toBeNull();
+  expect(point!.x).toBe(stoppedX);
 });
 
 it("keeps wheel zoom continuous below the usual minimum scale", async () => {
