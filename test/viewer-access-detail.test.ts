@@ -1,17 +1,12 @@
 /** The access UI preserves physical source lines and never treats artifact text as HTML. */
-import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { JSDOM } from "jsdom";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { useViewerDocument } from "./fixtures/viewer-document.js";
 import { renderSourceDetail, decorateArtifactRefs } from "../src/viewer/assets/viewer-access-detail.js";
 
 describe("access detail UI", () => {
   let main: HTMLElement;
-  let dom: JSDOM;
-  beforeEach(() => {
-    dom = new JSDOM("<main></main>", { url: "http://localhost" });
-    vi.stubGlobal("document", dom.window.document);
-    main = dom.window.document.querySelector("main")!;
-  });
-  afterEach(() => { dom.window.close(); vi.unstubAllGlobals(); });
+  const context = useViewerDocument();
+  beforeEach(() => { main = context.main; });
   it("highlights physical cited lines while retaining the raw source header", async () => {
     vi.stubGlobal("fetch", async (url: string) => url.endsWith("/content")
       ? new Response("---\ntitle: Paper\n---\n<script>untrusted</script>")
@@ -29,7 +24,7 @@ describe("access detail UI", () => {
     });
     await renderSourceDetail(main, { filename: "paper.md" });
     expect(requests).toEqual(["/api/source/paper.md"]);
-    expect(main.textContent).toContain("loopback");
+    expect(main.textContent).toContain("localhost");
   });
   it("replaces an unresolved artifact with health and safe preview controls", async () => {
     main.innerHTML = '<dd><span class="entity-field-ref">report/a@sha256:abc</span><span class="entity-field-unresolved">Unresolved</span></dd>';
@@ -60,6 +55,6 @@ describe("access detail UI", () => {
     expect(main.textContent).toBe("");
     main.innerHTML = '<section data-entity-context></section>';
     await decorateArtifactRefs(main, {});
-    expect(main.textContent).toBe("No artifacts attached.");
+    expect(main.textContent).toBe("No files attached.");
   });
 });

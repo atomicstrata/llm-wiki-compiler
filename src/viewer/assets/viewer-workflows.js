@@ -39,12 +39,12 @@ import { el, emptyState, heading } from "./viewer-dom.js";
  */
 const CLASSIFICATION_LABELS = {
   historical: "History",
-  "needs-adaptation": "Needs adaptation",
-  "blocked-by-config": "Blocked by config",
+  "needs-adaptation": "Project setup has changed",
+  "blocked-by-config": "Project configuration needs attention",
 };
 
 /** Shown in place of the stage id when a run sits on no stage (e.g. a finished run). */
-const NO_STAGE = "no stage";
+const NO_STAGE = "no active step";
 
 /**
  * Placeholder for a submit hint whose stage declares no write entity type. The
@@ -65,7 +65,7 @@ const SUBMIT_TAIL = "--slug <slug> --body-file <path>";
  * the profile's writes and re-submits the SAME run.
  */
 const TRUST_GATE_NOTE =
-  "This write is trust-gated: `gate approve` cannot clear it. " +
+  "Write permission is required; approving a review step does not grant it. " +
   "Set LLMWIKI_TRUSTED_WRITE to grant this profile's writes, then re-submit.";
 
 /**
@@ -110,7 +110,7 @@ function runsIn(payload) {
 function emptyWorkflowsState() {
   return emptyState(
     "No workflow runs",
-    "Workflows are the staged pipelines a profile declares — each run advances through them, parking whenever it needs a human to approve a gate or submit a stage output.",
+    "Workflows organize a task into steps. No runs are recorded here yet. Use the command below to see which workflows this project supports. Runs can wait for approval or for results to be submitted; this viewer only shows their status.",
     WORKFLOW_LIST_COMMAND,
   );
 }
@@ -209,14 +209,14 @@ function buildFlag(text, parked) {
  */
 function parkLabels(run) {
   const labels = [];
-  if (run.awaitingOutput === true) labels.push("Awaiting stage output");
+  if (run.awaitingOutput === true) labels.push("Waiting for results");
   if (typeof run.awaitingGate === "string") labels.push(gateLabel(run));
   return labels;
 }
 
 /** The chip text for a gate park, distinguishing a trust gate from an approvable one. */
 function gateLabel(run) {
-  const kind = run.awaitingTrustGate === true ? "Trust gate" : "Awaiting gate";
+  const kind = run.awaitingTrustGate === true ? "Write permission required" : "Waiting for approval";
   return `${kind} · ${run.awaitingGate}`;
 }
 

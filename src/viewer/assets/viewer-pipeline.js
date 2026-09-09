@@ -25,17 +25,11 @@
 
 import { el, emptyState } from "./viewer-dom.js";
 import { plural } from "./viewer-format.js";
-import { classifyStates, hasDeclaredOrder, reachableOrder, segmentWidths } from "./viewer-pipeline-model.js";
+import { classifyStates, hasDeclaredOrder, reachableOrder } from "./viewer-pipeline-model.js";
+import { buildConnections } from "./viewer-connections.js";
 
 /** The three column heads, left to right. */
-const COLUMN_HEADS = ["ENTITY TYPE · LIFECYCLE", "STATE TALLY", "TALLY VS VALID PAGES"];
-
-/** The legend, in the order the model derives the roles it names. */
-const LEGEND = [
-  { role: "flight", label: "in flight" },
-  { role: "terminal", label: "terminal" },
-  { role: "unreachable", label: "unreachable" },
-];
+const COLUMN_HEADS = ["CATEGORY · DECLARED LIFECYCLE", "RECORDS BY CURRENT STATE", "STATE CHECK"];
 
 /** Where the panel's footer sends a reader for the full problem list. */
 const LINT_HREF = "#/health";
@@ -64,8 +58,8 @@ export function renderPipeline(main, envelope) {
  */
 function emptyPipelineState() {
   return emptyState(
-    "No lifecycle to show",
-    "A profile declares the entity types this project keeps and the states each one moves through. The default profile declares neither, so there is no pipeline to draw.",
+    "No record stages configured",
+    "This project does not define categories with tracked stages. You can still browse its pages and source files.",
     "$ llmwiki template init",
   );
 }
@@ -74,35 +68,24 @@ function emptyPipelineState() {
 function buildPanel(pipeline, envelope) {
   const panel = el("section", "panel pipeline-panel");
   panel.appendChild(buildPanelHead(envelope));
+  panel.appendChild(el("p", "pipeline-explanation", "Current record counts, not completion percentages or workflow execution. Terminal means an ending state, not necessarily success. Records missing a state are not included in these counts; see Health & lint for validation problems."));
   panel.appendChild(buildColumnHeads());
   for (const row of pipeline.entityTypes) panel.appendChild(buildTypeRow(row));
-  panel.appendChild(buildRelationBand(pipeline.relationTypes));
+  panel.appendChild(buildConnections(pipeline.relationTypes));
   const footer = buildFooter(pipeline.entityTypes, envelope);
   if (footer) panel.appendChild(footer);
   return panel;
 }
 
-/** Panel head: the title, the active profile's name, and the role legend. */
+/** Panel head identifies the inventory and its declaring profile. */
 function buildPanelHead(envelope) {
   const profileId = envelope?.profileId;
   const head = el("div", "panel-head pipeline-head");
   const group = el("div", "pipeline-head-group");
-  group.appendChild(el("span", "panel-title", "Pipeline"));
+  group.appendChild(el("span", "panel-title", "Lifecycle status"));
   if (profileId) group.appendChild(el("span", "pipeline-profile-badge", profileId.toUpperCase()));
   head.appendChild(group);
-  const legend = el("div", "pipeline-legend");
-  for (const entry of LEGEND) legend.appendChild(buildLegendItem(entry));
-  legend.appendChild(el("span", "pipeline-legend-note", "order from declared transitions"));
-  head.appendChild(legend);
   return head;
-}
-
-/** One legend entry: the swatch in its role's treatment, then the role's name. */
-function buildLegendItem(entry) {
-  const item = el("span", "pipeline-legend-item");
-  item.appendChild(el("span", `pipeline-swatch is-${entry.role} is-legend`));
-  item.appendChild(el("span", undefined, entry.label));
-  return item;
 }
 
 /** The three column labels, on the same grid every row below uses. */
@@ -157,7 +140,7 @@ function typeLabel(type) {
  * the profile never made.
  */
 function declaredText(lifecycle) {
-  if (!lifecycle) return "no lifecycle declared";
+  if (!lifecycle) return "No stages configured";
   return hasDeclaredOrder(lifecycle) ? orderedDeclaredText(lifecycle) : orderlessDeclaredText(lifecycle);
 }
 
@@ -174,16 +157,14 @@ function orderedDeclaredText(lifecycle) {
   return terminal.length > 0 ? `${initial} · terminal ${terminal.join(", ")}` : initial;
 }
 
-/** Middle column: the proportional bar, a chip per state, and any callout. */
+/** Middle column: explicit counts, including unused declared states. */
 function buildTallyCell(row, states) {
   const cell = el("div", "pipeline-tally");
   if (states.length === 0) {
-    cell.appendChild(el("div", "pipeline-none", "no pages carry a lifecycle state"));
-    return cell;
+    cell.appendChild(el("div", "pipeline-none", emptyTallyLabel(row)));
   }
-  cell.appendChild(buildBar(states));
   const chips = el("div", "pipeline-chips");
-  for (const state of states) chips.appendChild(buildChip(state));
+  for (const state of displayedStates(row.lifecycle, states)) chips.appendChild(buildChip(state));
   cell.appendChild(chips);
   for (const state of states.filter((entry) => entry.role === "unreachable")) {
     cell.appendChild(buildCallout(state, row.lifecycle));
@@ -191,30 +172,27 @@ function buildTallyCell(row, states) {
   return cell;
 }
 
-/**
- * The proportional bar. Widths and fill strengths are CSSOM property writes,
- * not markup `style=` attributes, so the panel needs no `unsafe-inline` in
- * `style-src` — the same mechanism the dashboard's meters already use.
- */
-function buildBar(states) {
-  const bar = el("div", "pipeline-bar");
-  const widths = segmentWidths(states.map((state) => state.count));
-  states.forEach((state, index) => {
-    const segment = el("div", `pipeline-seg is-${state.role}`);
-    segment.style.width = `${widths[index]}%`;
-    segment.style.opacity = String(state.alpha);
-    bar.appendChild(segment);
-  });
-  return bar;
+/** Add zero counts without inventing warnings about records that do not exist. */
+function displayedStates(lifecycle, states) {
+  const names = new Set([...reachableOrder(lifecycle), ...(lifecycle?.declaredStates ?? []), ...states.map((entry) => entry.state)]);
+  const tallied = new Map(states.map((entry) => [entry.state, entry]));
+  return [...names].map((state) => tallied.get(state) ?? { state, count: 0, role: "empty", alpha: 0 });
+}
+
+/** Distinguish an empty category from records lacking a lifecycle value. */
+function emptyTallyLabel(row) {
+  return row.pageCount ? "No records have a recorded state" : "No records";
 }
 
 /** One state chip: its swatch, its name, its count, and its role when that matters. */
 function buildChip(state) {
   const chip = el("span", `pipeline-chip is-${state.role}`);
   chip.dataset.state = state.state;
-  const swatch = el("span", `pipeline-swatch is-${state.role}`);
-  swatch.style.opacity = String(state.alpha);
-  chip.appendChild(swatch);
+  if (state.count > 0) {
+    const swatch = el("span", `pipeline-swatch is-${state.role}`);
+    swatch.style.opacity = String(state.alpha);
+    chip.appendChild(swatch);
+  }
   chip.appendChild(el("span", undefined, chipLabel(state)));
   return chip;
 }
@@ -225,8 +203,8 @@ function buildChip(state) {
  * violet, and it is the one role the chain line above does not already name.
  */
 function chipLabel(state) {
-  const base = `${state.state} ${state.count}`;
-  return state.role === "unreachable" ? `${base} · unreachable` : base;
+  const base = `${state.count} ${state.state}`;
+  return ["unreachable", "terminal"].includes(state.role) ? `${base} · ${state.role}` : base;
 }
 
 /**
@@ -243,7 +221,7 @@ function buildCallout(state, lifecycle) {
   box.appendChild(el("code", "pipeline-callout-state", state.state));
   box.appendChild(document.createTextNode(` — ${calloutReason(state.state, lifecycle)}, `));
   box.appendChild(
-    document.createTextNode("so the lifecycle cannot produce it. Hand-edited frontmatter."),
+    document.createTextNode("so the configured transitions cannot reach it. Check this record’s state and the project’s allowed transitions."),
   );
   return box;
 }
@@ -270,62 +248,23 @@ function buildVerdictCell(row, states) {
   const cell = el("div", "pipeline-verdict");
   if (!row.lifecycle) {
     cell.appendChild(el("div", "pipeline-sum is-empty", "—"));
-    cell.appendChild(el("div", "pipeline-gap is-clean", "no lifecycle declared"));
+    cell.appendChild(el("div", "pipeline-gap is-clean", "No stages configured"));
     return cell;
   }
   const sum = states.reduce((total, state) => total + state.count, 0);
   const rejected = Math.max(0, sum - (row.pageCount ?? 0));
   cell.appendChild(el("div", "pipeline-sum", String(sum)));
   const gapClass = rejected > 0 ? "pipeline-gap" : "pipeline-gap is-clean";
-  cell.appendChild(el("div", gapClass, gapText(rejected)));
+  cell.appendChild(el("div", gapClass, gapText(rejected, sum)));
   return cell;
 }
 
 /** The finding under the tally sum: the rejected pages inside it, or none. */
-function gapText(rejected) {
-  return rejected > 0 ? `${plural(rejected, "rejected page")} counted here` : "every page valid";
+function gapText(rejected, sum) {
+  if (sum === 0) return "No records with a recorded state";
+  return rejected > 0 ? `${plural(rejected, "rejected page")} counted here` : "All counted records have recognized states";
 }
 
-/** The relation-types band: one chip per declared type, plus a one-line summary. */
-function buildRelationBand(declared) {
-  const relationTypes = declared ?? [];
-  const band = el("div", "pipeline-columns pipeline-relations");
-  const label = el("div");
-  label.appendChild(el("div", "pipeline-eyebrow", "RELATION TYPES"));
-  label.appendChild(
-    el("div", "pipeline-relations-note", "endpoints and direction come from the profile"),
-  );
-  band.appendChild(label);
-  const chips = el("div", "pipeline-relation-chips");
-  for (const relation of relationTypes) chips.appendChild(buildRelationChip(relation));
-  band.appendChild(chips);
-  band.appendChild(el("div", "pipeline-relations-summary", relationSummary(relationTypes)));
-  return band;
-}
-
-/** One relation chip: its name, its endpoints, its direction, and its live count. */
-function buildRelationChip(relation) {
-  const chip = el("span", "pipeline-relation-chip");
-  chip.dataset.relationType = relation.type;
-  chip.appendChild(el("span", "pipeline-relation-name", relation.type));
-  chip.appendChild(el("span", "pipeline-relation-endpoint", (relation.from ?? []).join(", ")));
-  chip.appendChild(el("span", "pipeline-relation-arrow", directionArrow(relation.direction)));
-  chip.appendChild(el("span", "pipeline-relation-endpoint", (relation.to ?? []).join(", ")));
-  chip.appendChild(el("span", "pipeline-relation-count", String(relation.count ?? 0)));
-  return chip;
-}
-
-/** `symmetric` endpoints are an unordered pair, so the arrow points both ways. */
-function directionArrow(direction) {
-  return direction === "symmetric" ? "↔" : "→";
-}
-
-/** "1 type · directed", or just the count when the profile mixes directions. */
-function relationSummary(relationTypes) {
-  const count = plural(relationTypes.length, "type");
-  const directions = new Set(relationTypes.map((relation) => relation.direction));
-  return directions.size === 1 ? `${count} · ${[...directions][0]}` : count;
-}
 
 /**
  * The footer band: what the rejected pages inside the tallies above actually

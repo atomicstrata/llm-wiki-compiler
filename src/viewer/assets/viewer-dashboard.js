@@ -96,7 +96,7 @@ const STAT_CARDS = [
     value: (m) => m.attention,
     // "dangling" alone is elliptical (short for "dangling [links]") and
     // never takes a plural suffix, so only the second half needs plural().
-    sub: (m) => `${m.dangling} dangling · ${plural(m.unresolved, "unresolved citation")}`,
+    sub: (m) => `${m.dangling} broken page links · ${plural(m.unresolved, "unresolved citation")}`,
   },
   {
     key: "reviews",
@@ -302,7 +302,7 @@ function recentEmptyState(model) {
   return emptyState(
     "Nothing authored yet",
     "Entity pages appear here newest first, each with its citation count. " +
-      "Author them as Markdown under the directories your profile declares.",
+      "Add Markdown records in this project’s category folders. This viewer is read-only.",
   );
 }
 

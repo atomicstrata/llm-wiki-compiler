@@ -167,9 +167,10 @@ function renderHeaderMeta(envelope) {
   const meta = document.querySelector(META_SELECTOR);
   if (!meta) return;
   const parts = [
-    `snapshot ${formatUtcTimestamp(envelope?.updatedAt)}`,
-    `profile ${envelope?.profileId ?? "default"}`,
-    `state ${envelope?.stateStatus ?? "unknown"}`,
+    `${envelope?.profileId ?? "default"} project`,
+    `Viewer loaded at ${formatUtcTimestamp(envelope?.updatedAt)}`,
   ];
+  if (envelope?.stateStatus !== STATE_OK) parts.push("Update status unavailable: compilation tracking data is missing or unreadable");
   meta.textContent = parts.join(" · ");
+  meta.title = `Snapshot: ${envelope?.updatedAt ?? "unknown"}; profile: ${envelope?.profileId ?? "default"}; state: ${envelope?.stateStatus ?? "unknown"}`;
 }

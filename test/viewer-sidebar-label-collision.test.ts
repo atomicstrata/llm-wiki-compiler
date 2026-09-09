@@ -83,13 +83,13 @@ describe("a profile that collides with nothing", () => {
 });
 
 describe("a default project", () => {
-  it("is untouched — no profile means no collision", async () => {
+  it("keeps default labels unambiguous across category and exploration groups", async () => {
     const labels = await navLabels(null);
     expect(labels).toEqual([
-      "Overview",
+      "Dashboard",
       "Concepts",
-      "Sources",
       "Queries",
+      "Sources",
       "Graph explorer",
       "Health & lint",
       "Reviews",

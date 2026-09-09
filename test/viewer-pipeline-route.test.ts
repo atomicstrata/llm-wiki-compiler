@@ -10,8 +10,8 @@
  *
  * The third column is a FINDING, not a warning: `entityCounts` validates and
  * `tallyLifecycleStates` does not, so the difference is exactly the rejected
- * pages that still declare the field. It has to say so, and say "every page
- * valid" when there is no difference at all.
+ * pages that still declare the field. Clean copy is scoped to counted records,
+ * not a claim that missing-state records were included or work was executed.
  */
 
 import { describe, expect, it } from "vitest";
@@ -42,7 +42,7 @@ const DESKS = {
     initial: "active",
     terminal: ["archived"],
     transitions: { active: ["archived"] },
-    declaredStates: ["active", "archived"],
+    declaredStates: ["active", "archived", "paused"],
   },
 };
 
@@ -127,7 +127,7 @@ describe("#/pipeline — hue follows reachability", () => {
     const row = await rowFor("articles");
     const callout = row.querySelector(".pipeline-callout");
     expect(callout?.textContent).toContain("killed");
-    expect(callout?.textContent).toContain("the lifecycle cannot produce it");
+    expect(callout?.textContent).toContain("the configured transitions cannot reach it");
   });
 
   it("leaves every state of an orderless type fully neutral", async () => {
@@ -145,30 +145,42 @@ describe("#/pipeline — tally vs valid pages", () => {
     expect(row.querySelector(".pipeline-gap")?.textContent).toBe("2 rejected pages counted here");
   });
 
-  it("says every page is valid when the tally matches the count", async () => {
+  it("limits the clean verdict to counted records", async () => {
     const row = await rowFor("desks");
-    expect(row.querySelector(".pipeline-gap")?.textContent).toBe("every page valid");
+    expect(row.querySelector(".pipeline-gap")?.textContent).toBe("All counted records have recognized states");
     expect(row.querySelector(".pipeline-gap")?.className).toContain("is-clean");
   });
 });
 
-describe("#/pipeline — the proportional bar", () => {
-  /** Every segment width of one row, as the percentage number it was set to. */
-  async function barWidths(type: string): Promise<number[]> {
-    const row = await rowFor(type);
-    return Array.from(row.querySelectorAll(".pipeline-seg")).map((seg) =>
-      Number.parseFloat((seg as HTMLElement).style.width),
-    );
-  }
-
-  it("sizes each segment by its share of the tally", async () => {
-    expect(await barWidths("articles")).toEqual([50, 12.5, 25, 12.5]);
+describe("#/pipeline — explicit record counts", () => {
+  it("shows an empty category without claiming its records passed validation", async () => {
+    const envelope = { ...ENVELOPE, profilePipeline: { ...ENVELOPE.profilePipeline,
+      entityTypes: [{ ...DESKS, pageCount: 0, stateCounts: {} }] } };
+    const { dom } = await mountViewerDom(envelopeBootstrapResponse(envelope), "#/pipeline");
+    const row = dom.window.document.querySelector('[data-entity-type="desks"]')!;
+    expect(row.querySelector(".pipeline-none")?.textContent).toBe("No records");
+    expect(row.querySelector('[data-state="active"]')?.textContent).toBe("0 active");
+    expect(row.querySelector(".pipeline-gap")?.textContent).not.toContain("recognized");
+    expect(row.querySelector(".pipeline-callout")).toBeNull();
+    dom.window.close();
   });
 
-  it("gives the last segment the remainder so the bar always fills", async () => {
-    const widths = await barWidths("desks");
-    expect(widths).toEqual([66.6, 33.4]);
-    expect(widths.reduce((sum, width) => sum + width, 0)).toBe(100);
+  it("shows exact counts including unused declared states without progress bars", async () => {
+    const row = await rowFor("desks");
+    expect(row.querySelector('[data-state="active"]')?.textContent).toBe("2 active");
+    expect(row.querySelector('[data-state="archived"]')?.textContent).toBe("1 archived · terminal");
+    expect(row.querySelector('[data-state="paused"]')?.textContent).toBe("0 paused");
+    expect(row.querySelector(".pipeline-bar")).toBeNull();
+    expect(row.querySelector(".pipeline-callout")).toBeNull();
+  });
+
+  it("keeps relationship definitions collapsed separately from current states", async () => {
+    const doc = await mountPipeline();
+    const details = doc.querySelector("details.pipeline-relations");
+    expect(details).not.toBeNull();
+    expect(details?.hasAttribute("open")).toBe(false);
+    expect(details?.querySelector("summary")?.textContent).toContain("How records connect");
+    expect(doc.querySelector(".panel-title")?.textContent).toBe("Lifecycle status");
   });
 });
 
@@ -176,16 +188,16 @@ describe("#/pipeline — relation types", () => {
   it("shows each relation's endpoints, direction and live count", async () => {
     const doc = await mountPipeline();
     const chip = doc.querySelector(".pipeline-relation-chip") as HTMLElement;
-    expect(chip.textContent).toContain("filed-under");
-    expect(chip.textContent).toContain("articles");
-    expect(chip.textContent).toContain("desks");
-    expect(chip.querySelector(".pipeline-relation-arrow")?.textContent).toBe("→");
-    expect(chip.querySelector(".pipeline-relation-count")?.textContent).toBe("6");
+    expect(chip.textContent).toContain("Filed under");
+    expect(chip.textContent).toContain("Articles");
+    expect(chip.textContent).toContain("Desks");
+    expect(chip.querySelector(".pipeline-relation-arrow")?.textContent?.trim()).toBe("→");
+    expect(chip.querySelector(".pipeline-relation-count")?.textContent).toBe("6 recorded links");
   });
 
   it("summarises how many types and whether they are directed", async () => {
     const doc = await mountPipeline();
-    expect(doc.querySelector(".pipeline-relations-summary")?.textContent).toBe("1 type · directed");
+    expect(doc.querySelector(".pipeline-relations .technical-details")?.textContent).toContain('"direction": "directed"');
   });
 });
 

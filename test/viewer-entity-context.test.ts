@@ -98,7 +98,7 @@ it("shows validated metadata provenance separately and refuses credential-bearin
   page.frontmatter["x-llmwiki.connector"] = block;
   const [projected] = attachEntityContexts([page], [], []);
   const doc = await mountPayload({ ...projected, html: "<p>Body.</p>" });
-  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("Connector metadata fetch");
+  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("Where these details came from");
   expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("not the original publication");
   expect(doc.querySelector('a[href="https://metadata.test/record"]')?.getAttribute("rel")).toBe("noopener noreferrer");
   block.sourceUrl = "https://user:secret@metadata.test/record";
@@ -112,8 +112,8 @@ it("renders explicit empty states and leaves malformed provenance absent", async
   const [projected] = attachEntityContexts([page], [], []);
   expect(projected.entityContext).not.toHaveProperty("connector");
   const doc = await mountPayload({ ...projected, html: "<p>Body.</p>" });
-  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("No relations attached.");
-  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("No source evidence attached.");
+  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("No connections recorded yet.");
+  expect(doc.querySelector("[data-entity-context]")?.textContent).toContain("No supporting source passages linked yet.");
 });
 
 it("opens a line-selected raw source independently from typed source pages", async () => {
@@ -127,7 +127,7 @@ it("opens a line-selected raw source independently from typed source pages", asy
     return null;
   }, "#/_source/report%20one.md?start=4&end=4");
   await flush();
-  expect(dom.window.document.querySelector("[data-main-pane]")?.textContent).toContain("Raw ingested source");
+  expect(dom.window.document.querySelector("[data-main-pane]")?.textContent).toContain("Source text used by the wiki");
   expect(dom.window.document.querySelector("mark")?.textContent).toContain("4  Physical fourth line");
   expect(requests.some(url => url.includes("/api/page/"))).toBe(false);
 });

@@ -22,7 +22,7 @@
  * fourth branch because nothing can enter it.
  */
 
-import { el } from "./viewer-dom.js";
+import { el, displayLabel, technicalDetails } from "./viewer-dom.js";
 import { formatHref } from "./viewer-field-format.js";
 
 /** Rendered in place of a raw boolean; a bare `false` reads as a rendering fault. */
@@ -64,13 +64,21 @@ export function buildEntityFields(fieldDefs, frontmatter) {
   const list = el("dl", "entity-fields");
   list.setAttribute("data-entity-fields", "");
   for (const def of present) {
-    // The DECLARED key verbatim, never a prettified name: it is what the author
-    // typed in frontmatter, and inventing a display name the profile never
-    // declared is exactly the substitution this surface exists to avoid.
-    list.appendChild(el("dt", "entity-field-label", def.name));
+    const label = el("dt", "entity-field-label", fieldLabel(def.name));
+    label.title = def.name;
+    list.appendChild(label);
     list.appendChild(renderValue(def, ownValue(frontmatter, def.name)));
   }
-  return list;
+  const section = el("section", "record-about");
+  section.append(el("h2", undefined, "About this record"), list);
+  section.appendChild(technicalDetails(present.map((def) => `${fieldLabel(def.name)}: ${def.name}`).join("\n")));
+  return section;
+}
+
+/** Expand presentation vocabulary without altering schema keys or field values. */
+function fieldLabel(name) {
+  if (name === "provenanceState") return "Information origin";
+  return displayLabel(name).replace(/ Kind$/, " type").replace(/^Kind$/, "Type").replace(/^Artifact(s?)$/, "Attached file$1");
 }
 
 /**

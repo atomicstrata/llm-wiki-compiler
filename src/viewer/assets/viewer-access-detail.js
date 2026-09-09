@@ -2,7 +2,16 @@
  * Read-only source and artifact detail views. Responses are rendered as inert
  * text; each preview fetch rechecks content rather than trusting earlier health.
  */
-import { el } from "./viewer-dom.js";
+import { el, displayLabel, technicalDetails } from "./viewer-dom.js";
+
+const FILE_HEALTH_LABELS = Object.assign(Object.create(null), {
+  ok: "Passed", missing: "Source file not found", unsupported: "This file type cannot be previewed",
+  unavailable: "Source file could not be read", "artifact-dangling": "Attached file not found",
+  "artifact-unreadable": "Attached file could not be read", "artifact-bytes-tampered": "File contents have changed",
+  "artifact-schema-invalid": "File contents do not match the expected format",
+  "artifact-hash-mismatch": "File does not match the attached version",
+  "artifact-store-unavailable": "File storage could not be verified",
+});
 
 /** Populate a detached-per-route container so late responses cannot overwrite another page. */
 export async function renderSourceDetail(main, route) {
@@ -12,11 +21,11 @@ export async function renderSourceDetail(main, route) {
   try {
     const metadata = await fetchMetadata(endpoint);
     section.appendChild(el("h1", "page-title", metadata.title || route.filename));
-    section.appendChild(el("p", "source-description", "Raw ingested source — not a typed source entity or necessarily the original publication."));
+    section.appendChild(el("p", "source-description", "Source text used by the wiki. This may be an imported text copy rather than the original document."));
     appendMetadata(section, metadata);
     if (metadata.health !== "ok") return;
     if (metadata.contentAccess !== "available") {
-      section.appendChild(el("p", "source-access-note", "Content preview requires a loopback binding."));
+      section.appendChild(el("p", "source-access-note", "To preview files, run the viewer bound to localhost on the computer storing this project. Network-shared viewers show file details only."));
       return;
     }
     const body = await fetchContent(`${endpoint}/content`);
@@ -46,37 +55,64 @@ function numberedSource(body, route) {
 export async function decorateArtifactRefs(main, _payload) {
   const allRefs = [...main.querySelectorAll(".entity-field-ref")];
   const context = main.querySelector("[data-entity-context]");
-  if (!allRefs.length && context) context.appendChild(el("p", "artifact-empty", "No artifacts attached."));
+  if (!allRefs.length && context) context.appendChild(el("p", "artifact-empty", "No files attached."));
   const refs = allRefs.slice(0, 100);
-  if (allRefs.length > refs.length && context) context.appendChild(el("p", "artifact-limit", `Verifying ${refs.length} of ${allRefs.length} artifact references; remaining references are unverified.`));
+  if (allRefs.length > refs.length && context) context.appendChild(el("p", "artifact-limit", `Checking ${refs.length} of ${allRefs.length} attached files; remaining files have not been checked.`));
   for (const ref of refs) {
     const endpoint = `/api/artifact?ref=${encodeURIComponent(ref.textContent)}`;
     const panel = el("div", "artifact-detail");
     ref.after(panel);
+    const rawRef = ref.textContent;
+    const details = technicalDetails("File reference:");
+    details.appendChild(ref);
     try {
       const metadata = await fetchMetadata(endpoint);
+      panel.appendChild(el("h3", "attachment-name", metadata.fileName || "Attached file"));
       appendMetadata(panel, metadata);
-      if (metadata.health === "ok" && metadata.contentAccess === "available") artifactControls(panel, ref.textContent);
-      else if (metadata.contentAccess === "loopback-only") panel.appendChild(el("span", "artifact-access-note", " Preview requires loopback."));
-      ref.closest("dd")?.querySelector(".entity-field-unresolved")?.remove();
-    } catch { panel.appendChild(el("span", "artifact-health", " Verification unavailable")); }
+      if (metadata.health === "ok" && metadata.contentAccess === "available") artifactControls(panel, rawRef);
+      else if (metadata.contentAccess === "loopback-only") panel.appendChild(el("span", "artifact-access-note", " To preview, run the viewer bound to localhost on the computer storing this project."));
+      panel.closest("dd")?.querySelector(".entity-field-unresolved")?.remove();
+    } catch { panel.appendChild(el("span", "artifact-health", " File could not be checked. Try reopening this record.")); }
+    panel.appendChild(details);
   }
 }
 
 /** Explicit allowlist excludes internal fields and bodies from metadata rendering. */
 function appendMetadata(container, value) {
   const list = el("dl", "access-metadata");
-  for (const key of ["health", "fileName", "sourceType", "ingestedAt", "locator", "manifest", "metadata"]) {
+  for (const key of ["health", "sourceType", "ingestedAt", "locator"]) {
     if (value[key] === undefined) continue;
-    list.appendChild(el("dt", "access-label", key));
+    list.appendChild(el("dt", "access-label", accessLabel(key)));
     const cell = el("dd", "access-value");
     const text = typeof value[key] === "object" ? JSON.stringify(value[key]) : String(value[key]);
     if (key === "locator" && safeLocator(text)) {
       const link = el("a", "source-locator", text);
       link.href = text; link.target = "_blank"; link.rel = "noopener noreferrer";
       cell.appendChild(link);
-    } else cell.textContent = text;
+    } else cell.textContent = key === "health" ? fileHealth(text) : text;
+    cell.title = `${key}: ${text}`;
     list.appendChild(cell);
+  }
+  container.appendChild(list);
+  if (value.metadata) appendFileMetadata(container, value.metadata);
+  if (value.manifest) container.appendChild(technicalDetails(JSON.stringify(value.manifest, null, 2)));
+}
+
+/** Explain file checks without equating an unknown status with verified content. */
+function fileHealth(health) {
+  return FILE_HEALTH_LABELS[health] ?? "File could not be verified";
+}
+
+/** Reader-facing file labels; the locator is not assumed to be a publication. */
+function accessLabel(key) {
+  return { health: "File check", sourceType: "Source type", ingestedAt: "Imported", locator: "Recorded source link" }[key];
+}
+
+/** Render only metadata the server already allowed, with readable field labels. */
+function appendFileMetadata(container, metadata) {
+  const list = el("dl", "access-metadata");
+  for (const [key, value] of Object.entries(metadata)) {
+    list.append(el("dt", undefined, displayLabel(key)), el("dd", undefined, typeof value === "object" ? JSON.stringify(value) : String(value)));
   }
   container.appendChild(list);
 }

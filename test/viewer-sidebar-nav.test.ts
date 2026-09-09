@@ -113,7 +113,7 @@ describe("sidebar navigation", () => {
   it("gives PROJECT its own label class, distinct from BROWSE/MAINTAIN", async () => {
     const sidebar = await mountSidebar(null);
     expect(sidebar.querySelector(".project-label")?.textContent).toBe("PROJECT");
-    expect(sidebar.querySelectorAll(".nav-section-label")).toHaveLength(2);
+    expect(sidebar.querySelectorAll(".nav-section-label")).toHaveLength(3);
   });
 
   it("omits the lint badge entirely when lint has never run", async () => {

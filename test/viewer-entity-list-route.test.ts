@@ -123,7 +123,7 @@ describe("the directory a declared-but-empty type points an author at", () => {
   it("names no path at all when the envelope declares none", async () => {
     const body = await emptyBodyFor([{ type: "desks", pageCount: 0 }], "#/_type/desks");
     expect(body).not.toContain("wiki/");
-    expect(body).toContain("the directory your profile declares");
+    expect(body).toContain("this category’s configured folder");
   });
 });
 

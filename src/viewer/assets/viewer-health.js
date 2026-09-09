@@ -29,7 +29,7 @@
  * The Lint panel is in viewer-health-lint.js — see that module's header.
  */
 
-import { el } from "./viewer-dom.js";
+import { el, displayLabel, technicalDetails } from "./viewer-dom.js";
 import {
   formatUtcTimestamp,
   freshnessBadgeText,
@@ -285,7 +285,7 @@ function buildProfileProblemsPanel({ problems, total }) {
  */
 function buildProfileHead(total) {
   const head = el("div", "panel-head");
-  head.appendChild(el("span", "panel-title", "Profile problems"));
+  head.appendChild(el("span", "panel-title", "Record problems"));
   head.appendChild(el("span", "freshness-pill is-warn", `${total} ${total === 1 ? "PROBLEM" : "PROBLEMS"}`));
   return head;
 }
@@ -302,11 +302,12 @@ function buildProfileHead(total) {
 function buildProfileProblemRow(problem) {
   const row = el("div", "profile-problem");
   const head = el("div", "profile-problem-head");
-  head.appendChild(el("span", "profile-problem-kind", problem.kind));
+  head.appendChild(el("span", "profile-problem-kind", problem.kind === "field-violation" ? "Missing or invalid information" : displayLabel(problem.kind)));
   const where = problem.path ?? problem.entityType;
   if (where) head.appendChild(el("span", "profile-problem-where", where));
   row.appendChild(head);
   row.appendChild(el("div", "profile-problem-message", problem.message));
+  row.appendChild(technicalDetails(`Problem code: ${problem.kind}`));
   return row;
 }
 

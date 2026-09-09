@@ -102,10 +102,10 @@ export function renderEntityTypeList(main, envelope, type) {
  * against `wiki/` — so prefixing it here would name `wiki/wiki/papers/`.
  */
 function noTypedPagesState(type, directory) {
-  const where = directory ? `under ${directory}/` : "in the directory your profile declares";
+  const where = directory ? `under ${directory}/` : "in this category’s configured folder";
   return emptyState(
     `No ${type} yet`,
-    `Your profile declares ${type} as an entity type. Author them as Markdown ${where} and they appear here with their citations.`,
+    `Add a Markdown record ${where} to include it in this list. This viewer is read-only; create or import records outside the viewer.`,
   );
 }
 

@@ -153,7 +153,7 @@ describe("profile problems panel — what the collector found, and where", () =>
   it("renders one row per problem, naming what is wrong and where", async () => {
     const main = await withProblems([problem(), problem({ path: "wiki/notes/b.md" })]);
     expect(rowTexts(main)).toHaveLength(2);
-    expect(textOf(main, ".profile-problem-kind")).toBe("field-violation");
+    expect(textOf(main, ".profile-problem-kind")).toBe("Missing or invalid information");
     expect(textOf(main, ".profile-problem-where")).toBe("wiki/notes/a.md");
     expect(textOf(main, ".profile-problem-message")).toContain('missing required field "title"');
   });

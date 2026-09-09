@@ -38,7 +38,7 @@ const RAIL_FIELDS = [
   { key: "kind", label: "Kind", type: "string" },
   { key: "sources", label: "Sources", type: "stringArray" },
   { key: "confidence", label: "Confidence", type: "confidence" },
-  { key: "provenanceState", label: "Provenance state", type: "string" },
+  { key: "provenanceState", label: "Information origin", type: "string" },
   { key: "contradictedBy", label: "Contradicted by", type: "contradictedBy" },
   { key: "tags", label: "Tags", type: "stringArray" },
   { key: "aliases", label: "Aliases", type: "stringArray" },

@@ -154,7 +154,7 @@ describe("#/workflows — parked runs are the reason the route exists", () => {
     const row = rowFor(main, "run-0002");
     expect(row?.className).toContain("is-parked");
     const flags = Array.from(row?.querySelectorAll(".workflow-flag.is-parked") ?? []);
-    expect(flags.map((f) => f.textContent)).toEqual(["Awaiting stage output"]);
+    expect(flags.map((f) => f.textContent)).toEqual(["Waiting for results"]);
   });
 
   it("does not mark a merely running or completed run as parked", async () => {
@@ -239,8 +239,8 @@ describe("#/workflows — a trust gate is not an approvable gate", () => {
     const flags = Array.from(
       rowFor(main, "run-0005")?.querySelectorAll(".workflow-flag.is-parked") ?? [],
     ).map((f) => f.textContent);
-    expect(flags).toContain("Trust gate · trusted-write");
-    expect(flags).not.toContain("Awaiting gate · trusted-write");
+    expect(flags).toContain("Write permission required · trusted-write");
+    expect(flags).not.toContain("Waiting for approval · trusted-write");
   });
 
   it("still prints `gate approve` for an ordinary gate park", async () => {
@@ -299,7 +299,7 @@ describe("#/workflows — no runs", () => {
 
   it("explains that workflows come from a profile, since most projects have none", async () => {
     const main = await mountWorkflows([]);
-    expect(main.querySelector(".empty-state-body")?.textContent).toContain("profile");
+    expect(main.querySelector(".empty-state-body")?.textContent).toContain("this project supports");
   });
 
   it("is neither the italic loading placeholder nor a blank pane", async () => {

@@ -117,7 +117,7 @@ async function fieldsFor(frontmatter: Record<string, unknown>): Promise<HTMLElem
 
 /** The `<dt>`/`<dd>` text pairs of a declared-fields block, in render order. */
 function rows(block: HTMLElement | null): [string, string][] {
-  const terms = Array.from(block?.querySelectorAll("dt") ?? []).map((n) => n.textContent ?? "");
+  const terms = Array.from(block?.querySelectorAll("dt") ?? []).map((n) => n.title);
   const values = Array.from(block?.querySelectorAll("dd") ?? []).map((n) => n.textContent ?? "");
   return terms.map((term, index) => [term, values[index]]);
 }
@@ -146,9 +146,10 @@ describe("a typed page renders the fields its profile declares", () => {
     ]);
   });
 
-  it("labels each row with the declared key verbatim, not a prettified name", async () => {
+  it("shows a readable label while retaining the exact field key", async () => {
     const block = await fieldsFor({ wordCount: 900 });
     expect(rows(block).map(([label]) => label)).toEqual(["wordCount"]);
+    expect(block?.querySelector("dt")?.textContent).toBe("Word Count");
   });
 
   it("renders scalars as their own text", async () => {
@@ -284,7 +285,7 @@ describe("a declared field and the fixed rail list never state the same key twic
 
   it("drops the fixed row for a name the profile declares", async () => {
     const rail = await overlapRail({ tags: ["politics"] });
-    expect(rail.textContent).not.toContain("Tags");
+    expect(rail.querySelectorAll("dt")).toHaveLength(1);
   });
 
   it("still renders an undeclared extra the page carries", async () => {
@@ -414,7 +415,7 @@ describe("the declared block survives a cold deep link", () => {
     await flush();
     await flush();
     const block = dom.window.document.querySelector("[data-entity-fields]");
-    expect(block?.textContent).toContain("headline");
+    expect(block?.textContent).toContain("Headline");
   });
 });
 

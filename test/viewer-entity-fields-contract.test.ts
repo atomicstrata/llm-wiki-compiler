@@ -115,7 +115,7 @@ describe("the real projection drives the real renderer", () => {
       (node) => node.textContent,
     );
     // `headline` is absent: it is the declared title, already shown as the heading.
-    expect(labels).toEqual(["wordCount", "syndicated", "topics", "stage", "homepage", "proofs"]);
+    expect(labels).toEqual(["Word Count", "Syndicated", "Topics", "Stage", "Homepage", "Proofs"]);
   });
 
   it("branches on each declared type as projected", async () => {

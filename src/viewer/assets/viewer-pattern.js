@@ -28,9 +28,9 @@ const STORAGE_KEY = "llmwiki-viewer-pattern-dismissed";
 /** The four explainer columns. Static copy — no data behind them. */
 const PATTERN_COLUMNS = [
   ["01 · COMPILE ONCE", "Knowledge is extracted once into durable pages instead of re-discovered from raw files at query time."],
-  ["02 · TRACEABLE", "Every claim carries a source span you can open at the exact line and verify yourself."],
-  ["03 · AGENT & HUMAN", "The same pages browse well, lint cleanly, and export as retrieval-ready context."],
-  ["04 · PROFILES", "Domain types and workflows arrive as profiles — no domain branches inside the compiler."],
+  ["02 · TRACEABLE", "Open linked citations to inspect the source passages supporting a claim."],
+  ["03 · AGENT & HUMAN", "Read the wiki yourself or export its pages for an assistant to use."],
+  ["04 · PROFILES", "Project templates organize records into categories and define the workflows you can use."],
 ];
 
 /**

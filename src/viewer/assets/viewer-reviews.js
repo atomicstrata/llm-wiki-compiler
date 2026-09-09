@@ -26,12 +26,12 @@ import { plural, relativeAge } from "./viewer-format.js";
 const HELD_REASON_LABELS = {
   "low-confidence": "Low confidence",
   contradicted: "Contradicts its sources",
-  "schema-violating": "Breaks a schema rule",
+  "schema-violating": "Missing or invalid information",
   "provenance-violating": "Citation problem",
-  all: "Policy holds every page",
+  all: "All pages require review",
   "manual-review-requested": "Review requested",
-  "imported-okf": "Imported from an OKF bundle",
-  "connector-fetched": "Fetched by a connector",
+  "imported-okf": "Imported from a wiki bundle",
+  "connector-fetched": "Imported from an external service",
 };
 
 /** Wiki subdirectory a candidate lands in when it does not name one. */

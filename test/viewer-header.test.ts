@@ -104,10 +104,10 @@ describe("header chrome — identity and meta line", () => {
   it("labels the meta line as a snapshot, not a compile", async () => {
     const doc = await mountWith(CLEAN);
     const meta = doc.querySelector("[data-app-meta]")?.textContent ?? "";
-    expect(meta).toContain("snapshot");
+    expect(meta).toContain("Viewer loaded at");
     expect(meta).not.toContain("compiled");
-    expect(meta).toContain("profile default");
-    expect(meta).toContain("state ok");
+    expect(meta).toContain("default project");
+    expect(doc.querySelector("[data-app-meta]")?.getAttribute("title")).toContain("state: ok");
   });
 });
 

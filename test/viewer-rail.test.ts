@@ -126,7 +126,7 @@ describe("support rail — every spec field renders", () => {
     expect(text).toContain("paper.md, talk.md");
     expect(text).toContain("Confidence");
     expect(text).toContain("80%");
-    expect(text).toContain("Provenance state");
+    expect(text).toContain("Information origin");
     expect(text).toContain("merged");
     expect(text).toContain("Contradicted by");
     expect(text).toContain("Tags");

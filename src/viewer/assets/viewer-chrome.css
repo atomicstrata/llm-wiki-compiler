@@ -210,7 +210,8 @@
  * `[data-sidebar]` (`.sidebar-nav` in the markup) is the mount point
  * `renderSidebar()` fills — it sits one level inside `.sidebar`, as its
  * only child (search now lives in the header's `.app-actions`, see
- * viewer-search.js). It needs its own flex column so `flex: 1` gives
+ * viewer-search.js). Its non-shrinking flex column preserves the full content
+ * height on short windows so the outer sidebar scrolls; on tall windows it gives
  * `.sidebar-footer`'s `margin-top: auto` a flex context to push against,
  * pinning it to the sidebar's bottom edge. No gap here either, for the
  * same reason as `.sidebar` above — each rendered child supplies its own
@@ -220,9 +221,9 @@
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 auto;
 }
+
 
 /*
  * Product lockup — the 34px mark beside "LLM Wiki Compiler" /
@@ -351,61 +352,13 @@
  * BROWSE stays one `<ul>` at any type count and the fixed spine rows above and
  * below stay its siblings, sharing `.nav-list`'s 2px gap.
  *
- * `position: relative` makes this the fade's containing block. The fade must NOT
- * be a child of the scroller — an absolutely positioned child of a scroll
- * container travels with the content instead of staying pinned to the edge.
+ * One sidebar scroller handles short windows; no inner cap or overlay hides
+ * the last category when there is unused vertical space.
  */
-.nav-type-group { position: relative; }
 .nav-type-list {
   list-style: none; padding: 0; margin: 0;
   display: flex; flex-direction: column; gap: 2px;
 }
-
-/*
- * Past the cap (NAV_TYPE_CAP = 11, viewer-nav-types.js) the list SCROLLS. It is
- * never truncated: every declared type is in the DOM and reachable, and the
- * residual count below says how many are out of view.
- *
- * The height is derived from the box `.nav-link` actually renders — 8px + 8px
- * padding, a 12.5px line, and the 1px transparent border it carries so it does
- * not resize when it becomes current — plus this list's 2px gaps, so it tracks
- * the row rather than being a constant that drifts when the row changes.
- */
-.nav-type-group.is-capped {
-  margin-top: 6px;
-}
-.nav-type-group.is-capped .nav-type-list {
-  /* 11 rows of 30.5px — `.nav-link`'s 8px + 12.5px line + 8px, plus the 1px
-   * transparent border each side — separated by this list's 2px gaps. */
-  max-height: calc(11 * 30.5px + 10 * 2px);
-  overflow-y: auto;
-}
-
-/* Signals the list continues past the fold. `transparent` rather than a colour
- * literal: gradients interpolate in premultiplied space, so this fades the
- * sidebar surface into itself in either theme with one declaration. */
-.nav-type-fade {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 42px;
-  border-radius: 0 0 var(--radius-row) var(--radius-row);
-  background: linear-gradient(180deg, transparent, var(--bg-sidebar) 78%);
-  pointer-events: none;
-}
-
-/* `6px 10px 0 23px` lines the residual up with the rows above it (mockup tree
- * line 221); `.nav-list`'s own 2px sibling gap supplies the rest of the 14px
- * the mockup leaves below it. */
-.nav-type-overflow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px 0 23px;
-  margin-bottom: 12px;
-}
-.nav-type-residual { font: 400 10.5px/1 var(--font-mono); color: var(--fg-faint); }
-.nav-type-all { font: 500 10.5px/1 var(--font-mono); color: var(--accent-text); }
 
 /*
  * A type name is project data, so it can be any length. It truncates with an
@@ -488,9 +441,35 @@
 
 .placeholder { color: var(--fg-dim); font-style: italic; }
 
+/* Diagnostic identifiers remain available without dominating the reading view. */
+.technical-details { margin: 12px 0; font: 400 12px/1.5 var(--font-sans); color: var(--fg-dim); }
+.technical-details summary { cursor: pointer; }
+.technical-details pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 400 11px/1.5 var(--font-mono); }
+.record-about h2 { font: 600 16px/1.4 var(--font-sans); }
+.attachment-name { font: 600 14px/1.4 var(--font-sans); overflow-wrap: anywhere; }
+
+/* Wrap before the sidebar leaves too little room for identity plus controls. */
+@media (max-width: 1200px) {
+  .app-header { flex-direction: column; align-items: stretch; gap: 12px; }
+  .app-brand { flex-wrap: wrap; }
+  .app-title, .app-meta, .project-name { overflow-wrap: anywhere; }
+  .app-meta { line-height: 1.4; }
+  .app-actions { flex-wrap: wrap; min-width: 0; }
+  .app-actions .sidebar-search { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+}
+
 @media (max-width: 900px) {
   .app-layout { grid-template-columns: minmax(0, 1fr); }
-  .sidebar { border-right: none; border-bottom: 1px solid var(--border-soft); }
+  /* The stacked nav must not stick over the page. Bound it so the current
+   * record remains reachable without traversing the entire category list. */
+  .sidebar {
+    position: static;
+    height: auto;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .app-header { position: static; padding: 16px; }
   .content-grid { grid-template-columns: minmax(0, 1fr); }
 }
 

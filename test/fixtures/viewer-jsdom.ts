@@ -99,6 +99,7 @@ const MODULE_ORDER = [
   "viewer-stat-card.js",
   "viewer-health-lint.js",
   "viewer-pipeline-model.js",
+  "viewer-connections.js",
 ];
 
 /** Match `import { a, b } from "./viewer-x.js";` including multi-line forms. */
