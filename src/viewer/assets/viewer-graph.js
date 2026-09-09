@@ -498,12 +498,10 @@ function prefersReducedMotion() {
 }
 
 /**
- * Clamp a scale to the zoom behaviour's own scaleExtent, so "Fit" can never
- * zoom past what the user's own scroll/pinch gestures are limited to.
+ * Cap close-up magnification without preventing large layouts from fitting.
  */
 function clampZoomScale(scale) {
-  const [min, max] = ZOOM_SCALE_EXTENT;
-  return Math.min(Math.max(scale, min), max);
+  return Math.min(scale, ZOOM_SCALE_EXTENT[1]);
 }
 
 /**
@@ -531,8 +529,7 @@ function nodeBoundingBox(nodes) {
  * Build the zoom transform that centres and scales a node bounding box to
  * fill `width`×`height` with `FIT_PADDING_PX` of breathing room — the
  * standard "translate to the viewport centre, scale, then translate back by
- * the box's own centre" construction, clamped to the zoom behaviour's own
- * scaleExtent.
+ * the box's own centre" construction, capped at the maximum magnification.
  *
  * @param {{minX: number, minY: number, maxX: number, maxY: number}} box - From `nodeBoundingBox`.
  * @param {number} width - Panel width (simulation units).
@@ -570,6 +567,7 @@ function fitTransform(box, width, height) {
 function makeFitAction(view, nodeSel) {
   return function fit({ animate = true } = {}) {
     const transform = fitTransform(nodeBoundingBox(nodeSel.data()), view.width, view.height);
+    view.zoom.scaleExtent([Math.min(ZOOM_SCALE_EXTENT[0], transform.k), ZOOM_SCALE_EXTENT[1]]);
     const target = !animate || prefersReducedMotion()
       ? view.svg
       : view.svg.transition().duration(FIT_TRANSITION_MS);
@@ -676,7 +674,7 @@ function renderEmptyState(container) {
  *   `staleIds` comes from `staleIdsFromEnvelope()` over the already-fetched
  *   `/api/pages` envelope; a caller that omits it gets kind-only colouring
  *   (no stale nodes highlighted).
- * Initial framing is immediate; explicit Fit clicks retain their transition.
+ * Initial framing follows yielding layout batches; explicit Fit clicks retain their transition.
  * User zoom/pan is not subsequently overridden by a deferred automatic fit.
  * @returns {Promise<{fit: () => void}|null>} A control handle exposing
  *   `fit()` (see `makeFitAction`), or `null` when nothing was rendered — no
@@ -691,18 +689,52 @@ export async function loadGraph(container, options = {}) {
     renderEmptyState(container);
     return null;
   }
+  return renderSettledGraph(container, data, options);
+}
+
+/** Frame a populated graph only after its initial layout has settled. */
+async function renderSettledGraph(container, data, options) {
   const view = initGraph(container);
+  view.svg.style('visibility', 'hidden');
   const { sim, edgeSel, nodeSel } = renderGraph(view, data, options);
   // Settle before framing: fitting the initial seed positions would let the
   // force layout drift outside the viewport again after the first paint.
   sim.stop();
-  const settlingTicks = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay()));
-  sim.tick(settlingTicks);
+  if (!await settleLayout(view, sim, container)) return null;
   onTick(edgeSel, nodeSel);
   if (!options.compact) buildLegend(container);
   const fit = makeFitAction(view, nodeSel);
   fit({ animate: false });
+  view.svg.style('visibility', null);
   return { fit };
+}
+
+/** Maximum layout work per batch; yielding keeps navigation responsive. */
+const LAYOUT_BATCH_MS = 8;
+
+/** Run one bounded batch, allowing a single force tick to finish atomically. */
+function stepLayout(sim) {
+  const start = performance.now();
+  do { sim.tick(); }
+  while (sim.alpha() > sim.alphaMin() && performance.now() - start < LAYOUT_BATCH_MS);
+}
+
+/** Settle off-screen without blocking navigation or overriding a user's first gesture. */
+async function settleLayout(view, sim, container) {
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.textContent = 'Arranging graph…';
+  container.prepend(status);
+  try {
+    while (sim.alpha() > sim.alphaMin()) {
+      if (!view.svg.node().isConnected) return false;
+      stepLayout(sim);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return view.svg.node().isConnected;
+  } finally {
+    status.remove();
+  }
 }
 
 /** Fetch /api/graph and parse JSON; render an inline error banner and return null on failure. */

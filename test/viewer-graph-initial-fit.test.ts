@@ -7,7 +7,7 @@ const windows: JSDOM[] = [];
 afterEach(() => { for (const dom of windows.splice(0)) dom.window.close(); });
 
 /** Mount real graph code; only viewport geometry and network input are supplied. */
-async function graph(count: number, compact: boolean) {
+async function graph(count: number, compact: boolean, duringLoad?: (container: Element) => void) {
   const dom = new JSDOM('<div id="graph"></div>', { runScripts: "outside-only", pretendToBeVisual: true });
   windows.push(dom);
   const win = dom.window;
@@ -26,12 +26,13 @@ async function graph(count: number, compact: boolean) {
     nodes: Array.from({ length: count }, (_, i) => ({ id: `concepts/n${i}`, title: `N${i}`, degree: 0, kind: "concept" })),
     edges: [],
   }));
+  if (duringLoad) win.setTimeout(() => duringLoad(container), 0);
   const handle = await win.eval(`loadGraph(document.querySelector('#graph'), { compact: ${compact} })`);
   return { dom, container, handle };
 }
 
-it.each([false, true])("fits every node on initial load (compact=%s)", async (compact) => {
-  const { dom, container } = await graph(24, compact);
+it.each([[24, false], [24, true], [500, false], [500, true]] as const)("fits %s nodes on initial load (compact=%s)", async (count, compact) => {
+  const { dom, container } = await graph(count, compact);
   const svg = container.querySelector("svg")!;
   const transform = dom.window.eval("d3.zoomTransform(document.querySelector('svg'))");
   expect(svg.querySelector("g")?.getAttribute("transform")).toBeTruthy();
@@ -44,6 +45,30 @@ it.each([false, true])("fits every node on initial load (compact=%s)", async (co
     expect(y - radius).toBeGreaterThanOrEqual(0);
     expect(y + radius).toBeLessThanOrEqual(296);
   }
+});
+
+it("yields during layout and cancels when the graph is removed", async () => {
+  let yielded = false;
+  const { handle } = await graph(500, true, (container) => {
+    yielded = true;
+    expect(container.querySelector("svg")).not.toBeNull();
+    container.remove();
+  });
+  expect(yielded).toBe(true);
+  expect(handle).toBeNull();
+});
+
+it("keeps wheel zoom continuous below the usual minimum scale", async () => {
+  const { dom, container } = await graph(500, false);
+  const win = dom.window;
+  const scale = () => win.eval("d3.zoomTransform(document.querySelector('svg')).k");
+  const initial = scale();
+  expect(initial).toBeLessThan(0.1);
+  container.querySelector("svg")!.dispatchEvent(new win.WheelEvent("wheel", {
+    deltaY: -10, clientX: 220, clientY: 148, bubbles: true, cancelable: true,
+  }));
+  expect(scale()).toBeGreaterThan(initial);
+  expect(scale()).toBeLessThan(initial * 1.1);
 });
 
 it("keeps a one-node graph finite and leaves an empty graph without controls", async () => {
