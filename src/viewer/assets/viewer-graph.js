@@ -568,9 +568,9 @@ function fitTransform(box, width, height) {
  * @returns {() => void} The `fit()` action.
  */
 function makeFitAction(view, nodeSel) {
-  return function fit() {
+  return function fit({ animate = true } = {}) {
     const transform = fitTransform(nodeBoundingBox(nodeSel.data()), view.width, view.height);
-    const target = prefersReducedMotion()
+    const target = !animate || prefersReducedMotion()
       ? view.svg
       : view.svg.transition().duration(FIT_TRANSITION_MS);
     target.call(view.zoom.transform, transform);
@@ -665,7 +665,8 @@ function renderEmptyState(container) {
 /**
  * Entry point for both the `#/graph` route (viewer.js) and the dashboard's
  * compact panel (viewer-dashboard.js). Fetches `/api/graph`, builds the SVG,
- * and starts the force simulation — the same fetch call and simulation
+ * and settles the initial force layout before fitting it to the viewport —
+ * the same fetch call and simulation
  * builder run in both modes; only the resolved settings differ (see
  * `resolveSettings`).
  *
@@ -675,6 +676,8 @@ function renderEmptyState(container) {
  *   `staleIds` comes from `staleIdsFromEnvelope()` over the already-fetched
  *   `/api/pages` envelope; a caller that omits it gets kind-only colouring
  *   (no stale nodes highlighted).
+ * Initial framing is immediate; explicit Fit clicks retain their transition.
+ * User zoom/pan is not subsequently overridden by a deferred automatic fit.
  * @returns {Promise<{fit: () => void}|null>} A control handle exposing
  *   `fit()` (see `makeFitAction`), or `null` when nothing was rendered — no
  *   data, an empty graph, or a failed fetch. Callers use the `null` case to
@@ -689,9 +692,17 @@ export async function loadGraph(container, options = {}) {
     return null;
   }
   const view = initGraph(container);
-  const { nodeSel } = renderGraph(view, data, options);
+  const { sim, edgeSel, nodeSel } = renderGraph(view, data, options);
+  // Settle before framing: fitting the initial seed positions would let the
+  // force layout drift outside the viewport again after the first paint.
+  sim.stop();
+  const settlingTicks = Math.ceil(Math.log(sim.alphaMin()) / Math.log(1 - sim.alphaDecay()));
+  sim.tick(settlingTicks);
+  onTick(edgeSel, nodeSel);
   if (!options.compact) buildLegend(container);
-  return { fit: makeFitAction(view, nodeSel) };
+  const fit = makeFitAction(view, nodeSel);
+  fit({ animate: false });
+  return { fit };
 }
 
 /** Fetch /api/graph and parse JSON; render an inline error banner and return null on failure. */
