@@ -14,6 +14,7 @@ import { OllamaProvider } from "../src/providers/ollama.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
 import { AtlasCloudProvider } from "../src/providers/atlascloud.js";
 import { ATLASCLOUD_BASE_URL, PROVIDER_MODELS } from "../src/utils/constants.js";
+import { OrcaRouterProvider } from "../src/providers/orcarouter.js";
 
 const TEST_SETTINGS_PATH_ENV = "LLMWIKI_CLAUDE_SETTINGS_PATH";
 const tempDirs: string[] = [];
@@ -69,6 +70,7 @@ describe("getProvider", () => {
     delete process.env.ATLAS_CLOUD_API_KEY;
     delete process.env.ATLASCLOUD_BASE_URL;
     delete process.env.ATLAS_CLOUD_BASE_URL;
+    delete process.env.ORCAROUTER_API_KEY;
 
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -178,6 +180,19 @@ describe("getProvider", () => {
     process.env.LLMWIKI_PROVIDER = "atlas";
 
     expect(resolveActiveModelId()).toBe(PROVIDER_MODELS.atlascloud);
+  });
+
+  it("returns OrcaRouterProvider when LLMWIKI_PROVIDER=orcarouter", () => {
+    process.env.LLMWIKI_PROVIDER = "orcarouter";
+    process.env.ORCAROUTER_API_KEY = "test-key";
+    const provider = getProvider();
+    expect(provider).toBeInstanceOf(OrcaRouterProvider);
+  });
+
+  it("throws when ORCAROUTER_API_KEY is absent for orcarouter provider", () => {
+    process.env.LLMWIKI_PROVIDER = "orcarouter";
+    delete process.env.ORCAROUTER_API_KEY;
+    expect(() => getProvider()).toThrow("ORCAROUTER_API_KEY");
   });
 
   it("respects LLMWIKI_MODEL override", () => {

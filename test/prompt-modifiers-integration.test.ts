@@ -102,12 +102,15 @@ describe("a run that regenerates nothing must not record the new selection", () 
     expect(handle.mock.getRequests().length).toBeGreaterThan(afterFirst);
   }, 180_000);
 
-  it("does not advance the digest when the run was scoped to a subset", async () => {
+  it.each([
+    ["LLMWIKI_OUTPUT_LANG", "Japanese", "Spanish"],
+    ["LLMWIKI_SOURCES_SECTION", "on", "off"],
+  ])("does not advance %s when the run was scoped to a subset", async (key, first, second) => {
     const handle = await aimock.start();
     stubCannedCompile(handle, "Scope Concept");
     const cwd = await aimock.makeWorkspace("# A\n\nFirst source.\n");
     await writeFile(path.join(cwd, "sources/b.md"), "# B\n\nSecond source.\n");
-    const env = { ...mockClaudeEnv(handle), LLMWIKI_OUTPUT_LANG: "Japanese" };
+    const env = { ...mockClaudeEnv(handle), [key]: first };
 
     expectCLIExit(await runCLI(["compile"], cwd, env), 0);
     const japanese = await recordedDigest(cwd);
@@ -119,7 +122,7 @@ describe("a run that regenerates nothing must not record the new selection", () 
       path.join(cwd, "sources/intro.md"),
       "# A\n\nFirst source, substantially edited so its page is stale.\n",
     );
-    const spanish = { ...mockClaudeEnv(handle), LLMWIKI_OUTPUT_LANG: "Spanish" };
+    const spanish = { ...mockClaudeEnv(handle), [key]: second };
     expectCLIExit(await runCLI(["refresh", "--stale"], cwd, spanish), 0);
 
     // b.md was never regenerated, so the Spanish selection is not yet true of

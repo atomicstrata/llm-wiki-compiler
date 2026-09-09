@@ -48,6 +48,7 @@ import { isConnectorCandidate } from "../connectors/origin.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
 import { resolveAndApplyLinks } from "../compiler/resolver.js";
+import { repairAndApplyLinks } from "../compiler/link-repair.js";
 import { qualifiedPageId, type PageId } from "../utils/page-id.js";
 import { refreshEmbeddingsDrainingPending } from "../utils/embeddings-refresh.js";
 import { readState, updateSourceState } from "../utils/state.js";
@@ -312,6 +313,7 @@ async function refreshWikiAfterApproval(root: string, candidate: ReviewCandidate
   // approveUnderLock runs under the held project lock (runReviewUnderLock), so
   // this routes through the lock-free resolution seam.
   await resolveAndApplyLinks(root, [slug], [slug]);
+  await repairAndApplyLinks(root);
   await generateIndex(root);
   await generateMOC(root);
   await safelyUpdateEmbeddings(root, candidatePageId(candidate));
