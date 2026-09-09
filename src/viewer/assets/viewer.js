@@ -47,6 +47,8 @@ import { renderPipeline } from "./viewer-pipeline.js";
 import { renderDashboard } from "./viewer-dashboard.js";
 import { buildHealthView } from "./viewer-health.js";
 import { typeListHashType } from "./viewer-routes.js";
+import { renderEntityContext } from "./viewer-entity-context.js";
+import { renderSourceDetail, decorateArtifactRefs } from "./viewer-access-detail.js";
 
 const MAIN_SELECTOR = "[data-main-pane]";
 
@@ -135,7 +137,16 @@ function parseRoute(hash) {
  * namespace is consulted before {@link parsePageRoute} ever sees the hash.
  */
 function namedRoute(key) {
-  return STATIC_ROUTES.get(key) ?? entityListRoute(key);
+  return STATIC_ROUTES.get(key) ?? sourceEntryRoute(key) ?? entityListRoute(key);
+}
+
+/** Reserve raw source entries independently of a profile's typed source entities. */
+function sourceEntryRoute(key) {
+  const match = /^#\/_source\/([^/?]+)(?:\?.*)?$/.exec(key);
+  if (!match) return undefined;
+  const filename = decodeSlug(match[1]);
+  const params = new URLSearchParams(key.split("?")[1] ?? "");
+  return filename ? { kind: "sourceEntry", filename, start: Number(params.get("start")), end: Number(params.get("end")) } : { kind: "home" };
 }
 
 /**
@@ -176,11 +187,15 @@ function entityListRoute(key) {
   return { kind: "entityList", type };
 }
 
+/** The envelope's declared entity-type rows, or an empty list before it settles. */
+function declaredTypeRows() {
+  const entityTypes = bootstrapData.pages?.profilePipeline?.entityTypes;
+  return Array.isArray(entityTypes) ? entityTypes : [];
+}
+
 /** The entity type ids the cached envelope declares; empty until it settles. */
 function declaredEntityTypes() {
-  const entityTypes = bootstrapData.pages?.profilePipeline?.entityTypes;
-  if (!Array.isArray(entityTypes)) return [];
-  return entityTypes.map((entry) => entry?.type);
+  return declaredTypeRows().map((entry) => entry?.type);
 }
 
 /** Resolve a `#/<directory>/<slug>` hash; non-matches return home. */
@@ -215,6 +230,7 @@ const ROUTE_RENDERERS = {
   reviews: (main) => renderFetchedRoute(main, "/api/reviews", renderReviewsList),
   workflows: (main) => renderFetchedRoute(main, "/api/workflow-runs", renderWorkflowRunsList),
   pipeline: (main) => renderListRoute(main, renderPipeline),
+  sourceEntry: (main, route) => { clearSupportRail(); return renderSourceDetail(main, route); },
 };
 
 /**
@@ -256,7 +272,7 @@ async function renderRoute() {
   // route needs the type the hash named as well.
   if (route.kind === "entityList") return renderEntityListRoute(main, route.type);
   const handler = ROUTE_RENDERERS[route.kind];
-  if (handler) return handler(main);
+  if (handler) return handler(main, route);
   return renderPagePane(main, route.directory, route.slug);
 }
 
@@ -379,10 +395,14 @@ function handleIndexError(main, err) {
 
 /** Fetch /api/page/:dir/:slug and render. */
 async function renderPagePane(main, directory, slug) {
+  const routeHash = location.hash;
   try {
     const payload = await fetchJson(pageApiPath(directory, slug));
-    renderPagePayload(main, payload, slug);
+    const fields = await declaredFieldsFor(payload.entityType);
+    if (location.hash !== routeHash) return;
+    renderPagePayload(main, payload, slug, fields);
   } catch (err) {
+    if (location.hash !== routeHash) return;
     handlePageError(main, err, directory, slug);
   }
 }
@@ -393,7 +413,7 @@ function pageApiPath(directory, slug) {
 }
 
 /** Render the body of a successful /api/page response into the main pane. */
-function renderPagePayload(main, payload, slug) {
+function renderPagePayload(main, payload, slug, fieldDefs) {
   const title = payload.title || slug;
   main.innerHTML = "";
   main.appendChild(heading("h1", title));
@@ -403,7 +423,50 @@ function renderPagePayload(main, payload, slug) {
   appendWarnings(main, payload.warnings || []);
   const body = appendRenderedBody(main, payload.html);
   removeDuplicateLeadingHeading(body, title);
-  renderSupportRail(payload);
+  renderEntityContext(main, payload);
+  renderSupportRail(payload, fieldDefs, titleFieldFor(payload.entityType));
+  decorateEntityArtifacts(main, payload);
+}
+
+/** Artifact slots live in the support rail as well as the main entity context. */
+function decorateEntityArtifacts(main, payload) {
+  if (payload.entityType) void decorateArtifactRefs(main.closest(".app-layout") || main, payload);
+}
+
+/**
+ * The fields the active profile declares for `entityType`, or undefined.
+ *
+ * AWAITS the envelope rather than reading whatever `bootstrapData` holds right
+ * now. `main()` renders the route twice — once immediately, once after
+ * `/api/pages` settles — and `unsettledOrPageRoute` deliberately lets a page
+ * route resolve without the envelope. A synchronous read would therefore make
+ * the two passes render DIFFERENT rails, and since each pass issues its own
+ * `/api/page` fetch with no ordering guarantee between them, a cold deep link
+ * whose first response landed second would be left permanently without its
+ * declared fields. Awaiting makes both passes produce the same rail, so which
+ * one wins stops mattering. Same idiom the index and dashboard routes use.
+ *
+ * Resolved here rather than in the rail because this module is already the one
+ * place that reads `bootstrapData`; the rail stays a pure renderer of what it is
+ * handed. A default page carries no `entityType`, so it never awaits and its
+ * rail is byte-identical to before.
+ */
+async function declaredFieldsFor(entityType) {
+  if (typeof entityType !== "string") return undefined;
+  if (bootstrapData.pages === null) await loadBootstrapData();
+  return declaredTypeRows().find((entry) => entry?.type === entityType)?.fields;
+}
+
+/**
+ * The frontmatter key this entity type titles pages by, or undefined.
+ *
+ * Read synchronously from the cached envelope: it only ever SUPPRESSES a rail
+ * row that duplicates the heading, so a miss before the envelope settles costs
+ * one redundant row on the first of two paints rather than a wrong one.
+ */
+function titleFieldFor(entityType) {
+  if (typeof entityType !== "string") return undefined;
+  return declaredTypeRows().find((entry) => entry?.type === entityType)?.titleField;
 }
 
 /** Question banner shown above the body for saved-query pages. */

@@ -101,9 +101,8 @@ function outgoing(lifecycle, state) {
 /**
  * Classify and order every TALLIED state of one entity type.
  *
- * Only states with pages in them appear: the bar and the chips report a tally,
- * and a declared state nobody has used has no share to draw. It stays visible in
- * the chain line above them, which lists the declaration rather than the tally.
+ * Only states with pages in them are classified. The renderer adds zero-count
+ * declared states separately, without producing warnings about absent records.
  *
  * @param {object|undefined} lifecycle - The declared lifecycle, if any.
  * @param {Record<string, number>|undefined} stateCounts - The unfiltered tally.
@@ -158,22 +157,4 @@ function withRampAlpha(sorted, roles, ramp) {
 /** Fill strength for a non-`flight` role. */
 function alphaForRole(role) {
   return role === "unreachable" ? UNREACHABLE_ALPHA : FULL_ALPHA;
-}
-
-/**
- * Segment widths as percentages that always total exactly 100.
- *
- * Every segment but the last is truncated to one decimal and the last takes
- * whatever remains, so a third of a bar reads 33.4 beside 66.6 rather than
- * leaving a hairline of track showing at the end of a full tally.
- *
- * @param {number[]} counts - Per-segment counts, in draw order.
- * @returns {number[]}
- */
-export function segmentWidths(counts) {
-  const total = counts.reduce((sum, count) => sum + count, 0);
-  if (total <= 0) return counts.map(() => 0);
-  const widths = counts.slice(0, -1).map((count) => Math.floor((count / total) * 1000) / 10);
-  const used = widths.reduce((sum, width) => sum + width, 0);
-  return [...widths, Math.round((100 - used) * 10) / 10];
 }

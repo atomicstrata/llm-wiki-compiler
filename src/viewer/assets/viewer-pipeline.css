@@ -4,20 +4,10 @@
  * Loaded after viewer-dashboard.css because the panel reuses that sheet's
  * `.panel` / `.panel-head` / `.panel-title` shell rather than redeclaring it.
  *
- * Values come from the "Nebula - Profiles and pipeline" mockup tree. Where the
- * mockup states a literal that is not already a token's exact value — the
- * 224px/148px column widths, the 14px grid gap, the 26px bar height, 10.5px
- * mono — it is written as that literal rather than snapped onto the 6/9/12/16/24
- * spacing scale or the nearest type token. Snapping mockup values onto our
- * scales was the single largest source of drift in earlier fidelity passes.
- *
- * The mockup gives BOTH themes here, and the two differ by more than a token
- * swap in one place: the bar's unfilled channel is --border-soft's value in dark
- * but its own violet-tinted value in light, which is why --bar-track exists.
- *
- * Segment widths and fill strengths are CSSOM property writes from
- * viewer-pipeline.js, not markup `style=` attributes, so nothing here needs
- * `style-src 'unsafe-inline'`.
+ * Explicit counts replace proportional bars so the inventory cannot be
+ * mistaken for progress. Declared lifecycle, current counts and validation
+ * remain separate columns, stacking on narrow windows. Relationship
+ * definitions live in a native disclosure below the inventory.
  */
 
 /* Shares its element with `.main-pane` (viewer.js sets
@@ -45,16 +35,7 @@
   border-radius: var(--radius-badge);
 }
 
-.pipeline-legend {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  /* 500 10px/1 mono has no matching token (--type-label is 9.5px) — tree line 48. */
-  font: 500 10px/1 var(--font-mono);
-  color: var(--fg-muted);
-}
-.pipeline-legend-item { display: flex; align-items: center; gap: var(--space-6); }
-.pipeline-legend-note { color: var(--fg-ghost); }
+.pipeline-explanation { margin: 0; padding: 14px 18px; color: var(--fg-muted); font: 400 13px/1.5 var(--font-sans); }
 
 /* ---- The three-column grid ---- */
 
@@ -108,25 +89,9 @@
 .pipeline-chain { font: 500 10.5px/1.55 var(--font-mono); color: var(--fg-muted); }
 .pipeline-declared { font: 400 10.5px/1.55 var(--font-mono); color: var(--fg-faint); }
 
-/* ---- Middle column: the bar, the chips, the callout ---- */
+/* ---- Middle column: state counts and any reachability callout ---- */
 
 .pipeline-tally { min-width: 0; }
-
-.pipeline-bar {
-  display: flex;
-  height: 26px;
-  border-radius: 5px;
-  overflow: hidden;
-  background: var(--bar-track);
-  margin-bottom: var(--space-9);
-}
-
-/* Hue is the ROLE; the alpha within a role is a CSSOM write (see
- * viewer-pipeline.js). In flight takes the violet ramp, a declared terminal
- * takes teal, and a state the lifecycle cannot produce takes danger. */
-.pipeline-seg { background: var(--accent-text); }
-.pipeline-seg.is-terminal { background: var(--ok); }
-.pipeline-seg.is-unreachable { background: var(--danger); }
 
 .pipeline-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 /* The chips are the last thing in the cell unless a callout follows them. */
@@ -139,7 +104,7 @@
   /* 5px 8px is off the spacing scale — tree line 77. */
   padding: 5px 8px;
   border-radius: 5px;
-  font: 500 10.5px/1 var(--font-mono);
+  font: 500 13px/1.4 var(--font-mono);
   color: var(--fg-muted);
   background: var(--bg-hover);
   border: 1px solid var(--border-strong);
@@ -155,11 +120,7 @@
 .pipeline-swatch { width: 7px; height: 7px; border-radius: 2px; background: var(--accent-text); }
 .pipeline-swatch.is-terminal { background: var(--ok); }
 .pipeline-swatch.is-unreachable { background: var(--danger); }
-/* The legend's unreachable key is an outline, not a fill — tree line 51. */
-.pipeline-swatch.is-legend.is-unreachable {
-  background: transparent;
-  border: 1.2px dashed var(--danger);
-}
+.pipeline-chip.is-empty { color: var(--fg-dim); background: transparent; }
 
 .pipeline-callout {
   /* 9px 11px is off the spacing scale — tree line 82. */
@@ -206,6 +167,9 @@
 /* Raised off the rows above by --bg-sunken, and vertically centred rather than
  * top-aligned: it is a summary line, not another row — tree line 141. */
 .pipeline-relations { padding: 14px 18px; background: var(--bg-sunken); align-items: center; }
+.pipeline-relations summary { cursor: pointer; font: 500 14px/1.5 var(--font-sans); color: var(--fg-strong); }
+.pipeline-relations[open] summary { margin-bottom: 12px; }
+.pipeline-relations-note { margin-bottom: 12px; }
 
 .pipeline-eyebrow {
   font: var(--type-label);
@@ -216,16 +180,23 @@
 /* 400 11.5px/1.4 sans has no matching token — tree line 144. */
 .pipeline-relations-note { font: 400 11.5px/1.4 var(--font-sans); color: var(--fg-dim); }
 
-.pipeline-relation-chips { min-width: 0; display: flex; flex-wrap: wrap; gap: 7px; }
+.pipeline-relation-chips { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pipeline-relation-chips th, .pipeline-relation-chips td { padding: 12px 8px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.pipeline-relation-chips th { font: 500 12px/1.4 var(--font-sans); }
+.connection-open { cursor: pointer; color: var(--accent-text); background: var(--bg-hover); border: 1px solid var(--border-strong); border-radius: 5px; padding: 6px 8px; font: inherit; }
+.connection-records ul { padding-left: 16px; }
+.connection-records li { margin-top: 8px; }
 
 .pipeline-relation-chip {
-  display: inline-flex;
+  display: table-row;
+  overflow-wrap: anywhere;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-9);
   /* 6px 10px is off the spacing scale — tree line 147. */
   padding: 6px 10px;
   border-radius: 5px;
-  font: 500 11px/1 var(--font-mono);
+  font: 400 13px/1.5 var(--font-sans);
   color: var(--fg-muted);
   background: var(--bg-hover);
   border: 1px solid var(--border-strong);
@@ -263,5 +234,6 @@
  * collapsing to a sliver. */
 @media (max-width: 900px) {
   .pipeline-columns { grid-template-columns: minmax(0, 1fr); }
+  .pipeline-column-head { display: none; }
   .pipeline-col-right, .pipeline-verdict, .pipeline-relations-summary { text-align: left; }
 }

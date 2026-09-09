@@ -105,7 +105,7 @@ describe("#/reviews", () => {
     const reasons = Array.from(main.querySelectorAll(".review-reason")).map((n) => n.textContent);
     expect(reasons).toContain("Low confidence");
     expect(reasons).not.toContain("low-confidence");
-    expect(reasons).toContain("Imported from an OKF bundle");
+    expect(reasons).toContain("Imported from a wiki bundle");
     expect(reasons).toContain("Contradicts its sources");
   });
 

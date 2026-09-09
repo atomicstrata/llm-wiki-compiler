@@ -37,6 +37,27 @@ export function heading(tag, text) {
   return el(tag, undefined, text);
 }
 
+/** Readable labels without changing stored identifiers or interpreting domain values. */
+export function displayLabel(value) {
+  const text = String(value ?? "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
+  if (/^(doi|url|id|api)$/i.test(text)) return text.toUpperCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Keep exact diagnostic data available without making it the reading surface. */
+export function technicalDetails(text) {
+  const details = el("details", "technical-details");
+  details.append(el("summary", undefined, "Technical details"), el("pre", undefined, text));
+  return details;
+}
+
+/** Build a record link from its qualified identity, never an arbitrary supplied URL. */
+export function recordHref(id) {
+  if (typeof id !== "string") return null;
+  const parts = id.split("/");
+  return parts.length === 2 && parts.every(Boolean) ? `#/${parts.map(encodeURIComponent).join("/")}` : null;
+}
+
 /**
  * Build the standard italic placeholder paragraph used for empty states.
  *

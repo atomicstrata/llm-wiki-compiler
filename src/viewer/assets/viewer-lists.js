@@ -102,10 +102,10 @@ export function renderEntityTypeList(main, envelope, type) {
  * against `wiki/` — so prefixing it here would name `wiki/wiki/papers/`.
  */
 function noTypedPagesState(type, directory) {
-  const where = directory ? `under ${directory}/` : "in the directory your profile declares";
+  const where = directory ? `under ${directory}/` : "in this category’s configured folder";
   return emptyState(
     `No ${type} yet`,
-    `Your profile declares ${type} as an entity type. Author them as Markdown ${where} and they appear here with their citations.`,
+    `Add a Markdown record ${where} to include it in this list. This viewer is read-only; create or import records outside the viewer.`,
   );
 }
 
@@ -123,9 +123,10 @@ function noTypedPagesState(type, directory) {
 // fallow-ignore-next-line complexity
 export function renderSourcesList(main, envelope) {
   const names = Array.isArray(envelope?.sourceFilenames) ? envelope.sourceFilenames : [];
+  const typed = Boolean(envelope?.profilePipeline);
   main.innerHTML = "";
   main.className = "main-pane list-pane";
-  main.appendChild(heading("h1", "Sources"));
+  main.appendChild(heading("h1", typed ? "Raw sources" : "Sources"));
   main.appendChild(buildSourcesCaption(envelope?.counts));
   const body = el("div", "list-body");
   main.appendChild(body);
@@ -139,7 +140,7 @@ export function renderSourcesList(main, envelope) {
     );
     return;
   }
-  for (const name of names) body.appendChild(buildSourceRow(name));
+  for (const name of names) body.appendChild(buildSourceRow(name, typed));
 }
 
 /** Caption stating how many of the files on disk have been compiled. */
@@ -158,9 +159,11 @@ function buildSourcesCaption(counts) {
  * `renderSourcesList` for why per-row status is not something this route
  * can show.
  */
-function buildSourceRow(name) {
+function buildSourceRow(name, typed) {
   const row = el("div", "list-row");
-  row.appendChild(el("span", "list-title", name));
+  const label = el(typed ? "a" : "span", "list-title", name);
+  if (typed) label.href = `#/_source/${encodeURIComponent(name)}`;
+  row.appendChild(label);
   return row;
 }
 

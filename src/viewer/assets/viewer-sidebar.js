@@ -23,7 +23,7 @@
 
 import { el } from "./viewer-dom.js";
 import { lintTotal } from "./viewer-format.js";
-import { NAV_TYPE_CAP, typeNavItems } from "./viewer-nav-types.js";
+import { NAV_TYPE_SUMMARY_THRESHOLD, typeNavItems } from "./viewer-nav-types.js";
 import { typeListHashType } from "./viewer-routes.js";
 
 const SIDEBAR_SELECTOR = "[data-sidebar]";
@@ -53,15 +53,20 @@ const NAV_SECTIONS = [
     // rows for the profile's declared types. MAINTAIN does neither.
     showsProfileTypes: true,
     items: [
-      { route: "home", href: "#/", label: "Overview" },
       // `profileTypeSlot`: Concepts and Queries are not fixed labels — they are
       // the two entity types the DEFAULT profile declares. On a project running
       // another profile they are replaced, in place, by that profile's own
-      // types (see `sectionItems`). Overview, Sources and Graph explorer are
-      // the fixed spine and never vary.
+      // types (see `sectionItems`). Project-wide navigation lives outside this
+      // section: Dashboard above, source files and graph under Explore.
       { route: "concepts", href: "#/concepts", label: "Concepts", count: "concepts", profileTypeSlot: true },
-      { route: "sources", href: "#/sources", label: "Sources", collisionLabel: "Source files", count: "sourceFiles" },
       { route: "queries", href: "#/queries", label: "Queries", count: "queries", profileTypeSlot: true },
+    ],
+  },
+  {
+    label: "EXPLORE",
+    zeroCountDisplay: "dash",
+    items: [
+      { route: "sources", href: "#/sources", label: "Sources", collisionLabel: "Source files", count: "sourceFiles" },
       { route: "graph", href: "#/graph", label: "Graph explorer" },
     ],
   },
@@ -90,7 +95,7 @@ const NAV_SECTIONS = [
       // a Pipeline row. The count is the number of entity types the profile
       // declares (see `navCounts`, viewer.js) — the number of rows the panel
       // will have, not a workload.
-      { route: "pipeline", href: "#/pipeline", label: "Pipeline", count: "pipelineTypes", profileOnly: true },
+      { route: "pipeline", href: "#/pipeline", label: "Lifecycle status", count: "pipelineTypes", profileOnly: true },
     ],
   },
 ];
@@ -147,6 +152,9 @@ export function renderSidebar(model) {
   sidebar.innerHTML = "";
   sidebar.appendChild(buildLockup());
   sidebar.appendChild(buildProjectBlock(model?.project));
+  const dashboard = el("ul", "nav-list");
+  dashboard.appendChild(buildNavItem({ route: "home", href: "#/", label: "Dashboard" }, "dash", model));
+  sidebar.appendChild(dashboard);
   for (const section of NAV_SECTIONS) {
     sidebar.appendChild(buildNavSection(section, model));
   }
@@ -209,7 +217,8 @@ function buildNavSection(section, model) {
  */
 function buildSectionHead(section, model, typeItems) {
   const head = el("div", "nav-section-head");
-  head.appendChild(el("div", "nav-section-label", section.label));
+  const label = typeItems.length > 0 ? "CATEGORIES" : section.label;
+  head.appendChild(el("div", "nav-section-label", label));
   const name = profileHeaderName(model?.profileId, typeItems);
   if (name !== null) head.appendChild(el("span", "nav-section-profile", name));
   return head;
@@ -219,15 +228,12 @@ function buildSectionHead(section, model, typeItems) {
  * What the BROWSE header says about the active profile, or null when there is
  * nothing to say (a default project, or a section that shows no types).
  *
- * A CAPPED list appends the true total: the rows no longer add up to it, so the
- * header is the only place left that can state how many types the profile
- * actually declares. An uncapped list is countable by eye and gets the bare
- * name — one word, no arithmetic (mockup: "newsroom" versus "research · 12").
+ * Long lists include a total for scanning; short lists need only the name.
  */
 function profileHeaderName(profileId, typeItems) {
   if (typeItems.length === 0) return null;
   if (typeof profileId !== "string") return null;
-  return typeItems.length > NAV_TYPE_CAP ? `${profileId} · ${typeItems.length}` : profileId;
+  return typeItems.length > NAV_TYPE_SUMMARY_THRESHOLD ? `${profileId} · ${typeItems.length}` : profileId;
 }
 
 /** Build the section's `<ul>`, expanding the type-group marker where it appears. */
@@ -290,7 +296,7 @@ function isProfileTypeSlot(item) {
 /**
  * The section's entries with the profile's types spliced into the slot the
  * default profile's first type row occupies — so a newsroom's Articles/Desks/
- * Bylines land exactly where Concepts sat, between Overview and Sources, and
+ * Bylines land exactly where Concepts sat, before Sources, and
  * the remaining default type row (Queries) drops out rather than duplicating
  * the same pages under a second vocabulary.
  *
@@ -309,51 +315,23 @@ function sectionItems(section, typeItems) {
 }
 
 /**
- * Append the type rows, plus the overflow footer when there are more of them
- * than {@link NAV_TYPE_CAP} keeps in view.
- *
- * Every declared type is rendered whatever the count: the cap is a scroll, not
- * a truncation, so a type is never absent from the nav — only out of view, with
- * the residual count saying how many and "All types" offering the screen that
- * lists the full set.
+ * Show every type in normal flow. The sidebar owns scrolling, so taller
+ * windows can expose the full vocabulary without a nested fixed-height list.
  */
 function appendTypeGroup(list, typeItems, zeroCountDisplay, model) {
   list.appendChild(buildTypeGroup(typeItems, zeroCountDisplay, model));
-  if (typeItems.length > NAV_TYPE_CAP) list.appendChild(buildTypeOverflow(typeItems.length));
 }
 
 /**
  * The type rows as one `<li>` holding a nested list, so BROWSE stays a single
- * `<ul>` and the fixed spine rows either side stay its direct siblings. Past
- * the cap the group also carries the bottom fade, which lives OUTSIDE the
- * scrolling list so it stays pinned to the edge instead of travelling with the
- * rows (see viewer-chrome.css).
+ * `<ul>` and the fixed spine rows either side stay its direct siblings.
  */
 function buildTypeGroup(typeItems, zeroCountDisplay, model) {
-  const isCapped = typeItems.length > NAV_TYPE_CAP;
-  const group = el("li", isCapped ? "nav-type-group is-capped" : "nav-type-group");
+  const group = el("li", "nav-type-group");
   const inner = el("ul", "nav-type-list");
   for (const item of typeItems) inner.appendChild(buildNavItem(item, zeroCountDisplay, model));
   group.appendChild(inner);
-  if (isCapped) group.appendChild(el("span", "nav-type-fade"));
   return group;
-}
-
-/**
- * The footer under a capped list: how many rows sit below the fold, and a link
- * to the screen that lists every type.
- *
- * The link deliberately carries NO `data-route`. It shares the Pipeline entry's
- * destination, and a second element claiming that route would take the
- * highlight from the real MAINTAIN entry.
- */
-function buildTypeOverflow(total) {
-  const li = el("li", "nav-type-overflow");
-  li.appendChild(el("span", "nav-type-residual", `${total - NAV_TYPE_CAP} more · scroll`));
-  const all = el("a", "nav-type-all", "All types");
-  all.href = "#/pipeline";
-  li.appendChild(all);
-  return li;
 }
 
 /**

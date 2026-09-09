@@ -15,14 +15,10 @@
 import { typeListHref } from "./viewer-routes.js";
 
 /**
- * Rows BROWSE shows before it caps the list.
- *
- * The cap is a SCROLL, not a truncation — every declared type stays in the DOM
- * and reachable — so this is the number of rows that stay in view, and anything
- * beyond it is reported as a residual count. Mirrored in viewer-chrome.css,
- * which derives the scroller's max-height from the same figure.
+ * Above this count, summarize the vocabulary with a total.
+ * This is not a height limit: all rows use the sidebar's available space.
  */
-export const NAV_TYPE_CAP = 11;
+export const NAV_TYPE_SUMMARY_THRESHOLD = 11;
 
 /**
  * A profile's entity type id as the nav says it out loud.

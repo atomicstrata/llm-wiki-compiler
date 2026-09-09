@@ -7,8 +7,8 @@
  * own types in that same slot. Both halves are pinned here, the default one
  * first, because it is the regression this whole change risks.
  *
- * The fixed spine (Overview, Sources, Graph explorer) never varies; only the
- * type rows between Overview and Sources do.
+ * Dashboard sits above the section; Sources and Graph explorer follow the
+ * category rows inside it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,18 +21,15 @@ import {
   types,
 } from "./fixtures/viewer-vocabulary.js";
 
-/** The row count above which BROWSE caps its type list (NAV_TYPE_CAP). */
+/** The row count above which categories get a total. */
 const CAP = 11;
 
 describe("BROWSE on a default project", () => {
-  it("renders exactly today's rows, in today's order", async () => {
+  it("keeps the default browse rows in order below the standalone Dashboard", async () => {
     const sidebar = await mountVocabularySidebar(undefined);
     expect(browseEntries(sidebar)).toEqual([
-      { route: "home", href: "#/", label: "Overview" },
       { route: "concepts", href: "#/concepts", label: "Concepts" },
-      { route: "sources", href: "#/sources", label: "Sources" },
       { route: "queries", href: "#/queries", label: "Queries" },
-      { route: "graph", href: "#/graph", label: "Graph explorer" },
     ]);
   });
 
@@ -48,24 +45,33 @@ describe("BROWSE on a default project", () => {
 });
 
 describe("BROWSE on a profile project", () => {
+  it("places Dashboard before and outside the Categories section", async () => {
+    const sidebar = await mountVocabularySidebar(types(["articles", 6]));
+    const dashboard = sidebar.querySelector('a[data-route="home"]');
+    const categories = sidebar.querySelector(".nav-section");
+    expect(dashboard?.textContent).toContain("Dashboard");
+    expect(dashboard?.getAttribute("href")).toBe("#/");
+    expect(dashboard?.closest(".nav-section")).toBeNull();
+    expect(dashboard!.compareDocumentPosition(categories!) & 4).toBe(4);
+  });
   it("replaces Concepts and Queries with the profile's own types", async () => {
     const sidebar = await mountVocabularySidebar(types(["articles", 6], ["desks", 3]));
     const entries = browseEntries(sidebar);
     expect(entries.map((e) => e.route)).toEqual([
-      "home",
       "articles",
       "desks",
-      "sources",
-      "graph",
     ]);
   });
 
-  it("keeps the fixed spine either side of the type rows", async () => {
+  it("puts source files and graph exploration outside Categories", async () => {
     const sidebar = await mountVocabularySidebar(types(["articles", 6]));
-    const entries = browseEntries(sidebar);
-    expect(entries[0]).toEqual({ route: "home", href: "#/", label: "Overview" });
-    expect(entries.at(-2)?.label).toBe("Sources");
-    expect(entries.at(-1)?.label).toBe("Graph explorer");
+    const categories = sidebar.querySelector(".nav-section");
+    const source = sidebar.querySelector('a[href="#/sources"]');
+    const graph = sidebar.querySelector('a[href="#/graph"]');
+    expect(categories?.contains(source)).toBe(false);
+    expect(categories?.contains(graph)).toBe(false);
+    expect(source?.closest(".nav-section")).toBe(graph?.closest(".nav-section"));
+    expect(source?.closest(".nav-section")?.querySelector(".nav-section-label")?.textContent).toBe("EXPLORE");
   });
 
   it("links each type row at its own namespaced list route", async () => {
@@ -163,46 +169,39 @@ describe("the profile name on the BROWSE header", () => {
     const sidebar = await mountVocabularySidebar(types(["articles", 6]));
     expect(browseProfileName(sidebar)).toBe("newsroom");
     expect(sidebar.querySelector(".nav-section-head .nav-section-label")?.textContent).toBe(
-      "BROWSE",
+      "CATEGORIES",
     );
   });
 
-  it("states the true total once the list is capped", async () => {
-    // A capped list cannot be counted by eye, so the header carries the figure
-    // the rows no longer add up to (mockup: "research · 12").
+  it("states the true total for a long category list", async () => {
     const sidebar = await mountVocabularySidebar(manyTypes(CAP + 1));
     expect(browseProfileName(sidebar)).toBe(`newsroom · ${CAP + 1}`);
   });
 });
 
-describe("more types than the cap", () => {
-  it("marks the group capped and reports the residual as scrollable", async () => {
+describe("long category lists", () => {
+  it("does not cover the final category or claim rows are hidden", async () => {
     const sidebar = await mountVocabularySidebar(manyTypes(CAP + 3));
-    expect(sidebar.querySelector(".nav-type-group")?.className).toContain("is-capped");
-    expect(sidebar.querySelector(".nav-type-residual")?.textContent).toBe("3 more · scroll");
+    expect(sidebar.querySelector(".nav-type-fade")).toBeNull();
+    expect(sidebar.querySelector(".nav-type-residual")).toBeNull();
+    expect(typeRows(sidebar)).toHaveLength(14);
   });
 
-  it("keeps every type in the list — the cap is a scroll, not a truncation", async () => {
+  it("keeps every type in the list", async () => {
     const sidebar = await mountVocabularySidebar(manyTypes(CAP + 3));
     expect(typeRows(sidebar)).toHaveLength(CAP + 3);
   });
 
-  it("offers All types, pointing at the screen that lists the full set", async () => {
+  it("offers Pipeline only under Maintain, without a duplicate All types shortcut", async () => {
     const sidebar = await mountVocabularySidebar(manyTypes(CAP + 1));
-    const all = sidebar.querySelector(".nav-type-all");
-    expect(all?.textContent).toBe("All types");
-    expect(all?.getAttribute("href")).toBe("#/pipeline");
-  });
-
-  it("carries no data-route on All types, which is not a nav entry of its own", async () => {
-    // It duplicates the MAINTAIN Pipeline destination; a second entry claiming
-    // that route would steal the highlight from the real one.
-    const sidebar = await mountVocabularySidebar(manyTypes(CAP + 1));
-    expect(sidebar.querySelector(".nav-type-all")?.hasAttribute("data-route")).toBe(false);
+    const links = sidebar.querySelectorAll('a[href="#/pipeline"]');
+    expect(links).toHaveLength(1);
+    expect(links[0]?.textContent).toContain("Lifecycle status");
+    expect(links[0]?.closest(".nav-section")?.querySelector(".nav-section-label")?.textContent).toBe("MAINTAIN");
   });
 });
 
-describe("at or below the cap", () => {
+describe("short category lists", () => {
   it("shows no fade, no residual and no All types", async () => {
     const sidebar = await mountVocabularySidebar(manyTypes(CAP));
     expect(sidebar.querySelector(".nav-type-group")?.className).not.toContain("is-capped");

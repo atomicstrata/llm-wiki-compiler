@@ -498,15 +498,6 @@ function prefersReducedMotion() {
 }
 
 /**
- * Clamp a scale to the zoom behaviour's own scaleExtent, so "Fit" can never
- * zoom past what the user's own scroll/pinch gestures are limited to.
- */
-function clampZoomScale(scale) {
-  const [min, max] = ZOOM_SCALE_EXTENT;
-  return Math.min(Math.max(scale, min), max);
-}
-
-/**
  * Compute the axis-aligned bounding box of each node's current simulation
  * position. Reads live `.x`/`.y` (not a cached layout captured at render
  * time) so "Fit" reflects wherever the simulation and any drag have
@@ -531,8 +522,7 @@ function nodeBoundingBox(nodes) {
  * Build the zoom transform that centres and scales a node bounding box to
  * fill `width`×`height` with `FIT_PADDING_PX` of breathing room — the
  * standard "translate to the viewport centre, scale, then translate back by
- * the box's own centre" construction, clamped to the zoom behaviour's own
- * scaleExtent.
+ * the box's own centre" construction, capped at the maximum magnification.
  *
  * @param {{minX: number, minY: number, maxX: number, maxY: number}} box - From `nodeBoundingBox`.
  * @param {number} width - Panel width (simulation units).
@@ -541,8 +531,9 @@ function nodeBoundingBox(nodes) {
 function fitTransform(box, width, height) {
   const boxWidth  = Math.max(box.maxX - box.minX, FIT_MIN_EXTENT);
   const boxHeight = Math.max(box.maxY - box.minY, FIT_MIN_EXTENT);
-  const scale = clampZoomScale(
+  const scale = Math.min(
     Math.min((width - FIT_PADDING_PX * 2) / boxWidth, (height - FIT_PADDING_PX * 2) / boxHeight),
+    ZOOM_SCALE_EXTENT[1],
   );
   const centerX = (box.minX + box.maxX) / 2;
   const centerY = (box.minY + box.maxY) / 2;
@@ -568,9 +559,10 @@ function fitTransform(box, width, height) {
  * @returns {() => void} The `fit()` action.
  */
 function makeFitAction(view, nodeSel) {
-  return function fit() {
+  return function fit({ animate = true } = {}) {
     const transform = fitTransform(nodeBoundingBox(nodeSel.data()), view.width, view.height);
-    const target = prefersReducedMotion()
+    view.zoom.scaleExtent([Math.min(ZOOM_SCALE_EXTENT[0], transform.k), ZOOM_SCALE_EXTENT[1]]);
+    const target = !animate || prefersReducedMotion()
       ? view.svg
       : view.svg.transition().duration(FIT_TRANSITION_MS);
     target.call(view.zoom.transform, transform);
@@ -665,7 +657,8 @@ function renderEmptyState(container) {
 /**
  * Entry point for both the `#/graph` route (viewer.js) and the dashboard's
  * compact panel (viewer-dashboard.js). Fetches `/api/graph`, builds the SVG,
- * and starts the force simulation — the same fetch call and simulation
+ * and settles the initial force layout before fitting it to the viewport —
+ * the same fetch call and simulation
  * builder run in both modes; only the resolved settings differ (see
  * `resolveSettings`).
  *
@@ -675,9 +668,11 @@ function renderEmptyState(container) {
  *   `staleIds` comes from `staleIdsFromEnvelope()` over the already-fetched
  *   `/api/pages` envelope; a caller that omits it gets kind-only colouring
  *   (no stale nodes highlighted).
+ * Initial framing follows yielding layout batches; explicit Fit clicks retain their transition.
+ * User zoom/pan is not subsequently overridden by a deferred automatic fit.
  * @returns {Promise<{fit: () => void}|null>} A control handle exposing
  *   `fit()` (see `makeFitAction`), or `null` when nothing was rendered — no
- *   data, an empty graph, or a failed fetch. Callers use the `null` case to
+ *   data, an empty graph, a failed fetch, or cancellation on navigation. Callers use the `null` case to
  *   know a "Fit" affordance has nothing to act on (see viewer-dashboard.js's
  *   `mountGraphPanel`).
  */
@@ -688,10 +683,52 @@ export async function loadGraph(container, options = {}) {
     renderEmptyState(container);
     return null;
   }
+  return renderSettledGraph(container, data, options);
+}
+
+/** Frame a populated graph only after its initial layout has settled. */
+async function renderSettledGraph(container, data, options) {
   const view = initGraph(container);
-  const { nodeSel } = renderGraph(view, data, options);
+  view.svg.style('visibility', 'hidden');
+  const { sim, edgeSel, nodeSel } = renderGraph(view, data, options);
+  // Settle before framing: fitting the initial seed positions would let the
+  // force layout drift outside the viewport again after the first paint.
+  sim.stop();
+  if (!await settleLayout(view, sim, container)) return null;
+  onTick(edgeSel, nodeSel);
   if (!options.compact) buildLegend(container);
-  return { fit: makeFitAction(view, nodeSel) };
+  const fit = makeFitAction(view, nodeSel);
+  fit({ animate: false });
+  view.svg.style('visibility', null);
+  return { fit };
+}
+
+/** Maximum layout work per batch; yielding keeps navigation responsive. */
+const LAYOUT_BATCH_MS = 8;
+
+/** Run one bounded batch, allowing a single force tick to finish atomically. */
+function stepLayout(sim) {
+  const start = performance.now();
+  do { sim.tick(); }
+  while (sim.alpha() > sim.alphaMin() && performance.now() - start < LAYOUT_BATCH_MS);
+}
+
+/** Settle off-screen without blocking navigation or overriding a user's first gesture. */
+async function settleLayout(view, sim, container) {
+  const status = document.createElement('p');
+  status.setAttribute('role', 'status');
+  status.textContent = 'Arranging graph…';
+  container.prepend(status);
+  try {
+    while (sim.alpha() > sim.alphaMin()) {
+      if (!view.svg.node().isConnected) return false;
+      stepLayout(sim);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return view.svg.node().isConnected;
+  } finally {
+    status.remove();
+  }
 }
 
 /** Fetch /api/graph and parse JSON; render an inline error banner and return null on failure. */

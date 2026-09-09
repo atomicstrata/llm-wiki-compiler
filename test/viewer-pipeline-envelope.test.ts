@@ -18,15 +18,30 @@ import { afterEach, describe, expect, it } from "vitest";
 import { rm } from "node:fs/promises";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { startViewerServer } from "../src/viewer/server.js";
-import { buildPipelineDefinitions } from "../src/viewer/pipeline.js";
+import { buildPipelineDefinitions, buildPipelineEnvelope } from "../src/viewer/pipeline.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { PIPELINE_PROFILE, seedPipelinePages } from "./fixtures/pipeline-project.js";
 
+interface PipelineFieldRow {
+  name: string;
+  type: string;
+  required?: boolean;
+  enum?: string[];
+  artifactTypes?: string[];
+}
+interface PipelineArtifactRow {
+  type: string;
+  fileName: string;
+  contentKind: string;
+  metadata?: PipelineFieldRow[];
+}
 interface PipelineRow {
   type: string;
   directory: string;
+  titleField?: string;
+  fields?: PipelineFieldRow[];
   pageCount: number;
   stateCounts?: Record<string, number>;
   lifecycle?: {
@@ -40,6 +55,7 @@ interface PipelineRow {
 interface PipelineEnvelope {
   entityTypes: PipelineRow[];
   relationTypes?: { type: string; from: string[]; to: string[]; direction: string; count: number }[];
+  artifactTypes?: PipelineArtifactRow[];
 }
 
 const handles: { close(): Promise<void> }[] = [];
@@ -117,6 +133,33 @@ describe("/api/pages — profilePipeline on a profile project", () => {
     expect(onWire).toEqual(declared);
   });
 
+  // Counts are joined onto declarations by indexing summary maps with a
+  // PROFILE-DECLARED type name, and the schema puts no `propertyNames` on the
+  // entity map — so a type named `constructor` resolves an inherited member on a
+  // bare index. The join then reports a function as the count, which
+  // `JSON.stringify` drops, so the row reaches the client missing the key it is
+  // required to carry. Same class as the `titleField` lookup fixed in #187.
+  it("counts a type whose name is an inherited Object property as zero, not as a function", () => {
+    const odd: ProfilePack = {
+      ...PIPELINE_PROFILE,
+      entities: {
+        ...PIPELINE_PROFILE.entities,
+        constructor: { ...PIPELINE_PROFILE.entities.desks, directory: "wiki/odd" },
+      },
+    };
+    const envelope = buildPipelineEnvelope(buildPipelineDefinitions(odd), {
+      profileId: "p",
+      entityCounts: {},
+      relationCounts: {},
+      lifecycleStates: {},
+    } as never);
+    const row = envelope?.entityTypes.find((r) => r.type === "constructor");
+
+    expect(row?.pageCount).toBe(0);
+    expect(row).not.toHaveProperty("stateCounts");
+    expect(JSON.parse(JSON.stringify(row))).toHaveProperty("pageCount", 0);
+  });
+
   it("carries a directory that differs from the type id verbatim", () => {
     const renamed: ProfilePack = {
       ...PIPELINE_PROFILE,
@@ -127,6 +170,23 @@ describe("/api/pages — profilePipeline on a profile project", () => {
     };
     const definitions = buildPipelineDefinitions(renamed);
     expect(definitions.entityTypes.find((d) => d.type === "desks")?.directory).toBe("desks-v2");
+  });
+
+  // The declared SCHEMA half of the block. `buildPipelineDefinitions` is unit
+  // tested in viewer-profile-schema.test.ts; these two assert it survives the
+  // join onto counts and reaches the wire, which is a separate function.
+  it("carries each type's declared titleField and fields through to the wire", async () => {
+    const row = await rowFor("articles");
+    expect(row.titleField).toBe(PIPELINE_PROFILE.entities.articles.titleField);
+    expect(row.fields?.map((field) => field.name)).toEqual(
+      Object.keys(PIPELINE_PROFILE.entities.articles.fields ?? {}),
+    );
+  });
+
+  it("carries the profile's declared artifact types alongside the entity rows", async () => {
+    const pipeline = await pipelineEnvelope();
+    const declared = Object.keys(PIPELINE_PROFILE.artifacts ?? {});
+    expect(pipeline.artifactTypes?.map((row) => row.type) ?? []).toEqual(declared);
   });
 
   it("carries relation endpoints and direction from the profile", async () => {
