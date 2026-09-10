@@ -27,6 +27,54 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
+## Nested source folders
+
+By default, compile reads only top-level `.md` files in `sources/`. To compile
+your existing folder structure directly, add `sources` to `.llmwiki/config.json`:
+
+```json
+{
+  "version": 1,
+  "sources": {
+    "recursive": true,
+    "exclude": ["inbox", "records/drafts", ".trash"]
+  }
+}
+```
+
+Keep any existing `review` or connector settings in the same file. Then run
+`llmwiki compile`. No mirror directory or preprocessing step is needed.
+`sources/records/notes.md` keeps the identity `records/notes.md` in compilation
+state, citations and source previews. It is distinct from `sources/notes.md`.
+Use `/` in source IDs on every platform, including Windows.
+
+Exclusions are literal paths relative to `sources/`, not glob patterns. `inbox`
+excludes that path and its descendants, but not `inbox-old`. Leading `./` and
+trailing `/` are optional. Empty, absolute and parent-traversing paths are
+invalid; malformed settings stop the command rather than silently changing the
+selection. Dot-prefixed files and directories are not automatically ignored:
+exclude `.trash` explicitly if needed. Symlinks are not compiled or followed.
+
+<Warning>
+  Excluding an already-compiled source removes its contribution on the next
+  ordinary compile; it is not a temporary pause. The original source file stays
+  untouched. Pages with no remaining contributors become orphaned, and shared
+  pages are rebuilt from selected contributors. Selecting that source again
+  compiles it as new and can incur model costs. Turning recursion off has the
+  same effect for previously compiled nested files.
+</Warning>
+
+Run an ordinary `llmwiki compile` after changing selection. `refresh --stale`
+does not report unchanged, deselected owners as stale. `llmwiki status --json` lists
+their pending contribution retirement as `deleted`; that status does not mean
+the source file will be removed. The refresh command
+is scoped to stale owners and is not a substitute for applying all selection
+changes. Existing review and retry behavior still applies to generated pages.
+Source listings in the viewer, SDK and MCP use the same selection. An explicit
+re-ingest can still update an existing excluded source by its identity; with
+recursion enabled, moving an ingested file into a nested folder does not create
+a second copy on re-ingest. New ingests are still written at the top level.
+
 ## Link repair
 
 After pages are written and interlinks resolved, compile repairs wikilinks whose target does not exist but unambiguously names a page that does. Generation tends to link a concept by its short canonical name (`[[Argo CD]]`) while the page carries a longer descriptive title (`argo-cd-image-update-ownership-model`); the link is repointed to it and the displayed text is left exactly as written.

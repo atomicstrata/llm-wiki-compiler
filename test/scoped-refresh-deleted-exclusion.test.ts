@@ -14,8 +14,10 @@
  * detection. Narrowing the first must not narrow the second.
  */
 
+// Shared imports plus unrelated fixture initializers are not reusable behavior.
+// fallow-ignore-next-line code-duplication
 import { describe, expect, it, vi } from "vitest";
-import { rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
@@ -55,10 +57,16 @@ async function arrange(bOwner: SharedOwner): Promise<{ extractedFiles: string[] 
   return { extractedFiles };
 }
 
-/** Remove both sources from disk and reset the extraction record. */
-async function deleteBothSources(probe: { extractedFiles: string[] }): Promise<void> {
-  await rm(path.join(ctx.dir, "sources", "a.md"));
-  await rm(path.join(ctx.dir, "sources", "d.md"));
+/** Retire both contributions by deletion or selection, then reset the probe. */
+async function retireBothSources(probe: { extractedFiles: string[] }, mode: string): Promise<void> {
+  if (mode === "deselected") {
+    await writeFile(path.join(ctx.dir, ".llmwiki/config.json"), JSON.stringify({
+      version: 1, sources: { recursive: true, exclude: ["a.md", "d.md"] },
+    }));
+  } else {
+    await rm(path.join(ctx.dir, "sources", "a.md"));
+    await rm(path.join(ctx.dir, "sources", "d.md"));
+  }
   probe.extractedFiles.length = 0;
 }
 
@@ -83,17 +91,17 @@ async function expectScopedRunSparesDeletion(
 }
 
 /** Seed the wiki, then remove both sources so only b.md survives. */
-async function seedThenDeleteBoth(bOwner: SharedOwner): Promise<{ extractedFiles: string[] }> {
+async function seedThenRetireBoth(bOwner: SharedOwner, mode: string): Promise<{ extractedFiles: string[] }> {
   const probe = await arrange(bOwner);
   await compileAndReport(ctx.dir);
-  await deleteBothSources(probe);
+  await retireBothSources(probe, mode);
   return probe;
 }
 
-describe("a scoped compile and a deleted source the filter excluded", () => {
+describe.each(["deleted", "deselected"])("a scoped compile and a %s source the filter excluded", (mode) => {
   it("never schedules the excluded deletion, and leaves it pending", async () => {
     // b already owns Y, so the PRE-extraction closure walks a -> b -> d.
-    const probe = await seedThenDeleteBoth({ concepts: ["Topic X", "Topic Y"] });
+    const probe = await seedThenRetireBoth({ concepts: ["Topic X", "Topic Y"] }, mode);
 
     await expectScopedRunSparesDeletion(probe);
   });
@@ -103,19 +111,22 @@ describe("a scoped compile and a deleted source the filter excluded", () => {
     // The pre-extraction closure never sees that slug; only late discovery
     // resolves its other owner, which is the excluded deletion d.md.
     const bOwner = { concepts: ["Topic X"] };
-    const probe = await seedThenDeleteBoth(bOwner);
+    const probe = await seedThenRetireBoth(bOwner, mode);
     bOwner.concepts = ["Topic X", "Topic Y"];
 
     await expectScopedRunSparesDeletion(probe);
   });
 
   it("still processes every deletion on an ordinary unscoped compile", async () => {
-    await seedThenDeleteBoth({ concepts: ["Topic X", "Topic Y"] });
+    await seedThenRetireBoth({ concepts: ["Topic X", "Topic Y"] }, mode);
 
     await compileAndReport(ctx.dir);
 
     const state = await readState(ctx.dir);
     expect(Object.keys(state.sources)).not.toContain("a.md");
     expect(Object.keys(state.sources)).not.toContain("d.md");
+    if (mode === "deselected") {
+      expect(await readFile(path.join(ctx.dir, "sources/d.md"), "utf8")).toContain("D contributes");
+    }
   });
 });

@@ -24,6 +24,11 @@ Create `.llmwiki/config.json` in your project root (alongside `sources/` and `wi
 
 An absent config file, a missing `review` key, or `"hold": []` all mean **off** - compile writes pages directly, matching today's default behavior.
 
+The same config file can also contain a `sources` object for
+[recursive discovery and exclusions](/cli/compile#nested-source-folders).
+Keep `review` and `sources` as sibling keys; source selection does not disable
+the review policy.
+
 ## Hold modes
 
 A page is held as a candidate if it trips **any** enabled mode (union semantics). The live `wiki/` page is left untouched when a page is held.
