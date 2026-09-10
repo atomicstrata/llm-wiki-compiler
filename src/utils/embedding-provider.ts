@@ -34,6 +34,7 @@ const EMBEDDING_CAPABLE_PROVIDERS: ReadonlySet<string> = new Set([
   "anthropic",
   "claude-agent",
   "openai",
+  "orcarouter",
   "ollama",
 ]);
 
@@ -56,6 +57,7 @@ const EMBEDDING_CREDENTIALS: Record<string, { keyVars: readonly string[]; endpoi
   "claude-agent": { keyVars: ["VOYAGE_API_KEY"], endpointVar: null },
   openai: { keyVars: ["OPENAI_EMBEDDINGS_API_KEY", "OPENAI_API_KEY"], endpointVar: "OPENAI_EMBEDDINGS_BASE_URL" },
   ollama: { keyVars: [], endpointVar: null },
+  orcarouter: { keyVars: ["ORCAROUTER_API_KEY"], endpointVar: null },
 };
 
 /**
@@ -71,6 +73,7 @@ const EMBEDDING_BACKENDS: Record<string, string> = {
   anthropic: "voyage",
   "claude-agent": "voyage",
   openai: "openai",
+  orcarouter: "orcarouter",
   ollama: "ollama",
 };
 
@@ -84,6 +87,7 @@ const EMBEDDING_ENDPOINT_VARS: Record<string, readonly string[]> = {
   anthropic: [], // Voyage — fixed endpoint, no override
   "claude-agent": [],
   openai: ["OPENAI_EMBEDDINGS_BASE_URL", "OPENAI_BASE_URL"],
+  orcarouter: [], // fixed gateway endpoint; OpenAI overrides do not apply
   ollama: ["OLLAMA_EMBEDDINGS_HOST", "OLLAMA_HOST"],
 };
 

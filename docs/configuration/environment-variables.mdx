@@ -16,10 +16,10 @@ You don't need to set everything - only the variables relevant to your chosen pr
 |---|---|---|
 | `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `orcarouter`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model. For `codex-agent`, unset delegates model choice to Codex and a set value is passed through with `--model` |
-| `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
-| `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
+| `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama`, `orcarouter` |
+| `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies when the effective embedding provider is `openai`, `ollama` or `orcarouter` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
 
-When you set `LLMWIKI_EMBEDDING_PROVIDER`, the named provider's own credential is required: `VOYAGE_API_KEY` for `anthropic` or `claude-agent`, `OPENAI_API_KEY` (or `OPENAI_EMBEDDINGS_API_KEY`) for `openai`, and no key for `ollama`. Setting `OPENAI_EMBEDDINGS_BASE_URL` marks a self-hosted OpenAI-compatible endpoint that needs no key, so `OPENAI_API_KEY` is not required in that case. This check only runs when `LLMWIKI_EMBEDDING_PROVIDER` is set - leaving it unset keeps today's behavior unchanged.
+When you set `LLMWIKI_EMBEDDING_PROVIDER`, the named provider's own credential is required: `VOYAGE_API_KEY` for `anthropic` or `claude-agent`, `OPENAI_API_KEY` (or `OPENAI_EMBEDDINGS_API_KEY`) for `openai`, `ORCAROUTER_API_KEY` for `orcarouter`, and no key for `ollama`. Setting `OPENAI_EMBEDDINGS_BASE_URL` marks a self-hosted OpenAI-compatible endpoint that needs no key, so `OPENAI_API_KEY` is not required in that case. This check only runs when `LLMWIKI_EMBEDDING_PROVIDER` is set - leaving it unset keeps today's behavior unchanged.
 
 The check runs at startup, before any compile or query work begins, so a misspelled provider name or a missing key fails immediately instead of part-way through a run.
 
@@ -165,7 +165,7 @@ Model names are namespaced by publisher (e.g. `qwen/qwen3.5-35b-a3b`, the defaul
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_EMBED_BATCH_SIZE` | Per-provider default (`256` OpenAI, `128` Voyage, `64` Ollama) | Number of texts sent per embedding request. Raise to reduce round-trips; lower to stay within a provider's limits. Non-positive or non-integer values are ignored, and any value above the provider's documented cap is clamped down with a warning |
+| `LLMWIKI_EMBED_BATCH_SIZE` | Per-provider default (`256` OpenAI, `128` Voyage, `64` Ollama or OrcaRouter) | Number of texts sent per embedding request. Raise to reduce round-trips; lower to stay within a provider's limits. Non-positive or non-integer values are ignored. Values above the client cap are clamped with a warning; OrcaRouter's conservative client cap is 64 |
 | `LLMWIKI_EMBED_STRICT` | *(unset)* | When set to `1`, `true`, `yes`, or `on`, an embedding failure during compile exits with a non-zero status instead of warning and continuing. Use it in CI to catch a broken or misconfigured embedding provider |
 
 <Note>
