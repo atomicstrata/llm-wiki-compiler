@@ -1,13 +1,14 @@
 /**
  * @file src/sources/store.ts
  * @description Source-store I/O API for the llmwiki SDK: list / get / delete
- * sources under `sources/`. Source IDs are bare basenames including `.md` (e.g.
- * "note.md") — opaque, path-safe, never joined with an extra extension. The pure
+ * sources under `sources/`. Source IDs are relative POSIX paths including `.md`
+ * (e.g. "records/note.md"), never joined with an extra extension. The pure
  * record/guard logic lives in `./source-record.js`; this module is the thin
  * filesystem layer over it. Read-only-ish (delete aside), no LLM.
  */
 import path from "path";
-import { lstat, readdir, readFile, unlink } from "fs/promises";
+import { lstat, readFile, unlink } from "fs/promises";
+import { listSelectedSourceFiles } from "./scan.js";
 import { confinedRegularFile, resolveSourcesDir } from "../utils/path-confine.js";
 import {
   assertSafeSourceId,
@@ -22,13 +23,7 @@ export type { SourceRecord, ListSourcesOptions, ListSourcesResult } from "./sour
 export async function listSources(root: string, options: ListSourcesOptions = {}): Promise<ListSourcesResult> {
   const dir = await resolveSourcesDir(root);
   if (dir === null) return { sources: [] };
-  let files: string[];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith(".md")).sort();
-  } catch (err) {
-    if ((err as { code?: string }).code === "ENOENT") return { sources: [] };
-    throw err;
-  }
+  const files = await listSelectedSourceFiles(root);
   const offset = options.cursor !== undefined ? Number(options.cursor) : 0;
   if (!Number.isInteger(offset) || offset < 0) throw new Error(`invalid listSources cursor: ${options.cursor}`);
   const limit = options.limit && options.limit > 0 ? options.limit : files.length;
@@ -84,7 +79,7 @@ export async function deleteSource(root: string, id: string): Promise<boolean> {
  * be mistaken for an interrupted removal.
  *
  * @param root - Absolute project root.
- * @param id - Bare source basename including `.md`.
+ * @param id - Source-relative path including `.md`.
  * @returns `true` when nothing exists at `sources/<id>`, `false` when
  *   something does — of any kind.
  */

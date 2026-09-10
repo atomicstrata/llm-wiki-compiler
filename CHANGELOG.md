@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Symlinked entries under `sources/` are no longer compiled in any mode,
+  including the default flat mode. The next ordinary compile retires their
+  previously compiled contributions: exclusive pages become orphaned and shared
+  pages are rebuilt from remaining sources. The symlink and its target are left
+  untouched. Replace source symlinks with regular files to retain those inputs
+  before compiling after upgrading (#164).
+
 ### Fixed
 
 - Ingest activity-journal source references now use forward slashes on Windows.
@@ -24,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure remains retryable (#186).
 
 ### Added
+
+- Opt-in recursive `sources/` discovery and literal path exclusions in project
+  config, preserving nested relative IDs across compilation and source browsing.
+  Deselection retires compiled contributions without deleting source files.
+  Thanks to @squ1ddy for the canonical-folder workflow and request (#164).
 
 - A public test type-check command and pull-request CI job with a per-file,
   downward-only baseline for the existing diagnostic backlog (#200).

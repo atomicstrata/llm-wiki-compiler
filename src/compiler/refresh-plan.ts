@@ -7,13 +7,13 @@
  * (which writes .bak on corrupt state).
  */
 
-import { readdir } from "fs/promises";
+import { listSelectedSourceFiles } from "../sources/scan.js";
 import path from "path";
 import { readStateClassified } from "../utils/state.js";
 import { buildFreshnessSnapshot } from "../freshness/index.js";
 import { findAffectedSources } from "./deps.js";
 import { scanWikiPages } from "./indexgen.js";
-import { CONCEPTS_DIR, SOURCES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR } from "../utils/constants.js";
 import type { SourceChange, WikiState } from "../utils/types.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type { StateStatus } from "../utils/state.js";
@@ -191,12 +191,7 @@ function knownAffectedFor(
  * No hashing performed; presence on disk is sufficient.
  */
 async function listNewSkipped(root: string, state: WikiState): Promise<string[]> {
-  let files: string[];
-  try {
-    files = (await readdir(path.join(root, SOURCES_DIR))).filter((f) => f.endsWith(".md"));
-  } catch {
-    return [];
-  }
+  const files = await listSelectedSourceFiles(root);
   return files.filter((f) => !(f in state.sources));
 }
 

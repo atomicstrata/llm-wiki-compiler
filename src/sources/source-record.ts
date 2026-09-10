@@ -2,7 +2,7 @@
  * @file src/sources/source-record.ts
  * @description The pure (no-I/O) source-record vocabulary shared by the source
  * store: the {@link SourceRecord} shape and its pagination option/result types,
- * the bare-basename id-safety guard, and the frontmatter→record projection.
+ * the relative-path id-safety guard, and the frontmatter→record projection.
  *
  * Factored out of `./store.ts` so the I/O entry points (`listSources`,
  * `getSource`, `deleteSource`) stay a thin filesystem layer over these pure
@@ -14,7 +14,7 @@ import { PathSafetyError } from "../viewer/path-safety.js";
 
 /** A single source file under `sources/`, with frontmatter metadata. */
 export interface SourceRecord {
-  id: string; // basename incl. ".md"
+  id: string; // source-relative POSIX path including ".md"
   title: string;
   source: string; // frontmatter `source` identity
   sourceType: string;
@@ -36,20 +36,18 @@ export interface ListSourcesResult {
 }
 
 /**
- * Reject anything that isn't a bare `sources/` basename ending in `.md`.
+ * Require a normalized source-relative POSIX path ending in `.md`. Existing
+ * top-level IDs remain unchanged; nested IDs must not traverse or alias paths.
  *
- * Real source IDs are `slug-<hex>.md` (slugified title + collision hash) and
- * never contain `..`, so rejecting any `..` substring is safe and simpler than
- * component-level normalization.
- *
- * @param id - The candidate source id (must be a bare `.md` basename).
- * @throws {PathSafetyError} When the id is empty, not `.md`, or not a bare basename.
+ * @param id - Candidate source-relative `.md` path.
+ * @throws {PathSafetyError} When the ID is not a normalized relative path.
  */
 export function assertSafeSourceId(id: string): void {
   if (typeof id !== "string" || id.length === 0) throw new PathSafetyError("source id must be a non-empty string");
   if (!id.endsWith(".md")) throw new PathSafetyError(`source id must end in .md: "${id}"`);
-  if (id.includes("/") || id.includes("\\") || id.includes("\0") || id.includes(".."))
-    throw new PathSafetyError(`source id must be a bare basename: "${id}"`);
+  if (id.includes("\\") || id.includes("\0") || /^[a-z]:/i.test(id) ||
+      id.split("/").some((part) => !part || part === "." || part === ".."))
+    throw new PathSafetyError(`source id must be a normalized relative path: "${id}"`);
 }
 
 /**
@@ -57,7 +55,7 @@ export function assertSafeSourceId(id: string): void {
  * source/type/timestamp from frontmatter (with safe fallbacks) and including the
  * body only when requested. Pure: no I/O.
  *
- * @param id - The source id (bare `.md` basename).
+ * @param id - The source-relative `.md` path.
  * @param content - The file's raw UTF-8 content.
  * @param includeBody - Whether to attach the parsed body to the record.
  * @returns The projected source record.

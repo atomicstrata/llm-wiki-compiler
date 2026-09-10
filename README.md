@@ -219,7 +219,7 @@ wiki/
 .llmwiki/
   profile.json   active domain contract
   template-lock.json  advisory install provenance
-  config.json    review policy
+  config.json    review policy and source selection
   schema.json    page-kind/cross-link policy
   state.json     source hashes and ownership
   candidates/    held review candidates
@@ -230,6 +230,8 @@ log.md           activity journal
 ```
 
 Compiled pages are plain markdown with YAML frontmatter, plus enough metadata for agents to reason about citations, freshness, confidence, contradictions, and review state. See [`docs/concepts/wiki-model.mdx`](docs/concepts/wiki-model.mdx).
+
+Sources are top-level Markdown files by default. Opt into [nested source folders and exclusions](docs/cli/compile.mdx#nested-source-folders) in project config. Excluding a compiled source retires its contribution on the next ordinary compile without deleting the source file.
 
 ## Agent integration
 
