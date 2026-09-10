@@ -75,7 +75,8 @@
  * The file is under `.llmwiki/`, so it is never emitted into `wiki/` output.
  */
 
-import { unlink, open } from "fs/promises";
+import { unlink } from "fs/promises";
+import { openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "path";
@@ -241,7 +242,7 @@ type MarkerRead =
 async function readMarkerCapped(filePath: string): Promise<MarkerRead> {
   let handle: FileHandle;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     // ENOENT → genuinely absent; a symlinked leaf throws ELOOP → exists-but-untrusted.
     return (err as NodeJS.ErrnoException)?.code === "ENOENT"

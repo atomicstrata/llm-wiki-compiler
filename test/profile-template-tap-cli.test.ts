@@ -27,7 +27,13 @@ function run(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, XDG_CONFIG_HOME: path.join(cwd, "operator-config"), XDG_CACHE_HOME: path.join(cwd, "operator-cache") },
+    env: {
+      ...process.env,
+      // Isolate the explicitly seeded XDG fixture on Windows too.
+      APPDATA: undefined, LOCALAPPDATA: undefined,
+      XDG_CONFIG_HOME: path.join(cwd, "operator-config"),
+      XDG_CACHE_HOME: path.join(cwd, "operator-cache"),
+    },
   });
 }
 

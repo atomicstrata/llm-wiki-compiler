@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Ingest activity-journal source references now use forward slashes on Windows.
+  Test fixtures also isolate operator paths and handle native paths, ESM imports,
+  npm launchers and POSIX-only checks explicitly. Native Windows CI remains a
+  separate outstanding gate (#175). Without readable process start times,
+  project locks retain their existing conservative PID-only fallback.
+- Private-file readers and append-only stores no longer silently drop missing
+  native no-follow flags: a portable identity check protects the leaf, and
+  missing stores use exclusive creation. Directory anchoring refuses unsupported
+  platforms. Native Windows validation and CI remain outstanding (#175).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights

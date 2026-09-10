@@ -140,6 +140,8 @@ function runCli(root: string, paths: { configRoot: string; cacheRoot: string }, 
     encoding: "utf8",
     env: {
       ...process.env,
+      // Prevent ambient Windows roots from shadowing the seeded XDG fixture.
+      APPDATA: undefined, LOCALAPPDATA: undefined,
       XDG_CONFIG_HOME: path.dirname(paths.configRoot),
       XDG_CACHE_HOME: path.dirname(path.dirname(paths.cacheRoot)),
     },

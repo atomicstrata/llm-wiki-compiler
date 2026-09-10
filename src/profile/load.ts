@@ -20,7 +20,7 @@
  */
 
 import { constants as fsConstants } from "node:fs";
-import { open } from "node:fs/promises";
+import { openFileNoFollow } from "../utils/no-follow-open.js";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { PROFILE_FILE, MAX_PROFILE_BYTES } from "../utils/constants.js";
@@ -55,7 +55,7 @@ function defaultLoadedProfile(): LoadedProfile {
  */
 async function openProfileNoFollow(filePath: string): Promise<FileHandle | null> {
   try {
-    return await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    return await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return null;
