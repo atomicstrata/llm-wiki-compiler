@@ -28,6 +28,7 @@ import contextCommand, { type ContextCommandOptions } from "./commands/context.j
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { applySourcesSectionOption } from "./utils/sources-section.js";
+import { readInstructions } from "./cli/instructions.js";
 import { ensureProviderAvailable } from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
 import { parseConcurrencyFlag } from "./compiler/concurrency.js";
@@ -115,6 +116,7 @@ program
   });
 
 addProviderOption(program.command("compile").description("Compile sources/ into an interlinked wiki"))
+  .option("--instructions <path>", "Add UTF-8 project instructions for this compile (max 64 KiB); changing or omitting them recompiles affected pages")
   .option(
     "--review",
     "Write generated pages as review candidates under .llmwiki/candidates/ instead of mutating wiki/. Orphan-marking for deleted sources is deferred until the next non-review compile.",
@@ -136,6 +138,7 @@ addProviderOption(program.command("compile").description("Compile sources/ into 
     review?: boolean;
     lang?: string;
     sourcesSection?: boolean;
+    instructions?: string;
     concurrency?: string;
     verbose?: boolean;
   }) => {
@@ -144,8 +147,9 @@ addProviderOption(program.command("compile").description("Compile sources/ into 
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       applySourcesSectionOption(options.sourcesSection);
+      const systemPolicy = await readInstructions(options.instructions);
       requireProvider();
-      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
+      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency), systemPolicy });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
