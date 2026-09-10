@@ -104,6 +104,7 @@ If an agent is scanning this README, these are the high-signal entry points:
 | Import external records through a connector | `llmwiki connector list`, then `llmwiki connector run <id> --input key=value` |
 | Add more files or URLs | `llmwiki ingest <url-or-file>` |
 | Compile or recompile changed sources | `llmwiki compile` |
+| Add project-specific writing guidance | [`llmwiki compile --instructions ./SOUL.md`](docs/cli/compile.mdx#project-instructions); pass the option on each instructed compile |
 | Remove a bad source and its derived pages | `llmwiki rm <source>` |
 | Hold generated pages for human approval | `llmwiki compile --review` or review policy config |
 | Ask grounded questions | `llmwiki query "question"` |
@@ -218,7 +219,7 @@ wiki/
 .llmwiki/
   profile.json   active domain contract
   template-lock.json  advisory install provenance
-  config.json    review policy
+  config.json    review policy and source selection
   schema.json    page-kind/cross-link policy
   state.json     source hashes and ownership
   candidates/    held review candidates
@@ -229,6 +230,8 @@ log.md           activity journal
 ```
 
 Compiled pages are plain markdown with YAML frontmatter, plus enough metadata for agents to reason about citations, freshness, confidence, contradictions, and review state. See [`docs/concepts/wiki-model.mdx`](docs/concepts/wiki-model.mdx).
+
+Sources are top-level Markdown files by default. Opt into [nested source folders and exclusions](docs/cli/compile.mdx#nested-source-folders) in project config. Excluding a compiled source retires its contribution on the next ordinary compile without deleting the source file.
 
 ## Agent integration
 

@@ -262,7 +262,7 @@ export async function readStoreForUpdate(root: string): Promise<ParsedStore | nu
  * Choose the active embedding model name, defaulting to anthropic's voyage model.
  *
  * LLMWIKI_EMBEDDING_MODEL is honoured only when the effective embedding provider
- * is openai or ollama — the pre-existing rule. Anthropic and claude-agent always
+ * is openai, ollama or orcarouter. Anthropic and claude-agent always
  * ignore it, even when LLMWIKI_EMBEDDING_PROVIDER names one of them explicitly:
  * both delegate to Voyage's `VoyageEmbeddingProvider.embed()`, which calls the
  * Voyage API with no model argument and so always uses the hardcoded
@@ -274,7 +274,7 @@ export async function readStoreForUpdate(root: string): Promise<ParsedStore | nu
 export function resolveEmbeddingModel(): string {
   const providerName = getActiveEmbeddingProviderName();
   const configuredModel = process.env.LLMWIKI_EMBEDDING_MODEL?.trim();
-  const honoursConfigured = providerName === "openai" || providerName === "ollama";
+  const honoursConfigured = ["openai", "ollama", "orcarouter"].includes(providerName);
   if (configuredModel && honoursConfigured) {
     return configuredModel;
   }

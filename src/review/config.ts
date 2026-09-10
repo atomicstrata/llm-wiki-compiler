@@ -8,14 +8,11 @@
  * needing to understand the raw JSON file shape.
  */
 
-import { readFile } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
-import { LLMWIKI_DIR, LOW_CONFIDENCE_THRESHOLD } from "../utils/constants.js";
+import { LOW_CONFIDENCE_THRESHOLD } from "../utils/constants.js";
+import { loadProjectConfig, normalizeProjectConfig, requireConfigRecord as requireRecord, ProjectConfigError as ReviewConfigError } from "../project/config.js";
 import type { MissingConfidencePolicy, ReviewPolicy, ReviewPolicyMode } from "./policy.js";
 
-/** Project config file path relative to root. */
-const PROJECT_CONFIG_FILE = path.join(LLMWIKI_DIR, "config.json");
+export { ReviewConfigError };
 
 /** Normalized off policy used when config is absent or review.hold is empty. */
 const REVIEW_POLICY_OFF: ReviewPolicy = {
@@ -23,14 +20,6 @@ const REVIEW_POLICY_OFF: ReviewPolicy = {
   lowConfidenceThreshold: LOW_CONFIDENCE_THRESHOLD,
   treatMissingConfidenceAs: "low",
 };
-
-/** Error type used for fail-closed review config validation. */
-export class ReviewConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ReviewConfigError";
-  }
-}
 
 const SIGNAL_MODES: readonly ReviewPolicyMode[] = [
   "low-confidence",
@@ -47,26 +36,13 @@ const MODE_VALUES = new Set<ReviewPolicyMode>([
 
 /** Load and normalize review policy from `.llmwiki/config.json`. */
 export async function loadReviewPolicy(root: string): Promise<ReviewPolicy> {
-  const filePath = path.join(root, PROJECT_CONFIG_FILE);
-  if (!existsSync(filePath)) return { ...REVIEW_POLICY_OFF };
-  const raw = await readConfigJson(filePath);
-  return normalizeReviewPolicy(raw);
-}
-
-/** Parse the raw JSON config or fail closed on corruption. */
-async function readConfigJson(filePath: string): Promise<unknown> {
-  try {
-    return JSON.parse(await readFile(filePath, "utf-8"));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new ReviewConfigError(`Invalid .llmwiki/config.json: ${message}`);
-  }
+  const raw = await loadProjectConfig(root);
+  return raw === null ? { ...REVIEW_POLICY_OFF } : normalizeReviewPolicy(raw);
 }
 
 /** Normalize raw project config into review policy. */
 export function normalizeReviewPolicy(raw: unknown): ReviewPolicy {
-  const config = requireRecord(raw, "config");
-  validateVersion(config.version);
+  const config = normalizeProjectConfig(raw);
   const review = config.review;
   if (review === undefined) return { ...REVIEW_POLICY_OFF };
   const reviewConfig = requireRecord(review, "review");
@@ -79,20 +55,6 @@ export function normalizeReviewPolicy(raw: unknown): ReviewPolicy {
     lowConfidenceThreshold: normalizeThreshold(reviewConfig.lowConfidenceThreshold),
     treatMissingConfidenceAs: normalizeMissingConfidence(reviewConfig.treatMissingConfidenceAs),
   };
-}
-
-/** Return object records only; arrays/scalars are invalid config roots. */
-function requireRecord(value: unknown, label: string): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new ReviewConfigError(`${label} must be a JSON object`);
-  }
-  return value as Record<string, unknown>;
-}
-
-/** Require `version: 1`; a missing or unsupported version is a hard error. */
-function validateVersion(version: unknown): void {
-  if (version === 1) return;
-  throw new ReviewConfigError('.llmwiki/config.json requires "version": 1');
 }
 
 /** Normalize and validate review.hold. */

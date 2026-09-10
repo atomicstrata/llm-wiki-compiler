@@ -7,10 +7,12 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { WikiState, SourceChange } from "../utils/types.js";
+import { listSelectedSourceFiles } from "../sources/scan.js";
+import { isSourceSelected, loadSourceSelection, type SourceSelection } from "../sources/selection.js";
 
 /**
  * Read a file and compute its SHA-256 hash.
@@ -33,8 +35,8 @@ export async function detectChanges(
   root: string,
   prevState: WikiState,
 ): Promise<SourceChange[]> {
-  const sourcesPath = path.join(root, SOURCES_DIR);
-  const currentFiles = await listSourceFiles(sourcesPath);
+  const selection = await loadSourceSelection(root);
+  const currentFiles = await listSelectedSourceFiles(root, selection);
   const changes: SourceChange[] = [];
 
   for (const file of currentFiles) {
@@ -42,24 +44,10 @@ export async function detectChanges(
     changes.push({ file, status });
   }
 
-  const deletedChanges = findDeletedFiles(currentFiles, prevState);
+  const deletedChanges = findDeletedFiles(currentFiles, prevState, selection);
   changes.push(...deletedChanges);
 
   return changes;
-}
-
-/**
- * List all markdown files in the sources directory.
- * @param sourcesPath - Absolute path to the sources/ directory.
- * @returns Array of filenames (not full paths).
- */
-async function listSourceFiles(sourcesPath: string): Promise<string[]> {
-  try {
-    const entries = await readdir(sourcesPath);
-    return entries.filter((f) => f.endsWith(".md"));
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -84,17 +72,20 @@ async function classifyFile(
 }
 
 /**
- * Find source files present in previous state but missing from disk.
- * @param currentFiles - Files currently on disk.
+ * Retire prior source contributions that disappeared or are no longer selected.
+ * @param currentFiles - Selected regular Markdown files currently on disk.
  * @param prevState - Previous compilation state.
  * @returns Array of SourceChange entries for deleted files.
  */
 function findDeletedFiles(
   currentFiles: string[],
   prevState: WikiState,
+  selection: SourceSelection,
 ): SourceChange[] {
   const currentSet = new Set(currentFiles);
   return Object.keys(prevState.sources)
     .filter((file) => !currentSet.has(file))
-    .map((file) => ({ file, status: "deleted" as const }));
+    .map((file) => ({ file, status: "deleted" as const,
+      ...(!isSourceSelected(file, selection) ? { reason: "deselected" as const } : {}),
+    }));
 }

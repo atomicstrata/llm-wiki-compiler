@@ -514,12 +514,14 @@ export const EMBEDDING_MODELS: Record<string, string> = {
   anthropic: "voyage-3-lite",
   "claude-agent": "voyage-3-lite",
   openai: "text-embedding-3-small",
+  orcarouter: "openai/text-embedding-3-small",
   ollama: "nomic-embed-text",
 };
 
 /** Per-provider default batch size for embedding requests (count-based). */
 export const EMBED_BATCH_SIZES: Record<string, number> = {
   openai: 256,
+  orcarouter: 64,
   ollama: 64,
   anthropic: 128,
   "claude-agent": 128,
@@ -531,6 +533,7 @@ export const EMBED_BATCH_SIZE_FALLBACK = 64;
 /** Upper clamp for LLMWIKI_EMBED_BATCH_SIZE, per provider (documented max inputs). */
 export const EMBED_BATCH_CAPS: Record<string, number> = {
   openai: 2048,
+  orcarouter: 64, // conservative client ceiling; not a claimed gateway limit
   ollama: 512, // no documented cap; internal ceiling to bound request size/memory
   anthropic: 1000,
   "claude-agent": 1000,
