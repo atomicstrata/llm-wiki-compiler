@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Rule extraction now reprocesses unchanged sources when `LLMWIKI_OUTPUT_LANG`
+  changes or is cleared, tracking successful progress per source so a partial
+  failure remains retryable (#186).
+
 ### Added
+
+- OrcaRouter embeddings with namespaced model selection, gateway-specific
+  credentials, and independent `LLMWIKI_EMBEDDING_PROVIDER=orcarouter` routing
+  (#186), building on @Marc-oss-hub's provider contribution.
 
 - `LLMWIKI_OPENAI_EXTRA_BODY` adds explicit gateway-specific chat fields while
   preserving compiler-owned request fields and required tool calls. Thanks to
