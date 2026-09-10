@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
   reporting the long-source limitation and requesting the setting (#203).
 
+- `llmwiki compile --instructions <path>` reads explicit project guidance and
+  adds it to the existing compile policy. The UTF-8 file is limited to 64 KiB;
+  changing or omitting it regenerates affected pages, including review
+  candidates. No files are discovered automatically, and provenance stores
+  only the policy digest. Thanks to @carmilso for the request (#144).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights
