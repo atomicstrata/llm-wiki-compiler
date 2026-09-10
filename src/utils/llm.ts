@@ -11,6 +11,21 @@ import { getProvider } from "./provider.js";
 import type { LLMMessage, LLMTool } from "./provider.js";
 import { note } from "./output.js";
 
+const DEFAULT_COMPLETION_TOKENS = 4096;
+const MAX_TOKENS_ENV = "LLMWIKI_MAX_TOKENS";
+
+/** Explicit call limits win; otherwise validate the operator's default before any request. */
+function resolveMaxTokens(explicit: number | undefined): number {
+  if (explicit !== undefined) return explicit;
+  const raw = process.env[MAX_TOKENS_ENV]?.trim();
+  if (!raw) return DEFAULT_COMPLETION_TOKENS;
+  const parsed = Number(raw);
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${MAX_TOKENS_ENV} must be a positive safe integer written in decimal digits.`);
+  }
+  return parsed;
+}
+
 /** Sleep for a given number of milliseconds. */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,7 +73,8 @@ interface CallClaudeOptions {
  * Preserves the original callClaude interface for backward compatibility.
  */
 export async function callClaude(options: CallClaudeOptions): Promise<string> {
-  const { system, messages, tools, maxTokens = 4096, stream = false, onToken } = options;
+  const { system, messages, tools, stream = false, onToken } = options;
+  const maxTokens = resolveMaxTokens(options.maxTokens);
   const provider = getProvider();
 
   for (let attempt = 0; attempt <= RETRY_COUNT; attempt++) {

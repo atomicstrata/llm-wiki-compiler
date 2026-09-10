@@ -19,6 +19,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   missing stores use exclusive creation. Directory anchoring refuses unsupported
   platforms. Native Windows validation and CI remain outstanding (#175).
 
+- Rule extraction now reprocesses unchanged sources when `LLMWIKI_OUTPUT_LANG`
+  changes or is cleared, tracking successful progress per source so a partial
+  failure remains retryable (#186).
+
+### Added
+
+- A public test type-check command and pull-request CI job with a per-file,
+  downward-only baseline for the existing diagnostic backlog (#200).
+
+- OrcaRouter embeddings with namespaced model selection, gateway-specific
+  credentials, and independent `LLMWIKI_EMBEDDING_PROVIDER=orcarouter` routing
+  (#186), building on @Marc-oss-hub's provider contribution.
+
+- `LLMWIKI_OPENAI_EXTRA_BODY` adds explicit gateway-specific chat fields while
+  preserving compiler-owned request fields and required tool calls. Thanks to
+  @LorenzoGentile for the thinking-mode diagnosis and proposal (#185).
+
+- `LLMWIKI_MAX_TOKENS` configures the shared completion budget while retaining
+  the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
+  reporting the long-source limitation and requesting the setting (#203).
+
+- `llmwiki compile --instructions <path>` reads explicit project guidance and
+  adds it to the existing compile policy. The UTF-8 file is limited to 64 KiB;
+  changing or omitting it regenerates affected pages, including review
+  candidates. No files are discovered automatically, and provenance stores
+  only the policy digest. Thanks to @carmilso for the request (#144).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights
