@@ -25,7 +25,7 @@
  *    calling validateV3ForSearch on it, so migration can transform it safely.
  */
 
-import { open } from "fs/promises";
+import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "path";
@@ -167,10 +167,10 @@ export async function readConfinedRaw(root: string): Promise<string | null> {
   const filePath = path.join(dir, path.basename(EMBEDDINGS_FILE));
   let handle;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ELOOP") return null;
+    if (err instanceof NoFollowOpenError || code === "ENOENT" || code === "ELOOP") return null;
     throw err;
   }
   try {

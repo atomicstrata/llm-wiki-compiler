@@ -36,6 +36,7 @@ export async function resolveDistributionPaths(
   directory: string,
   options: DistributionResolveOptions = {},
 ): Promise<DistributionPaths> {
+  requireDirectoryAnchoring();
   const root = path.resolve(directory);
   let rootHandle: FileHandle | undefined;
   try {
@@ -97,8 +98,16 @@ export async function assertPathMatchesHandle(file: string, opened: Stats, label
   }
 }
 
+/** Do not silently drop a missing directory/no-follow/nonblocking capability. */
+function requireDirectoryAnchoring(): void {
+  if (!fsConstants.O_DIRECTORY || !fsConstants.O_NOFOLLOW || !fsConstants.O_NONBLOCK) {
+    throw new Error("directory anchoring is not supported on this platform");
+  }
+}
+
 /** Open a directory without following its final component or blocking. */
 export async function openDirectoryNoFollow(directory: string): Promise<FileHandle> {
+  requireDirectoryAnchoring();
   return open(directory, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK | fsConstants.O_DIRECTORY);
 }
 

@@ -23,6 +23,7 @@
  */
 
 import { open, unlink } from "fs/promises";
+import { openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "path";
@@ -257,7 +258,7 @@ async function tryCreateLock(lockPath: string): Promise<boolean> {
 async function readLockOwner(lockPath: string): Promise<ReturnType<typeof parseOwner>> {
   let handle: FileHandle;
   try {
-    handle = await open(lockPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(lockPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch {
     return null; // absent (ENOENT) / symlinked leaf (ELOOP) → no readable owner
   }

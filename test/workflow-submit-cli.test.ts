@@ -148,7 +148,7 @@ describe("workflow submit fail-closed surfaces", () => {
   // A planted FIFO at --body-file would HANG a naive check-then-open read forever
   // (a local DoS); the handle-bound reader opens O_NONBLOCK + requires a regular file,
   // so it exits promptly. The test timeout would FAIL (not hang) on a regression.
-  it("exits non-zero on a FIFO --body-file without hanging (O_NONBLOCK + regular-file gate)", async () => {
+  it.skipIf(process.platform === "win32")("exits non-zero on a FIFO --body-file without hanging (O_NONBLOCK + regular-file gate)", async () => {
     await installWriteProfile();
     const runId = await startAndPark();
     const fifo = path.join(root, "pipe.md");

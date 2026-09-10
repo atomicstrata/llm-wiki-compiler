@@ -105,7 +105,7 @@ describe("artifact write via applyApprovedMutations", () => {
     await expect(applyApprovedMutations(root, [mutation])).rejects.toThrow(/not a regular file/);
     expect(await readlink(bytesPath)).toContain("secret"); // untouched — nothing journaled or replaced
   });
-  it("refuses a pre-existing FIFO at the target promptly (no hang under the lock)", async () => {
+  it.skipIf(process.platform === "win32")("refuses a pre-existing FIFO at the target promptly (no hang under the lock)", async () => {
     const root = await makeResearchLikeRoot("artifact-fifo-target");
     process.env.LLMWIKI_TRUSTED_WRITE = "*";
     const { bytesPath, expectedDir } = artifactPaths(root, "experiment-result", "probe", "result.json");

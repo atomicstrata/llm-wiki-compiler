@@ -23,13 +23,14 @@ import { promisify } from "node:util";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { pathToFileURL } from "node:url";
 import { RELATIONS_FILE } from "../src/utils/constants.js";
 import { readRelations } from "../src/relations/store-read.js";
 
 const exec = promisify(execFile);
 
-/** Absolute path to the BUILT public SDK bundle (built once by global setup). */
-const DIST_INDEX = path.resolve("dist/index.js");
+/** File URL lets ESM import the built SDK on Windows as well as POSIX. */
+const DIST_INDEX = pathToFileURL(path.resolve("dist/index.js")).href;
 
 /** The two-entity, one-`tests`-relation profile each subprocess writes against. */
 const PROFILE = {

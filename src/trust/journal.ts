@@ -28,7 +28,8 @@
  * journal files live under `.llmwiki/`, the project's existing private dir.
  */
 
-import { open, mkdir, readdir, unlink, rename, type FileHandle } from "fs/promises";
+import { mkdir, readdir, unlink, rename, type FileHandle } from "fs/promises";
+import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import path from "path";
 import { LLMWIKI_DIR, JOURNAL_PRESTATE_MAX_BYTES } from "../utils/constants.js";
@@ -135,7 +136,7 @@ function quarantinePath(root: string, batchId: string): string {
 async function readOrNull(filePath: string): Promise<string | null> {
   let handle: FileHandle | null = null;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     return await handle.readFile("utf-8");
   } catch {
     return null;

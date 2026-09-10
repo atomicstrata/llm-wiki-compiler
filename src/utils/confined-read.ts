@@ -17,11 +17,14 @@
  * re-opened. Any mismatch or error returns `null` (fail closed). This is the
  * read-side egress guard complementing the directory/leaf confinement in
  * {@link ../wiki/collect.ts} and {@link ./jsonl-store.ts}.
+ * Platforms without the native flag use {@link openFileNoFollow}'s regular-leaf
+ * identity checks; the FIFO non-blocking guarantee below is native-POSIX-only.
  */
 
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { open, stat, realpath, lstat } from "fs/promises";
+import { stat, realpath, lstat } from "fs/promises";
+import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import path from "path";
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 
@@ -59,7 +62,7 @@ type OpenedCappedHandle = { kind: "absent" } | { kind: "unavailable" } | { kind:
 async function openCappedNoFollow(filePath: string, maxBytes: number): Promise<OpenedCappedHandle> {
   let handle: FileHandle;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (err) {
     return (err as NodeJS.ErrnoException)?.code === "ENOENT" ? { kind: "absent" } : { kind: "unavailable" };
   }
@@ -198,7 +201,7 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
   const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
   let handle: FileHandle;
   try {
-    handle = await open(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    handle = await openFileNoFollow(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (err) {
     return { kind: classifyLeafOpenError(err) };
   }
@@ -291,7 +294,7 @@ export type ConfinedPageRead =
 
 /** Classify an `open()` failure: a clean not-there vs a genuine I/O fault. */
 function classifyConfinedError(err: NodeJS.ErrnoException): ConfinedPageRead {
-  if (err.code === "ENOENT" || err.code === "ELOOP") return { kind: "absent" };
+  if (err instanceof NoFollowOpenError || err.code === "ENOENT" || err.code === "ELOOP") return { kind: "absent" };
   return typeof err.code === "string" ? { kind: "unreadable", cause: err } : { kind: "absent" };
 }
 
@@ -318,7 +321,7 @@ export async function readConfinedPageOutcome(
   if (precheck !== capturedRealpath || !isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
   let handle: FileHandle;
   try {
-    handle = await open(capturedRealpath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    handle = await openFileNoFollow(capturedRealpath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (err) {
     return classifyConfinedError(err as NodeJS.ErrnoException);
   }
