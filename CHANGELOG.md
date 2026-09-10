@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `LLMWIKI_MAX_TOKENS` configures the shared completion budget while retaining
+  the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
+  reporting the long-source limitation and requesting the setting (#203).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights

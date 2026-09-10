@@ -140,6 +140,31 @@ For production wikis, consider running `llmwiki compile --review` to inspect all
 
 For a deeper look at how the two-phase pipeline works, see [How It Works](/concepts/how-it-works).
 
+## Long sources and output limits
+
+To allow longer completions for concept extraction and page generation:
+
+```bash
+LLMWIKI_MAX_TOKENS=8192 llmwiki compile
+```
+
+The default is 4096 output tokens per call. Choose a limit supported by your
+model; higher limits can increase cost and latency. Invalid settings fail before
+an LLM request, and llmwiki does not automatically increase the budget or retry
+with a larger one. The `claude-agent` and `codex-agent` providers manage their
+own output limits and ignore this setting.
+
+This is not an input-context limit. `LLMWIKI_PROMPT_BUDGET_CHARS` limits combined
+source text during page generation, not the complete source passed to concept
+extraction. For textbooks, split sources into coherent chapters or sections and
+inspect the stored files under `sources/` to check what ingestion retained.
+Extraction asks for 3–8 concepts per source, not an exhaustive textbook index;
+a larger output budget alone does not guarantee more concepts or valid pages.
+
+Changing the output budget does not invalidate successfully compiled sources.
+Failed sources remain retryable; unchanged successful sources are still skipped.
+To regenerate an existing source, edit its content before compiling again.
+
 ## Prompt modifiers and recompilation
 
 A **prompt modifier** is a setting that changes what the page prompt asks for
