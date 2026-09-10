@@ -42,7 +42,7 @@ interface ParentBinding {
 /** Atomically write a file through a random O_EXCL temp and rename. */
 export async function atomicWrite(
   filePath: string,
-  content: string,
+  content: string | Uint8Array,
   opts?: AtomicWriteOptions,
 ): Promise<void> {
   const dir = path.dirname(filePath);
@@ -93,7 +93,7 @@ async function assertParentNotSymlink(dir: string, confineRoot?: string): Promis
 /** Write content only after the opened temp handle is bound to the checked parent. */
 async function writeViaTemp(
   filePath: string,
-  content: string,
+  content: string | Uint8Array,
   durable: boolean,
   mode?: number,
   binding?: ParentBinding,

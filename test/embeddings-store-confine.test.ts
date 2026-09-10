@@ -4,15 +4,15 @@
  *
  * Covers: symlinked .llmwiki dir and embeddings.json leaf are rejected (fail
  * closed); a clean project (no .llmwiki) is not created by a read; an oversized
- * store file (fstat cap) is unavailable; a write that would exceed the cap throws
- * EmbeddingStoreFullError; and a normal v2 store reads back identically.
+ * JSON file (fstat cap) is unavailable; writes exceeding that JSON cap transition
+ * to binary instead of discarding vectors; normal v2 stores read back identically.
  */
 
 import { describe, it, expect } from "vitest";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { readEmbeddingStore, writeEmbeddingStore, EmbeddingStoreFullError, type EmbeddingStore } from "../src/utils/embeddings-store.js";
+import { readEmbeddingStore, writeEmbeddingStore, type EmbeddingStore } from "../src/utils/embeddings-store.js";
 import { EMBEDDINGS_FILE, LLMWIKI_DIR, MAX_EMBEDDING_STORE_BYTES } from "../src/utils/constants.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 
@@ -65,7 +65,7 @@ describe("embedding store fstat size cap", () => {
 });
 
 describe("embedding store write size cap", () => {
-  it("throws EmbeddingStoreFullError when the serialized store would exceed the cap", async () => {
+  it("preserves legal records in binary when JSON would exceed its cap", async () => {
     // Build many entries within per-field caps whose combined JSON exceeds the store cap.
     // Each entry's summary is at MAX_EMBEDDING_FIELD_CHARS; ~650 entries ≈ 65+ MiB total.
     const { MAX_EMBEDDING_FIELD_CHARS: FIELD_CAP } = await import("../src/utils/constants.js");
@@ -75,8 +75,11 @@ describe("embedding store write size cap", () => {
       vector: [1, 0], updatedAt: "2026-01-01T00:00:00.000Z",
     }));
     const big: EmbeddingStore = { version: 2, model: "m", dimensions: 2, entries, chunks: [] };
-    await expect(writeEmbeddingStore(ctx.root, big)).rejects.toBeInstanceOf(EmbeddingStoreFullError);
+    await writeEmbeddingStore(ctx.root, big);
     expect(existsSync(path.join(ctx.root, EMBEDDINGS_FILE))).toBe(false);
+    const loaded = await readEmbeddingStore(ctx.root);
+    expect(loaded?.entries).toHaveLength(entryCount);
+    expect(loaded?.entries[entryCount - 1]).toEqual(entries[entryCount - 1]);
   }, 30_000);
 });
 

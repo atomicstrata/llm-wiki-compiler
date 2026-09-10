@@ -45,6 +45,13 @@ The upgrade does not create `.llmwiki/profile.json`, move pages, or reinterpret
 
 ## Refresh the embedding index
 
+This section describes the logical v2-to-v3 migration introduced in 1.0.
+Current releases can store that same logical index in either `embeddings.json`
+or `embeddings.bin`. Binary is detected without a flag and an old JSON backup
+is not used while binary exists. Before returning to an older release, read
+the [binary downgrade limitations](/configuration/environment-variables#embedding-storage);
+unsetting the binary option is not a conversion.
+
 llmwiki 1.0 advances `.llmwiki/embeddings.json` from v2 to v3. The v3 format
 uses qualified page ids so a concept and a profile-defined entity with the same
 slug cannot collide.

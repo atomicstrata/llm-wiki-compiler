@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Single-file binary embedding storage for large wikis, with automatic selection
+  above the JSON limit and optional `LLMWIKI_BINARY_EMBEDDINGS`. Later writes
+  stay binary; existing JSON is preserved as a historical backup, not a fallback.
+  Thanks to @bdogabriel for the large-corpus report and reference implementation
+  (#99, #98).
+
 - Opt-in recursive `sources/` discovery and literal path exclusions in project
   config, preserving nested relative IDs across compilation and source browsing.
   Deselection retires compiled contributions without deleting source files.

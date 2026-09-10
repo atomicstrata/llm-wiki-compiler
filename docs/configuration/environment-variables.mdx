@@ -161,16 +161,44 @@ Model names are namespaced by publisher (e.g. `qwen/qwen3.5-35b-a3b`, the defaul
 
 ## Embeddings
 
-`llmwiki compile` embeds pages and chunks in provider-native batches. Both variables are optional.
+`llmwiki compile` embeds pages and chunks in provider-native batches. These variables are optional.
 
 | Variable | Default | Description |
 |---|---|---|
 | `LLMWIKI_EMBED_BATCH_SIZE` | Per-provider default (`256` OpenAI, `128` Voyage, `64` Ollama or OrcaRouter) | Number of texts sent per embedding request. Raise to reduce round-trips; lower to stay within a provider's limits. Non-positive or non-integer values are ignored. Values above the client cap are clamped with a warning; OrcaRouter's conservative client cap is 64 |
 | `LLMWIKI_EMBED_STRICT` | *(unset)* | When set to `1`, `true`, `yes`, or `on`, an embedding failure during compile exits with a non-zero status instead of warning and continuing. Use it in CI to catch a broken or misconfigured embedding provider |
+| `LLMWIKI_BINARY_EMBEDDINGS` | Automatic for large stores | Set to `1`, `true`, `yes`, or `on` to select binary storage on the next embedding-store write, even for a small wiki. Existing binary stores remain binary when this variable is unset |
 
 <Note>
-  Batching changes only how requests are sent, not the on-disk store. Existing `.llmwiki/embeddings.json` files are read and written unchanged.
+  Batching controls requests independently of storage. Small stores keep `.llmwiki/embeddings.json`; stores exceeding its 64 MiB limit automatically use `.llmwiki/embeddings.bin` without repeating embedding requests.
 </Note>
+
+### Embedding storage
+
+Binary storage keeps metadata and Float32 vectors in one atomically replaced
+file. It retains chunk text and the existing logical index version. Float32
+introduces small rounding differences; it does not change the embedding model.
+The limits are 256 MiB of metadata, 512 MiB for the complete binary file, and
+100,000 combined page and chunk records. Higher-dimensional vectors and longer
+chunk text use more space, so the record limit is not a promise that every such
+corpus fits. The index is still loaded into memory for retrieval.
+
+Once `embeddings.bin` exists, readers and writers use it without the flag.
+Any older JSON file is left untouched as a historical backup, not a fallback.
+An unreadable or corrupt binary index produces `embedding-store-unavailable`
+and degraded retrieval rather than silently reading that older snapshot.
+The context command uses its existing `embedding-store-missing` warning code
+for this condition, meaning no usable store, not necessarily no file on disk.
+Repair requires an embedding update with changed or pending eligible pages;
+an unchanged no-op compile does not repair the index. Rebuilding an unavailable
+index embeds the live eligible corpus again and can incur provider costs.
+
+Unsetting the flag does not convert binary back to JSON. Before downgrading to
+a release without binary support, back up and move both derived index files
+aside, then rebuild with that release. This only works for a corpus that fits
+the older JSON limit; larger corpora require a binary-capable release. Do not
+delete just the binary file and reuse stale JSON. Keep your source files, wiki
+pages and `state.json` intact.
 
 ---
 

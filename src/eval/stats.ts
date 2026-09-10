@@ -11,7 +11,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter } from "../utils/markdown.js";
-import { readConfinedRaw, parseEmbeddingStore } from "../utils/embeddings-store.js";
+import { readStoredEmbeddings } from "../utils/embeddings-storage.js";
 import { listSelectedSourceFiles } from "../sources/scan.js";
 import type { StatsResult, EvalReport } from "./types.js";
 
@@ -31,27 +31,17 @@ const HISTORY_FILE = path.join(HISTORY_DIR, "history.jsonl");
  * silently `0`. A corpus-size snapshot must degrade, not crash.
  */
 async function readEmbeddingSnapshot(root: string): Promise<EmbeddingSnapshot> {
-  let raw: string | null;
+  let result: Awaited<ReturnType<typeof readStoredEmbeddings>>;
   try {
-    raw = await readConfinedRaw(root);
+    result = await readStoredEmbeddings(root);
   } catch {
     return { available: false, entries: 0, chunks: 0 };
   }
-  if (raw === null) return { available: false, entries: 0, chunks: 0 };
-  const parsed = safeParse(raw);
-  if (!parsed || parsed.version !== 3) return { available: false, entries: 0, chunks: 0 };
+  if (result.kind !== "parsed" || result.parsed.version !== 3) return { available: false, entries: 0, chunks: 0 };
+  const parsed = result.parsed;
   const entries = Array.isArray(parsed.store.entries) ? parsed.store.entries.length : 0;
   const chunks = Array.isArray(parsed.store.chunks) ? parsed.store.chunks.length : 0;
   return { available: true, entries, chunks };
-}
-
-/** Parse raw store JSON into a discriminated store, swallowing JSON errors. */
-function safeParse(raw: string): ReturnType<typeof parseEmbeddingStore> {
-  try {
-    return parseEmbeddingStore(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
 }
 
 /**
