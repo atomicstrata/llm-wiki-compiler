@@ -44,7 +44,7 @@ llmwiki avoids re-processing unchanged work at every layer of the pipeline.
     Every file in `sources/` is SHA-256 hashed and compared against `.llmwiki/state.json`. Only sources whose hash changed - or that are brand new - flow through the LLM pipeline.
   </Card>
   <Card title="Embedding updates" icon="database">
-    Chunk embeddings in `.llmwiki/embeddings.json` are content-hash-aware. Re-running on an unchanged corpus skips all embedding work.
+    Chunk embeddings in the active JSON or binary index are content-hash-aware. Re-running on an unchanged corpus skips all embedding work.
   </Card>
   <Card title="Cached citations" icon="bookmark">
     Citation judgements from `llmwiki eval --suite full` are cached in `.llmwiki/eval/citation-cache.jsonl`. Subsequent eval runs only re-judge new pairs.
@@ -59,7 +59,7 @@ Retrieval runs over the compiled wiki, not raw source chunks.
 
 <Steps>
   <Step title="Cosine similarity">
-    `.llmwiki/embeddings.json` v3 carries page-level and chunk-level vectors under qualified page ids. A query narrows hundreds of pages to a small top-K via cosine similarity over chunk embeddings.
+    The v3 embedding index carries page and chunk vectors under qualified page ids, in either JSON or binary storage. A query narrows hundreds of pages to a small top-K via cosine similarity over chunk embeddings.
   </Step>
   <Step title="BM25 rerank">
     The candidate set is reranked using BM25 to boost lexically relevant pages that dense retrieval may have under-ranked.
@@ -96,7 +96,8 @@ wiki/
   schema.json       optional page-kind and cross-link policy
   config.json       review policy
   state.json        per-source content hashes and concept ownership
-  embeddings.json   page- and chunk-level embedding vectors
+  embeddings.json   small-store page and chunk vectors
+  embeddings.bin    binary vectors when selected; takes precedence over JSON
   candidates/       pages held for review (from --review or review policy)
   candidates/archive/  rejected candidates kept for audit
 ```

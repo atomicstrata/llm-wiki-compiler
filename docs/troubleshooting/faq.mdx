@@ -105,10 +105,12 @@ If the first compile is still slower than expected, consider:
 Check whether an embedding store exists:
 
 ```bash
-ls .llmwiki/embeddings.json
+find .llmwiki -maxdepth 1 -name 'embeddings.*' -type f -print
 ```
 
-If it's missing, embeddings haven't been built yet (they are created during `compile` when the provider supports them). Possible causes:
+Look for `embeddings.bin` or `embeddings.json`. Binary takes precedence when both exist. File presence alone does not prove the index is usable: `embedding-store-unavailable` means it could not be loaded. See [storage recovery and limits](/configuration/environment-variables#embedding-storage).
+
+If both are missing, embeddings haven't been built yet (they are created during `compile` when the provider supports them). Possible causes:
 
 - **No embedding support on the active provider.** The `copilot` and `claude-agent` providers do not expose embedding endpoints. For `claude-agent`, set `VOYAGE_API_KEY` to enable semantic retrieval; for `copilot`, switch to the `openai` provider and supply `OPENAI_API_KEY`.
 - **Freshly initialized project.** Run `llmwiki compile` at least once to build both pages and embeddings.
@@ -178,7 +180,7 @@ See [Detecting and Repairing Stale Pages](/troubleshooting/stale-pages) for the 
 <Accordion title="How many sources can llmwiki handle?">
 The scale story has matured well past a few dozen sources. Several mechanisms keep large corpora manageable:
 
-- **Semantic chunk retrieval** (`.llmwiki/embeddings.json` v3) narrows hundreds of pages down to a small top-K via cosine similarity before any LLM selection, with BM25 reranking on top.
+- **Semantic chunk retrieval** (the v3 JSON or binary index) narrows hundreds of pages down to a small top-K via cosine similarity before any LLM selection, with BM25 reranking on top. Large stores automatically use binary storage to avoid the JSON size limit; [binary limits](/configuration/environment-variables#embedding-storage) still depend on dimensions and text size, and retrieval loads the index into memory.
 - **Incremental compilation** means only changed sources re-run. Re-running on an unchanged large corpus takes seconds.
 - **Per-concept prompt budget** (`LLMWIKI_PROMPT_BUDGET_CHARS`, default `200000`) prevents popular shared concepts from exhausting the model's context window. Each contributing source gets a fair share when the cap fires, with a truncation warning to stderr.
 

@@ -59,6 +59,11 @@ Compile sends page and chunk embeddings to the provider in batches rather than o
 
 ## What compile produces
 
+Small embedding stores use JSON. When the store exceeds 64 MiB, compile saves
+the already-generated vectors to binary storage automatically. You can also
+opt in with `LLMWIKI_BINARY_EMBEDDINGS=true`. Later writes remain binary even
+without the flag. See [storage limits and downgrade guidance](/configuration/environment-variables#embedding-storage).
+
 After a successful compile, your project contains:
 
 ```
@@ -66,7 +71,8 @@ wiki/
   concepts/           one .md file per extracted concept
   index.md            auto-generated table of contents listing all pages
 .llmwiki/
-  embeddings.json     chunk-level and page-level vectors for semantic search
+  embeddings.json     small-store vectors for semantic search
+  embeddings.bin      vectors after automatic or explicit binary selection
   state.json          per-source content hashes and compile timestamps
 ```
 

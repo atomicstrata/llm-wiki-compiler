@@ -348,16 +348,17 @@ describe("`llmwiki context` — Slice 2 semantic fallback warnings", () => {
     expect(result.stdout).not.toMatch(/\x1b\[/);
   });
 
-  it("malformed .llmwiki/embeddings.json does not crash and still lexically ranks", async () => {
+  it.each(["embeddings.json", "embeddings.bin"])("malformed %s does not crash and still lexically ranks", async (filename) => {
     // Regression: a broken store must NOT propagate JSON.parse failures (exit 1
     // + stack trace). The v3 loader catches and degrades to lexical-only.
     await seedConcept("alpha", "Alpha");
     await mkdir(path.join(tmpDir, LLMWIKI_DIR), { recursive: true });
-    await writeFile(path.join(tmpDir, EMBEDDINGS_FILE), "{broken", "utf-8");
+    await writeFile(path.join(tmpDir, LLMWIKI_DIR, filename), "{broken", "utf-8");
     const result = await runCLI(["context", "alpha", "--json"], tmpDir);
     expectCLIExit(result, 0);
     const payload = JSON.parse(result.stdout) as Record<string, unknown>;
-    expect(warningCodesOf(payload)).toContain("embedding-index-outdated");
+    // Context's public vocabulary maps an unavailable loader result to missing.
+    expect(warningCodesOf(payload)).toContain("embedding-store-missing");
     // Lexical signals still rank the seeded page.
     const top = firstPrimary(payload);
     expect(top.id).toBe("concepts/alpha");

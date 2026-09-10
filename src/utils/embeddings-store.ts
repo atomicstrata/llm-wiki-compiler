@@ -1,19 +1,18 @@
 /**
  * Embedding store shape and persistence.
  *
- * Owns the on-disk JSON contract for .llmwiki/embeddings.json (types, version,
- * atomic read/write) and the active embedding CONFIGURATION resolution — the
+ * Owns the logical embedding contract (types, version, read/write facade) and
+ * the active embedding CONFIGURATION resolution — the
  * provider backend, endpoint, and model that together tag and validate a store.
  * No retrieval or embedding logic lives here — this is the base module every
- * other embeddings-* module depends on, and it depends on none of them.
+ * other embeddings-* module uses. Format selection and atomic persistence live
+ * in embeddings-storage.ts; logical v1/v2/v3 migration remains unchanged.
  *
  * Confinement + resource-cap policy (B1):
- *  - READ: routes through {@link resolveExistingConfinedPrivateDir} (no mkdir on
- *    clean projects), opens the leaf with O_RDONLY|O_NOFOLLOW (symlinked leaf →
- *    unavailable), fstat-checks the size before parsing.
- *  - WRITE: routes through {@link resolveConfinedPrivateDir} (creates .llmwiki),
- *    serializes first and rejects if over {@link MAX_EMBEDDING_STORE_BYTES} via
- *    {@link EmbeddingStoreFullError} before atomicWrite.
+ *  - READ: no mkdir on clean projects; no-follow, size-capped reads select an
+ *    authoritative binary leaf before legacy JSON. Refusal never revives JSON.
+ *  - WRITE: small stores retain JSON; oversized stores automatically use one
+ *    binary container. Binary limits are enforced before atomic replacement.
  *  - Field caps and identity filtering handled by embeddings-validate.ts.
  *
  * Version-discriminated access (B3, §4.3):
@@ -35,24 +34,13 @@ import {
   resolveEmbeddingBackend,
   resolveEmbeddingEndpoint,
 } from "./embedding-provider.js";
-import { atomicWrite } from "./markdown.js";
 import { EMBEDDINGS_FILE, EMBEDDING_MODELS, MAX_EMBEDDING_STORE_BYTES } from "./constants.js";
 import { assertEmbeddingStoreValid, filterMalformedIdentities, assertFieldCaps } from "./embeddings-validate.js";
-import { resolveExistingConfinedPrivateDir, resolveConfinedPrivateDir } from "./private-dir.js";
+import { resolveExistingConfinedPrivateDir } from "./private-dir.js";
 import { parseQualifiedPageId, type PageId } from "./page-id.js";
-
-/**
- * Raised when a write would produce a serialized store that exceeds
- * {@link MAX_EMBEDDING_STORE_BYTES} — the same bound the reader fails closed at.
- * The write path fails BEFORE persisting so the store can never be driven past the
- * read ceiling into an unreadable-yet-writable (bricked) state.
- */
-export class EmbeddingStoreFullError extends Error {
-  constructor() {
-    super("embedding store is full; rebuild or prune entries");
-    this.name = "EmbeddingStoreFullError";
-  }
-}
+import { readStoredEmbeddings, persistEmbeddingStore, type ParsedStore } from "./embeddings-storage.js";
+export { parseEmbeddingStore, type ParsedStore } from "./embeddings-storage.js";
+export { EmbeddingStoreFullError } from "./embeddings-errors.js";
 
 /**
  * Current store version. Bumped 1 → 2 when chunk entries were added, and
@@ -61,18 +49,6 @@ export class EmbeddingStoreFullError extends Error {
  * writer now persists v3; v1/v2 stores on disk are migrated on the next write.
  */
 export const STORE_VERSION = 3 as const;
-
-/** Known on-disk versions; v3 does not yet exist on disk (B3 stub). */
-const KNOWN_VERSIONS = new Set<number>([1, 2, 3]);
-
-/**
- * Discriminated parse result: the numeric version plus the raw store shape.
- * Consumers narrow on `version` before applying version-specific logic.
- */
-export interface ParsedStore {
-  version: 1 | 2 | 3;
-  store: Record<string, unknown>;
-}
 
 /** A single embedded page record. */
 export interface EmbeddingEntry {
@@ -105,7 +81,7 @@ export interface EmbeddingStore {
 }
 
 // ---------------------------------------------------------------------------
-// v3 record types (not yet written to disk — writer still emits v2 until D7)
+// v3 record types
 // ---------------------------------------------------------------------------
 
 /**
@@ -140,7 +116,7 @@ export interface ChunkEmbeddingV3 {
   updatedAt: string;
 }
 
-/** Root shape of a v3 .llmwiki/embeddings.json store (not yet on disk). */
+/** Logical root shape of a v3 embedding store in either encoding. */
 export interface EmbeddingStoreV3 {
   version: 3;
   model: string;
@@ -157,7 +133,8 @@ export interface EmbeddingStoreV3 {
 }
 
 /**
- * Shared confined read: resolves the .llmwiki dir, opens embeddings.json with
+ * Legacy raw-JSON compatibility reader, not the format-aware production loader.
+ * Resolves the .llmwiki dir, opens embeddings.json with
  * O_RDONLY|O_NOFOLLOW (symlinked leaf → null), fstat-caps the size, and returns
  * the raw UTF-8 content. Returns null for all unavailable/absent/oversized cases.
  */
@@ -183,7 +160,7 @@ export async function readConfinedRaw(root: string): Promise<string | null> {
 }
 
 /**
- * Read .llmwiki/embeddings.json with confinement + size cap.
+ * Read the authoritative binary or legacy JSON store with confinement + size cap.
  * Returns null when:
  *  - .llmwiki does not exist (clean project — no mkdir);
  *  - embeddings.json does not exist;
@@ -193,10 +170,10 @@ export async function readConfinedRaw(root: string): Promise<string | null> {
  * A symlinked .llmwiki dir throws (fail closed via private-dir confinement).
  */
 export async function readEmbeddingStore(root: string): Promise<EmbeddingStore | null> {
-  const raw = await readConfinedRaw(root);
-  if (raw === null) return null;
+  const result = await readStoredEmbeddings(root);
+  if (result.kind !== "parsed") return null;
   try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const parsed = result.parsed.store;
     filterMalformedIdentities(parsed);
     assertEmbeddingStoreValid(parsed);
     return parsed as unknown as EmbeddingStore;
@@ -206,10 +183,9 @@ export async function readEmbeddingStore(root: string): Promise<EmbeddingStore |
 }
 
 /**
- * Atomically persist the embedding store via a confined write.
- * Validates the store, enforces per-field caps, and rejects if the serialized
- * form would exceed {@link MAX_EMBEDDING_STORE_BYTES} (throws
- * {@link EmbeddingStoreFullError}). Creates `.llmwiki` if absent.
+ * Validate and atomically persist through the format-aware confined writer.
+ * JSON overflow selects binary without repeating provider work; exceeding binary
+ * limits throws EmbeddingStoreFullError. Creates `.llmwiki` only for a write.
  */
 export async function writeEmbeddingStore(
   root: string,
@@ -217,30 +193,7 @@ export async function writeEmbeddingStore(
 ): Promise<void> {
   assertEmbeddingStoreValid(store);
   assertFieldCaps(store as unknown as Record<string, unknown>);
-  const serialized = JSON.stringify(store, null, 2);
-  if (Buffer.byteLength(serialized, "utf-8") > MAX_EMBEDDING_STORE_BYTES) {
-    throw new EmbeddingStoreFullError();
-  }
-  // resolveConfinedPrivateDir creates .llmwiki with confinement; use the original
-  // root-relative path for atomicWrite so confineRoot comparison stays on the
-  // same path form (avoids macOS /var → /private/var symlink mismatch).
-  await resolveConfinedPrivateDir(root);
-  const filePath = path.join(root, EMBEDDINGS_FILE);
-  await atomicWrite(filePath, serialized, { confineRoot: root });
-}
-
-/**
- * Discriminate the version from parsed JSON WITHOUT running v3-specific id
- * validation. Returns a {@link ParsedStore} when the input is a plain object
- * with a known numeric `version`; returns null for unknown versions, non-objects,
- * or missing/non-numeric version fields.
- */
-export function parseEmbeddingStore(raw: unknown): ParsedStore | null {
-  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const rec = raw as Record<string, unknown>;
-  const version = rec.version;
-  if (typeof version !== "number" || !KNOWN_VERSIONS.has(version)) return null;
-  return { version: version as 1 | 2 | 3, store: rec };
+  await persistEmbeddingStore(root, store);
 }
 
 /** Result of {@link validateV3ForSearch}. */
@@ -301,13 +254,8 @@ function filterMalformedPageIds(store: Record<string, unknown>): string[] {
  * Returns null when the file is absent, oversized, unconfined, or unparseable.
  */
 export async function readStoreForUpdate(root: string): Promise<ParsedStore | null> {
-  const raw = await readConfinedRaw(root);
-  if (raw === null) return null;
-  try {
-    return parseEmbeddingStore(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
+  const result = await readStoredEmbeddings(root);
+  return result.kind === "parsed" ? result.parsed : null;
 }
 
 /**

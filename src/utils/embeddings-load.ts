@@ -28,14 +28,13 @@
 import { getEmbeddingProvider } from "./embedding-provider.js";
 import { assertVectorValid } from "./embeddings-validate.js";
 import {
-  parseEmbeddingStore,
   validateV3ForSearch,
   storeMatchesActiveEmbedding,
-  readConfinedRaw,
   type EmbeddingStoreV3,
   type PageEmbeddingV3,
   type ChunkEmbeddingV3,
 } from "./embeddings-store.js";
+import { readStoredEmbeddings } from "./embeddings-storage.js";
 import { cosineSimilarity } from "./embeddings-search.js";
 import {
   buildLiveIdSet,
@@ -118,10 +117,11 @@ export async function loadEmbeddingsForContext(root: string): Promise<EmbeddingL
  * configuration (provider, endpoint, or model), or is absent.
  */
 async function gateActiveStore(root: string): Promise<EmbeddingLoadOutcome> {
-  const raw = await readConfinedRaw(root);
-  if (raw === null) return degraded("embedding-index-outdated", "No embedding index found.");
-  const parsed = parseStoreRaw(raw);
-  if (!parsed || parsed.version !== 3) {
+  const result = await readStoredEmbeddings(root);
+  if (result.kind === "absent") return degraded("embedding-index-outdated", "No embedding index found.");
+  if (result.kind === "unavailable") return degraded("embedding-store-unavailable", result.reason);
+  const parsed = result.parsed;
+  if (parsed.version !== 3) {
     return degraded("embedding-index-outdated", "Embedding index is an older version; rebuild with 'llmwiki compile'.");
   }
   const validation = validateV3ForSearch(parsed);
@@ -135,15 +135,6 @@ async function gateActiveStore(root: string): Promise<EmbeddingLoadOutcome> {
     );
   }
   return { store: parsed.store as unknown as EmbeddingStoreV3, warnings: [], stalePageIds: [] };
-}
-
-/** Parse raw JSON into a discriminated store, swallowing JSON errors as degrade. */
-function parseStoreRaw(raw: string): ReturnType<typeof parseEmbeddingStore> {
-  try {
-    return parseEmbeddingStore(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
 }
 
 /**

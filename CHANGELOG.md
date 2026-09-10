@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   missing stores use exclusive creation. Directory anchoring refuses unsupported
   platforms. Native Windows validation and CI remain outstanding (#175).
 
+### Added
+
+- Single-file binary embedding storage for large wikis, with automatic selection
+  above the JSON limit and optional `LLMWIKI_BINARY_EMBEDDINGS`. Later writes
+  stay binary; existing JSON is preserved as a historical backup, not a fallback.
+  Thanks to @bdogabriel for the large-corpus report and reference implementation
+  (#99, #98).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights
