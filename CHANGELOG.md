@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A public test type-check command and pull-request CI job with a per-file,
+  downward-only baseline for the existing diagnostic backlog (#200).
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights
