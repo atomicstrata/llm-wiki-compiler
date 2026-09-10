@@ -38,7 +38,7 @@ async function leaf(): Promise<string> {
 }
 
 describe("lock liveness — PID-reuse safety (M8b)", () => {
-  it("reclaims a lock whose live PID has a DIFFERENT startTime (PID was reused)", async () => {
+  it.skipIf(process.platform === "win32")("reclaims a lock whose live PID has a DIFFERENT startTime (PID was reused)", async () => {
     // Our own (alive) PID, but a start time that cannot match the live process →
     // the holder is a recycled PID → stale → reclaimed.
     await plant(JSON.stringify({ pid: process.pid, startTime: "Thu Jan  1 00:00:00 1970" }));
@@ -48,7 +48,7 @@ describe("lock liveness — PID-reuse safety (M8b)", () => {
 
   it("respects a lock with a MATCHING live PID + startTime (not reclaimed)", async () => {
     const startTime = readProcessStartTime(process.pid);
-    expect(startTime).not.toBeNull();
+    // Start time is best effort: an unreadable clock must still respect a live PID.
     await plant(JSON.stringify({ pid: process.pid, startTime }));
     expect(await acquireLock(root)).toBe(false);
   });
@@ -67,7 +67,9 @@ describe("lock liveness — PID-reuse safety (M8b)", () => {
     expect(await acquireLock(root)).toBe(true);
     const parsed = JSON.parse(await leaf()) as { pid: number; startTime?: string };
     expect(parsed.pid).toBe(process.pid);
-    expect(typeof parsed.startTime).toBe("string");
+    const liveStartTime = readProcessStartTime(process.pid);
+    if (liveStartTime === null) expect(parsed.startTime).toBeUndefined();
+    else expect(parsed.startTime).toBe(liveStartTime);
     await releaseLock(root);
     expect(await existsUnder(root, LOCK_REL)).toBe(false);
   });

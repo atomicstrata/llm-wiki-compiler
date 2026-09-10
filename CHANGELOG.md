@@ -16,12 +16,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   untouched. Replace source symlinks with regular files to retain those inputs
   before compiling after upgrading (#164).
 
+### Fixed
+
+- Ingest activity-journal source references now use forward slashes on Windows.
+  Test fixtures also isolate operator paths and handle native paths, ESM imports,
+  npm launchers and POSIX-only checks explicitly. Native Windows CI remains a
+  separate outstanding gate (#175). Without readable process start times,
+  project locks retain their existing conservative PID-only fallback.
+- Private-file readers and append-only stores no longer silently drop missing
+  native no-follow flags: a portable identity check protects the leaf, and
+  missing stores use exclusive creation. Directory anchoring refuses unsupported
+  platforms. Native Windows validation and CI remain outstanding (#175).
+
+- Rule extraction now reprocesses unchanged sources when `LLMWIKI_OUTPUT_LANG`
+  changes or is cleared, tracking successful progress per source so a partial
+  failure remains retryable (#186).
+
 ### Added
 
 - Opt-in recursive `sources/` discovery and literal path exclusions in project
   config, preserving nested relative IDs across compilation and source browsing.
   Deselection retires compiled contributions without deleting source files.
   Thanks to @squ1ddy for the canonical-folder workflow and request (#164).
+
+- A public test type-check command and pull-request CI job with a per-file,
+  downward-only baseline for the existing diagnostic backlog (#200).
+
+- OrcaRouter embeddings with namespaced model selection, gateway-specific
+  credentials, and independent `LLMWIKI_EMBEDDING_PROVIDER=orcarouter` routing
+  (#186), building on @Marc-oss-hub's provider contribution.
+
+- `LLMWIKI_OPENAI_EXTRA_BODY` adds explicit gateway-specific chat fields while
+  preserving compiler-owned request fields and required tool calls. Thanks to
+  @LorenzoGentile for the thinking-mode diagnosis and proposal (#185).
+
+- `LLMWIKI_MAX_TOKENS` configures the shared completion budget while retaining
+  the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
+  reporting the long-source limitation and requesting the setting (#203).
+
+- `llmwiki compile --instructions <path>` reads explicit project guidance and
+  adds it to the existing compile policy. The UTF-8 file is limited to 64 KiB;
+  changing or omitting it regenerates affected pages, including review
+  candidates. No files are discovered automatically, and provenance stores
+  only the policy digest. Thanks to @carmilso for the request (#144).
 
 ## [1.2.0] - 2026-09-09
 

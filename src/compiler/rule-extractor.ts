@@ -2,8 +2,8 @@
  * Rule-extraction orchestrator (rule pipeline).
  *
  * Drives the `RuleCandidate` producer half of the learning loop: for each
- * changed source file (gated by the same SHA-256 change detection the concept
- * compiler uses), call the LLM with the rule-extraction tool, map each
+ * changed source file (by SHA-256 or selected output language), call the LLM
+ * with the rule-extraction tool, map each
  * extracted rule into a `RuleCandidate`, and persist it under
  * `.llmwiki/rule-candidates/`.
  *
@@ -19,6 +19,7 @@ import { detectChanges } from "./hasher.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { callClaude } from "../utils/llm.js";
 import { resolveActiveModelId } from "../utils/provider.js";
+import { getOutputLanguage } from "../utils/output-language.js";
 import { budgetAndNumberSource } from "./prompt-budget.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import {
@@ -49,7 +50,7 @@ const PROVENANCE_SOURCE = "llm-wiki-compiler";
 
 /** Structured outcome of a rules-extraction run, for CLI + programmatic use. */
 export interface RuleExtractionResult {
-  /** Source files processed (changed/new since last state). */
+  /** Source files processed because content or selected language changed. */
   processedSources: string[];
   /** Candidates written this run. */
   candidates: RuleCandidate[];
@@ -178,15 +179,16 @@ async function extractForSource(
 }
 
 /**
- * Source filenames that are new or changed since rule extraction last ran.
+ * Source filenames whose content or selected language needs rule extraction.
  * Compares against `.llmwiki/rule-state.json` — NOT the concept compiler's
  * state — so extraction has an independent change-detection cursor.
  */
-async function changedSources(root: string): Promise<string[]> {
+async function changedSources(root: string, outputLanguage: string): Promise<string[]> {
   const state = await readRuleState(root);
   const changes = await detectChanges(root, state);
   return changes
-    .filter((c) => c.status === "new" || c.status === "changed")
+    .filter((c) => c.status === "new" || c.status === "changed" ||
+      (c.status === "unchanged" && (state.sources[c.file]?.outputLanguage ?? "") !== outputLanguage))
     .map((c) => c.file);
 }
 
@@ -203,7 +205,8 @@ export async function extractRuleCandidates(
   createdAt: string = new Date().toISOString(),
 ): Promise<RuleExtractionResult> {
   const provenance = buildProvenance();
-  const sources = await changedSources(root);
+  const outputLanguage = getOutputLanguage() ?? "";
+  const sources = await changedSources(root, outputLanguage);
 
   const candidates: RuleCandidate[] = [];
   const notes: string[] = [];
@@ -220,6 +223,7 @@ export async function extractRuleCandidates(
       hash: outcome.hash,
       concepts: [],
       compiledAt: createdAt,
+      outputLanguage,
     });
   }
 
@@ -237,7 +241,8 @@ async function persistCandidate(
   candidate: RuleCandidate,
   notes: string[],
 ): Promise<boolean> {
-  const existing = await readRuleCandidate(root, candidateFileId(candidate.id));
+  const fileId = candidateFileId(candidate.id);
+  const existing = await readRuleCandidate(root, fileId) ?? await readRuleCandidate(root, fileId, "archive");
   if (existing && existing.status !== "proposed") {
     notes.push(`Kept ${existing.status} candidate ${candidate.id} (re-extraction did not overwrite it).`);
     return false;

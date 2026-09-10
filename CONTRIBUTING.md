@@ -47,6 +47,7 @@ You can also run the full suite manually:
 
 ```bash
 npx tsc --noEmit   # Type-check
+npm run typecheck:tests # Type-check tests against the per-file baseline
 npm run build       # Build
 npm test            # Tests
 npx fallow          # Codebase health (dead code, duplication, complexity)
@@ -79,6 +80,30 @@ There is also one known parity gap that no flag closes: fallow's clone-detection
 - Use Vitest (already configured)
 - Tests should not depend on timing or external services
 - Keep test files under 400 lines; split if needed
+
+### Test Type-checking
+
+Vitest runs tests but does not check their TypeScript types. Run
+`npm run typecheck:tests` as well. It checks nested tests, fixtures, and imported
+production code without emitting JavaScript or declarations. TypeScript is
+pinned so the recorded diagnostics are comparable across machines.
+
+The existing backlog is recorded per file in `test-typecheck-baseline.json`.
+New errors fail, including errors in previously clean files; reducing errors in
+another file does not provide an allowance. When you fix an existing error, run
+`npm run typecheck:tests:update` and include the reduced baseline in your PR.
+That command refuses increases. To see diagnostic locations and messages, run
+`npx tsc -p tsconfig.test.json`; this raw command also reports the known backlog.
+
+The `test-typecheck` CI job compares the proposed baseline with the PR's base
+commit, so editing an allowance upward cannot hide a new failure. To reproduce
+that comparison locally, run `npm run typecheck:tests -- --base-ref origin/main`
+(use `upstream/main` for a fork). Compiler-version or configuration changes need
+an explicit baseline migration and review; routine updates do not accept them.
+`--init` is only for initial baseline creation, not for clearing failures.
+
+Maintainers should make `test-typecheck` a required check after this workflow
+lands; adding the workflow does not itself change branch protection.
 
 ## Submitting a Pull Request
 

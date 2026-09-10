@@ -20,6 +20,21 @@ llmwiki is a Node.js CLI that you install once globally with npm. After installa
 
 Version **1.2.0** includes profile-aware browsing, source and artifact drill-down, and compile/provider improvements. Windows path fixes are included, but release CI is Linux-only and full Windows filesystem-confinement guarantees remain unverified. Use Linux for untrusted projects until [the Windows safety work](https://github.com/atomicstrata/llm-wiki-compiler/issues/175) is complete.
 
+### Platform limitations in the next release
+
+The next release adds checks for private-file reads and append-only stores when
+the operating system lacks native no-follow flags. A file must be regular and
+retain the same filesystem identity before and after opening; missing stores
+are created exclusively. Filesystems that cannot supply a nonzero file identity
+are refused rather than read without that check.
+
+This fallback has been tested through capability simulations, **not on a native
+Windows runner**. It does not establish full Windows support. Native POSIX
+no-follow and nonblocking behavior is unchanged. Directory-handle verification,
+including offline template verification and anchored tap-key reads, refuses
+operation where the required directory flags are unavailable. Continue using
+Linux for untrusted projects; the Windows CI work remains open.
+
 Install the `llm-wiki-compiler` package globally. The package registers the `llmwiki` binary on your `PATH`:
 
 ```bash

@@ -19,7 +19,8 @@
  * is backed up to `.bak` and recovered as empty state instead.
  */
 
-import { copyFile, open } from "fs/promises";
+import { copyFile } from "fs/promises";
+import { openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import { existsSync } from "fs";
 import path from "path";
@@ -134,7 +135,7 @@ export async function readStateClassified(root: string): Promise<ClassifiedState
  * classifies it CORRUPT (fail closed).
  */
 async function readStateNoFollow(filePath: string): Promise<string> {
-  const handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  const handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   try {
     return await handle.readFile("utf-8");
   } finally {

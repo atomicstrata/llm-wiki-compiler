@@ -81,10 +81,26 @@ describe("template tap lifecycle", () => {
 });
 
 describe("template tap path conventions", () => {
+  it("prefers Windows roots, but uses XDG when the child environment clears them", () => {
+    const env = {
+      APPDATA: path.resolve("roaming"), LOCALAPPDATA: path.resolve("local"),
+      XDG_CONFIG_HOME: path.resolve("xdg-config"), XDG_CACHE_HOME: path.resolve("xdg-cache"),
+    };
+    const windows = resolveTapPaths({ platform: "win32", env });
+    expect(windows.configRoot).toBe(path.join(env.APPDATA, "llmwiki"));
+    expect(windows.cacheRoot).toBe(path.join(env.LOCALAPPDATA, "llmwiki", "cache", "templates"));
+    const isolated = resolveTapPaths({
+      platform: "win32", env: { ...env, APPDATA: undefined, LOCALAPPDATA: undefined },
+    });
+    expect(isolated.configRoot).toBe(path.join(env.XDG_CONFIG_HOME, "llmwiki"));
+    expect(isolated.cacheRoot).toBe(path.join(env.XDG_CACHE_HOME, "llmwiki", "templates"));
+  });
+
   it("ignores relative XDG roots instead of resolving them under cwd", () => {
-    const resolved = resolveTapPaths({ env: { XDG_CONFIG_HOME: ".config", XDG_CACHE_HOME: ".cache" }, home: "/home/test", platform: "linux" });
-    expect(resolved.configRoot).toBe("/home/test/.config/llmwiki");
-    expect(resolved.cacheRoot).toBe("/home/test/.cache/llmwiki/templates");
+    const home = path.resolve("test-home");
+    const resolved = resolveTapPaths({ env: { XDG_CONFIG_HOME: ".config", XDG_CACHE_HOME: ".cache" }, home, platform: "linux" });
+    expect(resolved.configRoot).toBe(path.join(home, ".config", "llmwiki"));
+    expect(resolved.cacheRoot).toBe(path.join(home, ".cache", "llmwiki", "templates"));
   });
 });
 

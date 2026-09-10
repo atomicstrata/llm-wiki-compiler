@@ -25,7 +25,7 @@
  *    calling validateV3ForSearch on it, so migration can transform it safely.
  */
 
-import { open } from "fs/promises";
+import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "path";
@@ -167,10 +167,10 @@ export async function readConfinedRaw(root: string): Promise<string | null> {
   const filePath = path.join(dir, path.basename(EMBEDDINGS_FILE));
   let handle;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ELOOP") return null;
+    if (err instanceof NoFollowOpenError || code === "ENOENT" || code === "ELOOP") return null;
     throw err;
   }
   try {
@@ -314,7 +314,7 @@ export async function readStoreForUpdate(root: string): Promise<ParsedStore | nu
  * Choose the active embedding model name, defaulting to anthropic's voyage model.
  *
  * LLMWIKI_EMBEDDING_MODEL is honoured only when the effective embedding provider
- * is openai or ollama — the pre-existing rule. Anthropic and claude-agent always
+ * is openai, ollama or orcarouter. Anthropic and claude-agent always
  * ignore it, even when LLMWIKI_EMBEDDING_PROVIDER names one of them explicitly:
  * both delegate to Voyage's `VoyageEmbeddingProvider.embed()`, which calls the
  * Voyage API with no model argument and so always uses the hardcoded
@@ -326,7 +326,7 @@ export async function readStoreForUpdate(root: string): Promise<ParsedStore | nu
 export function resolveEmbeddingModel(): string {
   const providerName = getActiveEmbeddingProviderName();
   const configuredModel = process.env.LLMWIKI_EMBEDDING_MODEL?.trim();
-  const honoursConfigured = providerName === "openai" || providerName === "ollama";
+  const honoursConfigured = ["openai", "ollama", "orcarouter"].includes(providerName);
   if (configuredModel && honoursConfigured) {
     return configuredModel;
   }

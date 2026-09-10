@@ -4,7 +4,8 @@
  * offline publisher verification with stable path-free failures.
  */
 import { constants as fsConstants, type Stats } from "node:fs";
-import { lstat, open, realpath, type FileHandle } from "node:fs/promises";
+import { lstat, realpath, type FileHandle } from "node:fs/promises";
+import { openFileNoFollow } from "../../../utils/no-follow-open.js";
 import path from "node:path";
 import { decodeUtf8, readBoundedFromHandle } from "./bounded-read.js";
 import {
@@ -51,7 +52,7 @@ async function openSelectedKey(
 ): Promise<SelectedTapPublicKey> {
   const parentInfo = await parentHandle.stat();
   if (!parentInfo.isDirectory()) throw new Error("tap key parent cannot be anchored");
-  const handle = await open(
+  const handle = await openFileNoFollow(
     canonical,
     fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK,
   );

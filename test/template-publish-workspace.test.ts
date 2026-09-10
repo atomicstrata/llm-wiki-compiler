@@ -78,7 +78,8 @@ describe("publisher keystore", () => {
     expect(priv.keyId).toBe("tap-1");
     expect(publicKeyFingerprint(pub)).toMatch(/^[0-9a-f]{64}$/);
     const mode = (await stat(path.join(paths.keysDir, "tap-tap-1.key"))).mode & 0o777;
-    expect(mode).toBe(0o600);
+    // Windows ACLs do not implement POSIX mode bits; key readability stays portable.
+    if (process.platform !== "win32") expect(mode).toBe(0o600);
   });
 
   it("never overwrites an existing private key", async () => {

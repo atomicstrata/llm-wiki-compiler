@@ -338,12 +338,14 @@ function isValidRuleCandidate(value: unknown): value is RuleCandidate {
   return validateRuleCandidate(value as RuleCandidate) === null;
 }
 
-/** Read one candidate JSON file. Returns null when missing or malformed. */
+/** Read one candidate JSON file; archive reads are opt-in for re-extraction's decision guard. */
 export async function readRuleCandidate(
   root: string,
   fileId: string,
+  location: "active" | "archive" = "active",
 ): Promise<RuleCandidate | null> {
-  const raw = await safeReadFile(await ruleCandidatePath(root, fileId));
+  const filePath = location === "archive" ? ruleArchivePath(root, fileId) : ruleCandidatePath(root, fileId);
+  const raw = await safeReadFile(await filePath);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
