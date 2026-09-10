@@ -342,6 +342,15 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
+**Released `1.2.0`:**
+
+- Profile-aware viewer with document categories, record relationships, provenance, source previews, verified local artifact access, responsive navigation and fitted graphs.
+- Additional providers and OpenAI-compatible reasoning-model controls, independent embedding configuration, and SDK embedding opt-out.
+- Optional Sources sections and additive SDK system policies with prompt-change invalidation and per-page provenance.
+- Shared-page recovery after source removal, citation line-list fixes, and conservative abbreviated-wikilink repair.
+
+Windows path fixes are included, but Windows is not covered by release CI and its full filesystem-confinement guarantees remain unverified. Use a supported Linux environment for untrusted projects; see [#175](https://github.com/atomicstrata/llm-wiki-compiler/issues/175).
+
 **Released `1.1.0`:**
 
 - Template distribution ecosystem: publishers author signed, offline distributions with `template publish init | add | build | rotate | revoke` (Ed25519 signing, key rotation, package revocation) and verify them with `template publish verify`.

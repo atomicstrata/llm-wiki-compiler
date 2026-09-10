@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-09
+
+### Highlights
+
+- Profile-aware viewer navigation, declared record fields, relationships, provenance and evidence drill-down. Stored source previews are distinguished from original-publication links; artifact bytes are freshly verified and served only on loopback. Narrow layouts, plain-language labels and initially fitted, yielding graph layouts improve browsing.
+- OrcaRouter provider support with `openai/gpt-4o-mini` as its default and explicit credentials; embeddings remain unwired and fail closed.
+- Typed pages use the profile's declared title field. Citation line-list parsing is shared across consumers and accepts whitespace around commas.
+- Invalid concurrency warnings use stderr, preserving the quickstart JSON output channel.
+
+### Contributors
+
+Credit includes original proposals, reports and diagnoses, including work completed or extended by maintainers:
+
+- @PipDscvr: profile-aware viewer and declared fields (#176, #177, #180, #189), Windows path fixes (#172), separate embedding providers (#174), and source removal (#179).
+- @LorenzoGentile: optional Sources sections (#183), reasoning-model request compatibility (#184), and abbreviated-wikilink repair (#193).
+- @Marc-oss-hub: OrcaRouter provider support (#182).
+- @typevolant: citation line-list parsing and validation (#166), including the groundwork for #168.
+- @TigerOfCountryYao: original embedding opt-out, additive system policy, and shared-page reconciliation contributions (#169, #170, #171), completed in #198, #195 and #199.
+- @binyangzhu000-sudo: original Atlas Cloud provider contribution (#167), completed in #190.
+- @suyunzzz: subscription-authentication request (#56), addressed through local CLI-session reuse in #205.
+- @tienlx91: source-removal request (#60), implemented in #179.
+- @carmilso: project-level compile-instructions request (#144), partly addressed by the SDK system policy in #195.
+- @knew-inventai: separate embedding-endpoint request (#154), implemented in #174.
+- @squ1ddy: Windows profile-path report and diagnosis (#163), addressed in #172.
+- @graysoncooper: quickstart JSON-output corruption report (#191), addressed in #204.
+- @ddiall: ingestion-quality feedback in the source-removal discussion (#60).
+
+### Known limitations
+
+- Windows path fixes are included, but release CI remains Linux-only. Full Windows filesystem-confinement guarantees are not verified; use Linux for untrusted projects until #175 is resolved.
+
 ### Added
 
 - **OpenAI Codex CLI provider** — `LLMWIKI_PROVIDER=codex-agent` or
@@ -489,6 +520,8 @@ Initial release.
 - Atomic writes, lock-protected compilation, orphan marking for deleted sources.
 - `[[wikilink]]` resolution and auto-generated `wiki/index.md`.
 
+[Unreleased]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v0.11.0...v1.0.0
 [0.2.0]: https://github.com/atomicmemory/llm-wiki-compiler/compare/v0.1.1...v0.2.0
