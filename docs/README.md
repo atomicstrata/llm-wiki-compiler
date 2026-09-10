@@ -44,6 +44,7 @@ For every user-facing feature PR:
 
    ```bash
    npx tsc --noEmit
+   npm run typecheck:tests
    npm run build
    npm test
    npm run fallow:ci
