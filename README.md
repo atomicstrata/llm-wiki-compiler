@@ -307,6 +307,7 @@ llmwiki is still early software, but it is no longer a toy pipeline for a handfu
 - **Chunk-level embeddings** narrow large wikis before BM25 reranking and graph expansion.
 - **Content-hash-aware embedding updates** avoid recomputing vectors for unchanged pages and chunks.
 - **Batch embedding** sends page and chunk vectors to the provider in batches rather than one request at a time, cutting latency on cold starts and large refreshes.
+- **Binary embedding storage** automatically handles stores above the 64 MiB JSON limit; smaller stores can opt in. Binary selection persists, and retrieval still loads the index into memory. See [limits, recovery and downgrade guidance](docs/configuration/environment-variables.mdx#embedding-storage).
 - **Cached citation judgements** make repeated `eval --suite full` runs cheaper.
 - **Lexical fallback** keeps query/context workflows usable when the active provider has no embedding endpoint.
 - **Prompt budgeting and ingest truncation metadata** make large sources explicit instead of silently pretending they fit.
