@@ -24,6 +24,8 @@
     "release:check-docs:current": "node scripts/check-release-docs.mjs --current-version",
     "test": "vitest run",
     "test:watch": "vitest",
+    "typecheck:tests": "node scripts/typecheck-tests.ts",
+    "typecheck:tests:update": "node scripts/typecheck-tests.ts --update",
     "fallow:ci": "bash scripts/fallow-ci.sh",
     "prepublishOnly": "npm run release:check-docs:current && npm run build && npm pack --dry-run --ignore-scripts",
     "prepare": "husky",
@@ -90,7 +92,7 @@
     "husky": "^9.1.7",
     "madge": "^8.0.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.7.0",
+    "typescript": "5.9.3",
     "vitest": "^3.2.7"
   },
   "volta": {

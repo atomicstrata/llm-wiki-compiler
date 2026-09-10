@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A public test type-check command and pull-request CI job with a per-file,
+  downward-only baseline for the existing diagnostic backlog (#200).
+
 - OrcaRouter embeddings with namespaced model selection, gateway-specific
   credentials, and independent `LLMWIKI_EMBEDDING_PROVIDER=orcarouter` routing
   (#186), building on @Marc-oss-hub's provider contribution.
