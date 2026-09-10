@@ -186,7 +186,7 @@ Use the `openai` provider for any OpenAI-compatible server, including cloud Open
 | `OPENAI_API_KEY` | Yes | Your API key. For local servers that ignore auth, any dummy value works (e.g. `sk-local`) |
 | `OPENAI_BASE_URL` | For local/custom | Base URL for chat and tool calls. **Include `/v1`** |
 | `LLMWIKI_MODEL` | No | Model name override |
-| `LLMWIKI_EMBEDDING_PROVIDER` | No | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
+| `LLMWIKI_EMBEDDING_PROVIDER` | No | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama`, `orcarouter` |
 | `LLMWIKI_EMBEDDING_MODEL` | No | Embedding model override |
 | `OPENAI_EMBEDDINGS_BASE_URL` | No | Separate endpoint for embeddings. When unset, embeddings use the same client and base URL as chat |
 | `OPENAI_EMBEDDINGS_API_KEY` | No | Credential for that separate embeddings endpoint. When unset, the embeddings client reuses `OPENAI_API_KEY` - set this whenever the endpoint belongs to someone else |
@@ -225,7 +225,7 @@ The `ollama` provider uses Ollama's OpenAI-compatible endpoint for embeddings. A
 | `LLMWIKI_PROVIDER` | Yes | Set to `ollama` |
 | `OLLAMA_HOST` | Yes | Ollama host URL for chat and structured tool calls. **Include `/v1`** — the native `/api/chat` base URL is derived from this value (path prefix preserved) |
 | `LLMWIKI_MODEL` | No | Model name override |
-| `LLMWIKI_EMBEDDING_PROVIDER` | No | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
+| `LLMWIKI_EMBEDDING_PROVIDER` | No | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama`, `orcarouter` |
 | `LLMWIKI_EMBEDDING_MODEL` | No | Embedding model override |
 | `OLLAMA_EMBEDDINGS_HOST` | No | Separate Ollama host for embeddings. When unset, embeddings use `OLLAMA_HOST` |
 | `OLLAMA_TIMEOUT_MS` | No | Per-request timeout override for Ollama. Wins over `LLMWIKI_REQUEST_TIMEOUT_MS` when both are set |
@@ -300,6 +300,13 @@ The `orcarouter` provider routes calls through [OrcaRouter](https://www.orcarout
 
 The default is a smaller model to keep compilation costs down. For more demanding source material, set `LLMWIKI_MODEL` to a stronger namespaced model that supports tool calls; concept extraction requires structured tool arguments.
 
+For a namespaced reasoning model, automatic request-field detection does not
+strip the provider prefix. If its upstream API requires `max_completion_tokens`,
+set `LLMWIKI_OPENAI_TOKEN_PARAM=max_completion_tokens` explicitly. Set
+`LLMWIKI_OPENAI_REASONING_EFFORT` only to a value supported by that model; the
+unprefixed GPT-5.6 default does not apply to a namespaced id. See
+[OpenAI-compatible request options](/configuration/environment-variables#openai-compatible-request-options).
+
 **Variables**
 
 | Variable | Required | Description |
@@ -318,18 +325,37 @@ llmwiki compile
 
 **Embeddings**
 
-OrcaRouter embeddings are not wired up in llmwiki, so the provider fails closed instead of inheriting OpenAI's embedding semantics. To keep OrcaRouter for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+The embeddings integration uses OrcaRouter's documented OpenAI-compatible API
+with the same gateway endpoint and `ORCAROUTER_API_KEY`. Choose an embedding
+model listed in the gateway's catalogue.
+The default embedding model is `openai/text-embedding-3-small`; set
+`LLMWIKI_EMBEDDING_MODEL` to choose another namespaced embedding model.
+OpenAI endpoint and credential overrides do not apply to OrcaRouter.
+
+To use OrcaRouter for embeddings independently of your chat provider:
 
 ```bash
-export LLMWIKI_PROVIDER=orcarouter
-export LLMWIKI_EMBEDDING_PROVIDER=openai
-export OPENAI_EMBEDDINGS_API_KEY=<your-key>
+export LLMWIKI_EMBEDDING_PROVIDER=orcarouter
+export ORCAROUTER_API_KEY=<your-key>
+export LLMWIKI_EMBEDDING_MODEL=openai/text-embedding-3-small
 ```
+
+Embedding batches default to 64 inputs and are capped at 64 by the client;
+this is a conservative client limit, not a stated gateway maximum.
+Changing the embedding backend or model rebuilds the vector index on the next
+compile. Embedding failures warn and leave lexical retrieval available unless
+you enable `LLMWIKI_EMBED_STRICT`.
 
   </Tab>
   <Tab title="Atlas Cloud">
 
 The `atlascloud` provider routes calls through [Atlas Cloud](https://www.atlascloud.ai), a hosted gateway exposing an OpenAI-compatible API across models from several vendors. Model names are namespaced by publisher (for example `qwen/qwen3.5-35b-a3b`).
+
+Namespaced model ids do not receive automatic reasoning-prefix detection. If
+the selected model requires `max_completion_tokens`, set
+`LLMWIKI_OPENAI_TOKEN_PARAM=max_completion_tokens`; configure reasoning effort
+only with a value that model supports. See
+[OpenAI-compatible request options](/configuration/environment-variables#openai-compatible-request-options).
 
 `LLMWIKI_PROVIDER` also accepts `atlas-cloud` and `atlas` as aliases.
 
