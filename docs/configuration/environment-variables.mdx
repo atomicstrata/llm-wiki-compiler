@@ -221,10 +221,34 @@ new hosts.
 
 ---
 
+## Gateway-specific request fields
+
+`LLMWIKI_OPENAI_EXTRA_BODY` accepts a JSON object of additional chat-completion
+body fields. It applies to OpenAI-compatible providers, including streaming and
+tool calls through the OpenAI client, but never to embeddings, agent-backed
+providers, or Ollama's native structured-output requests. Blank means no
+extensions. For an endpoint that requires thinking disabled for forced tools:
+
+```bash
+LLMWIKI_OPENAI_EXTRA_BODY='{"thinking":{"type":"disabled"}}' llmwiki compile
+```
+
+Check your endpoint's documentation before using vendor-specific fields. For
+example, [DeepSeek documents its thinking toggle](https://api-docs.deepseek.com/guides/thinking_mode/).
+Fields are added at the top level, not nested under `extra_body`, and nested
+objects are not merged. Unsupported extensions can still produce provider errors.
+
+Malformed JSON, non-object values, and overrides of `model`, `messages`, `tools`,
+`tool_choice`, `stream`, `max_tokens`, `max_completion_tokens`, or
+`reasoning_effort` fail locally without retry backoff. Use the dedicated token
+and reasoning settings for those limits. Required tool selection remains in
+place because extraction depends on structured arguments, not optional prose.
+
 ## Output
 
 | Variable | Default | Description |
 |---|---|---|
+| `LLMWIKI_MAX_TOKENS` | `4096` | Default completion-token limit for shared LLM calls, including concept extraction and page generation. Use a positive safe integer in decimal digits; blank means the default. Internal calls with their own fixed limit are unaffected. Agent-backed providers do not honor this limit. This is separate from the input character budget below |
 | `LLMWIKI_OUTPUT_LANG` | *(model default, typically English)* | Language for generated wiki content. Applies to every prompt in the compile and query pipelines. Examples: `zh-CN`, `Chinese`, `ja`, `Japanese`. The `--lang` CLI flag on `llmwiki compile` and `llmwiki query` overrides this for a single invocation |
 | `LLMWIKI_SOURCES_SECTION` | *(enabled)* | Set to `off`, `false`, `0`, or `no` to stop asking the model for a trailing `## Sources` section in generated pages. Useful when your own renderer already displays the `sources:` frontmatter, which would otherwise appear twice. Does not change provenance: the frontmatter and the inline `^[file.md:1-5]` citation markers come from the compiler, not from this instruction. The `--no-sources-section` flag on `llmwiki compile` sets it for a single invocation |
 | `LLMWIKI_PROMPT_BUDGET_CHARS` | `200000` | Character ceiling for combined per-concept source content sent to the LLM. Raise for larger-context models; lower for small-context local models. A stderr warning prints when the cap fires |

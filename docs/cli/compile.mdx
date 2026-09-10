@@ -22,10 +22,44 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 |------|-------------|
 | `--review` | Write generated pages to `.llmwiki/candidates/` instead of `wiki/`. Pages are held for human review and don't appear in the live wiki until you approve them with `llmwiki review approve <id>`. |
 | `--provider <name>` | Override `LLMWIKI_PROVIDER` for this compile only. Use `codex-agent` to delegate both compile phases to non-interactive `codex exec`. |
+| `--instructions <path>` | Read an explicit UTF-8 instruction file (maximum 64 KiB) and append it to the built-in compile instructions. Changing or omitting the file option regenerates affected pages. |
 | `--lang <code>` | Override the output language for this compile run (e.g. `zh-CN`, `Chinese`, `ja`, `Japanese`). Wins over the `LLMWIKI_OUTPUT_LANG` environment variable. Unset preserves the model's default behaviour. Changing it regenerates already-compiled pages — see [Prompt modifiers and recompilation](#prompt-modifiers-and-recompilation). |
 | `--no-sources-section` | Stop asking the model for a trailing `## Sources` section in generated pages. Provenance is unaffected: the `sources:` frontmatter and the inline `^[file.md:1-5]` citation markers are produced by the compiler and stay exactly as they are. Equivalent to setting `LLMWIKI_SOURCES_SECTION=off`. |
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
+
+## Project instructions
+
+Add editorial guidance without replacing the compiler's built-in instructions:
+
+```bash
+llmwiki compile --instructions ./SOUL.md
+llmwiki compile --review --instructions ./SOUL.md
+```
+
+Use the file for writing style, terminology, concept-selection preferences and
+level of detail. Instructions apply to extraction and page generation. They
+are advisory model guidance, not an enforcement mechanism; built-in citation,
+source-grounding and output requirements remain in the prompt.
+
+The path is relative to your working directory, or absolute. Explicit symlinks
+are allowed. Missing, unreadable, non-regular, invalid UTF-8 or oversized files
+fail before compilation. Empty or whitespace-only files mean no extra policy.
+No instruction file is discovered automatically: `SOUL.md`, `AGENTS.md` and
+`CLAUDE.md` are not read unless you explicitly select one. Neither project
+configuration nor schema files supply this policy.
+
+Pass the option on every compile that should use it. Changing its trimmed text
+or omitting the option regenerates affected pages and replaces obsolete review
+candidates; moving an identical file does not. The existing `promptModifiers`
+records the policy digest, not its text or path. The text is sent to your
+selected model provider, so do not include secrets. SDK callers can supply the
+same policy through [`compile({ systemPolicy })`](/guides/sdk).
+
+`watch`, `quickstart`, `refresh --stale` and the MCP compile tool do not accept
+this option. They compile without the policy; using them after an instructed
+compile can regenerate pages without that guidance. Use the explicit compile
+command above when you need the policy preserved.
 
 ## Link repair
 
@@ -140,6 +174,31 @@ For production wikis, consider running `llmwiki compile --review` to inspect all
 
 For a deeper look at how the two-phase pipeline works, see [How It Works](/concepts/how-it-works).
 
+## Long sources and output limits
+
+To allow longer completions for concept extraction and page generation:
+
+```bash
+LLMWIKI_MAX_TOKENS=8192 llmwiki compile
+```
+
+The default is 4096 output tokens per call. Choose a limit supported by your
+model; higher limits can increase cost and latency. Invalid settings fail before
+an LLM request, and llmwiki does not automatically increase the budget or retry
+with a larger one. The `claude-agent` and `codex-agent` providers manage their
+own output limits and ignore this setting.
+
+This is not an input-context limit. `LLMWIKI_PROMPT_BUDGET_CHARS` limits combined
+source text during page generation, not the complete source passed to concept
+extraction. For textbooks, split sources into coherent chapters or sections and
+inspect the stored files under `sources/` to check what ingestion retained.
+Extraction asks for 3–8 concepts per source, not an exhaustive textbook index;
+a larger output budget alone does not guarantee more concepts or valid pages.
+
+Changing the output budget does not invalidate successfully compiled sources.
+Failed sources remain retryable; unchanged successful sources are still skipped.
+To regenerate an existing source, edit its content before compiling again.
+
 ## Prompt modifiers and recompilation
 
 A **prompt modifier** is a setting that changes what the page prompt asks for
@@ -167,6 +226,9 @@ llmwiki compile --lang Japanese    # nothing to do — the selection is unchange
 Because those pages are regenerated by the model, this costs a full compile of
 every affected page. Clearing a modifier invalidates the same pages that setting
 it did.
+
+The instruction-file policy participates in the same change detection through
+its content digest; changing or omitting `--instructions` also invalidates pages.
 
 Each generated page also records the modifiers it was produced under in its
 `promptModifiers` frontmatter, which the JSON export surfaces per page.
