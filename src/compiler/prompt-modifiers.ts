@@ -67,8 +67,8 @@ export function activePromptModifiers(): Record<string, string> {
  * a leak writes one project's selection into another's `state.json`, its
  * candidates, and its page provenance.
  *
- * An env slot was the other option and is worse: `systemPolicy` is an SDK
- * option and nothing else, so it would mean documenting a variable that exists
+ * An env slot was the other option and is worse: `systemPolicy` is a per-run
+ * option (also used by CLI instruction files), so it would mean a variable that exists
  * only to carry a value across module boundaries — and env is process-global,
  * which is the same bug.
  */
