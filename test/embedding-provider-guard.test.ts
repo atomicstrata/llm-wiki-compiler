@@ -16,6 +16,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import {
+  ensureCompileProviderAvailable,
   ensureProviderAvailable,
   ProviderUnavailableError,
   UnknownProviderError,
@@ -25,6 +26,7 @@ import { createEnvSnapshot } from "./fixtures/env-snapshot.js";
 const { setEnv, restore } = createEnvSnapshot([
   "LLMWIKI_PROVIDER",
   "LLMWIKI_EMBEDDING_PROVIDER",
+  "LLMWIKI_EMBEDDINGS",
   "OPENAI_API_KEY",
   "OPENAI_EMBEDDINGS_API_KEY",
   "OPENAI_EMBEDDINGS_BASE_URL",
@@ -95,5 +97,34 @@ describe("ensureProviderAvailable — the default path stays soft", () => {
     // errors top-down is not told to fix the chat key first and then hit this.
     setEnv({ LLMWIKI_PROVIDER: "openai", LLMWIKI_EMBEDDING_PROVIDER: "minimax" });
     expect(() => ensureProviderAvailable()).toThrow(/LLMWIKI_EMBEDDING_PROVIDER/);
+  });
+});
+
+describe("ensureCompileProviderAvailable — disabled refreshes", () => {
+  it("accepts codex-agent without an embedding backend", () => {
+    setEnv({ LLMWIKI_PROVIDER: "codex-agent", LLMWIKI_EMBEDDINGS: "off" });
+    expect(() => ensureCompileProviderAvailable()).not.toThrow();
+    expect(() => ensureProviderAvailable()).toThrow(/LLMWIKI_EMBEDDING_PROVIDER/);
+  });
+
+  it("honours a caller-level embeddings opt-out", () => {
+    setEnv({ LLMWIKI_PROVIDER: "codex-agent" });
+    expect(() => ensureCompileProviderAvailable(false)).not.toThrow();
+  });
+
+  it("still validates the chat provider", () => {
+    setEnv({ LLMWIKI_PROVIDER: "openai", LLMWIKI_EMBEDDINGS: "off" });
+    expect(() => ensureCompileProviderAvailable()).toThrow(/OPENAI_API_KEY/);
+  });
+
+  it("ignores an unusable embedding override only for compile", () => {
+    setEnv({
+      LLMWIKI_PROVIDER: "anthropic",
+      ANTHROPIC_API_KEY: "k",
+      LLMWIKI_EMBEDDING_PROVIDER: "minimax",
+      LLMWIKI_EMBEDDINGS: "off",
+    });
+    expect(() => ensureCompileProviderAvailable()).not.toThrow();
+    expect(() => ensureProviderAvailable()).toThrow(UnknownProviderError);
   });
 });

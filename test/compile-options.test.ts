@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createWiki } from "../src/sdk/wiki.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import * as embeddings from "../src/utils/embeddings.js";
+import * as providerGuard from "../src/utils/provider-guard.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
 
 const EXTRACTION = JSON.stringify({
@@ -63,5 +64,15 @@ describe("compile options", () => {
 
   it("still refreshes embeddings when the option is explicitly true", async () => {
     expect((await compileAndWatchEmbeddings({ embeddings: true })).refreshed).toBe(true);
+  });
+
+  it("passes the SDK embedding opt-out to provider preflight", async () => {
+    stubCompile();
+    const guard = vi.spyOn(providerGuard, "ensureCompileProviderAvailable")
+      .mockImplementation(() => {});
+
+    await createWiki({ root: ctx.dir }).compile({ embeddings: false });
+
+    expect(guard).toHaveBeenCalledWith(false);
   });
 });

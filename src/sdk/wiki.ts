@@ -10,7 +10,8 @@
  * described in earlier design drafts.
  *
  * Provider-gating rules:
- *   - `compile`, `search`, `query` — always guard (throw ProviderUnavailableError if no creds)
+ *   - `compile` — guard chat plus embeddings unless refreshes are disabled
+ *   - `search`, `query` — always guard (throw ProviderUnavailableError if no creds)
  *   - `runEval({ mode: "full" })` — guards only when mode is "full"
  *   - All other methods — no credential check; safe to call without an LLM provider
  *
@@ -31,7 +32,10 @@ import { lint } from "../linter/index.js";
 import { buildContextPack } from "../context/build.js";
 import { exportJson } from "../commands/export.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
-import { ensureProviderAvailable } from "../utils/provider-guard.js";
+import {
+  ensureCompileProviderAvailable,
+  ensureProviderAvailable,
+} from "../utils/provider-guard.js";
 import { collectStatus } from "../status/collect.js";
 import { pickSearchRefs, loadSelectedRefs } from "../search/retrieval.js";
 import { getPage, listPages } from "../pages/list.js";
@@ -79,7 +83,7 @@ export function createWiki(options: CreateWikiOptions): Wiki {
 
     compile: (opts: SdkCompileOptions = {}) =>
       runQuiet(() => {
-        ensureProviderAvailable();
+        ensureCompileProviderAvailable(opts.embeddings !== false);
         return compileAndReport(root, opts);
       }),
 

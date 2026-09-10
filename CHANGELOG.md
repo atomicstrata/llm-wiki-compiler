@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Embedding refresh opt-out** — `LLMWIKI_EMBEDDINGS=off`, `false`, `0`, or
+  `no` skips all embedding refreshes, including `query --save`, without reading
+  or writing the embedding store or durable pending queue. Compile still
+  validates its chat provider but does not require an embedding backend. This
+  lets deployments with their own semantic index keep compile and review
+  workflows while avoiding an embedding store they never consume.
+
+  Existing embedding and pending files remain untouched while refreshes are
+  disabled. After re-enabling them, the next non-review compile reconciles
+  missing and stale vectors even when no sources changed.
+
 ## [1.2.0] - 2026-09-09
 
 ### Highlights

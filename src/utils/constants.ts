@@ -542,6 +542,9 @@ export const EMBED_BATCH_CAP_FALLBACK = 512;
 /** Env var: override the embedding batch size (positive integer, clamped to cap). */
 export const ENV_EMBED_BATCH_SIZE = "LLMWIKI_EMBED_BATCH_SIZE";
 
+/** Env var: use a disabled value to skip refreshes without touching pending state. */
+export const ENV_EMBEDDINGS = "LLMWIKI_EMBEDDINGS";
+
 /** Env var: when set, a failed embedding refresh exits non-zero (for CI). */
 export const ENV_EMBED_STRICT = "LLMWIKI_EMBED_STRICT";
 

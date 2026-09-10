@@ -16,18 +16,32 @@ You don't need to set everything - only the variables relevant to your chosen pr
 |---|---|---|
 | `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `orcarouter`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model. For `codex-agent`, unset delegates model choice to Codex and a set value is passed through with `--model` |
+| `LLMWIKI_EMBEDDINGS` | Enabled | Set to `off`, `false`, `0`, or `no` (case-insensitive) to skip all embedding refreshes, including compile, review approval, import, and `query --save`. Existing embedding and pending files are left untouched. |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama` |
 | `LLMWIKI_EMBEDDING_MODEL` | Provider default | Embedding model to use. Applies only when the effective embedding provider is `openai` or `ollama` - ignored for `anthropic` and `claude-agent`, even when `LLMWIKI_EMBEDDING_PROVIDER` names one of them explicitly |
 
+`LLMWIKI_EMBEDDINGS` controls embedding writes, not retrieval. While it is
+disabled, write paths do not read or change `.llmwiki/embeddings.json` or
+`.llmwiki/pending-embeddings.json`. An existing pending marker may therefore
+remain visible in `lint` and `status`. Query and search commands can still read
+an existing embedding store, and they keep their normal embedding-provider
+validation.
+
+After you re-enable refreshes, run `llmwiki compile`. The compile reconciles
+missing and stale vectors even when no source changed. It does not regenerate
+source-derived pages in that case, and a healthy store is not rewritten.
+
 When you set `LLMWIKI_EMBEDDING_PROVIDER`, the named provider's own credential is required: `VOYAGE_API_KEY` for `anthropic` or `claude-agent`, `OPENAI_API_KEY` (or `OPENAI_EMBEDDINGS_API_KEY`) for `openai`, and no key for `ollama`. Setting `OPENAI_EMBEDDINGS_BASE_URL` marks a self-hosted OpenAI-compatible endpoint that needs no key, so `OPENAI_API_KEY` is not required in that case. This check only runs when `LLMWIKI_EMBEDDING_PROVIDER` is set - leaving it unset keeps today's behavior unchanged.
 
-The check runs at startup, before any compile or query work begins, so a misspelled provider name or a missing key fails immediately instead of part-way through a run.
+The check runs at startup, before any compile or query work begins, so a misspelled provider name or a missing key fails immediately instead of part-way through a run. Compile skips embedding-only checks when refreshes are disabled, but still validates the provider used to generate pages.
 
-`codex-agent` is the exception to the default embedding-provider value: because
-Codex cannot embed, it requires `LLMWIKI_EMBEDDING_PROVIDER` to be set
-explicitly. A missing or unusable embedding backend fails actionably rather
-than silently degrading. The keyless combination is `codex-agent` chat plus
-`ollama` embeddings.
+`codex-agent` is the exception to the default embedding-provider value. Because
+Codex cannot embed, commands that consume or produce embeddings require
+`LLMWIKI_EMBEDDING_PROVIDER` to be set explicitly. A missing or unusable
+embedding backend fails actionably rather than silently degrading. Compile does
+not require one when `LLMWIKI_EMBEDDINGS` disables refreshes. The keyless
+combination with embeddings enabled is `codex-agent` chat plus `ollama`
+embeddings.
 
 When `codex-agent` is selected explicitly through `--provider` or a
 shell-exported `LLMWIKI_PROVIDER`, llmwiki does not open the project `.env`

@@ -37,7 +37,7 @@ import { collectProjectState } from "../project/state.js";
 import type { ProjectState } from "../project/state.js";
 import { recommendNextAction } from "../project/recommendations.js";
 import type { RecommendedAction } from "../project/recommendations.js";
-import { ensureProviderAvailable } from "../utils/provider-guard.js";
+import { ensureCompileProviderAvailable } from "../utils/provider-guard.js";
 import { applyLanguageOption } from "../utils/output-language.js";
 import * as output from "../utils/output.js";
 import { SOURCES_DIR } from "../utils/constants.js";
@@ -307,7 +307,7 @@ async function runCompileStep(
   concurrency?: number,
 ): Promise<CompileEnvelope> {
   try {
-    ensureProviderAvailable();
+    ensureCompileProviderAvailable();
   } catch (err) {
     return await buildCompileFailureEnvelope(root, "provider_unavailable", err);
   }

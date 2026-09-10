@@ -28,7 +28,10 @@ import contextCommand, { type ContextCommandOptions } from "./commands/context.j
 import { startMCPServer } from "./mcp/server.js";
 import { applyLanguageOption } from "./utils/output-language.js";
 import { applySourcesSectionOption } from "./utils/sources-section.js";
-import { ensureProviderAvailable } from "./utils/provider-guard.js";
+import {
+  ensureCompileProviderAvailable,
+  ensureProviderAvailable,
+} from "./utils/provider-guard.js";
 import { setVerbose } from "./utils/output.js";
 import { parseConcurrencyFlag } from "./compiler/concurrency.js";
 import { ENV_VERBOSE } from "./utils/constants.js";
@@ -144,7 +147,7 @@ addProviderOption(program.command("compile").description("Compile sources/ into 
       setVerbose(verboseEnabled(options.verbose));
       applyLanguageOption(options.lang);
       applySourcesSectionOption(options.sourcesSection);
-      requireProvider();
+      requireCompileProvider();
       await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -180,7 +183,7 @@ addProviderOption(program.command("refresh").description("Recompile only stale/c
       setVerbose(verboseEnabled(options.verbose));
       const code = await refreshCommand(
         { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
-        requireProvider,
+        requireCompileProvider,
       );
       process.exit(code);
     } catch (err) {
@@ -241,7 +244,7 @@ addProviderOption(program.command("watch").description("Watch sources/ and auto-
   .action(async (options: ProviderOption & { concurrency?: string }) => {
     try {
       applyProviderOption(options);
-      requireProvider();
+      requireCompileProvider();
       await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
@@ -425,13 +428,22 @@ program
 /**
  * Run the shared provider guard but match the legacy CLI error path:
  * print the error in red and exit 1 instead of letting the throw
- * surface as a stack trace. Programmatic callers (quickstart, MCP) use
- * `ensureProviderAvailable` directly so they can convert the throw into
- * a structured envelope.
+ * surface as a stack trace. Programmatic callers use the underlying guards
+ * directly so they can convert the throw into a structured envelope.
  */
 function requireProvider(): void {
+  requireAvailableProvider(ensureProviderAvailable);
+}
+
+/** Run the compile-aware provider guard through the legacy CLI error path. */
+function requireCompileProvider(): void {
+  requireAvailableProvider(ensureCompileProviderAvailable);
+}
+
+/** Print a provider-guard failure in red and exit through the legacy path. */
+function requireAvailableProvider(ensureAvailable: () => void): void {
   try {
-    ensureProviderAvailable();
+    ensureAvailable();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`\x1b[31mError:\x1b[0m ${message}`);

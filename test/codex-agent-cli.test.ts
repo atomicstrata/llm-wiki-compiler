@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
 import { CLI, expectCLIFailure, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
+import { EMBEDDINGS_FILE, PENDING_EMBEDDINGS_FILE } from "../src/utils/constants.js";
 
 const aimock = useAimockLifecycle("codex-agent-cli");
 const fakes: FakeCodex[] = [];
@@ -121,6 +122,25 @@ describe("codex-agent through the real llmwiki CLI", () => {
     }
   }, 30_000);
 
+  it("runs compile without an embedding backend when refreshes are disabled", async () => {
+    const cwd = await aimock.makeWorkspace("# Codex source\n\nCompile without embeddings.\n");
+    const fake = await fakeCodex({
+      toolOutput: extractedConcept(),
+      textOutput: "# Codex Agent Concept\n\nCompiled without embeddings.",
+    });
+    const result = await runCLI(["compile"], cwd, {
+      PATH: `${fake.binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      LLMWIKI_PROVIDER: "codex-agent",
+      LLMWIKI_EMBEDDING_PROVIDER: "",
+      LLMWIKI_EMBEDDINGS: "off",
+    });
+
+    expectCLIExit(result, 0);
+    expect(await fake.calls()).not.toHaveLength(0);
+    await expect(access(path.join(cwd, EMBEDDINGS_FILE))).rejects.toThrow();
+    await expect(access(path.join(cwd, PENDING_EMBEDDINGS_FILE))).rejects.toThrow();
+  }, 30_000);
+
   it("fails actionably without silently falling back when codex is absent", async () => {
     const cwd = await aimock.makeWorkspace("# Source\n\nCodex must be installed.\n");
     const pathWithoutCodex = await mkdtemp(path.join(tmpdir(), "llmwiki-no-codex-"));
@@ -192,6 +212,21 @@ describe("codex-agent through the real llmwiki CLI", () => {
       LLMWIKI_EMBEDDING_PROVIDER: "",
       OPENAI_API_KEY: "sk-must-not-be-used",
     });
+    expectCLIFailure(result);
+    expect(result.stderr).toMatch(/codex-agent[\s\S]*LLMWIKI_EMBEDDING_PROVIDER/i);
+    expect(await fake.calls()).toEqual([]);
+  });
+
+  it("keeps the embedding preflight on query when refreshes are disabled", async () => {
+    const cwd = await aimock.makeWorkspace("# Source\n\nQueries still consume embeddings.\n");
+    const fake = await fakeCodex();
+    const result = await runCLI(["query", "What is this?"], cwd, {
+      PATH: `${fake.binDir}${path.delimiter}${process.env.PATH ?? ""}`,
+      LLMWIKI_PROVIDER: "codex-agent",
+      LLMWIKI_EMBEDDING_PROVIDER: "",
+      LLMWIKI_EMBEDDINGS: "off",
+    });
+
     expectCLIFailure(result);
     expect(result.stderr).toMatch(/codex-agent[\s\S]*LLMWIKI_EMBEDDING_PROVIDER/i);
     expect(await fake.calls()).toEqual([]);

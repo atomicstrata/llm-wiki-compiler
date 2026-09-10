@@ -28,6 +28,7 @@ import {
   findEmbeddingProviderProblem,
   isEmbeddingProviderExplicit,
 } from "./embedding-provider.js";
+import { embeddingsDisabled } from "./embeddings-config.js";
 
 /** Thrown when the active provider has no usable credentials. */
 export class ProviderUnavailableError extends Error {
@@ -93,17 +94,26 @@ function ensureEmbeddingProviderAvailable(): void {
   throw new ProviderUnavailableError(problem.provider, problem.missing, problem.message);
 }
 
-/**
- * Throw if the active LLM provider is missing credentials, or if the embedding
- * provider override is unusable.
- * Anthropic accepts either ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN
- * (resolved through the Claude Code settings fallback chain).
- */
+/** Throw unless both chat and semantic-retrieval providers are available. */
 export function ensureProviderAvailable(): void {
-  ensureEmbeddingProviderAvailable();
+  ensureRequiredProvidersAvailable(true);
+}
+
+/**
+ * Validate providers needed by compile, omitting embedding-only requirements
+ * when either the caller or the environment disables embedding refreshes.
+ * @param refreshEmbeddings - Whether the compile caller requested embeddings.
+ */
+export function ensureCompileProviderAvailable(refreshEmbeddings = true): void {
+  ensureRequiredProvidersAvailable(refreshEmbeddings && !embeddingsDisabled());
+}
+
+/** Validate the provider capabilities required by one entry point. */
+function ensureRequiredProvidersAvailable(requireEmbeddings: boolean): void {
+  if (requireEmbeddings) ensureEmbeddingProviderAvailable();
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
 
-  if (provider === "codex-agent" && !isEmbeddingProviderExplicit()) {
+  if (requireEmbeddings && provider === "codex-agent" && !isEmbeddingProviderExplicit()) {
     throw new ProviderUnavailableError(
       provider,
       ["LLMWIKI_EMBEDDING_PROVIDER"],
@@ -112,6 +122,15 @@ export function ensureProviderAvailable(): void {
     );
   }
 
+  ensureChatProviderAvailable(provider);
+}
+
+/**
+ * Validate the active chat provider.
+ * Anthropic accepts either ANTHROPIC_API_KEY or ANTHROPIC_AUTH_TOKEN
+ * through the Claude Code settings fallback chain.
+ */
+function ensureChatProviderAvailable(provider: string): void {
   if (provider === "anthropic") {
     const auth = resolveAnthropicAuthFromEnv();
     if (!auth.apiKey && !auth.authToken) {

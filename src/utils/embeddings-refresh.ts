@@ -29,6 +29,8 @@
 
 import { updateEmbeddingsLockedCore } from "./embeddings.js";
 import { handleSafeEmbeddingFailure } from "./embeddings-batch.js";
+import { embeddingsDisabled } from "./embeddings-config.js";
+import { ENV_EMBEDDINGS } from "./constants.js";
 import { verbose } from "./output.js";
 import type { PageId } from "./page-id.js";
 import {
@@ -58,7 +60,11 @@ import {
  *      batch, quarantining any over the cap; survivors written back, quarantined
  *      warned, and the failure is surfaced non-fatally.
  *
- * Returns early (no marker touched) when there is nothing to refresh.
+ * When no explicit or pending ids exist, the core still receives an empty
+ * change set. Its content-hash migration discovers missing or stale vectors,
+ * which makes the first enabled no-op compile reconcile pages written while
+ * refreshes were disabled. A healthy store returns without provider calls or
+ * writes, and this reconciliation-only path never creates a pending marker.
  *
  * @param root - Absolute project root the marker is confined under.
  * @param changedPageIds - Qualified page-ids changed this run (may be empty —
@@ -69,22 +75,28 @@ export async function refreshEmbeddingsDrainingPending(
   root: string,
   changedPageIds: PageId[],
 ): Promise<void> {
+  if (embeddingsDisabled()) {
+    verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
+    return;
+  }
   const merged = mergeFreshAttempts(await loadPendingEmbeddings(root), changedPageIds);
   const toRefresh = merged.map((entry) => entry.pageId);
   verbose(`embeddings: refreshing ${toRefresh.length} page-id(s)`);
-  if (toRefresh.length === 0) return;
   // Write-ahead intent: record BEFORE the attempt so a swallowed failure or crash
   // leaves a durable retry list even though source-state already marks sources current.
-  await writePendingEmbeddings(root, merged);
+  if (toRefresh.length > 0) await writePendingEmbeddings(root, merged);
   try {
     const { embedded, eligible } = await updateEmbeddingsLockedCore(root, toRefresh);
+    if (toRefresh.length === 0) return;
     const settled = settleAfterSuccess(merged, embedded, eligible);
     await writePendingEmbeddings(root, settled.survivors);
     warnQuarantined(settled.quarantined);
   } catch (err) {
-    const settled = settleAfterFailure(merged, toRefresh);
-    await writePendingEmbeddings(root, settled.survivors);
-    warnQuarantined(settled.quarantined);
+    if (toRefresh.length > 0) {
+      const settled = settleAfterFailure(merged, toRefresh);
+      await writePendingEmbeddings(root, settled.survivors);
+      warnQuarantined(settled.quarantined);
+    }
     const message = err instanceof Error ? err.message : String(err);
     handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }

@@ -16,7 +16,10 @@ import { generateAnswer } from "../commands/query.js";
 import { lint } from "../linter/index.js";
 import { collectStatus } from "../status/collect.js";
 import { buildContextPack } from "../context/build.js";
-import { ensureProviderAvailable } from "../utils/provider-guard.js";
+import {
+  ensureCompileProviderAvailable,
+  ensureProviderAvailable,
+} from "../utils/provider-guard.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
 import { readPageRecord } from "../pages/read.js";
 import { pickSearchRefs, loadSelectedRefs } from "../search/retrieval.js";
@@ -73,7 +76,7 @@ function registerCompileTool(server: McpServer, root: string): void {
       inputSchema: {},
     },
     async () => {
-      ensureProviderAvailable();
+      ensureCompileProviderAvailable();
       const result = await compileAndReport(root);
       return jsonResult(result);
     },
