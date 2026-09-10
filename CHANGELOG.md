@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `LLMWIKI_OPENAI_EXTRA_BODY` adds explicit gateway-specific chat fields while
+  preserving compiler-owned request fields and required tool calls. Thanks to
+  @LorenzoGentile for the thinking-mode diagnosis and proposal (#185).
+
 - `LLMWIKI_MAX_TOKENS` configures the shared completion budget while retaining
   the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
   reporting the long-source limitation and requesting the setting (#203).

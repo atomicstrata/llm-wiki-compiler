@@ -221,6 +221,29 @@ new hosts.
 
 ---
 
+## Gateway-specific request fields
+
+`LLMWIKI_OPENAI_EXTRA_BODY` accepts a JSON object of additional chat-completion
+body fields. It applies to OpenAI-compatible providers, including streaming and
+tool calls through the OpenAI client, but never to embeddings, agent-backed
+providers, or Ollama's native structured-output requests. Blank means no
+extensions. For an endpoint that requires thinking disabled for forced tools:
+
+```bash
+LLMWIKI_OPENAI_EXTRA_BODY='{"thinking":{"type":"disabled"}}' llmwiki compile
+```
+
+Check your endpoint's documentation before using vendor-specific fields. For
+example, [DeepSeek documents its thinking toggle](https://api-docs.deepseek.com/guides/thinking_mode/).
+Fields are added at the top level, not nested under `extra_body`, and nested
+objects are not merged. Unsupported extensions can still produce provider errors.
+
+Malformed JSON, non-object values, and overrides of `model`, `messages`, `tools`,
+`tool_choice`, `stream`, `max_tokens`, `max_completion_tokens`, or
+`reasoning_effort` fail locally without retry backoff. Use the dedicated token
+and reasoning settings for those limits. Required tool selection remains in
+place because extraction depends on structured arguments, not optional prose.
+
 ## Output
 
 | Variable | Default | Description |
