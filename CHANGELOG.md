@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-11
+
+### Highlights
+
+- **A fresh look for your wiki.** Scientific Clay brings soft surfaces and rounded typography; Minimal follows the system light/dark setting. Switch instantly between these and Nebula Light or Dark without reloading your page (#222).
+- Recursive source folders, literal path exclusions, and explicit project-specific compile instructions let the wiki follow your project structure (#215, #209).
+- Bounded binary embedding storage supports larger indexes without the previous JSON serialization limit. Retrieval still loads the index into memory; this is not an unlimited-scale or out-of-core search engine (#216).
+
+### Contributors
+
+Credit includes original implementations, feature requests, and diagnoses, including work completed or extended by maintainers:
+
+- @carmilso: project-level compile-instructions request (#144), delivered in #209.
+- @jstammers: long-source limitation report and completion-budget request (#203), delivered in #210.
+- @LorenzoGentile: thinking-mode diagnosis and gateway extension proposal (#185), delivered in #211, and the earlier language/reasoning work extended in #212.
+- @Marc-oss-hub: original OrcaRouter provider contribution (#182), extended with embedding routing in #212.
+- @squ1ddy: canonical-folder workflow and recursive source discovery request (#164), delivered in #215.
+- @bdogabriel: large-corpus report and reference implementation (#99, #98), completed in #216.
+
+### Upgrade notes and limits
+
+- Scientific Clay is the new default for browsers without a saved theme. Existing saved `light` and `dark` preferences migrate to Nebula Light and Nebula Dark respectively. Minimal follows the system setting; all four themes remain selectable (#222).
+- Binary embedding storage removes the large-JSON serialization bottleneck, not memory requirements. Existing JSON remains a historical backup after migration, not a recovery fallback.
+- Native Windows validation and CI remain outstanding (#217). Live gateway thinking-mode verification (#219) and authenticated OrcaRouter embedding batch verification (#220) remain follow-ups, not claims of this release.
+
 ### Changed
 
 - Symlinked entries under `sources/` are no longer compiled in any mode,
@@ -17,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before compiling after upgrading (#164).
 
 ### Fixed
+
+- Shared reconciliation-test setup is deduplicated instead of suppressed, so
+  full-repository health checks pass without changing tooling or thresholds.
 
 - Ingest activity-journal source references now use forward slashes on Windows.
   Test fixtures also isolate operator paths and handle native paths, ESM imports,
@@ -33,6 +61,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   failure remains retryable (#186).
 
 ### Added
+
+- Scientific Clay and Minimal viewer themes, a labeled four-theme selector, saved-preference migration, and bundled local fonts with their licenses (#222).
 
 - Single-file binary embedding storage for large wikis, with automatic selection
   above the JSON limit and optional `LLMWIKI_BINARY_EMBEDDINGS`. Later writes
@@ -579,7 +609,8 @@ Initial release.
 - Atomic writes, lock-protected compilation, orphan marking for deleted sources.
 - `[[wikilink]]` resolution and auto-generated `wiki/index.md`.
 
-[Unreleased]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v0.11.0...v1.0.0
