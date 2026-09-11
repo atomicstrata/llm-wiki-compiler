@@ -322,6 +322,7 @@ export async function mountViewerDom(
   responder: FetchResponder,
   startHash?: string,
   graphHandle: GraphHandleMode = "present",
+  beforeBoot?: (window: JSDOM["window"]) => void,
 ): Promise<MountResult> {
   const [html, entrySrc, moduleFiles] = await Promise.all([
     readFile(SHELL_PATH, "utf-8"),
@@ -342,6 +343,7 @@ export async function mountViewerDom(
   (dom.window as unknown as { fetch: typeof fetchMock }).fetch = fetchMock;
   dom.window.eval("window.__viewerModules = {};");
   const { graphFitMock, resolveGraphHandle } = setupGraphStub(dom.window, graphHandle);
+  beforeBoot?.(dom.window);
   const themeBoot = await readOptional(THEME_BOOT_SCRIPT);
   if (themeBoot) dom.window.eval(themeBoot);
   for (const name of moduleFiles) {

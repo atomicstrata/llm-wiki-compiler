@@ -17,6 +17,20 @@ import { npmCommand } from "./fixtures/npm-command.js";
 const exec = promisify(execFile);
 
 const REQUIRED_ASSETS = [
+  "dist/viewer/assets/viewer-fonts.css",
+  "dist/viewer/assets/viewer-material.css",
+  "dist/viewer/assets/themes/theme-base.css",
+  "dist/viewer/assets/themes/public-tokens.css",
+  "dist/viewer/assets/themes/minimal.css",
+  "dist/viewer/assets/themes/scientific-clay.css",
+  "dist/viewer/assets/themes/nebula.css",
+  "dist/viewer/assets/fonts/dm-sans-latin-400-normal.woff2",
+  "dist/viewer/assets/fonts/dm-sans-latin-500-normal.woff2",
+  "dist/viewer/assets/fonts/dm-sans-latin-700-normal.woff2",
+  "dist/viewer/assets/fonts/nunito-latin-700-normal.woff2",
+  "dist/viewer/assets/fonts/nunito-latin-800-normal.woff2",
+  "dist/viewer/assets/fonts/nunito-latin-900-normal.woff2",
+
   "dist/viewer/assets/index.html",
   "dist/viewer/assets/viewer-content.css",
   "dist/viewer/assets/viewer.js",

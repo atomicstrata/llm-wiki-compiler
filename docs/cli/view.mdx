@@ -127,7 +127,9 @@ Category rows are ordered by page count, highest first, with ties keeping profil
 
 For the per-count detail behind the verdict, open `#/health`. To narrow the concept list by freshness (stale, orphaned, contradicted, or archived), use the filter on `#/concepts`, beside the list it narrows.
 
-**Light and dark themes.** A toggle in the header switches between light and dark and remembers your choice for the next visit. Until you pick one, the viewer follows your operating system's colour scheme, defaulting to dark if that preference isn't available.
+**Themes.** Use the **Theme** selector to choose **Scientific Clay**, **Minimal (system)**, **Nebula Light**, or **Nebula Dark**. Scientific Clay is the default and stays light. Minimal follows your operating system's light/dark setting; Nebula gives you explicit light and dark choices. Themes preserve the same layout, routes, and graph controls.
+
+Your choice is stored per browser origin, including the port. Reuse `--port` between launches to keep it. Existing saved light/dark preferences migrate to the matching Nebula theme. Invalid preferences fall back to Scientific Clay; if storage is unavailable, switching still works for the current page. Reduced-motion preferences disable ambient animation and transitions. See [Create a viewer theme](/guides/viewer-themes) to add a built-in palette.
 
 **Full-text search.** The search field lives in the header next to the theme toggle rather than in the sidebar, so it reads as a global action rather than page navigation. It matches page titles and body text across your compiled concept and query pages, and across the typed entity pages of a non-default profile - the compiled `wiki/index.md` is not included - and results appear inline as you type. Press `⌘K` on macOS or `Ctrl+K` on Windows and Linux to jump to the field from anywhere in the viewer.
 

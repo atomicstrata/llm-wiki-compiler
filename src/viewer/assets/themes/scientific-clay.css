@@ -1,0 +1,139 @@
+/**
+ * Scientific Clay material and semantic token map.
+ *
+ * This always-light theme supplies typography, color, radii, elevation, and
+ * ambient decoration to the shared viewer layers. It deliberately avoids
+ * route or domain selectors so every core viewer profile receives one closed,
+ * product-neutral material system without changing structure or behavior.
+ */
+
+/* fallow-ignore-file unused-file */
+[data-theme="scientific-clay"] {
+  color-scheme: light;
+  --canvas: #f4f1fa;
+  --surface-muted: rgba(247, 244, 251, 0.82);
+  --surface-base: rgba(255, 255, 255, 0.72);
+  --surface-raised: rgba(255, 255, 255, 0.84);
+  --surface-glass: rgba(255, 255, 255, 0.64);
+  --surface-recessed: #efebf5;
+  --text-primary: #332f3a;
+  --text-muted: #635f69;
+  --text-inverse: #ffffff;
+  --text-interactive: #6d28d9;
+  --border-subtle: rgba(124, 58, 237, 0.14);
+  --interactive-primary: #7c3aed;
+  --interactive-primary-soft: rgba(124, 58, 237, 0.12);
+  --interactive-secondary: #db2777;
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-warning-soft: rgba(245, 158, 11, 0.14);
+  --status-danger: #dc2626;
+  --status-danger-soft: rgba(220, 38, 38, 0.10);
+  --status-danger-badge-soft: rgba(220, 38, 38, 0.14);
+  --status-danger-border: rgba(220, 38, 38, 0.24);
+  --status-info: #0ea5e9;
+  --status-contradicted: #9333ea;
+  --status-contradicted-soft: rgba(147, 51, 234, 0.12);
+  --status-neutral-soft: rgba(99, 95, 105, 0.12);
+  --gate-awaiting: #0ea5e9;
+  --gate-approved: #10b981;
+  --gate-rejected: #dc2626;
+  --focus-ring: #7c3aed;
+  --graph-overlay-surface: #3b3445;
+  --graph-overlay-border: #6d6478;
+  --graph-overlay-panel: #292430;
+  --graph-overlay-text: #f8f5fb;
+  --graph-overlay-muted: #c7bdcf;
+  --graph-overlay-subtle: #8d8298;
+  --graph-canvas: #efebf5;
+  --graph-node-concept-fill: #7c3aed;
+  --graph-node-concept-stroke: #c4b5fd;
+  --graph-node-entity-fill: #0ea5e9;
+  --graph-node-entity-stroke: #bae6fd;
+  --graph-node-comparison-fill: #db2777;
+  --graph-node-comparison-stroke: #fbcfe8;
+  --graph-node-overview-fill: #10b981;
+  --graph-node-overview-stroke: #a7f3d0;
+  --graph-node-orphan-fill: #635f69;
+  --graph-node-orphan-stroke: #c7bdcf;
+  --graph-node-missing-fill: #332f3a;
+  --graph-node-missing-stroke: #8d8298;
+  --graph-edge-default: #8d8298;
+  --graph-edge-relation: #10b981;
+  --graph-edge-hot: #7c3aed;
+  --graph-node-label: #332f3a;
+  --graph-elevation-color: rgba(124, 58, 237, 0.36);
+  --graph-node-highlight-filter: url(#viewer-graph-node-elevation);
+  --font-heading: "Nunito", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-weight-heading: 800;
+  --max-content-width: 70ch;
+  --radius-container: 48px;
+  --radius-card: 32px;
+  --radius-control: 20px;
+  --shadow-surface: 18px 18px 44px rgba(73, 56, 105, 0.16), -16px -16px 38px rgba(255, 255, 255, 0.92), inset 1px 1px 0 rgba(255, 255, 255, 0.86), inset -1px -1px 0 rgba(124, 58, 237, 0.08);
+  --shadow-card: 12px 14px 30px rgba(73, 56, 105, 0.14), -10px -10px 26px rgba(255, 255, 255, 0.86), inset 1px 1px 0 rgba(255, 255, 255, 0.82), inset -1px -1px 0 rgba(124, 58, 237, 0.08);
+  --shadow-button: 7px 8px 16px rgba(73, 56, 105, 0.18), -6px -6px 14px rgba(255, 255, 255, 0.84), inset 1px 1px 0 rgba(255, 255, 255, 0.78), inset -1px -1px 0 rgba(124, 58, 237, 0.10);
+  --shadow-hover: 10px 12px 24px rgba(73, 56, 105, 0.18);
+  --shadow-pressed: inset 5px 5px 12px rgba(73, 56, 105, 0.18), inset -5px -5px 12px rgba(255, 255, 255, 0.74), 1px 1px 0 rgba(255, 255, 255, 0.72), -1px -1px 0 rgba(124, 58, 237, 0.08);
+  --motion-fast: 160ms;
+  --motion-standard: 240ms;
+  --motion-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ambient-violet: rgba(124, 58, 237, 0.10);
+  --ambient-pink: rgba(219, 39, 119, 0.10);
+  --ambient-sky: rgba(14, 165, 233, 0.10);
+}
+
+[data-theme="scientific-clay"] body,
+[data-theme="scientific-clay"] .app-layout {
+  isolation: isolate;
+}
+
+[data-theme="scientific-clay"] body::before,
+[data-theme="scientific-clay"] body::after,
+[data-theme="scientific-clay"] .app-layout::before {
+  position: fixed;
+  z-index: -1;
+  width: 28rem;
+  height: 28rem;
+  content: "";
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(64px);
+}
+
+[data-theme="scientific-clay"] body::before {
+  top: -10rem;
+  left: -9rem;
+  background: var(--ambient-violet);
+  animation: clay-float 8s var(--motion-easing) infinite alternate;
+}
+
+[data-theme="scientific-clay"] body::after {
+  top: 18%;
+  right: -11rem;
+  background: var(--ambient-pink);
+  animation: clay-float-delayed 10s var(--motion-easing) infinite alternate;
+}
+
+[data-theme="scientific-clay"] .app-layout::before {
+  bottom: -12rem;
+  left: 38%;
+  background: var(--ambient-sky);
+  animation: clay-breathe 12s var(--motion-easing) infinite alternate;
+}
+
+@keyframes clay-float {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(2rem, 1rem, 0); }
+}
+
+@keyframes clay-float-delayed {
+  from { transform: translate3d(0, 1rem, 0); }
+  to { transform: translate3d(-2rem, -1rem, 0); }
+}
+
+@keyframes clay-breathe {
+  from { transform: scale(0.94); opacity: 0.72; }
+  to { transform: scale(1.06); opacity: 1; }
+}

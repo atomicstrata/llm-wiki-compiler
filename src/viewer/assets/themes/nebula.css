@@ -1,0 +1,160 @@
+/**
+ * Nebula palettes retained for explicit light/dark preferences.
+ * Both variants share the original dark defaults; light overrides only its
+ * changed values. These maps own presentation values, never route structure.
+ */
+
+/* fallow-ignore-file unused-file */
+[data-theme="nebula-dark"],
+[data-theme="nebula-light"] {
+  color-scheme: dark;
+  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-badge: 4px;
+  --radius-chip: 6px;
+  --radius-row: 8px;
+  --radius-control: 9px;
+  --radius-tile: 11px;
+  --radius-panel: 12px;
+  --space-6: 6px;
+  --space-9: 9px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --type-metric: 600 32px/1 var(--font-sans);
+  --type-page-title: 600 26px/1 var(--font-sans);
+  --type-panel-title: 600 13.5px/1 var(--font-sans);
+  --type-row: 400 13px/1.35 var(--font-sans);
+  --type-body: 400 12.5px/1.5 var(--font-sans);
+  --type-provenance: 500 11px/1 var(--font-mono);
+  --type-metadata: 400 11px/1 var(--font-mono);
+  --type-label: 500 9.5px/1 var(--font-mono);
+  --type-badge: 500 9.5px/1 var(--font-mono);
+  --bg-shell: #0b0a12;
+  --bg-sidebar: #0a0912;
+  --bg-card: #100f19;
+  --bg-inset: #12111c;
+  --bg-hover: #161425;
+  --bg-sunken: #0d0c16;
+  --bg-chip: #191727;
+  --border: #201e30;
+  --border-soft: #1c1a2a;
+  --border-strong: #262338;
+  --border-chip: #2a2740;
+  --border-button: #2f2b46;
+  --fg: #f7f6fc;
+  --fg-strong: #f4f2fb;
+  --fg-body: #e7e5f2;
+  --fg-muted: #a8a3bd;
+  --fg-dim: #7d7896;
+  --fg-faint: #6f6a89;
+  --fg-ghost: #5e5a79;
+  --fg-disabled: #4d4964;
+  --accent: #8b5cf6;
+  --accent-text: #a78bfa;
+  --accent-hover: #c4b5fd;
+  --on-accent: #0b0a12;
+  --ok: #5eead4;
+  --warn: #fb923c;
+  --warn-bg: #171120;
+  --warn-border: #3a2a1c;
+  --warn-divider: #2b2130;
+  --warn-divider-soft: #221a29;
+  --warn-surface: #1a1322;
+  --warn-muted: #a1876b;
+  --danger: #f87171;
+  --danger-surface: #1f1a1b;
+  --danger-border: #3a2b2b;
+  --danger-edge: rgba(248, 113, 113, 0.5);
+  --danger-muted: #e0a99f;
+  --bar-track: #1c1a2a;
+  --graph-edge: #2c2842;
+  --graph-edge-hot: #a78bfa;
+  --graph-edge-dangling: #4a2f34;
+  --graph-bg-inner: #131120;
+  --graph-bg-outer: #0d0c16;
+  --accent-a03: rgba(139, 92, 246, 0.03);
+  --accent-a05: rgba(139, 92, 246, 0.05);
+  --accent-a12: rgba(139, 92, 246, 0.12);
+  --accent-a16: rgba(139, 92, 246, 0.16);
+  --accent-a22: rgba(139, 92, 246, 0.22);
+  --accent-a26: rgba(139, 92, 246, 0.26);
+  --accent-a30: rgba(139, 92, 246, 0.3);
+  --ok-a10: rgba(94, 234, 212, 0.1);
+  --ok-a24: rgba(94, 234, 212, 0.24);
+  --warn-a12: rgba(251, 146, 60, 0.12);
+  --warn-a13: rgba(251, 146, 60, 0.13);
+  --danger-a12: rgba(248, 113, 113, 0.12);
+  --max-content-width: 72ch;
+  --on-warning: var(--warn-surface);
+  --font-heading: var(--font-sans);
+  --font-weight-heading: 600;
+  --shadow-surface: none;
+  --shadow-card: none;
+  --shadow-button: none;
+  --shadow-hover: none;
+  --shadow-pressed: none;
+  --motion-fast: 120ms;
+}
+
+[data-theme="nebula-light"] {
+  color-scheme: light;
+
+  
+  --bg-shell: #ffffff;
+  --bg-sidebar: #f5f4fa;
+  --bg-card: #ffffff;
+  --bg-inset: #ffffff;
+  --bg-hover: #f4f3fa;
+  --bg-sunken: #faf9fe;
+  --bg-chip: #f0eef8;
+
+  
+  --border: #e7e4f1;
+  --border-soft: #e7e4f1;
+  --border-strong: #e2ddee;
+  --border-chip: #ded9ec;
+  --border-button: #d6d0e6;
+
+  
+  --fg: #141221;
+  --fg-strong: #141221;
+  --fg-body: #2c2939;
+  --fg-muted: #54506a;
+  --fg-dim: #6d6884;
+  --fg-faint: #787391;
+  
+  --fg-ghost: #8f8aa3;
+  
+  --fg-disabled: #adaabb;
+
+  
+  --accent: #7c3aed;
+  --accent-text: #6d28d9;
+  --accent-hover: #5b21b6;
+  --on-accent: #ffffff;
+
+  
+  --ok: #0d9488;
+  --warn: #c2610a;
+  --warn-bg: #fff8f0;
+  --warn-border: #efd6b6;
+  --warn-divider: #f3e0c8;
+  --warn-divider-soft: #f8ecda;
+  --warn-surface: #fdf1e1;
+  --warn-muted: #8d6440;
+  --danger: #dc2626;
+  
+  --danger-surface: #fdf3f2;
+  --danger-border: #f8d4d3;
+  --danger-edge: rgba(220, 38, 38, 0.4);
+  --danger-muted: #8d3a30;
+  --bar-track: #eeebf7;
+
+  
+  --graph-edge: #ded9ec;
+  --graph-edge-hot: #6d28d9;
+  --graph-edge-dangling: #eec6c6;
+  --graph-bg-inner: #fbfaff;
+  --graph-bg-outer: #faf9fe;
+}
