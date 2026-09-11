@@ -3,10 +3,10 @@
  * Copy latin-subset woff2 files out of the @fontsource packages into the
  * viewer's asset bundle.
  *
- * The viewer's CSP pins `font-src 'self'`, so Nebula's typefaces cannot load
+ * The viewer's CSP pins `font-src 'self'`, so the viewer's typefaces cannot load
  * from a CDN. Vendoring through @fontsource (rather than hand-downloading)
  * keeps the operation reproducible and pins the upstream version in
- * package.json. Both families are SIL OFL 1.1; their notices live in
+ * package.json. All four families are SIL OFL 1.1; their notices live in
  * src/viewer/assets/THIRD_PARTY_NOTICES.txt.
  *
  * Run via `npm run vendor:fonts` after changing either package version.
@@ -20,8 +20,10 @@ const here = path.dirname(url.fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 const target = path.join(projectRoot, "src/viewer/assets/fonts");
 
-/** Families to vendor and the weights the Nebula design actually uses. */
+/** Families to vendor and the weights used by the built-in themes. */
 const FAMILIES = [
+  { pkg: "@fontsource/dm-sans", weights: ["400", "500", "700"] },
+  { pkg: "@fontsource/nunito", weights: ["700", "800", "900"] },
   { pkg: "@fontsource/space-grotesk", weights: ["400", "500", "600", "700"] },
   { pkg: "@fontsource/jetbrains-mono", weights: ["400", "500", "600"] },
 ];

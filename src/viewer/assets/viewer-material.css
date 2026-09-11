@@ -1,0 +1,39 @@
+/**
+ * Shared material hooks for the existing public viewer layout.
+ * All themes use the same components and geometry. Palettes control type,
+ * elevation, and interaction motion; Nebula and Minimal keep flat surfaces.
+ */
+
+.theme-control { display: flex; align-items: center; gap: 6px; color: var(--fg-muted); font: 500 12px/1.3 var(--font-sans); }
+.theme-control select {
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: min(var(--radius-control), 12px);
+  background: var(--bg-inset);
+  color: var(--fg-body);
+  font: inherit;
+  cursor: pointer;
+}
+
+.stat-card, .panel, .pattern-strip {
+  box-shadow: var(--shadow-card);
+}
+.project-block, .docs-card { box-shadow: var(--shadow-surface); }
+.theme-control select, .button-primary, .button-quiet, .github-link {
+  box-shadow: var(--shadow-button);
+  transition: box-shadow var(--motion-fast) var(--motion-easing);
+}
+.theme-control select:hover, .button-primary:hover, .button-quiet:hover, .github-link:hover {
+  box-shadow: var(--shadow-hover);
+}
+.theme-control select:active, .button-primary:active, .button-quiet:active, .github-link:active {
+  box-shadow: var(--shadow-pressed);
+}
+.app-title, .sidebar-lockup-name, .main-pane h1, .main-pane h2, .main-pane h3,
+.panel-title, .hero-title, .pattern-title {
+  font-family: var(--font-heading);
+}
+/* Keep the public warning action readable in light and dark palettes. */
+.lint-action, .lint-action:hover, .lint-action:focus-visible { color: var(--on-warning); }

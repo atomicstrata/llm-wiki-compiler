@@ -89,6 +89,7 @@
             "group": "Guides",
             "pages": [
               "guides/mcp-agent-integration",
+              "guides/viewer-themes",
               "guides/sdk",
               "guides/atomic-memory-bridge",
               "guides/ci-quality-gates",
