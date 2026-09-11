@@ -31,6 +31,12 @@ llmwiki also supports [Google Cloud's Open Knowledge Format initiative](https://
   </Card>
 </CardGroup>
 
+## Make the wiki your own
+
+The [local viewer](/cli/view) offers four themes: Scientific Clay, Minimal, Nebula Light, and Nebula Dark. Scientific Clay is the default, with soft surfaces and rounded typography. Minimal follows your system’s light or dark setting. Switch themes without leaving the page; existing saved light/dark preferences migrate to Nebula. See the [theme guide](/guides/viewer-themes) for preference behavior.
+
+Organize inputs with [recursive source folders and literal path exclusions](/cli/compile#nested-source-folders), supply [project-specific compile instructions](/cli/compile), and use [binary embedding storage](/configuration/environment-variables) for larger indexes. Binary storage avoids the JSON serialization limit; semantic retrieval still requires the index to fit in memory.
+
 ## What llmwiki gives you
 
 **A compiled wiki, not raw chunks.** Instead of storing document chunks and re-discovering relationships at every query, llmwiki runs a two-phase LLM pipeline that extracts concepts, merges duplicates across sources, and generates typed wiki pages - each with citations back to the original source lines.

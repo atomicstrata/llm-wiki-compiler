@@ -5,7 +5,33 @@
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> **New in 1.0:** Configurable Lifecycle Profiles turn llmwiki into a reusable domain knowledge substrate. Declare typed entities, relations, lifecycle gates, workflows, artifacts, connectors, and retrieval policy in one validated profile. Start with the built-in `autosci` research pack or the deliberately different `newsroom` editorial pack, or install a local declarative template.
+## New in 1.3 — A fresh look for your wiki.
+
+Meet Scientific Clay, with soft surfaces and rounded typography, and Minimal, which follows your system’s light or dark setting. Switch instantly between four themes, including Nebula Light and Dark.
+
+<table>
+  <tr><th>Scientific Clay</th><th>Minimal</th></tr>
+  <tr>
+    <td width="50%"><a href="docs/images/viewer-scientific-clay.png"><img src="docs/images/viewer-scientific-clay.png" alt="Knowledge compilation page in Scientific Clay, with soft lavender surfaces and rounded typography" /></a></td>
+    <td width="50%"><a href="docs/images/viewer-minimal.png"><img src="docs/images/viewer-minimal.png" alt="The same populated Knowledge compilation page in Minimal, following the system light setting" /></a></td>
+  </tr>
+</table>
+
+The same page in a demonstration wiki. Click either screenshot for a closer look.
+
+Recursive source folders, path exclusions, project-specific compile instructions, and storage for larger embedding indexes.
+
+### Configurable Lifecycle Profiles — introduced in 1.0.
+
+Build a domain-specific wiki with typed records, relationships, lifecycle gates, and workflows defined in one validated profile. Start with AutoSci or Newsroom, or create your own.
+
+### New in 1.2 — Explore your records and their evidence.
+
+Browse profile-defined categories, declared fields, connected records, provenance, and supporting source passages in the local viewer.
+
+### New in 1.1 — Publish and share domain templates.
+
+Create signed template distributions, discover them through explicitly trusted catalogs, and install or update them with compatibility checks.
 
 ---
 
@@ -14,8 +40,6 @@
 Compile raw sources into an interlinked, citation-traceable markdown wiki that agents and humans can browse, query, lint, export, and reuse. The default profile preserves the classic concepts-and-queries layout; optional profiles add domain-specific types and workflows without adding domain branches to the compiler.
 
 llmwiki implements the [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern: instead of re-discovering knowledge from raw files at query time, compile it once into durable pages that accumulate structure, provenance, review state, and retrieval metadata over time.
-
-![llmwiki demo](docs/images/demo.gif)
 
 ## When to use this repo
 
@@ -346,6 +370,15 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
+**Released `1.3.0`:**
+
+- Four viewer themes, with Scientific Clay as the new default and Minimal following your system setting. Saved light/dark preferences migrate to Nebula Light/Dark.
+- Recursive source discovery, literal path exclusions, and explicit project-specific compile instructions.
+- Bounded binary storage for larger embedding indexes, configurable completion budgets, and protected gateway request extensions.
+- OrcaRouter embedding routing, retryable rule-language changes, and a public test type-check ratchet.
+
+See the [1.3.0 release summary](https://github.com/atomicstrata/llm-wiki-compiler/releases/tag/v1.3.0) and [changelog](CHANGELOG.md) for migration details, contributor credits, and limits.
+
 **Released `1.2.0`:**
 
 - Profile-aware viewer with document categories, record relationships, provenance, source previews, verified local artifact access, responsive navigation and fitted graphs.
@@ -353,7 +386,7 @@ volta run --node 24 npx mint dev --port 3001
 - Optional Sources sections and additive SDK system policies with prompt-change invalidation and per-page provenance.
 - Shared-page recovery after source removal, citation line-list fixes, and conservative abbreviated-wikilink repair.
 
-Windows path fixes are included, but Windows is not covered by release CI and its full filesystem-confinement guarantees remain unverified. Use a supported Linux environment for untrusted projects; see [#175](https://github.com/atomicstrata/llm-wiki-compiler/issues/175).
+Windows path fixes are included, but native Windows validation and CI remain outstanding. Full filesystem-confinement guarantees on Windows remain unverified. Use a supported Linux environment for untrusted projects; see [#217](https://github.com/atomicstrata/llm-wiki-compiler/issues/217).
 
 **Released `1.1.0`:**
 
