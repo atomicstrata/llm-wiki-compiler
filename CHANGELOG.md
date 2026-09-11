@@ -43,6 +43,9 @@ Credit includes original implementations, feature requests, and diagnoses, inclu
 
 ### Fixed
 
+- Shared reconciliation-test setup is deduplicated instead of suppressed, so
+  full-repository health checks pass without changing tooling or thresholds.
+
 - Ingest activity-journal source references now use forward slashes on Windows.
   Test fixtures also isolate operator paths and handle native paths, ESM imports,
   npm launchers and POSIX-only checks explicitly. Native Windows CI remains a

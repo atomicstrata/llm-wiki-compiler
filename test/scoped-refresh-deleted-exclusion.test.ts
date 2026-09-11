@@ -14,18 +14,14 @@
  * detection. Narrowing the first must not narrow the second.
  */
 
-// Shared imports plus unrelated fixture initializers are not reusable behavior.
-// fallow-ignore-next-line code-duplication
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
-import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { readState } from "../src/utils/state.js";
-import * as embeddings from "../src/utils/embeddings.js";
-import { useCompileProject } from "./fixtures/compile-project.js";
+import { mockReconciliationProvider, useReconciliationProject } from "./fixtures/reconciliation-project.js";
 
-const ctx = useCompileProject({
+const ctx = useReconciliationProject({
   dirSuffix: "scoped-deleted",
   sourceFile: "a.md",
   sourceContent: "# Topic X\n\nA contributes to X.",
@@ -41,7 +37,8 @@ async function arrange(bOwner: SharedOwner): Promise<{ extractedFiles: string[] 
   await writeFile(path.join(ctx.dir, "sources", "b.md"), "# Topic X\n\nB contributes to X and Y.", "utf-8");
   await writeFile(path.join(ctx.dir, "sources", "d.md"), "# Topic Y\n\nD contributes to Y.", "utf-8");
   const extractedFiles: string[] = [];
-  vi.spyOn(AnthropicProvider.prototype, "toolCall").mockImplementation(async (system) => {
+  const provider = mockReconciliationProvider();
+  provider.toolCall.mockImplementation(async (system) => {
     const which = system.includes("A contributes") ? "a"
       : system.includes("B contributes") ? "b"
       : system.includes("D contributes") ? "d" : "other";
@@ -51,9 +48,7 @@ async function arrange(bOwner: SharedOwner): Promise<{ extractedFiles: string[] 
     const concepts = named.map((concept) => ({ concept, summary: "s", is_new: true }));
     return JSON.stringify({ concepts });
   });
-  vi.spyOn(AnthropicProvider.prototype, "complete").mockResolvedValue("Body. ^[b.md:1-2]");
-  vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [] });
-  vi.spyOn(console, "log").mockImplementation(() => {});
+  provider.complete.mockResolvedValue("Body. ^[b.md:1-2]");
   return { extractedFiles };
 }
 

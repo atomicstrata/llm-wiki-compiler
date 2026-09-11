@@ -20,20 +20,18 @@
  * the pipeline continue and retire state around a page that was never written.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
-import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { readState } from "../src/utils/state.js";
-import * as embeddings from "../src/utils/embeddings.js";
-import { useCompileProject } from "./fixtures/compile-project.js";
+import { mockReconciliationProvider, useReconciliationProject } from "./fixtures/reconciliation-project.js";
 
 const EXTRACTION = JSON.stringify({
   concepts: [{ concept: "Shared Topic", summary: "Shared summary.", is_new: true }],
 });
 
-const ctx = useCompileProject({
+const ctx = useReconciliationProject({
   dirSuffix: "invalid-replacement",
   sourceFile: "a.md",
   sourceContent: "# Shared Topic\n\nA-only deleted contribution.",
@@ -48,15 +46,13 @@ async function arrange(): Promise<{ setInvalid: () => void; pageCalls: () => num
   );
   let invalid = false;
   let pageCalls = 0;
-  vi.spyOn(AnthropicProvider.prototype, "toolCall").mockResolvedValue(EXTRACTION);
-  vi.spyOn(AnthropicProvider.prototype, "complete").mockImplementation(async () => {
+  const provider = mockReconciliationProvider();
+  provider.toolCall.mockResolvedValue(EXTRACTION);
+  provider.complete.mockImplementation(async () => {
     pageCalls += 1;
     if (invalid) return "";
     return "Old claim. ^[a.md:1-2]\n\nShared claim. ^[b.md:1-2]";
   });
-  vi.spyOn(embeddings, "updateEmbeddingsLockedCore")
-    .mockResolvedValue({ embedded: [], eligible: [] });
-  vi.spyOn(console, "log").mockImplementation(() => {});
   return { setInvalid: () => { invalid = true; }, pageCalls: () => pageCalls };
 }
 
