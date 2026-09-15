@@ -10,7 +10,8 @@
 
 import { spawn } from "node:child_process";
 import { accessSync, constants as fsConstants, statSync } from "node:fs";
-import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Ajv from "ajv";
@@ -221,7 +222,7 @@ function spawnError(error: NodeJS.ErrnoException): CodexAgentError {
 
 /** Read at most `limit + 1` bytes so a hostile output file cannot race a stat. */
 async function readBoundedFile(filePath: string, limit: number): Promise<string> {
-  const handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  const handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   try {
     if (!(await handle.stat()).isFile()) {
       throw new CodexAgentError("Codex CLI last-message output was not a regular file.");

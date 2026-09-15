@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtemp, mkdir, writeFile } from "fs/promises";
+import { mkdtemp, mkdir, writeFile, realpath } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 import { collectReferenceFiles, resolveReferences } from "../src/export/okf/references.js";
@@ -23,7 +23,7 @@ describe("collectReferenceFiles", () => {
 describe("resolveReferences", () => {
   let root: string;
   beforeEach(async () => {
-    root = await mkdtemp(path.join(tmpdir(), "okf-refs-"));
+    root = await realpath(await mkdtemp(path.join(tmpdir(), "okf-refs-")));
     await mkdir(path.join(root, "sources"), { recursive: true });
     await writeFile(path.join(root, "sources", "a.md"), "A", "utf-8");
   });
@@ -34,6 +34,6 @@ describe("resolveReferences", () => {
     ] as ExportPage[]);
     expect([...refs.keys()]).toEqual(["a.md"]);
     expect(refs.get("a.md")!.destName).toBe(safeRefName("a.md"));
-    expect(refs.get("a.md")!.srcAbs).toMatch(/sources\/.*a\.md$/);
+    expect(refs.get("a.md")!.srcAbs).toBe(path.join(root, "sources", "a.md"));
   });
 });

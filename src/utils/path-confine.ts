@@ -74,6 +74,10 @@ export async function confinedRegularFile(dir: string, name: string): Promise<st
   const entryPath = path.join(dir, name);
   let st;
   try {
+    // Nested IDs must not bypass the scanner's refusal to walk directory aliases.
+    for (let parent = path.dirname(entryPath); parent !== dir; parent = path.dirname(parent)) {
+      if (!isInsideDir(parent, dir) || !(await lstat(parent)).isDirectory()) return null;
+    }
     st = await lstat(entryPath); // lstat: do NOT follow — a symlink must be rejected
   } catch {
     return null;

@@ -29,7 +29,7 @@
  */
 
 import { el, heading, placeholder } from "./viewer-dom.js";
-import { wireThemeToggle } from "./viewer-theme.js";
+import { wireThemeSelect } from "./viewer-theme.js";
 import { wireSearch } from "./viewer-search.js";
 import { renderSidebar, markActive } from "./viewer-sidebar.js";
 import { renderSupportRail, clearSupportRail } from "./viewer-rail.js";
@@ -574,7 +574,7 @@ async function fetchJson(pathname) {
 
 /** Bootstrap: first-paint nav, then parallel data fetch, then the router. */
 function main() {
-  wireThemeToggle();
+  wireThemeSelect();
   renderSidebar({});
   wireSearch({ fetchJson });
   void loadBootstrapData().then((data) => {

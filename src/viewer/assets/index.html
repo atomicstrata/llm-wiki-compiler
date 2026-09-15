@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/assets/viewer-health.css" />
     <link rel="stylesheet" href="/assets/viewer-pipeline.css" />
     <link rel="stylesheet" href="/assets/viewer-graph.css" />
+    <link rel="stylesheet" href="/assets/viewer-material.css" />
   </head>
   <body>
     <a class="skip-link" href="#main-pane">Skip to main content</a>
@@ -59,24 +60,15 @@
                   hidden
                 ></ul>
               </form>
-              <button
-                class="chrome-button"
-                type="button"
-                data-theme-toggle="dark"
-                aria-label="Switch to light theme"
-                aria-pressed="false"
-              >
-                <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="4.2"></circle>
-                  <path d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.6 1.6M17 17l1.6 1.6M18.6 5.4L17 7M7 17l-1.6 1.6"></path>
-                </svg>
-                <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                     stroke-linejoin="round" aria-hidden="true">
-                  <path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"></path>
-                </svg>
-              </button>
+              <label class="theme-control" for="viewer-theme-select">
+                <span>Theme</span>
+                <select id="viewer-theme-select" data-theme-select>
+                  <option value="scientific-clay">Scientific Clay</option>
+                  <option value="minimal">Minimal (system)</option>
+                  <option value="nebula-light">Nebula Light</option>
+                  <option value="nebula-dark">Nebula Dark</option>
+                </select>
+              </label>
               <a
                 class="github-link"
                 href="https://github.com/atomicstrata/llm-wiki-compiler"

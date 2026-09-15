@@ -116,8 +116,13 @@ export function printChangesSummary(changes: SourceChange[]): void {
   for (const c of changes) {
     const icon = iconMap[c.status] ?? "?";
     const fmt = fmtMap[c.status] ?? output.dim;
-    output.status(icon, fmt(`${c.file} [${c.status}]`));
+    const label = c.reason === "deselected" ? "deselected; file untouched" : c.status;
+    output.status(icon, fmt(`${c.file} [${label}]`));
   }
+  const deselected = changes.filter((change) => change.reason === "deselected").length;
+  if (deselected) output.status("i", output.dim(
+    `${deselected} source contribution(s) will be retired; to restore a source, select it again and compile.`,
+  ));
 }
 
 /** Log where the schema was loaded from so the user can confirm it was picked up. */

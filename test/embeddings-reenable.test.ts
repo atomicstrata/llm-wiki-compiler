@@ -26,10 +26,7 @@ interface Revision {
 }
 
 /** Stub generation from a mutable revision so a later compile can change the page. */
-function stubGeneration(revision: Revision): {
-  toolCall: ReturnType<typeof vi.spyOn>;
-  complete: ReturnType<typeof vi.spyOn>;
-} {
+function stubGeneration(revision: Revision) {
   const toolCall = vi.spyOn(AnthropicProvider.prototype, "toolCall").mockImplementation(async () => JSON.stringify({
     concepts: [{ concept: "Alpha", summary: revision.summary, is_new: true }],
   }));
@@ -40,7 +37,7 @@ function stubGeneration(revision: Revision): {
 }
 
 /** Configure deterministic OpenAI embeddings and return the batch-call spy. */
-function stubEmbeddings(): ReturnType<typeof vi.spyOn> {
+function stubEmbeddings() {
   process.env.LLMWIKI_EMBEDDING_PROVIDER = "openai";
   process.env.LLMWIKI_EMBEDDING_MODEL = "test-embed";
   process.env.OPENAI_API_KEY = "test-key";
@@ -54,9 +51,39 @@ afterEach(() => {
   delete process.env.LLMWIKI_EMBEDDING_PROVIDER;
   delete process.env.LLMWIKI_EMBEDDING_MODEL;
   delete process.env.OPENAI_API_KEY;
+  vi.unstubAllEnvs();
 });
 
 describe("embedding refresh re-enable", () => {
+  it("re-embeds an unchanged wiki after a model change without regenerating pages", async () => {
+    const generation = stubGeneration({ summary: "Initial summary.", body: "Initial body." });
+    const embedBatch = stubEmbeddings();
+    await compileAndReport(ctx.dir);
+    const calls = generation.complete.mock.calls.length;
+    embedBatch.mockClear();
+    process.env.LLMWIKI_EMBEDDING_MODEL = "replacement-model";
+
+    await compileAndReport(ctx.dir);
+
+    expect(embedBatch).toHaveBeenCalled();
+    expect((await readV3Store(ctx.dir))?.model).toBe("replacement-model");
+    expect(generation.complete).toHaveBeenCalledTimes(calls);
+  });
+
+  it("fails an unchanged compile in strict mode when automatic backfill fails", async () => {
+    const generation = stubGeneration({ summary: "Initial summary.", body: "Initial body." });
+    const embedBatch = stubEmbeddings();
+    process.env[ENV_EMBEDDINGS] = "off";
+    await compileAndReport(ctx.dir);
+    const calls = generation.complete.mock.calls.length;
+    delete process.env[ENV_EMBEDDINGS];
+    vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+    embedBatch.mockRejectedValue(new Error("backfill unavailable"));
+
+    await expect(compileAndReport(ctx.dir)).rejects.toThrow("backfill unavailable");
+    expect(generation.complete).toHaveBeenCalledTimes(calls);
+  });
+
   it("backfills a missing store on an unchanged compile", async () => {
     const generation = stubGeneration({ summary: "Initial summary.", body: "Initial body." });
     const embedBatch = stubEmbeddings();

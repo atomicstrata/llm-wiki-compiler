@@ -120,6 +120,8 @@ export interface WikiState {
 export interface SourceChange {
   file: string;
   status: "new" | "changed" | "unchanged" | "deleted";
+  /** Contribution retirement caused by selection policy, not a file unlink. */
+  reason?: "deselected";
 }
 
 /** Wiki page frontmatter parsed from YAML. */

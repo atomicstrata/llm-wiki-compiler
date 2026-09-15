@@ -15,10 +15,14 @@ describe("OpenAI request configuration failures", () => {
     vi.stubEnv("LLMWIKI_MODEL", "gpt-5.6");
     vi.stubEnv("LLMWIKI_OPENAI_TOKEN_PARAM", undefined);
     vi.stubEnv("LLMWIKI_OPENAI_REASONING_EFFORT", undefined);
+    vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", undefined);
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
   it.each([
+    ["LLMWIKI_OPENAI_EXTRA_BODY", "complete"],
+    ["LLMWIKI_OPENAI_EXTRA_BODY", "stream"],
+    ["LLMWIKI_OPENAI_EXTRA_BODY", "toolCall"],
     ["LLMWIKI_OPENAI_TOKEN_PARAM", "complete"],
     ["LLMWIKI_OPENAI_TOKEN_PARAM", "stream"],
     ["LLMWIKI_OPENAI_TOKEN_PARAM", "toolCall"],

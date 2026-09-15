@@ -11,6 +11,7 @@ import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.
 import * as output from "../utils/output.js";
 import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 import { reasoningParams, tokenLimitParams } from "./openai-request.js";
+import { extraBodyParams } from "./openai-extra-body.js";
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -227,6 +228,7 @@ export class OpenAIProvider implements LLMProvider {
     maxTokens: number,
   ): OpenAI.ChatCompletionCreateParamsNonStreaming {
     return {
+      ...extraBodyParams(),
       model: this.model,
       ...tokenLimitParams(this.model, maxTokens),
       ...reasoningParams(this.model),

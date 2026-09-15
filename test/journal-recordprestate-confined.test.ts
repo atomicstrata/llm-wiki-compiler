@@ -117,7 +117,7 @@ describe("recordPreState — non-regular targets", () => {
     await expect(recordPreState(batch, target)).rejects.toThrow(JournalPreStateUnreadableError);
   });
 
-  it("refuses a FIFO target without blocking (O_NONBLOCK)", async () => {
+  it.skipIf(process.platform === "win32")("refuses a FIFO target without blocking (O_NONBLOCK)", async () => {
     const target = path.join(root, WIKI, "as-fifo");
     execFileSync("mkfifo", [target]); // a plain readFile would BLOCK here forever (DoS)
     const batch = await openBatch(root);

@@ -73,6 +73,7 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
  *
  * @param root - Project root path.
  * @param changedPageIds - Qualified page ids whose pages changed this write.
+ * @param prepare - Optional write-ahead callback that filters the discovered intent set.
  * @returns `embedded` = the re-embed INTENT set — the ids this write ATTEMPTED to
  *   re-embed (`[]` on the no-persist early return). It may OVER-include: a
  *   migration-only id that `reembedIntoStore` later skips (e.g. filtered against
@@ -84,6 +85,7 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
 export async function updateEmbeddingsLockedCore(
   root: string,
   changedPageIds: PageId[],
+  prepare?: (pageIds: PageId[]) => Promise<PageId[]>,
 ): Promise<{ embedded: PageId[]; eligible: PageId[] }> {
   if (embeddingsDisabled()) {
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
@@ -103,7 +105,10 @@ export async function updateEmbeddingsLockedCore(
   // takes the active identity as data and never reads the environment.
   const preservable = storeMatchesActiveEmbedding(parsedOld?.store) ? parsedOld : null;
   const { store: migrated, reembedPageIds } = migrateEmbeddingStore(preservable, collected, model);
-  const reembed = unionReembed(reembedPageIds, changedPageIds, collected);
+  const discovered = unionReembed(reembedPageIds, changedPageIds, collected);
+  // The draining caller records discovered work BEFORE any provider call and
+  // removes quarantined ids. Direct callers retain the existing refresh contract.
+  const reembed = prepare ? new Set(await prepare([...discovered])) : discovered;
 
   // Persist when there is real work: something to re-embed, a sub-v3 store to
   // upgrade (version-driven migration, S1), OR a prune that shrank the store

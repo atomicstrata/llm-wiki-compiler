@@ -18,12 +18,12 @@
  *   - `buildFreshnessSnapshot` for per-page freshness and the aggregate
  *     stale/orphaned counts (one state read + one hash pass over sources/)
  *   - `countCandidates` for the pending-reviews count
- *   - `readdir(sources/)` for the cheap source-file count
+ *   - selected source discovery for the source-file count and read allowlist
  */
 
-import { readdir, readFile, realpath } from "fs/promises";
+import { readFile, realpath } from "fs/promises";
 import path from "path";
-import { SOURCES_DIR } from "../utils/constants.js";
+import { listSelectedSourceEntries } from "../sources/scan.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified, isPlainObject } from "../utils/state.js";
 import type { ClassifiedState } from "../utils/state.js";
@@ -66,7 +66,7 @@ export async function buildViewerSnapshot(root: string): Promise<ViewerSnapshot>
       collectViewerPages(root),
       readStateClassified(root),
       countCandidates(root),
-      listSourceFiles(root),
+      listSelectedSourceEntries(root),
       readIndexFile(root),
       collectTypedViewerInputs(root),
     ]);
@@ -255,43 +255,6 @@ function appendCitationWarningsForMarker(
 function buildProject(root: string): ViewerProject {
   const rootName = path.basename(root);
   return { title: rootName, rootName };
-}
-
-/**
- * List filenames directly under `sources/`. Returns an empty array when
- * the directory is missing. The Slice 4 citation renderer uses this list
- * to mark each chip `data-resolved` without per-request directory scans;
- * `counts.sourceFiles` is the cheap `.length` of the same list.
- *
- * Stricter than "stays under project root": `realpath(<root>/sources)`
- * must equal the literal canonical path `<canonicalRoot>/sources`. A
- * symlinked `sources/` directory — even pointing in-root — returns an
- * empty list, matching the same containment posture the wiki collector
- * uses for `wiki/concepts/` and `wiki/queries/`. Symlinked entries
- * inside the directory are excluded by `Dirent.isFile()` (which returns
- * false for symlinks since `withFileTypes` does not follow them).
- */
-async function listSourceFiles(root: string): Promise<string[]> {
-  let canonicalRoot: string;
-  try {
-    canonicalRoot = await realpath(root);
-  } catch {
-    return [];
-  }
-  const expectedDir = path.join(canonicalRoot, SOURCES_DIR);
-  let realDir: string;
-  try {
-    realDir = await realpath(expectedDir);
-  } catch {
-    return [];
-  }
-  if (realDir !== expectedDir) return [];
-  try {
-    const entries = await readdir(realDir, { withFileTypes: true });
-    return entries.filter((e) => e.isFile()).map((e) => e.name);
-  } catch {
-    return [];
-  }
 }
 
 /**

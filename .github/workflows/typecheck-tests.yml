@@ -1,0 +1,25 @@
+name: Test type-check
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  test-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck:tests -- --base-ref "$TEST_TYPECHECK_BASE_REF"
+        env:
+          TEST_TYPECHECK_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}

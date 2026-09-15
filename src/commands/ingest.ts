@@ -266,10 +266,15 @@ async function journalIngest(
   await appendLog(root, "ingest", title, {
     details: [
       `Source: ${source}`,
-      `Saved: ${path.join(SOURCES_DIR, path.basename(savedPath))}`,
+      `Saved: ${journalSavedPath(savedPath)}`,
       `Chars: ${charCount.toLocaleString()}`,
     ],
   });
+}
+
+/** Format the root-relative source reference recorded in the Markdown journal. */
+export function journalSavedPath(savedPath: string, pathApi = path): string {
+  return `${SOURCES_DIR}/${pathApi.basename(savedPath)}`;
 }
 
 /**

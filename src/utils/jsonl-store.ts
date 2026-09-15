@@ -19,11 +19,14 @@
  * The typed symlink error is INJECTED (`makeSymlinkError`) so each store throws
  * its OWN error class while sharing one open path — a store can never reappear at
  * a new call site without the no-follow leaf defense.
+ * Where the native flag is unavailable, {@link openFileNoFollow} verifies leaf
+ * identities before returning a handle and creates missing stores exclusively.
  */
 
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { lstat, open } from "fs/promises";
+import { lstat } from "fs/promises";
+import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import path from "path";
 import { WIKI_GRAPH_DIR } from "./constants.js";
 import { safeRealpath, isInsideDir, confineUnderRoot } from "./path-confine.js";
@@ -191,10 +194,11 @@ export async function openGraphFileRead(
 ): Promise<FileHandle | null> {
   let handle: FileHandle;
   try {
-    handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return null; // absent file → empty store
+    if (err instanceof NoFollowOpenError) throw makeSymlinkError(err.message);
     if (code === "ELOOP") throw makeSymlinkError("store file is a symlink");
     throw err;
   }
@@ -221,8 +225,9 @@ export async function openGraphFileAppend(
   const flags = fsConstants.O_APPEND | fsConstants.O_CREAT | fsConstants.O_WRONLY | fsConstants.O_NOFOLLOW;
   let handle: FileHandle;
   try {
-    handle = await open(file, flags, STORE_FILE_MODE);
+    handle = await openFileNoFollow(file, flags, STORE_FILE_MODE);
   } catch (err) {
+    if (err instanceof NoFollowOpenError) throw makeSymlinkError(err.message);
     if ((err as NodeJS.ErrnoException).code === "ELOOP") {
       throw makeSymlinkError("store file is a symlink");
     }

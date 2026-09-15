@@ -23,8 +23,8 @@
  *
  * ## Non-fatal
  * Embeddings are a non-critical enhancement: a missing API key or a transient
- * provider error settles the marker for a retry and warns rather than throwing,
- * so an embeddings failure can never break a compile or an approval.
+ * provider error settles the marker for a retry and warns. Strict embedding mode
+ * rethrows after settlement so automation can detect a broken provider.
  */
 
 import { updateEmbeddingsLockedCore } from "./embeddings.js";
@@ -33,14 +33,7 @@ import { embeddingsDisabled } from "./embeddings-config.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
 import { verbose } from "./output.js";
 import type { PageId } from "./page-id.js";
-import {
-  loadPendingEmbeddings,
-  writePendingEmbeddings,
-  mergeFreshAttempts,
-  settleAfterSuccess,
-  settleAfterFailure,
-  warnQuarantined,
-} from "./pending-embeddings.js";
+import { loadEmbeddingRetry } from "./embeddings-retry.js";
 
 /**
  * Refresh embeddings for `changedPageIds` while DRAINING the durable pending
@@ -64,7 +57,8 @@ import {
  * change set. Its content-hash migration discovers missing or stale vectors,
  * which makes the first enabled no-op compile reconcile pages written while
  * refreshes were disabled. A healthy store returns without provider calls or
- * writes, and this reconciliation-only path never creates a pending marker.
+ * writes. Discovered work is recorded before provider calls and shares the retry
+ * limit; quarantined ids remain excluded until an explicit page change.
  *
  * @param root - Absolute project root the marker is confined under.
  * @param changedPageIds - Qualified page-ids changed this run (may be empty —
@@ -79,24 +73,18 @@ export async function refreshEmbeddingsDrainingPending(
     verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return;
   }
-  const merged = mergeFreshAttempts(await loadPendingEmbeddings(root), changedPageIds);
-  const toRefresh = merged.map((entry) => entry.pageId);
-  verbose(`embeddings: refreshing ${toRefresh.length} page-id(s)`);
+  const retry = await loadEmbeddingRetry(root, changedPageIds);
+  verbose(`embeddings: refreshing ${retry.pageIds.length} page-id(s)`);
   // Write-ahead intent: record BEFORE the attempt so a swallowed failure or crash
   // leaves a durable retry list even though source-state already marks sources current.
-  if (toRefresh.length > 0) await writePendingEmbeddings(root, merged);
+  await retry.recordPending();
   try {
-    const { embedded, eligible } = await updateEmbeddingsLockedCore(root, toRefresh);
-    if (toRefresh.length === 0) return;
-    const settled = settleAfterSuccess(merged, embedded, eligible);
-    await writePendingEmbeddings(root, settled.survivors);
-    warnQuarantined(settled.quarantined);
+    const { embedded, eligible } = await updateEmbeddingsLockedCore(
+      root, retry.pageIds, (ids) => retry.prepare(ids),
+    );
+    await retry.succeed(embedded, eligible);
   } catch (err) {
-    if (toRefresh.length > 0) {
-      const settled = settleAfterFailure(merged, toRefresh);
-      await writePendingEmbeddings(root, settled.survivors);
-      warnQuarantined(settled.quarantined);
-    }
+    await retry.fail();
     const message = err instanceof Error ? err.message : String(err);
     handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }

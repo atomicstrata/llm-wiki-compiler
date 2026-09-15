@@ -6,7 +6,7 @@
  * landmark structure, the focus-visible outline rule in the stylesheet,
  * the wired search input (including its header ⌘K / Ctrl+K shortcut),
  * the `/#/health` dashboard rendering, and that colour is never the only
- * signal — the theme toggle's `aria-pressed` state and every freshness
+ * signal — the theme selector's visible label and every freshness
  * dot's `aria-label`.
  */
 
@@ -373,11 +373,11 @@ describe("sidebar — Health entry routes to #/health", () => {
 });
 
 describe("header + freshness dots — colour is never the only signal", () => {
-  it("gives the theme toggle an accessible name and pressed state", async () => {
+  it("gives the theme selector a visible associated label", async () => {
     const doc = await mountDefaultViewer();
-    const button = doc.querySelector("[data-theme-toggle]");
-    expect(button?.getAttribute("aria-label")).toBeTruthy();
-    expect(button?.getAttribute("aria-pressed")).toMatch(/true|false/);
+    const select = doc.querySelector("[data-theme-select]");
+    expect(select?.tagName).toBe("SELECT");
+    expect(doc.querySelector(`label[for="${select?.id}"]`)?.textContent).toContain("Theme");
   });
 
   it("labels freshness dots so colour is never the only signal", async () => {

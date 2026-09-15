@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node", "vitest/globals"],
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src/**/*", "test/**/*", "scripts/test-typecheck*.ts", "scripts/typecheck-tests.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -162,7 +162,7 @@ function getOrcaRouterProvider(): OrcaRouterProvider {
       '  Set it with: export ORCAROUTER_API_KEY=your_key',
     );
   }
-  return new OrcaRouterProvider(getModelForProvider("orcarouter"), apiKey);
+  return new OrcaRouterProvider(getModelForProvider("orcarouter"), apiKey, readOptionalEnv("LLMWIKI_EMBEDDING_MODEL"));
 }
 
 function getCopilotProvider(): CopilotProvider {

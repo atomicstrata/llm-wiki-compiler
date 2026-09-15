@@ -176,7 +176,8 @@ llmwiki template publish add ./incident-response.json --workspace ./my-tap --pac
 llmwiki template publish build --workspace ./my-tap --expires-in 30d --out ./dist
 ```
 
-`init` creates separate Ed25519 tap and publisher keypairs `0600` under `my-tap/keys/`,
+`init` creates separate Ed25519 tap and publisher keypairs under `my-tap/keys/`
+(mode `0600` on POSIX; Windows access is governed by filesystem ACLs),
 never printing or overwriting a private key, and prints each public key's fingerprint.
 
 `add` validates the package with the production validator, signs its claim, and records

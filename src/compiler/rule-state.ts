@@ -9,8 +9,8 @@
  * map in `.llmwiki/rule-state.json` so rule extraction advances its own cursor.
  *
  * The shape mirrors {@link WikiState} (so `detectChanges` can compare against
- * it directly), but only the per-source `hash` is meaningful here — `concepts`
- * is always empty because rule extraction produces candidates, not pages.
+ * it directly), with a per-source output language for prompt invalidation.
+ * `concepts` is always empty because rule extraction produces candidates, not pages.
  */
 
 import { readFile } from "fs/promises";
@@ -20,8 +20,19 @@ import { RULE_STATE_FILE } from "../utils/constants.js";
 import { atomicWrite } from "../utils/markdown.js";
 import type { WikiState, SourceState } from "../utils/types.js";
 
+/** A source advances only under the language that successfully processed it. */
+interface RuleSourceState extends SourceState {
+  /** Missing in older cursors; equivalent to the default language (empty string). */
+  outputLanguage?: string;
+}
+
+/** Independent rule cursor, structurally compatible with source change detection. */
+interface RuleState extends WikiState {
+  sources: Record<string, RuleSourceState>;
+}
+
 /** A fresh, empty rule-extraction state. */
-function emptyRuleState(): WikiState {
+function emptyRuleState(): RuleState {
   return { version: 1, indexHash: "", sources: {} };
 }
 
@@ -31,11 +42,11 @@ function emptyRuleState(): WikiState {
  * everything looks new).
  * @param root - Project root directory.
  */
-export async function readRuleState(root: string): Promise<WikiState> {
+export async function readRuleState(root: string): Promise<RuleState> {
   const filePath = path.join(root, RULE_STATE_FILE);
   if (!existsSync(filePath)) return emptyRuleState();
   try {
-    return JSON.parse(await readFile(filePath, "utf-8")) as WikiState;
+    return JSON.parse(await readFile(filePath, "utf-8")) as RuleState;
   } catch {
     return emptyRuleState();
   }
@@ -53,15 +64,15 @@ async function writeRuleState(root: string, state: WikiState): Promise<void> {
 
 /**
  * Record that a source was processed by rule extraction at the given hash, so
- * a subsequent `rules extract` skips it until the source changes again.
+ * a subsequent `rules extract` skips it until the source or language changes.
  * @param root - Project root directory.
  * @param sourceFile - Source filename within `sources/`.
- * @param entry - The source's hash + processing timestamp.
+ * @param entry - The source's hash, selected language and processing timestamp.
  */
 export async function updateRuleSourceState(
   root: string,
   sourceFile: string,
-  entry: SourceState,
+  entry: RuleSourceState,
 ): Promise<void> {
   const state = await readRuleState(root);
   state.sources[sourceFile] = entry;

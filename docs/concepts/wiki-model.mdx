@@ -4,7 +4,7 @@ sidebarTitle: "Wiki Model"
 description: "Learn how llmwiki organizes compiled wiki pages, wikilinks, the activity journal, and the .llmwiki directory for embeddings and state."
 ---
 
-When llmwiki compiles your sources, it writes everything into a predictable, file-system-native layout. The compiled wiki lives in `wiki/`, the compiler's internal state lives in `.llmwiki/`, and every operation - ingest, compile, query - appends a timestamped entry to `log.md`. All of these are plain text or JSON files you can read, version-control, and open in any tool, including Obsidian.
+When llmwiki compiles your sources, it writes everything into a predictable, file-system-native layout. The compiled wiki lives in `wiki/`, the compiler's internal state lives in `.llmwiki/`, and every operation - ingest, compile, query - appends a timestamped entry to `log.md`. Wiki pages and the journal remain plain text you can open in Obsidian. The derived embedding index can use binary storage; other state files use JSON.
 
 ## Output Directory Structure
 
@@ -16,7 +16,8 @@ wiki/
   index.md              auto-generated table of contents
 .llmwiki/
   state.json            per-source content hashes and concept ownership
-  embeddings.json       page- and chunk-level embedding vectors
+  embeddings.json       small-store page and chunk vectors
+  embeddings.bin        binary index when selected; takes precedence over JSON
   schema.json           optional page-kind and cross-link policy
   config.json           review policy (hold modes and thresholds)
   candidates/           pages held for review
@@ -47,8 +48,8 @@ wiki/
   <Card title="state.json" icon="database">
     Tracks per-source SHA-256 content hashes and the concept slugs each source owns. On every compile, llmwiki compares live file hashes against this state to determine what needs reprocessing. This is what makes incremental compilation possible.
   </Card>
-  <Card title="embeddings.json" icon="vector-square">
-    The v3 embedding store. Carries page-level and chunk-level vectors under qualified page ids for `llmwiki query` and `llmwiki context` cosine-similarity retrieval. Updated incrementally alongside source changes - only chunks whose content changed are re-embedded.
+  <Card title="Embedding index" icon="vector-square">
+    The v3 embedding store carries page and chunk vectors under qualified page ids for query and context retrieval. Small stores use `embeddings.json`; large or explicitly opted-in stores use `embeddings.bin`. Binary remains authoritative on later runs; an old JSON file is only a historical backup. See [storage and recovery](/configuration/environment-variables#embedding-storage).
   </Card>
   <Card title="candidates/" icon="clock">
     JSON records for pages held for review - either via `llmwiki compile --review`, triggered automatically by a review policy in `config.json`, or staged by `llmwiki import --okf`. Each candidate records exactly why it was held (low confidence, contradicted, schema-violating, provenance-violating, or imported from OKF). Rejected candidates move to `candidates/archive/` for audit.

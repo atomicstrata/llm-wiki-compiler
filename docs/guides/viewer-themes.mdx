@@ -1,0 +1,55 @@
+---
+title: "Create a viewer theme"
+sidebarTitle: "Viewer themes"
+description: "Add a built-in viewer palette while preserving public viewer routes and layout."
+---
+
+The viewer includes **Scientific Clay**, **Minimal (system)**, **Nebula Light**, and **Nebula Dark**. Themes share the same dashboard, record pages, navigation, and graph behavior. A theme changes typography, colors, and material treatment.
+
+## How selection works
+
+`src/viewer/assets/viewer-theme-boot.js` runs as a classic script before the first stylesheet. It validates the stored ID against a closed registry and stamps `data-theme` on the document root. `viewer-theme.js` wires the labeled select after the page loads, using that same controller.
+
+Scientific Clay is the default for browsers without a saved preference and stays light. Minimal follows the operating system's light or dark setting. Nebula Light and Dark are explicit choices.
+
+Preferences use `llmwiki.viewer.theme.v1`. When that key is absent, a saved `light` or `dark` in the older `llmwiki-viewer-theme` key migrates to the corresponding Nebula choice. An invalid new preference falls back to Scientific Clay. The older key is preserved for older viewer versions. Unavailable storage leaves selection usable for the current page.
+
+Storage belongs to the browser origin, including the port. Reuse the same `llmwiki view --port` value to keep preferences between launches.
+
+## Stylesheet structure
+
+`src/viewer/assets/viewer-tokens.css` imports these layers in order:
+
+1. `viewer-fonts.css`: the thirteen self-hosted font faces.
+2. `themes/theme-base.css`: safe semantic defaults.
+3. `themes/public-tokens.css`: aliases and readable status pairs for public components.
+4. `themes/minimal.css`, `themes/scientific-clay.css`, and `themes/nebula.css`: the selected palettes.
+
+The HTML links the public content, chrome, dashboard, health, pipeline, graph, and material stylesheets after that foundation. Preserve their order: dashboard and graph rules override the reading pane's width. `viewer-material.css` connects shared elevation and heading tokens to existing components.
+
+Theme files map values; structural styles consume them. For example, public `--fg-body` reads semantic `--text-primary`, and `--accent-text` reads `--text-interactive`. Nebula maps the public names directly to preserve its existing appearances. Keep aliases on the themed root so palette changes update them together.
+
+Status text needs readable ink, which can differ from a decorative accent. Check warning panels, badges, small metadata, and text on filled buttons against their actual backgrounds. Translucent surfaces require checking the colors beneath them too.
+
+## Add a palette
+
+1. Copy `themes/minimal.css` to a new file and use your own root selector, such as `[data-theme="slate"]`. Keep its header and CSS asset marker. Map semantic tokens and any public status extensions your palette needs.
+2. Import it in `viewer-tokens.css` after the existing maps and before structural styles.
+3. Add a stable ID to `THEME_IDS` in `viewer-theme-boot.js`. IDs are limited to 32 characters; use lowercase kebab-case. Renaming an ID resets its saved preferences.
+4. Add a labeled option to the select in `index.html`.
+5. Update `test/viewer-theme.test.ts`, `test/viewer-theme-css.test.ts`, and `test/viewer-pack.test.ts` for the new ID, map, and assets.
+6. Test switching and reloads on every route, including both the compact dashboard graph and full graph, at desktop and narrow widths.
+
+Themes cannot add external scripts, styles, or fonts: the viewer serves its bundled assets under a same-origin Content Security Policy. Profiles and product packages do not register themes. Ambient decoration must stay non-interactive and behind content. The global reduced-motion rule stops animation and transitions across the viewer.
+
+## Fonts and verification
+
+Fonts are vendored with `npm run vendor:fonts`. Add families and weights to `scripts/vendor-fonts.mjs`, pin their development packages, add font-face rules to `viewer-fonts.css`, and preserve their licenses in `THIRD_PARTY_NOTICES.txt`. The build copies nested CSS and font assets into the npm package.
+
+```sh
+npx vitest run test/viewer-theme.test.ts test/viewer-theme-css.test.ts test/viewer-theme-contrast.test.ts test/viewer-accessibility.test.ts test/viewer-contrast.test.ts test/viewer-graph-theming.test.ts
+npm run build
+npx vitest run test/viewer-pack.test.ts
+```
+
+Open the built viewer and check keyboard focus, reduced motion, OS light/dark settings, first paint, text contrast, and route state while switching. DOM tests do not calculate browser layout or composited colors.

@@ -28,6 +28,7 @@ import {
   INDEX_FILE,
 } from "../utils/constants.js";
 import { countCandidates } from "../compiler/candidates.js";
+import { listSelectedSourceFiles } from "../sources/scan.js";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../linter/cache.js";
 import type { LintCacheEntry } from "../linter/cache.js";
 import { readStateClassified } from "../utils/state.js";
@@ -156,14 +157,14 @@ async function collectDirPresence(root: string): Promise<DirPresence> {
 
 /** Compute page counts plus the wiki/index.md presence flag. */
 async function collectPageCounts(root: string, dirs: DirPresence): Promise<PageCounts> {
-  const [sourceCount, conceptCount, queryCount, pendingCandidates, hasIndex] = await Promise.all([
-    dirs.hasSourcesDir ? countMarkdownFiles(path.join(root, SOURCES_DIR)) : 0,
+  const [sources, conceptCount, queryCount, pendingCandidates, hasIndex] = await Promise.all([
+    listSelectedSourceFiles(root),
     dirs.hasWikiDir ? countMarkdownFiles(path.join(root, CONCEPTS_DIR)) : 0,
     dirs.hasWikiDir ? countMarkdownFiles(path.join(root, QUERIES_DIR)) : 0,
     dirs.hasInternalDir ? safeCountCandidates(root) : 0,
     dirs.hasWikiDir ? isFile(path.join(root, INDEX_FILE)) : false,
   ]);
-  return { sourceCount, conceptCount, queryCount, pendingCandidates, hasIndex };
+  return { sourceCount: sources.length, conceptCount, queryCount, pendingCandidates, hasIndex };
 }
 
 /** Read directory mtimes only when the directories exist; absent dirs report null. */

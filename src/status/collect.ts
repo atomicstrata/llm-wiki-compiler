@@ -8,17 +8,17 @@
  *
  * `pendingChanges` is derived directly from the freshness snapshot (which
  * already has per-source currentHash/recordedHash/exists) plus a cheap
- * directory listing — no second hash pass. `detectChanges` is NOT called.
+ * selected-file listing — no second hash pass. `detectChanges` is NOT called.
  */
 
 import path from "path";
-import { readdir } from "fs/promises";
+import { listSelectedSourceFiles } from "../sources/scan.js";
 import { collectPageSummaries, scanWikiPages } from "../compiler/indexgen.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified, isPlainObject } from "../utils/state.js";
 import type { StateStatus } from "../utils/state.js";
 import { buildFreshnessSnapshot, computeFreshness } from "../freshness/index.js";
-import { CONCEPTS_DIR, QUERIES_DIR, SOURCES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { collectProfileSummary } from "../profile/block.js";
 import { journalHealthWarning } from "../trust/journal-health-warning.js";
 import type { ReadSurfaceWarning } from "../trust/journal-health-warning.js";
@@ -139,28 +139,20 @@ function lastCompileTime(sources: Record<string, { compiledAt: string }>): strin
   return times.length > 0 ? times.sort().slice(-1)[0] : null;
 }
 
-/** List markdown filenames in sources/ without hashing — cheap directory scan. */
-async function listSourceFilesOnDisk(root: string): Promise<string[]> {
-  try {
-    const entries = await readdir(path.join(root, SOURCES_DIR));
-    return entries.filter((f) => f.endsWith(".md"));
-  } catch {
-    return [];
-  }
-}
-
 /**
  * Derive pending source changes (new/changed/deleted) from the freshness snapshot — no extra hashing.
  * The snapshot already contains recordedHash, currentHash, and exists for each tracked source,
- * so we only need a cheap directory listing to discover untracked (new) files.
+ * The selected-file listing also detects retirement after a selection change,
+ * even when the original source remains on disk with an unchanged hash.
  */
 function pendingChangesFromSnapshot(
   snapshot: FreshnessSnapshot,
   sourceFilesOnDisk: string[],
 ): Array<{ file: string; status: string }> {
   const out: Array<{ file: string; status: string }> = [];
+  const selected = new Set(sourceFilesOnDisk);
   for (const [file, s] of Object.entries(snapshot.sources)) {
-    if (!s.exists) out.push({ file, status: "deleted" });
+    if (!s.exists || !selected.has(file)) out.push({ file, status: "deleted" });
     else if (s.currentHash !== s.recordedHash) out.push({ file, status: "changed" });
   }
   const recorded = new Set(Object.keys(snapshot.sources));
@@ -198,7 +190,7 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
     collectPageSummaries(path.join(root, QUERIES_DIR)),
     scanWikiPages(path.join(root, CONCEPTS_DIR)),
     countCandidates(root),
-    listSourceFilesOnDisk(root),
+    listSelectedSourceFiles(root),
   ]);
 
   const { stalePages, orphanedPages } = classifyConceptPages(scannedConcepts, snapshot);

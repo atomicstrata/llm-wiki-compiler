@@ -179,6 +179,20 @@ llmwiki rules export --scope proposed  # only proposed candidates
 
 All mutations (`approve`, `reject`, `extract`) run under `.llmwiki/lock` to serialize cleanly against concurrent operations.
 
+Set `LLMWIKI_OUTPUT_LANG` to choose the language for rule extraction:
+
+```bash
+LLMWIKI_OUTPUT_LANG=Japanese llmwiki rules extract
+```
+
+Changing or clearing this setting re-extracts unchanged sources. Repeating the
+same setting skips already-processed sources. Each source's successful selection
+is stored in `.llmwiki/rule-state.json`; a failed source is retried on the next
+run. Older cursors without a language value mean the model's default language.
+Re-extraction preserves human approvals and rejections for existing candidate
+ids; differently worded rules can produce additional candidates to review.
+Compile-only instructions and Sources-section preferences do not affect rules.
+
 <Note>
   `rules export` defaults to `--scope approved`. Exported candidates are written to `dist/exports/rule-candidates.json` as a JSON array, ready for a downstream rule importer.
 </Note>

@@ -105,7 +105,7 @@ describe("LLMWIKI_EMBEDDINGS", () => {
 
     await refreshEmbeddingsDrainingPending(root, []);
 
-    expect(provider).toHaveBeenCalledWith(root, []);
+    expect(provider).toHaveBeenCalledWith(root, [], expect.any(Function));
     expect(existsSync(pendingPath())).toBe(false);
   });
 

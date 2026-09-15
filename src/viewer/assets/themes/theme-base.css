@@ -1,0 +1,85 @@
+/**
+ * Safe semantic defaults and universal viewer foundations.
+ *
+ * The root map keeps every shared surface readable if a selected theme omits a
+ * token. Structural styles consume only these semantic names; theme files may
+ * replace their values without owning viewer component or route selectors.
+ */
+
+/* fallow-ignore-file unused-file */
+:root {
+  color-scheme: light;
+  --canvas: #ffffff;
+  --surface-muted: #f7f7f8;
+  --surface-base: #ffffff;
+  --surface-raised: #fbfbfc;
+  --surface-glass: #fbfbfc;
+  --surface-recessed: #f7f7f8;
+  --text-primary: #16181d;
+  --text-muted: #5f6470;
+  --text-inverse: #fff;
+  --text-interactive: #245fce;
+  --border-subtle: #e1e2e6;
+  --interactive-primary: #2a6df4;
+  --interactive-primary-soft: rgba(42, 109, 244, 0.1);
+  --interactive-secondary: #2a6df4;
+  --status-success: #16794b;
+  --status-warning: #b85c00;
+  --status-warning-soft: rgba(200, 90, 0, 0.12);
+  --status-danger: #b00020;
+  --status-danger-soft: rgba(176, 0, 32, 0.08);
+  --status-danger-badge-soft: rgba(176, 0, 32, 0.10);
+  --status-danger-border: rgba(176, 0, 32, 0.2);
+  --status-info: #2a6df4;
+  --status-contradicted: #6400b4;
+  --status-contradicted-soft: rgba(100, 0, 180, 0.10);
+  --status-neutral-soft: rgba(100, 100, 110, 0.12);
+  --gate-awaiting: #2a6df4;
+  --gate-approved: #16794b;
+  --gate-rejected: #b00020;
+  --focus-ring: #2a6df4;
+  --graph-overlay-surface: #1f2937;
+  --graph-overlay-border: #374151;
+  --graph-overlay-panel: #111827;
+  --graph-overlay-text: #e2e8f0;
+  --graph-overlay-muted: #7a8fa6;
+  --graph-overlay-subtle: #4a5568;
+  --graph-canvas: #ffffff;
+  --graph-node-concept-fill: #1c3e67;
+  --graph-node-concept-stroke: #1565c0;
+  --graph-node-entity-fill: #143f44;
+  --graph-node-entity-stroke: #00695c;
+  --graph-node-comparison-fill: #653724;
+  --graph-node-comparison-stroke: #e65100;
+  --graph-node-overview-fill: #1e3c2f;
+  --graph-node-overview-stroke: #1b5e20;
+  --graph-node-orphan-fill: #212121;
+  --graph-node-orphan-stroke: #424242;
+  --graph-node-missing-fill: #0f172a;
+  --graph-node-missing-stroke: #475569;
+  --graph-edge-default: #374151;
+  --graph-edge-relation: #2d5a3d;
+  --graph-edge-hot: #2563eb;
+  --graph-node-label: #1a202c;
+  --graph-elevation-color: #2563eb;
+  --graph-node-highlight-filter: none;
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-heading: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-weight-heading: 700;
+  --max-content-width: 70ch;
+  --radius-container: 8px;
+  --radius-card: 8px;
+  --radius-control: 6px;
+  --shadow-surface: none;
+  --shadow-card: none;
+  --shadow-button: none;
+  --shadow-hover: none;
+  --shadow-pressed: none;
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-easing: ease;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+

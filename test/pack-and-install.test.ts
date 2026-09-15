@@ -27,6 +27,7 @@ import { promisify } from "util";
 import { mkdtemp, rm, writeFile } from "fs/promises";
 import path from "path";
 import { tmpdir } from "os";
+import { npmCommand } from "./fixtures/npm-command.js";
 
 const exec = promisify(execFile);
 
@@ -51,8 +52,7 @@ interface PackedTarball {
 async function packProject(): Promise<PackedTarball> {
   const dir = await mkdtemp(path.join(tmpdir(), "llmwiki-pack-"));
   const { stdout } = await exec(
-    "npm",
-    ["pack", "--pack-destination", dir, "--json", "--ignore-scripts"],
+    ...npmCommand(["pack", "--pack-destination", dir, "--json", "--ignore-scripts"]),
     { cwd: process.cwd() },
   );
   const parsed = JSON.parse(stdout) as Array<{ filename: string }>;
@@ -72,11 +72,18 @@ async function installTarballInto(root: string, tarballPath: string): Promise<st
     `${JSON.stringify({ name: "llmwiki-smoke", version: "1.0.0", private: true })}\n`,
     "utf-8",
   );
-  await exec("npm", ["install", "--no-fund", "--no-audit", tarballPath], {
+  await exec(...npmCommand(["install", "--no-fund", "--no-audit", tarballPath]), {
     cwd: root,
     timeout: INSTALL_TIMEOUT_MS,
   });
-  return path.join(root, "node_modules", ".bin", "llmwiki");
+  return process.platform === "win32"
+    ? path.join(root, "node_modules", "llm-wiki-compiler", "dist", "cli.js")
+    : path.join(root, "node_modules", ".bin", "llmwiki");
+}
+
+/** POSIX executes the installed bin link; Windows needs Node, not a .cmd shim. */
+function installedCommand(bin: string, args: string[]): [string, string[]] {
+  return process.platform === "win32" ? [process.execPath, [bin, ...args]] : [bin, args];
 }
 
 const describeOrSkip = SHOULD_RUN ? describe : describe.skip;
@@ -100,19 +107,19 @@ describeOrSkip("pack-and-install smoke", () => {
   });
 
   it("--version prints a semver string", async () => {
-    const { stdout } = await exec(bin, ["--version"]);
+    const { stdout } = await exec(...installedCommand(bin, ["--version"]));
     expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it("--help lists the core commands", async () => {
-    const { stdout } = await exec(bin, ["--help"]);
+    const { stdout } = await exec(...installedCommand(bin, ["--help"]));
     expect(stdout).toContain("ingest");
     expect(stdout).toContain("compile");
     expect(stdout).toContain("query");
   });
 
   it("ingest --help exits cleanly", async () => {
-    const { stdout } = await exec(bin, ["ingest", "--help"]);
+    const { stdout } = await exec(...installedCommand(bin, ["ingest", "--help"]));
     expect(stdout).toContain("ingest");
   });
 });

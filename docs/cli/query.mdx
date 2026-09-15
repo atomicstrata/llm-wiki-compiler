@@ -32,7 +32,7 @@ llmwiki query "What is multi-head attention and how does it differ from self-att
 
 `llmwiki query` uses a two-step hybrid retrieval strategy:
 
-1. **Chunk-level semantic search.** The embedding store (`.llmwiki/embeddings.json`) holds vectors for every chunk of every wiki page. Your question is embedded and cosine similarity narrows the full corpus down to a top-K set of the most semantically relevant chunks.
+1. **Chunk-level semantic search.** The embedding store (`.llmwiki/embeddings.bin`, or `embeddings.json` for small stores) holds vectors for indexed wiki chunks. Your question is embedded and cosine similarity narrows the full corpus down to a top-K set of the most semantically relevant chunks.
 
 2. **BM25 reranking.** The top-K chunks are reranked using BM25 (lexical scoring) to surface chunks where your question's exact terms appear prominently. This corrects for cases where semantic similarity alone would pick conceptually adjacent but not directly relevant content.
 
@@ -120,7 +120,7 @@ $ llmwiki query "How does positional encoding work?" --debug
 ```
 
 <Note>
-`llmwiki query` uses semantic search when an embedding store exists at `.llmwiki/embeddings.json`. If no embedding store is present - for example, when using a provider that doesn't support embeddings, such as GitHub Copilot - query falls back to lexical (full-index) ranking and surfaces a warning. Compile your wiki first to build the embedding store; it is generated automatically during `llmwiki compile`.
+`llmwiki query` detects both embedding formats automatically. An existing binary file takes precedence; if it is unavailable, query warns rather than using an older JSON snapshot. If no usable embedding store is present, query falls back to index-based selection. Compile your wiki first to build the embedding store. See [storage and recovery behavior](/configuration/environment-variables#embedding-storage).
 </Note>
 
 For using `query` and `context` via an AI agent, see [MCP Agent Integration](/guides/mcp-agent-integration).

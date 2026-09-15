@@ -6,7 +6,7 @@ import { writeAccessContent, writeAccessMetadata } from "./api-access-response.j
 import { writeJsonError } from "./respond.js";
 import { PathSafetyError } from "./path-safety.js";
 
-/** Decode one basename once; separators and traversal fail the source-store guard. */
+/** Decode one route segment once; nested IDs encode slashes, and traversal is rejected. */
 export async function handleApiSource(res: ServerResponse, snapshot: Pick<ViewerSnapshot, "root" | "sourceFilenames">, pathname: string, isLoopback: boolean): Promise<void> {
   res.setHeader("Cache-Control", "no-store");
   const parts = pathname.slice("/api/source/".length).split("/");

@@ -33,7 +33,7 @@ No LLM provider credentials are required. `rm` never calls the chat model, and i
 | Pages under `wiki/concepts/` another live source also contributed to | Kept, and marked as having lost a contributor |
 | The source's entry in `.llmwiki/state.json` | Removed |
 | `wiki/index.md` and `wiki/MOC.md` | Regenerated |
-| Vectors for the deleted pages in `.llmwiki/embeddings.json` | Pruned |
+| Vectors for the deleted pages in the active embedding store (`.llmwiki/embeddings.bin` or `embeddings.json`) | Pruned |
 
 A kept page's body is a merge of contributions from every source that produced it, including the one just removed - the file itself carries no record of that. So `rm` records each kept slug in `state.json`'s `frozenSlugs`, the same marker `compile` already sets when it notices a deleted source.
 
@@ -160,6 +160,10 @@ x Deleted: wiki/concepts/deprecated-api.md
 The pending journal batch is replayed first, so any pages the failed run had already deleted are restored before being deleted again as one clean batch. A name occupied by something that isn't a valid source - a symlink, a directory - is *not* treated as an interrupted removal; that stays a plain "no source matches".
 
 ## Embeddings after a removal
+
+Removal uses the same [storage selection](/configuration/environment-variables#embedding-storage)
+as compile. An existing binary index stays authoritative; an older JSON backup
+is not updated or used as a fallback.
 
 The removal itself has no new text to embed, but the refresh that runs after it is the same full refresh every other command uses, not a pruning-only variant. It always prunes the deleted pages' vectors, and it also embeds any other eligible page that doesn't already have a stored vector - so `rm` can call your embeddings provider even for pages it didn't touch.
 

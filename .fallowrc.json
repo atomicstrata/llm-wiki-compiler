@@ -16,9 +16,12 @@
     "src/viewer/assets/viewer-dashboard.css",
     "src/viewer/assets/viewer-health.css",
     "src/viewer/assets/viewer-pipeline.css",
-    "src/viewer/assets/viewer-graph.css"
+    "src/viewer/assets/viewer-graph.css",
+    "src/viewer/assets/viewer-material.css"
   ],
   "ignoreDependencies": [
+    "@fontsource/dm-sans",
+    "@fontsource/nunito",
     "@fontsource/space-grotesk",
     "@fontsource/jetbrains-mono"
   ],

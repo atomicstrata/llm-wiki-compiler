@@ -14,13 +14,13 @@
  * ("not measured").
  */
 
-import { readdir, lstat } from "fs/promises";
-import { existsSync } from "fs";
+import { lstat } from "fs/promises";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter, extractClaimCitations, splitProseParagraphs } from "../utils/markdown.js";
 import { resolveSourceFile } from "./source-path.js";
 import { SOURCES_DIR } from "../utils/constants.js";
+import { scanSelectedSources } from "../sources/scan.js";
 import type { SourceUtilizationResult } from "./types.js";
 
 function collectRawCitedFiles(body: string): Set<string> {
@@ -32,12 +32,6 @@ function collectRawCitedFiles(body: string): Set<string> {
     }
   }
   return files;
-}
-
-async function listSourceFiles(dir: string): Promise<string[]> {
-  if (!existsSync(dir)) return [];
-  const entries = await readdir(dir);
-  return entries.filter((e) => e.endsWith(".md"));
 }
 
 function pageSlug(filePath: string): string {
@@ -139,23 +133,20 @@ export async function evaluateSourceUtilization(
   root: string,
 ): Promise<SourceUtilizationResult> {
   const sourcesDir = path.join(root, SOURCES_DIR);
-  const rawFiles = await listSourceFiles(sourcesDir);
+  const scan = await scanSelectedSources(root);
+  const rawFiles = scan.files.filter((file) => file.endsWith(".md"));
 
   // Build the filtered inventory — all downstream counts must use this,
   // never rawFiles.length.
   const { validFiles, fileToReal, warnings } = await resolveSourceInventory(sourcesDir, rawFiles);
+  warnings.push(...scan.symlinks.map((file) => `${file}: symlink source excluded`));
   const totalSources = validFiles.length;
 
   if (totalSources === 0) {
-    // When raw readdir found files but the confined resolver filtered
-    // them all out, carry those warnings forward so the caller can see
-    // *why* the inventory is empty.
-    const rawWarnings = rawFiles.length > 0 && warnings.length > 0
-      ? warnings
-      : [];
+    // Preserve diagnostics even when every discovered entry was an alias.
     return {
       totalSources: 0, citedSources: 0, uncitedSources: 0,
-      utilizationRate: null, perSource: [], warnings: rawWarnings,
+      utilizationRate: null, perSource: [], warnings,
     };
   }
 

@@ -114,9 +114,6 @@
 }
 .chrome-button:hover { background: var(--bg-hover); color: var(--fg-body); }
 
-.theme-icon { width: 16px; height: 16px; }
-[data-theme-toggle="dark"] .theme-icon-moon { display: none; }
-[data-theme-toggle="light"] .theme-icon-sun { display: none; }
 
 .github-link {
   display: flex; align-items: center; gap: 8px;

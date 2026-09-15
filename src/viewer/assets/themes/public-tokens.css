@@ -1,0 +1,109 @@
+/**
+ * Public viewer compatibility map for the shared semantic theme contract.
+ * Aliases resolve on the themed root, so changing palettes updates every
+ * existing route without replacing its renderer or changing its geometry.
+ * Status text uses readable ink independently of decorative status accents.
+ */
+
+/* fallow-ignore-file unused-file */
+:root {
+  --font-sans: var(--font-body);
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-badge: 4px;
+  --radius-chip: 6px;
+  --radius-row: 8px;
+  --radius-tile: min(var(--radius-card), 20px);
+  --radius-panel: min(var(--radius-container), 24px);
+  --space-6: 6px;
+  --space-9: 9px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --type-metric: 600 32px/1 var(--font-sans);
+  --type-page-title: 600 26px/1 var(--font-sans);
+  --type-panel-title: 600 13.5px/1 var(--font-sans);
+  --type-row: 400 13px/1.35 var(--font-sans);
+  --type-body: 400 12.5px/1.5 var(--font-sans);
+  --type-provenance: 500 11px/1 var(--font-mono);
+  --type-metadata: 400 11px/1 var(--font-mono);
+  --type-label: 500 9.5px/1 var(--font-mono);
+  --type-badge: 500 9.5px/1 var(--font-mono);
+  --bg-shell: var(--canvas);
+  --bg-sidebar: var(--surface-raised);
+  --bg-card: var(--surface-base);
+  --bg-inset: var(--surface-recessed);
+  --bg-hover: var(--surface-muted);
+  --bg-sunken: var(--surface-recessed);
+  --bg-chip: var(--surface-muted);
+  --border: var(--border-subtle);
+  --border-soft: var(--border-subtle);
+  --border-strong: var(--border-subtle);
+  --border-chip: var(--border-subtle);
+  --border-button: var(--border-subtle);
+  --fg: var(--text-primary);
+  --fg-strong: var(--text-primary);
+  --fg-body: var(--text-primary);
+  --fg-muted: var(--text-muted);
+  --fg-dim: var(--text-muted);
+  --fg-faint: var(--text-muted);
+  --fg-ghost: var(--text-muted);
+  --fg-disabled: var(--text-muted);
+  --accent: var(--interactive-primary);
+  --accent-text: var(--text-interactive);
+  --accent-hover: var(--text-interactive);
+  --on-accent: var(--text-inverse);
+  --ok: #126c45;
+  --warn: #8a4500;
+  --warn-bg: #fff8f0;
+  --warn-border: #efd6b6;
+  --warn-divider: #f3e0c8;
+  --warn-divider-soft: #f8ecda;
+  --warn-surface: #fdf1e1;
+  --warn-muted: #79502e;
+  --danger: #b42332;
+  --danger-surface: #fdf3f2;
+  --danger-border: #f8d4d3;
+  --danger-edge: #b42332;
+  --danger-muted: #8d3a30;
+  --bar-track: var(--surface-recessed);
+  --graph-edge: var(--graph-edge-default);
+  --graph-edge-dangling: var(--danger-border);
+  --graph-bg-inner: var(--graph-canvas);
+  --graph-bg-outer: var(--canvas);
+  --on-warning: #ffffff;
+}
+
+/* Tint each palette's own accent, including Minimal's OS-dark override. */
+:root {
+  --accent-a03: color-mix(in srgb, var(--accent) 3%, transparent);
+  --accent-a05: color-mix(in srgb, var(--accent) 5%, transparent);
+  --accent-a12: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-a16: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-a22: color-mix(in srgb, var(--accent) 22%, transparent);
+  --accent-a26: color-mix(in srgb, var(--accent) 26%, transparent);
+  --accent-a30: color-mix(in srgb, var(--accent) 30%, transparent);
+  --ok-a10: color-mix(in srgb, var(--ok) 10%, transparent);
+  --ok-a24: color-mix(in srgb, var(--ok) 24%, transparent);
+  --warn-a12: color-mix(in srgb, var(--warn) 12%, transparent);
+  --warn-a13: color-mix(in srgb, var(--warn) 13%, transparent);
+  --danger-a12: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme="minimal"] {
+    --ok: #7dd3a8;
+    --warn: #ffb36b;
+    --warn-bg: #30251c;
+    --warn-border: #745333;
+    --warn-divider: #5a402b;
+    --warn-divider-soft: #453324;
+    --warn-surface: #38291e;
+    --warn-muted: #e5b98e;
+    --danger: #ffa0a8;
+    --danger-surface: #321f24;
+    --danger-border: #70414b;
+    --danger-edge: #ffa0a8;
+    --danger-muted: #efb4bd;
+    --on-warning: #16181d;
+  }
+}

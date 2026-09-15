@@ -6,13 +6,13 @@
  * for trend analysis over time.
  */
 
-import { readdir, appendFile, mkdir, readFile } from "fs/promises";
+import { appendFile, mkdir, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { collectAllPages } from "../linter/rules.js";
 import { parseFrontmatter } from "../utils/markdown.js";
-import { readConfinedRaw, parseEmbeddingStore } from "../utils/embeddings-store.js";
-import { SOURCES_DIR } from "../utils/constants.js";
+import { readStoredEmbeddings } from "../utils/embeddings-storage.js";
+import { listSelectedSourceFiles } from "../sources/scan.js";
 import type { StatsResult, EvalReport } from "./types.js";
 
 /** A v3-aware embedding snapshot for stats: counts plus an availability signal. */
@@ -25,40 +25,23 @@ interface EmbeddingSnapshot {
 const HISTORY_DIR = path.join(".llmwiki", "eval");
 const HISTORY_FILE = path.join(HISTORY_DIR, "history.jsonl");
 
-/** Count the number of files in a directory (non-recursive, ignores missing dir). */
-async function countFiles(dir: string): Promise<number> {
-  if (!existsSync(dir)) return 0;
-  const entries = await readdir(dir);
-  return entries.filter((e) => e.endsWith(".md")).length;
-}
-
 /**
  * Read a v3-aware embedding snapshot for stats. A missing, corrupt, or pre-v3
  * (outdated) store reports `available: false` — a DISTINCT degrade signal, never
  * silently `0`. A corpus-size snapshot must degrade, not crash.
  */
 async function readEmbeddingSnapshot(root: string): Promise<EmbeddingSnapshot> {
-  let raw: string | null;
+  let result: Awaited<ReturnType<typeof readStoredEmbeddings>>;
   try {
-    raw = await readConfinedRaw(root);
+    result = await readStoredEmbeddings(root);
   } catch {
     return { available: false, entries: 0, chunks: 0 };
   }
-  if (raw === null) return { available: false, entries: 0, chunks: 0 };
-  const parsed = safeParse(raw);
-  if (!parsed || parsed.version !== 3) return { available: false, entries: 0, chunks: 0 };
+  if (result.kind !== "parsed" || result.parsed.version !== 3) return { available: false, entries: 0, chunks: 0 };
+  const parsed = result.parsed;
   const entries = Array.isArray(parsed.store.entries) ? parsed.store.entries.length : 0;
   const chunks = Array.isArray(parsed.store.chunks) ? parsed.store.chunks.length : 0;
   return { available: true, entries, chunks };
-}
-
-/** Parse raw store JSON into a discriminated store, swallowing JSON errors. */
-function safeParse(raw: string): ReturnType<typeof parseEmbeddingStore> {
-  try {
-    return parseEmbeddingStore(JSON.parse(raw) as unknown);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -66,8 +49,8 @@ function safeParse(raw: string): ReturnType<typeof parseEmbeddingStore> {
  * @param root - Absolute path to the project root.
  */
 export async function collectStats(root: string): Promise<StatsResult> {
-  const [sourceCount, pages, embeddings] = await Promise.all([
-    countFiles(path.join(root, SOURCES_DIR)),
+  const [sources, pages, embeddings] = await Promise.all([
+    listSelectedSourceFiles(root),
     collectAllPages(root),
     readEmbeddingSnapshot(root),
   ]);
@@ -83,7 +66,7 @@ export async function collectStats(root: string): Promise<StatsResult> {
 
   return {
     timestamp: new Date().toISOString(),
-    sourceCount,
+    sourceCount: sources.length,
     pageCount,
     totalWikiChars,
     embeddingCount: embeddings.entries,

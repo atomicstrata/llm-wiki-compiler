@@ -22,7 +22,8 @@
  *  - A page-id that fails for a NON-transient reason (poison id) would otherwise
  *    stay pending forever, re-billed every compile AND wedging the all-or-nothing
  *    batch it shares. After {@link MAX_PENDING_EMBEDDING_ATTEMPTS} failures it is
- *    QUARANTINED (dropped + warned), so it can neither loop nor block healthy ids.
+ *    QUARANTINED (removed from pending + warned). The shared refresh records it
+ *    separately so automatic reconciliation cannot rediscover it indefinitely.
  *  - On SUCCESS only the ids actually re-embedded are cleared. An id that the core
  *    SKIPPED (transiently ineligible: orphaned/untitled/`includeInSearch:false`/
  *    profile-invalid) is RETAINED with an incremented attempt count — never cleared
@@ -75,12 +76,14 @@
  * The file is under `.llmwiki/`, so it is never emitted into `wiki/` output.
  */
 
-import { unlink, open } from "fs/promises";
+import { unlink } from "fs/promises";
+import { openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "path";
 import {
   PENDING_EMBEDDINGS_FILE,
+  QUARANTINED_EMBEDDINGS_FILE,
   MAX_PENDING_EMBEDDINGS_BYTES,
   MAX_PENDING_EMBEDDING_IDS,
   MAX_PENDING_EMBEDDING_ATTEMPTS,
@@ -103,18 +106,21 @@ export interface PendingEmbedding {
   attempts: number;
 }
 
-/** Outcome of a settle step: the survivors to write back + the quarantined ids dropped. */
+/** Outcome of a settle step: active survivors + ids to persist as quarantined. */
 export interface SettleResult {
   survivors: PendingEmbedding[];
   quarantined: PendingEmbedding[];
 }
 
+/** Both retry files share the same bounded schema and confined I/O. */
+type EmbeddingMarkerFile = typeof PENDING_EMBEDDINGS_FILE | typeof QUARANTINED_EMBEDDINGS_FILE;
+
 /**
  * Derive the pending-embeddings file path inside an already-confined private dir.
  * SINGLE source of the path derivation, mirroring `lockFileIn` in `lock.ts`.
  */
-function pendingFileIn(privateDir: string): string {
-  return path.join(privateDir, path.basename(PENDING_EMBEDDINGS_FILE));
+function pendingFileIn(privateDir: string, markerFile: EmbeddingMarkerFile): string {
+  return path.join(privateDir, path.basename(markerFile));
 }
 
 /**
@@ -241,7 +247,7 @@ type MarkerRead =
 async function readMarkerCapped(filePath: string): Promise<MarkerRead> {
   let handle: FileHandle;
   try {
-    handle = await open(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
   } catch (err) {
     // ENOENT → genuinely absent; a symlinked leaf throws ELOOP → exists-but-untrusted.
     return (err as NodeJS.ErrnoException)?.code === "ENOENT"
@@ -284,7 +290,10 @@ export interface PendingMarkerRead {
  *
  * @param root - Absolute project root.
  */
-export async function readPendingMarker(root: string): Promise<PendingMarkerRead> {
+export async function readPendingMarker(
+  root: string,
+  markerFile: EmbeddingMarkerFile = PENDING_EMBEDDINGS_FILE,
+): Promise<PendingMarkerRead> {
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDir(root);
@@ -292,7 +301,7 @@ export async function readPendingMarker(root: string): Promise<PendingMarkerRead
     return { status: "unavailable", entries: [], detail: "escape" };
   }
   if (privateDir === null) return { status: "absent", entries: [] };
-  const read = await readMarkerCapped(pendingFileIn(privateDir));
+  const read = await readMarkerCapped(pendingFileIn(privateDir, markerFile));
   if (read.kind === "absent") return { status: "absent", entries: [] };
   if (read.kind === "unreadable") return { status: "unavailable", entries: [], detail: "unreadable" };
   const result = parseMarker(read.body);
@@ -311,8 +320,11 @@ export async function readPendingMarker(root: string): Promise<PendingMarkerRead
  * @param root - Absolute project root.
  * @returns The valid, bounded pending entries; `[]` on absent/escape/oversize/corrupt.
  */
-export async function loadPendingEmbeddings(root: string): Promise<PendingEmbedding[]> {
-  return (await readPendingMarker(root)).entries;
+export async function loadPendingEmbeddings(
+  root: string,
+  markerFile: EmbeddingMarkerFile = PENDING_EMBEDDINGS_FILE,
+): Promise<PendingEmbedding[]> {
+  return (await readPendingMarker(root, markerFile)).entries;
 }
 
 /**
@@ -431,10 +443,14 @@ export function warnQuarantined(quarantined: PendingEmbedding[]): void {
  * @param root - Absolute project root.
  * @param entries - The full pending set to persist.
  */
-export async function writePendingEmbeddings(root: string, entries: PendingEmbedding[]): Promise<void> {
+export async function writePendingEmbeddings(
+  root: string,
+  entries: PendingEmbedding[],
+  markerFile: EmbeddingMarkerFile = PENDING_EMBEDDINGS_FILE,
+): Promise<void> {
   const normalized = normalizeMarker(entries);
   if (normalized.length === 0) {
-    await clearPendingEmbeddings(root);
+    await clearPendingEmbeddings(root, markerFile);
     return;
   }
   let privateDir: string;
@@ -446,7 +462,7 @@ export async function writePendingEmbeddings(root: string, entries: PendingEmbed
   } catch {
     return;
   }
-  await writeMarkerConfined(privateDir, JSON.stringify(normalized));
+  await writeMarkerConfined(privateDir, JSON.stringify(normalized), markerFile);
 }
 
 /**
@@ -461,16 +477,16 @@ export async function writePendingEmbeddings(root: string, entries: PendingEmbed
  *    VOID the write-ahead durability guarantee this module claims.
  * Neither throws — embeddings stay non-fatal to compile.
  */
-async function writeMarkerConfined(privateDir: string, body: string): Promise<void> {
+async function writeMarkerConfined(privateDir: string, body: string, markerFile: EmbeddingMarkerFile): Promise<void> {
   try {
-    await atomicWrite(pendingFileIn(privateDir), body, { confineRoot: realRootOf(privateDir) });
+    await atomicWrite(pendingFileIn(privateDir, markerFile), body, { confineRoot: realRootOf(privateDir) });
   } catch (err) {
     if (isIoFailure(err)) {
       output.status(
         "!",
         output.warn(
-          "Could not persist the pending-embeddings retry marker (write failed); a skipped " +
-            "embeddings refresh may not be retried until the next source change.",
+          `Could not persist the ${path.basename(markerFile, ".json")} retry marker (write failed); ` +
+            "embedding retry state may be lost.",
         ),
       );
     }
@@ -496,7 +512,10 @@ function isIoFailure(err: unknown): boolean {
  *
  * @param root - Absolute project root.
  */
-export async function clearPendingEmbeddings(root: string): Promise<void> {
+export async function clearPendingEmbeddings(
+  root: string,
+  markerFile: EmbeddingMarkerFile = PENDING_EMBEDDINGS_FILE,
+): Promise<void> {
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDir(root);
@@ -504,5 +523,5 @@ export async function clearPendingEmbeddings(root: string): Promise<void> {
     return; // escaping `.llmwiki` — nothing safe to clear
   }
   if (privateDir === null) return; // .llmwiki absent → nothing to clear
-  await unlink(pendingFileIn(privateDir)).catch(() => {}); // already gone — best-effort
+  await unlink(pendingFileIn(privateDir, markerFile)).catch(() => {}); // already gone — best-effort
 }

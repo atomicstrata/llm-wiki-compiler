@@ -19,6 +19,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Existing embedding and pending files remain untouched while refreshes are
   disabled. After re-enabling them, the next non-review compile reconciles
   missing and stale vectors even when no sources changed.
+  Enabled non-review compiles also reconcile unchanged wikis, with bounded
+  retries and potential full re-embedding after backend changes. See the
+  [compile guide](https://llmwiki.atomicstrata.ai/cli/compile#embedding-reconciliation)
+  and [embedding configuration](https://llmwiki.atomicstrata.ai/configuration/environment-variables#embeddings)
+  for costs, strict-mode failures, and quarantine recovery.
+
+## [1.3.0] - 2026-09-11
+
+### Highlights
+
+- **A fresh look for your wiki.** Scientific Clay brings soft surfaces and rounded typography; Minimal follows the system light/dark setting. Switch instantly between these and Nebula Light or Dark without reloading your page (#222).
+- Recursive source folders, literal path exclusions, and explicit project-specific compile instructions let the wiki follow your project structure (#215, #209).
+- Bounded binary embedding storage supports larger indexes without the previous JSON serialization limit. Retrieval still loads the index into memory; this is not an unlimited-scale or out-of-core search engine (#216).
+
+### Contributors
+
+Credit includes original implementations, feature requests, and diagnoses, including work completed or extended by maintainers:
+
+- @carmilso: project-level compile-instructions request (#144), delivered in #209.
+- @jstammers: long-source limitation report and completion-budget request (#203), delivered in #210.
+- @LorenzoGentile: thinking-mode diagnosis and gateway extension proposal (#185), delivered in #211, and the earlier language/reasoning work extended in #212.
+- @Marc-oss-hub: original OrcaRouter provider contribution (#182), extended with embedding routing in #212.
+- @squ1ddy: canonical-folder workflow and recursive source discovery request (#164), delivered in #215.
+- @bdogabriel: large-corpus report and reference implementation (#99, #98), completed in #216.
+
+### Upgrade notes and limits
+
+- Scientific Clay is the new default for browsers without a saved theme. Existing saved `light` and `dark` preferences migrate to Nebula Light and Nebula Dark respectively. Minimal follows the system setting; all four themes remain selectable (#222).
+- Binary embedding storage removes the large-JSON serialization bottleneck, not memory requirements. Existing JSON remains a historical backup after migration, not a recovery fallback.
+- Native Windows validation and CI remain outstanding (#217). Live gateway thinking-mode verification (#219) and authenticated OrcaRouter embedding batch verification (#220) remain follow-ups, not claims of this release.
+
+### Changed
+
+- Symlinked entries under `sources/` are no longer compiled in any mode,
+  including the default flat mode. The next ordinary compile retires their
+  previously compiled contributions: exclusive pages become orphaned and shared
+  pages are rebuilt from remaining sources. The symlink and its target are left
+  untouched. Replace source symlinks with regular files to retain those inputs
+  before compiling after upgrading (#164).
+
+### Fixed
+
+- Shared reconciliation-test setup is deduplicated instead of suppressed, so
+  full-repository health checks pass without changing tooling or thresholds.
+
+- Ingest activity-journal source references now use forward slashes on Windows.
+  Test fixtures also isolate operator paths and handle native paths, ESM imports,
+  npm launchers and POSIX-only checks explicitly. Native Windows CI remains a
+  separate outstanding gate (#175). Without readable process start times,
+  project locks retain their existing conservative PID-only fallback.
+- Private-file readers and append-only stores no longer silently drop missing
+  native no-follow flags: a portable identity check protects the leaf, and
+  missing stores use exclusive creation. Directory anchoring refuses unsupported
+  platforms. Native Windows validation and CI remain outstanding (#175).
+
+- Rule extraction now reprocesses unchanged sources when `LLMWIKI_OUTPUT_LANG`
+  changes or is cleared, tracking successful progress per source so a partial
+  failure remains retryable (#186).
+
+### Added
+
+- Scientific Clay and Minimal viewer themes, a labeled four-theme selector, saved-preference migration, and bundled local fonts with their licenses (#222).
+
+- Single-file binary embedding storage for large wikis, with automatic selection
+  above the JSON limit and optional `LLMWIKI_BINARY_EMBEDDINGS`. Later writes
+  stay binary; existing JSON is preserved as a historical backup, not a fallback.
+  Thanks to @bdogabriel for the large-corpus report and reference implementation
+  (#99, #98).
+
+- Opt-in recursive `sources/` discovery and literal path exclusions in project
+  config, preserving nested relative IDs across compilation and source browsing.
+  Deselection retires compiled contributions without deleting source files.
+  Thanks to @squ1ddy for the canonical-folder workflow and request (#164).
+
+- A public test type-check command and pull-request CI job with a per-file,
+  downward-only baseline for the existing diagnostic backlog (#200).
+
+- OrcaRouter embeddings with namespaced model selection, gateway-specific
+  credentials, and independent `LLMWIKI_EMBEDDING_PROVIDER=orcarouter` routing
+  (#186), building on @Marc-oss-hub's provider contribution.
+
+- `LLMWIKI_OPENAI_EXTRA_BODY` adds explicit gateway-specific chat fields while
+  preserving compiler-owned request fields and required tool calls. Thanks to
+  @LorenzoGentile for the thinking-mode diagnosis and proposal (#185).
+
+- `LLMWIKI_MAX_TOKENS` configures the shared completion budget while retaining
+  the 4096 default; internal calls with a fixed limit are unaffected. Thanks to @jstammers for
+  reporting the long-source limitation and requesting the setting (#203).
+
+- `llmwiki compile --instructions <path>` reads explicit project guidance and
+  adds it to the existing compile policy. The UTF-8 file is limited to 64 KiB;
+  changing or omitting it regenerates affected pages, including review
+  candidates. No files are discovered automatically, and provenance stores
+  only the policy digest. Thanks to @carmilso for the request (#144).
 
 ## [1.2.0] - 2026-09-09
 
@@ -533,7 +627,8 @@ Initial release.
 - Atomic writes, lock-protected compilation, orphan marking for deleted sources.
 - `[[wikilink]]` resolution and auto-generated `wiki/index.md`.
 
-[Unreleased]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/atomicstrata/llm-wiki-compiler/compare/v0.11.0...v1.0.0

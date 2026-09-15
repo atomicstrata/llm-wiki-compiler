@@ -19,6 +19,7 @@ import {
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { readStateClassified } from "../utils/state.js";
 import { loadPreviousReport, loadHistory } from "../eval/stats.js";
+import { listSelectedSourceFiles } from "../sources/scan.js";
 
 /** Standard JSON content block for an MCP resource read result. */
 function jsonContent(uri: URL, payload: unknown): {
@@ -155,15 +156,10 @@ function registerQueryResource(server: McpServer, root: string): void {
 /** Source listing: filename, frontmatter (truncation, source URL, etc.). */
 async function listSources(root: string): Promise<Array<Record<string, unknown>>> {
   const sourcesPath = path.join(root, SOURCES_DIR);
-  let files: string[];
-  try {
-    files = await readdir(sourcesPath);
-  } catch {
-    return [];
-  }
+  const files = await listSelectedSourceFiles(root);
 
   const records: Array<Record<string, unknown>> = [];
-  for (const file of files.filter((f) => f.endsWith(".md"))) {
+  for (const file of files) {
     const content = await safeReadFile(path.join(sourcesPath, file));
     const { meta } = parseFrontmatter(content);
     records.push({ filename: file, ...meta });

@@ -14,7 +14,7 @@
  *    `source` field is consulted before suffixing.
  */
 
-import { mkdir, readdir, readFile, writeFile, lstat } from "fs/promises";
+import { mkdir, readFile, writeFile, lstat } from "fs/promises";
 import path from "path";
 import { createHash } from "crypto";
 import { parseFrontmatter, slugify } from "./markdown.js";
@@ -22,6 +22,8 @@ import { safeRealpath, confinedRegularFile } from "./path-confine.js";
 import { SOURCES_DIR } from "./constants.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
 import type { WriteStatus } from "./types.js";
+import { listSelectedSourceFiles } from "../sources/scan.js";
+import { loadSourceSelection } from "../sources/selection.js";
 
 /** Length of the hex hash suffix appended to disambiguate basename collisions. */
 const COLLISION_HASH_LEN = 8;
@@ -81,13 +83,11 @@ async function resolveCollisionFreeFilename(
  * confused-deputy write-through via `saveSource`.
  */
 async function findFileBySourceIdentity(sourcesDir: string, source: string): Promise<string | null> {
-  let names: string[];
-  try {
-    names = (await readdir(sourcesDir)).filter((f) => f.endsWith(".md")).sort();
-  } catch (err) {
-    if ((err as { code?: string }).code === "ENOENT") return null;
-    throw err;
-  }
+  const root = path.dirname(sourcesDir);
+  const selection = await loadSourceSelection(root);
+  // An explicit re-ingest updates an existing identity even if compile excludes it.
+  // Otherwise selecting an inbox later would reveal two copies of the same source.
+  const names = await listSelectedSourceFiles(root, { ...selection, exclude: [] });
   for (const name of names) {
     // Regular files only: symlinks (whether escaping or in-tree aliases) are never
     // sources, keeping the scan consistent with list/get/delete.

@@ -14,13 +14,14 @@ const SOURCE_PREVIEW_BYTES = 1024 * 1024;
 /** Preserve physical source line numbers, including frontmatter, in the local preview. */
 export async function readViewerSource(root: string, filenames: readonly string[], id: string, isLoopback: boolean): Promise<Record<string, unknown>> {
   if (!id) throw new PathSafetyError("Invalid source identifier.");
-  // Reuse the basename safety contract without pretending other formats are Markdown.
+  // Reuse the relative-ID contract without pretending other formats are Markdown.
   assertSafeSourceId(id.endsWith(".md") ? id : `${id}.md`);
   const base = { kind: "raw-source", id, contentAccess: isLoopback ? "available" : "loopback-only" };
   if (!filenames.includes(id)) return { ...base, health: "missing" };
   if (!id.endsWith(".md")) return { ...base, health: "unsupported" };
   const dir = path.join(root, "sources");
-  const read = await readConfinedLeaf(root, path.join(dir, id), dir, SOURCE_PREVIEW_BYTES);
+  const file = path.join(dir, id);
+  const read = await readConfinedLeaf(root, file, path.dirname(file), SOURCE_PREVIEW_BYTES);
   if (read.kind !== "ok") return { ...base, health: read.kind === "absent" ? "missing" : "unavailable" };
   const { source, ...record } = toRecord(id, read.body, false);
   const locator = webLocator(source);
