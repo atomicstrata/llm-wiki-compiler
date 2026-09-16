@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedding reconciliation now attempts only work with a persisted retry budget.
   Full retry markers defer new work without discarding prior failed-attempt counts;
   full quarantine markers retain exhausted entries in pending without retrying them.
+  Deferred work warns (or fails after settlement in strict mode). Eligible pages
+  deferred by capacity or quarantine retain their same-backend v3 cached vectors
+  without relabeling stale content as current.
 
 ## [1.3.0] - 2026-09-11
 

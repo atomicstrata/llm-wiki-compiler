@@ -38,6 +38,7 @@ import { reembedIntoStore, type ReembedReport } from "./embeddings-write.js";
 import type { PageId } from "./page-id.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
+import { retainDeferredEmbeddings } from "./embeddings-deferred.js";
 
 /**
  * Re-embed the given changed page ids and migrate the store to v3, holding the
@@ -109,6 +110,7 @@ export async function updateEmbeddingsLockedCore(
   // The draining caller records discovered work BEFORE any provider call and
   // removes quarantined ids. Direct callers retain the existing refresh contract.
   const reembed = prepare ? new Set(await prepare([...discovered])) : discovered;
+  retainDeferredEmbeddings(preservable, migrated, new Set([...discovered].filter(id => !reembed.has(id))));
 
   // Persist when there is real work: something to re-embed, a sub-v3 store to
   // upgrade (version-driven migration, S1), OR a prune that shrank the store

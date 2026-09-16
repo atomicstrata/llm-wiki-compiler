@@ -10,6 +10,7 @@ import { MAX_PENDING_EMBEDDING_ATTEMPTS, QUARANTINED_EMBEDDINGS_FILE } from "./c
 import type { PageId } from "./page-id.js";
 import {
   loadPendingEmbeddings,
+  readPendingMarker,
   writePendingEmbeddings,
   mergeFreshAttempts,
   settleAfterSuccess,
@@ -26,6 +27,8 @@ function exhausted(entry: PendingEmbedding): boolean {
 
 /** Retry state shared between planning, provider execution, and settlement. */
 class EmbeddingRetry {
+  /** Eligible, non-quarantined pages whose budgets could not be recorded. */
+  deferred: PageId[] = [];
   /** Keep mutable state private to a single locked refresh. */
   constructor(
     private readonly root: string,
@@ -40,7 +43,10 @@ class EmbeddingRetry {
 
   /** Record explicit work before even store discovery can fail. */
   async recordPending(): Promise<void> {
-    if (this.pending.length > 0) await writePendingEmbeddings(this.root, this.pending);
+    const prior = await readPendingMarker(this.root);
+    if (this.pending.length > 0 || prior.status === "ok") {
+      await writePendingEmbeddings(this.root, this.pending);
+    }
     // The writer applies both resource caps. Never attempt work it dropped.
     this.pending = await loadPendingEmbeddings(this.root);
   }
@@ -53,6 +59,7 @@ class EmbeddingRetry {
     this.pending = mergeFreshAttempts(this.pending, [...this.pending.map(e => e.pageId), ...allowed]);
     await this.recordPending();
     const recorded = new Set(this.pageIds);
+    this.deferred = allowed.filter(id => !recorded.has(id));
     return allowed.filter(id => recorded.has(id));
   }
 

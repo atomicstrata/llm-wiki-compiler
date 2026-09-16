@@ -214,6 +214,19 @@ quarantine file is full, exhausted entries stay in the pending file but are not
 retried. If both files fill with exhausted entries, new embedding work pauses
 until you recover those entries. The limits do not cause retries to restart.
 
+Deferred work is reported with a page count. No provider request is made for a
+page whose budget could not be recorded. Strict embedding mode reports this as
+a failure **after** settling any admitted work, so successful refreshes are not
+charged another retry. Fix marker storage errors or free capacity, then compile
+again. An unchanged compile can continue the deferred work when space is available.
+
+For a valid v3 store using the same embedding backend, deferred or quarantined
+pages keep their previous page and passage vectors, with the original hashes and
+timestamps. These cached vectors may be stale until refresh succeeds. Deleted
+pages, pages no longer eligible for embeddings, invalid vectors, and vectors from another
+backend are not retained. Legacy-store upgrades do not preserve stale vectors
+for deferred pages; those pages wait for a successful refresh.
+
 After fixing the provider or page, edit its source and compile again, or re-save
 the page through its normal write workflow, to re-queue it with a fresh budget.
 Changing only embedding configuration does not clear quarantine. To retry all

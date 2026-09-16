@@ -88,4 +88,15 @@ export async function refreshEmbeddingsDrainingPending(
     const message = err instanceof Error ? err.message : String(err);
     handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
+  reportDeferredWork(retry.deferred);
+}
+
+/** Report after settlement, so strict-mode deferral cannot charge successful work again. */
+function reportDeferredWork(deferred: PageId[]): void {
+  if (deferred.length === 0) return;
+  const MAX_WARNING_IDS = 10;
+  const ids = deferred.length <= MAX_WARNING_IDS ? ` (${deferred.join(", ")})` : "";
+  const message = `${deferred.length} page(s) deferred${ids}: embedding retry marker at capacity or unavailable. ` +
+    "Free retry-marker capacity or fix marker storage, then run compile again; these pages were not attempted.";
+  handleSafeEmbeddingFailure(new Error(message), message);
 }
