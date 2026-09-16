@@ -19,17 +19,17 @@ async function inspect() {
 }
 
 /** A healthy page is pending; one exhausted page occurs in both files after a crash. */
-async function seed() {
+async function seed(pendingAttempts = 4) {
   await writePendingEmbeddings(ctx.dir, [{ pageId: "concepts/stopped", attempts: 5 }], QUARANTINED_EMBEDDINGS_FILE);
   await writePendingEmbeddings(ctx.dir, [
-    { pageId: "concepts/stopped", attempts: 4 },
+    { pageId: "concepts/stopped", attempts: pendingAttempts },
     { pageId: "concepts/overflow", attempts: 5 },
     { pageId: "concepts/waiting", attempts: 1 },
   ]);
 }
 
-it("counts distinct stopped pages, separates pending work, and never drains either file", async () => {
-  await seed();
+it.each([4, 5])("counts distinct stopped pages with pending at %i attempts without draining either file", async (attempts) => {
+  await seed(attempts);
   const files = [PENDING_EMBEDDINGS_FILE, QUARANTINED_EMBEDDINGS_FILE].map(file => path.join(ctx.dir, file));
   const before = await Promise.all(files.map(file => readFile(file, "utf8")));
   const result = await inspect();
