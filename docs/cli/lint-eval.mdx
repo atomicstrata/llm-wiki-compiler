@@ -28,6 +28,8 @@ llmwiki lint
 | Malformed citations | Error | Citation markers that don't parse as valid source references |
 | Empty pages | Warning | Pages with no prose body after frontmatter |
 | Orphaned pages | Warning | Pages whose every owning source was deleted since the last compile |
+| Pending embeddings | Warning | Pages awaiting embedding refresh, or an unreadable pending marker |
+| Quarantined embeddings | Warning | Pages whose automatic embedding retries have stopped, or an unreadable quarantine marker |
 | Stale pages | Warning | Pages whose sources exist on disk but have changed since the last compile |
 | Low confidence | Warning | Pages with a `confidence` frontmatter value below the configured threshold |
 | Contradicted pages | Warning | Pages that declare `contradictedBy` entries |
@@ -42,6 +44,16 @@ These two states are often confused:
 - **Orphaned** - every source that contributed to the page has been deleted. The page has no living owner.
 
 Both are surfaced by `llmwiki lint` and are also visible in the local viewer, JSON export, and MCP tools. Use `llmwiki refresh --stale` to repair stale and orphaned pages with a targeted recompile.
+
+### Stopped embedding retries
+
+The `quarantined-embeddings` rule keeps stopped retries visible after the initial
+compile warning. Its `embeddings-refresh-quarantined` diagnostic reports the
+distinct page count across quarantine and exhausted pending entries. These pages
+may be missing from semantic search; another unchanged compile will not reset
+their budgets. Follow [embedding retry recovery](/configuration/environment-variables#embedding-retries-and-quarantine)
+after fixing the provider or page. Lint only inspects these markers; it never
+re-queues pages or calls an embedding provider.
 
 ### Lint cache
 

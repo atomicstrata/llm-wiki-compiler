@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Persistent lint and status warnings for quarantined embedding refreshes,
+  including exhausted entries held in pending and unreadable quarantine markers.
+
 - **Embedding refresh opt-out** — `LLMWIKI_EMBEDDINGS=off`, `false`, `0`, or
   `no` skips all embedding refreshes, including `query --save`, without reading
   or writing the embedding store or durable pending queue. Compile still

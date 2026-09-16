@@ -16,10 +16,12 @@
  * An ABSENT or empty marker → `null`, which adds NOTHING, so a clean project's every
  * read surface stays byte-identical (parity-safe). An UNAVAILABLE marker is no
  * longer reported as clean: it surfaces {@link PENDING_EMBEDDINGS_UNAVAILABLE_CODE}
- * (fail closed VISIBLY, never silently as empty).
+ * (fail closed VISIBLY, never silently as empty). Exhausted entries are reported
+ * separately by quarantinedEmbeddingsWarning, not advertised as awaiting retry.
  */
 
 import { readPendingMarker } from "../utils/pending-embeddings.js";
+import { MAX_PENDING_EMBEDDING_ATTEMPTS, QUARANTINED_EMBEDDINGS_FILE } from "../utils/constants.js";
 import type { ReadSurfaceWarning } from "./journal-health-warning.js";
 
 /** Stable warning code for pending (un-refreshed) embeddings awaiting retry. */
@@ -58,13 +60,18 @@ function unavailableMessage(detail: string): string {
  * @returns The pending-embeddings warning, or `null` when nothing needs attention.
  */
 export async function pendingEmbeddingsWarning(root: string): Promise<ReadSurfaceWarning | null> {
-  const marker = await readPendingMarker(root);
+  const [marker, quarantine] = await Promise.all([
+    readPendingMarker(root), readPendingMarker(root, QUARANTINED_EMBEDDINGS_FILE),
+  ]);
   if (marker.status === "unavailable") {
     return {
       code: PENDING_EMBEDDINGS_UNAVAILABLE_CODE,
       message: unavailableMessage(marker.detail ?? "unreadable"),
     };
   }
-  if (marker.status === "absent" || marker.entries.length === 0) return null;
-  return { code: PENDING_EMBEDDINGS_PENDING_CODE, message: pendingMessage(marker.entries.length) };
+  // Quarantine wins after an interrupted settlement, even if pending still says four attempts.
+  const blocked = new Set(quarantine.entries.map(entry => entry.pageId));
+  const active = marker.entries.filter(entry => entry.attempts < MAX_PENDING_EMBEDDING_ATTEMPTS && !blocked.has(entry.pageId));
+  if (active.length === 0) return null;
+  return { code: PENDING_EMBEDDINGS_PENDING_CODE, message: pendingMessage(active.length) };
 }
