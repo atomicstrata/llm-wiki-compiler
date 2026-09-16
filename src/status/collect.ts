@@ -23,6 +23,7 @@ import { collectProfileSummary } from "../profile/block.js";
 import { journalHealthWarning } from "../trust/journal-health-warning.js";
 import type { ReadSurfaceWarning } from "../trust/journal-health-warning.js";
 import { pendingEmbeddingsWarning } from "../trust/pending-embeddings-warning.js";
+import { quarantinedEmbeddingsWarning } from "../trust/quarantined-embeddings-warning.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import type { EntityProblemView } from "../profile/types.js";
 
@@ -71,7 +72,7 @@ export interface WikiStatus {
    * (key omitted) for a healthy project, so a clean status envelope is
    * byte-identical (parity-safe); present ONLY when the journal is `pending`
    * (`incomplete-compile`) or `unavailable` (`journal-unavailable`), or when an
-   * embeddings refresh is still pending (`embeddings-refresh-pending`), so partial
+   * embeddings refresh is pending, quarantined, or its retry marker is unreadable, so partial
    * post-crash / tampered state OR a skipped embeddings update is never reported as
    * silently healthy. Mirrors the journal-warning surfacing on viewer/export/context.
    */
@@ -200,13 +201,14 @@ export async function collectStatus(root: string): Promise<WikiStatus> {
   // compile) AND a pending embeddings refresh (a compile that skipped/failed the
   // embeddings update). Each mapper returns null when healthy, so the combined
   // array is empty for a clean project and the field stays absent (parity-safe).
-  const [journalWarning, pendingWarning] = await Promise.all([
+  const [journalWarning, pendingWarning, quarantineWarning] = await Promise.all([
     journalHealthWarning(root),
     pendingEmbeddingsWarning(root),
+    quarantinedEmbeddingsWarning(root),
   ]);
-  const warnings = [journalWarning, pendingWarning].filter(
+  const warnings = [journalWarning, pendingWarning, quarantineWarning].filter(
     (w): w is ReadSurfaceWarning => w !== null,
-  );
+  ).map(({ code, message }) => ({ code, message }));
 
   // Suppress pendingChanges when state is corrupt OR too-new: comparing against an
   // empty snapshot would classify every source file as "new", which is false precision

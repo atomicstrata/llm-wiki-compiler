@@ -14,6 +14,7 @@
  */
 
 import { pendingEmbeddingsWarning } from "../trust/pending-embeddings-warning.js";
+import { quarantinedEmbeddingsWarning } from "../trust/quarantined-embeddings-warning.js";
 import { PENDING_EMBEDDINGS_FILE } from "../utils/constants.js";
 import type { LintResult } from "./types.js";
 
@@ -23,18 +24,26 @@ import type { LintResult } from "./types.js";
  * (`embeddings-refresh-pending`) so scripted consumers can branch on it without
  * parsing the human-readable tail.
  *
+ * Also emits `quarantined-embeddings` for stopped retries or unreadable quarantine.
  * @param root - Absolute path to the project root directory.
- * @returns A single-element result list when pending; empty when nothing is pending.
+ * @returns Separate pending and quarantine warnings; empty when neither needs attention.
  */
 export async function checkPendingEmbeddings(root: string): Promise<LintResult[]> {
-  const warning = await pendingEmbeddingsWarning(root);
-  if (warning === null) return [];
-  return [
-    {
-      rule: "pending-embeddings",
-      severity: "warning",
-      file: PENDING_EMBEDDINGS_FILE,
-      message: `${warning.code}: ${warning.message}`,
-    },
-  ];
+  const [warning, quarantine] = await Promise.all([
+    pendingEmbeddingsWarning(root), quarantinedEmbeddingsWarning(root),
+  ]);
+  const results: LintResult[] = [];
+  if (warning) results.push({
+    rule: "pending-embeddings",
+    severity: "warning",
+    file: PENDING_EMBEDDINGS_FILE,
+    message: `${warning.code}: ${warning.message}`,
+  });
+  if (quarantine) results.push({
+    rule: "quarantined-embeddings",
+    severity: "warning",
+    file: quarantine.file,
+    message: `${quarantine.code}: ${quarantine.message}`,
+  });
+  return results;
 }

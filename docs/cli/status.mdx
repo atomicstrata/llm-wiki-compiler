@@ -37,6 +37,22 @@ When there is work to do, status says what and points at the next command:
 
 The command always exits `0` on a successful inspection; problems are reported in the output, not the exit code.
 
+### Embedding refresh warnings
+
+Status distinguishes pages awaiting another embedding attempt from pages whose
+automatic retries have stopped:
+
+- `embeddings-refresh-pending`: pages waiting for an embedding refresh.
+- `embeddings-refresh-quarantined`: pages that reached the retry limit. The
+  warning persists until you explicitly re-queue them, even if no pending work
+  remains. It includes exhausted entries retained in the pending file.
+- `embeddings-quarantine-unavailable`: the quarantine marker cannot be read
+  safely, so status cannot verify which retries have stopped.
+
+These warnings also appear in `status --json`, SDK status, and MCP `wiki_status`.
+Inspection never retries embeddings or changes either marker. Fix the provider
+or page before re-queuing; see [embedding retry recovery](/configuration/environment-variables#embedding-retries-and-quarantine).
+
 ## Flags
 
 | Flag | Description |
