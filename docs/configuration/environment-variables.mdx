@@ -207,12 +207,21 @@ refresh attempts, llmwiki warns and moves the page into
 other pages to embed. These files use bounded, root-confined reads and atomic
 writes; neither is read or changed while refreshes are disabled.
 
+Each retry file is limited to 5,000 entries and 256 KiB. A refresh only attempts
+pages whose budgets fit in the pending file; additional pages wait for a later
+compile. Existing failed-attempt counts take precedence over new work. If the
+quarantine file is full, exhausted entries stay in the pending file but are not
+retried. If both files fill with exhausted entries, new embedding work pauses
+until you recover those entries. The limits do not cause retries to restart.
+
 After fixing the provider or page, edit its source and compile again, or re-save
 the page through its normal write workflow, to re-queue it with a fresh budget.
 Changing only embedding configuration does not clear quarantine. To retry all
 quarantined pages without regenerating source pages, remove
-`.llmwiki/quarantined-embeddings.json` from your project and run `llmwiki compile`
-with refreshes enabled. This resets their retry budget and may incur costs.
+both `.llmwiki/quarantined-embeddings.json` and `.llmwiki/pending-embeddings.json`
+from your project while no compile or refresh is running, then run `llmwiki compile`
+with refreshes enabled. Removing both also releases exhausted entries retained
+in pending at capacity. This resets all retry budgets and may incur costs.
 
 ### Embedding storage
 

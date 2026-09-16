@@ -6,7 +6,7 @@
  * The caller must hold the project lock throughout this lifecycle.
  */
 
-import { QUARANTINED_EMBEDDINGS_FILE } from "./constants.js";
+import { MAX_PENDING_EMBEDDING_ATTEMPTS, QUARANTINED_EMBEDDINGS_FILE } from "./constants.js";
 import type { PageId } from "./page-id.js";
 import {
   loadPendingEmbeddings,
@@ -19,6 +19,11 @@ import {
   type SettleResult,
 } from "./pending-embeddings.js";
 
+/** Exhausted entries may remain pending when the quarantine marker is full. */
+function exhausted(entry: PendingEmbedding): boolean {
+  return entry.attempts >= MAX_PENDING_EMBEDDING_ATTEMPTS;
+}
+
 /** Retry state shared between planning, provider execution, and settlement. */
 class EmbeddingRetry {
   /** Keep mutable state private to a single locked refresh. */
@@ -28,43 +33,51 @@ class EmbeddingRetry {
     private quarantined: PendingEmbedding[],
   ) {}
 
-  /** Page ids already waiting for an attempt, including temporarily ineligible ids. */
+  /** Active retry ids; overflow quarantines must never reach the provider again. */
   get pageIds(): PageId[] {
-    return this.pending.map((entry) => entry.pageId);
+    return this.pending.filter(entry => !exhausted(entry)).map((entry) => entry.pageId);
   }
 
   /** Record explicit work before even store discovery can fail. */
   async recordPending(): Promise<void> {
     if (this.pending.length > 0) await writePendingEmbeddings(this.root, this.pending);
+    // The writer applies both resource caps. Never attempt work it dropped.
+    this.pending = await loadPendingEmbeddings(this.root);
   }
 
   /** Add discovered work to the budget while excluding durable quarantines. */
   async prepare(discovered: PageId[]): Promise<PageId[]> {
-    const blocked = new Set(this.quarantined.map((entry) => entry.pageId));
+    const blocked = new Set([...this.quarantined, ...this.pending.filter(exhausted)].map((entry) => entry.pageId));
     const allowed = discovered.filter((id) => !blocked.has(id));
-    // Keep explicit changes ahead of discovered backlog when the marker is capped.
-    this.pending = mergeFreshAttempts(this.pending, [...this.pageIds, ...allowed]);
+    // Already recorded budgets take precedence over newly discovered work.
+    this.pending = mergeFreshAttempts(this.pending, [...this.pending.map(e => e.pageId), ...allowed]);
     await this.recordPending();
-    return allowed;
+    const recorded = new Set(this.pageIds);
+    return allowed.filter(id => recorded.has(id));
   }
 
   /** Clear completed work and age temporarily ineligible entries. */
   async succeed(embedded: PageId[], eligible: PageId[]): Promise<void> {
-    await this.settle(settleAfterSuccess(this.pending, embedded, eligible));
+    await this.settle(settleAfterSuccess(this.pending.filter(e => !exhausted(e)), embedded, eligible));
   }
 
   /** Count failures for explicit and automatically discovered work alike. */
   async fail(): Promise<void> {
-    await this.settle(settleAfterFailure(this.pending, this.pageIds));
+    await this.settle(settleAfterFailure(this.pending.filter(e => !exhausted(e)), this.pageIds));
   }
 
   /** Persist exclusions before removing active entries, then report new quarantines. */
   private async settle(result: SettleResult): Promise<void> {
-    if (result.quarantined.length > 0) {
-      this.quarantined.push(...result.quarantined);
+    const retiring = [...this.pending.filter(exhausted), ...result.quarantined];
+    if (retiring.length > 0) {
+      this.quarantined.push(...retiring);
       await writePendingEmbeddings(this.root, this.quarantined, QUARANTINED_EMBEDDINGS_FILE);
+      this.quarantined = await loadPendingEmbeddings(this.root, QUARANTINED_EMBEDDINGS_FILE);
     }
-    if (this.pending.length > 0) await writePendingEmbeddings(this.root, result.survivors);
+    const durable = new Set(this.quarantined.map(e => e.pageId));
+    const held = retiring.filter(e => !durable.has(e.pageId));
+    // Retain overflow with its exhausted count; never retire an unpersisted exclusion.
+    if (this.pending.length > 0) await writePendingEmbeddings(this.root, [...held, ...result.survivors]);
     warnQuarantined(result.quarantined);
   }
 }
@@ -80,6 +93,9 @@ export async function loadEmbeddingRetry(root: string, changedPageIds: PageId[])
   // A crash may leave an id in both files: quarantine wins, and an explicit
   // re-queue starts at zero rather than inheriting that abandoned pending count.
   const blocked = new Set(prior.map((entry) => entry.pageId));
-  const pending = (await loadPendingEmbeddings(root)).filter((entry) => !blocked.has(entry.pageId));
-  return new EmbeddingRetry(root, mergeFreshAttempts(pending, changedPageIds), quarantined);
+  const pending = (await loadPendingEmbeddings(root))
+    .filter((e) => !blocked.has(e.pageId) && !(exhausted(e) && fresh.has(e.pageId)));
+  // Never evict charged budgets for new work. Fresh ids still precede unattempted backlog.
+  const charged = pending.filter(e => e.attempts > 0).map(e => e.pageId);
+  return new EmbeddingRetry(root, mergeFreshAttempts(pending, [...charged, ...changedPageIds]), quarantined);
 }

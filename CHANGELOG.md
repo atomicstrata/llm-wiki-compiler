@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and [embedding configuration](https://llmwiki.atomicstrata.ai/configuration/environment-variables#embeddings)
   for costs, strict-mode failures, and quarantine recovery.
 
+### Fixed
+
+- Embedding reconciliation now attempts only work with a persisted retry budget.
+  Full retry markers defer new work without discarding prior failed-attempt counts;
+  full quarantine markers retain exhausted entries in pending without retrying them.
+
 ## [1.3.0] - 2026-09-11
 
 ### Highlights

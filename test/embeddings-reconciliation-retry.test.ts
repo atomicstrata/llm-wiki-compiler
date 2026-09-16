@@ -14,6 +14,7 @@ import { loadPendingEmbeddings, writePendingEmbeddings } from "../src/utils/pend
 import { MAX_PENDING_EMBEDDING_ATTEMPTS, QUARANTINED_EMBEDDINGS_FILE } from "../src/utils/constants.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
 import { readV3Store } from "./fixtures/v3-store.js";
+import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 
 const ctx = useCompileProject({ dirSuffix: "reconciliation-retry" });
 const PAGE_ID = "concepts/alpha";
@@ -60,6 +61,23 @@ async function quarantinePage(): Promise<void> {
 }
 
 describe("automatic reconciliation retry budget", () => {
+  it.each(["count", "bytes"] as const)("keeps exhausted overflow blocked at quarantine %s capacity", async (limit) => {
+    const full = fullEmbeddingMarker(limit, MAX_PENDING_EMBEDDING_ATTEMPTS);
+    await writePendingEmbeddings(ctx.dir, full, QUARANTINED_EMBEDDINGS_FILE);
+    await writePendingEmbeddings(ctx.dir, [{ pageId: PAGE_ID, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS - 1 }]);
+    const provider = failProvider();
+    await refresh();
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }]);
+    await refresh();
+    await refresh(["concepts/new-page"]);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(full);
+    await refresh([PAGE_ID]);
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: PAGE_ID, attempts: 1 });
+  });
+
   it("does not retry a quarantined eligible page on subsequent unchanged refreshes", async () => {
     const provider = failProvider();
     await quarantinePage();
