@@ -4,7 +4,7 @@
  * regression by pretending that quarantined pages already have vectors.
  */
 
-import { writeFile } from "fs/promises";
+import { readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
@@ -32,9 +32,9 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllEnvs());
 
 /** Seed a live eligible page without invoking page generation. */
-async function writePage(slug: string): Promise<void> {
+async function writePage(slug: string, revision = 1): Promise<void> {
   await writeFile(path.join(ctx.dir, `wiki/concepts/${slug}.md`),
-    `---\ntitle: ${slug}\nsummary: ${slug} summary\n---\n\n${slug} body.\n`);
+    `---\ntitle: ${slug}\nsummary: ${slug} summary ${revision}\n---\n\n${slug} body ${revision}.\n`);
 }
 
 /** Observe the shared drain's project-lock precondition in every refresh. */
@@ -154,6 +154,7 @@ describe("automatic reconciliation retry budget", () => {
     provider.mockClear();
     await refresh();
     expect(provider).not.toHaveBeenCalled();
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([]);
     await refresh([PAGE_ID]);
     expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: 1 }]);
   });
@@ -167,5 +168,94 @@ describe("automatic reconciliation retry budget", () => {
     await refresh([PAGE_ID]);
     expect(provider).not.toHaveBeenCalled();
     expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(quarantined);
+  });
+});
+
+/** Store a real page and chunk vector, then make both stale without regenerating them. */
+async function staleCache() {
+  const provider = vi.spyOn(OpenAIProvider.prototype, "embedBatch")
+    .mockImplementation(async texts => texts.map(() => [0.5, 0.5]));
+  await refresh();
+  const old = (await readV3Store(ctx.dir))!;
+  expect(old.entries).toHaveLength(1);
+  expect(old.chunks?.length).toBeGreaterThan(0);
+  await writePage("alpha", 2);
+  provider.mockClear();
+  return { provider, old };
+}
+
+/** Fill the retry budget, optionally letting a real healthy page own the first slot. */
+async function fillBudget(healthy = false, limit: "count" | "bytes" = "count") {
+  const full = fullEmbeddingMarker(limit, 1);
+  if (healthy) {
+    await writePage("healthy");
+    full[0] = { pageId: "concepts/healthy", attempts: 1 };
+  }
+  await writePendingEmbeddings(ctx.dir, full);
+  return full;
+}
+
+/** Compare cached records, including original hashes and timestamps, rather than just vectors. */
+async function expectAlphaCache(old: NonNullable<Awaited<ReturnType<typeof readV3Store>>>) {
+  const store = (await readV3Store(ctx.dir))!;
+  expect(store.entries.filter(e => e.pageId === PAGE_ID)).toEqual(old.entries);
+  expect(store.chunks?.filter(e => e.pageId === PAGE_ID)).toEqual(old.chunks);
+}
+
+describe("deferred reconciliation", () => {
+  it.each(["count", "bytes"] as const)("retains stale cache without a store write at %s capacity, then recovers", async limit => {
+    const { provider, old } = await staleCache();
+    await fillBudget(false, limit);
+    const file = path.join(ctx.dir, ".llmwiki/embeddings.json");
+    const before = { bytes: await readFile(file), mtime: (await stat(file)).mtimeMs };
+    await refresh([PAGE_ID]);
+    expect(provider).not.toHaveBeenCalled();
+    await expectAlphaCache(old);
+    expect(await readFile(file)).toEqual(before.bytes);
+    expect((await stat(file)).mtimeMs).toBe(before.mtime);
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("1 page(s) deferred"));
+    await writePendingEmbeddings(ctx.dir, []);
+    await refresh();
+    expect(provider).toHaveBeenCalled();
+    expect((await readV3Store(ctx.dir))!.entries[0].embeddingTextHash).not.toBe(old.entries[0].embeddingTextHash);
+  });
+
+  it("persists admitted work and preserves deferred cache before strict mode throws", async () => {
+    const { provider, old } = await staleCache();
+    const full = await fillBudget(true);
+    vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+    await expect(refresh()).rejects.toThrow("1 page(s) deferred");
+    expect(provider).toHaveBeenCalled();
+    expect(provider.mock.calls.flatMap(call => call[0]).every(text => text.includes("healthy"))).toBe(true);
+    await expectAlphaCache(old);
+    expect((await readV3Store(ctx.dir))!.entries.map(e => e.pageId)).toContain("concepts/healthy");
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual(full.slice(1).map(e => ({ ...e, attempts: 2 })));
+  });
+
+  it("also retains cached vectors for quarantined pages without a capacity warning", async () => {
+    const { provider, old } = await staleCache();
+    await writePendingEmbeddings(ctx.dir, [{ pageId: PAGE_ID, attempts: 5 }], QUARANTINED_EMBEDDINGS_FILE);
+    await refresh();
+    expect(provider).not.toHaveBeenCalled();
+    await expectAlphaCache(old);
+    expect(console.log).not.toHaveBeenCalledWith(expect.stringContaining("page(s) deferred"));
+  });
+
+  it.each(["backend", "deleted", "orphaned", "invalid-vector"])("does not retain %s cache when deferred", async reason => {
+    const { provider, old } = await staleCache();
+    await fillBudget();
+    if (reason === "backend") vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "different-model");
+    if (reason === "deleted") await unlink(path.join(ctx.dir, "wiki/concepts/alpha.md"));
+    if (reason === "orphaned") await writeFile(path.join(ctx.dir, "wiki/concepts/alpha.md"),
+      "---\ntitle: alpha\nsummary: alpha\norphaned: true\n---\nalpha body\n");
+    if (reason === "invalid-vector") {
+      old.entries[0].vector = [1];
+      await writeFile(path.join(ctx.dir, ".llmwiki/embeddings.json"), JSON.stringify(old));
+    }
+    await refresh();
+    expect(provider).not.toHaveBeenCalled();
+    const store = (await readV3Store(ctx.dir))!;
+    expect(store.entries).toEqual([]);
+    expect(store.chunks).toEqual([]);
   });
 });

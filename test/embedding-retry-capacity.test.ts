@@ -1,5 +1,7 @@
 /** Real marker I/O witnesses: no work may spend or forget a budget outside durable capacity. */
 import { describe, expect, it } from "vitest";
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { loadEmbeddingRetry } from "../src/utils/embeddings-retry.js";
 import { loadPendingEmbeddings, writePendingEmbeddings } from "../src/utils/pending-embeddings.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
@@ -7,6 +9,14 @@ import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 
 const ctx = useCompileProject({ dirSuffix: "retry-capacity" });
 const FRESH = "concepts/fresh";
+
+it("does not clear an unreadable marker when there is no computed pending work", async () => {
+  const file = path.join(ctx.dir, ".llmwiki/pending-embeddings.json");
+  await writeFile(file, "{broken");
+  const retry = await loadEmbeddingRetry(ctx.dir, []);
+  await retry.recordPending();
+  expect(await readFile(file, "utf8")).toBe("{broken");
+});
 
 describe.each(["count", "bytes"] as const)("pending %s capacity", (limit) => {
   it("returns only discovered ids with persisted budgets", async () => {
