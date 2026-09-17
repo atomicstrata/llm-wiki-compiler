@@ -26,7 +26,7 @@
 import path from "path";
 import { readFile } from "fs/promises";
 import { validateWikiPage } from "../utils/markdown.js";
-import { planPageMutation } from "../trust/planner.js";
+import { planPageMutation, type PagePlannedMutation } from "../trust/planner.js";
 import { applyApprovedMutationsLocked } from "../trust/executor.js";
 import {
   applyTypedCandidate,
@@ -51,18 +51,12 @@ import {
 import { UnsafeCandidateDirError } from "../compiler/candidate-store-paths.js";
 import { sha256Text } from "../connectors/hash.js";
 import { isConnectorCandidate } from "../connectors/origin.js";
-import { generateIndex } from "../compiler/indexgen.js";
-import { generateMOC } from "../compiler/obsidian.js";
-import { resolveAndApplyLinks } from "../compiler/resolver.js";
-import { repairAndApplyLinks } from "../compiler/link-repair.js";
-import { qualifiedPageId, type PageId } from "../utils/page-id.js";
-import { refreshEmbeddingsDrainingPending } from "../utils/embeddings-refresh.js";
-import { readState, updateSourceState } from "../utils/state.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { runReviewUnderLock, readCandidateUnderLock } from "./review-helpers.js";
 import { checkCandidatePublication, checkAnswerPlan, isValidatedAnswer } from "./review-publication.js";
+import { finalizeReviewApprovals } from "./review-finalize.js";
 
 /** CLI/API options accepted by `review approve`. */
 export interface ReviewApproveOptions {
@@ -120,15 +114,7 @@ async function approveUnderLock(
   if (!pagePath) return;
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
 
-  // The source-state tail records the approved slug into the DEFAULT
-  // `state.sources[file].concepts` list — a concepts-only structure with no
-  // typed discrimination. A TYPED candidate must skip it (mirroring
-  // routeApprovedPageWrite's typed/default branch) so a non-concept slug can
-  // never pollute concepts state. Default candidates keep the existing path.
-  if (!candidate.targetEntityType) {
-    await persistCandidateSourceStates(root, candidate);
-  }
-  await refreshWikiAfterApproval(root, candidate);
+  await finalizeReviewApprovals(root, [candidate]);
   await deleteCandidate(root, id);
   output.status("✓", output.dim(`Candidate ${id} cleared.`));
 }
@@ -164,7 +150,7 @@ function staleTargetRefusal(candidate: ReviewCandidate): string {
  * The comparison re-hashes the under-lock candidate body and deliberately ignores
  * any stored `connectorProvenance.draftContentHash`, which is self-attested data.
  */
-function connectorPinMatches(candidate: ReviewCandidate, supplied: string | undefined): boolean {
+export function connectorPinMatches(candidate: ReviewCandidate, supplied: string | undefined): boolean {
   if (!isConnectorCandidate(candidate)) return true;
   if (supplied === undefined) return false;
   return sha256Text(candidate.body) === supplied;
@@ -277,7 +263,7 @@ async function routeTypedPageWrite(
  * lets the caller read `err.message` after the guard. Centralized here so the routing
  * predicate reads flat rather than inflating {@link routeTypedPageWrite}.
  */
-function isTypedPromotionRefusal(err: unknown): err is Error {
+export function isTypedPromotionRefusal(err: unknown): err is Error {
   return (
     err instanceof CandidateProfileError ||
     err instanceof CandidatePromotionBlockedError ||
@@ -329,15 +315,7 @@ async function routeDefaultPageWrite(
     process.exitCode = 1;
     return null;
   }
-  const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
-  const { planned } = await planPageMutation({
-    root,
-    target: { kind: "raw", directory, slug: candidate.slug },
-    body: candidate.body,
-    origin: "review",
-    reviewRouted: false,
-    allowOverwrite: true,
-  });
+  const planned = await planDefaultCandidateWrite(root, candidate);
   if (planned.length === 0) {
     output.status("!", output.error(`Candidate ${id} blocked by the write planner; not approved.`));
     process.exitCode = 1;
@@ -349,90 +327,19 @@ async function routeDefaultPageWrite(
   return path.join(root, dir, `${candidate.slug}.md`);
 }
 
-/**
- * Add the approved concept slug to each contributing source's live-concepts
- * list in state.json.
- *
- * State records only LIVE concepts: held/rejected concepts are never in state,
- * and approval adds exactly the approved slug. This prevents a rejected sibling
- * from leaking into state when its source's first held candidate is approved.
- *
- * Each approval immediately union-adds its own slug via addApprovedSlugToSourceState
- * (which reads current state, appends, and deduplicates). No deferral is needed:
- * the old "wait for last sibling" guard was a leftover from the snapshot-write model
- * and caused earlier-approved slugs to be silently dropped.
- */
-async function persistCandidateSourceStates(
+/** Plan a default candidate with the same overwrite and trust policy for both review commands. */
+export async function planDefaultCandidateWrite(
   root: string,
   candidate: ReviewCandidate,
-): Promise<void> {
-  const states = candidate.sourceStates;
-  if (!states) return;
-  for (const [sourceFile, candidateEntry] of Object.entries(states)) {
-    await addApprovedSlugToSourceState(root, sourceFile, candidate.slug, candidateEntry.hash);
-  }
-}
-
-/**
- * Merge the approved slug into a source's existing live-concepts list.
- * Reads the current state entry so any already-live concepts are preserved,
- * then appends the approved slug (deduplicating in case it is already present).
- */
-async function addApprovedSlugToSourceState(
-  root: string,
-  sourceFile: string,
-  approvedSlug: string,
-  sourceHash: string,
-): Promise<void> {
-  const currentState = await readState(root);
-  const existing = currentState.sources[sourceFile];
-  const concepts = existing?.concepts ?? [];
-  const merged = Array.from(new Set([...concepts, approvedSlug]));
-  await updateSourceState(root, sourceFile, {
-    hash: sourceHash,
-    concepts: merged,
-    compiledAt: new Date().toISOString(),
+): Promise<PagePlannedMutation[]> {
+  const directory = candidate.targetDirectory === "queries" ? "queries" : "concepts";
+  const { planned } = await planPageMutation({
+    root,
+    target: { kind: "raw", directory, slug: candidate.slug },
+    body: candidate.body,
+    origin: "review",
+    reviewRouted: false,
+    allowOverwrite: true,
   });
-}
-
-/** Refresh interlinks, index, MOC, and embeddings after writing a candidate. */
-async function refreshWikiAfterApproval(root: string, candidate: ReviewCandidate): Promise<void> {
-  const { slug } = candidate;
-  // approveUnderLock runs under the held project lock (runReviewUnderLock), so
-  // this routes through the lock-free resolution seam.
-  if (!isValidatedAnswer(candidate)) {
-    await resolveAndApplyLinks(root, [slug], [slug]);
-    await repairAndApplyLinks(root);
-  }
-  await generateIndex(root);
-  await generateMOC(root);
-  await safelyUpdateEmbeddings(root, candidatePageId(candidate));
-}
-
-/**
- * The qualified pageId of an approved candidate: a TYPED candidate lands under
- * its `targetEntityType` namespace; a DEFAULT candidate under `queries` (when
- * `targetDirectory` is queries) or `concepts`.
- */
-function candidatePageId(candidate: ReviewCandidate): PageId {
-  const namespace =
-    candidate.targetEntityType ?? (candidate.targetDirectory === "queries" ? "queries" : "concepts");
-  return qualifiedPageId(namespace, candidate.slug);
-}
-
-/**
- * Refresh the embeddings store without failing approval, DRAINING the durable
- * pending marker in the same pass.
- *
- * Routes through the SHARED {@link refreshEmbeddingsDrainingPending} so approving
- * a candidate also retries any page-ids a prior `compile --review` (or a
- * swallowed/crashed refresh) left pending — a review-only workflow would
- * otherwise accumulate pending ids that are never drained, leaving embeddings
- * stale indefinitely. The shared drain settles the marker per-id and is
- * non-fatal on a missing API key / transient provider error. Approval already
- * holds the review lock (runReviewUnderLock), so the lock-free Core is correct
- * (no nested-lock deadlock).
- */
-async function safelyUpdateEmbeddings(root: string, pageId: PageId): Promise<void> {
-  await refreshEmbeddingsDrainingPending(root, [pageId]);
+  return planned;
 }

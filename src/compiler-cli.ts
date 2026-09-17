@@ -60,6 +60,7 @@ export { default as quickstartCommand } from "./commands/quickstart.js";
 export { recoverCommand } from "./commands/recover.js";
 export { default as refreshCommand } from "./commands/refresh.js";
 export { default as reviewApproveCommand } from "./commands/review-approve.js";
+export { default as reviewApproveBatchCommand } from "./commands/review-approve-batch.js";
 export { default as reviewListCommand } from "./commands/review-list.js";
 export { default as reviewRejectCommand } from "./commands/review-reject.js";
 export { default as reviewShowCommand } from "./commands/review-show.js";

@@ -104,9 +104,9 @@ Approval does the following in order:
 2. Re-reads the candidate under the lock (to guard against a concurrent reject that may have run between your `review show` and now)
 3. Validates the page body
 4. Writes the page to its target, normally `wiki/concepts/<slug>.md`; query candidates target `wiki/queries/<slug>.md`
-5. Refreshes `wiki/index.md`, the Map of Content, and embeddings; generic candidates also run wikilink resolution and repair
-6. Removes the candidate file from `.llmwiki/candidates/`
-7. Records the approved slug in state so future compiles track it correctly
+5. Records the approved slug in source state so future compiles track it correctly
+6. Refreshes `wiki/index.md`, the Map of Content, and embeddings; generic candidates also run wikilink resolution and repair
+7. Removes the candidate file from `.llmwiki/candidates/`
 
 Approval never re-invokes the answer-generation LLM. Generic candidates retain their existing resolution and repair tail. Validated answers publish the exact canonical document checked before the write.
 
@@ -115,6 +115,93 @@ Page writes, refresh work, state bookkeeping, and candidate cleanup are not one 
 <Warning>
   Embeddings refresh may fail if no provider credentials are configured at approval time. When that happens, a warning is printed but the approval still succeeds - the page is written and the index is updated. Re-run `llmwiki compile` or `llmwiki refresh --stale` later to pick up the missing embeddings.
 </Warning>
+
+### `llmwiki review approve-batch --input <manifest.json>`
+
+Approve a selected group with one project lock and one shared refresh of links,
+the index, Map of Content, and embeddings. Approval uses the stored candidate
+bodies and does not call the generation model.
+
+Create a manifest containing the candidate IDs you have reviewed:
+
+```json
+{
+  "schemaVersion": 1,
+  "candidates": [
+    { "id": "first-topic-aabbccdd" },
+    { "id": "second-topic-eeff0011" }
+  ]
+}
+```
+
+Then run:
+
+```bash
+llmwiki review approve-batch --input approvals.json --json
+```
+
+Add `draftContentHash` to an entry to bind approval to the SHA-256 of its exact
+candidate body. Connector candidates require the hash shown by `review show`;
+do not compute a new pin without reviewing changed content. A supplied hash is
+checked for ordinary candidates too.
+
+The command re-reads and validates candidates under the lock before applying
+the valid subset. Missing or invalid candidates remain unapproved. Identical IDs
+are processed once. Conflicting pins for the same ID, or different candidates
+targeting the same page, are refused instead of overwriting each other.
+
+With `--json`, stdout contains one JSON result. The envelope includes:
+
+| Field | Meaning |
+| --- | --- |
+| `schemaVersion` | Contract version, currently `1`. |
+| `status` | `completed`, `partial` for individual refusals, or `failed` for a technical failure. |
+| `finalized` | Whether the shared finalization completed; `false` when no pages were approved. |
+| `results` | One entry per unique candidate ID: `id`, `status`, optional relative `pagePath`, and optional `error`. |
+| `timingsMs` | Total duration and timings for reached phases such as validation, promotion, link repair, index, and cleanup. |
+| `error` | A shared technical error, when present. |
+
+Candidate statuses are `approved`, `invalid`, `conflict`, or `failed`. Exit code
+`0` means the operation completed without refusals. Exit code `1` covers both
+partial results and technical failures: inspect the JSON `status` before
+deciding which candidates to retry. An empty manifest completes without running
+the finalizer. The existing single-candidate commands remain available.
+
+<Warning>
+  A batch is not a transaction over the entire wiki. Page promotion uses the
+  write journal, but source-state updates and finalization are an idempotent
+  tail. A finalization failure can leave written pages while their candidates
+  remain pending. Retry the retained candidates to complete that tail.
+
+  Candidate removal starts only after finalization succeeds. An interruption
+  during removal can leave some candidates cleared and others pending; a retry
+  reports already-cleared IDs as missing. `finalized: true` does not mean cleanup
+  or an external Git commit completed. Callers needing whole-operation rollback
+  or durable replay receipts must provide those guarantees around the command.
+</Warning>
+
+Batch approval obeys the shared embedding configuration, including
+`LLMWIKI_EMBEDDINGS=off`. Typed candidates retain their profile, lifecycle, and
+precondition checks. A typed candidate entering a state with relation
+requirements is refused when the batch would promote multiple candidates:
+another page could change the evidence used to validate that transition.
+Approve those candidates individually so their checks see the current wiki.
+Other valid candidates can still proceed. Review external bodies before
+approving them, just as with single-candidate approval.
+
+To compare single and batch approval from a source checkout:
+
+```bash
+npm run build
+npm run benchmark:review -- dist/cli.js single 1500 30
+npm run benchmark:review -- dist/cli.js batch 1500 30
+```
+
+Each command generates a disposable wiki with 1,500 existing pages and 30
+candidates, disables embeddings, reports JSON timings, and removes its own
+fixture afterwards. It does not approve candidates in your existing wiki.
+Compare runs on the same otherwise-idle machine; these synthetic timings are
+not a guarantee for your corpus.
 
 ### `llmwiki review reject <id>`
 
