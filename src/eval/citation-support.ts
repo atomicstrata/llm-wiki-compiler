@@ -31,7 +31,7 @@ import type { SourceSpan } from "../utils/types.js";
 const CACHE_DIR = path.join(".llmwiki", "eval");
 const CACHE_FILE = path.join(CACHE_DIR, "citation-cache.jsonl");
 /** Internal pair combining a claim paragraph with its cited source span. */
-interface CitationPair {
+export interface CitationPair {
   claimHash: string;
   pageSlug: string;
   claimText: string;
@@ -234,6 +234,9 @@ async function callJudge(pair: CitationPair, cacheKey: string, model: string): P
   });
 
   const parsed = JSON.parse(raw) as { score: 0 | 1 | 2; reason: string };
+  if (![0, 1, 2].includes(parsed?.score) || typeof parsed.reason !== "string" || !parsed.reason.trim()) {
+    throw new Error("Citation judge returned an invalid score or reason");
+  }
   return {
     claimHash: cacheKey,
     pageSlug: pair.pageSlug,
@@ -271,30 +274,23 @@ function aggregateJudgements(judgements: CitationJudgement[]): Pick<
  */
 async function judgeNewPairs(
   sample: CitationPair[],
-  cache: Map<string, CitationJudgement>,
   root: string,
 ): Promise<{ judgements: CitationJudgement[]; judgeErrors: number }> {
-  const model = resolveModel();
+  const judge = await createCitationJudge(root);
   const judgements: CitationJudgement[] = [];
   let judgeErrors = 0;
   let newPairsAttempted = 0;
   let firstError: unknown;
 
   for (const pair of sample) {
-    const cacheKey = makeCacheKey(pair.claimHash, model);
-    const cached = cache.get(cacheKey);
-    if (cached) {
-      judgements.push(cached);
-    } else {
+    try {
+      const result = await judge(pair);
+      if (!result.cached) newPairsAttempted++;
+      judgements.push(result.judgement);
+    } catch (err) {
       newPairsAttempted++;
-      try {
-        const judgement = await callJudge(pair, cacheKey, model);
-        await appendCachedJudgement(root, judgement);
-        judgements.push(judgement);
-      } catch (err) {
-        judgeErrors++;
-        if (firstError === undefined) firstError = err;
-      }
+      judgeErrors++;
+      if (firstError === undefined) firstError = err;
     }
   }
 
@@ -304,6 +300,24 @@ async function judgeNewPairs(
   }
 
   return { judgements, judgeErrors };
+}
+
+/** Share the existing judge and cache with alternate document selections. */
+export async function createCitationJudge(root: string, options: { namespace?: string; model?: string; persist?: boolean } = {}) {
+  const { namespace = "", model = resolveModel(), persist = true } = options;
+  const cache = persist ? await loadCachedJudgements(root) : new Map<string, CitationJudgement>();
+  return async (pair: CitationPair) => {
+    const cacheKey = makeCacheKey(pair.claimHash + namespace, model);
+    const cached = cache.get(cacheKey);
+    if (cached && [0, 1, 2].includes(cached.score) && typeof cached.reason === "string" && cached.reason.trim()) {
+      // Content cache reuse must not carry the previous document's identity.
+      return { cached: true, judgement: { ...cached, ...pair, claimHash: cacheKey } };
+    }
+    const judgement = await callJudge(pair, cacheKey, model);
+    if (persist) await appendCachedJudgement(root, judgement);
+    cache.set(cacheKey, judgement);
+    return { cached: false, judgement };
+  };
 }
 
 /**
@@ -322,8 +336,7 @@ export async function evaluateCitationSupport(
   if (allPairs.length === 0) return null;
 
   const sample = selectDeterministicSample(allPairs, sampleSize, previousHashes);
-  const cache = await loadCachedJudgements(root);
-  const { judgements, judgeErrors } = await judgeNewPairs(sample, cache, root);
+  const { judgements, judgeErrors } = await judgeNewPairs(sample, root);
 
   return {
     sampledCount: judgements.length,

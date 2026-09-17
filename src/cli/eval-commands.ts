@@ -46,6 +46,7 @@ export function registerEvalCommands(program: Command): void {
     .option("--suite <level>", "fast (deterministic) or full (+ LLM judge)", "fast")
     .option("--out <format>", "terminal or json", "terminal")
     .option("--sample <n>", "number of citations to judge in full suite", "20")
+    .option("--candidates", "evaluate pending concept/query drafts instead of live pages")
     .action(async (opts: ProviderOption & { suite: string; out: string; sample: string }) => {
       try {
         applyProviderOption(opts);

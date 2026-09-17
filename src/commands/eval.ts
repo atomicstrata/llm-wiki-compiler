@@ -22,11 +22,13 @@ import {
   formatJudgementsDisplay,
 } from "../eval/report.js";
 import { clearCitationCache, loadCitationCache, summarizeCitationCache } from "../eval/cache.js";
+import { evaluateCandidates, formatCandidateReport } from "../eval/candidates.js";
 
 interface EvalOptions {
   suite?: string;
   out?: string;
   sample?: string;
+  candidates?: boolean;
 }
 
 interface ResolvedEvalOptions {
@@ -62,6 +64,13 @@ function resolveEvalOptions(options: EvalOptions): ResolvedEvalOptions {
 export default async function evalCommand(options: EvalOptions = {}): Promise<void> {
   const root = process.cwd();
   const { suite, sampleSize, outFormat } = resolveEvalOptions(options);
+
+  if (options.candidates) {
+    const report = await evaluateCandidates(root, suite, sampleSize);
+    console.log(outFormat === "json" ? JSON.stringify(report, null, 2) : formatCandidateReport(report));
+    if (report.coverage.judgeErrors) process.exitCode = 1;
+    return;
+  }
 
   const report = await runEval(root, suite, sampleSize);
 

@@ -34,6 +34,17 @@ Pages that were already live and haven't changed are not affected. Only newly ge
 
 ## Review subcommands
 
+Before approving concept/query drafts, you can request an advisory citation check:
+
+```bash
+llmwiki eval --candidates --suite full --out json
+```
+
+This evaluates a sample against current source passages without approving or
+changing any candidate. Use `llmwiki eval --candidates` for an evidence inventory
+without model calls. See [pending draft evaluation](/cli/lint-eval#evaluate-pending-drafts-before-approval)
+for costs, evidence changes, sampling limits, and report files.
+
 ### `llmwiki review list`
 
 List all pending candidates:

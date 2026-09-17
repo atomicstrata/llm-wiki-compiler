@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Advisory pre-approval citation reports with `eval --candidates`. Fast mode
+  inventories current evidence; full mode reuses the citation judge on a bounded
+  sample. Reports identify exact draft revisions and unavailable/changed evidence
+  without approving drafts or changing live evaluation history.
+
 - Persistent lint and status warnings for quarantined embedding refreshes,
   including exhausted entries held in pending and unreadable quarantine markers.
 

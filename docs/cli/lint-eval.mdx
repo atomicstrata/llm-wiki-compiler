@@ -123,6 +123,73 @@ Page count, source count, total wiki characters, and embedding counts - appended
 **Regression deltas**
 The current run is diffed against the previous entry in `history.jsonl`. Improvements and regressions in every metric are displayed in the report.
 
+### Evaluate pending drafts before approval
+
+Use the candidate selection to inspect drafts without making them live:
+
+```bash
+llmwiki compile --review
+llmwiki review list
+llmwiki eval --candidates                         # evidence inventory, no model calls
+llmwiki eval --candidates --suite full --sample 20 --out json
+llmwiki review show <id>                          # inspect the draft before deciding
+```
+
+`--candidates` selects all pending concept/query drafts instead of live pages.
+Typed profile candidates, malformed records, and drafts without prose are listed
+as skipped. It does not run live-page health metrics, thresholds, or regression
+deltas. Without this flag, evaluation continues to select live pages as before.
+
+Each candidate reference includes its ID, target, generation time, SHA-256 of the
+exact candidate JSON read (`revision`), and SHA-256 of its full page (`contentHash`).
+An ID alone is not a revision: a later compile can replace the same pending ID.
+Reports describe the bytes read during that run, not a guarantee that those bytes
+are still pending when you inspect or approve them later.
+
+Evidence is **current text under `sources/`**, not a retained generation snapshot.
+The report includes the source hash, recorded generation hash when available, and
+the excerpt actually judged. A source changed since generation is `unjudgeable`:
+regenerate the candidate or inspect the changed evidence yourself. Legacy/imported
+drafts without generation hashes are marked `unrecorded`; judgments concern their
+current evidence and do not certify the original evidence. Each source is read
+once per run; concurrent edits after that read require a new evaluation.
+
+Full mode samples at most `--sample` eligible claim/excerpt pairs across the queue
+(default 20), using deterministic content hashes. One paragraph can produce several
+pairs. Unsampled pairs have `not-sampled` status; fast mode leaves them `eligible`.
+Missing sources, unusable or out-of-bounds ranges, empty excerpts, and uncited prose
+remain explicit `unjudgeable` observations, never positive scores. This uses the
+existing prose-paragraph metric, not exhaustive coverage of headings, lists, code,
+or every factual assertion.
+
+Scores are 0–2 with reasons. `coverage` reports prose/citation counts, eligible,
+selected and judged pairs, unjudgeable observations, and judge errors. `meanScore`
+is `null` without judgments and otherwise describes **only the judged sample**.
+Judge failures retain a report with `judge-error` observations and exit code 1.
+Missing credentials are checked once, before judging, with configuration guidance
+in `judgeUnavailable`. Citation judging does not require an embedding backend.
+Unjudgeable evidence alone does not cause a nonzero exit: this is an advisory report,
+not an approval gate or freshness certification.
+
+Full mode sends sampled claims and excerpts to your configured model and can incur
+provider charges (including retries). Compatible verdicts reuse the citation cache;
+candidate revision, evidence, judge prompt/tool, model, provider, endpoint, or request
+option changes invalidate reuse. Agent-backed providers use per-run cache identities
+because their external runtime configuration is opaque. No credentials enter these
+fingerprints. A favorable report **never approves a candidate**.
+Re-staging a candidate changes its revision and re-judges even unchanged paragraphs;
+this conservative cache policy can incur additional charges.
+
+Only `.llmwiki/eval/candidates-latest.json` and, for new judgments, the shared
+`citation-cache.jsonl` are written. These files contain claim/source text: treat
+them with the same care as your sources. Pending/archived candidates, live pages,
+compile state, and live evaluation history are unchanged. `eval report` and
+`eval history` still show live-page runs; read the candidate JSON or rerun the command
+for candidate results. `eval cache clear` clears both live and candidate verdicts.
+`eval judgements` and `eval cache show` include candidate rows named
+`candidate:<id>@<revision>`. Agent-backed runs retain results in the candidate report
+only, without appending never-reusable verdicts to the shared cache.
+
 ### Eval subcommands
 
 ```bash

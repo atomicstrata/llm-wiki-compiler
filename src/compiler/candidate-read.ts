@@ -143,6 +143,14 @@ export async function readCandidate(
   root: string,
   id: string,
 ): Promise<ReviewCandidate | null> {
+  return (await readCandidateSnapshot(root, id))?.candidate ?? null;
+}
+
+/** Load once and retain original bytes for advisory evaluation revision/evidence identity. */
+export async function readCandidateSnapshot(
+  root: string,
+  id: string,
+): Promise<{ candidate: ReviewCandidate; raw: string } | null> {
   const raw = await safeReadFile(await candidatePath(root, id));
   if (!raw) return null;
   try {
@@ -151,7 +159,7 @@ export async function readCandidate(
       output.note(`[llmwiki] Skipping malformed candidate file: ${id}.json (missing required fields)`);
       return null;
     }
-    return sanitizeCandidate(parsed);
+    return { candidate: sanitizeCandidate(parsed), raw };
   } catch {
     output.note(`[llmwiki] Skipping unparseable candidate file: ${id}.json`);
     return null;
