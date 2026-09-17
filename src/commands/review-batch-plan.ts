@@ -16,6 +16,7 @@ import { connectorPinMatches, isTypedPromotionRefusal, planDefaultCandidateWrite
 import type { ReviewBatchItem, ReviewBatchCandidateResult } from "./review-batch-types.js";
 import { candidatePageNamespace } from "./review-finalize.js";
 import { rejectBatchRelationGates } from "./review-batch-gates.js";
+import { rejectSourceSnapshotConflicts } from "./review-batch-sources.js";
 
 /** One candidate and its validated mutations, linked to its output entry. */
 export interface PlannedReviewApproval {
@@ -60,7 +61,8 @@ export async function planReviewBatch(
     const approval = await planOneCandidate(root, item, result);
     if (approval) approvals.push(approval);
   }
-  return rejectBatchRelationGates(root, rejectTargetConflicts(approvals));
+  const ungated = await rejectBatchRelationGates(root, rejectTargetConflicts(approvals));
+  return rejectSourceSnapshotConflicts(ungated);
 }
 
 /** Validate one under-lock candidate without suppressing an unexpected I/O error. */

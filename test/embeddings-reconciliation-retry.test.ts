@@ -6,7 +6,7 @@
 
 import { readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
 import { acquireLockBlocking, releaseLock } from "../src/utils/lock.js";
@@ -15,26 +15,19 @@ import { MAX_PENDING_EMBEDDING_ATTEMPTS, QUARANTINED_EMBEDDINGS_FILE } from "../
 import { useCompileProject } from "./fixtures/compile-project.js";
 import { readV3Store } from "./fixtures/v3-store.js";
 import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
+import { useEmbeddingRefreshEnvironment, writeEmbeddingTestPage } from "./fixtures/embedding-refresh.js";
 
 const ctx = useCompileProject({ dirSuffix: "reconciliation-retry" });
 const PAGE_ID = "concepts/alpha";
+useEmbeddingRefreshEnvironment();
 
 beforeEach(async () => {
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
-  vi.stubEnv("LLMWIKI_EMBED_STRICT", "off");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "test-embed");
-  vi.stubEnv("OPENAI_API_KEY", "test-key");
   await writePage("alpha");
-  vi.spyOn(console, "log").mockImplementation(() => {});
 });
-
-afterEach(() => vi.unstubAllEnvs());
 
 /** Seed a live eligible page without invoking page generation. */
 async function writePage(slug: string, revision = 1): Promise<void> {
-  await writeFile(path.join(ctx.dir, `wiki/concepts/${slug}.md`),
-    `---\ntitle: ${slug}\nsummary: ${slug} summary ${revision}\n---\n\n${slug} body ${revision}.\n`);
+  await writeEmbeddingTestPage(ctx.dir, slug, revision);
 }
 
 /** Observe the shared drain's project-lock precondition in every refresh. */

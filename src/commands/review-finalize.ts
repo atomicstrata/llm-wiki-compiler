@@ -9,7 +9,8 @@ import { generateIndex } from "../compiler/indexgen.js";
 import { generateMOC } from "../compiler/obsidian.js";
 import { resolveAndApplyLinks } from "../compiler/resolver.js";
 import { repairAndApplyLinks } from "../compiler/link-repair.js";
-import { refreshEmbeddingsDrainingPending } from "../utils/embeddings-refresh.js";
+import { refreshEmbeddingsDrainingPending, refreshAffectedEmbeddings } from "../utils/embeddings-refresh.js";
+import type { EmbeddingRefreshScope } from "../utils/embeddings.js";
 import { qualifiedPageId } from "../utils/page-id.js";
 import { readState, writeState } from "../utils/state.js";
 import type { ReviewCandidate } from "../utils/types.js";
@@ -44,18 +45,26 @@ export async function finalizeReviewApprovals(
   root: string,
   candidates: ReviewCandidate[],
   timings: Partial<ReviewFinalizeTimings> = {},
+  embeddingScope: EmbeddingRefreshScope = "drain",
 ): Promise<void> {
   if (candidates.length === 0) return;
   const slugs = [...new Set(candidates.map((candidate) => candidate.slug))];
-  const pageIds = candidates.map((candidate) => qualifiedPageId(candidatePageNamespace(candidate), candidate.slug));
+  const pageIds = new Set(candidates.map((candidate) => qualifiedPageId(candidatePageNamespace(candidate), candidate.slug)));
   await timeReviewPhase(timings, "sourceState", () => persistApprovedSourceStates(root, candidates));
   if (candidates.some((candidate) => !isValidatedAnswer(candidate))) {
-    await timeReviewPhase(timings, "resolveLinks", () => resolveAndApplyLinks(root, slugs, slugs));
-    await timeReviewPhase(timings, "repairLinks", () => repairAndApplyLinks(root));
+    await timeReviewPhase(timings, "resolveLinks", async () => {
+      const changed = await resolveAndApplyLinks(root, slugs, slugs);
+      if (embeddingScope === "affected-only") for (const id of changed) pageIds.add(id);
+    });
+    await timeReviewPhase(timings, "repairLinks", async () => {
+      const changed = await repairAndApplyLinks(root);
+      if (embeddingScope === "affected-only") for (const id of changed) pageIds.add(id);
+    });
   }
   await timeReviewPhase(timings, "index", () => generateIndex(root));
   await timeReviewPhase(timings, "moc", () => generateMOC(root));
-  await timeReviewPhase(timings, "embeddings", () => refreshEmbeddingsDrainingPending(root, pageIds));
+  const refresh = embeddingScope === "drain" ? refreshEmbeddingsDrainingPending : refreshAffectedEmbeddings;
+  await timeReviewPhase(timings, "embeddings", () => refresh(root, [...pageIds]));
 }
 
 /** Resolve the actual promotion namespace, including malformed legacy directory metadata. */

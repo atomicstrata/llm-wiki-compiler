@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import type { ReviewBatchItem, ReviewBatchResult } from "../src/commands/review-batch-types.js";
+import { REVIEW_BATCH_MAX_CANDIDATES, REVIEW_BATCH_MAX_INPUT_BYTES } from "../src/commands/review-batch-types.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 
 const FIXTURE_DATE = "2026-09-17T00:00:00.000Z";
@@ -95,12 +96,19 @@ afterEach(async () => { await rm(root, { recursive: true, force: true }); });
     expect(current).toMatchObject({ finalized: true, results: [{ status: "approved" }] });
   });
 
-  it("returns a structured failure for malformed input without changing any candidate", async () => {
+  it.each([
+    ["malformed JSON", "{broken"],
+    ["byte overflow", " ".repeat(REVIEW_BATCH_MAX_INPUT_BYTES + 1)],
+    ["entry overflow", JSON.stringify({ schemaVersion: 1,
+      candidates: Array.from({ length: REVIEW_BATCH_MAX_CANDIDATES + 1 }, () => ({ id: "alpha-aaaaaaaa" })) })],
+  ])("returns a structured failure for %s without changing any candidate", async (_label, input) => {
     await candidate("alpha-aaaaaaaa", "alpha-topic", "Alpha topic");
-    await writeFile(path.join(root, "approval.json"), "{broken");
+    await writeFile(path.join(root, "approval.json"), input);
     const run = await runCLI(["review", "approve-batch", "--input", "approval.json", "--json"], root, CLI_ENV);
     expectCLIExit(run, 1);
-    expect(JSON.parse(run.stdout)).toMatchObject({ status: "failed", finalized: false });
+    const result = JSON.parse(run.stdout) as ReviewBatchResult;
+    expect(result).toMatchObject({ status: "failed", finalized: false, results: [] });
+    expect(result.timingsMs.lockWait).toBeUndefined();
     expect(await readdir(path.join(root, ".llmwiki/candidates"))).toEqual(["alpha-aaaaaaaa.json"]);
   });
 
