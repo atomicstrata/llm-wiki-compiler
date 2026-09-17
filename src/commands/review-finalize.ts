@@ -1,8 +1,9 @@
 /**
  * Shared review approval tail for both single and batch approvals. Callers hold
  * the project lock across page writes, this tail, and candidate cleanup. The
- * page journal does not cover these derived artifacts; retained candidates let
- * an interrupted tail be retried. One batch performs each global pass once.
+ * page journal does not cover these derived artifacts; retained candidates and
+ * write-ahead embedding intent let an interrupted tail be retried without losing
+ * collateral page IDs. One batch performs each global pass once.
  */
 
 import { generateIndex } from "../compiler/indexgen.js";
@@ -15,6 +16,7 @@ import { qualifiedPageId } from "../utils/page-id.js";
 import { readState, writeState } from "../utils/state.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { isValidatedAnswer } from "./review-publication.js";
+import { openReviewEmbeddingIntent } from "./review-embedding-intent.js";
 
 /** Timings in milliseconds for the shared, ordered approval tail. */
 export interface ReviewFinalizeTimings {
@@ -49,22 +51,34 @@ export async function finalizeReviewApprovals(
 ): Promise<void> {
   if (candidates.length === 0) return;
   const slugs = [...new Set(candidates.map((candidate) => candidate.slug))];
-  const pageIds = new Set(candidates.map((candidate) => qualifiedPageId(candidatePageNamespace(candidate), candidate.slug)));
+  const intent = embeddingScope === "affected-only" ? await openReviewEmbeddingIntent(root, candidates) : undefined;
+  const pageIds = intent?.pageIds ?? new Set<string>();
+  for (const candidate of candidates) pageIds.add(qualifiedPageId(candidatePageNamespace(candidate), candidate.slug));
+  await intent?.record([...pageIds]);
+  const beforeApply = intent ? async (ids: string[]) => {
+    await intent.record(ids);
+    for (const id of ids) pageIds.add(id);
+  } : undefined;
   await timeReviewPhase(timings, "sourceState", () => persistApprovedSourceStates(root, candidates));
   if (candidates.some((candidate) => !isValidatedAnswer(candidate))) {
     await timeReviewPhase(timings, "resolveLinks", async () => {
-      const changed = await resolveAndApplyLinks(root, slugs, slugs);
+      const changed = await resolveAndApplyLinks(root, slugs, slugs, beforeApply);
       if (embeddingScope === "affected-only") for (const id of changed) pageIds.add(id);
     });
     await timeReviewPhase(timings, "repairLinks", async () => {
-      const changed = await repairAndApplyLinks(root);
+      const changed = await repairAndApplyLinks(root, beforeApply);
       if (embeddingScope === "affected-only") for (const id of changed) pageIds.add(id);
     });
   }
   await timeReviewPhase(timings, "index", () => generateIndex(root));
   await timeReviewPhase(timings, "moc", () => generateMOC(root));
-  const refresh = embeddingScope === "drain" ? refreshEmbeddingsDrainingPending : refreshAffectedEmbeddings;
-  await timeReviewPhase(timings, "embeddings", () => refresh(root, [...pageIds]));
+  await timeReviewPhase(timings, "embeddings", async () => {
+    if (embeddingScope === "drain") await refreshEmbeddingsDrainingPending(root, [...pageIds]);
+    else if (!(await refreshAffectedEmbeddings(root, [...pageIds]))) {
+      throw new Error("Embedding retry handoff incomplete; review intent and candidates retained for retry.");
+    }
+  });
+  await intent?.clear();
 }
 
 /** Resolve the actual promotion namespace, including malformed legacy directory metadata. */

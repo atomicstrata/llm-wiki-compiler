@@ -74,17 +74,17 @@ export async function refreshEmbeddingsDrainingPending(
   await refreshEmbeddings(root, changedPageIds, "drain");
 }
 
-/** Refresh only affected IDs, preserving unrelated retry budgets, quarantines, and vectors. */
-export async function refreshAffectedEmbeddings(root: string, affectedIds: PageId[]): Promise<void> {
-  if (affectedIds.length === 0) return;
-  await refreshEmbeddings(root, affectedIds, "affected-only");
+/** Refresh affected IDs; report whether all work was handed to durable retry state (or disabled). */
+export async function refreshAffectedEmbeddings(root: string, affectedIds: PageId[]): Promise<boolean> {
+  if (affectedIds.length === 0) return true;
+  return refreshEmbeddings(root, affectedIds, "affected-only");
 }
 
 /** Share write-ahead and settlement behavior while selecting the reconciliation scope. */
-async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: EmbeddingRefreshScope): Promise<void> {
+async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: EmbeddingRefreshScope): Promise<boolean> {
   if (embeddingsDisabled()) {
     verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
-    return;
+    return true;
   }
   let retry: Awaited<ReturnType<typeof loadEmbeddingRetry>>;
   try {
@@ -92,7 +92,7 @@ async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: 
   } catch (error) {
     if (scope === "drain") throw error;
     handleSafeEmbeddingFailure(error, "Skipped embeddings update: retry state unavailable.");
-    return;
+    return false;
   }
   verbose(`embeddings: refreshing ${retry.pageIds.length} page-id(s)`);
   // Write-ahead intent: record BEFORE the attempt so a swallowed failure or crash
@@ -109,6 +109,7 @@ async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: 
     handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
   reportDeferredWork(retry.deferred);
+  return retry.deferred.length === 0;
 }
 
 /** Report after settlement, so strict-mode deferral cannot charge successful work again. */

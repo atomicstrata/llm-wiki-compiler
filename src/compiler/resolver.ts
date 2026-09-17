@@ -186,14 +186,16 @@ export async function resolveLinks(
  * @param root - Absolute project root the writes are confined under.
  * @param changedSlugs - Slugs whose pages get outbound links re-resolved.
  * @param newSlugs - Newly-created slugs other pages get scanned for (inbound).
+ * @param beforeApply - Optional write-ahead callback for floor-approved page IDs.
  * @returns Qualified IDs of the pages actually rewritten, excluding floor-skipped writes.
  */
 export async function resolveAndApplyLinks(
   root: string,
   changedSlugs: string[],
   newSlugs: string[],
+  beforeApply?: (pageIds: PageId[]) => Promise<void>,
 ): Promise<PageId[]> {
-  return applyCompilePageWritesWithIdsLocked(root, await resolveLinks(root, changedSlugs, newSlugs));
+  return applyCompilePageWritesWithIdsLocked(root, await resolveLinks(root, changedSlugs, newSlugs), beforeApply);
 }
 
 /** Derive the compile namespace from a page's absolute file path. */

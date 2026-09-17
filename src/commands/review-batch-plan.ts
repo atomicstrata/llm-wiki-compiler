@@ -111,14 +111,26 @@ async function planDefaultCandidate(root: string, candidate: ReviewCandidate): P
   return planned;
 }
 
-/** Refuse all candidates sharing a target; no winner depends on manifest order. */
+/** Refuse portable target aliases, even if neither target exists on this filesystem. */
 function rejectTargetConflicts(approvals: PlannedReviewApproval[]): PlannedReviewApproval[] {
   const counts = new Map<string, number>();
-  for (const { result } of approvals) counts.set(result.pagePath!, (counts.get(result.pagePath!) ?? 0) + 1);
+  for (const { result } of approvals) {
+    const key = portableTargetKey(result.pagePath!);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
   return approvals.filter(({ result }) => {
-    if (counts.get(result.pagePath!) === 1) return true;
+    if (counts.get(portableTargetKey(result.pagePath!)) === 1) return true;
     result.status = "conflict";
-    result.error = "Multiple candidates target the same wiki page.";
+    result.error = "Multiple candidates target the same wiki page under portable case/Unicode comparison.";
     return false;
   });
+}
+
+/**
+ * Compare conservatively on every platform: case-sensitive hosts also refuse
+ * aliases that could overwrite each other when moved to a case-insensitive or
+ * normalization-insensitive filesystem. This key never changes a stored path.
+ */
+function portableTargetKey(pagePath: string): string {
+  return pagePath.normalize("NFD").toLowerCase().toUpperCase().normalize("NFD");
 }
