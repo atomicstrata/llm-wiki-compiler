@@ -7,7 +7,6 @@
  * on retry. There is no whole-operation transaction or durable approval receipt.
  */
 
-import { readFile } from "fs/promises";
 import { acquireLock, releaseLock } from "../utils/lock.js";
 import { withQuiet } from "../utils/output.js";
 import { deleteCandidate } from "../compiler/candidates.js";
@@ -15,6 +14,7 @@ import { applyApprovedMutationsLocked } from "../trust/executor.js";
 import { recoverJournalBeforeCompile } from "../trust/journal-recovery.js";
 import { finalizeReviewApprovals, timeReviewPhase } from "./review-finalize.js";
 import { planReviewBatch, uniqueBatchItems, type PlannedReviewApproval } from "./review-batch-plan.js";
+import { readReviewBatchManifest } from "./review-batch-input.js";
 import {
   parseReviewBatchManifest,
   REVIEW_BATCH_SCHEMA_VERSION,
@@ -32,7 +32,7 @@ interface ReviewApproveBatchOptions {
 export default async function reviewApproveBatchCommand(options: ReviewApproveBatchOptions): Promise<void> {
   const run = async (): Promise<ReviewBatchResult> => {
     try {
-      const manifest = parseReviewBatchManifest(JSON.parse(await readFile(options.input, "utf8")));
+      const manifest = await readReviewBatchManifest(options.input);
       return await approveReviewBatch(process.cwd(), manifest);
     } catch (error) {
       return { ...emptyResult(), status: "failed", error: errorMessage(error) };
@@ -48,13 +48,14 @@ export default async function reviewApproveBatchCommand(options: ReviewApproveBa
 export async function approveReviewBatch(root: string, manifest: ReviewBatchManifest): Promise<ReviewBatchResult> {
   const started = performance.now();
   const result = emptyResult();
-  const unique = uniqueBatchItems(manifest.candidates);
-  result.results = unique.results;
   let locked = false;
   try {
+    const validated = parseReviewBatchManifest(manifest);
+    const unique = uniqueBatchItems(validated.candidates);
+    result.results = unique.results;
     await timeReviewPhase(result.timingsMs, "lockWait", async () => { locked = await acquireLock(root); });
     if (!locked) throw new Error("Could not acquire lock. Try again later.");
-    await runBatchUnderLock(root, { ...manifest, candidates: unique.items }, result);
+    await runBatchUnderLock(root, { ...validated, candidates: unique.items }, result);
     result.status = result.results.every((item) => item.status === "approved") ? "completed" : "partial";
   } catch (error) {
     result.status = "failed";
@@ -84,7 +85,7 @@ async function runBatchUnderLock(
   if (approvals.length === 0) return;
   await timeReviewPhase(result.timingsMs, "promotion", () =>
     applyApprovedMutationsLocked(root, approvals.flatMap((approval) => approval.planned)));
-  await finalizeReviewApprovals(root, approvals.map((approval) => approval.candidate), result.timingsMs);
+  await finalizeReviewApprovals(root, approvals.map((approval) => approval.candidate), result.timingsMs, "affected-only");
   result.finalized = true;
   await timeReviewPhase(result.timingsMs, "cleanup", async () => {
     for (const approval of approvals) {

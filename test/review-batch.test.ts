@@ -157,7 +157,7 @@ it("requires relation-gated typed approvals to run individually", async () => {
   expect((await approveBatch(root.dir, gated.id)).status).toBe("completed");
 });
 
-it("refreshes enabled embeddings once, including durable prior pending IDs", async () => {
+it("refreshes enabled embeddings once without consuming unrelated prior pending IDs", async () => {
   vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
   await writePendingEmbeddings(root.dir, [{ pageId: "concepts/prior", attempts: 0 }]);
   const a = await stageBatchCandidate(root.dir, "alpha");
@@ -166,6 +166,7 @@ it("refreshes enabled embeddings once, including durable prior pending IDs", asy
     .mockImplementation(async (_root, ids) => ({ embedded: ids, eligible: ids }));
   await approveBatch(root.dir, a.id, b.id);
   expect(core).toHaveBeenCalledTimes(1);
-  expect(core.mock.calls[0][1]).toEqual(expect.arrayContaining(["concepts/prior", "concepts/alpha", "concepts/beta"]));
-  expect(await loadPendingEmbeddings(root.dir)).toEqual([]);
+  expect(core.mock.calls[0][1]).toEqual(["concepts/alpha", "concepts/beta"]);
+  expect(core.mock.calls[0][3]).toBe("affected-only");
+  expect(await loadPendingEmbeddings(root.dir)).toEqual([{ pageId: "concepts/prior", attempts: 0 }]);
 });

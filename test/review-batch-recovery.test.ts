@@ -32,7 +32,7 @@ function failTailPhase(phase: string): void {
     case "repairLinks": vi.spyOn(repair, "repairAndApplyLinks").mockRejectedValueOnce(failure); break;
     case "index": vi.spyOn(indexgen, "generateIndex").mockRejectedValueOnce(failure); break;
     case "moc": vi.spyOn(obsidian, "generateMOC").mockRejectedValueOnce(failure); break;
-    case "embeddings": vi.spyOn(embeddingRefresh, "refreshEmbeddingsDrainingPending").mockRejectedValueOnce(failure); break;
+    case "embeddings": vi.spyOn(embeddingRefresh, "refreshAffectedEmbeddings").mockRejectedValueOnce(failure); break;
     default: throw new Error(`Unknown test phase ${phase}`);
   }
 }

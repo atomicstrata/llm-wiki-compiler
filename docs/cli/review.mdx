@@ -140,6 +140,12 @@ Then run:
 llmwiki review approve-batch --input approvals.json --json
 ```
 
+The manifest must be a regular file of at most **1 MiB (1,048,576 bytes)** and
+contain at most **100 candidate entries**, counted before deduplication. Symlink
+leaves and special files are refused. Oversized or invalid input fails before
+the project lock is acquired or recovery begins; `--json` still returns one
+`failed` envelope with exit code `1`. Split larger requests into bounded batches.
+
 Add `draftContentHash` to an entry to bind approval to the SHA-256 of its exact
 candidate body. Connector candidates require the hash shown by `review show`;
 do not compute a new pin without reviewing changed content. A supplied hash is
@@ -149,6 +155,13 @@ The command re-reads and validates candidates under the lock before applying
 the valid subset. Missing or invalid candidates remain unapproved. Identical IDs
 are processed once. Conflicting pins for the same ID, or different candidates
 targeting the same page, are refused instead of overwriting each other.
+
+Candidates that update source state must agree on the recorded hash of every
+shared source. If valid candidates contain different revisions of a source,
+all candidates referencing that source receive `conflict` and remain pending;
+unrelated candidates can proceed. Manifest order and generation timestamps do
+not select a winner. Recompile and review candidates from one consistent source
+revision before retrying the refused group.
 
 With `--json`, stdout contains one JSON result. The envelope includes:
 
@@ -181,7 +194,16 @@ the finalizer. The existing single-candidate commands remain available.
 </Warning>
 
 Batch approval obeys the shared embedding configuration, including
-`LLMWIKI_EMBEDDINGS=off`. Typed candidates retain their profile, lifecycle, and
+`LLMWIKI_EMBEDDINGS=off`. It refreshes embeddings only for approved pages and
+pages actually rewritten by link resolution or repair. Unrelated pending retry
+counts, quarantines, and stored vectors remain unchanged. Unlike single approval
+and compile, a batch does not drain the older embedding backlog or perform a
+whole-store migration. If the existing store is legacy, incompatible with the
+active embedding configuration, or unreadable, the embedding refresh is deferred
+with a warning; run `llmwiki compile` for full reconciliation. Strict embedding
+mode still reports refresh failure as an error.
+
+Typed candidates retain their profile, lifecycle, and
 precondition checks. A typed candidate entering a state with relation
 requirements is refused when the batch would promote multiple candidates:
 another page could change the evidence used to validate that transition.

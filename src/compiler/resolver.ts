@@ -16,7 +16,8 @@ import { existsSync } from "fs";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { readWikiPageContentOrWarn } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
-import { applyCompilePageWritesLocked } from "./compile-write.js";
+import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
+import type { PageId } from "../utils/page-id.js";
 import type { CompilePageNamespace, CompilePageWrite } from "./compile-write.js";
 import * as output from "../utils/output.js";
 
@@ -185,13 +186,14 @@ export async function resolveLinks(
  * @param root - Absolute project root the writes are confined under.
  * @param changedSlugs - Slugs whose pages get outbound links re-resolved.
  * @param newSlugs - Newly-created slugs other pages get scanned for (inbound).
+ * @returns Qualified IDs of the pages actually rewritten, excluding floor-skipped writes.
  */
 export async function resolveAndApplyLinks(
   root: string,
   changedSlugs: string[],
   newSlugs: string[],
-): Promise<void> {
-  await applyCompilePageWritesLocked(root, await resolveLinks(root, changedSlugs, newSlugs));
+): Promise<PageId[]> {
+  return applyCompilePageWritesWithIdsLocked(root, await resolveLinks(root, changedSlugs, newSlugs));
 }
 
 /** Derive the compile namespace from a page's absolute file path. */

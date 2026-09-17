@@ -14,6 +14,8 @@
  * project run purely as `compile --review` + `review approve` leaked pending ids
  * that were never retried, leaving embeddings stale indefinitely. Folding both
  * onto this function closes that gap by construction.
+ * Batch approval uses {@link refreshAffectedEmbeddings} instead: only approved
+ * pages and collateral page rewrites may consume retry budgets or provider work.
  *
  * ## Lock precondition (caller MUST hold the project lock)
  * This calls {@link updateEmbeddingsLockedCore}, the LOCK-FREE core, NOT the
@@ -27,13 +29,13 @@
  * rethrows after settlement so automation can detect a broken provider.
  */
 
-import { updateEmbeddingsLockedCore } from "./embeddings.js";
+import { updateEmbeddingsLockedCore, type EmbeddingRefreshScope } from "./embeddings.js";
 import { handleSafeEmbeddingFailure } from "./embeddings-batch.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
 import { verbose } from "./output.js";
 import type { PageId } from "./page-id.js";
-import { loadEmbeddingRetry } from "./embeddings-retry.js";
+import { loadEmbeddingRetry, loadScopedEmbeddingRetry } from "./embeddings-retry.js";
 
 /**
  * Refresh embeddings for `changedPageIds` while DRAINING the durable pending
@@ -69,18 +71,36 @@ export async function refreshEmbeddingsDrainingPending(
   root: string,
   changedPageIds: PageId[],
 ): Promise<void> {
+  await refreshEmbeddings(root, changedPageIds, "drain");
+}
+
+/** Refresh only affected IDs, preserving unrelated retry budgets, quarantines, and vectors. */
+export async function refreshAffectedEmbeddings(root: string, affectedIds: PageId[]): Promise<void> {
+  if (affectedIds.length === 0) return;
+  await refreshEmbeddings(root, affectedIds, "affected-only");
+}
+
+/** Share write-ahead and settlement behavior while selecting the reconciliation scope. */
+async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: EmbeddingRefreshScope): Promise<void> {
   if (embeddingsDisabled()) {
     verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return;
   }
-  const retry = await loadEmbeddingRetry(root, changedPageIds);
+  let retry: Awaited<ReturnType<typeof loadEmbeddingRetry>>;
+  try {
+    retry = await (scope === "drain" ? loadEmbeddingRetry : loadScopedEmbeddingRetry)(root, changedPageIds);
+  } catch (error) {
+    if (scope === "drain") throw error;
+    handleSafeEmbeddingFailure(error, "Skipped embeddings update: retry state unavailable.");
+    return;
+  }
   verbose(`embeddings: refreshing ${retry.pageIds.length} page-id(s)`);
   // Write-ahead intent: record BEFORE the attempt so a swallowed failure or crash
   // leaves a durable retry list even though source-state already marks sources current.
   await retry.recordPending();
   try {
     const { embedded, eligible, pruned } = await updateEmbeddingsLockedCore(
-      root, retry.pageIds, (ids) => retry.prepare(ids),
+      root, retry.pageIds, (ids) => retry.prepare(ids), scope,
     );
     await retry.succeed([...embedded, ...pruned], eligible);
   } catch (err) {

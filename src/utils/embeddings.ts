@@ -40,6 +40,10 @@ import type { PageId } from "./page-id.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
 import { retainDeferredEmbeddings } from "./embeddings-deferred.js";
+import { planScopedEmbeddingUpdate } from "./embeddings-scoped.js";
+
+/** Full reconciliation is the legacy default; batches can opt into affected-only writes. */
+export type EmbeddingRefreshScope = "drain" | "affected-only";
 
 /**
  * Re-embed the given changed page ids and migrate the store to v3, holding the
@@ -76,6 +80,7 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
  * @param root - Project root path.
  * @param changedPageIds - Qualified page ids whose pages changed this write.
  * @param prepare - Optional write-ahead callback that filters the discovered intent set.
+ * @param scope - The default drain reconciles globally; affected-only preserves unrelated records and refuses migrations.
  * @returns `embedded` = the re-embed INTENT set — the ids this write ATTEMPTED to
  *   re-embed (`[]` on the no-persist early return). It may OVER-include: a
  *   migration-only id that `reembedIntoStore` later skips (e.g. filtered against
@@ -88,11 +93,13 @@ export async function updateEmbeddingsLockedCore(
   root: string,
   changedPageIds: PageId[],
   prepare?: (pageIds: PageId[]) => Promise<PageId[]>,
+  scope: EmbeddingRefreshScope = "drain",
 ): Promise<{ embedded: PageId[]; eligible: PageId[]; pruned: PageId[] }> {
   if (embeddingsDisabled()) {
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return { embedded: [], eligible: [], pruned: [] };
   }
+  if (scope === "affected-only") return updateAffectedEmbeddings(root, changedPageIds, prepare);
   const model = resolveEmbeddingModel();
   const profile = await loadProfile(root);
   const collected = await collectEligibleLivePages(root, profile);
@@ -130,6 +137,20 @@ export async function updateEmbeddingsLockedCore(
 function absentRequestedPageIds(requested: PageId[], existence: Map<PageId, PageExistence>, migrated: EmbeddingStoreV3): PageId[] {
   const kept = new Set<PageId>([...migrated.entries.map(e => e.pageId), ...(migrated.chunks ?? []).map(c => c.pageId)]);
   return requested.filter(pageId => existence.get(pageId) === "absent" && !kept.has(pageId));
+}
+
+/** Apply the scoped plan through the existing provider and persistence seam. */
+async function updateAffectedEmbeddings(
+  root: string,
+  affectedIds: PageId[],
+  prepare?: (ids: PageId[]) => Promise<PageId[]>,
+): Promise<{ embedded: PageId[]; eligible: PageId[]; pruned: PageId[] }> {
+  if (affectedIds.length === 0) return { embedded: [], eligible: [], pruned: [] };
+  const update = await planScopedEmbeddingUpdate(root, affectedIds, prepare);
+  if (update.reembed.size > 0) {
+    await embedAndPersist(root, update.store, update.collected, update.reembed, STORE_VERSION);
+  } else if (update.pruned) await writeEmbeddingStore(root, update.store);
+  return { embedded: [...update.reembed], eligible: update.eligible, pruned: update.prunedIds };
 }
 
 /**

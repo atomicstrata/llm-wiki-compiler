@@ -25,7 +25,8 @@ import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { readConfinedWikiPage, warnDroppedWikiReadIfPresent } from "./confined-wiki-read.js";
 import { isLiteralMarkdown } from "./link-repair-code.js";
 import { listLinkResolvablePendingSlugs } from "./candidate-read.js";
-import { applyCompilePageWritesLocked } from "./compile-write.js";
+import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
+import type { PageId } from "../utils/page-id.js";
 import type { CompilePageNamespace, CompilePageWrite } from "./compile-write.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
@@ -175,7 +176,8 @@ export async function repairLinks(root: string): Promise<CompilePageWrite[]> {
  * interlink resolution is applied from the same place in the pipeline.
  *
  * @param root - Absolute project root the writes are confined under.
+ * @returns Qualified IDs of the pages actually rewritten, excluding floor-skipped writes.
  */
-export async function repairAndApplyLinks(root: string): Promise<void> {
-  await applyCompilePageWritesLocked(root, await repairLinks(root));
+export async function repairAndApplyLinks(root: string): Promise<PageId[]> {
+  return applyCompilePageWritesWithIdsLocked(root, await repairLinks(root));
 }
