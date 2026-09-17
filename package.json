@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch src --watch scripts --watch tsconfig.json --watch \"packages/*/package.json\" --watch \"packages/*/tsup.config.ts\"",
+    "benchmark:review": "node scripts/benchmark-review-batch.mjs",
     "dev:view": "node scripts/dev-viewer.mjs",
     "vendor:fonts": "node scripts/vendor-fonts.mjs",
     "release:check-docs": "node scripts/check-release-docs.mjs",
