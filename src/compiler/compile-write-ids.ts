@@ -7,9 +7,16 @@
 import { applyCompilePageWritesLocked, type CompilePageWrite } from "./compile-write.js";
 import { qualifiedPageId, type PageId } from "../utils/page-id.js";
 
-/** Apply a derived-page pass and return only page IDs that actually passed the write floor. */
-export async function applyCompilePageWritesWithIdsLocked(root: string, items: CompilePageWrite[]): Promise<PageId[]> {
-  const { skipped } = await applyCompilePageWritesLocked(root, items);
+/** Apply a derived pass, optionally persisting approved IDs before writes; return committed IDs. */
+export async function applyCompilePageWritesWithIdsLocked(
+  root: string,
+  items: CompilePageWrite[],
+  beforeApply?: (pageIds: PageId[]) => Promise<void>,
+): Promise<PageId[]> {
+  const options = beforeApply ? {
+    beforeApply: (allowed: CompilePageWrite[]) => beforeApply(allowed.map(item => qualifiedPageId(item.namespace, item.slug))),
+  } : undefined;
+  const { skipped } = await applyCompilePageWritesLocked(root, items, options);
   const blocked = new Set(skipped.map(({ item }) => item));
   return items.filter(item => !blocked.has(item)).map(item => qualifiedPageId(item.namespace, item.slug));
 }

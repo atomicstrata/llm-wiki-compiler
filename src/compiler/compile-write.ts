@@ -72,6 +72,9 @@ export interface SkippedWrite {
   reason: string;
 }
 
+/** Persist derived-work intent for floor-approved pages before any bytes change. */
+export type BeforeCompilePageWrites = (items: CompilePageWrite[]) => Promise<void>;
+
 /**
  * Plan a set of compile page writes, PARTITIONING them into the allowed plan and
  * the floor-skipped set. Each item goes through {@link planPageMutation} as a
@@ -127,16 +130,21 @@ async function planCompilePageWrites(
  *
  * @param root - Absolute project root.
  * @param items - The compiled pages to write.
- * @param opts - Optional injectable write primitive (for fault injection).
+ * @param opts - Optional write primitive and a beforeApply hook for persisting
+ *   derived-work intent after floor filtering but before the executor writes.
  * @returns The floor-skipped pages (allowed pages are written as a side effect).
  */
 export async function applyCompilePageWritesLocked(
   root: string,
   items: CompilePageWrite[],
-  opts: ApplyOptions = {},
+  opts: ApplyOptions & { beforeApply?: BeforeCompilePageWrites } = {},
 ): Promise<{ skipped: SkippedWrite[] }> {
   const { planned, skipped } = await planCompilePageWrites(root, items);
   if (planned.length > 0) {
+    if (opts.beforeApply) {
+      const blocked = new Set(skipped.map(({ item }) => item));
+      await opts.beforeApply(items.filter(item => !blocked.has(item)));
+    }
     await applyApprovedMutationsLocked(root, planned, opts);
   }
   return { skipped };

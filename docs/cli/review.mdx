@@ -155,6 +155,11 @@ The command re-reads and validates candidates under the lock before applying
 the valid subset. Missing or invalid candidates remain unapproved. Identical IDs
 are processed once. Conflicting pins for the same ID, or different candidates
 targeting the same page, are refused instead of overwriting each other.
+Target comparison uses lower/uppercase and canonical Unicode normalization on every
+platform, including case-sensitive filesystems and pages that do not yet exist.
+For example, `Alpha` and `alpha` in the same namespace conflict; their original
+paths are not renamed. Every contender remains pending, so input order cannot
+choose a winner. The same slug in different namespaces remains independent.
 
 Candidates that update source state must agree on the recorded hash of every
 shared source. If valid candidates contain different revisions of a source,
@@ -202,6 +207,24 @@ whole-store migration. If the existing store is legacy, incompatible with the
 active embedding configuration, or unreadable, the embedding refresh is deferred
 with a warning; run `llmwiki compile` for full reconciliation. Strict embedding
 mode still reports refresh failure as an error.
+
+Before changing links, the batch records affected page IDs in
+`.llmwiki/review-embedding-intent.json`, associated with the exact candidate
+snapshots. A reordered retry, or a retry of a retained subset, recovers that
+group's work even when its links were already written before an index or Map of
+Content failure. Other interrupted groups and unrelated pending embeddings are
+not retried. Entries are cleared only after refresh completes or durably hands
+off the work to the embedding retry queue. Explicitly disabling embeddings
+also permits completion; a later full compile reconciles missing vectors.
+
+The intent file is confined to the project and capped at **1 MiB**. Unreadable,
+invalid, oversized, or unwritable intent storage fails the operation and keeps
+candidates for retry. A full or unreadable embedding retry queue likewise fails
+batch finalization rather than forgetting unrecorded work. Repair storage or
+free retry capacity, then retry the retained candidates. Keep their snapshots
+unchanged until recovery finishes: editing or rejecting them does not erase
+their intent. If snapshots were removed, restore them from backup to complete
+recovery; do not delete the intent file merely to bypass a storage error.
 
 Typed candidates retain their profile, lifecycle, and
 precondition checks. A typed candidate entering a state with relation

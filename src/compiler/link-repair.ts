@@ -177,7 +177,11 @@ export async function repairLinks(root: string): Promise<CompilePageWrite[]> {
  *
  * @param root - Absolute project root the writes are confined under.
  * @returns Qualified IDs of the pages actually rewritten, excluding floor-skipped writes.
+ * @param beforeApply - Optional write-ahead callback for floor-approved page IDs.
  */
-export async function repairAndApplyLinks(root: string): Promise<PageId[]> {
-  return applyCompilePageWritesWithIdsLocked(root, await repairLinks(root));
+export async function repairAndApplyLinks(
+  root: string,
+  beforeApply?: (pageIds: PageId[]) => Promise<void>,
+): Promise<PageId[]> {
+  return applyCompilePageWritesWithIdsLocked(root, await repairLinks(root), beforeApply);
 }
