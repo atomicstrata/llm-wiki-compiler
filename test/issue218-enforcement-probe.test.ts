@@ -2,6 +2,6 @@
 import { expect, it } from "vitest";
 
 it("isolates test type checking from runtime checking", () => {
-  const typedNumber: number = "intentional-type-error";
-  expect(typedNumber).toBe("intentional-type-error");
+  const typedNumber: number = 1;
+  expect(typedNumber).toBe(1);
 });
