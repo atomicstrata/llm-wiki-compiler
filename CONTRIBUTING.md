@@ -102,8 +102,10 @@ that comparison locally, run `npm run typecheck:tests -- --base-ref origin/main`
 an explicit baseline migration and review; routine updates do not accept them.
 `--init` is only for initial baseline creation, not for clearing failures.
 
-Maintainers should make `test-typecheck` a required check after this workflow
-lands; adding the workflow does not itself change branch protection.
+`test-typecheck` is required by main's branch protection, alongside
+`codebase-health` and `build-and-test (24)`. Branches must be up to date before
+merging. Workflow changes must preserve the required check name or update
+branch protection in the same rollout.
 
 ## Submitting a Pull Request
 
