@@ -36,6 +36,7 @@ export type { PreparedEffectRefV1 } from "./operation-bundles/prepare-record.js"
 export type { SdkOperationOptions, WikiOperationSurface, RecordPreparationResultV1 } from "./sdk/operations-facade.js";
 export type { CreateWikiOptions, SdkCompileOptions, ContextPackOptions } from "./sdk/core-types.js";
 export type { IngestResult, CompileResult, QueryResult } from "./utils/types.js";
+export type { AnswerCitation, AnswerCitationReport } from "./citations/answer-types.js";
 export type { IngestTextInput } from "./commands/ingest.js";
 export type { LintSummary } from "./linter/types.js";
 export type { ContextPack } from "./context/types.js";

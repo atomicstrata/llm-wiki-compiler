@@ -20,15 +20,11 @@
  */
 
 import type MarkdownIt from "markdown-it";
-import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
 import { resolveBareSlug } from "./collect.js";
-import { slugify } from "../utils/markdown.js";
-import { escapeHtml, shouldDeferInlineRule } from "./markdown-it-helpers.js";
+import { registerWikilinkTokens } from "../wiki/wikilink-tokens.js";
+import { escapeHtml } from "./markdown-it-helpers.js";
 import type { PageId, ViewerPage } from "./types.js";
-
-const OPEN = "[";
-const CHAR_OPEN_BRACKET = 0x5b; // "["
 
 /** Internal context the parser and renderer share for a single render call. */
 interface WikilinkContext {
@@ -47,50 +43,22 @@ interface WikilinkContext {
  * the link's recursive inline parse runs.
  */
 export function registerWikilink(md: MarkdownIt, context: WikilinkContext): void {
-  md.inline.ruler.after("link", "wikilink", buildParser(context));
+  registerWikilinkTokens(md);
+  md.core.ruler.after("inline", "resolve_wikilinks", (state) => {
+    resolveWikilinkTokens(state.tokens, context);
+  });
   md.renderer.rules.wikilink = (tokens: Token[], idx: number): string =>
     renderWikilinkToken(tokens[idx]);
 }
 
-/** Build the inline parser closure capturing the snapshot context. */
-function buildParser(context: WikilinkContext) {
-  return function parseWikilink(state: StateInline, silent: boolean): boolean {
-    if (state.src.charCodeAt(state.pos) !== CHAR_OPEN_BRACKET) return false;
-    if (state.src.charCodeAt(state.pos + 1) !== CHAR_OPEN_BRACKET) return false;
-    if (shouldDeferInlineRule(state, silent)) return false;
-    const closeAt = state.src.indexOf("]]", state.pos + 2);
-    if (closeAt < 0) return false;
-    const inner = state.src.slice(state.pos + 2, closeAt);
-    // Markdown convention: forbid newlines inside a single wikilink span.
-    if (inner.includes("\n") || inner.includes(OPEN)) return false;
-    const { rawTarget, display } = splitTargetAndAlias(inner);
-    const slug = slugify(rawTarget.trim());
-    const resolved = resolveBareSlug(slug, context.pages);
-    pushWikilinkToken(state, resolved, slug, display);
-    state.pos = closeAt + 2;
-    return true;
-  };
-}
-
-/** Split the inside-brackets text into a raw target and a display label. */
-function splitTargetAndAlias(inner: string): { rawTarget: string; display: string } {
-  const pipe = inner.indexOf("|");
-  if (pipe < 0) return { rawTarget: inner, display: inner.trim() };
-  return {
-    rawTarget: inner.slice(0, pipe),
-    display: inner.slice(pipe + 1).trim() || inner.slice(0, pipe).trim(),
-  };
-}
-
-/** Push a single wikilink token onto the parser state. */
-function pushWikilinkToken(
-  state: StateInline,
-  resolved: PageId | null,
-  slug: string,
-  display: string,
-): void {
-  const token = state.push("wikilink", "", 0);
-  token.meta = { resolved, slug, display };
+/** Add snapshot resolution after recognition, preserving parsed-token metadata. */
+function resolveWikilinkTokens(tokens: Token[], context: WikilinkContext): void {
+  for (const token of tokens) {
+    if (token.type === "wikilink") {
+      token.meta.resolved = resolveBareSlug(token.meta.slug, context.pages);
+    }
+    if (token.children) resolveWikilinkTokens(token.children, context);
+  }
 }
 
 /** Render a wikilink token as either an anchor or a missing-link span. */

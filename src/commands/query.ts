@@ -29,6 +29,8 @@ import { slugFromPageId, type PageId } from "../utils/page-id.js";
 import type { PageRecordWithId } from "../utils/page-registry.js";
 import { selectRelevantPages, type SelectedPages } from "./query-selection.js";
 import { maybeSaveQueryPage } from "./query-save.js";
+import { buildQueryDocument } from "./query-document.js";
+import { printAnswerCitationReport, reportQueryAnswerCitations } from "./query-citation-report.js";
 // Re-exported so existing consumers/tests keep importing these from `query.js`
 // after the save path moved to `query-save.ts`.
 export { summarizeAnswer, maybeSaveQueryPage } from "./query-save.js";
@@ -192,7 +194,11 @@ export async function generateAnswer(
   const promptChunks = hydratedGrounding
     ? selection.chunks.filter((chunk) => hydratedIds.has(chunk.pageId)) : selection.chunks;
   const answer = await callAnswerLLM(question, pagesContent, promptChunks, options.onToken);
-  const saved = await maybeSaveQueryPage(root, question, answer, Boolean(options.save), Boolean(options.review));
+  // Advisory citation report over the canonical saved body: a snapshot for the
+  // caller, never permission to publish. Its failure preserves the answer.
+  const { document, body } = buildQueryDocument(question, answer, new Date().toISOString());
+  const citationFields = await reportQueryAnswerCitations(root, body);
+  const saved = await maybeSaveQueryPage(root, question, answer, Boolean(options.save), Boolean(options.review), document);
 
   // Preserve the public activity log for ordinary CLI/MCP questions, even when
   // not saved as pages. Explicitly scoped reads and review proposals retain
@@ -205,7 +211,7 @@ export async function generateAnswer(
     });
   }
 
-  return { answer, saved, ...resultFields };
+  return { answer, saved, ...resultFields, ...citationFields };
 }
 
 /**
@@ -230,7 +236,7 @@ function renderRefRecord({ pageId, record }: PageRecordWithId): string {
 
 /** Build the empty-pages result while preserving any debug/chunk context. */
 function buildEmptyResult(selection: SelectedPages, hydratedPairs?: PageRecordWithId[]): QueryResult {
-  return { answer: "", ...buildResultFields(selection, hydratedPairs) };
+  return { answer: "", ...buildResultFields(selection, hydratedPairs), answerCitations: { version: 1, citations: [] } };
 }
 
 /**
@@ -314,6 +320,8 @@ export default async function queryCommand(
     output.status("!", output.error("No matching pages found. Try refining your question."));
     return;
   }
+
+  if (result.answerCitations) printAnswerCitationReport(result.answerCitations);
 
   if (options.review) {
     // The proposal and its `review approve` instructions were already printed

@@ -12,11 +12,16 @@ import { realpath, lstat } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "./constants.js";
 
-/** `realpath` that returns null instead of throwing on missing/broken paths. */
-export async function safeRealpath(p: string): Promise<string | null> {
+/** Opt in to distinguishing genuine I/O faults from absent or unsafe paths. */
+export interface StrictIoOptions { strictIo?: boolean }
+
+/** `realpath` that returns null on missing/broken paths; legacy calls swallow faults. */
+export async function safeRealpath(p: string, opts: StrictIoOptions = {}): Promise<string | null> {
   try {
     return await realpath(p);
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (opts.strictIo && !["ENOENT", "ENOTDIR", "ELOOP"].includes(code ?? "")) throw err;
     return null;
   }
 }

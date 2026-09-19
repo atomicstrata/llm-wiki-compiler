@@ -26,7 +26,7 @@ import type { FileHandle } from "node:fs/promises";
 import { stat, realpath, lstat } from "fs/promises";
 import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import path from "path";
-import { safeRealpath, isInsideDir } from "./path-confine.js";
+import { safeRealpath, isInsideDir, type StrictIoOptions } from "./path-confine.js";
 
 /**
  * The discriminated outcome of {@link readCappedNoFollow}, distinguishing the
@@ -330,7 +330,7 @@ export async function readConfinedLeafBuffer(root: string, leaf: string, expecte
 }
 
 /** Test-only seam: lets a test interpose between `open` and the post-check. */
-export interface ReadConfinedPageOptions {
+export interface ReadConfinedPageOptions extends StrictIoOptions {
   /**
    * Invoked AFTER the handle is opened and `fstat`ed but BEFORE the post-open
    * `{dev,ino}` re-check. Tests use it to perform a deterministic filesystem
@@ -354,7 +354,7 @@ export type ConfinedPageRead =
   | { kind: "unreadable"; cause: NodeJS.ErrnoException };
 
 /** Classify an `open()` failure: a clean not-there vs a genuine I/O fault. */
-function classifyConfinedError(err: NodeJS.ErrnoException): ConfinedPageRead {
+function classifyConfinedError(err: NodeJS.ErrnoException): Exclude<ConfinedPageRead, { kind: "ok" }> {
   if (err instanceof NoFollowOpenError || err.code === "ENOENT" || err.code === "ELOOP") return { kind: "absent" };
   return typeof err.code === "string" ? { kind: "unreadable", cause: err } : { kind: "absent" };
 }
@@ -378,7 +378,22 @@ export async function readConfinedPageOutcome(
   expectedCanonicalDir: string,
   opts: ReadConfinedPageOptions = {},
 ): Promise<ConfinedPageRead> {
-  const precheck = await safeRealpath(capturedRealpath);
+  const result = await readConfinedPageWith(capturedRealpath, expectedCanonicalDir, (handle) => handle.readFile("utf-8"), opts);
+  return result.kind === "ok" ? { kind: "ok", body: result.value } : result;
+}
+
+/**
+ * Reuse the page read's handle-bound confinement proof with a caller-selected
+ * reader (e.g. metadata only). The callback borrows the handle; this helper
+ * closes it in finally. Strict I/O is opt-in so existing read defaults remain.
+ */
+export async function readConfinedPageWith<T>(
+  capturedRealpath: string,
+  expectedCanonicalDir: string,
+  read: (handle: FileHandle) => Promise<T>,
+  opts: ReadConfinedPageOptions = {},
+): Promise<{ kind: "ok"; value: T } | Exclude<ConfinedPageRead, { kind: "ok" }>> {
+  const precheck = await safeRealpath(capturedRealpath, opts);
   if (precheck !== capturedRealpath || !isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
   let handle: FileHandle;
   try {
@@ -390,8 +405,8 @@ export async function readConfinedPageOutcome(
     const opened = await handle.stat();
     if (!opened.isFile()) return { kind: "absent" };
     if (opts.afterOpenForTest) await opts.afterOpenForTest();
-    if (!(await stillBoundToHandle(capturedRealpath, expectedCanonicalDir, opened))) return { kind: "absent" };
-    return { kind: "ok", body: await handle.readFile("utf-8") };
+    if (!(await stillBoundToHandle(capturedRealpath, expectedCanonicalDir, opened, opts))) return { kind: "absent" };
+    return { kind: "ok", value: await read(handle) };
   } catch (err) {
     return classifyConfinedError(err as NodeJS.ErrnoException);
   } finally {
@@ -424,8 +439,9 @@ async function stillBoundToHandle(
   capturedRealpath: string,
   expectedCanonicalDir: string,
   opened: { dev: bigint | number; ino: bigint | number },
+  opts: StrictIoOptions = {},
 ): Promise<boolean> {
-  const real = await safeRealpath(capturedRealpath);
+  const real = await safeRealpath(capturedRealpath, opts);
   if (real === null || !isInsideDir(real, expectedCanonicalDir)) return false;
   const post = await stat(real);
   return post.dev === opened.dev && post.ino === opened.ino;

@@ -28,6 +28,31 @@ llmwiki query "What is multi-head attention and how does it differ from self-att
 | `--lang <code>` | Generate the answer in the specified language (e.g. `zh-CN`, `ja`, `Japanese`). Wins over `LLMWIKI_OUTPUT_LANG`. |
 | `--debug` | Print a retrieval detail snapshot after the answer, showing which pages and chunks were selected, their scores, and whether BM25 reranking changed the order. |
 
+## Answer citations
+
+After the answer finishes streaming, `query` reports unique recognized body wikilinks in first-occurrence order:
+
+```text
+Answer citations: 1 resolved, 1 pending, 1 broken
+resolved: alpha -> concepts/alpha
+pending: beta
+broken: missing
+```
+
+- **Resolved** means the target matches a retained concept or query page. The report shows its qualified identity, such as `concepts/alpha`. Resolution checks exact concept names, exact query names, concept aliases, then query aliases.
+- **Pending** means no retained page resolves the target, but an admitted review candidate has that exact eventual concept/query slug. It does not mean the page is published. Typed candidates and candidate aliases do not qualify.
+- **Broken** means neither retained resolution nor an eligible pending candidate matches. Typed-only pages do not resolve through the current bare-wikilink contract.
+
+Targets are normalized using the viewer's wikilink rules: `[[Alpha|label]]` reports `alpha`, and repeated targets appear once. Code, escaped markers, and wikilinks inside Markdown link text are excluded. Generated title and summary frontmatter are excluded; the original streamed answer stays unchanged.
+
+If collection succeeds and the answer has no recognized links, the CLI prints `Answer citations: none recognized (not a factual-support assessment)`. Neither a resolved target nor an empty report verifies that the answer is factually supported. An empty answer retains the existing no-match message.
+
+The report uses a fresh, unlocked snapshot collected after generation and before saving. Files may change afterward. It adds no model request and does not change save eligibility. Without `--save`, query leaves page and review-candidate bytes unchanged; existing query activity logging still runs.
+
+Citation collection reads retained-page frontmatter incrementally, stopping at the closing fence for complete headers, including normal headers within 64 KiB. Small reads avoid loading retained body bytes; they are not a speed optimization and can require many filesystem calls. Late or missing closing fences have no fixed byte bound and may require reading the whole file. Review-candidate JSON is still read in full. Malformed candidates are skipped with the existing warnings.
+
+If citation collection fails, the CLI prints `Answer citations: unavailable` with the error diagnostic on stderr. The generated answer is preserved, and any requested save and activity logging proceed under their existing rules. The structured result omits `answerCitations`; an unavailable report is never presented as a successful empty report. Generation and save failures still propagate normally.
+
 ## How retrieval works
 
 `llmwiki query` uses a two-step hybrid retrieval strategy:

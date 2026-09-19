@@ -214,8 +214,27 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   - `options.save` - persist the answer as a page in `wiki/queries/` and rebuild the index immediately; future queries use it as context.
   - `options.debug` - include retrieval detail (selected chunks, scores) in the result.
 
-  Returns `QueryResult` with `answer`, `pages`, and (when `debug` is set) `debug` fields.
+  Returns `QueryResult` with `answer`, legacy display slugs in `selectedPages`, qualified grounding identities in `pageIds` and `refs`, `reasoning`, and `answerCitations` when collection succeeds. When requested, `debug` contains retrieval details; `saved` identifies a saved query.
 </ParamField>
+
+`answerCitations` is a version-1 report of unique, normalized answer-body wikilink targets in first-occurrence order. Successful collection returns it, including `{ version: 1, citations: [] }` when no links are recognized; a query with no grounding also returns an empty report. If collection fails, the field is absent, meaning citations are unavailable, while the generated answer, requested save, and activity logging are preserved under their existing rules. SDK calls remain quiet. The optional TypeScript field also keeps older `QueryResult` producers compatible. Import `AnswerCitation` and `AnswerCitationReport` from the package entry point.
+
+```ts
+const result = await wiki.query("How does attention work?");
+if (!result.answerCitations) {
+  console.log("Answer citations: unavailable");
+} else {
+  for (const citation of result.answerCitations.citations) {
+    if (citation.status === "resolved") console.log(citation.target, citation.pageId);
+    else if (citation.status === "pending") console.log(citation.target, citation.candidateIds);
+    else console.log("Broken target:", citation.target);
+  }
+}
+```
+
+Resolved entries carry a retained concept/query `pageId`. Pending entries carry all eligible matching review-candidate IDs, deduplicated and sorted; they do not imply publication. Typed candidates, typed-only pages, and pending aliases do not extend bare-link resolution. Generated title/summary metadata is excluded from the report. An empty report is not a factual-support assessment.
+
+Reports are fresh, unlocked snapshots after generation and before any requested save, and do not change save eligibility or add provider requests. Without saving, page/candidate bytes stay unchanged while existing activity logging continues. Collection avoids retained body bytes for complete frontmatter, but small reads can cost more filesystem calls, late/missing fences may require a whole-file read, and candidate JSON is read in full. Citation collection failure omits the report; generation and save failures still reject the query. See [answer citation classifications and limits](/cli/query#answer-citations).
 
 <ParamField body="wiki.search(question)" type="Promise<PageRecord[]>">
   Select and hydrate the most relevant page records for a question. Uses semantic embeddings when available, falls back to LLM-based index selection. **Requires LLM credentials.**

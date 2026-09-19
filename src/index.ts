@@ -51,6 +51,7 @@ export type { CreateWikiOptions, SdkCompileOptions, ContextPackOptions } from "@
 // Result/input types for the Wiki facade methods, re-exported so typed
 // consumers don't have to deep-import from internal module paths.
 export type { IngestResult, CompileResult, QueryResult } from "@atomicstrata/llmwiki-core";
+export type { AnswerCitation, AnswerCitationReport } from "@atomicstrata/llmwiki-core";
 export type { IngestTextInput } from "@atomicstrata/llmwiki-core";
 export type { LintSummary } from "@atomicstrata/llmwiki-core";
 export type { ContextPack } from "@atomicstrata/llmwiki-core";

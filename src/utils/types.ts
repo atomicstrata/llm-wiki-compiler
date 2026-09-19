@@ -10,6 +10,7 @@ import type { ConnectorProvenance } from "../connectors/types.js";
 import type { TrustDecision } from "../trust/decision.js";
 import type { PageId } from "./page-id.js";
 import type { SelectedPageRef } from "../search/retrieval.js";
+import type { AnswerCitationReport } from "../citations/answer-types.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -369,6 +370,11 @@ export interface QueryWarning {
 /** Structured result returned by the query pipeline. */
 export interface QueryResult {
   answer: string;
+  /**
+   * Link diagnostics, not factual support. Omitted when collection fails (or by
+   * older producers); an available report with no recognized links has citations: [].
+   */
+  answerCitations?: AnswerCitationReport;
   /**
    * Legacy DERIVED display field: the bare page-part of each selected
    * {@link pageIds} entry (via `slugFromPageId`). Kept populated for back-compat

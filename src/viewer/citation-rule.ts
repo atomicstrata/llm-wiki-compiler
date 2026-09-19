@@ -29,12 +29,9 @@ import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
 import path from "path";
 import { pathToFileURL } from "url";
-import { extractClaimCitations } from "../utils/markdown.js";
-import { escapeHtml, shouldDeferInlineRule } from "./markdown-it-helpers.js";
+import { registerCitationTokens } from "../wiki/citation-tokens.js";
+import { escapeHtml } from "./markdown-it-helpers.js";
 import type { ClaimCitation, SourceSpan } from "../utils/types.js";
-
-const CHAR_CARET = 0x5e; // "^"
-const CHAR_OPEN_BRACKET = 0x5b; // "["
 
 /** Shared context the parser and renderer use to decorate each chip. */
 interface CitationContext {
@@ -63,26 +60,9 @@ interface ChipMeta {
  * recursive parse blocked by the `linkLevel` guard).
  */
 export function registerCitation(md: MarkdownIt, context: CitationContext): void {
-  md.inline.ruler.after("link", "citation", buildParser(context));
+  registerCitationTokens(md, (state, citations) => pushChipTokens(state, citations, context));
   md.renderer.rules.citation = (tokens: Token[], idx: number): string =>
     renderCitationToken(tokens[idx]);
-}
-
-/** Build the parser closure capturing the citation context. */
-function buildParser(context: CitationContext) {
-  return function parseCitation(state: StateInline, silent: boolean): boolean {
-    if (state.src.charCodeAt(state.pos) !== CHAR_CARET) return false;
-    if (state.src.charCodeAt(state.pos + 1) !== CHAR_OPEN_BRACKET) return false;
-    if (shouldDeferInlineRule(state, silent)) return false;
-    const closeAt = state.src.indexOf("]", state.pos + 2);
-    if (closeAt < 0) return false;
-    const inner = state.src.slice(state.pos + 2, closeAt);
-    if (inner.includes("\n")) return false;
-    const citations = extractClaimCitations(`^[${inner}]`);
-    pushChipTokens(state, citations, context);
-    state.pos = closeAt + 1;
-    return true;
-  };
 }
 
 /** Emit one `citation` token per parsed span (multi-source marker → multiple chips). */
@@ -189,4 +169,3 @@ function formatChipLabel(meta: ChipMeta): string {
   }
   return `${meta.file}:${meta.lineStart}-${meta.lineEnd}`;
 }
-

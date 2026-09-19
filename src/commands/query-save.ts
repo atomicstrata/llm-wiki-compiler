@@ -11,7 +11,9 @@
 
 import path from "path";
 import { readFile } from "fs/promises";
-import { atomicWrite, slugify, buildFrontmatter } from "../utils/markdown.js";
+import { atomicWrite, slugify, parseFrontmatter } from "../utils/markdown.js";
+import { buildQueryDocument, summarizeAnswer } from "./query-document.js";
+export { summarizeAnswer } from "./query-document.js";
 import { sha256Text } from "../connectors/hash.js";
 import { writeCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
@@ -25,37 +27,6 @@ import { releaseLock } from "../utils/lock.js";
 import * as output from "../utils/output.js";
 
 /**
- * Generate a one-line summary from the answer for use in the wiki index.
- * Takes the first sentence (up to 120 chars) so the page-selection LLM
- * has retrieval signal beyond just the title.
- * @param answer - The full answer text.
- * @returns A short summary string.
- */
-export function summarizeAnswer(answer: string): string {
-  const firstLine = answer.trim().split(/\n/)[0] ?? "";
-  const firstSentence = firstLine.split(/(?<=[.!?])\s/)[0] ?? firstLine;
-  return firstSentence.slice(0, 120);
-}
-
-/**
- * Build the full query-page document — `type: query` frontmatter plus the
- * answer body — shared by the direct-write and the `--review` proposal paths so
- * an approved candidate lands byte-identically to what a direct save would write.
- * @param question - The original question (page title).
- * @param answer - The generated answer body.
- * @returns The complete markdown document (frontmatter + answer).
- */
-function buildQueryDocument(question: string, answer: string): string {
-  const frontmatter = buildFrontmatter({
-    title: question,
-    summary: summarizeAnswer(answer),
-    type: "query",
-    createdAt: new Date().toISOString(),
-  });
-  return `${frontmatter}\n\n${answer}\n`;
-}
-
-/**
  * Save a query answer as a wiki page in the queries/ directory,
  * then regenerate the wiki index so the answer is immediately retrievable.
  *
@@ -67,13 +38,13 @@ function buildQueryDocument(question: string, answer: string): string {
  *
  * @param root - Absolute path to the project root directory.
  * @param question - The original question used as the page title.
- * @param answer - The generated answer body.
+ * @param document - The canonical serialized query document.
  */
-async function saveQueryPageLocked(root: string, question: string, answer: string): Promise<string> {
+async function saveQueryPageLocked(root: string, question: string, document: string): Promise<string> {
   const slug = slugify(question);
   const filePath = path.join(root, QUERIES_DIR, `${slug}.md`);
 
-  await atomicWrite(filePath, buildQueryDocument(question, answer));
+  await atomicWrite(filePath, document);
 
   output.status("+", output.success(`Saved query → ${output.source(filePath)}`));
 
@@ -112,7 +83,7 @@ export function setQuerySaveTestHookForTest(hook: (() => Promise<void>) | undefi
  * profile-enabled projects — a review candidate IS the trust-routed destination.
  * @param root - Absolute project root directory.
  * @param question - The original question (page title).
- * @param answer - The generated answer body.
+ * @param document - The canonical serialized query document.
  * @returns The proposed candidate's id (the handle `review approve` takes).
  */
 /** A CLOSED precondition on the query page: its digest, or an explicit expect-absent. */
@@ -134,7 +105,7 @@ async function captureQueryPrecondition(root: string, slug: string): Promise<Que
   }
 }
 
-async function proposeQueryPageLocked(root: string, question: string, answer: string): Promise<string> {
+async function proposeQueryPageLocked(root: string, question: string, document: string): Promise<string> {
   const slug = slugify(question);
   // Capture the target page's state as a CLOSED precondition so approval REFUSES
   // if the page was edited OR created between this proposal and approval, rather
@@ -143,9 +114,9 @@ async function proposeQueryPageLocked(root: string, question: string, answer: st
   const candidate = await writeCandidate(root, {
     title: question,
     slug,
-    summary: summarizeAnswer(answer),
+    summary: summarizeAnswer(parseFrontmatter(document).body),
     sources: [],
-    body: buildQueryDocument(question, answer),
+    body: document,
     targetDirectory: "queries",
     reviewMode: "forced",
     heldReasons: [{ code: "manual-review-requested" }],
@@ -173,6 +144,8 @@ async function proposeQueryPageLocked(root: string, question: string, answer: st
  * @param question - The original question (page title).
  * @param answer - The generated answer body.
  * @param save - Whether `--save` was requested.
+ * @param review - Whether `--review` was requested (propose instead of write).
+ * @param document - Already prepared canonical document, when reporting preceded saving.
  * @returns The saved slug, or `undefined` when not saved (not requested or disabled).
  */
 export async function maybeSaveQueryPage(
@@ -181,16 +154,20 @@ export async function maybeSaveQueryPage(
   answer: string,
   save: boolean,
   review = false,
+  document?: string,
 ): Promise<string | undefined> {
   if (!save) return undefined;
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    // One canonical document serves both destinations so a proposal approved
+    // later lands byte-identically to what a direct save would have written.
+    const canonical = document ?? buildQueryDocument(question, answer, new Date().toISOString()).document;
     // The `--review` path proposes a candidate rather than writing wiki/, so it
     // is NOT subject to the direct-write profile gate — the candidate IS the
     // trust-routed destination — and it returns the candidate id, not a slug.
     // `return await` so a rejection settles INSIDE the try — the finally then
     // releases the lock in order, with no unhandled-rejection window.
-    if (review) return await proposeQueryPageLocked(root, question, answer);
+    if (review) return await proposeQueryPageLocked(root, question, canonical);
     if (await loadNonDefaultProfile(root)) {
       output.status(
         "!",
@@ -203,7 +180,7 @@ export async function maybeSaveQueryPage(
       return undefined;
     }
     await afterDefaultProfileCheckForTest?.();
-    return await saveQueryPageLocked(root, question, answer);
+    return await saveQueryPageLocked(root, question, canonical);
   } finally {
     await releaseLock(root);
   }
