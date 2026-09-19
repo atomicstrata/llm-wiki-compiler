@@ -52,9 +52,45 @@ function classify(page: PageFreshnessInput, snapshot: FreshnessSnapshot): Freshn
   return "fresh";
 }
 
+/**
+ * Reverse-index cache keyed by snapshot object identity, so the inversion in
+ * {@link buildOwnersIndex} happens once per run rather than once per page.
+ */
+const ownersIndexCache = new WeakMap<FreshnessSnapshot, Map<string, SourceFreshness[]>>();
+
 /** Sources whose recorded concept set includes this page's slug (state is authoritative). */
 function ownersOf(slug: string, snapshot: FreshnessSnapshot) {
-  return Object.values(snapshot.sources).filter((s) => s.concepts.includes(slug));
+  let index = ownersIndexCache.get(snapshot);
+  if (!index) {
+    index = buildOwnersIndex(snapshot);
+    ownersIndexCache.set(snapshot, index);
+  }
+  return index.get(slug) ?? [];
+}
+
+/**
+ * Reverse index of the freshness snapshot: concept slug → owning sources.
+ *
+ * The forward lookup (`Object.values(sources).filter(s => s.concepts.includes(slug))`)
+ * costs one pass over every source for every page, so a 2356-page wiki with 289
+ * sources pays ~680k `Array.includes` calls plus 2356 array allocations per
+ * snapshot build — the dominant cost of `llmwiki context` on a large wiki.
+ * Inverting the map once turns each per-page lookup into a hash lookup.
+ *
+ * Cached per snapshot object (WeakMap), so the inversion happens once per run
+ * and the cache entry goes away with the snapshot. Requires the caller to treat
+ * the snapshot as immutable, which `buildFreshnessSnapshot` already does.
+ */
+function buildOwnersIndex(snapshot: FreshnessSnapshot): Map<string, SourceFreshness[]> {
+  const index = new Map<string, SourceFreshness[]>();
+  for (const source of Object.values(snapshot.sources)) {
+    for (const slug of source.concepts) {
+      const owners = index.get(slug);
+      if (owners) owners.push(source);
+      else index.set(slug, [source]);
+    }
+  }
+  return index;
 }
 
 /**
