@@ -50,6 +50,8 @@ export {
 } from "./rules-crosslinks.js";
 
 /** Minimum body length (in characters) for a page to be considered non-empty. */
+/** Rule id for a page whose body is too short to carry a claim; the profile registry declares it by this name. */
+export const EMPTY_PAGE_RULE = "empty-page";
 const MIN_BODY_LENGTH = 50;
 
 /** Pattern matching [[Wikilink Title]] references in markdown content. */
@@ -252,7 +254,7 @@ export function checkPageEmpty(page: {
   if (!hasTitle || !isBodyEmpty) return [];
   return [
     {
-      rule: "empty-page",
+      rule: EMPTY_PAGE_RULE,
       severity: "warning",
       file: page.filePath,
       message: `Page body is empty or too short (< ${MIN_BODY_LENGTH} chars)`,

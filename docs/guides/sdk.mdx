@@ -259,6 +259,22 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   **Performance note:** same per-call corpus-hashing cost as `status()`. Avoid hot loops.
 </ParamField>
 
+<ParamField body="wiki.lintByTier()" type="Promise<TieredLintReportV1>">
+  The same check as `lint()`, split by the kind of claim each finding makes. `deterministic` holds facts the checker can prove; `providerJudgement` holds a model's stored assessment, worth reading but never authoritative; `derivedView` holds regenerable artifacts that are out of date. `deterministicErrors` counts only deterministic errors, the number that means something is actually wrong. No credentials required, no provider request, and one collection pass.
+
+  ```ts
+  const report = await wiki.lintByTier();
+  console.log(report.deterministicErrors, report.deterministic);
+  console.log(report.providerJudgement);
+  ```
+
+  Findings are the same objects `lint()` returns, in the same order within each tier; none gains a `tier` field. `low-confidence`, `contradicted-page`, and `excess-inferred-paragraphs` interpret stored judgments or citation coverage and are filed under `providerJudgement`. Profile confidence checks require a declared numeric field and flag finite values strictly below `0.5`; missing required or invalid values remain schema findings, and an absent optional value produces no confidence judgment. See [profile confidence checks](/cli/lint-eval#profile-confidence). These labels do not prove model authorship or validate factual support.
+
+  Import `TieredLintReportV1` and `LintTierV1` from `llm-wiki-compiler` when you need to name these types.
+
+  **Performance note:** same per-call corpus-hashing cost as `lint()`. Avoid hot loops.
+</ParamField>
+
 <ParamField body="wiki.runEval({ mode, record? })" type="Promise<EvalReport>">
   Run the wiki quality eval harness.
 

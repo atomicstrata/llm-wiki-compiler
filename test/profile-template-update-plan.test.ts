@@ -29,6 +29,24 @@ describe("planTemplateUpdate", () => {
     expect(plan.reasons).toContainEqual(expect.objectContaining({ kind: "drift" }));
   });
 
+  it.each([0.3, 0.7])("accepts declared confidence %s without changing the stored score", async (confidence) => {
+    const { root, profile } = await confidenceFixture(confidence);
+    const pagePath = path.join(root, "wiki/items/one.md");
+    const before = await readFile(pagePath, "utf8");
+    const plan = await planTemplateUpdate(root, profile, pkg(profile, "1.0.0"), pkg(profile, "1.1.0"));
+    expect(plan).toMatchObject({ compatible: true, reasons: [] });
+    expect(await readFile(pagePath, "utf8")).toBe(before);
+  });
+
+  it("refuses a confidence field violation despite its warning severity", async () => {
+    const { root, profile } = await confidenceFixture("0.3");
+    const plan = await planTemplateUpdate(root, profile, pkg(profile, "1.0.0"), pkg(profile, "1.1.0"));
+    expect(plan.compatible).toBe(false);
+    expect(plan.reasons).toContainEqual(expect.objectContaining({
+      kind: "lint", message: expect.stringMatching(/^profile\/field-violation:/),
+    }));
+  });
+
   it("refuses template, publisher, source, and profile identity substitution", async () => {
     const root = await seededRoot("update-plan-identity");
     const profile = baseProfile();
@@ -129,6 +147,16 @@ async function seededRoot(name: string): Promise<string> {
   await mkdir(path.join(root, "wiki/items"), { recursive: true });
   await writeFile(path.join(root, "wiki/items/one.md"), "---\ntitle: One\n---\n\nUseful body.\n", "utf8");
   return root;
+}
+
+/** Seed a declared numeric field with either a real score or an invalid string. */
+async function confidenceFixture(confidence: number | string): Promise<{ root: string; profile: ProfilePack }> {
+  const root = await seededRoot("update-plan-confidence");
+  const profile = baseProfile();
+  profile.entities.items.fields = { ...profile.entities.items.fields, confidence: { type: "number" } };
+  await writeFile(path.join(root, "wiki/items/one.md"),
+    `---\ntitle: One\nconfidence: ${JSON.stringify(confidence)}\n---\n\nUseful body.\n`, "utf8");
+  return { root, profile };
 }
 
 function baseProfile(requirePriority = false): ProfilePack {

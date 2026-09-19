@@ -38,6 +38,7 @@ export type { CreateWikiOptions, SdkCompileOptions, ContextPackOptions } from ".
 export type { IngestResult, CompileResult, QueryResult } from "./utils/types.js";
 export type { IngestTextInput } from "./commands/ingest.js";
 export type { LintSummary } from "./linter/types.js";
+export type { TieredLintReportV1, LintTierV1 } from "./linter/tiers.js";
 export type { ContextPack } from "./context/types.js";
 export type { EvalReport } from "./eval/types.js";
 export type { WikiStatus } from "./status/collect.js";

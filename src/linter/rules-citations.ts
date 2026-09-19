@@ -22,6 +22,9 @@ import {
 } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { LintResult } from "./types.js";
+
+/** Rule id for a claim citation that does not parse; the profile registry declares it by this name. */
+export const MALFORMED_CLAIM_CITATION_RULE = "malformed-claim-citation";
 import {
   CITATION_PATTERN,
   collectAllPages,
@@ -174,7 +177,7 @@ export function checkPageMalformedCitations(content: string, filePath: string): 
     for (const part of splitCitationMarker(captured)) {
       if (!isMalformedCitationEntry(part)) continue;
       results.push({
-        rule: "malformed-claim-citation",
+        rule: MALFORMED_CLAIM_CITATION_RULE,
         severity: "error",
         file: filePath,
         message: `Malformed claim citation ^[${captured}] — expected file.md, file.md:N-N, file.md:N,N-M,…, or file.md#LN-LN`,

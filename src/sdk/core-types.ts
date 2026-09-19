@@ -13,6 +13,7 @@ import type { SdkOperationOptions, WikiOperationSurface } from "./operations-fac
 import type { CompileResult, IngestResult, QueryResult } from "../utils/types.js";
 import type { IngestTextInput } from "../commands/ingest.js";
 import type { LintSummary } from "../linter/types.js";
+import type { TieredLintReportV1 } from "../linter/tiers.js";
 import type { ContextPack } from "../context/types.js";
 import type { EvalReport } from "../eval/types.js";
 import type { WikiStatus } from "../status/collect.js";
@@ -382,6 +383,14 @@ export interface WikiCore {
    * hot loop; an mtime-keyed cache is planned for v1.x.
    */
   lint(): Promise<LintSummary>;
+  /**
+   * The same check as {@link lint}, split by the KIND of claim each finding
+   * makes: `deterministic` facts, `providerJudgement` (a model's stored
+   * assessment, never grounds for failing on its own), and `derivedView`
+   * (regenerable artifacts that are out of date). One collection pass; no LLM
+   * required. Same per-call cost as `lint()`.
+   */
+  lintByTier(): Promise<TieredLintReportV1>;
   /**
    * Build a v1 context pack for agent consumption. Lexical retrieval works
    * credential-free; semantic retrieval is opportunistic (skipped when no

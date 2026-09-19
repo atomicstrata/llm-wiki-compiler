@@ -35,7 +35,7 @@
  * are not page-scoped and carry none.
  */
 
-import { collectEntityPages, type EntityProblem, type EntityProblemKind } from "./collect.js";
+import { collectEntityPages, type EntityProblem } from "./collect.js";
 import { checkPageEmpty, checkPageMalformedCitations } from "../linter/rules.js";
 import { checkRelationStore, checkStandingRelationPreconditions } from "./relation-lint.js";
 import { checkArtifactRefs } from "./artifact-lint.js";
@@ -43,17 +43,22 @@ import { checkEventChain } from "./event-lint.js";
 import { lifecycleStateSet } from "./lifecycle.js";
 import type { ProfilePack, EntityPage, LifecycleDef } from "./types.js";
 import type { LintResult } from "../linter/types.js";
+import { checkDeclaredConfidence } from "./lint-confidence.js";
+import { INVALID_LIFECYCLE_STATE_RULE, PROBLEM_SEVERITY, profileRuleTiers, type ProfileRuleTier } from "./lint-registry.js";
 
-/** Rule id for a typed entity page whose lifecycle-field value is off the FSM. */
-const INVALID_LIFECYCLE_STATE_RULE = "invalid-lifecycle-state";
+/** One real entity collection shared by all profile checks. */
+export interface ProfileLintContext {
+  root: string;
+  profile: ProfilePack;
+  pages: EntityPage[];
+  problems: EntityProblem[];
+}
 
-/** Severity for each problem kind: identity/structure errors, contract warnings. */
-const PROBLEM_SEVERITY: Record<EntityProblemKind, LintResult["severity"]> = {
-  "invalid-directory": "error",
-  "non-slug-safe-filename": "error",
-  "slug-mismatch": "error",
-  "field-violation": "warning",
-};
+/** Findings and declarations from the same profile evaluation. */
+export interface ProfileLintCollection {
+  results: LintResult[];
+  ruleTiers: ProfileRuleTier[];
+}
 
 /**
  * Map one structured collector problem to a `LintResult`. The `file` is the
@@ -84,8 +89,8 @@ function problemToResult(problem: EntityProblem): LintResult {
  * Deliberately EXCLUDED: schema-cross-link (needs the schema), stale/orphaned
  * (need source/freshness state), duplicate-concept and broken-wikilink (need
  * the concepts/queries page set), broken-citation (needs the sources/ dir),
- * and the confidence/contradiction/inferred rules (assume default frontmatter
- * provenance). Applying any of those to arbitrary entity pages would misreport.
+ * and the default confidence/contradiction/inferred rules (assume default
+ * frontmatter provenance). Declared numeric confidence is checked separately.
  *
  * Each finding is tagged with the page's `entityType`.
  */
@@ -106,6 +111,7 @@ function announcedTitle(page: EntityPage): string | undefined {
   return typeof declared === "string" ? declared : undefined;
 }
 
+/** Reuse only content rules independent of default page semantics. */
 function lintEntityPageContent(page: EntityPage): LintResult[] {
   const findings = [
     ...checkPageEmpty({ title: announcedTitle(page), body: page.body, filePath: page.filePath }),
@@ -155,15 +161,28 @@ export async function lintProfileEntities(
   root: string,
   profile: ProfilePack,
 ): Promise<LintResult[]> {
+  return (await collectProfileLintFindings(await collectProfileLintInput(root, profile))).results;
+}
+
+/** Collect entities once so tier requests never perform a second entity walk. */
+export async function collectProfileLintInput(root: string, profile: ProfilePack): Promise<ProfileLintContext> {
   const { pages, problems } = await collectEntityPages(root, profile);
+  return { root, profile, pages, problems };
+}
+
+/** Run checks in legacy order, adding declared confidence within the page pass. */
+export async function collectProfileLintFindings(input: ProfileLintContext): Promise<ProfileLintCollection> {
+  const { root, profile, pages, problems } = input;
   const results: LintResult[] = problems.map(problemToResult);
   for (const page of pages) {
     results.push(...lintEntityPageContent(page));
     results.push(...checkLifecycleStates(page, profile.entities[page.entityType]?.lifecycle));
+    const definition = profile.entities[page.entityType];
+    if (definition) results.push(...checkDeclaredConfidence(page, definition));
   }
   results.push(...(await checkRelationStore(root, pages, profile)));
   results.push(...(await checkStandingRelationPreconditions(root, profile)));
   results.push(...(await checkEventChain(root)));
   results.push(...(await checkArtifactRefs(root, pages, profile)));
-  return results;
+  return { results, ruleTiers: profileRuleTiers(profile) };
 }

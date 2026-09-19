@@ -29,9 +29,9 @@ import { buildFreshnessSnapshot } from "../freshness/index.js";
 import type { FreshnessSnapshot } from "../freshness/types.js";
 import { loadProfile } from "../profile/load.js";
 import {
-  tieredReport, type LintTierV1, type TieredLintReportV1, type TieredResultGroupV1,
+  groupByDeclaredTier, tieredReport, type LintTierV1, type TieredLintReportV1, type TieredResultGroupV1,
 } from "./tiers.js";
-import { lintProfileEntities } from "../profile/lint.js";
+import { collectProfileLintFindings, collectProfileLintInput } from "../profile/lint.js";
 import type { PageScope } from "./rules-shared.js";
 
 /** Rule-only lint checks that don't depend on the schema layer. */
@@ -97,12 +97,20 @@ function summarize(results: LintResult[]): LintSummary {
  * profile. A default/built-in profile (`loadedFrom === null`) returns the
  * default results UNCHANGED, so the default lint output stays byte-identical.
  */
-async function profileGroup(root: string): Promise<TieredResultGroupV1[]> {
+async function profileGroups(root: string, defaultResults: readonly LintResult[]): Promise<TieredResultGroupV1[]> {
   const { profile, loadedFrom } = await loadProfile(root);
   if (loadedFrom === null) return [];
-  // Profile entity findings are structural and field-level: a declared required
-  // field is present or it is not, so they are facts rather than judgements.
-  return [{ tier: "deterministic", results: await lintProfileEntities(root, profile) }];
+  // One entity collection feeds every profile check, including the declared
+  // numeric confidence judgement, so a tiered view never walks entities twice.
+  const collected = await collectProfileLintFindings(await collectProfileLintInput(root, profile));
+  // Only an overlapping default confidence finding wins; unrelated duplicates survive.
+  const defaultConfidenceFiles = new Set(
+    defaultResults.filter((r) => r.rule === "low-confidence").map((r) => r.file),
+  );
+  const results = collected.results.filter((r) => r.rule !== "low-confidence" || !defaultConfidenceFiles.has(r.file));
+  // Profile rule ids are declared beside their emitters; grouping preserves the
+  // emission order and refuses any id nobody declared.
+  return groupByDeclaredTier(results, collected.ruleTiers);
 }
 
 /**
@@ -124,7 +132,8 @@ async function collectTieredGroups(root: string, scope: PageScope = "generic"): 
     Promise.all(RULES_WITH_SCHEMA.map(async (entry) => ({ tier: entry.tier, results: await entry.rule(root, schema) }))),
     Promise.all(RULES_WITH_FRESHNESS.map(async (entry) => ({ tier: entry.tier, results: await entry.rule(root, freshness) }))),
   ]);
-  return [...plain, ...schemaGroups, ...freshnessGroups, ...await profileGroup(root)];
+  const defaultResults = [...plain, ...schemaGroups, ...freshnessGroups];
+  return [...defaultResults, ...await profileGroups(root, defaultResults.flatMap((group) => group.results))];
 }
 
 /**

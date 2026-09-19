@@ -28,7 +28,7 @@ import { withQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
 import { generateAnswer } from "../commands/query.js";
-import { lint } from "../linter/index.js";
+import { lint, lintByTier } from "../linter/index.js";
 import { buildContextPack } from "../context/build.js";
 import { exportJson } from "../commands/export.js";
 import { runEval, DEFAULT_SAMPLE_SIZE } from "../eval/index.js";
@@ -130,6 +130,8 @@ export function createWikiCoreAtRoot(root: string, options: CreateWikiOptions): 
     status: () => runQuiet(() => collectStatus(root)),
 
     lint: () => runQuiet(() => lint(root)),
+
+    lintByTier: () => runQuiet(() => lintByTier(root)),
 
     // buildContextPack uses `prompt`/`budget` field names (NOT question/tokenBudget).
     // Semantic retrieval is opportunistic: falls back to lexical when no embeddings

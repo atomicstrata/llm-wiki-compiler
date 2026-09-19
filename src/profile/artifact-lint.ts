@@ -125,6 +125,13 @@ async function checkRelationArtifactRefs(root: string, profile: ProfilePack): Pr
 const REQUIRED_ARTIFACT_MISSING_RULE = "gated-page-required-artifact-missing";
 /** Rule id for a live gated page whose required-field ref pins the WRONG artifact type. */
 const REQUIRED_ARTIFACT_WRONG_TYPE_RULE = "gated-page-required-artifact-wrong-type";
+/** Rule id for a live gated page whose right-typed required artifact lacks the declared EXECUTION PROVENANCE. */
+const REQUIRED_ARTIFACT_UNPROVEN_RULE = "gated-page-required-artifact-unproven";
+
+/** Closed ArtifactHealth coverage plus the three lifecycle requirement checks (`test/lint-tier-registry-emitters.test.ts` derives the full emitted set from this module's source). */
+export const ARTIFACT_LINT_RULES = [
+  ...Object.keys(HEALTH_PHRASE), REQUIRED_ARTIFACT_MISSING_RULE, REQUIRED_ARTIFACT_WRONG_TYPE_RULE, REQUIRED_ARTIFACT_UNPROVEN_RULE,
+];
 
 /** Build the `error` finding for a required artifact field that is absent/unparseable on a live gated page. */
 function missingRequirementFinding(page: ArtifactRefPageSource, state: string, req: ArtifactPreconditionReq): LintResult {
@@ -164,9 +171,6 @@ function unmetRequirementFinding(page: ArtifactRefPageSource, state: string, req
   if (ref.artifactType !== req.artifactType) return wrongTypeRequirementFinding(page, state, req, ref);
   return null;
 }
-
-/** Rule id for a live gated page whose right-typed required artifact lacks the declared EXECUTION PROVENANCE. */
-const REQUIRED_ARTIFACT_UNPROVEN_RULE = "gated-page-required-artifact-unproven";
 
 /**
  * Detective mirror of the write-time execution-provenance arm: a present,
