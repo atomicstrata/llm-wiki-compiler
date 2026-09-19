@@ -125,7 +125,7 @@ function registerConceptResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri, { slug }) => ({
-      contents: [jsonContent(uri, await loadPageWithMeta(root, CONCEPTS_DIR, String(slug)))],
+      contents: [jsonContent(uri, await loadPageWithMeta(root, CONCEPTS_DIR, decodeSlug(String(slug))))],
     }),
   );
 }
@@ -142,7 +142,7 @@ function registerQueryResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri, { slug }) => ({
-      contents: [jsonContent(uri, await loadPageWithMeta(root, QUERIES_DIR, String(slug)))],
+      contents: [jsonContent(uri, await loadPageWithMeta(root, QUERIES_DIR, decodeSlug(String(slug))))],
     }),
   );
 }
@@ -159,6 +159,27 @@ async function listSources(root: string): Promise<Array<Record<string, unknown>>
     records.push({ filename: file, ...meta });
   }
   return records;
+}
+
+/**
+ * Decode a URI template variable back to a slug.
+ *
+ * Resource URIs are built with `encodeURIComponent(slug)` (see
+ * `listPagesUnder`), and the MCP SDK normalises the request URI — which
+ * percent-encodes non-ASCII paths — before it matches the template, so
+ * `{slug}` arrives still encoded. Without this step a page whose slug
+ * contains non-ASCII characters (any CJK slug) resolves to
+ * `wiki/concepts/ai%E7%90%86….md` and is reported as missing.
+ *
+ * @param value - Raw template variable, possibly percent-encoded.
+ * @returns The decoded slug; the raw value when it is not valid escaping.
+ */
+function decodeSlug(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 /** Read a single page and return a structured payload (slug, meta, body). */
@@ -229,7 +250,7 @@ async function listPagesUnder(
       const slug = f.replace(/\.md$/, "");
       // S13: percent-encode the slug so a page-part containing spaces or `#`
       // (e.g. `Foo #1`) round-trips through the URI rather than truncating at
-      // the `#` fragment delimiter. The read template decodes `{slug}` back.
+      // the `#` fragment delimiter. `decodeSlug` undoes this on read.
       return { uri: `llmwiki://${scheme}/${encodeURIComponent(slug)}`, name: slug };
     });
 

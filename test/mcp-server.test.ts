@@ -250,6 +250,32 @@ describe("error handling", () => {
 
 type ResourceMap = Record<string, { readCallback: (uri: URL) => Promise<{ contents: Array<{ text: string }> }> }>;
 
+/** A templated resource as the SDK registers it: read callback plus URI variables. */
+type ResourceTemplateEntry = {
+  readCallback: (uri: URL, vars: Record<string, string>) => Promise<{ contents: Array<{ text: string }> }>;
+};
+
+/** The `wiki-concept` template, which resolves one page per slug. */
+function conceptTemplate(server: McpServer): ResourceTemplateEntry {
+  return (getRegisteredResourceTemplates(server) as Record<string, ResourceTemplateEntry>)["wiki-concept"];
+}
+
+/**
+ * Read one concept page the way a client does: percent-encode the slug into the
+ * URI, then let the template resolve it.
+ *
+ * @param slug - Raw page slug, ASCII or not.
+ * @returns The parsed resource payload (`slug`, `meta`, `body`).
+ */
+async function readConceptResource(slug: string): Promise<{ slug: string; body: string }> {
+  const encoded = encodeURIComponent(slug);
+  const result = await conceptTemplate(buildServer()).readCallback(
+    new URL(`llmwiki://concept/${encoded}`),
+    { slug: encoded },
+  );
+  return JSON.parse(result.contents[0].text);
+}
+
 /** Read a static resource and return its first content block's raw text. */
 async function readStaticResourceText(uri: string): Promise<string> {
   const server = buildServer();
@@ -308,8 +334,7 @@ describe("MCP resources", () => {
       "Concept body.",
     );
 
-    const server = buildServer();
-    const template = (getRegisteredResourceTemplates(server) as Record<string, { readCallback: (uri: URL, vars: Record<string, string>) => Promise<{ contents: Array<{ text: string }> }> }>)["wiki-concept"];
+    const template = conceptTemplate(buildServer());
     const result = await template.readCallback(
       new URL("llmwiki://concept/alpha"),
       { slug: "alpha" },
@@ -340,14 +365,30 @@ describe("MCP resources", () => {
     const slug = "Foo #1";
     await writePage(path.join(root, "wiki/concepts"), slug, { title: "Foo One", summary: "S" }, "Hashy body.");
 
-    const server = buildServer();
-    const template = (getRegisteredResourceTemplates(server) as Record<string, { readCallback: (uri: URL, vars: Record<string, string>) => Promise<{ contents: Array<{ text: string }> }> }>)["wiki-concept"];
-    // The list URI percent-encodes the slug; the read decodes it back to the
-    // raw slug var — `#` does not truncate the page-part at the fragment.
-    const encoded = encodeURIComponent(slug);
-    const result = await template.readCallback(new URL(`llmwiki://concept/${encoded}`), { slug });
-    const parsed = JSON.parse(result.contents[0].text);
+    // The list URI percent-encodes the slug, and the SDK matches the template
+    // against the normalised request path, so the `slug` var arrives still
+    // encoded — `#` does not truncate the page-part at the fragment.
+    const parsed = await readConceptResource(slug);
     expect(parsed).toMatchObject({ slug, body: "Hashy body." });
+  });
+
+  it("decodes a non-ASCII slug from the encoded resource URI", async () => {
+    // Every CJK slug arrives percent-encoded (three bytes per character); before
+    // the callback decoded it, the lookup used the encoded string as a filename
+    // and every Chinese page read over this resource reported "Page not found".
+    const slug = "ai理赔审核覆盖率与目标";
+    await writePage(path.join(root, "wiki/concepts"), slug, { title: "覆盖率目标", summary: "S" }, "中文正文。");
+
+    const parsed = await readConceptResource(slug);
+    expect(parsed).toMatchObject({ slug, body: "中文正文。" });
+  });
+
+  it("falls back to the raw value when the slug is not valid escaping", async () => {
+    const slug = "50% off";
+    await writePage(path.join(root, "wiki/concepts"), slug, { title: "Half", summary: "S" }, "Discount body.");
+
+    const parsed = await readConceptResource(slug);
+    expect(parsed).toMatchObject({ slug, body: "Discount body." });
   });
 });
 
