@@ -17,7 +17,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import reviewApproveCommand from "../src/commands/review-approve.js";
-import { maybeSaveQueryPage } from "../src/commands/query-save.js";
+import { maybeSaveQueryPage } from "../src/commands/query-publication.js";
 import { listCandidates } from "../src/compiler/candidates.js";
 import { slugify } from "../src/utils/markdown.js";
 import { QUERIES_DIR } from "../src/utils/constants.js";
@@ -69,8 +69,8 @@ describe("query --save --review proposes a durable candidate, applied to write t
     const cwd = process.cwd();
     process.chdir(bare); // review approve resolves the project from cwd
     try {
-      await maybeSaveQueryPage(bare, q, "Original answer.", true, false); // an existing page
-      await maybeSaveQueryPage(bare, q, "Refreshed answer.", true, true); // propose a re-save (captures the target hash)
+      await maybeSaveQueryPage({ root: bare, question: q, answer: "Original answer.", save: true, review: false }); // an existing page
+      await maybeSaveQueryPage({ root: bare, question: q, answer: "Refreshed answer.", save: true, review: true }); // propose a re-save (captures the target hash)
       const [candidate] = await listCandidates(bare);
       const edited = "---\ntitle: hand\n---\nRewritten by hand since the proposal.\n";
       await writeFile(page, edited); // the page changes after the proposal
@@ -94,7 +94,7 @@ describe("query --save --review proposes a durable candidate, applied to write t
     process.chdir(bare);
     try {
       // Propose while NO page exists → the candidate expects the target absent.
-      await maybeSaveQueryPage(bare, q, "Answer.", true, true);
+      await maybeSaveQueryPage({ root: bare, question: q, answer: "Answer.", save: true, review: true });
       const [candidate] = await listCandidates(bare);
       // Another actor CREATES the page between proposal and approval.
       const created = "---\ntitle: other\n---\nCreated by another actor.\n";
@@ -119,8 +119,8 @@ describe("query --save --review proposes a durable candidate, applied to write t
     const cwd = process.cwd();
     process.chdir(bare);
     try {
-      await maybeSaveQueryPage(bare, q, "Original.", true, false); // an existing page
-      await maybeSaveQueryPage(bare, q, "Refreshed.", true, true); // propose → candidate carries expectedTargetHash
+      await maybeSaveQueryPage({ root: bare, question: q, answer: "Original.", save: true, review: false }); // an existing page
+      await maybeSaveQueryPage({ root: bare, question: q, answer: "Refreshed.", save: true, review: true }); // propose → candidate carries expectedTargetHash
       const dir = path.join(bare, ".llmwiki", "candidates");
       const file = path.join(dir, (await readdir(dir)).find((f) => f.endsWith(".json"))!);
       const stored = JSON.parse(await readFile(file, "utf8"));
@@ -146,7 +146,7 @@ describe("query --save --review proposes a durable candidate, applied to write t
     // an unreadable target must refuse the proposal, never fail open to no precondition.
     await mkdir(path.join(bare, QUERIES_DIR, `${slugify(q)}.md`), { recursive: true });
     try {
-      await expect(maybeSaveQueryPage(bare, q, "Answer.", true, true)).rejects.toThrow();
+      await expect(maybeSaveQueryPage({ root: bare, question: q, answer: "Answer.", save: true, review: true })).rejects.toThrow();
       expect((await listCandidates(bare)).length, "an unreadable target still staged a candidate").toBe(0);
     } finally {
       await rm(bare, { recursive: true, force: true });
@@ -162,10 +162,10 @@ describe("query --save --review proposes a durable candidate, applied to write t
     const pageFor = (q: string): string => path.join(bare, QUERIES_DIR, `${slugify(q)}.md`);
     try {
       // Plain --save writes the page directly; no candidate is staged.
-      await maybeSaveQueryPage(bare, "how does routing work", "Routing sends tokens to experts.", true, false);
+      await maybeSaveQueryPage({ root: bare, question: "how does routing work", answer: "Routing sends tokens to experts.", save: true, review: false });
       expect(existsSync(pageFor("how does routing work")), "plain save did not write the page").toBe(true);
       // --review DIVERTS the same save into a proposal: a candidate, no page.
-      await maybeSaveQueryPage(bare, "what is sparsity", "Sparsity skips most weights.", true, true);
+      await maybeSaveQueryPage({ root: bare, question: "what is sparsity", answer: "Sparsity skips most weights.", save: true, review: true });
       expect(existsSync(pageFor("what is sparsity")), "--review wrote the page directly").toBe(false);
       expect((await listCandidates(bare)).some((c) => c.slug === slugify("what is sparsity")),
         "--review staged no candidate").toBe(true);

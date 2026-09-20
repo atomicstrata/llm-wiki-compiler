@@ -346,9 +346,13 @@ export interface WikiCore {
    * Streaming token delivery (`onToken`) is intentionally NOT exposed by the
    * facade. Callers needing
    * per-token streaming should use `generateAnswer` directly.
+   *
+   * `review` requires `save` and stages a validated review candidate instead of
+   * publishing. Citation refusals return the answer with `publicationRefusal`;
+   * persistence failures still reject.
    */
   query(question: string, options?: {
-    save?: boolean; debug?: boolean; pageScope?: readonly string[];
+    save?: boolean; review?: boolean; debug?: boolean; pageScope?: readonly string[];
     /** Opt-in error recovery; scoped queries default to fallback. */
     embeddingFailure?: "throw" | "fallback";
     /** Opt-in hydrated provenance; scoped queries always use this mode. */

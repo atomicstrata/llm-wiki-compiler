@@ -103,12 +103,14 @@ Approval does the following in order:
 1. Acquires `.llmwiki/lock` to serialize against concurrent compiles or sibling approvals
 2. Re-reads the candidate under the lock (to guard against a concurrent reject that may have run between your `review show` and now)
 3. Validates the page body
-4. Writes the page to `wiki/concepts/<slug>.md`
-5. Refreshes wikilink resolution, `wiki/index.md`, the Map of Content, and embeddings
+4. Writes the page to its target, normally `wiki/concepts/<slug>.md`; query candidates target `wiki/queries/<slug>.md`
+5. Refreshes `wiki/index.md`, the Map of Content, and embeddings; generic candidates also run wikilink resolution and repair
 6. Removes the candidate file from `.llmwiki/candidates/`
 7. Records the approved slug in state so future compiles track it correctly
 
-The page body stored in the candidate is written verbatim - approval never re-invokes the LLM.
+Approval never re-invokes the answer-generation LLM. Generic candidates retain their existing resolution and repair tail. Validated answers publish the exact canonical document checked before the write.
+
+Page writes, refresh work, state bookkeeping, and candidate cleanup are not one transaction. A later failure may leave a published page and a still-pending candidate. Inspect the page and queue, correct the failure, and retry approval; a retry may replace the existing page. Actual write and uncaught refresh failures propagate rather than becoming successful citation checks.
 
 <Warning>
   Embeddings refresh may fail if no provider credentials are configured at approval time. When that happens, a warning is printed but the approval still succeeds - the page is written and the index is updated. Re-run `llmwiki compile` or `llmwiki refresh --stale` later to pick up the missing embeddings.
@@ -123,6 +125,26 @@ llmwiki review reject <id>
 ```
 
 Rejected candidates are moved to `.llmwiki/candidates/archive/`. They no longer appear in `review list`, but they remain on disk for audit purposes. A rejected candidate for an unchanged source won't be re-extracted on the next `compile` - the rejection is sticky until the source itself changes.
+
+Malformed or unsupported validated-answer metadata cannot be promoted: `review show` and `review approve` report an invalid-candidate diagnostic, while list and collection paths skip the record with a named warning. You can still reject its explicit safe ID to archive the original queue file through the existing archive mechanism without accepting its metadata. The rename path preserves bytes; the existing text-copy fallback does not guarantee byte preservation. Unsafe IDs, symlinks, non-regular files, missing files, and detected file replacement refuse; raw rejection does not bypass path confinement.
+
+## Validated-answer candidates
+
+`llmwiki query "<question>" --save --review` creates a separate candidate with a versioned `candidateKind` and `citationManifest`. It stores the canonical query document, an empty sources list, a body digest, and the observed citation identities. Staging allows pending links but refuses broken links or unavailable validation. Neither staging nor validation makes an extra model request or changes the live wiki.
+
+Approval freshly resolves the current body under the project lock; stored observations never authorize publication. All recognized links must resolve to retained concept/query pages. In a profile-enabled project the write routes through the planner under the current profile. Pending, broken, unavailable, stale-target, or planner-refused approvals refuse without deleting the candidate. Approve required pending targets first, then retry the answer. See the complete [publication policy matrix](/cli/query#publication-and-review-policy).
+
+The digest covers only the parsed Markdown body, with no additional whitespace normalization. Body edits cause `candidate-edited`: regenerate and restage, then reject the obsolete candidate. Title/summary-only frontmatter edits are outside this digest and still pass through ordinary page validation. The manifest is an audit record, not authenticated provenance or tamper protection: an operator can recompute it or remove both metadata fields, returning the record to generic policy. Even a matching digest still requires fresh link resolution.
+
+Repeated proposals for the same query remain separate IDs with generation timestamps, and each captures a closed precondition on its target page at staging time. Approving a proposal whose target is unchanged since staging warns with its `wiki/queries/<slug>.md` path before replacing it. If the target changed, appeared, or was deleted after staging, approval refuses and asks you to regenerate and restage, keeping the page and the candidate; once one sibling is approved, the others' preconditions are stale and refuse until restaged. Approval removes only the approved ID; siblings stay for explicit approval or rejection. Reject unused siblings by ID. A retained page takes precedence over a sibling pending proposal when resolving links.
+
+Validated-answer approval preserves exact canonical page bytes and refreshes the index, Map of Content, and embeddings unless disabled. It skips the generic outbound resolution and global repair tail, so it does not rewrite inbound links or a same-slug concept. Later ordinary compile or generic approval can still run normal repair.
+
+### Generic citation checks
+
+Ordinary default concept/query candidates, including imported query candidates without validated-answer metadata, allow pending links. They refuse only genuinely broken links that the existing repair pass cannot resolve. A unique retained prefix can remain repairable under the existing minimum-length and boundary rules; ambiguous prefixes, including ambiguity introduced by pending candidates, do not qualify. Typed candidates retain their typed policy.
+
+If this generic citation check cannot be computed, approval warns explicitly and continues its existing policy. This warning fallback applies only to the citation check; connector pins, planner decisions, page writes, and refresh errors keep their existing behavior. For a genuinely broken target, create or approve the target, correct the source and regenerate, or reject the candidate. Manual JSON edits remain possible but are not a new supported editing API.
 
 ---
 

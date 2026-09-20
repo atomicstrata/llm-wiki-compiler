@@ -1,52 +1,30 @@
 /**
- * Commander action for `llmwiki review reject <id>`.
+ * @file src/commands/review-reject.ts
+ * @description The `review reject` subcommand: archives a pending candidate
+ * without touching `wiki/`.
  *
- * Removes a candidate from the pending area without touching `wiki/`.
- * Rejected candidates are moved into .llmwiki/candidates/archive/ so they
- * remain auditable but never appear in `llmwiki review list` again.
- *
- * The archive mutation is performed under `.llmwiki/lock` to serialize
- * concurrent approve/reject and approve-vs-compile operations, matching
- * the lock discipline used by compile and approve.
- *
- * The candidate is re-read under the lock (TOCTOU guard) — if it disappears
- * between the pre-lock fast-fail and lock acquisition, the rejection aborts
- * cleanly rather than silently succeeding on a stale handle.
+ * Rejection reads the candidate's raw queue file by its explicit safe id and
+ * never runs promotion admission, so a record with malformed validated-answer
+ * metadata can still be cleared. The archive move runs under the review lock
+ * and re-captures custody immediately before moving, so a candidate that was
+ * removed or replaced between the pre-lock check and the move fails cleanly
+ * rather than silently succeeding on a stale handle.
  */
 
-import { archiveCandidate } from "../compiler/candidates.js";
+import { archiveRejectedCandidate, loadRejectableCandidateOrFail } from "../compiler/candidate-rejection.js";
 import * as output from "../utils/output.js";
-import { runReviewUnderLock, readCandidateUnderLock } from "./review-helpers.js";
+import { runReviewUnderLock } from "./review-helpers.js";
 
 /** Reject a pending candidate by archiving its JSON record. */
 export default async function reviewRejectCommand(id: string): Promise<void> {
-  await runReviewUnderLock(id, rejectUnderLock);
+  await runReviewUnderLock(id, rejectUnderLock, loadRejectableCandidateOrFail);
 }
 
-/**
- * Perform the archive mutation while holding the lock.
- *
- * Re-reads the candidate under the lock so that a concurrent approve that ran
- * between the pre-lock fast-fail and lock acquisition is detected. Aborts with
- * exit code 1 if the candidate has disappeared.
- */
+/** Archive the candidate while holding the lock; the helper reports every refusal. */
 async function rejectUnderLock(root: string, id: string): Promise<void> {
-  const candidate = await readCandidateUnderLock(root, id);
-  if (!candidate) return;
-
-  let archived = false;
-  try {
-    archived = await archiveCandidate(root, id);
-  } catch {
-    archived = false;
-  }
-  if (!archived) {
-    output.status("!", output.error("Candidate could not be archived safely."));
-    process.exitCode = 1;
-    return;
-  }
+  if (!await archiveRejectedCandidate(root, id)) return;
   output.status(
     "-",
-    output.warn(`Rejected candidate ${id} (${candidate.slug}) — archived, wiki unchanged.`),
+    output.warn(`Rejected candidate ${id} — archived, wiki unchanged.`),
   );
 }

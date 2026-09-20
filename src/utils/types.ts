@@ -11,6 +11,7 @@ import type { TrustDecision } from "../trust/decision.js";
 import type { PageId } from "./page-id.js";
 import type { SelectedPageRef } from "../search/retrieval.js";
 import type { AnswerCitationReport } from "../citations/answer-types.js";
+import type { AnswerCitationManifest, ValidatedAnswerKind } from "../citations/answer-manifest.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -234,6 +235,9 @@ export interface CompileOptions {
  * .llmwiki/candidates/<id>.json when compile is run with --review.
  */
 export interface ReviewCandidate {
+  /** Exclusive reviewed-answer discriminator and proposal audit metadata. */
+  candidateKind?: ValidatedAnswerKind;
+  citationManifest?: AnswerCitationManifest;
   /** Stable identifier used by the review CLI commands. */
   id: string;
   /** Human-readable concept title. */
@@ -375,6 +379,14 @@ export interface QueryResult {
    * older producers); an available report with no recognized links has citations: [].
    */
   answerCitations?: AnswerCitationReport;
+  /** Fresh reviewed proposal identity; staging does not set saved. */
+  candidateId?: string;
+  /** Requested publication was refused; the generated answer remains available. */
+  publicationRefusal?: {
+    code: "pending" | "broken" | "unavailable" | "profile-disabled";
+    targets: string[];
+    message: string;
+  };
   /**
    * Legacy DERIVED display field: the bare page-part of each selected
    * {@link pageIds} entry (via `slugFromPageId`). Kept populated for back-compat

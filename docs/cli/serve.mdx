@@ -55,7 +55,7 @@ The server registers 11 tools. Read-only tools work without credentials; tools t
 |------|-------------|------------------------|
 | `ingest_source` | Fetch a URL or copy a local file into `sources/`. Returns the saved filename, character count, and whether content was truncated. | No |
 | `compile_wiki` | Run the incremental compile pipeline: extract concepts from new/changed sources, generate wiki pages, resolve interlinks, rebuild the index. Returns page counts, slugs, and errors. | Yes |
-| `query_wiki` | Ask a natural-language question. Selects relevant pages, loads them, and returns a grounded answer with citations. Set `save: true` to persist the answer as a wiki page. Set `debug: true` for retrieval detail. | Yes |
+| `query_wiki` | Ask a natural-language question. Returns an answer and advisory citations. `save: true` requests publication after fresh citation validation and the profile gate; a refusal preserves the answer with `publicationRefusal` and no `saved` slug. No review option. Set `debug: true` for retrieval detail. See [publication policy](/cli/query#publication-and-review-policy). | Yes |
 | `search_pages` | Return full content of pages relevant to a question. Uses semantic embeddings when available, falls back to LLM-based selection over the wiki index. | Yes |
 | `read_page` | Read a single wiki page by slug. Searches `concepts/` first, then `queries/`. Returns parsed frontmatter and body. | No |
 | `lint_wiki` | Run rule-based quality checks (broken wikilinks, orphans, duplicates, empty pages, broken citations). Returns structured diagnostics. | No |

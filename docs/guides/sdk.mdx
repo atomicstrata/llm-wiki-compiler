@@ -211,13 +211,14 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
 <ParamField body="wiki.query(question, options?)" type="Promise<QueryResult>">
   Generate a grounded answer from the compiled wiki. **Requires LLM credentials.**
 
-  - `options.save` - persist the answer as a page in `wiki/queries/` and rebuild the index immediately; future queries use it as context.
+  - `options.save` - request publication in `wiki/queries/` after fresh citation validation and the direct-save profile gate.
+  - `options.review` - with `save`, stage a validated review candidate instead of publishing; allowed in profile-enabled projects. `review` without `save` rejects before any provider request.
   - `options.debug` - include retrieval detail (selected chunks, scores) in the result.
 
-  Returns `QueryResult` with `answer`, legacy display slugs in `selectedPages`, qualified grounding identities in `pageIds` and `refs`, `reasoning`, and `answerCitations` when collection succeeds. When requested, `debug` contains retrieval details; `saved` identifies a saved query.
+  Returns `QueryResult` with `answer`, legacy display slugs in `selectedPages`, qualified grounding identities in `pageIds` and `refs`, `reasoning`, and `answerCitations` when collection succeeds. When requested, `debug` contains retrieval details. `saved` identifies a published query slug; `candidateId` identifies a staged proposal; `publicationRefusal` describes a refused save or staging request. These publication fields are mutually exclusive and absent when neither publication/staging nor refusal occurs, such as a query without saving or without grounding.
 </ParamField>
 
-`answerCitations` is a version-1 report of unique, normalized answer-body wikilink targets in first-occurrence order. Successful collection returns it, including `{ version: 1, citations: [] }` when no links are recognized; a query with no grounding also returns an empty report. If collection fails, the field is absent, meaning citations are unavailable, while the generated answer, requested save, and activity logging are preserved under their existing rules. SDK calls remain quiet. The optional TypeScript field also keeps older `QueryResult` producers compatible. Import `AnswerCitation` and `AnswerCitationReport` from the package entry point.
+`answerCitations` is a version-1 report of unique, normalized answer-body wikilink targets in first-occurrence order. Successful collection returns it, including `{ version: 1, citations: [] }` when no links are recognized; a query with no grounding also returns an empty report. If collection fails, the field is absent, meaning citations are unavailable. The answer remains available; any requested publication performs its own fresh check and may succeed or return a refusal. SDK calls remain quiet, including warnings and refusals. Optional fields keep older `QueryResult` producers compatible. Import `QueryResult`, `AnswerCitation`, and `AnswerCitationReport` from the package entry point.
 
 ```ts
 const result = await wiki.query("How does attention work?");
@@ -234,7 +235,22 @@ if (!result.answerCitations) {
 
 Resolved entries carry a retained concept/query `pageId`. Pending entries carry all eligible matching review-candidate IDs, deduplicated and sorted; they do not imply publication. Typed candidates, typed-only pages, and pending aliases do not extend bare-link resolution. Generated title/summary metadata is excluded from the report. An empty report is not a factual-support assessment.
 
-Reports are fresh, unlocked snapshots after generation and before any requested save, and do not change save eligibility or add provider requests. Without saving, page/candidate bytes stay unchanged while existing activity logging continues. Collection avoids retained body bytes for complete frontmatter, but small reads can cost more filesystem calls, late/missing fences may require a whole-file read, and candidate JSON is read in full. Citation collection failure omits the report; generation and save failures still reject the query. See [answer citation classifications and limits](/cli/query#answer-citations).
+Reports are fresh, unlocked snapshots after generation, not publication permission. Requested saves validate the canonical body again under the project lock, using current retained and pending state. The lock serializes cooperating writers, not arbitrary external edits or later changes. Validation adds no provider request. Without saving, page/candidate bytes stay unchanged while existing activity logging continues; reviewed staging appends no activity-log entry. Collection avoids retained body bytes for complete frontmatter, but small reads can cost more filesystem calls, late/missing fences may require a whole-file read, and candidate JSON is read in full.
+
+`publicationRefusal` contains `code`, normalized `targets`, and `message`. Codes are `pending`, `broken`, `unavailable`, or `profile-disabled`. Broken links take code/target priority over pending links; the diagnostic can describe both classes. Direct publication refuses pending or broken links; reviewed staging allows pending links but refuses broken ones. Both refuse unavailable validation and non-default profiles. Refusal preserves `answer` without publishing or staging. Actual generation, page/candidate write, and other uncaught persistence failures still reject the promise. Filesystem errors updating the activity log retain their existing warning-only behavior, suppressed in quiet SDK calls.
+
+```ts
+const result = await wiki.query("How does attention work?", { save: true, review: true });
+if (result.publicationRefusal) {
+  console.log(result.answer, result.publicationRefusal);
+} else if (result.candidateId) {
+  console.log("Review candidate:", result.candidateId);
+} else if (result.saved) {
+  console.log("Published query:", result.saved);
+}
+```
+
+Review candidates require fresh approval after all pending targets are published. Body edits require regeneration/restaging, and so does a target page that changed, appeared, or was deleted after staging; frontmatter-only title/summary edits are outside the audit digest. See the [policy matrix and snapshot limits](/cli/query#publication-and-review-policy) and [review recovery and sibling cleanup](/cli/review#validated-answer-candidates). Existing MCP `query_wiki` callers using `save: true` receive the same answer-preserving refusal in the JSON result, with no saved slug. MCP has no review option; its no-save behavior stays unchanged.
 
 <ParamField body="wiki.search(question)" type="Promise<PageRecord[]>">
   Select and hydrate the most relevant page records for a question. Uses semantic embeddings when available, falls back to LLM-based index selection. **Requires LLM credentials.**

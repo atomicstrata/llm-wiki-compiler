@@ -12,7 +12,7 @@ import { CITED_ANSWER, stageCitationWorkspace, citationWorkspaceBytes } from "./
 
 const aimock = useAimockLifecycle("query-answer-citations");
 
-it.each([false, true])("reports unavailable with a real read diagnostic and preserves save=%s", async (save) => {
+it.each([false, true])("reports unavailable and preserves the answer with requested save=%s", async (save) => {
   const handle = await aimock.start();
   stubQuery(handle, CITED_ANSWER);
   const root = await workspace();
@@ -22,7 +22,7 @@ it.each([false, true])("reports unavailable with a real read diagnostic and pres
   await expect(readFile(unreadable)).rejects.toMatchObject({ code: "EACCES" });
   const args = ["query", "Explain alpha", ...(save ? ["--save"] : [])];
   const result = await runCLI(args, root, { ...mockClaudeEnv(handle), VOYAGE_API_KEY: "" });
-  expectCLIExit(result, 0);
+  expectCLIExit(result, save ? 1 : 0);
   expect(result.stdout).toContain(CITED_ANSWER);
   expect(result.stderr).toContain("Answer citations: unavailable");
   expect(result.stderr).toContain("EACCES");
@@ -31,8 +31,11 @@ it.each([false, true])("reports unavailable with a real read diagnostic and pres
   expect(result.stdout).not.toContain("Answer citations: 1 resolved");
   expect(await readFile(path.join(root, "log.md"), "utf8")).toContain("query | Explain alpha");
   const savedFile = path.join(root, "wiki/queries/explain-alpha.md");
-  if (save) expect(await readFile(savedFile, "utf8")).toContain(CITED_ANSWER);
-  else await expect(readFile(savedFile)).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(readFile(savedFile)).rejects.toMatchObject({ code: "ENOENT" });
+  if (save) {
+    expect(result.stdout).toContain("Answer publication refused: citation validation unavailable");
+    expect(result.stdout).not.toContain("Tip: use --save");
+  }
   expect(handle.mock.getRequests()).toHaveLength(2);
 }, 30_000);
 

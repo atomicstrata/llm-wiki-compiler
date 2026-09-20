@@ -55,7 +55,7 @@ export type { ProductPackageOptions } from "./commands/product/package.js";
 export { productStatusCommand } from "./commands/product/status.js";
 export type { ProductStatusOptions } from "./commands/product/status.js";
 export { profileShow, profileValidate, profileDiff, profileInit } from "./commands/profile.js";
-export { default as queryCommand, generateAnswer } from "./commands/query.js";
+export { default as queryCommand, generateAnswer, assertQuerySaveOptions } from "./commands/query.js";
 export { default as quickstartCommand } from "./commands/quickstart.js";
 export { recoverCommand } from "./commands/recover.js";
 export { default as refreshCommand } from "./commands/refresh.js";

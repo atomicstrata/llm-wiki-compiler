@@ -70,7 +70,7 @@ it("supplies an empty report when selection yields no grounding and makes no ans
 });
 
 it("reports the canonical leading-fence body while retaining streamed and saved bytes", async () => {
-  const answer = "---\r\n[[Alpha]]\r\n---\r\n[[missing]]";
+  const answer = "---\r\n[[Alpha]]\r\n---\r\n[[alpha|label]]";
   answerWith(answer);
   const streamed: string[] = [];
   const result = await generateAnswer(ctx.dir, "[[title-only]]", { save: true, onToken: (s) => streamed.push(s) });
@@ -78,7 +78,6 @@ it("reports the canonical leading-fence body while retaining streamed and saved 
   expect(result.answer).toBe(answer);
   expect(result.answerCitations?.citations).toEqual([
     { target: "alpha", status: "resolved", pageId: "concepts/alpha" },
-    { target: "missing", status: "broken" },
   ]);
   const saved = await readFile(path.join(ctx.dir, `wiki/queries/${result.saved}.md`), "utf8");
   expect(parseFrontmatter(saved).body).toBe(`\n${answer}\n`);

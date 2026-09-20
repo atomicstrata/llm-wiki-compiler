@@ -88,14 +88,15 @@ function registerQueryTool(server: McpServer, root: string): void {
       description:
         "Ask a natural-language question. Selects relevant pages with the LLM, " +
         "loads them, and returns a grounded answer with citations. Set save=true " +
-        "to persist the answer as a wiki page. Set debug=true to include the " +
+        "to request publication as a wiki page; citation or profile refusals " +
+        "return the answer with publicationRefusal and no saved slug. Set debug=true to include the " +
         "selected chunks and their scores. Requires an LLM provider.",
       inputSchema: {
         question: z.string().describe("The natural-language question to answer."),
         save: z
           .boolean()
           .optional()
-          .describe("Persist the answer as a wiki/queries/ page when true."),
+          .describe("Request a wiki/queries/ page; publication requires fresh citation validation."),
         debug: z
           .boolean()
           .optional()

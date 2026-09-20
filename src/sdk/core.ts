@@ -27,7 +27,7 @@ import { existsSync, statSync } from "node:fs";
 import { withQuiet } from "../utils/output.js";
 import { ingestSource, ingestTextSource } from "../commands/ingest.js";
 import { compileAndReport } from "../compiler/index.js";
-import { generateAnswer } from "../commands/query.js";
+import { generateAnswer, assertQuerySaveOptions } from "../commands/query.js";
 import { lint } from "../linter/index.js";
 import { buildContextPack } from "../context/build.js";
 import { exportJson } from "../commands/export.js";
@@ -113,6 +113,7 @@ export function createWikiCoreAtRoot(root: string, options: CreateWikiOptions): 
 
     query: (question, opts = {}) =>
       runQuiet(() => {
+        assertQuerySaveOptions(opts);
         ensureProviderAvailable();
         return generateAnswer(root, question, opts);
       }),

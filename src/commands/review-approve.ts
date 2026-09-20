@@ -62,6 +62,7 @@ import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { runReviewUnderLock, readCandidateUnderLock } from "./review-helpers.js";
+import { checkCandidatePublication, checkAnswerPlan, isValidatedAnswer } from "./review-publication.js";
 
 /** CLI/API options accepted by `review approve`. */
 export interface ReviewApproveOptions {
@@ -108,18 +109,13 @@ async function approveUnderLock(
     return;
   }
   if (!(await targetUnchangedSincePropose(root, candidate))) {
-    output.status(
-      "!",
-      output.error(
-        "Candidate not approved: the target page changed since this fix was proposed. " +
-          "Re-run `lint --fix-propose` against the current page.",
-      ),
-    );
+    output.status("!", output.error(staleTargetRefusal(candidate)));
     process.exitCode = 1;
     return;
   }
   if (!(await candidateNamespacesPermitApproval(root, id))) return;
 
+  if (!await checkCandidatePublication(root, candidate)) return;
   const pagePath = await routeApprovedPageWrite(root, candidate, id);
   if (!pagePath) return;
   output.status("+", output.success(`Approved → ${output.source(pagePath)}`));
@@ -149,6 +145,17 @@ async function candidateNamespacesPermitApproval(root: string, id: string): Prom
     process.exitCode = 1;
     return false;
   }
+}
+
+/**
+ * Explain a stale target precondition with the recovery that fits the candidate
+ * class: a staged answer is regenerated and restaged, a lint fix is re-proposed.
+ */
+function staleTargetRefusal(candidate: ReviewCandidate): string {
+  const changed = "Candidate not approved: the target page changed since this ";
+  return isValidatedAnswer(candidate)
+    ? `${changed}answer was staged. Regenerate and restage it with \`query --save --review\`, then reject this candidate.`
+    : `${changed}fix was proposed. Re-run \`lint --fix-propose\` against the current page.`;
 }
 
 /**
@@ -336,6 +343,7 @@ async function routeDefaultPageWrite(
     process.exitCode = 1;
     return null;
   }
+  if (!checkAnswerPlan(candidate, planned)) return null;
   await applyApprovedMutationsLocked(root, planned);
   const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
   return path.join(root, dir, `${candidate.slug}.md`);
@@ -392,8 +400,10 @@ async function refreshWikiAfterApproval(root: string, candidate: ReviewCandidate
   const { slug } = candidate;
   // approveUnderLock runs under the held project lock (runReviewUnderLock), so
   // this routes through the lock-free resolution seam.
-  await resolveAndApplyLinks(root, [slug], [slug]);
-  await repairAndApplyLinks(root);
+  if (!isValidatedAnswer(candidate)) {
+    await resolveAndApplyLinks(root, [slug], [slug]);
+    await repairAndApplyLinks(root);
+  }
   await generateIndex(root);
   await generateMOC(root);
   await safelyUpdateEmbeddings(root, candidatePageId(candidate));

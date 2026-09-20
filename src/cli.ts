@@ -14,7 +14,7 @@ import { viewCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { visualizeCommand, type VisualizeOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { compileCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { rmCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { queryCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { queryCommand, assertQuerySaveOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { watchCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { lintCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { statusCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
@@ -212,7 +212,7 @@ registerRulesCommand(program, requireProvider);
 
 addProviderOption(program.command("query <question>").description("Ask a question against the wiki"))
   .option("--save", "Save the answer as a wiki page")
-  .option("--review", "With --save, propose a review candidate instead of applying the answer")
+  .option("--review", "Stage the answer for review instead of publishing (requires --save)")
   .option("--debug", "Print which pages and chunks were selected and their scores")
   .option(
     "--lang <code>",
@@ -225,6 +225,7 @@ addProviderOption(program.command("query <question>").description("Ask a questio
       options: ProviderOption & { save?: boolean; review?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
     ) => {
       try {
+        assertQuerySaveOptions(options);
         applyProviderOption(options);
         setVerbose(verboseEnabled(options.verbose));
         applyLanguageOption(options.lang);

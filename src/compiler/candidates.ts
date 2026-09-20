@@ -35,6 +35,8 @@ import {
   selectReadableCandidateEntriesForMutation,
 } from "./candidate-selection.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
+import { assertAnswerCandidateMetadata } from "../citations/answer-manifest.js";
+import type { AnswerCitationManifest, ValidatedAnswerKind } from "../citations/answer-manifest.js";
 import type { HeldReason, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
 import type { TrustDecision } from "../trust/decision.js";
@@ -80,6 +82,9 @@ export type { FreshCandidateWriteOptions } from "./candidate-publication.js";
 
 /** Input shape for creating a new candidate (id + timestamp generated here). */
 export interface CandidateDraft {
+  /** Exclusive reviewed-answer discriminator and proposal audit metadata. */
+  candidateKind?: ValidatedAnswerKind;
+  citationManifest?: AnswerCitationManifest;
   title: string;
   slug: string;
   summary: string;
@@ -187,11 +192,14 @@ export async function writeCandidate(
   draft: CandidateDraft,
   options: CandidateWriteOptions = {},
 ): Promise<ReviewCandidate> {
+  // Validated answers always take a fresh id: a later import or generic write
+  // for the same target must never rewrite an answer under its id or delete it.
+  if (Object.hasOwn(draft, "candidateKind")) return writeFreshCandidate(root, draft, options);
   const generatedId = writableCandidateId(draft.slug, 0, options);
   const targetKey = candidateTargetKey(draft);
   const matches = await selectReadableCandidateEntriesForMutation(
     root,
-    (candidate) => candidateTargetKey(candidate) === targetKey,
+    (candidate) => !candidate.candidateKind && candidateTargetKey(candidate) === targetKey,
   );
   const [canonical, ...duplicates] = matches;
   if (canonical) {
@@ -257,6 +265,7 @@ function serializeCandidate(candidate: ReviewCandidate): string {
 
 /** Build a ReviewCandidate from a draft and chosen id. */
 function buildCandidate(draft: CandidateDraft, id: string): ReviewCandidate {
+  assertAnswerCandidateMetadata({ ...draft, id, reviewMode: draft.reviewMode ?? "forced" }, id);
   const candidate: ReviewCandidate = {
     id,
     title: draft.title,
@@ -284,6 +293,8 @@ function copyCandidateOptionalFields(candidate: ReviewCandidate, draft: Candidat
   setCandidateField(candidate, "okfPath", draft.okfPath, Boolean(draft.okfPath));
   setCandidateField(candidate, "expectedTargetHash", draft.expectedTargetHash, Boolean(draft.expectedTargetHash));
   setCandidateField(candidate, "expectTargetAbsent", draft.expectTargetAbsent, draft.expectTargetAbsent === true);
+  setCandidateField(candidate, "candidateKind", draft.candidateKind, draft.candidateKind !== undefined);
+  setCandidateField(candidate, "citationManifest", draft.citationManifest, draft.citationManifest !== undefined);
   setCandidateField(candidate, "connectorProvenance", draft.connectorProvenance, draft.connectorProvenance !== undefined);
   setCandidateField(candidate, "targetEntityType", draft.targetEntityType, Boolean(draft.targetEntityType));
   setCandidateField(candidate, "trustDecision", draft.trustDecision, Boolean(draft.trustDecision));

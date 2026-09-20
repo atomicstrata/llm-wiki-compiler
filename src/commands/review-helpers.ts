@@ -32,16 +32,18 @@ export { loadCandidateUnderLockOrFail as readCandidateUnderLock };
  *
  * @param id - Candidate id to review.
  * @param underLock - Async mutation to run while holding the lock.
+ * @param precheck - Admission for approval, or confined raw-file access for rejection.
  */
 export async function runReviewUnderLock(
   id: string,
   underLock: (root: string, id: string) => Promise<void>,
+  precheck: (root: string, id: string) => Promise<unknown> = loadCandidateOrFail,
 ): Promise<void> {
   const root = process.cwd();
 
   // Fast-fail: surface a clear error for obviously missing ids.
-  // The authoritative check happens under the lock via loadCandidateUnderLockOrFail.
-  const preCheck = await loadCandidateOrFail(root, id);
+  // The callback repeats its admitted or raw-file check under the lock.
+  const preCheck = await precheck(root, id);
   if (!preCheck) return;
 
   const locked = await acquireMutationLock(root, "review");

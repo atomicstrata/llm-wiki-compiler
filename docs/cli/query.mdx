@@ -24,7 +24,8 @@ llmwiki query "What is multi-head attention and how does it differ from self-att
 
 | Flag | Description |
 |------|-------------|
-| `--save` | Persist the generated answer as a new wiki page in `wiki/queries/`. The page is immediately added to `index.md` and the embedding store so future queries can use this answer as context. |
+| `--save` | Request publication in `wiki/queries/` after fresh citation validation. On success, refresh the index and embeddings (unless embedding refresh is disabled). |
+| `--review` | With `--save`, stage a validated-answer review candidate instead of publishing. Requires `--save`; an invalid pair fails before provider checks or requests. |
 | `--lang <code>` | Generate the answer in the specified language (e.g. `zh-CN`, `ja`, `Japanese`). Wins over `LLMWIKI_OUTPUT_LANG`. |
 | `--debug` | Print a retrieval detail snapshot after the answer, showing which pages and chunks were selected, their scores, and whether BM25 reranking changed the order. |
 
@@ -47,11 +48,42 @@ Targets are normalized using the viewer's wikilink rules: `[[Alpha|label]]` repo
 
 If collection succeeds and the answer has no recognized links, the CLI prints `Answer citations: none recognized (not a factual-support assessment)`. Neither a resolved target nor an empty report verifies that the answer is factually supported. An empty answer retains the existing no-match message.
 
-The report uses a fresh, unlocked snapshot collected after generation and before saving. Files may change afterward. It adds no model request and does not change save eligibility. Without `--save`, query leaves page and review-candidate bytes unchanged; existing query activity logging still runs.
+The report uses a fresh, unlocked snapshot collected after generation and before saving. Files may change afterward. The report adds no model request and is not permission to publish: requested saves receive a separate check under the project lock. Without `--save`, query leaves page and review-candidate bytes unchanged; existing query activity logging still runs.
 
 Citation collection reads retained-page frontmatter incrementally, stopping at the closing fence for complete headers, including normal headers within 64 KiB. Small reads avoid loading retained body bytes; they are not a speed optimization and can require many filesystem calls. Late or missing closing fences have no fixed byte bound and may require reading the whole file. Review-candidate JSON is still read in full. Malformed candidates are skipped with the existing warnings.
 
-If citation collection fails, the CLI prints `Answer citations: unavailable` with the error diagnostic on stderr. The generated answer is preserved, and any requested save and activity logging proceed under their existing rules. The structured result omits `answerCitations`; an unavailable report is never presented as a successful empty report. Generation and save failures still propagate normally.
+If advisory citation collection fails, the CLI prints `Answer citations: unavailable` with the error diagnostic on stderr and omits `answerCitations` from the structured result. The generated answer remains available. A requested save retries validation under the lock: it may succeed if that fresh check succeeds, or refuse publication if validation remains unavailable. An unavailable report is never a successful empty report.
+
+## Publication and review policy
+
+| Operation | Resolved-only or no recognized links | Pending links | Broken links | Validation unavailable |
+| --- | --- | --- | --- | --- |
+| Query without saving | Return answer and report | Return answer and report | Return answer and report | Return answer, omit report, warn |
+| `query --save` | Publish | Refuse publication | Refuse publication | Refuse publication, preserve answer |
+| `query --save --review` | Stage only | Stage only | Refuse staging | Refuse staging, preserve answer |
+| Validated-answer approval | Publish | Refuse, retain candidate | Refuse, retain candidate | Refuse, retain candidate |
+| Generic default concept/query approval | Existing approval policy | Existing approval policy | Refuse genuinely broken, non-repairable links | Warn and continue existing approval policy |
+
+These checks resolve recognized links; they do not verify factual support. No recognized links is accepted and is not evidence that the answer is correct. Typed candidates retain their existing typed policy. An imported query candidate without validated-answer metadata follows generic policy. Connector pins, trust planning, and profile restrictions still apply.
+
+Citation refusals display the generated answer and a diagnostic, then exit nonzero. They do not write a query page, review candidate, index, or embeddings. Direct saves and no-save queries keep their existing activity logging; reviewed staging appends no `log.md` entry. Filesystem failures updating `log.md` warn and do not fail the query. Actual generation, page/candidate write, or other uncaught persistence failures still fail the operation; SDK calls reject rather than returning an answer-preserving citation refusal for those failures.
+
+Direct saving requires the default profile: a non-default profile produces the existing warning and exit zero, with a structured `profile-disabled` refusal. Reviewed staging is allowed in profile-enabled projects because the review candidate is the trust-routed destination; approval routes the write through the planner under the profile in force at approval time, and a planner refusal keeps the candidate and writes nothing.
+
+The authoritative check reloads current retained pages and pending candidates while holding the project lock. It uses the canonical answer body and does not reuse the advisory report or stored proposal observations. This serializes cooperating writers only: arbitrary external edits can race the check, and later changes can break published links. A currently resolving alias may point to different content than when the answer was generated; resolution does not verify semantic equivalence. Validation adds no provider request, although ordinary generation and enabled embedding refresh still use providers.
+
+### Stage an answer and recover pending links
+
+```bash
+llmwiki query "How does attention work?" --save --review
+llmwiki review list
+llmwiki review show <answer-candidate-id>
+# Inspect and approve each required pending target first:
+llmwiki review approve <target-candidate-id>
+llmwiki review approve <answer-candidate-id>
+```
+
+Staging prints a candidate ID and leaves live pages, indexes, and embeddings unchanged. It also records a closed precondition on the target page: its current digest, or that it is absent. Approval requires all recognized links to resolve now and the precondition to still hold; if the page changed, appeared, or was deleted after staging, approval refuses with a restaging instruction and keeps both the page and the candidate. If approval refuses, the candidate stays available for a retry after its targets are published. If the body was edited, regenerate and restage the answer, then reject the old candidate by ID. See [validated-answer review and recovery](/cli/review#validated-answer-candidates) for digest limits, sibling proposals, and approval failure recovery.
 
 ## How retrieval works
 
@@ -113,7 +145,7 @@ The `--include-sources` flag is opt-in and appends raw text windows from the ing
 
 ## Compounding queries with `--save`
 
-When you run `llmwiki query "<question>" --save`, the generated answer is written to `wiki/queries/<slug>.md`, added to `index.md`, and immediately indexed in the embedding store. This means the answer becomes context for future queries:
+When `llmwiki query "<question>" --save` passes the profile and fresh citation checks, the answer is written to `wiki/queries/<slug>.md`, added to the index, and scheduled for the ordinary embedding refresh unless disabled. It then becomes context for future queries. A refusal leaves the answer displayed without publishing it:
 
 ```bash
 # First query: answer drawn from concept pages only

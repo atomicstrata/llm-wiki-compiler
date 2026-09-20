@@ -14,8 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 import path from "path";
-import { maybeSaveQueryPage } from "../src/commands/query.js";
-import { setQuerySaveTestHookForTest } from "../src/commands/query-save.js";
+import { maybeSaveQueryPage, setQuerySaveTestHookForTest } from "../src/commands/query-publication.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { buildResearchLiteProject } from "./fixtures/profile-fixtures.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
@@ -38,7 +37,7 @@ describe("query --save profile gate", () => {
   });
 
   it("DEFAULT project: --save writes a queries page (unchanged)", async () => {
-    const slug = await maybeSaveQueryPage(root, QUESTION, ANSWER, true);
+    const { saved: slug } = await maybeSaveQueryPage({ root, question: QUESTION, answer: ANSWER, save: true });
     expect(slug).toBeDefined();
     expect(existsSync(path.join(root, "wiki/queries", `${slug}.md`))).toBe(true);
   });
@@ -51,7 +50,7 @@ describe("query --save profile gate", () => {
       if (acquired) await releaseLock(root);
     });
     try {
-      expect(await maybeSaveQueryPage(root, QUESTION, ANSWER, true)).toBeDefined();
+      expect((await maybeSaveQueryPage({ root, question: QUESTION, answer: ANSWER, save: true })).saved).toBeDefined();
     } finally {
       setQuerySaveTestHookForTest(undefined);
     }
@@ -60,15 +59,16 @@ describe("query --save profile gate", () => {
 
   it("profile-enabled project: --save does NOT write a queries page", async () => {
     await buildResearchLiteProject(root);
-    const slug = await maybeSaveQueryPage(root, QUESTION, ANSWER, true);
-    expect(slug).toBeUndefined();
+    const result = await maybeSaveQueryPage({ root, question: QUESTION, answer: ANSWER, save: true });
+    expect(result.saved).toBeUndefined();
+    expect(result.publicationRefusal?.code).toBe("profile-disabled");
     const queries = await readdir(path.join(root, "wiki/queries"));
     expect(queries).toHaveLength(0);
   });
 
   it("save=false never writes regardless of profile", async () => {
-    const slug = await maybeSaveQueryPage(root, QUESTION, ANSWER, false);
-    expect(slug).toBeUndefined();
+    const result = await maybeSaveQueryPage({ root, question: QUESTION, answer: ANSWER, save: false });
+    expect(result).toEqual({});
     const queries = await readdir(path.join(root, "wiki/queries"));
     expect(queries).toHaveLength(0);
   });

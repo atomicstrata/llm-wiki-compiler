@@ -40,6 +40,10 @@ export { DEFAULT_HELD_REASONS } from "./candidate-sanitize.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { readFile } from "fs/promises";
 import type { StrictIoOptions } from "../utils/path-confine.js";
+import { assertAnswerCandidateMetadata, InvalidCandidateMetadataError } from "../citations/answer-manifest.js";
+
+/** Targeted review reads report invalid metadata; collection reads warn and skip. */
+interface CandidateReadOptions extends StrictIoOptions { rejectInvalidMetadata?: boolean }
 
 /** Fatal decoder: persisted mutation authority never repairs malformed UTF-8. */
 const CANDIDATE_DECODER = new TextDecoder("utf-8", { fatal: true });
@@ -102,8 +106,8 @@ export async function readCandidateBySlug(
  * broken wikilink to an info-level "awaiting review" — hiding a link that
  * stays broken after approval.
  */
-export async function listLinkResolvablePendingSlugs(root: string): Promise<Set<string>> {
-  const candidates = await listCandidates(root);
+export async function listLinkResolvablePendingSlugs(root: string, options: StrictIoOptions = {}): Promise<Set<string>> {
+  const candidates = await listCandidates(root, options);
   return new Set(
     candidates.filter((candidate) => !candidate.targetEntityType).map((candidate) => candidate.slug),
   );
@@ -132,7 +136,8 @@ export async function loadCandidateOrFail(
   root: string,
   id: string,
 ): Promise<ReviewCandidate | null> {
-  const candidate = await readCandidate(root, id);
+  const candidate = await readTargetedCandidate(root, id);
+  if (candidate === undefined) return null;
   if (!candidate) return failWithError(`Candidate not found: ${id}`);
   return candidate;
 }
@@ -152,7 +157,8 @@ export async function loadCandidateUnderLockOrFail(
   root: string,
   id: string,
 ): Promise<ReviewCandidate | null> {
-  const candidate = await readCandidate(root, id);
+  const candidate = await readTargetedCandidate(root, id);
+  if (candidate === undefined) return null;
   if (!candidate) {
     return failWithError(`Candidate ${id} was removed by another process during review.`);
   }
@@ -168,9 +174,19 @@ export async function loadCandidateUnderLockOrFail(
 export async function readCandidate(
   root: string,
   id: string,
-  opts: StrictIoOptions = {},
+  opts: CandidateReadOptions = {},
 ): Promise<ReviewCandidate | null> {
   return (await readCandidateSnapshot(root, id, opts))?.candidate ?? null;
+}
+
+/** Render typed admission failures without disguising them as missing files. */
+async function readTargetedCandidate(root: string, id: string): Promise<ReviewCandidate | null | undefined> {
+  try { return await readCandidate(root, id, { rejectInvalidMetadata: true }); }
+  catch (error) {
+    if (!(error instanceof InvalidCandidateMetadataError)) throw error;
+    failWithError(error.message);
+    return undefined;
+  }
 }
 
 /** Preserve missing-file semantics while allowing snapshot callers to see faults. */
@@ -188,21 +204,27 @@ async function readCandidateBytes(file: string, opts: StrictIoOptions): Promise<
 export async function readCandidateSnapshot(
   root: string,
   id: string,
-  opts: StrictIoOptions = {},
+  opts: CandidateReadOptions = {},
 ): Promise<{ candidate: ReviewCandidate; raw: string } | null> {
   const raw = await readCandidateBytes(await candidatePath(root, id), opts);
   if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as ReviewCandidate;
-    if (!isValidCandidate(parsed)) {
-      output.note(`[llmwiki] Skipping malformed candidate file: ${id}.json (missing required fields)`);
-      return null;
-    }
-    return { candidate: sanitizeCandidate(parsed), raw };
-  } catch {
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch {
     output.note(`[llmwiki] Skipping unparseable candidate file: ${id}.json`);
     return null;
   }
+  try { assertAnswerCandidateMetadata(parsed, id); }
+  catch (error) {
+    if (!(error instanceof InvalidCandidateMetadataError) || opts.rejectInvalidMetadata) throw error;
+    output.note(`[llmwiki] Skipping candidate file: ${id}.json (${error.message})`);
+    return null;
+  }
+  if (!isValidCandidate(parsed)) {
+    output.note(`[llmwiki] Skipping malformed candidate file: ${id}.json (missing required fields)`);
+    return null;
+  }
+  return { candidate: sanitizeCandidate(parsed), raw };
 }
 
 /** Parse, validate, and sanitize one exact bounded custody read. */
@@ -215,6 +237,14 @@ function parseCandidateEntry(
     parsed = JSON.parse(CANDIDATE_DECODER.decode(custody.bytes));
   } catch {
     throw new CandidateRecordMalformedError();
+  }
+  // Invalid validated-answer metadata is malformed for mutation purposes too:
+  // such a record is never a canonical dedup match and never a strict read.
+  try {
+    assertAnswerCandidateMetadata(parsed, fileId);
+  } catch (error) {
+    if (error instanceof InvalidCandidateMetadataError) throw new CandidateRecordMalformedError();
+    throw error;
   }
   if (!isValidCandidate(parsed)) throw new CandidateRecordMalformedError();
   return { fileId, candidate: sanitizeCandidate(parsed), custodyReceipt: custody.receipt };

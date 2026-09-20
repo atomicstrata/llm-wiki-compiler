@@ -28,12 +28,12 @@ import { loadSelectedRefRecords } from "../search/retrieval.js";
 import { slugFromPageId, type PageId } from "../utils/page-id.js";
 import type { PageRecordWithId } from "../utils/page-registry.js";
 import { selectRelevantPages, type SelectedPages } from "./query-selection.js";
-import { maybeSaveQueryPage } from "./query-save.js";
+import { maybeSaveQueryPage, assertQuerySaveOptions } from "./query-publication.js";
+export { assertQuerySaveOptions } from "./query-publication.js";
 import { buildQueryDocument } from "./query-document.js";
 import { printAnswerCitationReport, reportQueryAnswerCitations } from "./query-citation-report.js";
-// Re-exported so existing consumers/tests keep importing these from `query.js`
-// after the save path moved to `query-save.ts`.
-export { summarizeAnswer, maybeSaveQueryPage } from "./query-save.js";
+// Preserve the existing summary helper import for consumers/tests.
+export { summarizeAnswer } from "./query-save.js";
 import { appendLog, formatWikilinkList } from "../utils/activity-log.js";
 import type { ChunkCitation, QueryResult, QueryWarning, RetrievalDebug } from "../utils/types.js";
 
@@ -127,8 +127,9 @@ interface GenerateAnswerOptions {
   /** Persist the answer as a wiki query page when set. */
   save?: boolean;
   /**
-   * With `save`, propose the answer as a review candidate instead of writing
-   * `wiki/queries/` directly — the operator applies it via `review approve`.
+   * With `save`, stage the answer as a validated review candidate instead of
+   * writing `wiki/queries/` directly — the operator applies it via `review
+   * approve`, which re-validates citations freshly. Requires `save`.
    */
   review?: boolean;
   /** Per-token callback for streaming. Omit for non-streaming usage. */
@@ -160,6 +161,8 @@ export async function generateAnswer(
   question: string,
   options: GenerateAnswerOptions = {},
 ): Promise<QueryResult> {
+  // `review` without `save` is rejected at every public entry (CLI, SDK, the
+  // command); here it remains the internal review-mode grounding switch.
   if (!existsSync(path.join(root, INDEX_FILE))) {
     throw new Error("Wiki index not found. Run `llmwiki compile` first.");
   }
@@ -198,7 +201,7 @@ export async function generateAnswer(
   // caller, never permission to publish. Its failure preserves the answer.
   const { document, body } = buildQueryDocument(question, answer, new Date().toISOString());
   const citationFields = await reportQueryAnswerCitations(root, body);
-  const saved = await maybeSaveQueryPage(root, question, answer, Boolean(options.save), Boolean(options.review), document);
+  const publication = await maybeSaveQueryPage({ root, question, answer, save: Boolean(options.save), review: options.review, document });
 
   // Preserve the public activity log for ordinary CLI/MCP questions, even when
   // not saved as pages. Explicitly scoped reads and review proposals retain
@@ -211,7 +214,7 @@ export async function generateAnswer(
     });
   }
 
-  return { answer, saved, ...resultFields, ...citationFields };
+  return { answer, ...publication, ...resultFields, ...citationFields };
 }
 
 /**
@@ -292,6 +295,7 @@ export default async function queryCommand(
   question: string,
   options: { save?: boolean; debug?: boolean; review?: boolean },
 ): Promise<void> {
+  assertQuerySaveOptions(options);
   if (!existsSync(path.join(root, INDEX_FILE))) {
     output.status("!", output.error("Wiki index not found. Run `llmwiki compile` first."));
     return;
@@ -323,12 +327,22 @@ export default async function queryCommand(
 
   if (result.answerCitations) printAnswerCitationReport(result.answerCitations);
 
-  if (options.review) {
-    // The proposal and its `review approve` instructions were already printed
-    // by the save path; nothing is live yet, so neither branch below applies.
+  printPublicationOutcome(result, Boolean(options.save));
+}
+
+/** Distinguish a published page, staged proposal, and answer-preserving refusal. */
+function printPublicationOutcome(result: QueryResult, saveRequested: boolean): void {
+  if (result.publicationRefusal) {
+    if (result.publicationRefusal.code !== "profile-disabled") {
+      output.status("!", output.error(result.publicationRefusal.message));
+      process.exitCode = 1;
+    }
+  } else if (result.candidateId) {
+    output.status("→", output.info(`Staged answer for review: ${result.candidateId}`));
+    output.status("→", output.dim(`Inspect with: llmwiki review show ${result.candidateId}`));
   } else if (result.saved) {
     output.status("→", output.dim("Saved. Future queries will use this answer as context."));
-  } else {
+  } else if (!saveRequested) {
     output.status("→", output.dim("Tip: use --save to add this answer to your wiki"));
   }
 }

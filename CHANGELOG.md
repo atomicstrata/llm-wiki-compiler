@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Validated answer publication: `query --save --review` and SDK `review: true`
+  stage separate validated-answer review candidates with IDs, canonical answer
+  documents, body-only audit digests and a closed precondition on the target
+  page. Approval rechecks current citations, the body digest and the target
+  precondition under the lock, preserves exact validated bytes, warns before
+  replacing an unchanged existing query, and removes only the approved
+  candidate. Pending targets must be published first; edited answer bodies
+  require regeneration and restaging.
+
 - Split-package development distribution: `@atomicstrata/llmwiki-core` is engine-free;
   `@atomicstrata/llmwiki-local-workflows` takes an explicit core host; the standard
   `llm-wiki-compiler` package composes both at matching versions and retains
@@ -70,6 +79,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [compile guide](https://llmwiki.atomicstrata.ai/cli/compile#embedding-reconciliation)
   and [embedding configuration](https://llmwiki.atomicstrata.ai/configuration/environment-variables#embeddings)
   for costs, strict-mode failures, and quarantine recovery.
+
+### Changed
+
+- Query saving now validates citations freshly under the project lock. Direct
+  saves refuse pending or broken links; reviewed staging allows pending links.
+  Unavailable validation refuses both while preserving the generated answer.
+  CLI citation refusals exit nonzero; the direct-save profile refusal retains
+  its warning and exit-zero behavior. Reviewed staging is allowed in
+  profile-enabled projects and its approval routes through the planner. SDK and
+  existing MCP save results expose `publicationRefusal` instead of a saved
+  slug; MCP adds no review option. An unavailable advisory report can still be
+  followed by a successful fresh save check. No recognized links is accepted,
+  not proof of factual support. `--review` without `--save` is rejected before
+  any provider request.
+- Generic default concept/query approval refuses genuinely broken links while
+  retaining pending-chain and existing unique-retained-prefix repair behavior.
+  An unavailable generic check warns and continues existing approval policy;
+  typed candidates keep their typed policy.
+- Validated-answer candidates carry a target precondition: approving one after
+  the target page changed or appeared refuses with a restaging instruction and
+  retains the candidate. Rejection archives a queue file by its explicit id
+  without promotion admission, so malformed metadata can still be cleared.
 
 ### Fixed
 

@@ -98,7 +98,7 @@ The server exposes eleven tools. Read-only tools work without provider credentia
 |------|--------------|:--------------------:|
 | `ingest_source` | Fetch a URL or local file into `sources/` | No |
 | `compile_wiki` | Run the incremental compile pipeline; returns page counts and slugs | Yes |
-| `query_wiki` | Grounded natural-language answer with optional `save` to persist as a page | Yes |
+| `query_wiki` | Answer with optional `save` to request a page after fresh citation validation and the profile gate; refusal returns the answer with `publicationRefusal` and no saved slug | Yes |
 | `search_pages` | Return full content of pages relevant to a question | Yes |
 | `read_page` | Read a single page by slug (checks `concepts/` then `queries/`) | No |
 | `lint_wiki` | Run quality checks; returns structured diagnostics | No |
@@ -109,6 +109,8 @@ The server exposes eleven tools. Read-only tools work without provider credentia
 | `import_okf` | Preview or stage an Open Knowledge Format bundle from a project-confined path as review candidates | No |
 
 **`get_context_pack` vs `query_wiki`:** these tools serve different purposes. `get_context_pack` *packages evidence* - it assembles a structured JSON envelope of relevant pages, semantic chunks, and citations that the agent uses for its own reasoning. `query_wiki` *generates an answer* - it calls the LLM and returns prose. Use `get_context_pack` when the agent needs grounded source material to reason over; use `query_wiki` when you want a finished answer.
+
+`query_wiki` has no review option. Its existing no-save path returns the answer and advisory citations without publication checks. See [publication policy and recovery](/cli/query#publication-and-review-policy) before using `save: true`.
 
 ### MCP resources
 

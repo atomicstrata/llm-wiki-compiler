@@ -59,6 +59,18 @@ function resolveUniquePrefix(targetSlug: string, slugs: string[]): string | null
   return match;
 }
 
+/** Reuse the production retained-only prefix rule, including pending ambiguity. */
+export function createRepairResolver(slugs: string[], pending: Set<string>): (target: string) => string | null {
+  const existing = new Set(slugs);
+  const possible = [...slugs, ...[...pending].filter(slug => !existing.has(slug))];
+  // Exact pending targets must not be redirected to a different retained page.
+  return (targetSlug: string): string | null => {
+    if (existing.has(targetSlug) || pending.has(targetSlug)) return null;
+    const match = resolveUniquePrefix(targetSlug, possible);
+    return match && existing.has(match) ? match : null;
+  };
+}
+
 /** Split `target|alias` into its parts, preserving an alias that contains a pipe. */
 function splitWikilink(inner: string): { target: string; alias: string } {
   const [rawTarget, ...aliasParts] = inner.split("|");
@@ -127,17 +139,8 @@ export async function repairLinks(root: string): Promise<CompilePageWrite[]> {
   if (pages.length === 0) return [];
 
   const slugs = pages.map((page) => path.basename(page.filePath, ".md").toLowerCase());
-  const existing = new Set(slugs);
   const pending = await listLinkResolvablePendingSlugs(root);
-  const possible = [...slugs, ...[...pending].filter(slug => !existing.has(slug))];
-  // A pending target resolves on its own when the candidate is approved, so
-  // repointing it now would silently redirect the link away from the page the
-  // author is about to publish.
-  const resolve = (targetSlug: string): string | null => {
-    if (existing.has(targetSlug) || pending.has(targetSlug)) return null;
-    const match = resolveUniquePrefix(targetSlug, possible);
-    return match && existing.has(match) ? match : null;
-  };
+  const resolve = createRepairResolver(slugs, pending);
 
   const writes: CompilePageWrite[] = [];
   let repairedLinks = 0;

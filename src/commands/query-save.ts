@@ -10,20 +10,13 @@
  */
 
 import path from "path";
-import { readFile } from "fs/promises";
-import { atomicWrite, slugify, parseFrontmatter } from "../utils/markdown.js";
-import { buildQueryDocument, summarizeAnswer } from "./query-document.js";
+import { atomicWrite, slugify } from "../utils/markdown.js";
 export { summarizeAnswer } from "./query-document.js";
-import { sha256Text } from "../connectors/hash.js";
-import { writeCandidate } from "../compiler/candidates.js";
 import { generateIndex } from "../compiler/indexgen.js";
 import { updateEmbeddingsLockedCore } from "../utils/embeddings.js";
 import { qualifiedPageId } from "../utils/page-id.js";
 import { handleSafeEmbeddingFailure } from "../utils/embeddings-batch.js";
-import { loadNonDefaultProfile } from "../profile/block.js";
-import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { QUERIES_DIR } from "../utils/constants.js";
-import { releaseLock } from "../utils/lock.js";
 import * as output from "../utils/output.js";
 
 /**
@@ -40,7 +33,7 @@ import * as output from "../utils/output.js";
  * @param question - The original question used as the page title.
  * @param document - The canonical serialized query document.
  */
-async function saveQueryPageLocked(root: string, question: string, document: string): Promise<string> {
+export async function saveQueryPageLocked(root: string, question: string, document: string): Promise<string> {
   const slug = slugify(question);
   const filePath = path.join(root, QUERIES_DIR, `${slug}.md`);
 
@@ -64,124 +57,4 @@ async function saveQueryPageLocked(root: string, question: string, document: str
   }
 
   return slug;
-}
-
-let afterDefaultProfileCheckForTest: (() => Promise<void>) | undefined;
-
-/** Test-only seam used to prove the save gate holds the project lock. */
-export function setQuerySaveTestHookForTest(hook: (() => Promise<void>) | undefined): void {
-  afterDefaultProfileCheckForTest = hook;
-}
-
-/**
- * Propose the answer as a review candidate under `.llmwiki/candidates/` instead
- * of writing `wiki/queries/` directly — the crystallizing `--review` path. The
- * candidate's body is the same document a direct save would write, so approving
- * it with `llmwiki review approve <id>` lands `wiki/queries/<slug>.md`
- * byte-for-byte. Nothing is live until approval, so the index and embeddings are
- * NOT refreshed here, and unlike the direct write this path is allowed in
- * profile-enabled projects — a review candidate IS the trust-routed destination.
- * @param root - Absolute project root directory.
- * @param question - The original question (page title).
- * @param document - The canonical serialized query document.
- * @returns The proposed candidate's id (the handle `review approve` takes).
- */
-/** A CLOSED precondition on the query page: its digest, or an explicit expect-absent. */
-type QueryTargetPrecondition = { expectedTargetHash: string } | { expectTargetAbsent: true };
-
-/**
- * Capture a CLOSED precondition on the target query page: its content digest
- * when it exists, or an explicit expect-absent when it does not (ENOENT ONLY).
- * Any OTHER read error (a permission or I/O failure) is a refusal to propose —
- * a precondition we cannot capture must never silently fail open, which would
- * let approval blind-overwrite a page that appeared after the proposal.
- */
-async function captureQueryPrecondition(root: string, slug: string): Promise<QueryTargetPrecondition> {
-  try {
-    return { expectedTargetHash: sha256Text(await readFile(path.join(root, QUERIES_DIR, `${slug}.md`), "utf8")) };
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return { expectTargetAbsent: true };
-    throw err;
-  }
-}
-
-async function proposeQueryPageLocked(root: string, question: string, document: string): Promise<string> {
-  const slug = slugify(question);
-  // Capture the target page's state as a CLOSED precondition so approval REFUSES
-  // if the page was edited OR created between this proposal and approval, rather
-  // than blind-overwriting whatever bytes are live at approval time.
-  const precondition = await captureQueryPrecondition(root, slug);
-  const candidate = await writeCandidate(root, {
-    title: question,
-    slug,
-    summary: summarizeAnswer(parseFrontmatter(document).body),
-    sources: [],
-    body: document,
-    targetDirectory: "queries",
-    reviewMode: "forced",
-    heldReasons: [{ code: "manual-review-requested" }],
-    ...precondition,
-  });
-  output.status(
-    "→",
-    output.info(`Proposed query as review candidate ${output.source(candidate.id)}. ` +
-      `Apply with: llmwiki review approve ${candidate.id}`),
-  );
-  return candidate.id;
-}
-
-/**
- * Persist the answer as a query page when `--save` is set, EXCEPT in
- * profile-enabled (non-default-profile) projects where the saved-query write
- * path is not yet Trust-Guard-routed.
- *
- * Per CLP plan D7 / spec-07 the save is the spec-permitted DISABLED option in
- * those projects: the answer is still returned to the caller; only the wiki
- * write is refused, with an actionable message. Default-profile projects are
- * unaffected and save exactly as before.
- *
- * @param root - Absolute project root directory.
- * @param question - The original question (page title).
- * @param answer - The generated answer body.
- * @param save - Whether `--save` was requested.
- * @param review - Whether `--review` was requested (propose instead of write).
- * @param document - Already prepared canonical document, when reporting preceded saving.
- * @returns The saved slug, or `undefined` when not saved (not requested or disabled).
- */
-export async function maybeSaveQueryPage(
-  root: string,
-  question: string,
-  answer: string,
-  save: boolean,
-  review = false,
-  document?: string,
-): Promise<string | undefined> {
-  if (!save) return undefined;
-  await acquireMutationLockBlocking(root, "ordinary");
-  try {
-    // One canonical document serves both destinations so a proposal approved
-    // later lands byte-identically to what a direct save would have written.
-    const canonical = document ?? buildQueryDocument(question, answer, new Date().toISOString()).document;
-    // The `--review` path proposes a candidate rather than writing wiki/, so it
-    // is NOT subject to the direct-write profile gate — the candidate IS the
-    // trust-routed destination — and it returns the candidate id, not a slug.
-    // `return await` so a rejection settles INSIDE the try — the finally then
-    // releases the lock in order, with no unhandled-rejection window.
-    if (review) return await proposeQueryPageLocked(root, question, canonical);
-    if (await loadNonDefaultProfile(root)) {
-      output.status(
-        "!",
-        output.warn(
-          "query --save is disabled in profile-enabled projects (the saved-query " +
-            "write path is not yet trust-routed). Run without --save, or use the " +
-            "default profile.",
-        ),
-      );
-      return undefined;
-    }
-    await afterDefaultProfileCheckForTest?.();
-    return await saveQueryPageLocked(root, question, canonical);
-  } finally {
-    await releaseLock(root);
-  }
 }
