@@ -14,7 +14,13 @@ import { approveBatch, stageBatchCandidate, useQuietBatchTests } from "./fixture
 const root = useTempRoot();
 useQuietBatchTests();
 
-const aliases = [["Alpha", "alpha"], ["caf\u00e9", "cafe\u0301"], ["\u03c3", "\u03c2"], ["Stra\u00dfe", "STRA\u1e9eE"]];
+const aliases = [
+  ["Alpha", "alpha"],
+  ["caf\u00e9", "cafe\u0301"],
+  ["\u03c3", "\u03c2"],
+  ["Stra\u00dfe", "STRA\u1e9eE"],
+  ["Straße", "STRASSE"],
+];
 const cases = aliases.flatMap(([first, second]) => [false, true].flatMap((existing) =>
   [false, true].map((reverse) => ({ first, second, existing, reverse }))));
 

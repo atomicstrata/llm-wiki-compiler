@@ -132,5 +132,7 @@ function rejectTargetConflicts(approvals: PlannedReviewApproval[]): PlannedRevie
  * normalization-insensitive filesystem. This key never changes a stored path.
  */
 function portableTargetKey(pagePath: string): string {
+  // Expansion is intentional: default macOS filesystems alias `Straße` and
+  // `STRASSE`, so accepting both would pass planning and collide during writes.
   return pagePath.normalize("NFD").toLowerCase().toUpperCase().normalize("NFD");
 }
