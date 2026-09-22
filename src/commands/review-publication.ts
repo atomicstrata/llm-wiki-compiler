@@ -47,7 +47,7 @@ async function checkAnswer(root: string, candidate: ReviewCandidate): Promise<bo
     return refuse(candidate, "candidate-edited: regenerate and restage the answer.");
   }
   try {
-    await validateCitationPublication(root, candidate.body, "approval");
+    await validateCitationPublication(root, candidate.body, "approval", candidate.slug);
   } catch (error) {
     return refuse(candidate, `citation validation refused or unavailable: ${String(error)}`);
   }

@@ -14,6 +14,7 @@ import { releaseLock } from "../utils/lock.js";
 import type { QueryResult } from "../utils/types.js";
 import * as output from "../utils/output.js";
 import { buildQueryDocument } from "./query-document.js";
+import { slugify } from "../utils/markdown.js";
 import { saveQueryPageLocked } from "./query-save.js";
 import { stageQueryProposal } from "./query-proposal.js";
 
@@ -49,11 +50,11 @@ function profileRefusal(): PublicationResult {
 }
 
 /** Recover only validation failure; page/index/embedding/log writes are outside. */
-async function checkCitations(root: string, document: string, mode: CitationPublicationMode): Promise<
+async function checkCitations(root: string, document: string, mode: CitationPublicationMode, targetSlug: string): Promise<
   { report: AnswerCitationReport } | { publicationRefusal: PublicationRefusal }
 > {
   try {
-    return { report: await validateCitationPublication(root, document, mode) };
+    return { report: await validateCitationPublication(root, document, mode, targetSlug) };
   } catch (error) {
     if (error instanceof CitationPublicationError) {
       return { publicationRefusal: { code: error.code, targets: error.targets, message: error.message } };
@@ -74,7 +75,7 @@ export async function maybeSaveQueryPage(options: QueryPublicationOptions): Prom
     if (!review && await loadNonDefaultProfile(root)) return profileRefusal();
     await afterDefaultProfileCheckForTest?.();
     const document = options.document ?? buildQueryDocument(question, answer, new Date().toISOString()).document;
-    const validation = await checkCitations(root, document, review ? "proposal" : "direct");
+    const validation = await checkCitations(root, document, review ? "proposal" : "direct", slugify(question));
     if ("publicationRefusal" in validation) return validation;
     if (review) return { candidateId: await stageQueryProposal({ root, question, document, report: validation.report }) };
     return { saved: await saveQueryPageLocked(root, question, document) };

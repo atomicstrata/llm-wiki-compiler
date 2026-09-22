@@ -161,8 +161,10 @@ export async function generateAnswer(
   question: string,
   options: GenerateAnswerOptions = {},
 ): Promise<QueryResult> {
-  // `review` without `save` is rejected at every public entry (CLI, SDK, the
-  // command); here it remains the internal review-mode grounding switch.
+  // `review` without `save` is rejected by the user-facing query surfaces (the
+  // CLI action, `queryCommand`, and the SDK facade's `wiki.query`). This lower-
+  // level function is also exported for compatibility, and here `review` alone
+  // only selects review-mode grounding; nothing is published unless `save` is set.
   if (!existsSync(path.join(root, INDEX_FILE))) {
     throw new Error("Wiki index not found. Run `llmwiki compile` first.");
   }
