@@ -1,7 +1,7 @@
 # @atomicstrata/llmwiki-core
 
 The engine-free implementation package for llmwiki knowledge and domain services.
-Applications, including llmflow, should import `llm-wiki-compiler` instead.
+Applications should import `llm-wiki-compiler` instead.
 This package is publicly downloadable but its direct exports are internal
 composition contracts, not a separately supported consumer API.
 

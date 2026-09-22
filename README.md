@@ -1,43 +1,5 @@
 # llmwiki
 
-> Development candidate: `1.4.0-dev.20260919` is a local integration build, not
-> an npm release. It restores generic domain SDK, preparation, operation-bundle,
-> provider and workflow capabilities while preserving the public compiler and
-> viewer. Standalone AutoSci/Newsroom process packages are not included; their
-> existing builtin ontology templates remain supported.
-
-See [Compiler, integrations, and products](ARCHITECTURE.md) for the ownership
-boundaries between base llmwiki, configurable domain capabilities, external
-orchestration, and product implementations.
-
-For application integration, see [SDK package selection](https://llmwiki.atomicstrata.ai/guides/sdk-packages)
-and [SDK upgrade notes](https://llmwiki.atomicstrata.ai/guides/sdk-upgrade). The standard package keeps
-`createWiki` and its local workflows. Scoped supporting packages are implementation
-dependencies; applications should continue importing `llm-wiki-compiler`.
-Experimental SDK type and workflow changes can require consumer updates.
-Before these candidate guides are deployed, read their sources under
-`docs/guides/sdk-packages.mdx` and `docs/guides/sdk-upgrade.mdx` in this checkout.
-
-### Development runtime authority
-
-SDK clients can prepare, observe and retire record effects with explicit grants.
-Preparation does not approve or apply a change. Review a proposed manifest with
-`llmwiki operation inspect <digest>`; the separate local operator command
-`llmwiki product apply <digest>` requires operation-approval authority. An
-embedder trusted-write grant does not grant operation approval.
-
-Generic product packs can use `product init`, `preview`, `invoke`, `resume` and
-`status`. Provider execution is opt-in through the operator-selected
-`LLMWIKI_PROVIDER_INVOCATION_MODULE`; product configuration cannot select trusted
-host code on the operator's behalf. Both optional backend packages pin this
-development compiler version. The development backend is not a sandbox.
-
-Live workflow projections and retained output/PDF routes are loopback-only.
-Providers should use the generic bounded fact panel; the experiment-specific
-projection input remains deprecated compatibility, not a core product workflow.
-Relation compaction currently refuses operation-bound history rather than
-discarding provenance needed for recovery.
-
 [![CI](https://img.shields.io/github/actions/workflow/status/atomicstrata/llm-wiki-compiler/ci.yml?branch=main&logo=github&label=CI)](https://github.com/atomicstrata/llm-wiki-compiler/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/llm-wiki-compiler?logo=npm&label=npm)](https://www.npmjs.com/package/llm-wiki-compiler)
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
@@ -234,7 +196,7 @@ The [`examples/basic/`](examples/basic/) directory includes a small pre-generate
 | `llmwiki refresh --stale [--dry-run]` | Recompile changed owners of stale pages and clean selected orphaned ownership. |
 | `llmwiki template list\|inspect\|init` | Discover and install validated declarative profile templates. |
 | `llmwiki profile init\|show\|validate\|diff` | Create a minimal profile, inspect it, validate it, or assess profile changes. |
-| `llmwiki workflow ...` | Discover and drive profile-declared workflows, stages, gates, and outputs. |
+| `llmwiki workflow ...` | Discover and drive profile-declared workflows, stages, gates, and outputs locally, retaining run state between invocations. |
 | `llmwiki artifact write\|verify` | Write trusted profile-declared artifacts and verify hash-pinned references. |
 | `llmwiki connector list\|run` | Discover first-party connectors and stage external records for review. |
 | `llmwiki review list/show/approve/reject` | Inspect and manage held candidates. |
@@ -320,7 +282,16 @@ await wiki.compile();
 const answer = await wiki.query({ question: "What changed?" });
 ```
 
-See [`docs/guides/sdk.mdx`](docs/guides/sdk.mdx).
+See [`docs/guides/sdk.mdx`](docs/guides/sdk.mdx). `llm-wiki-compiler` is the
+supported entry point; its scoped supporting packages are implementation
+dependencies. The local workflow engine and an application's own coordinator
+are two tiers, not a migration path: `llmwiki workflow` runs a profile-declared
+workflow through local invocations with persisted state between sessions.
+An external coordinator calls the same SDK without using local workflow
+execution methods; the supporting engine dependency remains installed. See
+[SDK package selection](docs/guides/sdk-packages.mdx),
+[SDK upgrade notes](docs/guides/sdk-upgrade.mdx), and
+[When to use the local engine](docs/cli/workflow.mdx#when-to-use-the-local-engine).
 
 ## Configuration
 
@@ -397,6 +368,8 @@ The full docs site source is in [`docs/`](docs/):
 - Open Knowledge Format: [`docs/guides/open-knowledge-format.mdx`](docs/guides/open-knowledge-format.mdx)
 - MCP integration: [`docs/guides/mcp-agent-integration.mdx`](docs/guides/mcp-agent-integration.mdx)
 - SDK: [`docs/guides/sdk.mdx`](docs/guides/sdk.mdx)
+- SDK packages and upgrade notes: [`docs/guides/sdk-packages.mdx`](docs/guides/sdk-packages.mdx), [`docs/guides/sdk-upgrade.mdx`](docs/guides/sdk-upgrade.mdx)
+- Architecture and ownership boundaries: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Atomic Memory bridge: [`docs/guides/atomic-memory-bridge.mdx`](docs/guides/atomic-memory-bridge.mdx)
 
 Preview the docs locally with Node 24:
@@ -407,6 +380,14 @@ volta run --node 24 npx mint dev --port 3001
 ```
 
 ## Current release
+
+`main` carries the `1.4.0-dev.20260919` development candidate: a local
+integration build, not an npm release. It adds the split-package SDK, generic
+domain record preparation, operation-bundle authority, and provider-backed
+product actions while preserving the public compiler and viewer. Standalone
+AutoSci/Newsroom process packages are not included; their builtin ontology
+templates remain supported. See the [changelog](CHANGELOG.md) `Unreleased`
+section and [`ARCHITECTURE.md`](ARCHITECTURE.md#development-runtime-authority).
 
 **Released `1.3.0`:**
 

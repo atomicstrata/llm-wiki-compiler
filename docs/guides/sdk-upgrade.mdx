@@ -10,10 +10,12 @@ public compiler baseline. They do not announce an npm release.
 
 Continue importing `createWiki` from `llm-wiki-compiler` for the standard SDK.
 The standard CLI, workflow facade, builtin profile templates and legacy viewer
-experiment input remain available. Core-only installation is opt-in; it does not
-replace the default distribution. Node 24 remains the minimum, not a new requirement.
+experiment input remain available. Scoped supporting packages are implementation
+dependencies, not separately supported consumer entry points. Node 24 remains
+the minimum, not a new requirement.
 
-The extraction does not require a blanket migration to llmflow. See
+The extraction does not require migrating local workflows to an external
+coordinator; the local engine retains run state between local invocations. See
 [SDK packages and ownership](/guides/sdk-packages) before changing dependencies.
 
 ## Experimental source changes
