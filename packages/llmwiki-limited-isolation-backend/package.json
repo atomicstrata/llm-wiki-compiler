@@ -1,0 +1,28 @@
+{
+  "name": "llmwiki-limited-isolation-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LIMITED-ISOLATION experiment backend for llmwiki (v1): wraps a provider child process with network-deny and scratch-write confinement via seatbelt (macOS) or bubblewrap (Linux), fail-closed when the tool is unavailable. NOT a security sandbox \u2014 env/FD/process/tree-kill isolation is UNENFORCED. Opt-in only; for code the operator wrote or trusts.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:lib": "tsup",
+    "prepack": "npm run build:lib"
+  },
+  "peerDependencies": {
+    "@atomicstrata/llmwiki-core": "1.4.0-dev.20260919"
+  },
+  "dependencies": {
+    "llmwiki-dev-backend": "0.1.0"
+  }
+}

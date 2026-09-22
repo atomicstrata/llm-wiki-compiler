@@ -21,7 +21,8 @@ import {
 import {
   slugify,
 } from "../utils/markdown.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import {
   parseConcepts,
 } from "./prompts.js";
@@ -118,7 +119,7 @@ export async function compileAndReport(
 ): Promise<CompileResult> {
   output.header("llmwiki compile");
 
-  const locked = await acquireLock(root);
+  const locked = await acquireMutationLock(root, "ordinary");
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
     return {

@@ -22,10 +22,10 @@
  * export. Output is deterministic: every list is sorted and no timestamps ride.
  */
 import { readLiveValidRelations } from "../../relations/live-valid.js";
-import { listRuns, readRun } from "../../workflows/store.js";
+import { listRuns, readRun } from "../../workflow-history/store.js";
 import type { LoadedProfile } from "../../profile/types.js";
 import type { RelationRef } from "../../relations/types.js";
-import type { WorkflowRun } from "../../workflows/types.js";
+import type { WorkflowRun } from "../../workflow-history/types.js";
 import pkg from "../../../package.json";
 
 /** Producer identity stamped into every profile block. */

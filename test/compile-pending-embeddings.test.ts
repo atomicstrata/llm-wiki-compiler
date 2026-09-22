@@ -71,7 +71,7 @@ describe("durable pending-embedding refresh list across compiles", () => {
     // both, so settleAfterSuccess clears it.
     const okSpy = vi
       .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockResolvedValue({ embedded: [ALPHA_ID], eligible: [ALPHA_ID] });
+      .mockResolvedValue({ embedded: [ALPHA_ID], eligible: [ALPHA_ID], pruned: [] });
     const result = await compileAndReport(ctx.dir);
 
     expect(result.skipped).toBeGreaterThan(0); // no-source-change branch ran

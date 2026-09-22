@@ -8,35 +8,32 @@
 
 import { createRequire } from "module";
 import { Command } from "commander";
-import ingestCommand from "./commands/ingest.js";
-import ingestSessionCommand from "./commands/ingest-session.js";
-import viewCommand from "./commands/view.js";
-import compileCommand from "./commands/compile.js";
-import { rmCommand } from "./commands/rm.js";
-import queryCommand from "./commands/query.js";
-import watchCommand from "./commands/watch.js";
-import lintCommand from "./commands/lint.js";
-import statusCommand from "./commands/status.js";
-import exportCommand from "./commands/export.js";
-import importCommand from "./commands/import.js";
-import { recoverCommand } from "./commands/recover.js";
-import { registerRulesCommand } from "./commands/rules-register.js";
-import nextCommand from "./commands/next.js";
-import refreshCommand from "./commands/refresh.js";
-import quickstartCommand from "./commands/quickstart.js";
-import contextCommand, { type ContextCommandOptions } from "./commands/context.js";
+import { ingestCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { ingestSessionCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { viewCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { visualizeCommand, type VisualizeOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { compileCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { rmCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { queryCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { watchCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { lintCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { statusCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { exportCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { importCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { recoverCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { registerRulesCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { registerContextCommands } from "./cli/context-commands.js";
+import { refreshCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { quickstartCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { startMCPServer } from "./mcp/server.js";
-import { applyLanguageOption } from "./utils/output-language.js";
-import { applySourcesSectionOption } from "./utils/sources-section.js";
+import { applyLanguageOption } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { applySourcesSectionOption } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { readInstructions } from "./cli/instructions.js";
-import {
-  ensureCompileProviderAvailable,
-  ensureProviderAvailable,
-} from "./utils/provider-guard.js";
-import { setVerbose } from "./utils/output.js";
-import { parseConcurrencyFlag } from "./compiler/concurrency.js";
-import { ENV_VERBOSE } from "./utils/constants.js";
-import { runExitCodeCommand } from "./cli/shared.js";
+import { ensureCompileProviderAvailable, ensureProviderAvailable } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { setVerbose } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { parseConcurrencyFlag } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { ENV_VERBOSE } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { registerStateCommands } from "./cli/state-commands.js";
 import { registerSchemaCommands } from "./cli/schema-commands.js";
 import { registerProfileCommands } from "./cli/profile-commands.js";
@@ -46,11 +43,10 @@ import { registerReviewCommands } from "./cli/review-commands.js";
 import { registerEvalCommands } from "./cli/eval-commands.js";
 import { registerWorkflowCommands } from "./cli/workflow-commands.js";
 import { registerConnectorCommands } from "./cli/connector-commands.js";
-import {
-  addProviderOption,
-  applyProviderOption,
-  type ProviderOption,
-} from "./cli/provider-option.js";
+import { registerOperationCommands } from "./cli/operation-commands.js";
+import { registerProductCommands } from "./cli/product-commands.js";
+import { registerPreparationCommands } from "./cli/preparation-commands.js";
+import { addProviderOption, applyProviderOption, type ProviderOption } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { loadCliEnvironment } from "./cli/environment.js";
 
 loadCliEnvironment();
@@ -216,6 +212,7 @@ registerRulesCommand(program, requireProvider);
 
 addProviderOption(program.command("query <question>").description("Ask a question against the wiki"))
   .option("--save", "Save the answer as a wiki page")
+  .option("--review", "With --save, propose a review candidate instead of applying the answer")
   .option("--debug", "Print which pages and chunks were selected and their scores")
   .option(
     "--lang <code>",
@@ -225,7 +222,7 @@ addProviderOption(program.command("query <question>").description("Ask a questio
   .action(
     async (
       question: string,
-      options: ProviderOption & { save?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
+      options: ProviderOption & { save?: boolean; review?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
     ) => {
       try {
         applyProviderOption(options);
@@ -257,11 +254,32 @@ addProviderOption(program.command("watch").description("Watch sources/ and auto-
   });
 
 program
+  .command("visualize")
+  .description("Create Obsidian graph configuration and Canvas knowledge maps without overwriting edits")
+  .option("--focus <nodeId>", "Centre the canvas on one node, e.g. papers/alpha")
+  .option("--depth <hops>", "Hops around --focus (default 1)")
+  .action(async (options: VisualizeOptions) => {
+    try {
+      process.exitCode = await visualizeCommand(process.cwd(), options);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
+    }
+  });
+
+program
   .command("lint")
   .description("Run rule-based quality checks against the wiki")
-  .action(async () => {
+  .option("--tiered", "Separate broken content, model judgements, and stale derived views")
+  .option("--fix-preview", "Preview deterministic repairs without applying them")
+  .option("--fix-propose <n>", "Propose the nth previewed repair for review; applies nothing")
+  .action(async (options: { tiered?: boolean; fixPreview?: boolean; fixPropose?: string }) => {
     try {
-      await lintCommand();
+      await lintCommand({
+        tiered: options.tiered,
+        fixPreview: options.fixPreview,
+        ...(options.fixPropose === undefined ? {} : { fixPropose: Number(options.fixPropose) }),
+      });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -295,6 +313,9 @@ registerWorkflowCommands(program);
 registerArtifactCommands(program);
 
 registerConnectorCommands(program);
+registerOperationCommands(program);
+registerProductCommands(program);
+registerPreparationCommands(program);
 
 program
   .command("export")
@@ -340,38 +361,7 @@ program
     }
   });
 
-program
-  .command("next")
-  .description("Show the recommended next action for this llmwiki project (read-only)")
-  .option("--json", "Emit a stable JSON envelope for agent consumption")
-  .action(async (options: { json?: boolean }) =>
-    runExitCodeCommand(() => nextCommand({ json: options.json })),
-  );
-
-program
-  .command("context <prompt>")
-  .description(
-    "Build an agent-ready evidence pack for <prompt> from the compiled wiki " +
-      "(read-only; provider credentials optional — semantic retrieval is used " +
-      "when available and falls back to lexical otherwise)",
-  )
-  .option("--budget <tokens>", "Approximate output token budget (default 8000)")
-  .option("--format <format>", "Output format: json | markdown (default markdown)")
-  .option("--json", "Emit the stable v1 JSON envelope (overrides --format)")
-  .option("--depth <n>", "Graph neighborhood depth, default 1, max 2; 0 disables expansion")
-  .option("--top-pages <n>", "Max primary pages (default 5, max 20)")
-  .option("--top-chunks <n>", "Max semantic chunks (default 8, max 50)")
-  .option("--omit-root", "Emit project.root as null for privacy")
-  .option("--no-neighbors", "Suppress graph expansion (keeps neighbors/gaps as empty arrays)")
-  .option(
-    "--include-sources",
-    "Populate primary[].sourceWindows from claim-level citation spans (max 20 windows, 30 lines each)",
-  )
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (prompt: string, options: ContextCommandOptions & { verbose?: boolean }) => {
-    setVerbose(verboseEnabled(options.verbose));
-    return runExitCodeCommand(() => contextCommand(prompt, options));
-  });
+registerContextCommands(program, verboseEnabled);
 
 program
   .command("quickstart <source>")

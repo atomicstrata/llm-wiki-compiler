@@ -32,6 +32,7 @@ import { runMandatoryPageChecks, resourceCapForOrigin, type PageWriteContext } f
 import { composeTrustDecision, type TrustDecision, type TrustCheckResult } from "./decision.js";
 import { entityId, isSlugSafe, isSafeFilenameComponent } from "../profile/identity.js";
 import type { EntityId } from "../profile/types.js";
+import type { ArtifactMemberFileInput } from "../artifacts/members.js";
 import type { AppendRelationInput } from "../relations/store.js";
 
 /** Every CLP store a mutation can target. The executor handles `page`, `relation`,
@@ -136,7 +137,13 @@ export interface ArtifactPlannedMutation {
   kind: "artifact";
   artifactType: string;
   slug: string;
+  /** The bytes to write; for a member-bearing type this must be EMPTY (core derives the manifest). */
   body: string;
+  /**
+   * The member leaves of a member-bearing type (bytes only — core hashes them
+   * and renders the manifest). Refused on a type that declares no members.
+   */
+  memberFiles?: readonly ArtifactMemberFileInput[];
   /** Provenance recorded in the audit event; set by the calling surface (F2). */
   origin: ArtifactOrigin;
 }
@@ -175,6 +182,14 @@ export interface PlanPageInput {
   origin: string;
   /** Whether the surface stages risky writes for human review. */
   reviewRouted: boolean;
+  /**
+   * Plan the REMOVAL of the target rather than a write.
+   *
+   * The mandatory content checks still run over `body` — a caller must hand the
+   * bytes it expects to remove — so a delete is planned under the same
+   * decision machinery as a write rather than through a bypass.
+   */
+  deleting?: boolean;
   /**
    * Whether an existing target is an intended overwrite (`update`) rather than a
    * collision. A legitimate upserting caller (review-approve, compile recompile)
@@ -259,6 +274,8 @@ interface PageFloorInput {
   origin: string;
   reviewRouted: boolean;
   allowOverwrite?: boolean;
+  /** Plan the target's REMOVAL rather than a write; see {@link PlanPageInput}. */
+  deleting?: boolean;
 }
 
 /**
@@ -291,7 +308,7 @@ async function planPageWith(
   const exists = await targetAlreadyExists(input.root, input.targetPath);
   const mutation: PagePlannedMutation = {
     kind: "page",
-    operation: exists ? "update" : "create",
+    operation: input.deleting === true ? "delete" : exists ? "update" : "create",
     target: buildTarget(),
     body: input.body,
     provenance: { origin: input.origin, decision, reviewRouted: input.reviewRouted },

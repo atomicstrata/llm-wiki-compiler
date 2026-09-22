@@ -48,7 +48,8 @@ import { LockBusyError } from "../utils/lock.js";
 import { parseFrontmatter, safeReadFile } from "../utils/markdown.js";
 import { resolveConfinedEntityPage } from "../profile/lifecycle-read.js";
 import { prepareEventStoreForAppend } from "../events/store-read.js";
-import { appendEventLocked, preflightEventAppend, type AppendEventInput } from "../events/store.js";
+import { appendBoundEventLocked, appendEventLocked, preflightEventAppend, type AppendEventInput } from "../events/store.js";
+import type { OperationBinding } from "../utils/operation-binding.js";
 import { entityId } from "../profile/identity.js";
 import { validateLifecycleTransition, LifecycleTransitionError } from "../profile/lifecycle.js";
 import { entityFieldViolations } from "../profile/artifact-ref-validate.js";
@@ -281,6 +282,14 @@ function refuseNonLiveWrite(
   throw new LifecycleTransitionError(m.entityType, m.slug, problems);
 }
 
+/** Predict the exact lifecycle postimage under the caller's project lock. */
+export async function previewLifecycleLocked(root: string, m: LifecycleTransitionPlannedMutation) {
+  const ctx = await resolvePageContext(root, m);
+  const { nextMeta, accepted, decision } = decideTransition(ctx, m);
+  if (!LIVE_WRITE_DECISIONS.has(decision)) refuseNonLiveWrite(ctx, m, nextMeta);
+  return { body: buildPageMutation(ctx, m, accepted, decision).body, decision };
+}
+
 /**
  * Apply a `lifecycle-transition` mutation WHILE THE CALLER ALREADY HOLDS the
  * project lock — the under-lock authority for the lifecycle kind. RE-loads the
@@ -322,6 +331,7 @@ function refuseNonLiveWrite(
 export async function applyLifecycleLocked(
   root: string,
   m: LifecycleTransitionPlannedMutation,
+  binding?: OperationBinding,
 ): Promise<TrustDecision> {
   const ctx = await resolvePageContext(root, m);
   const { nextMeta, accepted, decision } = decideTransition(ctx, m);
@@ -352,6 +362,10 @@ export async function applyLifecycleLocked(
   const batch = await openBatch(root);
   await applyPageMutationLocked(root, pageMutation, batch);
   await commitBatch(batch);
-  await appendEventLocked(root, event);
+  // When invoked by an operation bundle, the derived event carries the out-of-band
+  // binding (public CLI/SDK callers pass none), so crash replay matches the
+  // persisted page transition back to its deterministic mutation.
+  if (binding === undefined) await appendEventLocked(root, event);
+  else await appendBoundEventLocked(root, event, binding);
   return decision;
 }

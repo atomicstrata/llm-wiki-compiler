@@ -8,7 +8,7 @@ import { readEvents } from "../../events/store-read.js";
 import { readRelations } from "../../relations/store-read.js";
 import { CANDIDATES_ARCHIVE_DIR, CANDIDATES_DIR } from "../../utils/constants.js";
 import { confineUnderRoot } from "../../utils/path-confine.js";
-import { listRuns } from "../../workflows/store.js";
+import { listRuns } from "../../workflow-history/store.js";
 import type { LoadedProfile, ProfilePack } from "../types.js";
 
 /** Result of checking whether a profile install can reinterpret no existing typed data. */

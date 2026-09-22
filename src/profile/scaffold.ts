@@ -8,7 +8,8 @@ import path from "node:path";
 import { atomicWrite } from "../utils/atomic-write.js";
 import { readCappedNoFollow } from "../utils/confined-read.js";
 import { CONCEPTS_DIR, MAX_PROFILE_BYTES, PROFILE_FILE, QUERIES_DIR } from "../utils/constants.js";
-import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { confineUnderRoot, isInsideDir } from "../utils/path-confine.js";
 import { resolveExistingConfinedPrivateDir } from "../utils/private-dir.js";
 import { isSlugSafe } from "./identity.js";
@@ -169,7 +170,7 @@ export async function installStarterProfile(
 ): Promise<ProfileScaffoldResult> {
   const profile = buildStarterProfile(profileId, entityType);
   const directory = profile.entities[entityType].directory;
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     const loaded = await loadProfile(root);
     if (loaded.loadedFrom !== null) throw new ProfileScaffoldError("A profile already exists.");

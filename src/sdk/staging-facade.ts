@@ -1,6 +1,6 @@
 /**
  * @file src/sdk/staging-facade.ts
- * @description The EXPERIMENTAL non-default staging slice of the `Wiki` facade,
+ * @description The EXPERIMENTAL non-default staging slice of the `WikiCore` facade,
  * factored out of `src/sdk/wiki.ts` so the high-fan-in facade module stays lean.
  *
  * Both methods run silently under the caller-supplied quiet wrapper and load the
@@ -30,23 +30,23 @@
 import { stageEntityPageForProject, promoteStagedEntityPage } from "../trust/staging.js";
 import { createRelationForProject } from "../trust/relation-write.js";
 import { transitionLifecycle } from "../trust/lifecycle-transition.js";
-import type { Wiki } from "./types.js";
+import type { WikiCore } from "./core-types.js";
 
-/** The experimental non-default methods the `Wiki` facade composes in. */
+/** The experimental non-default methods the `WikiCore` facade composes in. */
 export type StagingFacadeSlice = Pick<
-  Wiki,
+  WikiCore,
   "stageEntityPage" | "promoteStagedPage" | "createRelation" | "transitionLifecycle"
 >;
 
 /**
- * Build the experimental non-default slice of the `Wiki` facade bound to `root`:
+ * Build the experimental non-default slice of the `WikiCore` facade bound to `root`:
  * page staging/promotion plus the trust-gated relation-write and lifecycle-
  * transition APIs. Each loads the active non-default profile INTERNALLY (the
  * consumer passes no `ProfilePack`) and fails CLOSED on a default project.
  *
  * @param root - Normalized absolute project root.
  * @param runQuiet - The facade's quiet-scoping wrapper (output suppressed).
- * @returns The experimental non-default Wiki methods.
+ * @returns The experimental non-default WikiCore methods.
  */
 export function buildStagingFacade(
   root: string,

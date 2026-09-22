@@ -10,6 +10,7 @@ import type { ProfilePack, ArtifactTypeDef } from "../profile/types.js";
 import type { ArtifactRef } from "./ref.js";
 import { artifactPaths, hashArtifactBody, readArtifactManifest, readArtifactBody, type ArtifactManifest } from "./store.js";
 import { validateArtifactBody } from "./body-contract.js";
+import { verifyMembers } from "./resolve-members.js";
 
 export type ArtifactHealth =
   | "ok" | "artifact-dangling" | "artifact-unreadable" | "artifact-bytes-tampered"
@@ -138,8 +139,21 @@ export async function readVerifiedArtifact(root: string, profile: Pick<ProfilePa
     // (benign policy — stays a park/warning, not an alarm).
     return { health: body.actualBytes !== m.bytes ? "artifact-bytes-tampered" : "artifact-unreadable", manifest: m };
   }
-  const verdict = verifyOkBody(def, ref, m, body.body);
-  return { ...verdict, manifest: m, ...(verdict.health === "ok" ? { body: body.body } : {}) };
+  return verifiedContent(root, def, { ref, manifest: m, body: body.body });
+}
+
+/** Release the captured body only after its contract and any binary members verify. */
+async function verifiedContent(root: string, def: ArtifactTypeDef,
+  captured: { ref: ArtifactRef; manifest: ArtifactManifest; body: string },
+): Promise<VerifiedArtifactRead> {
+  const { ref, manifest, body } = captured;
+  const verdict = verifyOkBody(def, ref, manifest, body);
+  if (verdict.health === "ok" && def.members !== undefined) {
+    const paths = artifactPaths(root, ref.artifactType, ref.slug, def.fileName);
+    const health = await verifyMembers(root, def, paths, body);
+    if (health !== null) return { health, manifest };
+  }
+  return { ...verdict, manifest, ...(verdict.health === "ok" ? { body } : {}) };
 }
 
 /** Prototype properties are not profile declarations, even for structurally valid ids. */

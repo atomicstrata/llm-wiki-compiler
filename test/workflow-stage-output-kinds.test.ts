@@ -17,7 +17,9 @@
  * participating entity type.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
+import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 import { pageLifecycle, kindsProfile, startKindsRun as startKinds, citesOutput, expectRunFailedNoGate } from "./fixtures/seam-fixtures.js";
 import { submitStageOutput, type StageOutput } from "../src/workflows/stage-output.js";
 import { StageWriteScopeError, TrustGateRequiresGrantError } from "../src/workflows/errors.js";
@@ -37,6 +39,21 @@ afterEach(() => {
 });
 
 describe("submitStageOutput — relation kind", () => {
+  it("uses the supplied host domain executor and pending/final persistence", async () => {
+    grantTrustedWrite();
+    const { root, runId } = await startKinds("wf-rel-host", kindsProfile(["papers"], "trust:high"));
+    const base = createLocalWorkflowHost();
+    const apply = vi.fn(base.domain.apply);
+    const write = vi.fn(base.records.write);
+    const runtime = createLocalWorkflowRuntime({ ...base,
+      domain: { ...base.domain, apply }, records: { ...base.records, write } });
+    expect((await runtime.submit(root, runId, citesOutput())).applied).toBe(true);
+    expect(apply).toHaveBeenCalledOnce();
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(write.mock.calls[0][2].pendingOutput?.stageId).toBe("run");
+    expect(write.mock.calls[1][2].pendingOutput).toBeUndefined();
+  });
+
   it("WITH the operator grant, applies an in-scope cites relation, records the event + output, satisfies the trust gate", async () => {
     grantTrustedWrite();
     const { root, runId } = await startKinds("wf-rel-allow", kindsProfile(["papers"], "trust:high"));

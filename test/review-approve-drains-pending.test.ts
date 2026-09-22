@@ -20,7 +20,7 @@ import {
   writePendingEmbeddings,
   loadPendingEmbeddings,
 } from "../src/utils/pending-embeddings.js";
-import * as embeddings from "../src/utils/embeddings.js";
+import { mockEmbeddingSuccess } from "./fixtures/embedding-success.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 
 const ctx = useTempRoot();
@@ -52,9 +52,7 @@ describe("review approve drains the pending-embeddings marker", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
     // Core succeeds for every id it is asked to embed (it always is eligible+embedded).
-    const okSpy = vi
-      .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockImplementation(async (_root, ids) => ({ embedded: ids, eligible: ids }));
+    const okSpy = mockEmbeddingSuccess();
 
     await reviewApproveCommand(candidate.id);
 

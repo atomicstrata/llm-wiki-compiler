@@ -1,0 +1,30 @@
+{
+  "name": "@atomicstrata/llmwiki-local-workflows",
+  "description": "Optional compiler-local workflow engine using explicit llmwiki core services",
+  "version": "1.4.0-dev.20260919",
+  "type": "module",
+  "publishConfig": { "access": "public" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "prepack": "npm run build"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@atomicstrata/llmwiki-core": "1.4.0-dev.20260919"
+  }
+}

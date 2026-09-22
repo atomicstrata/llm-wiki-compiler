@@ -39,6 +39,7 @@ export function eventPrevHash(content: EventContent): string {
     origin: content.origin,
     payload: content.payload,
     decision: content.decision,
+    operationBinding: content.operationBinding,
     at: content.at,
   });
   if (canonical === undefined) {

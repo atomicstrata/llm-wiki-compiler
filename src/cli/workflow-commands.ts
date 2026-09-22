@@ -27,7 +27,7 @@ import {
   workflowActionShowCommand,
   workflowActionRunCommand,
 } from "../commands/workflow.js";
-import { runExitCodeCommand } from "./shared.js";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 /** Register the read-only discovery/inspection commands: `list`, `show`, `events`, `status`, `advance`, `project`. */
 function registerWorkflowInspectionCommands(workflowCmd: Command): void {
@@ -89,15 +89,15 @@ function registerWorkflowRunCommands(workflowCmd: Command): void {
 
   workflowCmd
     .command("submit <run-id>")
-    .description("Submit a stage output (page/relation/lifecycle/artifact) for the run's current stage")
-    .option("--kind <kind>", "Output kind: page | relation | lifecycle-transition | artifact")
+    .description("Submit a stage output (page/relation/lifecycle/artifact/human-input) for the current stage")
+    .option("--kind <kind>", "Output kind: page | relation | lifecycle-transition | artifact | human-input")
     .option("--entity-type <t>", "Target entity type (page/lifecycle-transition)")
     .option("--artifact-type <type>", "artifact type (for --kind artifact)")
     .option("--slug <s>", "Target entity/artifact slug (page/lifecycle-transition/artifact)")
     .option("--body-file <path>", "Page/artifact body file (page/artifact)")
     .option("--to-state <state>", "Target lifecycle state (lifecycle-transition)")
     .option("--evidence-file <path>", "JSON evidence file (lifecycle-transition)")
-    .option("--output-file <path>", "JSON AppendRelationInput file (relation)")
+    .option("--output-file <path>", "JSON payload file (relation/human-input)")
     .action(async (runId: string, options) => {
       try {
         await workflowSubmitCommand(runId, options);

@@ -26,6 +26,7 @@ import path from "path";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
 import { parseEntityId, EntityIdError } from "../profile/identity.js";
 import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
+import { isOperationBinding, type OperationBinding } from "../utils/operation-binding.js";
 import type { RelationRef, RelationRecord } from "./types.js";
 import {
   RELATION_STORE_SCHEMA_VERSION,
@@ -35,10 +36,24 @@ import {
 } from "./types.js";
 import { recordChecksum } from "./store-record.js";
 
+/** One parsed relation plus the operation binding it carries (when bundle-produced). */
+export interface BoundRelationRecord {
+  ref: RelationRef;
+  operationBinding?: OperationBinding;
+}
+
 /** The outcome of reading the store: live relations plus any tolerated problems. */
 export interface ReadRelationsResult {
   /** Latest record per id, in first-seen id order. */
   relations: RelationRef[];
+  /** Human-readable notes about tolerated issues (e.g. a torn trailing line). */
+  problems: string[];
+}
+
+/** The binding-aware read: every parsed record in file order, plus problems. */
+export interface ReadRelationRecordsResult {
+  /** Every valid record in append (file) order, carrying any operation binding. */
+  records: BoundRelationRecord[];
   /** Human-readable notes about tolerated issues (e.g. a torn trailing line). */
   problems: string[];
 }
@@ -59,6 +74,16 @@ function readStoreFile(root: string): Promise<string | null> {
     makeOversizeError: (size) =>
       new RelationStoreCorruptError(`store file ${size} bytes exceeds the ${MAX_RELATION_STORE_BYTES}-byte cap`),
   });
+}
+
+/**
+ * Read the exact raw store bytes (or null when absent) through the same confined,
+ * no-follow, capped primitive the parser uses. The store-version upgrade seam
+ * consumes these bytes to rewrite only the header while preserving every record
+ * byte and its order.
+ */
+export function readRelationStoreRaw(root: string): Promise<string | null> {
+  return readStoreFile(root);
 }
 
 /** Parse and validate the header line, failing closed on an unknown future version. */
@@ -113,21 +138,29 @@ function assertEndpointsSlugSafe(ref: RelationRef): void {
   }
 }
 
-/** Verify a parsed record's stored checksum + endpoint slug-safety; throw on either. */
-function verifyChecksum(record: RelationRecord): RelationRef {
-  const { checksum, ...ref } = record;
-  if (recordChecksum(ref) !== checksum) {
+/**
+ * Verify a parsed record's stored checksum + endpoint slug-safety, returning the
+ * pure {@link RelationRef} plus any operation binding it carries. A present-but-
+ * malformed binding is interior corruption (fail closed). The checksum is
+ * recomputed over the ref AND the binding, so binding tampering is detectable.
+ */
+function verifyChecksum(record: RelationRecord): BoundRelationRecord {
+  const { checksum, operationBinding, ...ref } = record;
+  if (operationBinding !== undefined && !isOperationBinding(operationBinding)) {
+    throw new RelationStoreCorruptError(`relation ${ref.id} has a malformed operation binding`);
+  }
+  if (recordChecksum(ref, operationBinding) !== checksum) {
     throw new RelationStoreCorruptError(`checksum mismatch for relation ${ref.id}`);
   }
   assertEndpointsSlugSafe(ref);
-  return ref;
+  return { ref, ...(operationBinding === undefined ? {} : { operationBinding }) };
 }
 
 /** Collapse records to the latest per id (last wins), preserving first-seen order. */
-function latestPerId(records: RelationRef[]): RelationRef[] {
-  const byId = new Map<string, RelationRef>();
-  for (const ref of records) {
-    byId.set(ref.id, ref);
+function latestPerId(records: BoundRelationRecord[]): BoundRelationRecord[] {
+  const byId = new Map<string, BoundRelationRecord>();
+  for (const record of records) {
+    byId.set(record.ref.id, record);
   }
   return [...byId.values()];
 }
@@ -137,12 +170,12 @@ function latestPerId(records: RelationRef[]): RelationRef[] {
  * LAST is interior corruption (fail closed); a failure on the last line is a
  * torn trailing append — tolerated, reported via `problems`.
  */
-function parseRecords(lines: string[], problems: string[]): RelationRef[] {
-  const refs: RelationRef[] = [];
+function parseRecords(lines: string[], problems: string[]): BoundRelationRecord[] {
+  const records: BoundRelationRecord[] = [];
   for (let i = 0; i < lines.length; i++) {
     const isLast = i === lines.length - 1;
     try {
-      refs.push(verifyChecksum(parseRecord(lines[i])));
+      records.push(verifyChecksum(parseRecord(lines[i])));
     } catch (err) {
       if (isLast) {
         problems.push(`tolerated torn trailing line: ${(err as Error).message}`);
@@ -151,7 +184,24 @@ function parseRecords(lines: string[], problems: string[]): RelationRef[] {
       throw err; // interior corruption → fail closed
     }
   }
-  return refs;
+  return records;
+}
+
+/**
+ * Read every valid record in file order, carrying any operation binding — the
+ * binding-aware read an operation adapter uses to observe append-shaped state by
+ * `mutationId`. See the file overview for the full durability contract.
+ *
+ * @param root - Absolute project root.
+ * @returns Every valid record in append order and a list of tolerated problems.
+ */
+export async function readRelationRecords(root: string): Promise<ReadRelationRecordsResult> {
+  const raw = await readStoreFile(root); // throws on symlink escape
+  const recordLines = splitStoreRecords(raw, parseHeader);
+  if (recordLines === null) return { records: [], problems: [] };
+  const problems: string[] = [];
+  const records = parseRecords(recordLines, problems);
+  return { records, problems };
 }
 
 /**
@@ -162,10 +212,6 @@ function parseRecords(lines: string[], problems: string[]): RelationRef[] {
  * @returns The latest relation per id and a list of tolerated problems.
  */
 export async function readRelations(root: string): Promise<ReadRelationsResult> {
-  const raw = await readStoreFile(root); // throws on symlink escape
-  const recordLines = splitStoreRecords(raw, parseHeader);
-  if (recordLines === null) return { relations: [], problems: [] };
-  const problems: string[] = [];
-  const refs = parseRecords(recordLines, problems);
-  return { relations: latestPerId(refs), problems };
+  const { records, problems } = await readRelationRecords(root);
+  return { relations: latestPerId(records).map((record) => record.ref), problems };
 }

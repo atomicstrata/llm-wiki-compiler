@@ -80,7 +80,7 @@ const WORKFLOW_LIST_COMMAND = "$ llmwiki workflow list";
  * Render the workflow-runs route from an `/api/workflow-runs` payload.
  *
  * @param {HTMLElement} main - The main pane to render into.
- * @param {{runs?: unknown[]}} payload - The `/api/workflow-runs` envelope.
+ * @param {{runs?: unknown[], workflowJourneys?: boolean}} payload - The `/api/workflow-runs` envelope.
  */
 export function renderWorkflowRunsList(main, payload) {
   const runs = runsIn(payload);
@@ -93,7 +93,7 @@ export function renderWorkflowRunsList(main, payload) {
     body.appendChild(emptyWorkflowsState());
     return;
   }
-  for (const run of runs) body.appendChild(buildRunRow(run));
+  for (const run of runs) body.appendChild(buildRunRow(run, payload?.workflowJourneys === true));
 }
 
 /** The rows in an `/api/workflow-runs` envelope, defended against a malformed payload. */
@@ -126,10 +126,10 @@ function isParked(run) {
 }
 
 /** Build one row, dispatching on whether it reports a run or a broken store. */
-function buildRunRow(run) {
+function buildRunRow(run, journeys) {
   if (isProblemRow(run)) return buildProblemRow(run);
   const row = el("div", `list-row workflow-row${isParked(run) ? " is-parked" : ""}`);
-  row.appendChild(buildRunHead(run));
+  row.appendChild(buildRunHead(run, journeys));
   row.appendChild(el("p", "workflow-meta", runMetaText(run)));
   const flags = buildRunFlags(run);
   if (flags) row.appendChild(flags);
@@ -142,11 +142,21 @@ function buildRunRow(run) {
  * the title because it is what the reader recognises; the id is what the CLI
  * commands below take, so it sits beside it in mono rather than being hidden.
  */
-function buildRunHead(run) {
+function buildRunHead(run, journeys) {
   const head = el("div", "workflow-head");
-  head.appendChild(el("span", "list-title", workflowNameOf(run)));
+  const linked = hasJourneyLink(run, journeys);
+  const title = el(linked ? "a" : "span", "list-title", workflowNameOf(run));
+  if (linked) {
+    title.href = "#/workflows/" + encodeURIComponent(run.workflow) + "/runs/" + encodeURIComponent(run.runId);
+  }
+  head.appendChild(title);
   head.appendChild(el("span", "workflow-run-id", String(run.runId ?? "")));
   return head;
+}
+
+/** A journey link needs opt-in and both route identities. */
+function hasJourneyLink(run, journeys) {
+  return journeys && typeof run.workflow === "string" && typeof run.runId === "string";
 }
 
 /**

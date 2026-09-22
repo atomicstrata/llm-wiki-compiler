@@ -68,6 +68,12 @@ export function expectCLIExit(result: CLIResult, expectedCode: number): void {
   ).toBe(expectedCode);
 }
 
+/** Assert exact exit and JSON fields together, retaining full subprocess diagnostics. */
+export function expectCLIJson(result: CLIResult, code: number, fields: Record<string, unknown>): void {
+  expectCLIExit(result, code);
+  expect(JSON.parse(result.stdout)).toMatchObject(fields);
+}
+
 /**
  * Assert that a CLIResult exited with any non-zero code (i.e. failed).
  * Includes full subprocess diagnostics on mismatch.

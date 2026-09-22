@@ -11,9 +11,19 @@
 import { discoverableConnectors } from "../connectors/registry.js";
 import { isConnectorActivated } from "../connectors/config.js";
 import { runConnector } from "../connectors/run.js";
+import { captureConnectorResult } from "../connectors/candidate-batch.js";
+import {
+  renderCandidateIds,
+  renderConnectorReason,
+} from "../connectors/candidate-display.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
 import * as output from "../utils/output.js";
 import type { ConnectorDef } from "../connectors/types.js";
+
+/** Test seams for bounded command-result rendering. */
+export interface ConnectorCommandDeps {
+  runner?: typeof runConnector;
+}
 
 /** Parsed `connector run` options. */
 export interface ConnectorRunOptions {
@@ -57,12 +67,26 @@ export async function connectorRunCommand(
   id: string,
   options: ConnectorRunOptions,
   root = process.cwd(),
+  deps: ConnectorCommandDeps = {},
 ): Promise<void> {
-  const result = await runConnector(root, id, parseInputs(options.input));
-  if (result.kind === "refused" || result.kind === "unavailable") {
-    output.status("!", output.error(result.reason));
+  const rawResult = await (deps.runner ?? runConnector)(root, id, parseInputs(options.input));
+  let result;
+  try {
+    result = captureConnectorResult(rawResult, "public");
+  } catch {
+    output.status("!", output.error("connector returned invalid candidate identities"));
     process.exitCode = 1;
     return;
   }
-  output.status("+", output.success(`${result.kind}: ${result.candidateIds.join(", ")}`));
+  if (result.kind === "refused" || result.kind === "unavailable") {
+    output.status("!", output.error(renderConnectorReason(result.reason)));
+    process.exitCode = 1;
+    return;
+  }
+  if (result.kind === "recovery-required") {
+    output.status("!", output.error(`recovery-required: ${renderCandidateIds(result.candidateIds, "public")}`));
+    process.exitCode = 1;
+    return;
+  }
+  output.status("+", output.success(`${result.kind}: ${renderCandidateIds(result.candidateIds, "public")}`));
 }

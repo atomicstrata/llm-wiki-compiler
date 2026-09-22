@@ -1,0 +1,9 @@
+# Disposable CI runner only: permit the isolation tool to create namespaces.
+# The backend still drops ALL capabilities and enforces its network/write rules.
+# Do not disable AppArmor or user-namespace restrictions globally.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+}

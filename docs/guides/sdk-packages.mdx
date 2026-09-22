@@ -1,0 +1,106 @@
+---
+title: "SDK packages and ownership"
+description: "Choose the standard compiler, engine-free SDK, or explicit local workflow composition."
+---
+
+The package split described here belongs to the `1.4.0-dev.20260919` development
+candidate. It is not yet an npm release. Use a matching set of built tarballs
+when evaluating it; do not assume the new package names are available from the registry.
+
+## Supported entry point
+
+Applications, including llmflow, should install and import `llm-wiki-compiler`.
+The scoped packages below are publicly downloadable implementation dependencies,
+not separately supported consumer APIs. Direct exports are for compiler maintainers.
+Scoping does not make them private or establish a security boundary.
+
+## Internal package responsibilities
+
+| Need | Package | Entry point |
+| --- | --- | --- |
+| Existing CLI or complete SDK | `llm-wiki-compiler` | `createWiki` |
+| Knowledge and domain services without local execution | `@atomicstrata/llmwiki-core` | `createWikiCore` |
+| Explicit compiler-local workflow composition | `@atomicstrata/llmwiki-local-workflows` plus matching core | `createLocalWorkflowRuntime` with an explicit host |
+| Product-wide process coordination | External application such as llmflow | Application-owned orchestration |
+
+The standard package requires both core and the local engine at exact matching
+versions. Existing users do not need to select or construct a host. The engine
+is optional for core-only consumers, not an optional dependency of the standard
+distribution. No existing CLI command is removed by choosing the standard package.
+
+## Engine-free implementation
+
+For compiler maintainers, internal composition uses:
+
+```ts
+import { createWikiCore } from "@atomicstrata/llmwiki-core";
+
+const wiki = createWikiCore({ root: "./my-wiki" });
+const status = await wiki.status();
+```
+
+Core owns knowledge compilation, profiles, records, relations, retained artifacts,
+provenance, preparations and authorized effects. It can read authenticated local
+workflow history without loading the local execution engine. `WikiCore` does not
+offer `startWorkflow` or the other execution methods of the standard `Wiki` facade.
+
+An external coordinator owns process state and decisions. Retaining data or
+preparing a change does not approve or apply that change. See the
+[SDK authority boundary](/guides/sdk#external-orchestration-and-operation-authority).
+
+## Local workflow composition
+
+The local engine requires an explicit host supplied by trusted application code.
+Core's host enforces confinement, locks, retained-state integrity and compiler
+mutation authority. The engine cannot manufacture a default host or extra grants.
+Host composition is an in-process trust boundary, not a sandbox for untrusted code.
+
+Applications should use the standard package. For internal composition, import
+the host and contracts through `@atomicstrata/llmwiki-core/local-workflow-host` and
+`@atomicstrata/llmwiki-core/local-workflow-contracts`, rather than private source paths. Use a
+single core module instance: duplicate-core composition is rejected before I/O.
+
+The `compiler-cli`, `compiler-sdk` and `compiler-legacy-workflows` subpaths support
+the standard package's composition and compatibility. They are not the recommended
+application entry points. In particular, legacy locked-start composition assumes
+the caller already holds the required lock; it does not establish that lock.
+
+## Product boundaries
+
+Built-in AutoSci and Newsroom profile templates describe schemas and declarations;
+they do not install full research or editorial applications. Those applications
+own providers, domain policy, process UX and product-specific exports. External
+research or creative-asset modules likewise do not belong in compiler core.
+
+New reusable record, verification and authority mechanisms belong in core.
+Product sequencing, human decisions and revision strategy belong in the external
+coordinator. Existing compiler-local workflows remain supported on their
+experimental terms; they are not silently rerouted through llmflow.
+
+## Distribution requirements
+
+The current root-only release workflow must be upgraded before publishing this
+three-package distribution. Scope ownership and trusted publishing access are
+release prerequisites; the naming change does not establish them.
+
+Build core, then the engine, then the standard facade. Release a matching set:
+publish dependencies before the standard package, and verify fresh installation
+and TypeScript consumption. Do not publish the facade while its exact required
+versions are unavailable. Package ownership and trusted publishing must be set
+up for the new packages before the first registry release.
+
+## Contributing across packages
+
+Use one repository and one PR, including for cross-package changes. Root-level
+`npm ci` links workspace packages; `npm run build` builds core, engine and facade
+in order. Local development requires no publishing. Source directory names are
+unchanged. No new public `core` subpath is introduced.
+
+- Knowledge and authority changes belong in the relevant `src/` subsystem.
+- Local workflow execution belongs in `src/local-workflows/`.
+- Public SDK composition belongs in `src/sdk/` and `src/index.ts`.
+- Shared engine contracts belong in `src/local-workflow-host/`.
+
+Run focused tests for behavior changes. After building, `npm run test:pack`
+checks fresh installation and TypeScript consumption without workspace aliases.
+Package-boundary tests prevent the engine from embedding compiler implementation.

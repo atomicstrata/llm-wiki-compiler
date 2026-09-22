@@ -22,7 +22,8 @@
  */
 import { parseArtifactRef } from "./ref.js";
 import { resolveArtifactRef, type ArtifactHealth, type StoreFaultReason } from "./resolve.js";
-import type { LifecycleDef, ProfilePack } from "../profile/types.js";
+import { verifyExecutionProvenance } from "./execution-provenance.js";
+import type { ArtifactPreconditionReq, LifecycleDef, ProfilePack } from "../profile/types.js";
 
 /** Thrown when a required artifact is absent or resolves to a CONFIRMED violation — a HARD denial. */
 export class ArtifactPreconditionUnmetError extends Error {
@@ -95,21 +96,39 @@ export async function enforceArtifactPreconditions(args: EnforceArtifactPrecondi
   const denials: string[] = [];
   const parks: string[] = [];
   for (const req of reqs) {
-    const ref = parseArtifactRef(args.meta[req.field]);
-    if (!ref) { denials.push(`field ${JSON.stringify(req.field)} carries no resolvable ${req.artifactType} artifact ref`); continue; }
-    // BIND the pinned ref's declared TYPE to the required type BEFORE resolving. The
-    // field's `artifactTypes` scope may admit several types (M1 accepts that), but THIS
-    // precondition requires one specific type — a healthy artifact of a DIFFERENT
-    // in-scope type must NOT satisfy it, else a type-confused ref bypasses the gate.
-    if (ref.artifactType !== req.artifactType) {
-      denials.push(`field ${JSON.stringify(req.field)} pins a ${ref.artifactType} artifact but a ${req.artifactType} is required`);
-      continue;
-    }
-    const { health, storeFault } = await resolveArtifactRef(args.root, args.profile, ref);
-    const verdict = classifyArtifactHealth(health, storeFault);
-    if (verdict === "deny") denials.push(`field ${JSON.stringify(req.field)} artifact ${ref.slug} is ${health}`);
-    else if (verdict === "park") parks.push(`field ${JSON.stringify(req.field)} artifact ${ref.slug} is ${health}`);
+    const outcome = await requirementVerdict(args, req);
+    if (outcome.verdict === "deny") denials.push(outcome.message);
+    else if (outcome.verdict === "park") parks.push(outcome.message);
   }
   if (denials.length > 0) throw new ArtifactPreconditionUnmetError(denials);
   if (parks.length > 0) throw new ArtifactPreconditionUnverifiableError(parks.join("; "));
+}
+
+/** One requirement's three-way outcome: resolve health, then the optional provenance arm. */
+async function requirementVerdict(
+  args: EnforceArtifactPreconditionsArgs, req: ArtifactPreconditionReq,
+): Promise<{ verdict: ArtifactVerdict; message: string }> {
+  const ref = parseArtifactRef(args.meta[req.field]);
+  if (!ref) return { verdict: "deny", message: `field ${JSON.stringify(req.field)} carries no resolvable ${req.artifactType} artifact ref` };
+  // BIND the pinned ref's declared TYPE to the required type BEFORE resolving. The
+  // field's `artifactTypes` scope may admit several types (M1 accepts that), but THIS
+  // precondition requires one specific type — a healthy artifact of a DIFFERENT
+  // in-scope type must NOT satisfy it, else a type-confused ref bypasses the gate.
+  if (ref.artifactType !== req.artifactType) {
+    return { verdict: "deny", message: `field ${JSON.stringify(req.field)} pins a ${ref.artifactType} artifact but a ${req.artifactType} is required` };
+  }
+  const { health, storeFault } = await resolveArtifactRef(args.root, args.profile, ref);
+  const verdict = classifyArtifactHealth(health, storeFault);
+  if (verdict !== "pass") return { verdict, message: `field ${JSON.stringify(req.field)} artifact ${ref.slug} is ${health}` };
+  // The OPTIONAL execution-provenance arm runs only over a HEALTHY pin: a run's
+  // admitted digest vouching for bytes the store cannot even resolve would be
+  // provenance over nothing.
+  if (req.executionProvenance !== undefined) {
+    const provenance = await verifyExecutionProvenance(
+      args.root, req.executionProvenance, args.slug, `sha256:${ref.sha256}`);
+    if (provenance.verdict !== "pass") {
+      return { verdict: provenance.verdict, message: `field ${JSON.stringify(req.field)} artifact ${ref.slug}: ${provenance.detail}` };
+    }
+  }
+  return { verdict: "pass", message: "" };
 }

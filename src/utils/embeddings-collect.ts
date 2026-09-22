@@ -20,9 +20,12 @@
  * so the migration can content-verify a preserved vector without re-reading.
  */
 
+import { stat } from "node:fs/promises";
+import path from "node:path";
+import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { collectNamespacedPageRecords, buildEmbeddingText } from "./embeddings-pages.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
-import { qualifiedPageId, type PageId } from "./page-id.js";
+import { parseQualifiedPageId, qualifiedPageId, type PageId } from "./page-id.js";
 import { pageEmbedSurfaces } from "./embed-eligibility.js";
 import { collectEntityPages, invalidEntityPagePaths } from "../profile/collect.js";
 import { isDefaultProfile } from "../profile/default.js";
@@ -59,6 +62,48 @@ export async function collectEligibleLivePages(
   if (isDefaultProfile(profile.profile)) return reserved;
   const typed = await collectTypedPages(root, profile);
   return [...reserved, ...typed];
+}
+
+/** What the disk says about one requested page: present, PROVABLY absent, or not answerable right now. */
+export type PageExistence = "present" | "absent" | "unknown";
+
+/** Only a missing path (or a missing parent) proves absence; every other failure is transient. */
+const ABSENT_CODES: ReadonlySet<string> = new Set(["ENOENT", "ENOTDIR"]);
+
+/**
+ * Whether each requested page id still EXISTS on disk, eligible for embedding or
+ * not: a reserved-namespace page under its fixed directory, a typed page under
+ * the directory its entity declares. The embedding lifecycle needs this to tell a
+ * DELETED page (settle its tombstone) from a page that is merely ineligible right
+ * now (keep retrying until eligibility returns). Only ENOENT/ENOTDIR prove
+ * absence; EACCES, EIO, and every other failure answer "unknown", which keeps the
+ * retry. An id whose namespace no profile entity or reserved directory owns cannot
+ * exist, so it is absent.
+ */
+export async function requestedPagesExistence(root: string, profile: LoadedProfile, requested: PageId[]): Promise<Map<PageId, PageExistence>> {
+  const out = new Map<PageId, PageExistence>();
+  for (const pageId of requested) {
+    const parsed = parseQualifiedPageId(pageId);
+    const directory = parsed === null ? null : pageDirectoryFor(parsed.namespace, profile);
+    if (parsed === null || directory === null) { out.set(pageId, "absent"); continue; }
+    out.set(pageId, await fileExistence(path.join(root, directory, `${parsed.pagePart}.md`)));
+  }
+  return out;
+}
+
+async function fileExistence(filePath: string): Promise<PageExistence> {
+  try {
+    return (await stat(filePath)).isFile() ? "present" : "absent";
+  } catch (error) {
+    return ABSENT_CODES.has(String((error as NodeJS.ErrnoException).code)) ? "absent" : "unknown";
+  }
+}
+
+/** The project-relative directory a namespace's pages live in, or null when nothing owns it. */
+function pageDirectoryFor(namespace: string, profile: LoadedProfile): string | null {
+  if (namespace === path.basename(CONCEPTS_DIR)) return CONCEPTS_DIR;
+  if (namespace === path.basename(QUERIES_DIR)) return QUERIES_DIR;
+  return profile.profile.entities[namespace]?.directory ?? null;
 }
 
 /** Collect concept + query pages (both surfaces eligible, legacy gate applies). */

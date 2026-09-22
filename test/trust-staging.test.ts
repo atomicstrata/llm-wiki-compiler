@@ -20,6 +20,7 @@ import { mkdtemp, mkdir, rm, readFile, readdir, writeFile } from "node:fs/promis
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { UnsafeCandidateIdError } from "../src/compiler/candidate-paths.js";
 import {
   stageEntityPage,
   promoteStagedEntityPage,
@@ -149,7 +150,7 @@ describe("non-default entity page staging", () => {
         profile: RESEARCH_LITE_PROFILE,
         existingStagedCount: 0,
       }),
-    ).rejects.toBeInstanceOf(BlockedStagedWriteError);
+    ).rejects.toBeInstanceOf(UnsafeCandidateIdError);
 
     expect(existsSync(path.join(root, "wiki/evil.md"))).toBe(false);
     expect(existsSync(path.join(root, ".llmwiki/candidates"))).toBe(false);

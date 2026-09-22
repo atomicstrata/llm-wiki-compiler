@@ -26,6 +26,26 @@ Thanks for your interest in contributing! This guide covers the fork-and-PR work
 
 ## Development
 
+### Working across packages
+
+Use Node 24 or later and run installation, build and test commands from the
+repository root. npm workspaces link the supporting packages automatically;
+`npm run build` builds core, local workflows and the public facade in order.
+You do not need to publish packages or open multiple PRs for one feature.
+
+Applications import `llm-wiki-compiler`. Its public scoped dependencies,
+`@atomicstrata/llmwiki-core` and `@atomicstrata/llmwiki-local-workflows`, expose
+internal composition contracts, not separately supported application APIs.
+Their filesystem directories remain `packages/llmwiki-core` and
+`packages/llmwiki-local-workflows`.
+
+Put knowledge and authority changes in the relevant `src/` subsystem, local
+execution in `src/local-workflows/`, shared host contracts in
+`src/local-workflow-host/`, and public composition in `src/sdk/` or `src/index.ts`.
+See [package ownership](docs/guides/sdk-packages.mdx) for the boundaries.
+After building, use `npm run test:pack` for packaging or export changes; it
+checks an installed consumer outside workspace aliases.
+
 ### Build and Test
 
 ```bash

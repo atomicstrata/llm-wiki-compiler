@@ -13,7 +13,7 @@ import { useCompileProject, type CompileProjectCtx, type CompileProjectOptions }
 export function useReconciliationProject(options: CompileProjectOptions): CompileProjectCtx {
   const ctx = useCompileProject(options);
   beforeEach(() => {
-    vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [] });
+    vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
   return ctx;

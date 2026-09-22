@@ -11,7 +11,19 @@
     "declaration": true,
     "sourceMap": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@atomicstrata/llmwiki-core/compiler-cli": ["./src/compiler-cli.ts"],
+      "@atomicstrata/llmwiki-core/compiler-legacy-workflows": ["./src/local-workflow-host/legacy-composition.ts"],
+      "@atomicstrata/llmwiki-core/compiler-sdk": ["./src/sdk/compiler-composition.ts"],
+      "@atomicstrata/llmwiki-local-workflows": ["./src/local-workflows/index.ts"],
+      "@atomicstrata/llmwiki-core/local-workflow-host": ["./src/local-workflow-host/index.ts"],
+      "@atomicstrata/llmwiki-core": ["./src/core-index.ts"],
+      "@atomicstrata/llmwiki-core/local-workflow-contracts": ["./src/local-workflow-host/shared-contracts.ts"],
+      "llm-wiki-compiler": ["./src/index.ts"],
+      "llmwiki-dev-backend": ["./packages/llmwiki-dev-backend/src/index.ts"],
+      "llmwiki-limited-isolation-backend": ["./packages/llmwiki-limited-isolation-backend/src/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]

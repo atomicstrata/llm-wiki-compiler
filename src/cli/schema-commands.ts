@@ -7,7 +7,7 @@
  */
 
 import type { Command } from "commander";
-import { schemaInitCommand, schemaShowCommand } from "../commands/schema.js";
+import { schemaInitCommand, schemaShowCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 /** Register the `schema` command group (`init`, `show`) on `program`. */
 export function registerSchemaCommands(program: Command): void {

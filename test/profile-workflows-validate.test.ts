@@ -38,6 +38,15 @@ function workflowProfile(workflow?: WorkflowDef): ProfilePack {
 }
 
 describe("validateProfileShape — workflows (happy path)", () => {
+  it.each(["operation", "preparation", "product", "visualize"])(
+    "keeps the previously valid v1 workflow name %s",
+    (name) => {
+      const raw = workflowProfile();
+      raw.workflows = { [name]: raw.workflows!["idea-to-experiment"] };
+      expect(() => validateProfileShape(raw)).not.toThrow();
+    },
+  );
+
   it("accepts a multi-stage workflow referencing declared entities with a gate", () => {
     const result = validateProfileShape(workflowProfile());
     expect(result.profile.workflows?.["idea-to-experiment"].stages).toHaveLength(2);

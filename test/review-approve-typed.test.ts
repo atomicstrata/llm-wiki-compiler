@@ -11,11 +11,11 @@
  * review-approve-planner.test.ts, which must still pass unchanged.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, readFile } from "fs/promises";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
-import os from "os";
+import { useCommandProject } from "./fixtures/command-project.js";
 import { writeCandidate } from "../src/compiler/candidates.js";
 import reviewApproveCommand from "../src/commands/review-approve.js";
 import { readState } from "../src/utils/state.js";
@@ -23,26 +23,12 @@ import { CANDIDATES_DIR } from "../src/utils/constants.js";
 import { buildResearchLiteProject } from "./fixtures/profile-fixtures.js";
 
 let root = "";
-let originalCwd = "";
+const project = useCommandProject("review-typed-");
 
 const SLUG = "linear-attention";
 const BODY = "---\ntitle: Linear Attention\n---\n\n# Linear Attention\n\nBody.\n";
 
-beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), "review-typed-"));
-  originalCwd = process.cwd();
-  process.chdir(root);
-  vi.spyOn(console, "log").mockImplementation(() => {});
-  vi.spyOn(console, "error").mockImplementation(() => {});
-  process.exitCode = 0;
-});
-
-afterEach(async () => {
-  process.chdir(originalCwd);
-  await rm(root, { recursive: true, force: true });
-  vi.restoreAllMocks();
-  process.exitCode = 0;
-});
+beforeEach(() => { root = project.root; });
 
 /** Write a typed `papers` candidate for SLUG and return its id. */
 async function stageTypedCandidate(entityType = "papers"): Promise<string> {

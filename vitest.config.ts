@@ -1,9 +1,28 @@
 import { defineConfig, configDefaults } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 const TEST_TIMEOUT_MS = 30_000;
 const HOOK_TIMEOUT_MS = 60_000;
 
 export default defineConfig({
+  // In-repository tests exercise source. Packed consumers still import the
+  // installed compiler peer by name; this resolver is not shipped at runtime.
+  resolve: {
+    alias: [
+      { find: /^@atomicstrata\/llmwiki-core\/compiler-cli$/, replacement: fileURLToPath(new URL("./src/compiler-cli.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-core\/compiler-legacy-workflows$/, replacement: fileURLToPath(new URL("./src/local-workflow-host/legacy-composition.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-core\/compiler-sdk$/, replacement: fileURLToPath(new URL("./src/sdk/compiler-composition.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-local-workflows$/, replacement: fileURLToPath(new URL("./src/local-workflows/index.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-core\/local-workflow-host$/, replacement: fileURLToPath(new URL("./src/local-workflow-host/index.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-core$/, replacement: fileURLToPath(new URL("./src/core-index.ts", import.meta.url)) },
+      { find: /^@atomicstrata\/llmwiki-core\/local-workflow-contracts$/, replacement: fileURLToPath(new URL("./src/local-workflow-host/shared-contracts.ts", import.meta.url)) },
+      { find: /^llm-wiki-compiler$/, replacement: fileURLToPath(new URL("./src/index.ts", import.meta.url)) },
+      ...["llmwiki-dev-backend", "llmwiki-limited-isolation-backend"].map(name => ({
+        find: new RegExp("^" + name + "$"),
+        replacement: fileURLToPath(new URL("./packages/" + name + "/src/index.ts", import.meta.url)),
+      })),
+    ],
+  },
   test: {
     globals: true,
     testTimeout: TEST_TIMEOUT_MS,

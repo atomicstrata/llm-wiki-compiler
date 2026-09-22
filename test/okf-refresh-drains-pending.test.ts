@@ -21,7 +21,7 @@ import {
   writePendingEmbeddings,
   loadPendingEmbeddings,
 } from "../src/utils/pending-embeddings.js";
-import * as embeddings from "../src/utils/embeddings.js";
+import { mockEmbeddingSuccess } from "./fixtures/embedding-success.js";
 import { makeTrustRoot, cleanupTrustRoot } from "./trust/fixture.js";
 
 const PENDING_A = "concepts/alpha";
@@ -44,9 +44,7 @@ describe("OKF refresh drains the pending-embeddings marker", () => {
     ]);
     vi.spyOn(console, "log").mockImplementation(() => {});
     // Core succeeds for every id it is asked to embed (always eligible+embedded).
-    const okSpy = vi
-      .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockImplementation(async (_root, ids) => ({ embedded: ids, eligible: ids }));
+    const okSpy = mockEmbeddingSuccess();
 
     await refreshAfterImport(root, [IMPORTED_ID]);
 

@@ -4,7 +4,8 @@
  * advisory; this module re-verifies and re-audits every condition before write.
  */
 import path from "node:path";
-import { acquireLockBlocking, releaseLock } from "../../utils/lock.js";
+import { releaseLock } from "../../utils/lock.js";
+import { acquireMutationLockBlocking } from "../../operation-bundles/lock-gate.js";
 import { PROFILE_FILE } from "../../utils/constants.js";
 import { openBatch, recordPreState, commitBatch } from "../../trust/journal.js";
 import { recoverJournalBeforeCompile } from "../../trust/journal-recovery.js";
@@ -51,7 +52,7 @@ export async function applyRemoteTemplateUpdate(
   await recoverBeforePlanning(root);
   const prefetched = await resolveRemoteUpdatePairForRoot(root, paths, toVersion, false);
   await options.afterPrefetchForTest?.();
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     await recoverOrRefuse(root);
     return await withTapStateLock(paths, async () => applyLocked(root, paths, toVersion, prefetched, options));
@@ -87,7 +88,7 @@ async function applyLocked(
 }
 
 async function recoverBeforePlanning(root: string): Promise<void> {
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     await recoverOrRefuse(root);
   } finally {

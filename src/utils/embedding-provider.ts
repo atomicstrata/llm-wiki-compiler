@@ -36,6 +36,7 @@ const EMBEDDING_CAPABLE_PROVIDERS: ReadonlySet<string> = new Set([
   "openai",
   "orcarouter",
   "ollama",
+  "offline",
 ]);
 
 /**
@@ -57,6 +58,7 @@ const EMBEDDING_CREDENTIALS: Record<string, { keyVars: readonly string[]; endpoi
   "claude-agent": { keyVars: ["VOYAGE_API_KEY"], endpointVar: null },
   openai: { keyVars: ["OPENAI_EMBEDDINGS_API_KEY", "OPENAI_API_KEY"], endpointVar: "OPENAI_EMBEDDINGS_BASE_URL" },
   ollama: { keyVars: [], endpointVar: null },
+  offline: { keyVars: [], endpointVar: null },
   orcarouter: { keyVars: ["ORCAROUTER_API_KEY"], endpointVar: null },
 };
 

@@ -9,6 +9,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Split-package development distribution: `@atomicstrata/llmwiki-core` is engine-free;
+  `@atomicstrata/llmwiki-local-workflows` takes an explicit core host; the standard
+  `llm-wiki-compiler` package composes both at matching versions and retains
+  existing CLI/SDK entry points. Duplicate-core composition now fails before
+  I/O, including standard facade initialization. See the
+  [SDK upgrade notes](docs/guides/sdk-upgrade.mdx) for experimental source changes.
+  Registry publication requires dependency-first release of all three packages.
+
+- Local `1.4.0-dev.20260919` integration candidate: generic domain SDK record
+  preparation/observation/retirement, operation-bundle authority and recovery,
+  preparation lifecycle, configurable operation packs and capability providers.
+  The SDK does not expose operator apply. Standalone product-process packages
+  remain separate; public builtin ontology templates are preserved.
+- Live workflow projection, retained stage outputs and PDF delivery integrated
+  with the public viewer, restricted to loopback. Legacy experiment projection
+  inputs remain compatible; new providers use generic fact panels.
+- Migration safeguards: exact selected-candidate custody, operation-aware lint
+  proposal locking, confined reset deletion, and refusal of
+  legacy compaction when it would discard operation-bound relation history.
+  Ordinary compilation retains tolerant discovery of unrelated malformed records;
+  strict whole-store checks belong to the new authority interfaces.
+
+- Local integration upgrade notes: workflow starts synchronously capture the
+  durable JSON form of inputs before asynchronous work. Returned inputs now match
+  reopened inputs (for example, dates become strings); sparse arrays and function
+  fields follow JSON normalization. Hidden fields remain omitted, JSON hooks are
+  supported, and depth/size/non-finite-number guards remain. Typed action inputs
+  retain their schema validation rather than coercing objects into scalar fields.
+  New authority interfaces continue to require strict data-only input capture.
+- Experimental SDK types add member-bearing artifact inputs and new workflow
+  statuses/events, including terminal refusal. Consumers with exhaustive switches
+  or interfaces extending `SdkWriteArtifactInput` may need source updates: artifact
+  input is now a body-or-members union. Existing single-body calls remain supported.
+- Approved safety changes recover pending journals before further mutation, refuse
+  archive overwrite and selected filename/record-ID disagreement, and reject
+  detected drift in confined reads/writes. A confined write error after rename
+  does not prove nothing was written; reconcile its outcome before retrying.
+
 - Advisory pre-approval citation reports with `eval --candidates`. Fast mode
   inventories current evidence; full mode reuses the citation judge on a bounded
   sample. Reports identify exact draft revisions and unavailable/changed evidence

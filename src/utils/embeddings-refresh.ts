@@ -79,10 +79,10 @@ export async function refreshEmbeddingsDrainingPending(
   // leaves a durable retry list even though source-state already marks sources current.
   await retry.recordPending();
   try {
-    const { embedded, eligible } = await updateEmbeddingsLockedCore(
+    const { embedded, eligible, pruned } = await updateEmbeddingsLockedCore(
       root, retry.pageIds, (ids) => retry.prepare(ids),
     );
-    await retry.succeed(embedded, eligible);
+    await retry.succeed([...embedded, ...pruned], eligible);
   } catch (err) {
     await retry.fail();
     const message = err instanceof Error ? err.message : String(err);

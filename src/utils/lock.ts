@@ -1,16 +1,23 @@
 /**
  * PID-based lock file for preventing concurrent compilation.
  *
- * Fresh acquisition uses O_CREAT | O_EXCL (the 'wx' flag) for atomic lock
- * creation — the kernel guarantees only one process can create the file.
+ * Fresh acquisition PUBLISHES the lock create-only: the complete owner record is
+ * written to a scratch leaf and linked onto the authoritative name, which the
+ * kernel grants to exactly one acquirer. Publication rather than a bare
+ * `open(wx)` is what makes the lock atomic in the sense that matters here — the
+ * name must never be observable as an EMPTY file, because the staleness
+ * predicate treats an unreadable owner as reclaimable and would let a contender
+ * take the lock away from a live process mid-acquisition. See
+ * {@link ./lock-publication.js}.
  *
  * Stale lock reclamation uses a two-lock protocol:
- * 1. Acquire a reclamation lock (.llmwiki/lock.reclaim) via 'wx' to serialize
- *    all processes attempting to reclaim the same stale main lock.
+ * 1. Acquire a reclamation lock (.llmwiki/lock.reclaim) — published under the
+ *    same create-only rule — to serialize all processes attempting to reclaim
+ *    the same stale main lock.
  * 2. Re-verify the main lock is still stale (another reclaimer may have
  *    already fixed it).
- * 3. unlink + tryCreateLock('wx') on the main lock — safe because we hold
- *    exclusive reclamation access.
+ * 3. unlink + republish the main lock — safe because we hold exclusive
+ *    reclamation access.
  * 4. Release the reclamation lock in a finally block.
  *
  * The reclamation lock itself can become stale if a process crashes during
@@ -19,17 +26,19 @@
  * This eliminates the unlink-then-create race that would allow two processes
  * to both hold the reclaim lock. The outer retry loop in acquireLock handles
  * convergence: first pass cleans up the stale reclaim lock, second pass
- * acquires it cleanly via 'wx'.
+ * publishes it cleanly.
  */
 
-import { open, unlink } from "fs/promises";
+import { realpath, unlink } from "fs/promises";
 import { openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "path";
 import { LOCK_FILE, MAX_LOCK_FILE_BYTES } from "./constants.js";
 import { resolveConfinedPrivateDir, resolveExistingConfinedPrivateDir } from "./private-dir.js";
-import { serializeOwner, parseOwner, isOwnerStale } from "./lock-owner.js";
+import { serializeOwner, parseOwner, isLockRecordStale } from "./lock-owner.js";
+import { publishLockRecord, type LockPublicationHooks } from "./lock-publication.js";
+import { acquireKeyedFifo } from "./keyed-fifo.js";
 import * as output from "./output.js";
 
 /**
@@ -54,9 +63,12 @@ const DEFAULT_BLOCKING_TIMEOUT_MS = 5_000;
 /** Default poll interval between blocking-acquire retries. */
 const DEFAULT_BLOCKING_INTERVAL_MS = 25;
 
+/** Queue permits held by successful blocking acquisitions until releaseLock. */
+const blockingQueueReleases = new Map<string, () => void>();
+
 /** Options bounding a {@link acquireLockBlocking} retry loop. */
 export interface BlockingLockOptions {
-  /** Total time to keep retrying before throwing (ms). */
+  /** Maximum time without local-queue or filesystem-lock progress before throwing (ms). */
   timeoutMs?: number;
   /** Delay between retries (ms). */
   intervalMs?: number;
@@ -76,17 +88,32 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * Acquire the project lock, RETRYING with a short poll until it succeeds or
- * `timeoutMs` elapses (then throwing {@link LockBusyError}). Unlike the fail-fast
- * {@link acquireLock} (kept for compile), this serializes legitimate concurrent
- * relation writers instead of spuriously failing the loser of a race. Each retry
- * goes through {@link acquireLock}, so stale-lock reclamation still applies.
+ * Acquire the project lock through a process-local FIFO, then RETRY with a short
+ * poll until it succeeds or `timeoutMs` elapses without progress (then throwing
+ * {@link LockBusyError}). The FIFO prevents a same-process burst from starting
+ * every filesystem deadline at once; completing each local holder resets the
+ * waiting entries' no-progress bound. Cross-process exclusion and stale-lock
+ * reclamation remain owned by {@link acquireLock}.
  *
  * @param root - Absolute project root.
  * @param options - Optional timeout / poll-interval overrides.
  * @throws {LockBusyError} When the lock stays held past `timeoutMs`.
  */
 export async function acquireLockBlocking(root: string, options: BlockingLockOptions = {}): Promise<void> {
+  const queueKey = await realpath(root).catch(() => path.resolve(root));
+  const timeoutMs = options.timeoutMs ?? DEFAULT_BLOCKING_TIMEOUT_MS;
+  const releaseQueue = await acquireKeyedFifo(queueKey, timeoutMs, () => new LockBusyError(timeoutMs));
+  try {
+    await pollForLock(root, options);
+    blockingQueueReleases.set(queueKey, releaseQueue);
+  } catch (error) {
+    releaseQueue();
+    throw error;
+  }
+}
+
+/** Poll for the filesystem lock after this process's same-root waiters take their turn. */
+async function pollForLock(root: string, options: BlockingLockOptions): Promise<void> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_BLOCKING_TIMEOUT_MS;
   const intervalMs = options.intervalMs ?? DEFAULT_BLOCKING_INTERVAL_MS;
   const deadline = Date.now() + timeoutMs;
@@ -105,6 +132,17 @@ export async function acquireLockBlocking(root: string, options: BlockingLockOpt
 export interface AcquireLockOptions {
   /** Suppress the "Another compilation is running." warning on a busy lock. */
   quiet?: boolean;
+  /**
+   * Publication seams, supplied only by tests. The double-ownership window this
+   * lock once had lived entirely inside one acquisition, so a regression test
+   * for it must be able to hold that interval open on demand rather than hope
+   * to land in it — hoping is what let the defect read as a scheduling flake.
+   *
+   * Applies to the FRESH acquisition only. Reclamation republishes under the
+   * same create-only rule, but its publication is already serialized by the
+   * reclaim lock, so it is not the interval a contender can race into.
+   */
+  hooks?: LockPublicationHooks;
 }
 
 /**
@@ -135,8 +173,8 @@ export async function acquireLock(root: string, options: AcquireLockOptions = {}
   const lockPath = lockFileIn(privateDir);
 
   for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
-    // Try atomic create — fails if file already exists
-    const created = await tryCreateLock(lockPath);
+    // Try create-only publication — fails if the name is already taken
+    const created = await tryCreateLock(lockPath, options.hooks);
     if (created) return true;
 
     // Lock exists. Check if the holding process is dead.
@@ -218,28 +256,21 @@ async function acquireReclaimLock(reclaimPath: string): Promise<boolean> {
 }
 
 /**
- * Atomically create the lock file with our OWNER record (`{pid, startTime}`).
- * Returns true if we created it, false if it already exists. The recorded start
- * time is the PID-reuse-safe liveness identity ({@link isOwnerStale}); a leaf with
- * no start time (legacy build) is read back compatibly.
+ * Publish the lock file carrying our OWNER record (`{pid, startTime}`).
+ * Returns true if we published it, false if the name was already taken. The
+ * recorded start time is the PID-reuse-safe liveness identity ({@link isLockRecordStale});
+ * a leaf with no start time (legacy build) is read back compatibly.
+ *
+ * The record is linked into place COMPLETE — see {@link publishLockRecord}. The
+ * previous create-then-write left the authoritative name briefly zero-length,
+ * and an empty leaf is precisely what {@link isLockStale} reports as stale, so a
+ * contender could reclaim a lock from a process that was still taking it and
+ * both would proceed. Shrinking that window was not enough; publication removes
+ * it. The same rule serves the reclaim lock, which acquires through this
+ * function too and is read by the identical staleness predicate.
  */
-async function tryCreateLock(lockPath: string): Promise<boolean> {
-  // Compute the owner record BEFORE the atomic create so the window between an
-  // empty `open(wx)` file and its first bytes stays minimal — a poller that reads
-  // the leaf mid-create must never see an EMPTY (→ "stale") file and reclaim a
-  // lock another writer is in the middle of taking.
-  const ownerRecord = serializeOwner(process.pid);
-  try {
-    const fd = await open(lockPath, "wx");
-    await fd.writeFile(ownerRecord, "utf-8");
-    await fd.close();
-    return true;
-  } catch (err: unknown) {
-    if (err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "EEXIST") {
-      return false;
-    }
-    throw err;
-  }
+async function tryCreateLock(lockPath: string, hooks?: LockPublicationHooks): Promise<boolean> {
+  return publishLockRecord(lockPath, serializeOwner(process.pid), hooks);
 }
 
 /**
@@ -278,7 +309,7 @@ async function readLockOwner(lockPath: string): Promise<ReturnType<typeof parseO
  *
  * The leaf is read through {@link readLockOwner} (no-follow + fstat-capped), so a
  * `null` owner (absent / symlinked / oversize / non-regular / unparseable) is
- * stale. A readable owner is judged by {@link isOwnerStale}: a dead PID is stale
+ * stale. A readable owner is judged by {@link isLockRecordStale}: a dead PID is stale
  * (unchanged), AND — closing the PID-reuse wedge — a LIVE PID whose recorded start
  * time differs from the live process's current start time is ALSO stale. A legacy
  * leaf (bare PID, no start time) keeps the PID-only behavior. The reclaim flow is
@@ -287,7 +318,7 @@ async function readLockOwner(lockPath: string): Promise<ReturnType<typeof parseO
 async function isLockStale(lockPath: string): Promise<boolean> {
   const owner = await readLockOwner(lockPath);
   if (owner === null) return true;
-  return isOwnerStale(owner);
+  return isLockRecordStale(owner);
 }
 
 /**
@@ -317,20 +348,34 @@ async function isLockStale(lockPath: string): Promise<boolean> {
  * @param root - Absolute project root.
  */
 export async function releaseLock(root: string): Promise<void> {
+  const queueKey = await realpath(root).catch(() => path.resolve(root));
+  const releaseQueue = (): void => {
+    blockingQueueReleases.get(queueKey)?.();
+    blockingQueueReleases.delete(queueKey);
+  };
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDir(root);
   } catch {
     // `.llmwiki` (or an ancestor) escapes the root — refuse to follow it.
+    releaseQueue();
     return;
   }
-  if (privateDir === null) return; // .llmwiki absent → nothing to release
+  if (privateDir === null) {
+    releaseQueue();
+    return; // .llmwiki absent → nothing to release
+  }
   const lockPath = lockFileIn(privateDir);
   const owner = await readLockOwner(lockPath);
-  if (owner?.pid !== process.pid) return; // foreign / unreadable / symlinked / absent → no-op
+  if (owner?.pid !== process.pid) {
+    releaseQueue();
+    return; // foreign / unreadable / symlinked / absent → no-op
+  }
   try {
     await unlink(lockPath);
   } catch {
     // Lock already removed or never existed
+  } finally {
+    releaseQueue();
   }
 }

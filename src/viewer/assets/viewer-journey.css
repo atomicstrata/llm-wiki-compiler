@@ -1,0 +1,318 @@
+/**
+ * Workflow run and journey structure.
+ *
+ * Owns raised run rows, stage timelines, verification labels, the human gate
+ * as the strongest stage surface, the summary-before-evidence hierarchy,
+ * provenance, digests, and artifact download controls. It preserves the
+ * current class contract while resolving presentation through semantic tokens.
+ */
+
+/* fallow-ignore-file unused-file */
+.journey-pane,
+.runs-pane { padding: clamp(1rem, 2vw, 2rem); }
+
+.journey-classification {
+  display: inline-block;
+  margin: 0.25rem 0 1rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-button);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.journey-classification.classification-needs-adaptation,
+.journey-classification.classification-blocked-by-config {
+  border-color: var(--status-danger);
+  color: var(--status-danger);
+}
+
+/* Why a verified journey is showing recorded-only (budget, provider, drift), said plainly. */
+.journey-live-notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--status-danger);
+  border-radius: 6px;
+  color: var(--status-danger);
+  background: var(--surface-raised);
+  font-size: 0.9rem;
+}
+
+/* The run-level record is a raised card that introduces the timeline. */
+.journey-experiment {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+}
+.journey-experiment h2 { margin: 0 0 0.45rem; font-size: 1rem; }
+.journey-experiment-fact { margin: 0.2rem 0; }
+.journey-experiment-label { font-weight: 600; }
+.journey-experiment-proof {
+  margin-left: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.journey-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.journey-stage {
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--interactive-primary);
+  border-radius: var(--radius-card);
+  background: var(--surface-base);
+  box-shadow: var(--shadow-card);
+  padding: 1rem 1.25rem;
+}
+.journey-stage-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+.journey-stage-id { font-family: var(--font-heading); font-weight: var(--font-weight-heading); }
+.journey-stage-status {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-transform: lowercase;
+}
+
+.journey-verification {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border: 1px solid var(--border-subtle);
+}
+.journey-verification.verification-verified {
+  color: var(--interactive-primary);
+  background: var(--interactive-primary-soft);
+  border-color: var(--interactive-primary);
+}
+.journey-verification.verification-recorded {
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+.journey-verification-reason {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--status-danger);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/*
+ * Gates: state color always pairs with the label text. The human gate is the
+ * strongest element in its stage, with actor and time carried by the byline.
+ */
+.journey-gate {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+  font-size: 0.9rem;
+}
+.journey-gate.gate-awaiting { border-color: var(--gate-awaiting); background: var(--interactive-primary-soft); font-weight: 600; }
+.journey-gate.gate-approved { border-color: var(--gate-approved); }
+.journey-gate.gate-rejected { border-color: var(--gate-rejected); background: var(--status-danger-soft); }
+.journey-gate-human {
+  border-width: 2px;
+  padding: 0.85rem 1rem;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.journey-gate-human.gate-awaiting { background: var(--interactive-primary-soft); }
+.journey-gate-label { display: block; }
+.journey-gate-byline {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
+}
+.journey-gate-human .journey-gate-byline {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Provenance: one readable summary first, supporting chips and edges quieter. */
+.journey-provenance {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border-subtle);
+}
+.journey-provenance-caption {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.journey-summary {
+  margin: 0 0 0.6rem;
+  max-width: var(--max-content-width);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.journey-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.journey-chip {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.journey-edges-wrap { margin-top: 0.65rem; }
+.journey-edges-wrap h4 { margin: 0 0 0.3rem; font-size: 0.82rem; }
+.journey-edges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.journey-edge {
+  padding: 0.1rem 0;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+.journey-digests { margin-top: 0.5rem; }
+.journey-digests summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+.journey-digest {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+/* Product-neutral verified facts: compact label/value rows with closed tones. */
+.journey-fact-panel {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-muted);
+}
+.journey-fact-panel-title { margin: 0 0 0.55rem; font-size: 0.9rem; }
+.journey-fact-list { display: grid; gap: 0.35rem; margin: 0; }
+.journey-fact-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.5fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-left: 0.55rem;
+  border-left: 3px solid var(--border-subtle);
+}
+.journey-fact-row dt { font-weight: 600; }
+.journey-fact-row dd { margin: 0; overflow-wrap: anywhere; }
+.journey-fact-row.fact-tone-success { border-left-color: var(--status-success); }
+.journey-fact-row.fact-tone-warning { border-left-color: var(--status-warning); }
+.journey-fact-row.fact-tone-danger { border-left-color: var(--status-danger); }
+
+/* Artifacts stay standard download links, shaped as quiet raised controls. */
+.journey-artifact { margin: 0.85rem 0 0; }
+.journey-artifact-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-button);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+/* The final PDF: a visible, usable panel — the browser's own renderer in a same-origin frame. */
+.journey-pdf { display: block; margin: 1rem 0 0; }
+.journey-pdf-heading { margin: 0 0 0.5rem; font-size: 1rem; }
+.journey-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.4rem 1rem;
+  margin-bottom: 0.6rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-button);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.journey-pdf-frame {
+  display: block;
+  width: 100%;
+  min-height: 70vh;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+}
+.journey-error { margin-top: 0.75rem; }
+
+.runs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.runs-item {
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-card);
+}
+.runs-link {
+  display: inline-block;
+  padding: 0.2rem 0;
+  font-family: var(--font-heading);
+  font-weight: var(--font-weight-heading);
+  overflow-wrap: anywhere;
+}
+.runs-meta { color: var(--text-muted); font-size: 0.85rem; }
+.runs-inert { color: var(--text-muted); }
+
+/* Touch targets: run links and digest toggles reach 44px on narrow screens. */
+@media (max-width: 800px) {
+  .runs-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .journey-digests summary {
+    min-height: 44px;
+    padding: 0.7rem 0;
+  }
+}

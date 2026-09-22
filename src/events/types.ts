@@ -36,8 +36,25 @@
  * surfaced (chain) per the read contract.
  */
 
-/** The event-store JSONL schema version readers understand. */
-export const EVENT_STORE_SCHEMA_VERSION = 1;
+import type { OperationBinding } from "../utils/operation-binding.js";
+
+/**
+ * The highest event-store JSONL schema version readers understand. Version 2
+ * adds the optional per-record {@link OperationBinding} an operation-bundle apply
+ * stamps; a v2 header may therefore contain operation-bound records. Readers
+ * accept 1 and 2 and fail closed above 2.
+ */
+export const EVENT_STORE_SCHEMA_VERSION = 2;
+
+/**
+ * The header version an ORDINARY (non-bundle) append writes for a fresh store,
+ * left at 1 so ordinary APIs are byte-unchanged. The first operation-bound
+ * append upgrades the header to {@link EVENT_STORE_OPERATION_VERSION}.
+ */
+export const EVENT_STORE_BASE_WRITE_VERSION = 1;
+
+/** The header version a store carrying operation-bound records declares. */
+export const EVENT_STORE_OPERATION_VERSION = 2;
 
 /**
  * The fixed `prevHash` of the FIRST event in a store — the chain's genesis
@@ -64,7 +81,8 @@ export type EventType =
   | "relation-update"
   | "relation-compact"
   | "artifact-write"
-  | "connector-fetch";
+  | "connector-fetch"
+  | "operation-mutation";
 
 /** An event id, always of the form `evt_<ULID>`. */
 export type EventId = `evt_${string}`;
@@ -81,6 +99,13 @@ export interface EventContent {
   payload: Record<string, unknown>;
   /** Optional composed trust decision that routed the mutation (relation writes). */
   decision?: string;
+  /**
+   * Present only on a child event an operation-bundle apply produced. The binding
+   * is covered by BOTH the chain digest ({@link eventPrevHash}) and the per-record
+   * checksum, so tampering with it breaks the chain link and the checksum. Absent
+   * on ordinary events, so their digests are byte-unchanged.
+   */
+  operationBinding?: OperationBinding;
   /** ISO-8601 emit timestamp. */
   at: string;
 }
@@ -163,3 +188,8 @@ export class EventStoreFullError extends Error {
     this.name = "EventStoreFullError";
   }
 }
+
+/** Brand tripwires — see `src/types/brand-assertions.ts`. */
+import type { BrandAssertFalse, BrandAssignable, BrandProbe } from "../types/brand-assertions.js";
+
+type _EventIdIsBranded = BrandAssertFalse<BrandAssignable<BrandProbe, EventId>>;

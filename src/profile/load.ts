@@ -1,22 +1,37 @@
 /**
- * Fail-closed profile loader.
+ * Fail-closed, binding-aware effective-profile loader.
  *
- * Resolves a project's effective profile pack from `.llmwiki/profile.json`.
- * The loader is fail-closed by design, mirroring the review-config pattern: a
+ * `loadProfile` is the UNIVERSAL effective-authority resolver (design section 8.2):
+ * every reader that loads a project's profile authorizes against the EXACT active
+ * product and its knowledge profile when a binding is present, and against the
+ * legacy `.llmwiki/profile.json`-or-built-in-default otherwise. It first classifies
+ * the runtime mode via the active-product binding, then:
+ *   - ABSENT binding → the LEGACY path ({@link loadLegacyProfile}), byte-identical
+ *     to the pre-binding loader (same profile, `loadedFrom`, and digest);
+ *   - PRESENT, healthy binding → the product's knowledge profile;
+ *   - binding beside a legacy `profile.json` → {@link ProductAuthorityConflictError};
+ *   - present-but-unhealthy binding → {@link ActiveProductUnavailableError}, NEVER
+ *     a silent fall back to legacy/default.
+ *
+ * The LEGACY path is itself fail-closed, mirroring the review-config pattern: a
  * MISSING file falls back to the built-in default profile, but a file that is
- * PRESENT yet broken (unparseable JSON or schema-invalid) is a hard error. A
- * typo in a present profile must never silently degrade the project to the
- * default profile, because that would change every entity's identity and
- * retrieval behaviour without warning.
+ * PRESENT yet broken (unparseable JSON or schema-invalid) is a hard error. A typo
+ * in a present profile must never silently degrade the project to the default
+ * profile, because that would change every entity's identity and retrieval
+ * behaviour without warning.
  *
  * The returned `LoadedProfile` carries the resolved pack, its absolute source
  * path (or `null` for the built-in default), and its canonical digest.
  *
- * Confinement: the read is routed through the confined `.llmwiki` dir primitive
- * (`resolveExistingConfinedPrivateDir`) and the leaf is opened with `O_NOFOLLOW` so a
- * symlinked `.llmwiki` dir OR a symlinked `profile.json` leaf FAILS CLOSED
- * (never reads out-of-tree bytes). An `fstat`-based size cap guards against
- * reading a multi-GB or `/dev/zero`-backed target before `JSON.parse`.
+ * Confinement: the legacy read is routed through the confined `.llmwiki` dir
+ * primitive (`resolveExistingConfinedPrivateDir`) and the leaf is opened with
+ * `O_NOFOLLOW` so a symlinked `.llmwiki` dir OR a symlinked `profile.json` leaf
+ * FAILS CLOSED (never reads out-of-tree bytes). An `fstat`-based size cap guards
+ * against reading a multi-GB or `/dev/zero`-backed target before `JSON.parse`.
+ *
+ * ACYCLIC RULE: this module imports `products/binding`, never the reverse. The
+ * binding resolver loads the knowledge-profile member and validates it directly
+ * via `validateProfile`/`profileDigest`; it must never call back into `loadProfile`.
  */
 
 import { constants as fsConstants } from "node:fs";
@@ -29,6 +44,8 @@ import { DEFAULT_PROFILE } from "./default.js";
 import { validateProfile } from "./validate.js";
 import { profileDigest } from "./digest.js";
 import type { LoadedProfile } from "./types.js";
+import { resolveActiveProduct } from "../products/binding/resolve.js";
+import { ActiveProductUnavailableError, ProductAuthorityConflictError } from "../products/binding/problems.js";
 
 /** Error raised when a present profile file cannot be loaded or validated. */
 export class ProfileLoadError extends Error {
@@ -65,28 +82,34 @@ async function openProfileNoFollow(filePath: string): Promise<FileHandle | null>
 }
 
 /**
- * Load the effective profile for a project root.
- *
- * Resolves `<root>/.llmwiki/profile.json`. A missing file yields the built-in
- * default profile with `loadedFrom: null`. A present file is parsed and
- * validated; any failure throws `ProfileLoadError` (fail-closed — the default
- * is never substituted for a broken present file). A symlinked `.llmwiki` dir
- * or a symlinked `profile.json` leaf also fails closed.
- *
- * @param root - Absolute project root directory.
- * @returns The resolved, validated profile with its source path and digest.
- * @throws {ProfileLoadError} When a present file is unparseable, invalid, or confined.
+ * Resolve the confined `.llmwiki` dir, mapping a symlinked/escaping dir to a
+ * {@link ProfileLoadError} — the pre-existing read-path confinement contract. A
+ * clean project (no `.llmwiki`) resolves to `null` WITHOUT creating the directory.
  */
-export async function loadProfile(root: string): Promise<LoadedProfile> {
-  let dir: string | null;
+async function resolveConfinedProfileDir(root: string): Promise<string | null> {
   try {
-    dir = await resolveExistingConfinedPrivateDir(root);
+    return await resolveExistingConfinedPrivateDir(root);
   } catch (err) {
     if (err instanceof PrivateDirConfinementError) {
       throw new ProfileLoadError(`${PROFILE_FILE} directory is a symlink — refusing to follow`);
     }
     throw err;
   }
+}
+
+/**
+ * The LEGACY fail-closed loader: resolve `<root>/.llmwiki/profile.json`, yielding
+ * the built-in default when absent and failing closed on a present-but-broken or
+ * confined file. This is the exact behaviour {@link loadProfile} runs when NO
+ * active-product binding is present, so the absent-binding result (profile,
+ * `loadedFrom`, and digest) stays byte-identical to the pre-binding loader.
+ *
+ * @param root - Absolute project root directory.
+ * @returns The resolved, validated legacy profile with its source path and digest.
+ * @throws {ProfileLoadError} When a present file is unparseable, invalid, or confined.
+ */
+async function loadLegacyProfile(root: string): Promise<LoadedProfile> {
+  const dir = await resolveConfinedProfileDir(root);
   // Absent .llmwiki dir means no profile file — yield the built-in default without
   // creating the directory (read-only contract: a clean project stays clean).
   if (dir === null) return defaultLoadedProfile();
@@ -109,6 +132,56 @@ export async function loadProfile(root: string): Promise<LoadedProfile> {
   const parsed = parseOrThrow(raw, logicalFilePath);
   const { profile } = validateProfile(parsed);
   return { profile, loadedFrom: logicalFilePath, digest: profileDigest(profile) };
+}
+
+/**
+ * A symlinked/escaping `.llmwiki` dir is a legacy confinement fault of the WHOLE
+ * private dir, not a present-binding fault, so it must surface as the pre-existing
+ * {@link ProfileLoadError} read-path contract rather than an unavailable-binding
+ * error. When the dir resolves cleanly (or is absent) this returns and the caller
+ * raises the binding-specific {@link ActiveProductUnavailableError}.
+ */
+async function assertPrivateDirNotConfinementFault(root: string): Promise<void> {
+  await resolveConfinedProfileDir(root);
+}
+
+/**
+ * Load the EFFECTIVE profile for a project root — the UNIVERSAL effective-authority
+ * resolver every reader uses (design section 8.2). Routes through the active-product
+ * binding: an ABSENT binding is the LEGACY path ({@link loadLegacyProfile}, byte-
+ * identical to the pre-binding loader); a PRESENT, healthy binding yields the
+ * product's knowledge profile; a binding beside a legacy `profile.json` fails closed
+ * with {@link ProductAuthorityConflictError} (neither wins); a present-but-unhealthy
+ * binding throws {@link ActiveProductUnavailableError} and NEVER falls back to legacy.
+ *
+ * A symlinked/escaping `.llmwiki` dir surfaces as a {@link ProfileLoadError} (the
+ * legacy confinement contract), not as an unavailable-binding error, because the
+ * fault is the private dir itself rather than a present binding.
+ *
+ * @param root - Absolute project root directory.
+ * @returns The resolved effective profile for the project's runtime mode.
+ * @throws {ProductAuthorityConflictError} When a binding and `profile.json` coexist.
+ * @throws {ActiveProductUnavailableError} When a present binding is unhealthy.
+ * @throws {ProfileLoadError} When the legacy `profile.json` is present but broken/confined.
+ */
+export async function loadProfile(root: string): Promise<LoadedProfile> {
+  const resolution = await resolveActiveProduct(root);
+  if (resolution.mode === "legacy") return loadLegacyProfile(root);
+  if (resolution.mode === "product") return resolution.loaded;
+  if (resolution.mode === "conflict") throw new ProductAuthorityConflictError();
+  await assertPrivateDirNotConfinementFault(root);
+  throw new ActiveProductUnavailableError(resolution.detail);
+}
+
+/**
+ * The canonical DIGEST of the project's ACTIVE profile — the exact content-address
+ * {@link loadProfile} binds. A generic, read-only profile OBSERVATION: a host or product
+ * can confirm which profile configuration is active (e.g. to bind a live projection to the
+ * profile it verified against) WITHOUT the loader itself being public. Carries no product
+ * vocabulary — it reads whatever profile is installed.
+ */
+export async function activeProfileDigest(root: string): Promise<string> {
+  return (await loadProfile(root)).digest;
 }
 
 /** Parse profile JSON, failing closed (never falling back) on broken content. */

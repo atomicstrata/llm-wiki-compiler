@@ -71,7 +71,7 @@ describe("connector audit event preflight", () => {
     const now = (): Date => new Date("2026-07-08T00:00:00.000Z");
     const existingIds = Array.from({ length: 20 }, (_, i) => `fixture-story-1-${String(i).padStart(9, "0")}`);
     const preflightStagedId = `fixture-story-1-${"f".repeat(64)}`;
-    const bound = upperBoundConnectorEvent({ id: "fixture", version: "1" }, { existingIds, preflightStagedId }, now);
+    const bound = upperBoundConnectorEvent({ connectorId: "fixture", connectorVersion: "1" }, { existingIds, preflightStagedId }, now);
     const real = connectorEvent({
       provenance: { connectorId: "fixture", connectorVersion: "1" },
       finalUrl: `https://fixture.local/${"y".repeat(MAX_CONNECTOR_URL_BYTES - 22)}`,

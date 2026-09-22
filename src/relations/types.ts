@@ -28,9 +28,25 @@
  */
 
 import type { EntityId } from "../profile/types.js";
+import type { OperationBinding } from "../utils/operation-binding.js";
 
-/** The relation-store JSONL schema version readers understand. */
-export const RELATION_STORE_SCHEMA_VERSION = 1;
+/**
+ * The highest relation-store JSONL schema version readers understand. Version 2
+ * adds the optional per-record {@link OperationBinding} (an operation-bundle
+ * apply stamps it); a v2 header may therefore contain operation-bound records.
+ * Readers accept 1 and 2 and fail closed above 2.
+ */
+export const RELATION_STORE_SCHEMA_VERSION = 2;
+
+/**
+ * The header version an ORDINARY (non-bundle) append writes for a fresh store,
+ * left at 1 so ordinary APIs are byte-unchanged. The first operation-bound
+ * append upgrades the header to {@link RELATION_STORE_OPERATION_VERSION}.
+ */
+export const RELATION_STORE_BASE_WRITE_VERSION = 1;
+
+/** The header version a store carrying operation-bound records declares. */
+export const RELATION_STORE_OPERATION_VERSION = 2;
 
 /**
  * A minimal citation backing a relation: the source file the claim came from
@@ -78,6 +94,13 @@ export interface RelationRef {
  * content (the `RelationRef` fields) so a flipped byte anywhere is detected.
  */
 export interface RelationRecord extends RelationRef {
+  /**
+   * Present only on a record an operation-bundle apply produced. The binding is
+   * covered by `checksum` (so tampering is detectable) but NOT by `contentHash`
+   * (which stays over relation content only, so an exact pre-existing relation
+   * remains a valid post-state).
+   */
+  operationBinding?: OperationBinding;
   /** sha256 of the canonical record (all fields except `checksum`). */
   checksum: string;
 }
@@ -150,3 +173,8 @@ export class RelationStoreFullError extends Error {
     this.name = "RelationStoreFullError";
   }
 }
+
+/** Brand tripwires — see `src/types/brand-assertions.ts`. */
+import type { BrandAssertFalse, BrandAssignable, BrandProbe } from "../types/brand-assertions.js";
+
+type _RelationIdIsBranded = BrandAssertFalse<BrandAssignable<BrandProbe, RelationId>>;

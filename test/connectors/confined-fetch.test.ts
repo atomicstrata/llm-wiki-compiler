@@ -66,6 +66,17 @@ describe("isPrivateAddress", () => {
 });
 
 describe("confinedFetch URL policy", () => {
+  it.each([300, 305, 306])("preserves public GET handling of HTTP %i redirects", async (status) => {
+    const seen: ConfinedHttpRequest[] = [];
+    const result = await confinedFetch(
+      { url: "https://api.crossref.org/works/original" }, LIMITS, ["api.crossref.org"],
+      seamsFor([response(status, { location: "/works/redirected" })], seen),
+    );
+    expect(result.kind).toBe("ok");
+    expect(seen).toHaveLength(2);
+    expect(seen[1].url.pathname).toBe("/works/redirected");
+  });
+
   it("refuses non-https URLs", async () => {
     const result = await confinedFetch({ url: "http://api.crossref.org/works/10.1/x" }, LIMITS, ["api.crossref.org"]);
     expect(result.kind).toBe("refused");

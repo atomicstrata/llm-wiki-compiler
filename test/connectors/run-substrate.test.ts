@@ -238,7 +238,7 @@ describe("runConnector", () => {
 
     const second = await runFixtureConnector(CONTENT_HASH_B);
 
-    expect(second).toMatchObject({ kind: "unavailable" });
+    expect(second).toMatchObject({ kind: "recovery-required" });
     const ids = (await listCandidates(root.dir)).map((candidate) => candidate.id).sort();
     expect(ids).toEqual([id, dupId].sort());
   });

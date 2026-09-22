@@ -221,6 +221,7 @@ function compareRelease(profileId: string, activeDigest: string, lock: TemplateL
   );
 }
 
+/** Report an unresolvable release without redirecting supported public templates. */
 function unavailableRelease(profileId: string, digest: string, lock: TemplateLock): TemplateStatus {
   return status(
     "source-release-unavailable", profileId, digest, lock.templateId, lock.version, null,

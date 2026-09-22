@@ -10,37 +10,19 @@
  * shared logic lives in exactly one place (no duplication, no behavior change).
  */
 
-import * as output from "../utils/output.js";
-import { processTerminalLineIo } from "../utils/terminal-line.js";
-import { assertRawInputJsonWithinBounds, assertInputDepthWithinBounds } from "../workflows/input-bounds.js";
+import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { processTerminalLineIo } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { parseInputPairs, parseInputJsonObject } from "@atomicstrata/llmwiki-core/compiler-cli";
+export { parseJsonObject } from "@atomicstrata/llmwiki-core/compiler-cli";
 import type { RunStatus } from "../workflows/status.js";
 import type { WorkflowRun } from "../workflows/types.js";
-import type { TrustDecision } from "../trust/decision.js";
+import type { TrustDecision } from "@atomicstrata/llmwiki-core/compiler-cli";
 import type { HumanGateIo } from "../workflows/human-gate-confirm.js";
 
 /** Options carrying repeatable `--input key=value` strings (one per occurrence). */
 export interface WorkflowStartOptions {
   /** Raw `key=value` strings, one per `--input` occurrence. */
   input?: string[];
-}
-
-/**
- * Parse repeated `--input key=value` pairs into a run-inputs record, splitting on
- * the FIRST `=` so values may themselves contain `=`. A pair with no `=` (or an
- * empty key) is malformed.
- *
- * @param pairs - Raw `key=value` strings from `--input`.
- * @returns The parsed inputs record.
- * @throws {Error} When any pair lacks a `=` or has an empty key.
- */
-function parseInputs(pairs: string[]): Record<string, unknown> {
-  const inputs: Record<string, unknown> = {};
-  for (const pair of pairs) {
-    const eq = pair.indexOf("=");
-    if (eq <= 0) throw new Error(`invalid --input ${JSON.stringify(pair)} (expected key=value)`);
-    inputs[pair.slice(0, eq)] = pair.slice(eq + 1);
-  }
-  return inputs;
 }
 
 /**
@@ -53,31 +35,11 @@ function parseInputs(pairs: string[]): Record<string, unknown> {
  */
 export function parseInputsOrExit(pairs: string[]): Record<string, unknown> {
   try {
-    return parseInputs(pairs);
+    return parseInputPairs(pairs);
   } catch (err) {
     console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
     process.exit(1);
   }
-}
-
-/**
- * Parse a `--input-json` string into a plain JSON OBJECT, or `null` when the text
- * is malformed JSON or parses to a non-object (array/scalar/`null`). Pure — the
- * caller decides how to report the `null` — so the branchy parse + shape check
- * lives in one place rather than inflating the exit wrapper.
- *
- * @param json - The raw `--input-json` string.
- * @returns The parsed object, or `null` when not a JSON object.
- */
-export function parseJsonObject(json: string): Record<string, unknown> | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return null;
-  }
-  const isObject = typeof parsed === "object" && parsed !== null && !Array.isArray(parsed);
-  return isObject ? (parsed as Record<string, unknown>) : null;
 }
 
 /**
@@ -91,13 +53,7 @@ export function parseJsonObject(json: string): Record<string, unknown> | null {
 export function parseInputJsonOrExit(json: string | undefined): Record<string, unknown> {
   if (json === undefined) return {};
   try {
-    // BOUND the raw text BEFORE JSON.parse (memory DoS), then DEPTH-bound the
-    // parsed object BEFORE it reaches any stringify/canonicalize (stack overflow).
-    assertRawInputJsonWithinBounds(json);
-    const parsed = parseJsonObject(json);
-    if (parsed === null) throw new Error("--input-json must be a JSON object");
-    assertInputDepthWithinBounds(parsed);
-    return parsed;
+    return parseInputJsonObject(json);
   } catch (err) {
     console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
     process.exit(1);
@@ -115,6 +71,7 @@ function statusDetailParts(status: RunStatus): string[] {
     { value: status.run, render: () => `status=${status.run?.status}` },
     { value: status.awaitingGate, render: () => `awaiting-gate: ${status.awaitingGate}` },
     { value: status.awaitingOutput, render: () => "awaiting-output" },
+    { value: status.needsHumanInput, render: () => `needs-human-input: ${status.humanInputSchemaId}` },
     { value: status.problem, render: () => `problem: ${status.problem}` },
   ];
   return rows.filter((row) => Boolean(row.value)).map((row) => row.render());
@@ -153,6 +110,9 @@ function submitCommand(status: RunStatus): string {
  * structured fields stay; this is an extra hint line.
  */
 function nextHintOf(status: RunStatus): string | null {
+  if (status.needsHumanInput === true) {
+    return `next: workflow submit ${status.runId} --kind human-input --output-file <path>`;
+  }
   if (status.awaitingGate !== undefined && status.awaitingTrustGate !== true) {
     return `next: workflow gate approve ${status.runId} ${status.awaitingGate}`;
   }

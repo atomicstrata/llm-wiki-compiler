@@ -216,8 +216,9 @@ async function appendCachedJudgement(root: string, judgement: CitationJudgement)
 }
 
 /** Resolve the current model identifier for recording in judgements. */
-function resolveModel(): string {
+function resolveJudgementModel(): string {
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
+  if (provider === "offline") return PROVIDER_MODELS.offline;
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[provider] ?? provider;
 }
 
@@ -304,7 +305,7 @@ async function judgeNewPairs(
 
 /** Share the existing judge and cache with alternate document selections. */
 export async function createCitationJudge(root: string, options: { namespace?: string; model?: string; persist?: boolean } = {}) {
-  const { namespace = "", model = resolveModel(), persist = true } = options;
+  const { namespace = "", model = resolveJudgementModel(), persist = true } = options;
   const cache = persist ? await loadCachedJudgements(root) : new Map<string, CitationJudgement>();
   return async (pair: CitationPair) => {
     const cacheKey = makeCacheKey(pair.claimHash + namespace, model);

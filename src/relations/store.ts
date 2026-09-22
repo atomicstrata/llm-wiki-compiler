@@ -47,14 +47,15 @@ import { open, mkdir, rename, stat } from "fs/promises";
 import { randomBytes } from "node:crypto";
 import path from "path";
 import { RELATIONS_FILE, MAX_RELATION_RECORD_BYTES, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
-import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
+import type { OperationBinding } from "../utils/operation-binding.js";
+import { withOrdinaryMutationLock as underLock } from "../operation-bundles/with-mutation-lock.js";
 import type { EntityId, ProfilePack, RelationTypeDef } from "../profile/types.js";
 import type { CitationRef, RelationRef } from "./types.js";
 import { RelationEndpointError, RelationStoreFullError } from "./types.js";
 import { mintRelationId } from "./ulid.js";
 import { canonicalEndpoints, relationContentHash } from "./digest.js";
 import { headerLine, serializeRecord, resolveGraphDir, openStoreFileAppend } from "./store-record.js";
-import { readRelations } from "./store-read.js";
+import { readRelations, readRelationRecords } from "./store-read.js";
 import { validateRelationAttributes, validateRelationEndpoints, validateRelationEvidence, validateRelationAgainstProfile } from "./relation-contract.js";
 import { validateArtifactRefsAgainstProfile } from "../profile/artifact-ref-validate.js";
 import { appendEventLocked, preflightEventAppend, type AppendEventInput } from "../events/store.js";
@@ -165,7 +166,7 @@ function assertRecordWithinCap(ref: RelationRef): void {
  * The serialized record size is capped LAST. NOTHING is written here —
  * validation throwing leaves the store untouched.
  */
-function buildRelationRef(
+export function buildRelationRef(
   profile: ProfilePack,
   input: AppendRelationInput,
   existingId?: RelationRef["id"],
@@ -193,7 +194,7 @@ function buildRelationRef(
  * store can never be driven past the read cap into an unreadable-yet-appendable
  * state. {@link compactRelations} is the escape valve.
  */
-async function appendLine(root: string, ref: RelationRef): Promise<void> {
+export async function appendLine(root: string, ref: RelationRef, binding?: OperationBinding): Promise<void> {
   const { dir } = await resolveGraphDir(root); // throws on symlink escape (DIR defense)
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, path.basename(RELATIONS_FILE));
@@ -201,12 +202,12 @@ async function appendLine(root: string, ref: RelationRef): Promise<void> {
   try {
     const existing = (await handle.stat()).size;
     const header = existing === 0 ? headerLine() : "";
-    const addition = Buffer.byteLength(header + serializeRecord(ref), "utf8");
+    const addition = Buffer.byteLength(header + serializeRecord(ref, binding), "utf8");
     if (existing + addition >= MAX_RELATION_STORE_BYTES) {
       throw new RelationStoreFullError();
     }
     if (header) await handle.write(header);
-    await handle.write(serializeRecord(ref));
+    await handle.write(serializeRecord(ref, binding));
   } finally {
     await handle.close();
   }
@@ -250,16 +251,6 @@ function buildRelationEvent(type: EventType, ref: RelationRef, decision?: string
  */
 async function emitRelationEvent(root: string, event: AppendEventInput): Promise<void> {
   await appendEventLocked(root, event);
-}
-
-/** Run `fn` while holding the project lock (bounded-blocking acquire); release in a finally. */
-async function underLock<T>(root: string, fn: () => Promise<T>): Promise<T> {
-  await acquireLockBlocking(root); // throws LockBusyError on timeout
-  try {
-    return await fn();
-  } finally {
-    await releaseLock(root);
-  }
 }
 
 /**
@@ -495,6 +486,12 @@ async function writeCompactedAtomically(dir: string, file: string, body: string)
  */
 export async function compactRelations(root: string, profile: ProfilePack): Promise<CompactionResult> {
   return underLock(root, async () => {
+    // Bound history is recovery authority, including superseded records. The
+    // legacy latest-per-id compactor cannot safely discard or unbind it.
+    const { records } = await readRelationRecords(root);
+    if (records.some((record) => record.operationBinding !== undefined)) {
+      throw new Error("relation compaction is unavailable for operation-bound history; retained authority was not changed");
+    }
     const { dir } = await resolveGraphDir(root); // throws on symlink escape
     await mkdir(dir, { recursive: true });
     const file = path.join(dir, path.basename(RELATIONS_FILE));

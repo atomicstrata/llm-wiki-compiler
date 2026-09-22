@@ -270,6 +270,23 @@ export interface ReviewCandidate {
   trustDecision?: TrustDecision;
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
+  /**
+   * SHA-256 (hex) of the TARGET page's content captured when this candidate was
+   * proposed — a stale-state guard for a candidate that UPDATES an existing page
+   * (e.g. a `lint --fix-propose` repair). At approval the live target is
+   * re-hashed and the write is refused if it no longer matches, so a page edited
+   * since the proposal is never clobbered. OMITTED for candidates that create a
+   * new page or carry no pre-image expectation.
+   */
+  expectedTargetHash?: string;
+  /**
+   * The complementary CLOSED precondition: the proposal expected NO page at the
+   * target. At approval the write is refused if a page now exists (created since
+   * the proposal), so a create-after-proposal never blind-overwrites. Mutually
+   * exclusive with {@link expectedTargetHash}; omitted when the candidate carries
+   * no precondition at all.
+   */
+  expectTargetAbsent?: boolean;
   /** Host-authored provenance for connector-fetched candidates. */
   connectorProvenance?: ConnectorProvenance;
   /** Confidence parsed from the generated page frontmatter, for review display. */
@@ -373,10 +390,13 @@ export interface QueryResult {
   /** Populated when the query was run in debug mode. */
   debug?: RetrievalDebug;
   /**
-   * Embedding-load degrade warnings surfaced in the result payload (S6) rather
-   * than only logged: an outdated (non-v3) or unavailable index degrades query
-   * to lexical/index selection and reports `embedding-index-outdated`. Omitted
-   * (key absent) when there are no warnings, so a healthy query is unchanged.
+   * Degrade warnings surfaced in the result payload (S6) rather than only
+   * logged: an outdated (non-v3) or unavailable index degrades query to
+   * lexical/index selection (`embedding-index-outdated`), a failing embed call
+   * degrades to the same fallback (`embedding-degraded`), and a selected page
+   * that could not be hydrated into the prompt is dropped from the identity
+   * fields (`page-hydration-dropped`). Omitted (key absent) when there are no
+   * warnings, so a healthy query is unchanged.
    */
   warnings?: QueryWarning[];
 }

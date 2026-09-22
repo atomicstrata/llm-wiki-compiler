@@ -42,6 +42,7 @@ import { scanEntityDir } from "../wiki/collect.js";
 import { safeRealpath, toPosixPath } from "../utils/path-confine.js";
 import { parseArtifactRef, formatArtifactRef, type ArtifactRef } from "../artifacts/ref.js";
 import { resolveArtifactRef, type ArtifactHealth } from "../artifacts/resolve.js";
+import { verifyExecutionProvenance } from "../artifacts/execution-provenance.js";
 import { refValuesFor } from "./artifact-ref-validate.js";
 import { readLiveValidRelations } from "../relations/live-valid.js";
 import type { ArtifactPreconditionReq, ProfilePack, EntityProblemView } from "./types.js";
@@ -164,6 +165,38 @@ function unmetRequirementFinding(page: ArtifactRefPageSource, state: string, req
   return null;
 }
 
+/** Rule id for a live gated page whose right-typed required artifact lacks the declared EXECUTION PROVENANCE. */
+const REQUIRED_ARTIFACT_UNPROVEN_RULE = "gated-page-required-artifact-unproven";
+
+/**
+ * Detective mirror of the write-time execution-provenance arm: a present,
+ * right-typed ref on a live gated page must be vouched for by a succeeded run
+ * of the declared action (`../artifacts/execution-provenance.ts`, the SAME
+ * verifier the write gate runs). A page that entered its state BEFORE the arm
+ * was declared — e.g. under a profile a later activation replaced with an
+ * armed one — is exactly what this catches: activation does not re-enter the
+ * write gate, so the read side must speak the arm too. Deny is an `error`;
+ * park (store could not be verified) a `warning`.
+ */
+async function checkGatedPageProvenance(root: string, page: ArtifactRefPageSource, profile: ProfilePack): Promise<LintResult[]> {
+  const gated = gatedArtifactRequirements(page, profile);
+  if (!gated) return [];
+  const findings: LintResult[] = [];
+  for (const req of gated.reqs) {
+    const ref = parseArtifactRef(page.frontmatter[req.field]);
+    if (req.executionProvenance === undefined || !ref || ref.artifactType !== req.artifactType) continue; // the pure pass reports those
+    const slug = path.basename(page.filePath, ".md");
+    const verdict = await verifyExecutionProvenance(root, req.executionProvenance, slug, `sha256:${ref.sha256}`);
+    if (verdict.verdict === "pass") continue;
+    findings.push({
+      rule: REQUIRED_ARTIFACT_UNPROVEN_RULE, severity: verdict.verdict === "deny" ? "error" : "warning",
+      file: page.filePath, entityType: page.entityType,
+      message: `field ${JSON.stringify(req.field)} required by lifecycle state ${JSON.stringify(gated.state)}: ${verdict.detail}`,
+    });
+  }
+  return findings;
+}
+
 /**
  * Detective read-side check: for a LIVE page whose CURRENT lifecycle-field value is a
  * state declaring `transitionArtifactRequirements`, flag each required `{field,
@@ -207,6 +240,7 @@ export async function checkArtifactRefs(
   for (const page of pages) {
     findings.push(...(await checkPageArtifactRefs(root, page, profile)));
     findings.push(...checkGatedPageRequirements(page, profile));
+    findings.push(...(await checkGatedPageProvenance(root, page, profile)));
   }
   findings.push(...(await checkRelationArtifactRefs(root, profile)));
   return findings;

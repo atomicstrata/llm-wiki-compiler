@@ -156,7 +156,7 @@ describe("workflow fail / resume (BUG 1: failed is reachable + retryable)", () =
     expect(failed.code).toBe(0);
     expect(failed.stdout).toMatch(/failed/i);
     const resumed = await runCLI(["workflow", "resume", runId], root);
-    expect(resumed.code).toBe(0);
+    expect(resumed.code, JSON.stringify(resumed)).toBe(0);
     expect(resumed.stdout).toMatch(/running/i);
   });
 

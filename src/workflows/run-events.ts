@@ -1,23 +1,12 @@
 /**
- * @file src/workflows/run-events.ts
- * @description The read-only `events` operation over ONE run's audit trail.
- *
- * A {@link WorkflowRun} carries an append-only `events[]` audit trail (genesis
- * `workflow-start`, then each `stage-advanced`/`gate-approved`/`stage-output`/…).
- * Until now those events were viewable ONLY by cat-ing the private run JSON. This
- * surfaces them through a read-only operation so `workflow events <run>` (CLI +
- * SDK `listRunEvents`) exposes the audit trail without touching run state.
- *
- * Read-only and fail-visible: it reads the run fail-closed via {@link readRun}, so
- * an absent/unavailable/unknown run is a {@link RunUnavailableError} (nonzero/throw)
- * rather than a silent empty list. Reads are intentionally NOT owner-gated — the
- * audit trail is observability, and a cross-owner READ is permitted (mirroring the
- * by-id `status` read), while every MUTATION stays owner-gated elsewhere.
+ * Standard-distribution compatibility entry points for run-events.
+ * Host construction stays here; optional engine operations receive a host.
  */
+export { listRunEventsWithHost } from "@atomicstrata/llmwiki-local-workflows";
+import { listRunEventsWithHost } from "@atomicstrata/llmwiki-local-workflows";
+import { createLocalWorkflowHost } from "./host.js";
+import type { WorkflowEvent } from "@atomicstrata/llmwiki-core/local-workflow-contracts";
 
-import { readRun } from "./store.js";
-import { RunUnavailableError } from "./errors.js";
-import type { WorkflowEvent } from "./types.js";
 
 /**
  * List the recorded audit events for one run, in append order.
@@ -34,9 +23,5 @@ import type { WorkflowEvent } from "./types.js";
  * @throws {RunUnavailableError} When the run is absent/unavailable/unknown.
  */
 export async function listRunEvents(root: string, runId: string): Promise<WorkflowEvent[]> {
-  const read = await readRun(root, runId);
-  if (read.status !== "ok") {
-    throw new RunUnavailableError(runId, read.status === "absent" ? "absent" : read.detail);
-  }
-  return read.run.events;
+  return listRunEventsWithHost(createLocalWorkflowHost(), root, runId);
 }

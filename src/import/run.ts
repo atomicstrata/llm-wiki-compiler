@@ -8,7 +8,8 @@ import { atomicWrite } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { qualifiedPageId, type PageId } from "../utils/page-id.js";
 import { refreshAfterImport } from "./okf-refresh.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import { withQuiet } from "../utils/output.js";
 import { LockUnavailableError, QueueFullError } from "./run-errors.js";
 import { buildBundleSections, type BundleReportSections, type ParsedBundleBlock } from "./bundle-block-read.js";
@@ -142,7 +143,7 @@ export async function runOkfImport(root: string, dir: string, opts: OkfImportOpt
   }
   // withQuiet: acquireLock prints "Another compilation is running." on contention;
   // the typed LockUnavailableError is the signal, so the core stays output-free.
-  const locked = await withQuiet(() => acquireLock(root));
+  const locked = await withQuiet(() => acquireMutationLock(root, "ordinary"));
   if (!locked) throw new LockUnavailableError();
   try {
     const imported = await importOkfBundle(dir, root, {}, onWarn);

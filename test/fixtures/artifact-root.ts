@@ -37,9 +37,14 @@ const PROFILE: ProfilePack = {
  * @returns Absolute path to the materialized project root.
  */
 export async function makeResearchLikeRoot(prefix: string): Promise<string> {
+  return profileRoot(prefix, PROFILE);
+}
+
+/** Materialize a supplied profile for synthetic artifact consumers. */
+export async function profileRoot(prefix: string, profile: ProfilePack): Promise<string> {
   const root = await makeTempRoot(prefix);
   await mkdir(path.join(root, path.dirname(PROFILE_FILE)), { recursive: true });
-  await writeFile(path.join(root, PROFILE_FILE), `${JSON.stringify(PROFILE, null, 2)}\n`, "utf8");
+  await writeFile(path.join(root, PROFILE_FILE), `${JSON.stringify(profile, null, 2)}\n`, "utf8");
   return root;
 }
 

@@ -44,7 +44,8 @@ import {
   type RemovalApplyResult,
 } from "../sources/removal.js";
 import type { SkippedDelete } from "../wiki/delete-page.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import * as output from "../utils/output.js";
 
 /** Options for {@link rmCommand}. */
@@ -74,7 +75,7 @@ export async function rmCommand(ref: string, options: RmOptions = {}): Promise<n
   }
 
   // Non-blocking: a compile holding the lock means refuse cleanly, never force.
-  if (!(await acquireLock(root))) {
+  if (!(await acquireMutationLock(root, "ordinary"))) {
     output.status("x", output.error("Another llmwiki process holds the project lock. Try again when it finishes."));
     return 1;
   }

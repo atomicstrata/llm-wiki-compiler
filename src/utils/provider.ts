@@ -21,6 +21,7 @@ import { OrcaRouterProvider } from "../providers/orcarouter.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
 import { CodexAgentProvider } from "../providers/codex-agent.js";
+import { OfflineProvider } from "../providers/offline.js";
 import {
   AtlasCloudProvider,
   resolveAtlasCloudApiKeyFromEnv,
@@ -90,6 +91,7 @@ const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(
  */
 export function buildProvider(providerName: string): LLMProvider {
   switch (providerName) {
+    case "offline": return new OfflineProvider();
     case "anthropic":
       return getAnthropicProvider();
     case "claude-agent":
@@ -240,6 +242,7 @@ export function getActiveProviderName(): string {
  */
 export function resolveActiveModelId(): string {
   const providerName = getProviderName();
+  if (providerName === "offline") return PROVIDER_MODELS.offline;
   if (providerName === "anthropic") {
     return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
   }

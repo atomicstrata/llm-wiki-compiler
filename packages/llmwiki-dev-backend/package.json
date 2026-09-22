@@ -1,0 +1,25 @@
+{
+  "name": "llmwiki-dev-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LOCAL DEVELOPMENT provider backend for llmwiki: runs a capability provider as an ordinary child process, with NO isolation. Opt-in only; never a default. Use it for a provider you wrote yourself, never for one obtained from anyone else.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:lib": "tsup",
+    "prepack": "npm run build:lib"
+  },
+  "peerDependencies": {
+    "@atomicstrata/llmwiki-core": "1.4.0-dev.20260919"
+  }
+}

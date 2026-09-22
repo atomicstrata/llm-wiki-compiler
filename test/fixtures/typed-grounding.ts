@@ -7,7 +7,7 @@
  * the store/profile/page scaffolding lives in exactly one place.
  */
 
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, rm } from "fs/promises";
 import path from "path";
 import { vi } from "vitest";
 import { makeTempRoot } from "./temp-root.js";
@@ -27,6 +27,32 @@ import type { ProfilePack } from "../../src/profile/types.js";
  */
 export function echoCallClaudeModule(): { callClaude: ReturnType<typeof vi.fn> } {
   return { callClaude: vi.fn(async (opts: { messages: Array<{ content: string }> }) => opts.messages[0].content) };
+}
+
+/** Count author calls so refusal and recovery tests can detect unwanted re-authoring. */
+export async function llmCallCount(): Promise<number> {
+  const mod = await import("../../src/utils/llm.js");
+  return (mod.callClaude as unknown as { mock: { calls: readonly unknown[] } }).mock.calls.length;
+}
+
+/** Record pages offered to the fallback selector; select all, then echo the answer prompt. */
+export function offeringCallClaudeModule(state: { offered: string[] }): { callClaude: ReturnType<typeof vi.fn> } {
+  return {
+    callClaude: vi.fn(async (opts: { tools?: unknown[]; messages: Array<{ content: string }> }) => {
+      if (!opts.tools) return opts.messages[0].content;
+      state.offered = [...new Set([...opts.messages[0].content.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1]))];
+      return JSON.stringify({ pages: state.offered, reasoning: "r" });
+    }),
+  };
+}
+
+/** Track only test-created temporary roots for teardown. */
+export function tempRootRegistry(): { track(root: string): void; cleanup(): Promise<void> } {
+  const roots: string[] = [];
+  return {
+    track: (root) => { roots.push(root); },
+    cleanup: async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); },
+  };
 }
 
 /** Stub the active provider so a query embeds to `vec` (no network call). */

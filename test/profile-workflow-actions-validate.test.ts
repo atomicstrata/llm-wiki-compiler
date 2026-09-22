@@ -79,6 +79,11 @@ function withActionId(id: string, action: WorkflowActionDef): ProfilePack {
 }
 
 describe("validateProfileShape — workflowActions (happy path)", () => {
+  it.each(["operation", "preparation", "product", "visualize"])(
+    "keeps the previously valid v1 action prefix %s",
+    (prefix) => expect(() => validateProfileShape(withActionId(`${prefix}.review`, gateAction()))).not.toThrow(),
+  );
+
   it("accepts a valid gate-operation action referencing a declared workflow", () => {
     const result = validateProfileShape(actionProfile());
     expect(result.profile.workflowActions?.["research.literature-review"].operation).toBe("gate");

@@ -125,6 +125,8 @@ describe("BUG 1 — terminal ops escape the BYTE cap via a minimized record", ()
     await plantSignedRun(ctx.root, nearByteCapRun(runId));
     const cancelled = await cancelWorkflow(ctx.root, runId);
     expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.events.find((event) => event.type === "fields-truncated")?.detail)
+      .toBe("inputs/outputs cleared to fit the run byte cap on termination");
     await expectTerminalWithinCap(ctx.root, runId, "cancelled");
   });
 

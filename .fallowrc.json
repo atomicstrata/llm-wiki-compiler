@@ -1,6 +1,17 @@
 {
   "$schema": "https://fallow.tools/schema.json",
   "entry": [
+    "scripts/check-fallow-report.mjs",
+    "src/core-index.ts",
+    "src/compiler-cli.ts",
+    "src/sdk/compiler-composition.ts",
+    "src/local-workflow-host/index.ts",
+    "src/local-workflow-host/shared-contracts.ts",
+    "src/local-workflow-host/legacy-composition.ts",
+    "src/local-workflows/index.ts",
+    "src/workflows/*.ts",
+    "packages/llmwiki-dev-backend/src/index.ts",
+    "packages/llmwiki-limited-isolation-backend/src/index.ts",
     "src/viewer/assets/viewer.js",
     "scripts/copy-viewer-assets.mjs",
     "src/viewer/assets/viewer-theme-boot.js",
@@ -8,6 +19,7 @@
     "test/fixtures/track-dotenv-read.mjs"
   ],
   "ignorePatterns": [
+    "packages/llmwiki-core/package.json",
     "docs/**",
     "src/viewer/assets/index.html",
     "src/viewer/assets/viewer-content.css",
@@ -26,7 +38,24 @@
     "@fontsource/jetbrains-mono"
   ],
   "ignoreExports": [
-    { "file": "src/utils/output.ts", "exports": ["getQuiet"] }
+    { "file": "src/workflows/projection.ts", "exports": ["ProjectionResult", "confineProjectionPath"] },
+    { "file": "src/local-workflows/projection.ts", "exports": ["ProjectionResult"] },
+    { "file": "src/workflows/status.ts", "exports": ["RunClassification", "RunStatus", "classifyRun", "workflowStatus", "workflowStatusForWorkflow"] },
+    { "file": "src/workflows/with-lock.ts", "exports": ["isTerminalStatus"] },
+    { "file": "src/local-workflows/with-lock.ts", "exports": ["isTerminalStatus"] },
+    { "file": "src/workflows/start.ts", "exports": ["lookupWorkflowDef"] },
+    { "file": "src/workflows/adapt.ts", "exports": ["mapStageId"] },
+    { "file": "src/local-workflows/adapt.ts", "exports": ["mapStageId"] },
+    { "file": "src/workflows/integrity.ts", "exports": ["loadRunKey", "integrityMatches"] },
+    { "file": "src/workflows/store.ts", "exports": ["WorkflowRunRead", "WorkflowRunList", "RunIdResolution"] },
+    { "file": "src/utils/output.ts", "exports": ["getQuiet"] },
+    { "file": "src/preparations/orphan-scan.ts", "exports": ["scanPreparationOrphans"] },
+    { "file": "src/capability-providers/runtime/result-admission.ts", "exports": ["EvidenceRefV1"] },
+    { "file": "src/operation-bundles/manifest-store.ts", "exports": ["ManifestCreateResult"] },
+    { "file": "src/operation-bundles/stage.ts", "exports": ["StageFaultsForTest"] },
+    { "file": "src/operation-bundles/run-store.ts", "exports": ["appendAbandonedTransitionLocked"] },
+    { "file": "test/preparation-recovery-fixture.ts", "exports": ["readRun"] },
+    { "file": "test/preparations/cancel-settlement-fixture.ts", "exports": ["readRun"] }
   ],
   "overrides": [
     {

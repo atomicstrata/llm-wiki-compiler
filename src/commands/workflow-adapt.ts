@@ -11,7 +11,7 @@
  * change) to keep each command module under the file-size budget.
  */
 
-import * as output from "../utils/output.js";
+import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { adaptDryRun, adaptApply, type AdaptationPlan } from "../workflows/adapt.js";
 import { AdaptationRequiresConfirmError } from "../workflows/errors.js";
 import { writeProjection } from "../workflows/projection.js";

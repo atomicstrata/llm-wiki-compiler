@@ -8,7 +8,7 @@
 # What this mirrors (from fallow-rs/fallow@v2 action.yml + analyze.sh):
 #   - bare command (runs dead-code, dupes, and health analyses together)
 #   - --root .
-#   - --format human (CI uses json for parsing; human is friendlier locally)
+#   - --format json and the action's explicit finding-count gate
 #   - --changed-since <merge-base with the canonical PR base branch>
 #       (CI uses the PR base SHA; merge-base is the closest local equivalent)
 #
@@ -54,8 +54,8 @@ BASE_SHA=$(git merge-base "$BASE_REF" HEAD 2>/dev/null || true)
 
 if [ -z "$BASE_SHA" ]; then
   echo "Could not determine merge-base with ${BASE_REF}; running fallow without --changed-since."
-  exec npx fallow --root . --format human
+  npx fallow --root . --format json | node scripts/check-fallow-report.mjs
+else
+  echo "Running fallow scoped to changes since $(git rev-parse --short "$BASE_SHA") (${BASE_REF})..."
+  npx fallow --root . --format json --changed-since "$BASE_SHA" | node scripts/check-fallow-report.mjs
 fi
-
-echo "Running fallow scoped to changes since $(git rev-parse --short "$BASE_SHA") (${BASE_REF})..."
-exec npx fallow --root . --format human --changed-since "$BASE_SHA"

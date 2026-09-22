@@ -6,7 +6,8 @@ import path from "node:path";
 import packageJson from "../../../package.json";
 import { readCappedNoFollow } from "../../utils/confined-read.js";
 import { MAX_PROFILE_BYTES, PROFILE_FILE } from "../../utils/constants.js";
-import { acquireLockBlocking, releaseLock } from "../../utils/lock.js";
+import { releaseLock } from "../../utils/lock.js";
+import { acquireMutationLockBlocking } from "../../operation-bundles/lock-gate.js";
 import { atomicWrite } from "../../utils/markdown.js";
 import { profileDigest } from "../digest.js";
 import { loadProfile } from "../load.js";
@@ -85,7 +86,7 @@ export async function installRemoteTemplate(
   options: TemplateInstallOptions,
 ): Promise<TemplateInstallResult> {
   if (resolved.indexExpired) throw new TemplateInstallError("Remote template evidence is stale; refresh its tap before installing.");
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     return await withTapStateLock(paths, async () => {
       const current = await resolveRemotePackage(paths, resolved.coordinate, { offline: true });
@@ -161,7 +162,7 @@ async function installPackage(
   pkg: ProfileTemplatePackage,
   options: InstallPackageOptions,
 ): Promise<TemplateInstallResult> {
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     return await installPackageLocked(root, pkg, options);
   } finally {

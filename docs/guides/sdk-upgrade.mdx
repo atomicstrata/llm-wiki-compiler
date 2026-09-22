@@ -1,0 +1,81 @@
+---
+title: "SDK upgrade notes"
+description: "Compatibility boundaries when adopting the split-package development candidate."
+---
+
+These notes cover the `1.4.0-dev.20260919` development candidate relative to the
+public compiler baseline. They do not announce an npm release.
+
+## What stays the same
+
+Continue importing `createWiki` from `llm-wiki-compiler` for the standard SDK.
+The standard CLI, workflow facade, builtin profile templates and legacy viewer
+experiment input remain available. Core-only installation is opt-in; it does not
+replace the default distribution. Node 24 remains the minimum, not a new requirement.
+
+The extraction does not require a blanket migration to llmflow. See
+[SDK packages and ownership](/guides/sdk-packages) before changing dependencies.
+
+## Experimental source changes
+
+Artifact and local workflow APIs were already marked experimental, with shapes
+permitted to change in minor releases. This candidate includes changes that can
+require updates even though existing single-body calls and workflow entry points
+remain available:
+
+- `SdkWriteArtifactInput` is now a body-or-members union. An interface cannot
+  extend that union. For existing body-specific extensions, narrow the input:
+
+  ```ts
+  import type { SdkWriteArtifactInput } from "llm-wiki-compiler";
+
+  type BodyArtifactInput = Extract<SdkWriteArtifactInput, { body: string }>;
+  type AnnotatedBodyInput = BodyArtifactInput & { localLabel: string };
+  ```
+
+- Workflow statuses and events include new cases, including terminal refusal.
+  Update exhaustive switches deliberately. Do not treat refusal as cancellation,
+  success or a resumable state.
+- Workflow starts capture their durable JSON inputs synchronously. Returned and
+  reopened inputs agree: dates become strings, hidden fields are omitted and
+  sparse arrays/function fields follow JSON normalization. JSON hooks remain
+  supported. Typed action inputs still validate their declared schema; this is
+  not permission to coerce invalid action fields.
+- The `Wiki` interface has additional required members. Hand-written full
+  implementations or test doubles may need to implement them. For a consumer
+  that needs only a few methods, type its dependency and its test double as
+  `Pick<Wiki, "status" | "getPage">` (using the methods it actually consumes),
+  rather than casting an incomplete object to the full interface.
+
+Do not describe this candidate as fully source-compatible with every experimental
+consumer. Stable public contract changes require a separate compatibility decision.
+
+## Safety and failure behavior
+
+Pending mutation journals are recovered before further writes. Archive overwrite,
+selected filename/record-ID mismatch and detected confined-path drift are refused.
+Legacy relation compaction refuses operation-bound history rather than discarding
+recovery provenance. These refusals may expose unsafe assumptions in callers;
+they are not reasons to bypass compiler checks.
+
+A write error after rename does not establish that no write happened. Observe and
+reconcile uncertain outcomes before retrying. Retained artifacts are verified
+against current bytes, not merely their recorded digests.
+
+Composition with a duplicate core module instance is rejected before I/O, including
+at standard package import or CLI load, not only when starting a workflow.
+If startup fails after changing
+dependencies, check that the standard package and local engine resolve the same
+exact core installation; do not suppress the identity check.
+
+## Adoption checklist
+
+1. Retain the standard package unless you deliberately want an engine-free SDK.
+2. Install matching candidate packages; avoid mixing versions or duplicate core copies.
+3. Type-check your application's artifact extensions and exhaustive workflow switches.
+4. Reopen an existing project and exercise your actual CLI or SDK integration.
+5. Keep operator approval separate from embedder preparation authority.
+
+The optional package architecture alone does not justify a major version bump.
+Any newly discovered incompatibility in a stable contract must be resolved or
+explicitly approved and announced before release.

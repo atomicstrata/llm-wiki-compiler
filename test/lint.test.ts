@@ -5,7 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { rm } from "fs/promises";
+import { mkdir, rm, writeFile } from "fs/promises";
+import path from "node:path";
 import {
   checkBrokenWikilinks,
   checkOrphanedPages,
@@ -35,6 +36,12 @@ afterEach(async () => {
 });
 
 describe("checkBrokenWikilinks", () => {
+  it("does not widen default lint to manually maintained wiki directories", async () => {
+    await mkdir(path.join(tmpDir, "wiki", "notes"), { recursive: true });
+    await writeFile(path.join(tmpDir, "wiki", "notes", "todo.md"), "See [[Unwritten Page]].");
+    expect(await checkBrokenWikilinks(tmpDir)).toEqual([]);
+  });
+
   it("returns no results when all wikilinks are valid", async () => {
     await writeConcept("machine-learning", "---\ntitle: Machine Learning\n---\nSee [[Neural Networks]].");
     await writeConcept("neural-networks", "---\ntitle: Neural Networks\n---\nA type of ML model.");

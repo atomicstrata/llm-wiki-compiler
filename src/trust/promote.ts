@@ -23,10 +23,12 @@
  */
 
 import { loadNonDefaultProfile } from "../profile/block.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
+import { releaseLock } from "../utils/lock.js";
 import { planPageMutation } from "./planner.js";
 import { applyApprovedMutationsLocked } from "./executor.js";
 import { readCandidate, deleteCandidate } from "../compiler/candidates.js";
+import { assertCandidateMutationAccess } from "../compiler/candidate-custody.js";
 import { validateLiveTypedPage } from "./typed-page-validate.js";
 import type { ReviewCandidate } from "../utils/types.js";
 
@@ -89,6 +91,7 @@ export async function applyTypedCandidate(
   root: string,
   candidate: ReviewCandidate,
 ): Promise<string> {
+  await assertCandidateMutationAccess(root, false);
   const entityType = candidate.targetEntityType!;
   const loaded = await loadNonDefaultProfile(root);
   if (!loaded) throw new CandidateProfileError(entityType, "no-profile");
@@ -133,7 +136,7 @@ export async function applyTypedCandidate(
  * @throws {CandidatePromotionBlockedError} When the re-plan blocks.
  */
 export async function promoteCandidateUnderLock(root: string, candidateId: string): Promise<void> {
-  const acquired = await acquireLock(root);
+  const acquired = await acquireMutationLock(root, "ordinary");
   if (!acquired) throw new Error("could not acquire project lock for candidate promotion");
   try {
     const candidate = await readCandidate(root, candidateId);

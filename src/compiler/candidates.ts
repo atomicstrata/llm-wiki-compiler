@@ -17,23 +17,43 @@
  * RE-EXPORTED below so existing importers of `candidates.ts` are unchanged.
  */
 
-import { unlink } from "fs/promises";
-import { existsSync } from "fs";
-import { randomBytes } from "crypto";
-import { isSafeFilenameComponent } from "../profile/identity.js";
+import { realpath, unlink } from "fs/promises";
 import { atomicWrite } from "../utils/markdown.js";
-import { moveCandidateToArchive } from "../utils/candidate-store.js";
-import { candidatePath, archivePath, UnsafeCandidateIdError } from "./candidate-paths.js";
+import {
+  assertCandidateSlug,
+  assertWritableCandidateId,
+  candidatePath,
+} from "./candidate-paths.js";
 import {
   listCandidates,
   countCandidates,
   DEFAULT_HELD_REASONS,
+  type CandidateFileEntry,
 } from "./candidate-read.js";
+import {
+  candidateTargetKey,
+  selectReadableCandidateEntriesForMutation,
+} from "./candidate-selection.js";
 import type { ReviewCandidate, SourceState } from "../utils/types.js";
 import type { HeldReason, ReviewMode } from "../review/policy.js";
 import type { LintResult } from "../linter/types.js";
 import type { TrustDecision } from "../trust/decision.js";
 import type { ConnectorProvenance } from "../connectors/types.js";
+import {
+  assertCandidateNamespacesHealthy,
+  captureCandidateCustody,
+  CandidateCustodyUnavailableError,
+  moveCandidateWithCustody,
+  observeCandidateCustody,
+  type CandidateCustodyReceipt,
+} from "./candidate-custody.js";
+import { captureCandidateCustodyReceipt } from "./candidate-custody-snapshot.js";
+import {
+  publishFreshCandidate,
+  writableCandidateId,
+  type CandidatePublication,
+  type FreshCandidateWriteOptions,
+} from "./candidate-publication.js";
 
 // Re-export the read/list/sanitize half and shared path symbols so every
 // existing importer of `candidates.ts` keeps working without churn.
@@ -49,9 +69,14 @@ export {
 } from "./candidate-read.js";
 export type { CandidatePage } from "./candidate-read.js";
 export { UnsafeCandidateIdError } from "./candidate-paths.js";
-
-/** Length (bytes) of the random suffix appended to candidate ids. */
-const ID_SUFFIX_BYTES = 4;
+export {
+  CandidateIdentityMismatchError,
+} from "./candidate-selection.js";
+export {
+  CandidatePublicationUnavailableError,
+  FreshCandidateIdExhaustedError,
+} from "./candidate-publication.js";
+export type { FreshCandidateWriteOptions } from "./candidate-publication.js";
 
 /** Input shape for creating a new candidate (id + timestamp generated here). */
 export interface CandidateDraft {
@@ -95,6 +120,17 @@ export interface CandidateDraft {
   targetDirectory?: "concepts" | "queries";
   /** Original OKF bundle-relative path, for imported candidates. */
   okfPath?: string;
+  /**
+   * SHA-256 (hex) of the target page at propose time — the stale-state guard for
+   * a candidate that UPDATES an existing page (see {@link ReviewCandidate.expectedTargetHash}).
+   */
+  expectedTargetHash?: string;
+  /**
+   * The complementary CLOSED precondition: the proposal expected NO page at the
+   * target (see {@link ReviewCandidate.expectTargetAbsent}). Mutually exclusive
+   * with {@link expectedTargetHash}.
+   */
+  expectTargetAbsent?: boolean;
   /** Host-authored provenance for connector-fetched candidates. */
   connectorProvenance?: ConnectorProvenance;
   /** Confidence parsed from the generated page frontmatter, for display. */
@@ -116,11 +152,14 @@ export interface CandidateDraft {
   trustDecision?: TrustDecision;
 }
 
-/** Build a deterministic-but-unique id from a slug and a short random suffix. */
-function buildCandidateId(slug: string): string {
-  const suffix = randomBytes(ID_SUFFIX_BYTES).toString("hex");
-  return `${slug}-${suffix}`;
+/** Deterministic seams for custody replacement tests; normal callers omit them. */
+export interface CandidateDeletionHooks {
+  afterCustodyForTest?: (fileId: string) => Promise<void>;
+  afterCandidateDeleteForTest?: (fileId: string, index: number) => Promise<void>;
 }
+
+/** Generic candidate-write options, including duplicate-cleanup test seams. */
+export type CandidateWriteOptions = FreshCandidateWriteOptions & CandidateDeletionHooks;
 
 /**
  * The FULL target identity of a candidate: the tuple of where the approved page
@@ -132,15 +171,6 @@ function buildCandidateId(slug: string): string {
  * own directory, so `papers/foo` and `ideas/foo` never collapse into one file.
  * @param candidate - The candidate (or draft) whose target identity is built.
  */
-function candidateTargetKey(candidate: {
-  targetEntityType?: string;
-  targetDirectory?: string;
-  slug: string;
-}): string {
-  const target = candidate.targetEntityType ?? candidate.targetDirectory ?? "concepts";
-  return `${target}/${candidate.slug}`;
-}
-
 /**
  * Persist a new candidate record and return it. The id is generated from the
  * slug plus a short random suffix so multiple compile runs can co-exist.
@@ -155,25 +185,74 @@ function candidateTargetKey(candidate: {
 export async function writeCandidate(
   root: string,
   draft: CandidateDraft,
+  options: CandidateWriteOptions = {},
 ): Promise<ReviewCandidate> {
-  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
-  const { canonicalId, duplicateIds } = await findIdentityDuplicates(root, candidateTargetKey(draft));
-  const candidate = buildCandidate(draft, canonicalId ?? buildCandidateId(draft.slug));
-
-  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
-  await deleteDuplicates(root, duplicateIds);
-  return candidate;
+  const generatedId = writableCandidateId(draft.slug, 0, options);
+  const targetKey = candidateTargetKey(draft);
+  const matches = await selectReadableCandidateEntriesForMutation(
+    root,
+    (candidate) => candidateTargetKey(candidate) === targetKey,
+  );
+  const [canonical, ...duplicates] = matches;
+  if (canonical) {
+    return replaceCanonicalCandidate(root, draft, canonical.custodyReceipt,
+      duplicates, options);
+  }
+  return publishNewCandidate(root, draft, generatedId, options);
 }
 
 /** Persist a new candidate without target-key canonicalization. Used only by typed staging supersede. */
 export async function writeFreshCandidate(
   root: string,
   draft: CandidateDraft,
+  options: FreshCandidateWriteOptions = {},
 ): Promise<ReviewCandidate> {
-  if (!isSafeFilenameComponent(draft.slug)) throw new UnsafeCandidateIdError("slug", draft.slug);
-  const candidate: ReviewCandidate = buildCandidate(draft, buildCandidateId(draft.slug));
-  await atomicWrite(await candidatePath(root, candidate.id), JSON.stringify(candidate, null, 2));
-  return candidate;
+  const firstId = writableCandidateId(draft.slug, 0, options);
+  return publishNewCandidate(root, draft, firstId, options);
+}
+
+/** Materialize one public candidate publication. */
+function candidatePublication(draft: CandidateDraft, id: string): CandidatePublication<ReviewCandidate> {
+  const candidate = buildCandidate(draft, id);
+  return { candidate, serialized: serializeCandidate(candidate) };
+}
+
+/** Publish a newly allocated candidate through the shared exclusive allocator. */
+function publishNewCandidate(
+  root: string,
+  draft: CandidateDraft,
+  firstId: string,
+  options: FreshCandidateWriteOptions,
+): Promise<ReviewCandidate> {
+  return publishFreshCandidate(
+    root, draft.slug, firstId, (id) => candidatePublication(draft, id), options,
+  );
+}
+
+/** Replace only the exact pending-only canonical custody snapshot. */
+async function replaceCanonicalCandidate(
+  root: string,
+  draft: CandidateDraft,
+  receipt: CandidateCustodyReceipt,
+  duplicates: readonly CandidateFileEntry[],
+  options: CandidateWriteOptions,
+): Promise<ReviewCandidate> {
+  assertWritableCandidateId(receipt.fileId);
+  await options.beforePublishForTest?.(receipt.fileId, 0);
+  if (await observeCandidateCustody(root, receipt, "public") !== "restored") {
+    throw new CandidateCustodyUnavailableError();
+  }
+  const publication = candidatePublication(draft, receipt.fileId);
+  await atomicWrite(await candidatePath(root, receipt.fileId), publication.serialized, {
+    confineRoot: await realpath(root),
+  });
+  await deleteDuplicates(root, duplicates, options);
+  return publication.candidate;
+}
+
+/** Preserve the public writer's serialization without a new record-size cap. */
+function serializeCandidate(candidate: ReviewCandidate): string {
+  return JSON.stringify(candidate, null, 2);
 }
 
 /** Build a ReviewCandidate from a draft and chosen id. */
@@ -203,6 +282,8 @@ function copyCandidateOptionalFields(candidate: ReviewCandidate, draft: Candidat
   setCandidateField(candidate, "contradicted", draft.contradicted, draft.contradicted !== undefined);
   setCandidateField(candidate, "targetDirectory", draft.targetDirectory, Boolean(draft.targetDirectory));
   setCandidateField(candidate, "okfPath", draft.okfPath, Boolean(draft.okfPath));
+  setCandidateField(candidate, "expectedTargetHash", draft.expectedTargetHash, Boolean(draft.expectedTargetHash));
+  setCandidateField(candidate, "expectTargetAbsent", draft.expectTargetAbsent, draft.expectTargetAbsent === true);
   setCandidateField(candidate, "connectorProvenance", draft.connectorProvenance, draft.connectorProvenance !== undefined);
   setCandidateField(candidate, "targetEntityType", draft.targetEntityType, Boolean(draft.targetEntityType));
   setCandidateField(candidate, "trustDecision", draft.trustDecision, Boolean(draft.trustDecision));
@@ -218,45 +299,49 @@ function setCandidateField<K extends keyof ReviewCandidate>(
   if (include) candidate[key] = value as ReviewCandidate[K];
 }
 
-/**
- * Collect all candidate ids matching a FULL target identity (target-type + slug,
- * via {@link candidateTargetKey}) and return the canonical (earliest) id plus the
- * list of extra duplicate ids to remove. Keying on the full identity — not slug
- * alone — keeps two distinct typed targets that share a slug (`papers/foo` vs
- * `ideas/foo`) as SEPARATE candidates, so neither is silently dropped, while a
- * DEFAULT concepts candidate (constant `concepts/` prefix) dedups exactly as
- * before.
- * @param root - Project root directory.
- * @param targetKey - The full target identity to match (see {@link candidateTargetKey}).
- */
-async function findIdentityDuplicates(
+/** Delete exact selected duplicates in deterministic order. */
+async function deleteDuplicates(
   root: string,
-  targetKey: string,
-): Promise<{ canonicalId: string | null; duplicateIds: string[] }> {
-  const all = await listCandidates(root);
-  const matching = all.filter((c) => candidateTargetKey(c) === targetKey);
-  if (matching.length === 0) return { canonicalId: null, duplicateIds: [] };
-  // Preserve the first match as canonical (listCandidates sorts by generatedAt).
-  const [canonical, ...extras] = matching;
-  return {
-    canonicalId: canonical!.id,
-    duplicateIds: extras.map((c) => c.id),
-  };
-}
-
-/** Delete a list of candidate files by id, ignoring missing entries. */
-async function deleteDuplicates(root: string, ids: string[]): Promise<void> {
-  for (const id of ids) {
-    await deleteCandidate(root, id);
+  entries: readonly CandidateFileEntry[],
+  hooks: CandidateDeletionHooks,
+): Promise<void> {
+  for (const [index, entry] of entries.entries()) {
+    await deleteCandidateWithCustody(root, entry.custodyReceipt);
+    await hooks.afterCandidateDeleteForTest?.(entry.fileId, index);
   }
 }
 
-/** Remove a pending candidate from disk. Returns false when nothing existed to remove. */
-export async function deleteCandidate(root: string, id: string): Promise<boolean> {
-  const filePath = await candidatePath(root, id);
-  if (!existsSync(filePath)) return false;
-  await unlink(filePath);
-  return true;
+/** Remove only the exact pending object authorized by one custody receipt. */
+async function deleteCandidateWithCustody(
+  root: string,
+  receipt: CandidateCustodyReceipt,
+): Promise<boolean> {
+  const captured = captureCandidateCustodyReceipt(receipt, "public");
+  await assertCandidateNamespacesHealthy(root);
+  if (await observeCandidateCustody(root, captured, "public") !== "restored") {
+    throw new CandidateCustodyUnavailableError();
+  }
+  await assertCandidateNamespacesHealthy(root);
+  const filePath = await candidatePath(root, captured.fileId);
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (error) {
+    throw new CandidateCustodyUnavailableError();
+  }
+}
+
+/** Remove a pending candidate after capturing its exact current custody. */
+export async function deleteCandidate(
+  root: string,
+  id: string,
+  hooks: CandidateDeletionHooks = {},
+): Promise<boolean> {
+  await assertCandidateNamespacesHealthy(root);
+  const custody = await captureCandidateCustody(root, id, undefined, "public");
+  if (custody === null) return false;
+  await hooks.afterCustodyForTest?.(id);
+  return deleteCandidateWithCustody(root, custody.receipt);
 }
 
 /**
@@ -271,12 +356,20 @@ export async function deleteCandidate(root: string, id: string): Promise<boolean
  * reconciled — the default caller only writes concepts, so its behavior is
  * unchanged.
  */
-export async function deleteCandidateBySlug(root: string, slug: string): Promise<boolean> {
-  const all = await listCandidates(root);
-  const matching = all.filter((c) => candidateTargetKey(c) === `concepts/${slug}`);
+export async function deleteCandidateBySlug(
+  root: string,
+  slug: string,
+  hooks: CandidateDeletionHooks = {},
+): Promise<boolean> {
+  assertCandidateSlug(slug);
+  const matching = await selectReadableCandidateEntriesForMutation(
+    root,
+    (candidate) => candidateTargetKey(candidate) === `concepts/${slug}`,
+  );
   if (matching.length === 0) return false;
-  for (const candidate of matching) {
-    await deleteCandidate(root, candidate.id);
+  for (const [index, entry] of matching.entries()) {
+    await deleteCandidateWithCustody(root, entry.custodyReceipt);
+    await hooks.afterCandidateDeleteForTest?.(entry.fileId, index);
   }
   return true;
 }
@@ -289,17 +382,12 @@ export async function deleteCandidateBySlug(root: string, slug: string): Promise
  * @returns True when the candidate was found and archived.
  */
 export async function archiveCandidate(root: string, id: string): Promise<boolean> {
-  return moveCandidateToArchive(await candidatePath(root, id), await archivePath(root, id));
-}
-
-/**
- * Move an archived candidate back into the pending area — the compensation for
- * a multi-candidate archive batch that fails partway, so a supersede that
- * cannot complete never silently shrinks the review queue.
- * @param root - Project root directory.
- * @param id - Candidate id to restore.
- * @returns True when the archived candidate was found and restored.
- */
-export async function restoreArchivedCandidate(root: string, id: string): Promise<boolean> {
-  return moveCandidateToArchive(await archivePath(root, id), await candidatePath(root, id));
+  const custody = await captureCandidateCustody(root, id, undefined, "public");
+  if (custody === null) return false;
+  return moveCandidateWithCustody({
+    root,
+    fileId: id,
+    direction: "archive",
+    receipt: custody.receipt,
+  }, "public");
 }

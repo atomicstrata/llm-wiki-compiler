@@ -62,6 +62,14 @@ export const IDEA_B = "ideas/b" as EntityId;
  * @param relations - The `relations` block to attach.
  * @returns A complete {@link ProfilePack}.
  */
+/** The stock experiments/ideas profile used by operation-bound relation tests. */
+export function relatedProfile(): ProfilePack {
+  return experimentsIdeasProfile({ related: { from: ["experiments", "ideas"], to: ["experiments", "ideas"], direction: "symmetric" } });
+}
+
+/** Stock endpoints for a symmetric relation. */
+export const RELATED_INPUT = { type: "related", from: EXPERIMENT_A, to: IDEA_B };
+
 export function experimentsIdeasProfile(relations: ProfilePack["relations"]): ProfilePack {
   return {
     schemaVersion: 1,

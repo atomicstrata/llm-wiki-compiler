@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = "src/viewer/assets";
 const MAPS = ["theme-base", "public-tokens", "minimal", "scientific-clay", "nebula"];
-const STRUCTURE = ["content", "chrome", "dashboard", "health", "pipeline", "graph", "material"];
+const STRUCTURE = ["content", "chrome", "dashboard", "health", "pipeline", "graph", "material", "journey"];
 
 /** Read assets exactly as shipped, ignoring comments when inspecting declarations. */
 async function source(file: string): Promise<string> {
