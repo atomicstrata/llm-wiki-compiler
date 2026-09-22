@@ -128,7 +128,7 @@ async function lintReasons(root: string, profile: ProfilePack): Promise<Template
 }
 
 function isContentOnlyFinding(rule: string): boolean {
-  return rule === "empty-page" || rule === "malformed-claim-citation";
+  return rule === "empty-page" || rule === "malformed-claim-citation" || rule === "low-confidence";
 }
 
 async function candidateReasons(root: string): Promise<TemplateUpdateReason[]> {

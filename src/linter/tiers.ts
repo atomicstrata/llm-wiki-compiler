@@ -77,3 +77,40 @@ export function tieredReport(groups: readonly TieredResultGroupV1[]): TieredLint
     deterministicErrors: deterministic.filter((result) => result.severity === "error").length,
   };
 }
+
+/**
+ * A finding whose rule has no declared tier. Thrown rather than guessed: a
+ * profile pass emits computed rule ids, and an undeclared one must surface as
+ * a configuration error instead of silently vanishing from every tier.
+ */
+export class UnknownLintRuleTierError extends Error {
+  constructor(readonly rule: string) {
+    super(`No declared tier for lint rule: ${rule}`);
+    this.name = "UnknownLintRuleTierError";
+  }
+}
+
+/**
+ * Group findings by the tier declared for their rule id, chunking consecutive
+ * findings so that flattening the groups reproduces the original order exactly.
+ * Used for the profile pass, whose rule ids are declared beside their emitters
+ * rather than beside a single rule function.
+ *
+ * @param results - Findings in emission order.
+ * @param declared - The declared tier of every rule id the pass can emit.
+ */
+export function groupByDeclaredTier(
+  results: readonly LintResult[],
+  declared: ReadonlyArray<{ rule: string; tier: LintTierV1 }>,
+): TieredResultGroupV1[] {
+  const tiers = new Map(declared.map(({ rule, tier }) => [rule, tier]));
+  const groups: Array<{ tier: LintTierV1; results: LintResult[] }> = [];
+  for (const result of results) {
+    const tier = tiers.get(result.rule);
+    if (tier === undefined) throw new UnknownLintRuleTierError(result.rule);
+    const last = groups.at(-1);
+    if (last?.tier === tier) last.results.push(result);
+    else groups.push({ tier, results: [result] });
+  }
+  return groups;
+}

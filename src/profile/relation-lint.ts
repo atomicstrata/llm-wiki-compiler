@@ -153,6 +153,13 @@ const STANDING_UNMET_RULE = LIFECYCLE_RELATION_UNMET_KIND;
 /** Rule id for a standing relation-precondition check whose store could not be read. */
 const STANDING_UNVERIFIABLE_RULE = LIFECYCLE_RELATION_UNVERIFIABLE_KIND;
 
+/** Complete rule IDs emitted by the relation-store and standing checks above. */
+export const RELATION_LINT_RULES = [
+  DANGLING_RELATION_RULE, RELATION_STORE_TORN_RULE, RELATION_STORE_CORRUPT_RULE,
+  RELATION_STORE_TOO_NEW_RULE, RELATION_STORE_SYMLINK_RULE, RELATION_STORE_GRAPH_DIR_RULE,
+  RELATION_PROFILE_INVALID_RULE, STANDING_UNMET_RULE, STANDING_UNVERIFIABLE_RULE,
+];
+
 /**
  * Map one standing-precondition {@link EntityProblemView} to a lint finding. An
  * unmet precondition is an ERROR (a page is sitting in a gated state it no longer

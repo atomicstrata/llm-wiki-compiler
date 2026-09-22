@@ -12,7 +12,7 @@ Running both regularly - especially after a `compile` or `refresh` - keeps your 
 
 ## llmwiki lint
 
-`llmwiki lint` runs a suite of rule-based checks against your compiled wiki without making any LLM calls. Every rule is deterministic: it reads the wiki files and sources on disk and reports what it finds.
+`llmwiki lint` runs a suite of rule-based checks against your compiled wiki without making any LLM calls. Every rule executes repeatably without calling a model: it reads the wiki files and sources on disk and reports what it finds.
 
 ```bash
 llmwiki lint
@@ -31,10 +31,33 @@ llmwiki lint
 | Pending embeddings | Warning | Pages awaiting embedding refresh, or an unreadable pending marker |
 | Quarantined embeddings | Warning | Pages whose automatic embedding retries have stopped, or an unreadable quarantine marker |
 | Stale pages | Warning | Pages whose sources exist on disk but have changed since the last compile |
-| Low confidence | Warning | Pages with a `confidence` frontmatter value below the configured threshold |
+| Low confidence | Warning | Pages with a finite numeric `confidence` below `0.5`; custom profile entities must declare the field as numeric |
 | Contradicted pages | Warning | Pages that declare `contradictedBy` entries |
 | Excess inferred paragraphs | Warning | Pages with too many prose paragraphs that carry no `^[...]` citation marker |
 | Schema cross-link violations | Warning | Pages that don't meet the `minWikilinks` requirement for their `kind` |
+
+### Profile confidence
+
+For a custom profile entity, lint checks confidence only when its definition in `.llmwiki/profile.json` declares `fields.confidence.type` as `"number"`. For example:
+
+```json
+{
+  "schemaVersion": 1,
+  "profileId": "notes",
+  "entities": {
+    "notes": {
+      "directory": "wiki/notes",
+      "fields": { "confidence": { "type": "number" } }
+    }
+  }
+}
+```
+
+A page's finite numeric confidence strictly below `0.5` produces a `low-confidence` warning. `0.3` warns; `0.5` and `0.7` do not. An undeclared field or a field declared as a string does not activate this profile check, even if it contains numeric-looking text.
+
+An absent optional value produces no confidence judgment. Missing required values and invalid numbers follow the profile schema policy instead: they produce `profile/field-violation` warnings, without a low-confidence finding. Numeric strings such as `"0.3"`, `.nan`, and `.inf` are invalid numbers. These warnings still exit with code `0`; findings classified as errors exit with code `1`.
+
+Lint reads stored values without evaluating their factual correctness. A stored confidence value is not proof that a model authored it. `llmwiki lint --tiered` and the [SDK's `wiki.lintByTier()`](/guides/sdk#status-and-quality) file rules that interpret stored judgments under `provider-judgement`, structural checks under `deterministic`, and regenerable views under `derived-view`. Every tier executes local checks and never invokes a provider. Semantic citation-support evaluation remains a separate `eval --suite full` operation.
 
 ### Stale vs. orphaned
 

@@ -54,6 +54,7 @@ export type { IngestResult, CompileResult, QueryResult } from "@atomicstrata/llm
 export type { AnswerCitation, AnswerCitationReport } from "@atomicstrata/llmwiki-core";
 export type { IngestTextInput } from "@atomicstrata/llmwiki-core";
 export type { LintSummary } from "@atomicstrata/llmwiki-core";
+export type { TieredLintReportV1, LintTierV1 } from "@atomicstrata/llmwiki-core";
 export type { ContextPack } from "@atomicstrata/llmwiki-core";
 export type { EvalReport } from "@atomicstrata/llmwiki-core";
 export type { WikiStatus } from "@atomicstrata/llmwiki-core";

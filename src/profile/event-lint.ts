@@ -56,6 +56,13 @@ const EVENT_STORE_PRIVATE_DIR_RULE = "event-store-private-dir";
 /** Rule id for a fail-closed append-refused-because-store-is-full condition. */
 const EVENT_STORE_FULL_RULE = "event-store-full";
 
+/** Complete emitted event health IDs, including defensive store-read mappings. */
+export const EVENT_LINT_RULES = [
+  EVENT_CHAIN_BROKEN_RULE, EVENT_STORE_TORN_RULE, EVENT_STORE_CORRUPT_RULE,
+  EVENT_STORE_TOO_NEW_RULE, EVENT_STORE_SYMLINK_RULE, EVENT_STORE_GRAPH_DIR_RULE,
+  EVENT_STORE_PRIVATE_DIR_RULE, EVENT_STORE_FULL_RULE,
+];
+
 /** The lint `file` label for store-level event findings. */
 const EVENT_STORE_FILE = "wiki/graph/events.jsonl";
 
