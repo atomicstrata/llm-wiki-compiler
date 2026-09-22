@@ -85,15 +85,15 @@ distributed execution, managed approval routing or cross-project coordination; s
 
 ## Distribution requirements
 
-The current root-only release workflow must be upgraded before publishing this
-three-package distribution. Scope ownership and trusted publishing access are
-release prerequisites; the naming change does not establish them.
+The release workflow publishes a matching set from one commit: core, then the
+engine, then the standard facade, so the facade is never on the registry while
+a version it requires is missing. It verifies each package's version, exact
+internal pins and source commit, and finishes with a fresh installation.
+Prerelease versions publish to a non-`latest` dist-tag (`next` by default).
 
-Build core, then the engine, then the standard facade. Release a matching set:
-publish dependencies before the standard package, and verify fresh installation
-and TypeScript consumption. Do not publish the facade while its exact required
-versions are unavailable. Package ownership and trusted publishing must be set
-up for the new packages before the first registry release.
+Scope ownership and trusted publishing access are release prerequisites; the
+naming change does not establish them. Each of the three packages needs its own
+trusted-publisher configuration before the first registry release.
 
 ## Contributing across packages
 

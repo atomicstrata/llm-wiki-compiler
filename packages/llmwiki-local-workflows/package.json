@@ -13,6 +13,11 @@
     "node": ">=24"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/atomicstrata/llm-wiki-compiler.git",
+    "directory": "packages/llmwiki-local-workflows"
+  },
   "scripts": {
     "build": "tsup",
     "prepack": "npm run build"

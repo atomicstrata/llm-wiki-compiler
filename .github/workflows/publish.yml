@@ -1,17 +1,31 @@
 name: Publish llm-wiki-compiler
 
-# Token-less npm publish via OIDC Trusted Publishing.
+# Token-less npm publish via OIDC Trusted Publishing, for the three-package
+# distribution: `@atomicstrata/llmwiki-core`, then
+# `@atomicstrata/llmwiki-local-workflows`, then the standard `llm-wiki-compiler`
+# facade that depends on both at exact versions. Dependencies publish first so
+# the facade is never on the registry while a version it requires is missing.
 #
 # Primary trigger is `repository_dispatch` (an operator/agent release script
 # sends an explicit release payload); `workflow_dispatch` is a manual fallback.
 # The workflow checks out the EXACT `public_sha` from the payload — never the
-# ambient branch HEAD — verifies package.json matches the requested version,
-# refuses to republish an existing version, then publishes and verifies that the
-# registry's gitHead matches the released SHA.
+# ambient branch HEAD — verifies every package matches the requested version,
+# refuses a release whose facade is already published, then publishes and
+# verifies that each package's registry gitHead matches the released SHA.
 #
-# One-time setup (account-level, not in this repo): configure the npm Trusted
-# Publisher for `llm-wiki-compiler` to trust repo `atomicstrata/llm-wiki-compiler`,
-# workflow `publish.yml`, environment `npm-release`. No NPM_TOKEN is used.
+# Prerelease versions (anything with a `-` suffix) must use a dist-tag other
+# than `latest` (default `next`), so a development build never becomes what a
+# plain `npm install llm-wiki-compiler` resolves to.
+#
+# Resuming: if a run publishes the dependencies and then fails, re-dispatch the
+# same payload, including the same dist_tag. Packages already published at this version FROM THIS SHA are
+# skipped; one published from any other SHA refuses the release.
+#
+# One-time setup (account-level, not in this repo), for EACH of the three
+# packages: an npm Trusted Publisher trusting repo
+# `atomicstrata/llm-wiki-compiler`, workflow `publish.yml`, environment
+# `npm-release`. The `@atomicstrata` npm organization must own the two scoped
+# names. No NPM_TOKEN is used.
 run-name: >-
   Publish ${{ github.event.client_payload.version || inputs.version }}
   @ ${{ github.event.client_payload.public_sha || inputs.public_sha }}
@@ -28,8 +42,13 @@ on:
         required: true
         type: string
       version:
-        description: "Version to publish (must equal package.json at public_sha)"
+        description: "Version to publish (must equal every package.json at public_sha)"
         required: true
+        type: string
+      dist_tag:
+        description: "npm dist-tag (default: latest for stable, next for prerelease)"
+        required: false
+        default: ""
         type: string
       publish:
         description: "Actually publish (false = run preflight only)"
@@ -46,6 +65,9 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
+  # Publication order: dependencies before dependents. Directories relative to
+  # the repository root; "." is the standard facade.
+  PACKAGE_DIRS: "packages/llmwiki-core packages/llmwiki-local-workflows ."
 
 defaults:
   run:
@@ -59,6 +81,7 @@ jobs:
     outputs:
       public_sha: ${{ steps.payload.outputs.public_sha }}
       version: ${{ steps.payload.outputs.version }}
+      dist_tag: ${{ steps.payload.outputs.dist_tag }}
       publish: ${{ steps.payload.outputs.publish }}
     steps:
       - name: Resolve and validate payload
@@ -68,16 +91,19 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_PUBLIC_SHA: ${{ inputs.public_sha }}
           INPUT_VERSION: ${{ inputs.version }}
+          INPUT_DIST_TAG: ${{ inputs.dist_tag }}
           INPUT_PUBLISH: ${{ inputs.publish }}
         run: |
           set -euo pipefail
           if [[ "${EVENT_NAME}" == "repository_dispatch" ]]; then
             public_sha="$(jq -r '.public_sha // ""' <<<"${DISPATCH}")"
             version="$(jq -r '.version // ""' <<<"${DISPATCH}")"
+            dist_tag="$(jq -r '.dist_tag // ""' <<<"${DISPATCH}")"
             publish="$(jq -r '.publish // true' <<<"${DISPATCH}")"
           else
             public_sha="${INPUT_PUBLIC_SHA}"
             version="${INPUT_VERSION}"
+            dist_tag="${INPUT_DIST_TAG}"
             publish="${INPUT_PUBLISH}"
           fi
           if [[ -z "${public_sha}" || "${public_sha}" == "null" ]]; then
@@ -92,9 +118,22 @@ jobs:
           if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::version must be semver, got '${version}'"; exit 1
           fi
+          is_prerelease=false
+          [[ "${version}" == *-* ]] && is_prerelease=true
+          if [[ -z "${dist_tag}" || "${dist_tag}" == "null" ]]; then
+            if [[ "${is_prerelease}" == "true" ]]; then dist_tag="next"; else dist_tag="latest"; fi
+          fi
+          # npm rejects tags that parse as semver ranges (e.g. v1); refuse them here.
+          if [[ ! "${dist_tag}" =~ ^[a-z][a-z0-9-]*$ || "${dist_tag}" =~ ^v[0-9] ]]; then
+            echo "::error::dist_tag must be a lowercase word such as latest or next, got '${dist_tag}'"; exit 1
+          fi
+          if [[ "${is_prerelease}" == "true" && "${dist_tag}" == "latest" ]]; then
+            echo "::error::prerelease ${version} cannot be published to the latest dist-tag"; exit 1
+          fi
           {
             echo "public_sha=${public_sha}"
             echo "version=${version}"
+            echo "dist_tag=${dist_tag}"
             echo "publish=${publish}"
           } >>"${GITHUB_OUTPUT}"
           {
@@ -102,14 +141,15 @@ jobs:
             echo ""
             echo "- public_sha: \`${public_sha}\`"
             echo "- version: \`${version}\`"
+            echo "- dist_tag: \`${dist_tag}\`"
             echo "- publish: \`${publish}\`"
           } >>"${GITHUB_STEP_SUMMARY}"
 
   preflight:
-    name: preflight (build, test, pack dry-run)
+    name: preflight (identity, release state, build, test, pack)
     needs: resolve
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Checkout public_sha
         uses: actions/checkout@v4
@@ -121,31 +161,69 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Verify package identity matches payload and repository
+      - name: Verify package identities match payload and repository
         env:
           WANT: ${{ needs.resolve.outputs.version }}
         run: |
           set -euo pipefail
-          actual="$(node -p "require('./package.json').version")"
-          if [[ "${actual}" != "${WANT}" ]]; then
-            echo "::error::package.json at this SHA is ${actual}, payload says ${WANT}"; exit 1
-          fi
-          echo "ok: package.json is ${actual}"
-          actual_repository="$(node -p "require('./package.json').repository.url")"
           expected_repository="git+https://github.com/${GITHUB_REPOSITORY}.git"
-          if [[ "${actual_repository}" != "${expected_repository}" ]]; then
-            echo "::error::package.json repository.url is ${actual_repository}, expected ${expected_repository}"; exit 1
+          for dir in ${PACKAGE_DIRS}; do
+            manifest="${dir}/package.json"
+            name="$(jq -r '.name' "${manifest}")"
+            actual="$(jq -r '.version' "${manifest}")"
+            repository="$(jq -r '.repository.url // ""' "${manifest}")"
+            if [[ "$(jq -r '.private // false' "${manifest}")" == "true" ]]; then
+              echo "::error::${name} is private and cannot be released"; exit 1
+            fi
+            if [[ "${actual}" != "${WANT}" ]]; then
+              echo "::error::${name} at this SHA is ${actual}, payload says ${WANT}"; exit 1
+            fi
+            if [[ "${repository}" != "${expected_repository}" ]]; then
+              echo "::error::${name} repository.url is '${repository}', expected ${expected_repository}"; exit 1
+            fi
+            echo "ok: ${name}@${actual} from ${repository}"
+          done
+          for dep in @atomicstrata/llmwiki-core @atomicstrata/llmwiki-local-workflows; do
+            pinned="$(jq -r --arg d "${dep}" '.dependencies[$d] // ""' package.json)"
+            if [[ "${pinned}" != "${WANT}" ]]; then
+              echo "::error::llm-wiki-compiler requires ${dep}@'${pinned}', expected exactly ${WANT}"; exit 1
+            fi
+          done
+          peer="$(jq -r --arg d "@atomicstrata/llmwiki-core" '.peerDependencies[$d] // ""' packages/llmwiki-local-workflows/package.json)"
+          if [[ "${peer}" != "${WANT}" ]]; then
+            echo "::error::@atomicstrata/llmwiki-local-workflows peers on core '${peer}', expected exactly ${WANT}"; exit 1
           fi
-          echo "ok: package repository is ${actual_repository}"
-      - name: Refuse to republish an existing version
+          echo "ok: exact internal version pins"
+      - name: Check registry state (refuse a completed or foreign release)
         env:
           WANT: ${{ needs.resolve.outputs.version }}
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
         run: |
           set -euo pipefail
-          if npm view "llm-wiki-compiler@${WANT}" version >/dev/null 2>&1; then
-            echo "::error::llm-wiki-compiler@${WANT} is already published; npm versions are immutable"; exit 1
-          fi
-          echo "ok: ${WANT} is not yet on the registry"
+          for dir in ${PACKAGE_DIRS}; do
+            name="$(jq -r '.name' "${dir}/package.json")"
+            if ! npm view "${name}@${WANT}" version >/dev/null 2>&1; then
+              echo "ok: ${name}@${WANT} is not yet on the registry"; continue
+            fi
+            if [[ "${dir}" == "." ]]; then
+              echo "::error::${name}@${WANT} is already published; npm versions are immutable"; exit 1
+            fi
+            head="$(npm view "${name}@${WANT}" gitHead 2>/dev/null || true)"
+            if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
+              echo "::error::${name}@${WANT} is already published from gitHead '${head}', not ${PUBLIC_SHA}"; exit 1
+            fi
+            echo "ok: ${name}@${WANT} already published from this SHA; the publish job will skip it"
+          done
+      # Same isolation provisioning as ci.yml: the limited-isolation tests
+      # refuse to skip on Linux, so the suite fails without bubblewrap.
+      - name: Install Linux isolation test dependency
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+      - name: Permit Bubblewrap namespaces on the disposable runner
+        run: sudo apparmor_parser --replace .github/ci/bwrap.apparmor
+      - name: Verify Linux isolation launch
+        run: >-
+          bwrap --cap-drop ALL --unshare-net --ro-bind / /
+          --dev /dev --proc /proc -- "$(command -v node)" --version
       - name: Install, validate docs, build, test, pack
         run: |
           set -euo pipefail
@@ -153,7 +231,10 @@ jobs:
           npm run release:check-docs:current
           npm run build
           npm test
-          npm pack --dry-run
+          npm run test:pack
+          for dir in ${PACKAGE_DIRS}; do
+            (cd "${dir}" && npm pack --dry-run --ignore-scripts)
+          done
 
   publish:
     name: publish npm (Trusted Publishing)
@@ -187,42 +268,86 @@ jobs:
           set -euo pipefail
           npm ci
           npm run build
-      - name: Publish (OIDC, no token)
-        run: npm publish --access public
+      - name: Publish dependencies first (OIDC, no token)
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+          DIST_TAG: ${{ needs.resolve.outputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          for dir in ${PACKAGE_DIRS}; do
+            name="$(jq -r '.name' "${dir}/package.json")"
+            if npm view "${name}@${WANT}" version >/dev/null 2>&1; then
+              echo "skip: ${name}@${WANT} already published (verified against this SHA in preflight)"
+              continue
+            fi
+            if [[ "${dir}" == "." ]]; then
+              npm publish --access public --tag "${DIST_TAG}"
+            else
+              npm publish --workspace "${dir}" --access public --tag "${DIST_TAG}"
+            fi
+            echo "published: ${name}@${WANT} (${DIST_TAG})"
+          done
 
   verify:
-    name: verify registry visibility
+    name: verify registry visibility and installation
     needs: [resolve, publish]
     if: needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Checkout public_sha
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.public_sha }}
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Verify published version + gitHead pinned to public_sha
+      - name: Verify each version, gitHead and dist-tag
         env:
           WANT: ${{ needs.resolve.outputs.version }}
           PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+          DIST_TAG: ${{ needs.resolve.outputs.dist_tag }}
         run: |
           set -euo pipefail
-          version=""
-          head=""
-          for attempt in $(seq 1 10); do
-            metadata="$(npm view "llm-wiki-compiler@${WANT}" version gitHead --json 2>/dev/null || echo '{}')"
-            version="$(jq -r '.version // ""' <<<"${metadata}")"
-            head="$(jq -r '.gitHead // ""' <<<"${metadata}")"
-            if [[ "${version}" == "${WANT}" ]]; then
-              break
+          for dir in ${PACKAGE_DIRS}; do
+            name="$(jq -r '.name' "${dir}/package.json")"
+            version=""
+            head=""
+            for attempt in $(seq 1 10); do
+              metadata="$(npm view "${name}@${WANT}" version gitHead --json 2>/dev/null || echo '{}')"
+              version="$(jq -r '.version // ""' <<<"${metadata}")"
+              head="$(jq -r '.gitHead // ""' <<<"${metadata}")"
+              if [[ "${version}" == "${WANT}" ]]; then
+                break
+              fi
+              echo "registry not yet showing ${name}@${WANT} (attempt ${attempt}); waiting..."
+              sleep 15
+            done
+            if [[ "${version}" != "${WANT}" ]]; then
+              echo "::error::${name}@${WANT} not visible on the registry"; exit 1
             fi
-            echo "registry not yet showing ${WANT} (attempt ${attempt}); waiting..."
-            sleep 15
+            if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
+              echo "::error::${name} published gitHead=${head}, expected public_sha=${PUBLIC_SHA}"; exit 1
+            fi
+            tagged="$(npm view "${name}" "dist-tags.${DIST_TAG}" 2>/dev/null || true)"
+            if [[ "${tagged}" != "${WANT}" ]]; then
+              echo "::error::${name} dist-tag ${DIST_TAG} points at '${tagged}', expected ${WANT}"; exit 1
+            fi
+            echo "verified ${name}@${version} (gitHead=${head}, ${DIST_TAG})"
           done
-          if [[ "${version}" != "${WANT}" ]]; then
-            echo "::error::llm-wiki-compiler@${WANT} not visible on the registry"; exit 1
-          fi
-          if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
-            echo "::error::published gitHead=${head}, expected public_sha=${PUBLIC_SHA}"; exit 1
-          fi
-          echo "verified llm-wiki-compiler@${version} (gitHead=${head})"
+      - name: Verify a fresh install resolves the released set
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          consumer="$(mktemp -d)"
+          cd "${consumer}"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund "llm-wiki-compiler@${WANT}"
+          node --input-type=module -e "
+            const sdk = await import('llm-wiki-compiler');
+            if (typeof sdk.createWiki !== 'function') throw new Error('createWiki missing');
+          "
+          npx --no-install llmwiki --version
+          echo "verified fresh install of llm-wiki-compiler@${WANT}"
