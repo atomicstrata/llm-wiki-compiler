@@ -17,7 +17,7 @@
  * byte-identical (parity-safe).
  */
 
-import { workflowStatus, type RunStatus } from "../workflows/status.js";
+import { workflowStatus, type RunStatus } from "../workflow-history/status.js";
 import { LLMWIKI_DIR } from "../utils/constants.js";
 import type { LintResult } from "./types.js";
 

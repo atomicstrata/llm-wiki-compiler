@@ -443,6 +443,18 @@ export function warnQuarantined(quarantined: PendingEmbedding[]): void {
  * @param root - Absolute project root.
  * @param entries - The full pending set to persist.
  */
+/** Persist the operation executor's write-ahead marker, surfacing every write failure. */
+export async function writePendingEmbeddingsStrict(root: string, entries: PendingEmbedding[]): Promise<void> {
+  const normalized = normalizeMarker(entries);
+  const privateDir = await resolveConfinedPrivateDir(root);
+  if (normalized.length === 0) {
+    await clearPendingEmbeddings(root);
+    return;
+  }
+  await atomicWrite(pendingFileIn(privateDir, PENDING_EMBEDDINGS_FILE), JSON.stringify(normalized), { confineRoot: realRootOf(privateDir) });
+}
+
+/** Best-effort retry marker; callers requiring write-ahead durability use the strict sibling. */
 export async function writePendingEmbeddings(
   root: string,
   entries: PendingEmbedding[],

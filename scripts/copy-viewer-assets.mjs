@@ -16,7 +16,7 @@ import url from "node:url";
 const here = path.dirname(url.fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
 const source = path.join(projectRoot, "src/viewer/assets");
-const target = path.join(projectRoot, "dist/viewer/assets");
+const target = path.resolve(projectRoot, process.argv[2] ?? "dist", "viewer/assets");
 
 await mkdir(target, { recursive: true });
 await cp(source, target, { recursive: true });

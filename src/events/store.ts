@@ -40,7 +40,9 @@
 import { mkdir } from "fs/promises";
 import path from "path";
 import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_EVENT_RECORD_BYTES, MAX_EVENT_STORE_BYTES } from "../utils/constants.js";
-import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
+import { assertOperationBinding, type OperationBinding } from "../utils/operation-binding.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { ulid } from "../relations/ulid.js";
 import type { EventContent, EventId, EventRecord, EventType } from "./types.js";
@@ -56,6 +58,7 @@ import {
 } from "./store-record.js";
 import { eventPrevHash } from "./event-digest.js";
 import { prepareEventStoreForAppend } from "./store-read.js";
+import { ensureEventOperationVersionLocked } from "./store-version.js";
 
 /** The caller-supplied content of a new event (id, prevHash, checksum are derived). */
 export interface AppendEventInput {
@@ -84,13 +87,14 @@ function prevHashFor(events: EventRecord[]): string {
 }
 
 /** Build the chained, checksummed {@link EventRecord} from caller input + the prior digest. */
-function buildEventRecord(input: AppendEventInput, prevHash: string): EventRecord {
+function buildEventRecord(input: AppendEventInput, prevHash: string, binding?: OperationBinding): EventRecord {
   const content: EventContent = {
     id: mintEventId(),
     type: input.type,
     origin: input.origin,
     payload: input.payload,
     decision: input.decision,
+    ...(binding === undefined ? {} : { operationBinding: binding }),
     at: input.at,
   };
   const unchecked: EventChecksumInput = { ...content, prevHash };
@@ -220,6 +224,32 @@ export async function appendEventLocked(root: string, input: AppendEventInput): 
 }
 
 /**
+ * Append one operation-bound event WHILE THE CALLER ALREADY HOLDS the project
+ * lock. The store header is upgraded to the operation schema version first (so a
+ * v1 store never gains a bound record under a v1 header), the torn/one-ahead tail
+ * is repaired by {@link prepareEventStoreForAppend}, and the record carries the
+ * validated {@link OperationBinding} covered by the chain digest and checksum.
+ *
+ * @param root - Absolute project root (the caller holds its lock).
+ * @param input - The new event's content (binding-free; the binding is out-of-band).
+ * @param binding - The operation binding to stamp onto the record.
+ * @returns The persisted {@link EventRecord}.
+ */
+export async function appendBoundEventLocked(
+  root: string,
+  input: AppendEventInput,
+  binding: OperationBinding,
+): Promise<EventRecord> {
+  const checked = assertOperationBinding(binding);
+  const events = await prepareEventStoreForAppend(root); // under the caller's lock
+  await ensureEventOperationVersionLocked(root); // upgrade header, records preserved
+  const record = buildEventRecord(input, prevHashFor(events), checked);
+  await appendLine(root, record);
+  await sealHeadAnchor(root, record);
+  return record;
+}
+
+/**
  * Append one event, self-locking via {@link acquireLockBlocking}/{@link releaseLock}.
  * The entry point for callers that do NOT already hold the lock.
  *
@@ -228,7 +258,7 @@ export async function appendEventLocked(root: string, input: AppendEventInput): 
  * @returns The persisted {@link EventRecord}.
  */
 export async function appendEvent(root: string, input: AppendEventInput): Promise<EventRecord> {
-  await acquireLockBlocking(root); // throws LockBusyError on timeout
+  await acquireMutationLockBlocking(root, "ordinary"); // throws LockBusyError on timeout
   try {
     return await appendEventLocked(root, input);
   } finally {

@@ -26,14 +26,93 @@ import { rename, realpath, lstat } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { LLMWIKI_DIR, STATE_FILE } from "../utils/constants.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import { safeRealpath, isInsideDir, confineUnderRoot } from "../utils/path-confine.js";
 import * as output from "../utils/output.js";
+import {
+  executeReset, planReset, RESET_SCOPES, type ResetPlanV1, type ResetScopeV1,
+} from "./reset-plan.js";
 
 /** Options for {@link stateResetCommand}. */
 export interface StateResetOptions {
   /** Apply the reset. Without it, the command only prints the plan. */
   yes?: boolean;
+  /**
+   * What to plan (§4.8). Absent means `state` (the legacy backup-and-remove
+   * path); every named scope previews its plan and, with `--yes`, deletes
+   * exactly the planned files under the project lock.
+   */
+  scope?: string;
+}
+
+/** Validate a non-state scope, report its plan, and destroy it only on --yes. */
+async function runNonStateScope(root: string, scope: string, apply: boolean): Promise<void> {
+  if (!RESET_SCOPES.includes(scope as ResetScopeV1)) {
+    output.status("!", output.warn(`unknown scope ${scope}; expected one of ${RESET_SCOPES.join("|")}`));
+    process.exitCode = 1;
+    return;
+  }
+  await reportScopedPlan(root, scope as ResetScopeV1, apply);
+}
+
+/**
+ * Show what a scope would destroy, then destroy it only when confirmed.
+ *
+ * THE PLAN IS PRINTED EVEN ON THE CONFIRMED PATH. §4.8 pins that the preview
+ * names every affected file BEFORE anything is destroyed, and an operator who
+ * passed `--yes` from memory still deserves the list in their scrollback when
+ * they realise the scope was wrong.
+ */
+async function reportScopedPlan(root: string, scope: ResetScopeV1, apply: boolean): Promise<void> {
+  const plan = await planReset(root, scope);
+  if (plan.status === "unavailable") {
+    output.status("!", output.warn(`cannot plan ${scope}: ${plan.reason}`));
+    process.exitCode = 1;
+    return;
+  }
+  announcePlan(plan.files, scope, apply);
+  // The PRINTED plan is handed to the executor: re-planning under the lock would
+  // let a file created in between be deleted without ever being shown.
+  if (apply) await destroyScope(root, scope, plan);
+}
+
+/** Name every file the scope covers, before anything is destroyed. */
+function announcePlan(files: readonly string[], scope: ResetScopeV1, apply: boolean): void {
+  const verb = apply ? "will be deleted" : "would be deleted";
+  output.status("→", `${files.length} file(s) ${verb} under scope ${scope}:`);
+  for (const file of files) output.status(" ", output.dim(file));
+  if (!apply) output.status("→", output.dim("Re-run with `--yes` to delete them."));
+}
+
+/**
+ * Delete a scope under the project lock, reporting exactly what went.
+ *
+ * THE LOCK IS TAKEN BEFORE THE DELETE, like every other mutation: a concurrent
+ * compile writing pages while a reset removes them would leave a tree neither
+ * one intended. A held lock REFUSES rather than waiting, and refusing is
+ * non-zero so the caller never reads "reset" when nothing was reset.
+ */
+async function destroyScope(root: string, scope: ResetScopeV1, plan: ResetPlanV1): Promise<void> {
+  const acquired = await acquireMutationLock(root, "ordinary");
+  if (!acquired) {
+    output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    const outcome = await executeReset(root, scope, plan);
+    if (outcome.status === "refused") {
+      output.status("!", output.warn(`reset refused: ${outcome.reason}`));
+      process.exitCode = 1;
+      return;
+    }
+    // The EXACT count, from what was actually unlinked — not the plan's length,
+    // which would report files that turned out to be already gone as deleted.
+    output.status("✓", output.success(`Deleted ${outcome.deleted.length} file(s) under scope ${scope}.`));
+  } finally {
+    await releaseLock(root);
+  }
 }
 
 /**
@@ -108,7 +187,7 @@ async function runConfirmedReset(root: string): Promise<void> {
     process.exitCode = 1; // confinement refusal is a FAILURE
     return; // warning already announced, no lock created
   }
-  const acquired = await acquireLock(root);
+  const acquired = await acquireMutationLock(root, "ordinary");
   if (!acquired) {
     output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
     process.exitCode = 1; // requested reset did NOT happen → non-zero exit (no false success)
@@ -196,6 +275,11 @@ async function backupStateFile(root: string, confinedDir: string): Promise<void>
  */
 export async function stateResetCommand(opts: StateResetOptions = {}): Promise<void> {
   const root = process.cwd();
+  // SCOPE IS HONOURED BEFORE ANYTHING ELSE. Falling through to the state reset
+  // when a caller named a different scope would destroy something they did not
+  // ask about while reporting success — the worst failure this surface has.
+  const scope = opts.scope ?? "state";
+  if (scope !== "state") return runNonStateScope(root, scope, opts.yes === true);
   if (!opts.yes) {
     reportResetPlan(root);
     return;

@@ -30,10 +30,11 @@ import {
 } from "./embeddings-store.js";
 import { resolveEmbedBatchSize } from "./embeddings-batch.js";
 import { getActiveEmbeddingProviderName } from "./embedding-provider.js";
-import { acquireLockBlocking, releaseLock } from "./lock.js";
+import { releaseLock } from "./lock.js";
+import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { loadProfile } from "../profile/load.js";
 import { migrateEmbeddingStore } from "./embeddings-migrate.js";
-import { collectEligibleLivePages, type CollectedPage } from "./embeddings-collect.js";
+import { collectEligibleLivePages, requestedPagesExistence, type PageExistence, type CollectedPage } from "./embeddings-collect.js";
 import { reembedIntoStore, type ReembedReport } from "./embeddings-write.js";
 import type { PageId } from "./page-id.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
@@ -53,7 +54,7 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return;
   }
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     await updateEmbeddingsLockedCore(root, changedPageIds);
   } finally {
@@ -87,10 +88,10 @@ export async function updateEmbeddingsLockedCore(
   root: string,
   changedPageIds: PageId[],
   prepare?: (pageIds: PageId[]) => Promise<PageId[]>,
-): Promise<{ embedded: PageId[]; eligible: PageId[] }> {
+): Promise<{ embedded: PageId[]; eligible: PageId[]; pruned: PageId[] }> {
   if (embeddingsDisabled()) {
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
-    return { embedded: [], eligible: [] };
+    return { embedded: [], eligible: [], pruned: [] };
   }
   const model = resolveEmbeddingModel();
   const profile = await loadProfile(root);
@@ -111,17 +112,24 @@ export async function updateEmbeddingsLockedCore(
   // removes quarantined ids. Direct callers retain the existing refresh contract.
   const reembed = prepare ? new Set(await prepare([...discovered])) : discovered;
   retainDeferredEmbeddings(preservable, migrated, new Set([...discovered].filter(id => !reembed.has(id))));
+  const pruned = absentRequestedPageIds(changedPageIds, await requestedPagesExistence(root, profile, changedPageIds), migrated);
 
   // Persist when there is real work: something to re-embed, a sub-v3 store to
   // upgrade (version-driven migration, S1), OR a prune that shrank the store
   // (a deleted page dropped by migration). A clean project (no store on disk)
   // with nothing eligible stays clean — never materialize an empty store.
-  if (!shouldPersist(parsedOld, migrated, reembed, onDiskVersion)) return { embedded: [], eligible };
+  if (!shouldPersist(parsedOld, migrated, reembed, onDiskVersion)) return { embedded: [], eligible, pruned };
 
   await embedAndPersist(root, migrated, collected, reembed, onDiskVersion);
   // The re-embed INTENT set (what we attempted). It may over-include an id the
   // writer skips — see the @returns note; the marker lifecycle tolerates that.
-  return { embedded: [...reembed], eligible };
+  return { embedded: [...reembed], eligible, pruned };
+}
+
+/** Settle only provably absent requested pages no longer retained in the migrated store. */
+function absentRequestedPageIds(requested: PageId[], existence: Map<PageId, PageExistence>, migrated: EmbeddingStoreV3): PageId[] {
+  const kept = new Set<PageId>([...migrated.entries.map(e => e.pageId), ...(migrated.chunks ?? []).map(c => c.pageId)]);
+  return requested.filter(pageId => existence.get(pageId) === "absent" && !kept.has(pageId));
 }
 
 /**

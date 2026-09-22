@@ -31,6 +31,7 @@ import { listLinkResolvablePendingSlugs } from "../compiler/candidates.js";
 import {
   CITATION_PATTERN,
   collectAllPages,
+  type PageScope,
   findMatchesInContent,
 } from "./rules-shared.js";
 
@@ -70,8 +71,9 @@ function buildPageSlugSet(
 }
 
 /** Find [[Title]] wikilinks that don't match any existing wiki page. */
-export async function checkBrokenWikilinks(root: string): Promise<LintResult[]> {
-  const pages = await collectAllPages(root);
+export async function checkBrokenWikilinks(root: string, scope: PageScope = "generic"): Promise<LintResult[]> {
+  // Existing profile projects also retain public default coverage.
+  const pages = await collectAllPages(root, scope);
   const existingSlugs = buildPageSlugSet(pages);
   const pendingSlugs = await listLinkResolvablePendingSlugs(root);
   const results: LintResult[] = [];

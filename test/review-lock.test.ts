@@ -99,7 +99,7 @@ function assertLockUsed(
   root: string,
 ): void {
   expect(acquireSpy).toHaveBeenCalledTimes(1);
-  expect(acquireSpy).toHaveBeenCalledWith(root);
+  expect(acquireSpy).toHaveBeenCalledWith(root, {});
   expect(releaseSpy).toHaveBeenCalledTimes(1);
   expect(releaseSpy).toHaveBeenCalledWith(root);
 }

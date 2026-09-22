@@ -3,7 +3,7 @@
  *
  * Derives a page's freshness on demand from a FreshnessSnapshot (state.json
  * hashes + current source hashes). Pure — never reads or writes the filesystem
- * and never persists freshness. See localdocs/specs/2026-06-04-source-freshness-design.md.
+ * and never persists freshness.
  */
 
 import type { FreshnessSnapshot, PageFreshness, PageFreshnessInput, FreshnessStatus, SourceFreshness } from "./types.js";

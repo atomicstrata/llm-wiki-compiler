@@ -9,8 +9,8 @@
  * our lockfile pinned 1.3.0 so CI never saw it.
  *
  * What this test does:
- *  1. `npm pack` to produce the same tarball npm publishes.
- *  2. Install that tarball into a throwaway directory (no lockfile from
+ *  1. `npm pack` the standard facade and its version-locked workspace packages.
+ *  2. Install those tarballs into a throwaway directory (no lockfile from
  *     this repo, so deps resolve fresh against the registry).
  *  3. Invoke the installed `llmwiki` binary with `--version`, `--help`,
  *     and `ingest --help`. Any crash or non-zero exit fails the test.
@@ -39,8 +39,8 @@ const SHOULD_RUN =
 const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface PackedTarball {
-  /** Absolute path to the tarball file. */
-  path: string;
+  /** Absolute paths to the facade and its unpublished workspace dependencies. */
+  paths: string[];
   /** Directory the tarball lives in (caller must clean up). */
   dir: string;
 }
@@ -51,12 +51,21 @@ interface PackedTarball {
  */
 async function packProject(): Promise<PackedTarball> {
   const dir = await mkdtemp(path.join(tmpdir(), "llmwiki-pack-"));
-  const { stdout } = await exec(
-    ...npmCommand(["pack", "--pack-destination", dir, "--json", "--ignore-scripts"]),
-    { cwd: process.cwd() },
-  );
-  const parsed = JSON.parse(stdout) as Array<{ filename: string }>;
-  return { path: path.join(dir, parsed[0].filename), dir };
+  try {
+    const paths: string[] = [];
+    for (const entry of ["packages/llmwiki-core", "packages/llmwiki-local-workflows", "."]) {
+      const { stdout } = await exec(
+        ...npmCommand(["pack", "--pack-destination", dir, "--json", "--ignore-scripts"]),
+        { cwd: path.join(process.cwd(), entry) },
+      );
+      const [packed] = JSON.parse(stdout) as Array<{ filename: string }>;
+      paths.push(path.join(dir, packed.filename));
+    }
+    return { paths, dir };
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /**
@@ -66,13 +75,13 @@ async function packProject(): Promise<PackedTarball> {
  * users. Caller owns `root` lifecycle so an install failure still leaves
  * a known directory for afterAll cleanup.
  */
-async function installTarballInto(root: string, tarballPath: string): Promise<string> {
+async function installTarballInto(root: string, tarballPaths: string[]): Promise<string> {
   await writeFile(
     path.join(root, "package.json"),
     `${JSON.stringify({ name: "llmwiki-smoke", version: "1.0.0", private: true })}\n`,
     "utf-8",
   );
-  await exec(...npmCommand(["install", "--no-fund", "--no-audit", tarballPath]), {
+  await exec(...npmCommand(["install", "--no-fund", "--no-audit", ...tarballPaths]), {
     cwd: root,
     timeout: INSTALL_TIMEOUT_MS,
   });
@@ -98,7 +107,7 @@ describeOrSkip("pack-and-install smoke", () => {
     // when pack or install throws partway through.
     installRoot = await mkdtemp(path.join(tmpdir(), "llmwiki-install-"));
     tarball = await packProject();
-    bin = await installTarballInto(installRoot, tarball.path);
+    bin = await installTarballInto(installRoot, tarball.paths);
   }, INSTALL_TIMEOUT_MS + 60_000);
 
   afterAll(async () => {

@@ -17,7 +17,8 @@ import {
   loadCandidateOrFail,
   loadCandidateUnderLockOrFail,
 } from "../compiler/candidates.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import * as output from "../utils/output.js";
 
 /** Re-export for use by the under-lock mutation functions in approve/reject. */
@@ -43,7 +44,7 @@ export async function runReviewUnderLock(
   const preCheck = await loadCandidateOrFail(root, id);
   if (!preCheck) return;
 
-  const locked = await acquireLock(root);
+  const locked = await acquireMutationLock(root, "review");
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
     process.exitCode = 1;

@@ -29,15 +29,9 @@ function stubCompile(): void {
 
 describe("compile options", () => {
   it("embeddings:false skips embedding refresh while still compiling pages", async () => {
-    stubCompile();
-    const embedSpy = vi
-      .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockResolvedValue({ embedded: [], eligible: [] });
-
-    const result = await createWiki({ root: ctx.dir }).compile({ embeddings: false });
-
-    expect(result.pages).toContain("alpha");
-    expect(embedSpy).not.toHaveBeenCalled();
+    const run = await compileAndWatchEmbeddings({ embeddings: false });
+    expect(run.pages).toContain("alpha");
+    expect(run.refreshed).toBe(false);
   });
 
   /** Compile with `options`, returning whether the embedding refresh ran. */
@@ -47,7 +41,7 @@ describe("compile options", () => {
     stubCompile();
     const embedSpy = vi
       .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockResolvedValue({ embedded: [], eligible: [] });
+      .mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
     const result = await createWiki({ root: ctx.dir }).compile(options);
     return { refreshed: embedSpy.mock.calls.length > 0, pages: result.pages };
   }

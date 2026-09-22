@@ -52,7 +52,7 @@ async function arrangeReconciliation(): Promise<ReconciliationProbe> {
       : "Rebuilt survivor claim. ^[b.md:1-2, a.md:1-2]";
   });
   vi.spyOn(embeddings, "updateEmbeddingsLockedCore")
-    .mockResolvedValue({ embedded: [], eligible: [] });
+    .mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
   vi.spyOn(console, "log").mockImplementation(() => {});
   return {
     extractionSystems,

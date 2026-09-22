@@ -22,7 +22,8 @@
  * relation-write import cycle) and RE-EXPORTED here for existing importers.
  */
 
-import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { type AppendRelationInput } from "../relations/store.js";
 import { applyApprovedMutationsLocked } from "./executor.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
@@ -58,7 +59,7 @@ export async function createRelation(
   input: AppendRelationInput,
 ): Promise<RelationRef> {
   const mutation: RelationPlannedMutation = { kind: "relation", operation: "create", input };
-  await acquireLockBlocking(root); // PRESERVE bounded-blocking serialization; throws LockBusyError on timeout
+  await acquireMutationLockBlocking(root, "ordinary"); // PRESERVE bounded-blocking serialization; throws LockBusyError on timeout
   try {
     const [result] = await applyApprovedMutationsLocked(root, [mutation]); // the LOCKED core (NOT the self-locking wrapper)
     if (result?.kind !== "relation") {

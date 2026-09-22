@@ -68,6 +68,7 @@ export const DEFAULT_PROVIDER = "anthropic";
 
 /** Provider names accepted by LLMWIKI_PROVIDER, including aliases. */
 export const SUPPORTED_PROVIDER_INPUTS = [
+  "offline",
   "anthropic",
   "claude-agent",
   "codex-agent",
@@ -91,6 +92,7 @@ export function normalizeProviderName(providerName: string): string {
 
 /** Default model per provider. */
 export const PROVIDER_MODELS: Record<string, string> = {
+  offline: "offline-v1",
   anthropic: "claude-sonnet-4-6",
   "claude-agent": "claude-sonnet-4-6",
   "codex-agent": "codex-cli-default",
@@ -519,6 +521,7 @@ export const EMBEDDING_MODELS: Record<string, string> = {
   openai: "text-embedding-3-small",
   orcarouter: "openai/text-embedding-3-small",
   ollama: "nomic-embed-text",
+  offline: "offline-bow-64",
 };
 
 /** Per-provider default batch size for embedding requests (count-based). */

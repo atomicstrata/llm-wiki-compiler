@@ -22,7 +22,7 @@ it("repairs a deferred prefix when its candidate becomes live", async () => {
     body: "---\ntitle: Ownership\nsummary: Details\nsources: []\n---\n\nOwnership details.\n",
   });
   expect(await repairLinks(ctx.dir)).toEqual([]);
-  vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [] });
+  vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
   await reviewApproveCommand(candidate.id);
   expect(await readFile(page, "utf8")).toContain("[[argo-cd-ownership|Argo CD]]");
 });

@@ -1,0 +1,66 @@
+{
+  "name": "@atomicstrata/llmwiki-core",
+  "description": "Engine-free llmwiki knowledge and domain SDK",
+  "version": "1.4.0-dev.20260919",
+  "type": "module",
+  "publishConfig": { "access": "public" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsup",
+    "prepack": "npm run build"
+  },
+  "exports": {
+    "./compiler-cli": {
+      "types": "./dist/compiler-cli.d.ts",
+      "import": "./dist/compiler-cli.js"
+    },
+    "./compiler-legacy-workflows": {
+      "types": "./dist/compiler-legacy-workflows.d.ts",
+      "import": "./dist/compiler-legacy-workflows.js"
+    },
+    "./compiler-sdk": {
+      "types": "./dist/compiler-sdk.d.ts",
+      "import": "./dist/compiler-sdk.js"
+    },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./local-workflow-host": {
+      "types": "./dist/local-workflow-host.d.ts",
+      "import": "./dist/local-workflow-host.js"
+    },
+    "./local-workflow-contracts": {
+      "types": "./dist/local-workflow-contracts.d.ts",
+      "import": "./dist/local-workflow-contracts.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.163",
+    "@anthropic-ai/sdk": "^0.101.0",
+    "@mozilla/readability": "^0.6.0",
+    "ajv": "^8.20.0",
+    "canonicalize": "^3.0.0",
+    "chokidar": "^4.0.0",
+    "commander": "^13.0.0",
+    "js-yaml": "^4.3.0",
+    "jsdom": "^25.0.0",
+    "markdown-it": "^14.3.0",
+    "openai": "^6.42.0",
+    "p-limit": "^6.0.0",
+    "pdf-parse": "^2.4.5",
+    "sanitize-html": "^2.17.6",
+    "turndown": "^7.2.0",
+    "youtube-transcript": "^1.3.1",
+    "zod": "^4.4.3"
+  }
+}

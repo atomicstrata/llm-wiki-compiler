@@ -6,7 +6,7 @@
  */
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
-import { readBoundedFromHandle } from "../profile/templates/publish/bounded-read.js";
+import { readBoundedFromHandle } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 const MAX_INSTRUCTION_BYTES = 64 * 1024;
 

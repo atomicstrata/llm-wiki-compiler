@@ -4,8 +4,7 @@
  *
  * Every top-level field and every documented nested key is present from
  * Slice 1 onward, even when later-slice features have not populated
- * them yet (see `localdocs/context-graph-packs-implementation-plan.md`
- * §JSON Contract). Unpopulated list fields are empty arrays; absent
+ * them yet. Unpopulated list fields are empty arrays; absent
  * object fields are `null`. Slices may fill data into these fields,
  * but must NEVER add or remove top-level keys without bumping
  * `version`.

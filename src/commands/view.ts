@@ -12,8 +12,7 @@
  */
 
 import { spawn } from "child_process";
-import { startViewerServer } from "../viewer/server.js";
-import { buildViewerSnapshot } from "../viewer/snapshot.js";
+import { startViewer } from "../viewer/server.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
@@ -50,8 +49,7 @@ interface ViewCommandOptions {
 export default async function viewCommand(options: ViewCommandOptions): Promise<void> {
   const { host, port } = resolveBindConfig(options);
   const root = process.cwd();
-  const snapshot = await buildViewerSnapshot(root);
-  const handle = await startViewerServer(snapshot, { host, port });
+  const handle = await startViewer({ root, host, port, workflowJourneys: false });
   const url = buildReadyUrl(handle.host, handle.port);
   process.stdout.write(`Viewer ready at ${url}\n`);
   if (options.open) openInBrowser(url);

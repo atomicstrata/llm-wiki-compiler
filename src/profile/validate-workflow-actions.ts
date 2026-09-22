@@ -20,7 +20,7 @@ import type {
   EntityId,
 } from "./types.js";
 import { isSlugSafe, parseEntityId, EntityIdError } from "./identity.js";
-import { RESERVED_CORE_VERBS } from "./reserved-verbs.js";
+import { PROFILE_V1_RESERVED_VERBS } from "./reserved-verbs.js";
 import { ProfileValidationError } from "./errors.js";
 import { assert, parseGrammarGate } from "./validate-helpers.js";
 
@@ -44,8 +44,8 @@ function assertActionIdWellFormed(actionId: string): void {
   for (const segment of segments) {
     assert(isSlugSafe(segment), `workflow action id '${actionId}' segment '${segment}' must be slug-safe`);
   }
-  assert(!RESERVED_CORE_VERBS.has(actionId), `workflow action id '${actionId}' is reserved — it collides with a core CLI verb`);
-  assert(!RESERVED_CORE_VERBS.has(segments[0]), `workflow action id '${actionId}' first segment '${segments[0]}' is reserved — it collides with a core CLI verb`);
+  assert(!PROFILE_V1_RESERVED_VERBS.has(actionId), `workflow action id '${actionId}' is reserved — it collides with a core CLI verb`);
+  assert(!PROFILE_V1_RESERVED_VERBS.has(segments[0]), `workflow action id '${actionId}' first segment '${segments[0]}' is reserved — it collides with a core CLI verb`);
 }
 
 /**
@@ -184,12 +184,26 @@ function assertRunIdBearingActionDeclaresRunId(actionId: string, def: WorkflowAc
  * and `artifactType` (the discriminator page shapes never carry).
  */
 function assertSubmitActionPageOrArtifact(actionId: string, def: WorkflowActionDef): void {
-  if (def.operation !== "submit") return;
+  if (def.operation !== "submit") {
+    assert(def.submitKind === undefined, `workflow action '${actionId}' declares submitKind for a non-submit operation`);
+    return;
+  }
   const schema = def.inputSchema ?? {};
+  if (def.submitKind === "human-input") return;
   for (const field of ["input", "toState", "evidence", "kind"] as const) {
     assert(!Object.hasOwn(schema, field), `workflow action '${actionId}' is a 'submit' action declaring a '${field}' input — submit actions support page or artifact outputs only; use the 'workflow submit' command for relation/lifecycle outputs`);
   }
+  assertSubmitShape(actionId, def, schema);
+}
+
+/** Validate the legacy page/artifact submit discriminator and required fields. */
+function assertSubmitShape(
+  actionId: string, def: WorkflowActionDef, schema: NonNullable<WorkflowActionDef["inputSchema"]>,
+): void {
   const isArtifact = Object.hasOwn(schema, "artifactType");
+  if (def.submitKind !== undefined) {
+    assert(def.submitKind === (isArtifact ? "artifact" : "page"), `workflow action '${actionId}' submitKind does not match its input schema`);
+  }
   assert(
     !Object.hasOwn(schema, isArtifact ? "entityType" : "artifactType"),
     `workflow action '${actionId}' submit action inputSchema declares both entityType and artifactType; a submit output is page OR artifact, not both`,

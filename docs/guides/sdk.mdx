@@ -10,6 +10,12 @@ Use the SDK when you are embedding llmwiki in your own tooling: a build script, 
 
 ## Installation
 
+The standard installation below preserves the complete SDK, including existing
+experimental local workflows. For an engine-free application dependency, see
+[SDK packages and ownership](/guides/sdk-packages). Check the
+[SDK upgrade notes](/guides/sdk-upgrade) before adopting the development candidate;
+experimental type and workflow changes are not a promise of full source compatibility.
+
 The SDK is part of the same package as the CLI. No separate install is needed:
 
 ```bash
@@ -57,6 +63,110 @@ console.log(`${status.pages.total} pages, ${status.sources} sources`);
 ```
 
 ## Method reference
+
+### Core versus workflow methods
+
+Applications should import only `llm-wiki-compiler`. Scoped core and engine
+exports are internal composition contracts, not separately supported consumer APIs.
+
+`createWiki` returns the standard `Wiki` facade. `createWikiCore` from
+`@atomicstrata/llmwiki-core` returns `WikiCore`: knowledge compilation, profiles, domain records,
+artifacts, preparations, product actions and operation proposals, without local
+workflow execution methods. The standard facade includes these core capabilities
+and adds the existing experimental workflow facade. Neither constructor grants
+authority merely because the caller can import it.
+
+### External orchestration and operation authority
+
+An external coordinator such as llmflow owns process sequencing, human interaction
+and revision policy. It calls core services for retained data and authorized
+effects; it does not replace the compiler's authority checks.
+
+Use `wiki.operations` to prepare, observe and retire operation proposals. The SDK
+deliberately exposes no operation apply method. The separately authorized local
+operator inspects and applies the exact proposed manifest:
+
+```ts
+import { createWiki, type RecordIntentV1 } from "llm-wiki-compiler";
+
+// The trusted application host chooses this identity and grant, not a model.
+async function prepareForReview(root: string, intent: RecordIntentV1) {
+  const wiki = createWiki({
+    root,
+    operations: {
+      id: "process-coordinator",
+      grants: ["operation-bundle.prepare"],
+    },
+  });
+  // The caller must handle prepared, refused and unavailable results.
+  // A prepared reference is neither approval nor proof of application.
+  return wiki.operations.prepareRecord(intent);
+}
+```
+
+The operator then reviews the proposed manifest through the standard CLI:
+
+```bash
+llmwiki operation inspect <digest>
+llmwiki product apply <digest>
+```
+
+An embedder trusted-write or preparation grant is not an operation-approval
+grant. Approval in an external workflow is not, by itself, compiler authorization.
+If an apply result or receipt read is uncertain, keep the outcome unknown and
+reconcile it before retrying; do not infer that nothing was written.
+
+Keep product-specific decisions and providers outside core. A Newsroom profile
+declares editorial data contracts; the editorial application's policies and
+orchestration are separate. The same distinction applies to AutoSci and other
+products.
+
+### Read-only domain observations
+
+The experimental package exports `activeProfileDigest(root)`,
+`loadNonDefaultProfile(root)`, and
+`readConfinedCappedBuffer(root, leaf, expectedDir, maxBytes)` for external
+coordinators. These require no write grant and do not mutate the project.
+
+`activeProfileDigest` returns the compiler's bare SHA-256 profile digest,
+including for the built-in default. `loadNonDefaultProfile` returns the validated
+`LoadedProfile`, or `undefined` for that built-in default. Both reject an invalid
+active profile rather than silently falling back. A digest is an observation,
+not a lock against later profile changes or permission to mutate records.
+
+The byte reader accepts a direct leaf of an existing canonical directory under
+the supplied root. It rejects symlinked leaves/parents, out-of-root or mismatched
+selectors, and invalid byte budgets. Results are `ok` with a `Buffer`, `oversize`
+with `actualBytes`, `absent` for a missing leaf under a verified parent, or
+`unavailable` when the read cannot be trusted. Missing/unresolvable parents are
+`unavailable`, not proof of absence. Budgets must be nonnegative safe integers
+less than `Number.MAX_SAFE_INTEGER`; reading is bounded even if the file grows.
+Reads are point-in-time observations, not transactional snapshots of concurrent
+in-place file edits. Use compiler mutation APIs for authority and preconditions.
+
+### Verified artifact reads and discovery
+
+`wiki.readVerifiedArtifactBody(ref)` returns `{ health, bytes? }`. Bytes are returned only when the current profile, manifest, content hash, and body contract verify successfully. It returns the same verified UTF-8 body snapshot without reopening the file. For a member-bearing artifact, this body is the JSON member manifest, not the files packed together; all members must also verify before the manifest is returned.
+
+`wiki.discoverArtifact({ artifactType, slug })` locates one exact artifact and returns `{ status: "found", ref }` only after fresh verification. The selector must contain exactly those two own data properties with safe identifiers. Invalid selectors throw `TypeError`; missing, unhealthy, or unreadable artifacts return `{ status: "unavailable" }`.
+
+Both methods require an active non-default profile declaring artifact types, otherwise they throw `ArtifactVerifyUnavailableError`. Neither requires an artifact-write grant or modifies the wiki. An unavailable discovery result does **not** prove that a previous write did not occur; a found reference does **not** authenticate a workflow occurrence or authorize an operation.
+
+### Binary files in artifact bundles
+
+A profile artifact type can declare a `members` policy instead of `metadata`. Its `contentKind` must be `json`; its declared file holds a compiler-generated manifest. The policy specifies `maxCount`, `maxMemberBytes`, and `maxTotalBytes`, with optional `allowedExtensions`, `requiredNames`, and `exactNames`.
+
+```ts
+const { ref } = await wiki.writeArtifact({
+  artifactType: "edition-assets", // declared by the active profile
+  slug: "issue-01",
+  memberFiles: [{ fileName: "cover.jpg", bytes: jpegBytes }],
+});
+```
+
+Supply exactly one of `body` or `memberFiles`. Member bytes are copied synchronously, hashed, sorted by name, and bound into the manifest; callers cannot supply their own manifest hashes. The existing operator-configured artifact-write grant is still required. Reads require no write grant.
+
+Replacement journals the previous manifest and binary files before writing or removing obsolete members. Verification rejects changed or missing members and unexpected directory entries. Case/Unicode-aliasing names are refused conservatively. Bundle verification is a point-in-time check, not a filesystem snapshot held for future reads. This port adds no member-download API or product workflow.
 
 ### Ingest
 

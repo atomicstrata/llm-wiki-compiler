@@ -34,7 +34,17 @@ async function rejectUnderLock(root: string, id: string): Promise<void> {
   const candidate = await readCandidateUnderLock(root, id);
   if (!candidate) return;
 
-  await archiveCandidate(root, id);
+  let archived = false;
+  try {
+    archived = await archiveCandidate(root, id);
+  } catch {
+    archived = false;
+  }
+  if (!archived) {
+    output.status("!", output.error("Candidate could not be archived safely."));
+    process.exitCode = 1;
+    return;
+  }
   output.status(
     "-",
     output.warn(`Rejected candidate ${id} (${candidate.slug}) — archived, wiki unchanged.`),

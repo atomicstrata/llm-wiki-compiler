@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "rootDir": "../..",
+    "paths": {
+      "@atomicstrata/llmwiki-core": [
+        "../../src/core-index.ts"
+      ],
+      "llmwiki-dev-backend": [
+        "../llmwiki-dev-backend/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "**/*.test.ts"
+  ]
+}

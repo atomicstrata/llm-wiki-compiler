@@ -62,6 +62,11 @@ export interface SearchSelection {
   warnings: SearchWarning[];
 }
 
+/** Opt-in recovery from embedder failures; omitted preserves public error semantics. */
+export interface RetrievalOptions {
+  embeddingFailure?: "throw" | "fallback";
+}
+
 /** Deduplicate refs by pageId, preserving first-seen ordering. */
 function dedupeRefs(refs: SelectedPageRef[]): SelectedPageRef[] {
   const seen = new Set<PageId>();
@@ -83,7 +88,7 @@ function dedupeRefs(refs: SelectedPageRef[]): SelectedPageRef[] {
  * @param question - The query used to rank pages.
  * @returns Ordered refs (pageId-keyed) plus structured warnings.
  */
-export async function pickSearchRefs(root: string, question: string): Promise<SearchSelection> {
+export async function pickSearchRefs(root: string, question: string, options: RetrievalOptions = {}): Promise<SearchSelection> {
   const profile = await loadProfile(root);
   const outcome = await loadEmbeddingsForSearch(root);
   // A pending/unavailable compile journal applies to the whole result regardless
@@ -93,10 +98,12 @@ export async function pickSearchRefs(root: string, question: string): Promise<Se
   const base: SearchWarning[] = journalWarning ? [journalWarning, ...outcome.warnings] : outcome.warnings;
   let warnings = base;
   if (outcome.store) {
-    const semantic = await selectViaEmbeddings(root, outcome.store, question, profile);
+    const semantic = await selectViaEmbeddings(root, outcome.store, question, profile, options);
     // Stale entries are a read-path signal regardless of hit count, so enrich the
-    // warnings BEFORE branching — the all-stale/zero-hits fallback must keep it.
-    warnings = withStaleWarning(base, semantic.stalePageIds);
+    // warnings BEFORE branching — the all-stale/zero-hits fallback must keep it;
+    // an embedding-degrade warning rides the same channel.
+    const withDegrade = semantic.warning ? [...base, semantic.warning] : base;
+    warnings = withStaleWarning(withDegrade, semantic.stalePageIds);
     if (semantic.refs.length > 0) return { refs: dedupeRefs(semantic.refs), warnings };
   }
   const { refs } = await selectFallbackRefs(root, question, "search", profile);
@@ -107,6 +114,8 @@ export async function pickSearchRefs(root: string, question: string): Promise<Se
 interface SemanticSelection {
   refs: SelectedPageRef[];
   stalePageIds: PageId[];
+  /** Set when the embedding call failed and selection degraded to zero refs. */
+  warning?: SearchWarning;
 }
 
 /**
@@ -126,23 +135,41 @@ export function withStaleWarning(base: SearchWarning[], stalePageIds: PageId[]):
   ];
 }
 
-/** Run the chunk-then-page v3 pipeline against a loaded v3 store. */
+/**
+ * Run chunk-then-page retrieval, preserving public failure semantics by default.
+ * Explicit fallback returns a structured warning, never a stdout diagnostic:
+ * this library also serves the MCP stdio transport.
+ */
 async function selectViaEmbeddings(
   root: string,
   store: EmbeddingStoreV3,
   question: string,
   profile: LoadedProfile,
+  options: RetrievalOptions,
 ): Promise<SemanticSelection> {
-  const { hits: chunkHits, stalePageIds: chunkStale } =
-    await findRelevantChunksV3(root, store, "search", question, CHUNK_TOP_K, profile);
-  if (chunkHits.length > 0) {
-    const refs = chunkHits.map((c) => ({ pageId: c.pageId, slug: c.slug, title: "", kind: "chunk" as const }));
-    return { refs, stalePageIds: chunkStale };
+  try {
+    const { hits: chunkHits, stalePageIds: chunkStale } =
+      await findRelevantChunksV3(root, store, "search", question, CHUNK_TOP_K, profile);
+    if (chunkHits.length > 0) {
+      const refs = chunkHits.map((c) => ({ pageId: c.pageId, slug: c.slug, title: "", kind: "chunk" as const }));
+      return { refs, stalePageIds: chunkStale };
+    }
+    const { hits: pageHits, stalePageIds: pageStale } =
+      await findRelevantPagesV3(root, store, "search", question, EMBEDDING_TOP_K, profile);
+    const refs = pageHits.map((p) => ({ pageId: p.pageId, slug: p.slug, title: p.title, kind: "page" as const }));
+    return { refs, stalePageIds: pageStale };
+  } catch (err) {
+    if (options.embeddingFailure !== "fallback") throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      refs: [],
+      stalePageIds: [],
+      warning: {
+        code: "embedding-degraded",
+        message: `Semantic retrieval embedding failed (${message}); degraded to LLM/index fallback selection.`,
+      },
+    };
   }
-  const { hits: pageHits, stalePageIds: pageStale } =
-    await findRelevantPagesV3(root, store, "search", question, EMBEDDING_TOP_K, profile);
-  const refs = pageHits.map((p) => ({ pageId: p.pageId, slug: p.slug, title: p.title, kind: "page" as const }));
-  return { refs, stalePageIds: pageStale };
 }
 
 /** Render a surface candidate as a selector bullet keyed by its QUALIFIED pageId. */
@@ -171,10 +198,13 @@ export async function selectFallbackRefs(
   question: string,
   surface: "search" | "context",
   profile: LoadedProfile,
+  pageScope?: readonly string[],
 ): Promise<{ refs: SelectedPageRef[]; reasoning: string }> {
   const namespaces = ["concepts", "queries", ...Object.keys(profile.profile.entities)];
   const dirs = buildNamespaceDirs(profile.profile);
-  const candidates = await buildSurfaceEligibleCandidates(root, surface, namespaces, dirs, profile);
+  const eligible = await buildSurfaceEligibleCandidates(root, surface, namespaces, dirs, profile);
+  // D-GROUNDING-SCOPE: a scoped caller may only be offered in-scope pages, here too.
+  const candidates = pageScope === undefined ? eligible : eligible.filter((candidate) => pageScope.includes(candidate.pageId));
   if (candidates.length === 0) {
     return { refs: [], reasoning: "No eligible pages." };
   }

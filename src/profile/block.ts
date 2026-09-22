@@ -44,6 +44,12 @@ import { EventStoreCorruptError, EventStoreTooNewError, EventStoreSymlinkError, 
  * which a disk profile can no longer claim but which must not be the gate. The
  * digest comparison is defense-in-depth against a future loader change.
  *
+ * Effective-profile loading routes through the active-product binding via the
+ * universal {@link loadProfile}: with no binding this is byte-identical to the
+ * legacy path, and a product-mode binding yields the product's knowledge profile
+ * (always non-default, since its `loadedFrom` is a package member path, so it is
+ * never mistaken for the built-in default).
+ *
  * @param root - Absolute project root directory.
  * @returns The loaded non-default profile, or `undefined` for the built-in default.
  */

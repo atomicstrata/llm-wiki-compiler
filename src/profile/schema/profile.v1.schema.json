@@ -129,7 +129,18 @@
       "additionalProperties": false,
       "properties": {
         "field": { "type": "string" },
-        "artifactType": { "type": "string" }
+        "artifactType": { "type": "string" },
+        "executionProvenance": {
+          "type": "object",
+          "description": "Optional execution-provenance arm: the pinned artifact's bytes must have been admitted as provider output (resultOutputId) of a succeeded preparation run of actionId whose frozen input names the entity's slug under slugInputField. Enforced at write time by the gated-state-entry authority.",
+          "required": ["actionId", "slugInputField", "resultOutputId"],
+          "additionalProperties": false,
+          "properties": {
+            "actionId": { "type": "string", "minLength": 1 },
+            "slugInputField": { "type": "string", "minLength": 1 },
+            "resultOutputId": { "type": "string", "minLength": 1 }
+          }
+        }
       }
     },
     "relationTypeDef": {
@@ -156,8 +167,60 @@
         "reads": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
         "writes": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
         "artifactWrites": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "humanInput": { "$ref": "#/$defs/humanInputDescriptor" },
+        "productAction": { "type": "string" },
         "gate": { "type": "string" },
+        "subjectGate": { "$ref": "#/$defs/subjectGateDescriptor" },
         "previousIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "subjectGateDescriptor": {
+      "type": "object",
+      "required": ["outputStageId", "artifactType", "verifierId"],
+      "additionalProperties": false,
+      "properties": {
+        "outputStageId": { "type": "string" },
+        "artifactType": { "type": "string" },
+        "verifierId": { "type": "string" }
+      }
+    },
+    "humanInputDescriptor": {
+      "type": "object",
+      "required": ["schemaVersion", "schemaId", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "schemaId": { "type": "string" },
+        "fields": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/humanInputField" }
+        }
+      }
+    },
+    "humanInputField": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["string", "enum", "entity-ref", "artifact-ref", "string-list", "ref-list"] },
+        "required": { "type": "boolean" },
+        "default": {
+          "anyOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } },
+            { "type": "null" }
+          ]
+        },
+        "maxBytes": { "type": "integer" },
+        "maxItems": { "type": "integer" },
+        "maxItemBytes": { "type": "integer" },
+        "nullable": { "type": "boolean" },
+        "values": { "type": "array", "items": { "type": "string" } },
+        "referenceKind": { "enum": ["entity", "artifact"] },
+        "entityTypes": { "type": "array", "items": { "type": "string" } },
+        "artifactTypes": { "type": "array", "items": { "type": "string" } },
+        "lifecycleStates": { "type": "array", "items": { "type": "string" } },
+        "allowedInput": { "type": "string" }
       }
     },
     "workflowDef": {
@@ -191,6 +254,7 @@
         "label": { "type": "string" },
         "workflow": { "type": "string" },
         "operation": { "enum": ["start", "resume", "advance", "gate", "cancel", "fail", "status", "submit"] },
+        "submitKind": { "enum": ["page", "artifact", "human-input"] },
         "inputSchema": {
           "type": "object",
           "additionalProperties": { "$ref": "#/$defs/actionInputField" }
@@ -248,7 +312,21 @@
         "fileName": { "type": "string", "minLength": 1 },
         "contentKind": { "enum": ["json", "text"] },
         "maxBytes": { "type": "integer", "minimum": 1 },
-        "metadata": { "type": "object", "additionalProperties": { "$ref": "#/$defs/fieldDef" } }
+        "metadata": { "type": "object", "additionalProperties": { "$ref": "#/$defs/fieldDef" } },
+        "members": {
+          "type": "object",
+          "description": "Member-bearing declaration (json only; exclusive with metadata): the declared file is a member manifest over flat sibling leaves. Structural policy only — enforced identically on write and on read by validateArtifactBody().",
+          "required": ["maxCount", "maxMemberBytes", "maxTotalBytes"],
+          "additionalProperties": false,
+          "properties": {
+            "maxCount": { "type": "integer", "minimum": 1 },
+            "maxMemberBytes": { "type": "integer", "minimum": 1 },
+            "maxTotalBytes": { "type": "integer", "minimum": 1 },
+            "allowedExtensions": { "type": "array", "items": { "type": "string", "minLength": 2 } },
+            "requiredNames": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "exactNames": { "type": "boolean" }
+          }
+        }
       }
     },
     "connectorBindingDef": {

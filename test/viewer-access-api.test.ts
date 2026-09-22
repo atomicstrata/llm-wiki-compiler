@@ -13,9 +13,9 @@ describe("content HTTP API", () => {
   let handle: Awaited<ReturnType<typeof startViewerServer>> | undefined;
   afterEach(async () => { await handle?.close(); handle = undefined; });
   const artifactDefinitions = { report: { fileName: "report.txt", contentKind: "text", maxBytes: 1000 } };
-  async function start(host = "127.0.0.1") {
+  async function start(host = "127.0.0.1", workflowJourneys?: boolean) {
     const snapshot = { root: ctx.dir, sourceFilenames: ["paper.md"], artifactDefinitions } as unknown as ViewerSnapshot;
-    handle = await startViewerServer(snapshot, { host, port: 0 });
+    handle = await startViewerServer(snapshot, { host, port: 0, workflowJourneys });
     return `http://127.0.0.1:${handle.port}`;
   }
   it("verifies every download instead of trusting an earlier successful metadata read", async () => {
@@ -52,6 +52,29 @@ describe("content HTTP API", () => {
     const content = await lanRequest(handle!.port, "/api/source/paper.md/content");
     expect(content.status).toBe(403);
     expect(content.body).not.toContain("remote secret");
+  });
+  it.each([
+    { host: "127.0.0.1", enabled: undefined, advertised: false },
+    { host: "127.0.0.1", enabled: true, advertised: true },
+    { host: "0.0.0.0", enabled: true, advertised: false },
+  ])("advertises journey navigation only when enabled and local: %j", async ({ host, enabled, advertised }) => {
+    const base = await start(host, enabled);
+    const envelope = host === "0.0.0.0"
+      ? JSON.parse((await lanRequest(handle!.port, "/api/workflow-runs")).body)
+      : await (await fetch(`${base}/api/workflow-runs`)).json();
+    expect(envelope.runs).toEqual([]);
+    if (advertised) expect(envelope.workflowJourneys).toBe(true);
+    else expect(envelope).not.toHaveProperty("workflowJourneys");
+  });
+  it.each([
+    "/api/workflows/build/runs/run-1",
+    "/api/workflows/build/runs/run-1/stage/draft/output",
+    "/api/workflows/build/runs/run-1/pdf",
+  ])("denies remote workflow content through %s before reading the run", async pathname => {
+    await start("0.0.0.0");
+    const response = await lanRequest(handle!.port, pathname);
+    expect(response.status).toBe(403);
+    expect(JSON.parse(response.body)).toMatchObject({ error: { code: "loopback_only" } });
   });
 });
 

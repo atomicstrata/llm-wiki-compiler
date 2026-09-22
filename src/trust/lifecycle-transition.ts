@@ -30,7 +30,8 @@
  * importers keep resolving them from this module.
  */
 
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import { applyApprovedMutationsLocked } from "./executor.js";
 import { LifecycleTransitionLockError } from "./lifecycle-apply.js";
 import type { LifecycleTransitionPlannedMutation } from "./planner.js";
@@ -74,7 +75,7 @@ export async function transitionLifecycle(
     toState,
     evidence,
   };
-  if (!(await acquireLock(root))) throw new LifecycleTransitionLockError();
+  if (!(await acquireMutationLock(root, "ordinary"))) throw new LifecycleTransitionLockError();
   try {
     await applyApprovedMutationsLocked(root, [mutation]);
   } finally {

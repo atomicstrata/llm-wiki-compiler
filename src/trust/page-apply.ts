@@ -19,6 +19,7 @@
 import path from "path";
 import { lstat } from "fs/promises";
 import { atomicWrite } from "../utils/markdown.js";
+import { unlink } from "node:fs/promises";
 import { confineUnderRoot } from "../utils/path-confine.js";
 import { readConfinedLeaf } from "../utils/confined-read.js";
 import { JOURNAL_PRESTATE_MAX_BYTES } from "../utils/constants.js";
@@ -218,6 +219,29 @@ async function assertFloorAtApply(root: string, mutation: PagePlannedMutation, a
  * @param batch - The open journal batch the pre-state is recorded into.
  * @param writeOne - Per-target write primitive (defaults to {@link atomicWrite}).
  */
+/**
+ * Remove one confined page, recorded so a crash reverts it.
+ *
+ * CRASH SAFETY COMES FREE FROM THE EXISTING JOURNAL, which is a ROLLBACK log
+ * rather than a redo log: it records what was at the path BEFORE the batch and
+ * recovery restores it. A delete therefore needs no new journal entry kind —
+ * record the prior content, unlink, and an interrupted batch reverts by writing
+ * the page back exactly as it was.
+ *
+ * NO CONTENT FLOOR RUNS, which is correct rather than a shortcut: the floor
+ * validates the bytes a mutation WRITES (resource limits, frontmatter shape),
+ * and a delete writes none.
+ *
+ * DELETING WHAT IS ALREADY ABSENT IS NOT AN ERROR. The goal state is "not
+ * present"; something else reaching it first does not make this batch a
+ * failure, and refusing would strand a retry after a partial apply.
+ */
+async function deletePageLocked(abs: string, batch: JournalBatch): Promise<void> {
+  if (!(await targetExists(abs))) return;
+  await recordPreState(batch, abs);
+  await unlink(abs);
+}
+
 export async function applyPageMutationLocked(
   root: string,
   mutation: PagePlannedMutation,
@@ -225,6 +249,7 @@ export async function applyPageMutationLocked(
   writeOne: WriteOne = atomicWrite,
 ): Promise<void> {
   const abs = await confineUnderRoot(pageRelPath(mutation), root, { mustExist: false });
+  if (mutation.operation === "delete") return deletePageLocked(abs, batch);
   if (mutation.operation === "create" && (await targetExists(abs))) {
     throw new CreateCollisionError(abs);
   }

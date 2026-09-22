@@ -98,16 +98,16 @@ const PROBLEM_ROW = {
 const RUNS = [PARKED_ON_GATE, PARKED_ON_OUTPUT, COMPLETED];
 
 /** Responder serving the given `/api/workflow-runs` rows over an empty project. */
-function responderWithRuns(runs: unknown[]): FetchResponder {
+function responderWithRuns(runs: unknown[], workflowJourneys = false): FetchResponder {
   return (url) => {
-    if (url.endsWith("/api/workflow-runs")) return jsonResponse({ runs });
+    if (url.endsWith("/api/workflow-runs")) return jsonResponse({ runs, workflowJourneys });
     return profileBootstrapResponse(url);
   };
 }
 
 /** Mount at `#/workflows` with the given rows and return the main pane. */
-async function mountWorkflows(runs: unknown[]): Promise<HTMLElement> {
-  const { dom } = await mountViewerDom(responderWithRuns(runs), "#/workflows");
+async function mountWorkflows(runs: unknown[], workflowJourneys = false): Promise<HTMLElement> {
+  const { dom } = await mountViewerDom(responderWithRuns(runs, workflowJourneys), "#/workflows");
   return dom.window.document.querySelector("[data-main-pane]") as HTMLElement;
 }
 
@@ -200,11 +200,19 @@ describe("#/workflows — the CLI that unparks a run", () => {
     );
   });
 
-  it("offers no button, link, or form — nothing that implies the viewer can act", async () => {
-    const main = await mountWorkflows(RUNS);
+  it("offers read-only detail links but no mutating buttons or forms", async () => {
+    const main = await mountWorkflows(RUNS, true);
     expect(main.querySelector(".list-row button")).toBeNull();
-    expect(main.querySelector(".list-row a")).toBeNull();
+    const links = Array.from(main.querySelectorAll(".list-row a"));
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every(link => /^#\/workflows\/[^/]+\/runs\/[^/]+$/.test(link.getAttribute("href") ?? ""))).toBe(true);
     expect(main.querySelector(".list-row form")).toBeNull();
+  });
+
+  it("preserves plain workflow titles without opted-in journey navigation", async () => {
+    const main = await mountWorkflows(RUNS);
+    expect(main.querySelector(".list-row a")).toBeNull();
+    expect(main.querySelector("span.list-title")?.textContent).toBe("story-pipeline");
   });
 
   it("names no command for a run that is not parked", async () => {

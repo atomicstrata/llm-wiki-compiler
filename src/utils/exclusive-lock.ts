@@ -7,7 +7,7 @@
 import { randomBytes } from "node:crypto";
 import { open, unlink } from "node:fs/promises";
 import { readConfinedLeaf } from "./confined-read.js";
-import { isOwnerStale, parseOwner, serializeOwner } from "./lock-owner.js";
+import { isLockRecordStale, parseOwner, serializeOwner } from "./lock-owner.js";
 import { ensurePrivateRoot } from "../profile/templates/taps/private-root.js";
 
 const MAX_LOCK_BYTES = 1024;
@@ -65,13 +65,13 @@ async function tryCreate(lockFile: string, token: string): Promise<boolean> {
 
 async function reclaimIfStale(paths: LockPaths): Promise<void> {
   const record = await readRecord(paths, paths.lockFile);
-  if (!record || !isOwnerStale(record)) return;
+  if (!record || !isLockRecordStale(record)) return;
   const reclaim = `${paths.lockFile}.reclaim`;
   const token = randomBytes(24).toString("hex");
   if (!(await acquireReclaim(paths, reclaim, token))) return;
   try {
     const current = await readRecord(paths, paths.lockFile);
-    if (current && isOwnerStale(current)) await unlink(paths.lockFile).catch(() => {});
+    if (current && isLockRecordStale(current)) await unlink(paths.lockFile).catch(() => {});
   } finally {
     await unlink(reclaim).catch(() => {});
   }
@@ -80,7 +80,7 @@ async function reclaimIfStale(paths: LockPaths): Promise<void> {
 async function acquireReclaim(paths: LockPaths, file: string, token: string): Promise<boolean> {
   if (await tryCreate(file, token)) return true;
   const existing = await readRecord(paths, file);
-  if (existing && isOwnerStale(existing)) await unlink(file).catch(() => {});
+  if (existing && isLockRecordStale(existing)) await unlink(file).catch(() => {});
   return false;
 }
 

@@ -26,34 +26,49 @@ import { createHash } from "node:crypto";
 import type { FileHandle } from "node:fs/promises";
 import canonicalize from "canonicalize";
 import { resolveConfinedGraphDir, openGraphFileAppend } from "../utils/jsonl-store.js";
+import type { OperationBinding } from "../utils/operation-binding.js";
 import type { RelationRef, RelationRecord, RelationStoreHeader } from "./types.js";
-import { RELATION_STORE_SCHEMA_VERSION, RelationStoreSymlinkError } from "./types.js";
+import { RELATION_STORE_BASE_WRITE_VERSION, RelationStoreSymlinkError } from "./types.js";
 
 /** Build the relation store's typed symlink error from a reason string. */
 function relationSymlinkError(reason: string): Error {
   return new RelationStoreSymlinkError(reason);
 }
 
-/** Compute the per-record checksum over a relation's content (excludes `checksum`). */
-export function recordChecksum(ref: RelationRef): string {
-  const canonical = canonicalize(ref);
+/**
+ * Compute the per-record checksum over a relation's content (excludes
+ * `checksum`). An operation-bound record includes its {@link OperationBinding}
+ * in the checksummed body, so binding tampering is detectable; an unbound record
+ * canonicalizes exactly as v1 did, so existing checksums remain valid.
+ */
+export function recordChecksum(ref: RelationRef, binding?: OperationBinding): string {
+  const body = binding === undefined ? ref : { ...ref, operationBinding: binding };
+  const canonical = canonicalize(body);
   if (canonical === undefined) {
     throw new Error("relation record canonicalization produced no output");
   }
   return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
-/** Serialize a {@link RelationRef} to its on-disk JSONL line (with trailing newline). */
-export function serializeRecord(ref: RelationRef): string {
-  const record: RelationRecord = { ...ref, checksum: recordChecksum(ref) };
+/** Serialize a {@link RelationRef} (plus optional binding) to its on-disk JSONL line. */
+export function serializeRecord(ref: RelationRef, binding?: OperationBinding): string {
+  const record: RelationRecord = {
+    ...ref,
+    ...(binding === undefined ? {} : { operationBinding: binding }),
+    checksum: recordChecksum(ref, binding),
+  };
   return JSON.stringify(record) + "\n";
 }
 
-/** The header line (with trailing newline) written when a store is created. */
-export function headerLine(): string {
+/**
+ * The header line (with trailing newline) written when a store is created. The
+ * version defaults to the ordinary base write version; the operation upgrade
+ * seam passes {@link RELATION_STORE_OPERATION_VERSION}.
+ */
+export function headerLine(version: number = RELATION_STORE_BASE_WRITE_VERSION): string {
   const header: RelationStoreHeader = {
     kind: "relation-store-header",
-    schemaVersion: RELATION_STORE_SCHEMA_VERSION,
+    schemaVersion: version,
   };
   return JSON.stringify(header) + "\n";
 }

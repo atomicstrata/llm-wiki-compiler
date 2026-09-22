@@ -36,7 +36,7 @@ beforeEach(async () => {
     requests.push(system);
     return "Evidence-based claim. ^[a/notes.md:1-2, b/notes.md:1-2]";
   });
-  vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [] });
+  vi.spyOn(embeddings, "updateEmbeddingsLockedCore").mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
   vi.spyOn(console, "log").mockImplementation(() => {});
 });
 

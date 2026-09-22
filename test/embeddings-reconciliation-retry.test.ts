@@ -222,14 +222,16 @@ describe("deferred reconciliation", () => {
 
   it("persists admitted work and preserves deferred cache before strict mode throws", async () => {
     const { provider, old } = await staleCache();
-    const full = await fillBudget(true);
+    await fillBudget(true);
     vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
     await expect(refresh()).rejects.toThrow("1 page(s) deferred");
     expect(provider).toHaveBeenCalled();
     expect(provider.mock.calls.flatMap(call => call[0]).every(text => text.includes("healthy"))).toBe(true);
     await expectAlphaCache(old);
     expect((await readV3Store(ctx.dir))!.entries.map(e => e.pageId)).toContain("concepts/healthy");
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual(full.slice(1).map(e => ({ ...e, attempts: 2 })));
+    // The synthetic backlog has no files: successful pruning settles those
+    // tombstones, while the cached deferred page remains for a later refresh.
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([]);
   });
 
   it("also retains cached vectors for quarantined pages without a capacity warning", async () => {

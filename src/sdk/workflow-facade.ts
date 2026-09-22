@@ -26,46 +26,17 @@
  * @experimental Foundation API — the shape may change in a future minor release.
  */
 
-import { listActions, showAction } from "../workflows/actions.js";
-import { listWorkflows } from "../workflows/list.js";
-import { showWorkflow } from "../workflows/show.js";
-import { listRunEvents } from "../workflows/run-events.js";
-import { startWorkflow } from "../workflows/start.js";
-import { workflowStatus } from "../workflows/status.js";
-import { advanceWorkflow } from "../workflows/advance.js";
-import { approveGate, type ApproveGateOptions } from "../workflows/gate.js";
+import { createLocalWorkflowHost } from "@atomicstrata/llmwiki-core/local-workflow-host";
+import { assertLocalWorkflowCoreInstance } from "@atomicstrata/llmwiki-core/local-workflow-contracts";
+import { createLocalWorkflowRuntime } from "../workflows/runtime.js";
+import type { ApproveGateOptions } from "../workflows/gate.js";
 import { SdkHumanGateError } from "../workflows/errors.js";
-import { cancelWorkflow } from "../workflows/cancel.js";
-import { failWorkflow } from "../workflows/fail.js";
-import { resumeWorkflow } from "../workflows/resume.js";
-import { submitStageOutput } from "../workflows/stage-output.js";
-import { runAction } from "../workflows/run-action.js";
-import { adaptDryRun, adaptApply } from "../workflows/adapt.js";
-import { writeProjection } from "../workflows/projection.js";
-import type { Wiki } from "./types.js";
-import type { WorkflowRun } from "../workflows/types.js";
+import type { WikiWorkflow } from "./workflow-types.js";
+import type { WorkflowRun } from "@atomicstrata/llmwiki-core/local-workflow-contracts";
 
-/** The experimental workflow methods the `Wiki` facade composes in. */
-export type WorkflowFacadeSlice = Pick<
-  Wiki,
-  | "listActions"
-  | "showAction"
-  | "listWorkflows"
-  | "showWorkflow"
-  | "listRunEvents"
-  | "startWorkflow"
-  | "workflowStatus"
-  | "advanceWorkflow"
-  | "approveGate"
-  | "cancelWorkflow"
-  | "failWorkflow"
-  | "resumeWorkflow"
-  | "submitStageOutput"
-  | "runAction"
-  | "adaptDryRun"
-  | "adaptWorkflowRun"
-  | "projectWorkflowRun"
->;
+/** The standard facade's optional local workflow methods. */
+export type WorkflowFacadeSlice = WikiWorkflow;
+type WorkflowRuntime = ReturnType<typeof createLocalWorkflowRuntime>;
 
 /**
  * The SDK-facing `approveGate`: a PROGRAMMATIC surface can NEVER satisfy a `human:`
@@ -82,9 +53,9 @@ export type WorkflowFacadeSlice = Pick<
  * @returns The persisted run.
  * @throws {SdkHumanGateError} When `opts.actorKind` is `human`.
  */
-function sdkApproveGate(root: string, runId: string, gateId: string, opts: ApproveGateOptions): Promise<WorkflowRun> {
+function sdkApproveGate(runtime: WorkflowRuntime, root: string, runId: string, gateId: string, opts: ApproveGateOptions): Promise<WorkflowRun> {
   if (opts.actorKind === "human") throw new SdkHumanGateError(gateId);
-  return approveGate(root, runId, gateId, opts);
+  return runtime.approveGate(root, runId, gateId, opts);
 }
 
 /**
@@ -100,23 +71,26 @@ export function buildWorkflowFacade(
   root: string,
   runQuiet: <T>(fn: () => Promise<T>) => Promise<T>,
 ): WorkflowFacadeSlice {
+  const host = createLocalWorkflowHost();
+  assertLocalWorkflowCoreInstance(host);
+  const runtime = createLocalWorkflowRuntime(host);
   return {
-    listActions: () => runQuiet(() => listActions(root)),
-    showAction: (actionId) => runQuiet(() => showAction(root, actionId)),
-    listWorkflows: () => runQuiet(() => listWorkflows(root)),
-    showWorkflow: (workflowId) => runQuiet(() => showWorkflow(root, workflowId)),
-    listRunEvents: (runId) => runQuiet(() => listRunEvents(root, runId)),
-    startWorkflow: (workflowId, inputs = {}) => runQuiet(() => startWorkflow(root, workflowId, inputs)),
-    workflowStatus: (runId) => runQuiet(() => workflowStatus(root, runId)),
-    advanceWorkflow: (runId) => runQuiet(() => advanceWorkflow(root, runId)),
-    approveGate: (runId, gateId, opts) => runQuiet(() => sdkApproveGate(root, runId, gateId, opts)),
-    cancelWorkflow: (runId) => runQuiet(() => cancelWorkflow(root, runId)),
-    failWorkflow: (runId, detail) => runQuiet(() => failWorkflow(root, runId, detail)),
-    resumeWorkflow: (runId) => runQuiet(() => resumeWorkflow(root, runId)),
-    submitStageOutput: (runId, stageOutput) => runQuiet(() => submitStageOutput(root, runId, stageOutput)),
-    runAction: (actionId, inputs = {}) => runQuiet(() => runAction(root, actionId, inputs, "sdk")),
-    adaptDryRun: (runId) => runQuiet(() => adaptDryRun(root, runId)),
-    adaptWorkflowRun: (runId, opts) => runQuiet(() => adaptApply(root, runId, opts)),
-    projectWorkflowRun: (runId) => runQuiet(() => writeProjection(root, runId)),
+    listActions: () => runQuiet(() => runtime.listActions(root)),
+    showAction: (actionId) => runQuiet(() => runtime.showAction(root, actionId)),
+    listWorkflows: () => runQuiet(() => runtime.list(root)),
+    showWorkflow: (workflowId) => runQuiet(() => runtime.show(root, workflowId)),
+    listRunEvents: (runId) => runQuiet(() => runtime.events(root, runId)),
+    startWorkflow: (workflowId, inputs = {}) => runQuiet(() => runtime.start({ root, workflowId, inputs })),
+    workflowStatus: (runId) => runQuiet(() => runtime.status(root, runId)),
+    advanceWorkflow: (runId) => runQuiet(() => runtime.advance(root, runId)),
+    approveGate: (runId, gateId, opts) => runQuiet(() => sdkApproveGate(runtime, root, runId, gateId, opts)),
+    cancelWorkflow: (runId) => runQuiet(() => runtime.cancel(root, runId)),
+    failWorkflow: (runId, detail) => runQuiet(() => runtime.fail(root, runId, detail)),
+    resumeWorkflow: (runId) => runQuiet(() => runtime.resume(root, runId)),
+    submitStageOutput: (runId, stageOutput) => runQuiet(() => runtime.submit(root, runId, stageOutput)),
+    runAction: (actionId, inputs = {}) => runQuiet(() => runtime.runAction(root, actionId, inputs, "sdk")),
+    adaptDryRun: (runId) => runQuiet(() => runtime.adaptDryRun(root, runId)),
+    adaptWorkflowRun: (runId, opts) => runQuiet(() => runtime.adaptApply(root, runId, opts)),
+    projectWorkflowRun: (runId) => runQuiet(() => runtime.project(root, runId)),
   };
 }

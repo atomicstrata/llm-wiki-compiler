@@ -58,7 +58,8 @@
  * bypassed the planner cannot smuggle an oversized or malformed body past.
  */
 
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { openBatch, commitBatch, replayJournal, type JournalBatch } from "./journal.js";
 import { type ApplyResult, CrossStoreBatchUnsupportedError } from "./apply-result.js";
@@ -221,7 +222,7 @@ export async function applyApprovedMutations(
   planned: PlannedMutation[],
   opts: ApplyOptions = {},
 ): Promise<ApplyResult[]> {
-  const acquired = await acquireLock(root);
+  const acquired = await acquireMutationLock(root, "ordinary");
   if (!acquired) throw new Error("could not acquire project lock for mutation batch");
   try {
     return await applyApprovedMutationsLocked(root, planned, opts);

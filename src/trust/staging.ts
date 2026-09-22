@@ -37,10 +37,17 @@ import {
   type StagedChange,
 } from "./staged-change.js";
 import { promoteCandidateUnderLock } from "./promote.js";
-import { writeCandidate, writeFreshCandidate, countCandidates } from "../compiler/candidates.js";
+import {
+  writeCandidate,
+  writeFreshCandidate,
+  countCandidates,
+  type CandidateDraft,
+} from "../compiler/candidates.js";
+import { assertCandidateSlug } from "../compiler/candidate-paths.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
+import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { assertBodyFieldContract, assertBodyLifecycle } from "./typed-page-validate.js";
-import { acquireLockBlocking, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
 import type { ProfilePack } from "../profile/types.js";
 import type { TrustDecision } from "./decision.js";
 import type { ConnectorProvenance } from "../connectors/types.js";
@@ -117,6 +124,39 @@ function buildPageTarget(plan: PlanResult): EntityRef {
   throw new Error("internal: staged plan has no live mutation target");
 }
 
+/** Enforce every staged-page input floor before planning or persistence. */
+async function assertStageInput(root: string, input: StageEntityPageInput): Promise<void> {
+  assertCandidateSlug(input.slug);
+  const onDisk = await countCandidates(root);
+  const sessionCount = Math.max(onDisk, input.existingStagedCount);
+  assertStagedWriteBudget(sessionCount, 1, {
+    perCall: DEFAULT_STAGED_WRITE_PER_CALL,
+    perSession: DEFAULT_STAGED_WRITE_PER_SESSION,
+  });
+  if (!(input.entityType in input.profile.entities)) {
+    throw new UnknownEntityTypeError(input.entityType);
+  }
+  const def = input.profile.entities[input.entityType]!;
+  const meta = assertBodyFieldContract(input.profile, input.entityType, input.slug, input.body, def);
+  await assertBodyLifecycle(root, input.entityType, input.slug, meta, def);
+}
+
+/** Build the persisted candidate authority from the validated staged input. */
+function stagedCandidateDraft(input: StageEntityPageInput, plan: PlanResult): CandidateDraft {
+  return {
+    title: input.slug,
+    slug: input.slug,
+    summary: "",
+    sources: [],
+    body: input.body,
+    reviewMode: input.reviewMode,
+    heldReasons: input.heldReasons,
+    connectorProvenance: input.connectorProvenance,
+    targetEntityType: input.entityType,
+    trustDecision: plan.decision,
+  };
+}
+
 /**
  * Stage a NON-DEFAULT entity page for review. Fails CLOSED before any I/O: it
  * first enforces the staged-write volume bound, then verifies `input.entityType`
@@ -151,18 +191,7 @@ export async function stageEntityPage(
   root: string,
   input: StageEntityPageInput,
 ): Promise<StagedChange> {
-  const onDisk = await countCandidates(root);
-  const sessionCount = Math.max(onDisk, input.existingStagedCount);
-  assertStagedWriteBudget(sessionCount, 1, {
-    perCall: DEFAULT_STAGED_WRITE_PER_CALL,
-    perSession: DEFAULT_STAGED_WRITE_PER_SESSION,
-  });
-  if (!(input.entityType in input.profile.entities)) {
-    throw new UnknownEntityTypeError(input.entityType);
-  }
-  const def = input.profile.entities[input.entityType]!;
-  const meta = assertBodyFieldContract(input.profile, input.entityType, input.slug, input.body, def);
-  await assertBodyLifecycle(root, input.entityType, input.slug, meta, def);
+  await assertStageInput(root, input);
   const plan = await planPageMutation({
     root,
     target: { kind: "entity", entityType: input.entityType, slug: input.slug },
@@ -174,30 +203,22 @@ export async function stageEntityPage(
   if (plan.planned.length === 0) {
     throw new BlockedStagedWriteError(input.entityType, input.slug, plan.decision);
   }
-  const candidateDraft = {
-    title: input.slug,
-    slug: input.slug,
-    summary: "",
-    sources: [],
-    body: input.body,
-    reviewMode: input.reviewMode,
-    heldReasons: input.heldReasons,
-    connectorProvenance: input.connectorProvenance,
-    targetEntityType: input.entityType,
-    trustDecision: plan.decision,
-  };
+  const candidateDraft = stagedCandidateDraft(input, plan);
+  const target = buildPageTarget(plan);
+  const operation = plan.planned[0]!.operation;
+  const createdAt = (input.now ? input.now() : new Date()).toISOString();
   const candidate = input.freshCandidateId
     ? await writeFreshCandidate(root, candidateDraft)
     : await writeCandidate(root, candidateDraft);
   return {
     id: candidate.id,
     kind: "page",
-    target: buildPageTarget(plan),
-    operation: plan.planned[0]!.operation,
+    target,
+    operation,
     planned: plan.planned,
     heldReasons: ["manual-review-requested"],
     trustDecision: plan.decision,
-    createdAt: (input.now ? input.now() : new Date()).toISOString(),
+    createdAt,
   };
 }
 
@@ -272,7 +293,7 @@ export async function stageEntityPageForProject(
   root: string,
   input: SdkStageEntityPageInput,
 ): Promise<StagedChange> {
-  await acquireLockBlocking(root);
+  await acquireMutationLockBlocking(root, "ordinary");
   try {
     const loaded = await loadNonDefaultProfile(root);
     if (!loaded) throw new StagingRequiresProfileError();

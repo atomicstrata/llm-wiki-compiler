@@ -6,11 +6,15 @@
  */
 import type { ArtifactTypeDef } from "../profile/types.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
+import { validateMemberManifestBody } from "./members.js";
 
 /** Violations of `def`'s body contract for `body`. */
 export function validateArtifactBody(def: ArtifactTypeDef, body: string): string[] {
   const bytes = Buffer.byteLength(body, "utf8");
   if (bytes > def.maxBytes) return [`body is ${bytes} bytes; artifact maxBytes is ${def.maxBytes}`];
+  // A member-bearing type's body IS its member manifest: one validator, shared
+  // by the write plan and read resolution exactly like the metadata contract.
+  if (def.members !== undefined) return validateMemberManifestBody(def, body);
   if (def.contentKind !== "json") return [];
   let parsed: unknown;
   try { parsed = JSON.parse(body); } catch { return ["body is not valid JSON"]; }

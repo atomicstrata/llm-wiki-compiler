@@ -22,7 +22,8 @@ import {
   JournalUnsafeError,
   type RecoveryStatus,
 } from "../trust/journal-recovery.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import * as output from "../utils/output.js";
 
 /**
@@ -93,7 +94,7 @@ async function runRecoveryUnderLock(root: string): Promise<void> {
  */
 export async function recoverCommand(): Promise<void> {
   const root = process.cwd();
-  const acquired = await acquireLock(root);
+  const acquired = await acquireMutationLock(root, "recovery");
   if (!acquired) {
     output.status("!", output.warn("Another llmwiki process is using this project; not recovering."));
     process.exitCode = 1; // requested recovery did NOT happen → non-zero exit

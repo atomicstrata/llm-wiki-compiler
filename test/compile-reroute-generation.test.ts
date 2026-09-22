@@ -112,7 +112,7 @@ describe("HIGH-A: floor-skipped page absent from committed set", () => {
     const resolveSpy = vi.spyOn(resolver, "resolveLinks").mockResolvedValue([]);
     const embedSpy = vi
       .spyOn(embeddings, "updateEmbeddingsLockedCore")
-      .mockResolvedValue({ embedded: [], eligible: [] });
+      .mockResolvedValue({ embedded: [], eligible: [], pruned: [] });
 
     const result = await compileAndReport(ctx.dir);
 

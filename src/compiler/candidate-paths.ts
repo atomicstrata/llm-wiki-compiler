@@ -14,7 +14,10 @@
  * and a symlinked containing dir escaping root throws — both before any I/O.
  */
 
+import { Buffer } from "node:buffer";
 import { confinedCandidateFilePath } from "./candidate-store-paths.js";
+import { isSafeFilenameComponent } from "../profile/identity.js";
+import { isWellFormedUnicode } from "../utils/well-formed-unicode.js";
 import {
   CANDIDATES_DIR,
   CANDIDATES_ARCHIVE_DIR,
@@ -27,10 +30,49 @@ import {
  * are already filename-safe, so this never fires on the default path.
  */
 export class UnsafeCandidateIdError extends Error {
-  constructor(kind: "id" | "slug", value: string) {
-    super(`unsafe candidate ${kind}: ${JSON.stringify(value)} is not a single safe path component`);
+  constructor(kind: "id" | "slug", _value: unknown) {
+    super(`unsafe candidate ${kind}: value is not an allowed candidate filename component`);
     this.name = "UnsafeCandidateIdError";
   }
+}
+
+/** Maximum UTF-8 bytes in a persisted candidate filename stem. */
+export const MAX_CANDIDATE_ID_BYTES = 250;
+
+/** Atomic replacement also needs 21 bytes for its temporary filename suffix. */
+export const MAX_WRITABLE_CANDIDATE_ID_BYTES = 229;
+
+/** Maximum UTF-8 bytes before the generated `-` plus eight-hex suffix. */
+export const MAX_CANDIDATE_SLUG_BYTES = 220;
+
+/** Validate one candidate component with constant-time length prefiltering. */
+function assertCandidateComponent(
+  kind: "id" | "slug",
+  value: unknown,
+  maxBytes: number,
+): void {
+  if (typeof value !== "string" ||
+      value.length > maxBytes ||
+      !isWellFormedUnicode(value) ||
+      Buffer.byteLength(value, "utf8") > maxBytes ||
+      !isSafeFilenameComponent(value)) {
+    throw new UnsafeCandidateIdError(kind, value);
+  }
+}
+
+/** Validate a physical candidate filename stem before any path operation. */
+export function assertCandidateId(id: unknown): asserts id is string {
+  assertCandidateComponent("id", id, MAX_CANDIDATE_ID_BYTES);
+}
+
+/** Validate identities used for atomic content publication, not reads or moves. */
+export function assertWritableCandidateId(id: unknown): asserts id is string {
+  assertCandidateComponent("id", id, MAX_WRITABLE_CANDIDATE_ID_BYTES);
+}
+
+/** Validate a draft slug before appending the random candidate suffix. */
+export function assertCandidateSlug(slug: unknown): asserts slug is string {
+  assertCandidateComponent("slug", slug, MAX_CANDIDATE_SLUG_BYTES);
 }
 
 /** Build the typed unsafe-id error for a candidate file id. */
@@ -50,7 +92,8 @@ function unsafeCandidateId(id: string): Error {
  * @param dir - Candidates subdir (pending or archive) relative to root.
  * @param id - Candidate id to embed as the filename stem.
  */
-function resolveCandidatePath(root: string, dir: string, id: string): Promise<string> {
+async function resolveCandidatePath(root: string, dir: string, id: string): Promise<string> {
+  assertCandidateId(id);
   return confinedCandidateFilePath(root, dir, id, unsafeCandidateId);
 }
 

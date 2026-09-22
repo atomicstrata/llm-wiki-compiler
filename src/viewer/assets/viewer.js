@@ -43,6 +43,7 @@ import {
 } from "./viewer-lists.js";
 import { renderReviewsList } from "./viewer-reviews.js";
 import { renderWorkflowRunsList } from "./viewer-workflows.js";
+import { invalidateJourneyNavigation, journeyRoute, renderJourneyRoute } from "./viewer-journey-route.js";
 import { renderPipeline } from "./viewer-pipeline.js";
 import { renderDashboard } from "./viewer-dashboard.js";
 import { buildHealthView } from "./viewer-health.js";
@@ -137,7 +138,7 @@ function parseRoute(hash) {
  * namespace is consulted before {@link parsePageRoute} ever sees the hash.
  */
 function namedRoute(key) {
-  return STATIC_ROUTES.get(key) ?? sourceEntryRoute(key) ?? entityListRoute(key);
+  return STATIC_ROUTES.get(key) ?? journeyRoute(key) ?? sourceEntryRoute(key) ?? entityListRoute(key);
 }
 
 /** Reserve raw source entries independently of a profile's typed source entities. */
@@ -229,6 +230,7 @@ const ROUTE_RENDERERS = {
   sources: (main) => renderListRoute(main, renderSourcesList),
   reviews: (main) => renderFetchedRoute(main, "/api/reviews", renderReviewsList),
   workflows: (main) => renderFetchedRoute(main, "/api/workflow-runs", renderWorkflowRunsList),
+  journey: (main, route) => { clearSupportRail(); return renderJourneyRoute(main, route); },
   pipeline: (main) => renderListRoute(main, renderPipeline),
   sourceEntry: (main, route) => { clearSupportRail(); return renderSourceDetail(main, route); },
 };
@@ -263,6 +265,7 @@ async function renderListRoute(main, render) {
 
 /** Fetch and render the page at the current hash route. */
 async function renderRoute() {
+  invalidateJourneyNavigation();
   const route = parseRoute(location.hash);
   markActive();
   const main = document.querySelector(MAIN_SELECTOR);

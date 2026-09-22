@@ -25,9 +25,12 @@ import path from "path";
 import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES, MAX_EVENT_HEAD_BYTES } from "../utils/constants.js";
 import { resolveExistingConfinedPrivateDir, PrivateDirConfinementError } from "../utils/private-dir.js";
 import { readConfinedGraphStore, splitStoreRecords } from "../utils/jsonl-store.js";
+import { isOperationBinding } from "../utils/operation-binding.js";
+import { parseStoreHeaderVersion, splitStoreHeaderLine } from "../utils/store-header.js";
 import { atomicWrite } from "../utils/markdown.js";
 import type { EventRecord } from "./types.js";
 import {
+  EVENT_STORE_BASE_WRITE_VERSION,
   EVENT_STORE_SCHEMA_VERSION,
   GENESIS_PREV_HASH,
   EventStoreTooNewError,
@@ -65,6 +68,15 @@ function readStoreFile(root: string): Promise<string | null> {
   });
 }
 
+/**
+ * Read the exact raw store bytes (or null when absent) through the same confined,
+ * no-follow, capped primitive the parser uses. The store-version upgrade seam
+ * rewrites only the header while preserving every record byte and its order.
+ */
+export function readEventStoreRaw(root: string): Promise<string | null> {
+  return readStoreFile(root);
+}
+
 /** Parse and validate the header line, failing closed on an unknown future version. */
 function parseHeader(line: string): void {
   let parsed: unknown;
@@ -94,6 +106,9 @@ function parseRecord(line: string): EventRecord {
   const idOk = typeof rec.id === "string" && rec.id.startsWith("evt_");
   if (!idOk || typeof rec.checksum !== "string" || typeof rec.prevHash !== "string" || typeof rec.type !== "string") {
     throw new EventStoreCorruptError("record line is missing required fields");
+  }
+  if (rec.operationBinding !== undefined && !isOperationBinding(rec.operationBinding)) {
+    throw new EventStoreCorruptError(`event ${rec.id} has a malformed operation binding`);
   }
   return rec as EventRecord;
 }
@@ -277,8 +292,22 @@ function hasTornTail(problems: string[]): boolean {
  * is only ever called on an UNCOMMITTED (un-sealed) tail, so it loses nothing.
  */
 async function truncateToRecords(root: string, kept: EventRecord[]): Promise<void> {
-  const body = eventHeaderLine() + kept.map((e) => serializeEventRecord(stripChecksum(e))).join("");
+  const version = await currentEventHeaderVersion(root);
+  const body = eventHeaderLine(version) + kept.map((e) => serializeEventRecord(stripChecksum(e))).join("");
   await atomicWrite(path.join(root, EVENTS_FILE), body, { confineRoot: root });
+}
+
+/**
+ * The store's current declared header version, so a torn-tail/one-ahead repair
+ * preserves it (a v2 store carrying operation-bound records is never downgraded
+ * to v1). An absent or malformed header defaults to the ordinary base version.
+ */
+async function currentEventHeaderVersion(root: string): Promise<number> {
+  const raw = await readEventStoreRaw(root);
+  if (raw === null) return EVENT_STORE_BASE_WRITE_VERSION;
+  const split = splitStoreHeaderLine(raw);
+  const version = split === null ? null : parseStoreHeaderVersion(split.headerLine, "event-store-header");
+  return version ?? EVENT_STORE_BASE_WRITE_VERSION;
 }
 
 /** Drop the stored `checksum` so {@link serializeEventRecord} recomputes it from the content. */

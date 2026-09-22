@@ -42,9 +42,14 @@ function validDraft(slug: string) {
 }
 
 describe("candidate JSON validation (Issue C)", () => {
+  it("preserves public candidate writing when an unrelated record is malformed", async () => {
+    await writeMalformedCandidate(root.dir, "bad.json", "{broken");
+    const written = await writeCandidate(root.dir, validDraft("good-slug"));
+    expect((await listCandidates(root.dir)).map(candidate => candidate.id)).toEqual([written.id]);
+  });
   it("skips truncated/unparseable JSON and still lists valid candidates", async () => {
-    await writeMalformedCandidate(root.dir, "bad-truncated.json", '{"id":"bad-trunc","title":"T","slug":"bad-trunc","body":"B","sources":[');
     const valid = await writeCandidate(root.dir, validDraft("good-slug"));
+    await writeMalformedCandidate(root.dir, "bad-truncated.json", '{"id":"bad-trunc","title":"T","slug":"bad-trunc","body":"B","sources":[');
 
     const candidates = await listCandidates(root.dir);
     expect(candidates).toHaveLength(1);
@@ -132,8 +137,8 @@ describe("candidate JSON validation (Issue C)", () => {
   });
 
   it("review list does not throw when malformed files are present", async () => {
-    await writeMalformedCandidate(root.dir, "crash-bait.json", "not-json-at-all!!!");
     await writeCandidate(root.dir, validDraft("safe-slug"));
+    await writeMalformedCandidate(root.dir, "crash-bait.json", "not-json-at-all!!!");
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await expect(reviewListCommand()).resolves.not.toThrow();
@@ -142,8 +147,8 @@ describe("candidate JSON validation (Issue C)", () => {
   });
 
   it("review show does not throw for a valid candidate even when malformed files exist", async () => {
-    await writeMalformedCandidate(root.dir, "another-bad.json", '{"broken":}');
     const good = await writeCandidate(root.dir, validDraft("show-safe-slug"));
+    await writeMalformedCandidate(root.dir, "another-bad.json", '{"broken":}');
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     await expect(reviewShowCommand(good.id)).resolves.not.toThrow();

@@ -59,7 +59,10 @@ export interface EmbeddingWarning {
   code:
     | "embedding-index-outdated"
     | "embedding-store-unavailable"
-    | "embedding-entry-stale";
+    | "embedding-entry-stale"
+    // A v3 store loaded, but the embedding CALL failed at read time (e.g. no
+    // embedder credentials), so retrieval degraded to LLM/index selection.
+    | "embedding-degraded";
   message: string;
 }
 

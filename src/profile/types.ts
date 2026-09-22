@@ -128,6 +128,34 @@ export interface ArtifactPreconditionReq {
   field: string;
   /** The declared artifact type the ref must be. */
   artifactType: string;
+  /**
+   * Optional EXECUTION-PROVENANCE arm: beyond resolving healthy, the pinned
+   * artifact's BYTES must have been admitted as provider output of a settled
+   * (exactly `succeeded`) preparation run of the declared action whose frozen
+   * input names this entity. OPT-IN per requirement: a profile that does not
+   * declare it keeps the existence/health gate alone. Load-validated in
+   * `./validate-artifact-requirements.ts`; enforced at write time by
+   * `../artifacts/execution-provenance.ts` via the same gated-state-entry
+   * authority as the health check.
+   */
+  executionProvenance?: ExecutionProvenanceReq;
+}
+
+/**
+ * The execution-provenance declaration: which preparation runs may vouch for a
+ * pinned artifact. GENERIC — it names an action id, an input field, and a
+ * provider output id; it knows nothing about any product's vocabulary.
+ */
+export interface ExecutionProvenanceReq {
+  /** The sealed plan `actionAuthority.actionId` a vouching run must carry. */
+  actionId: string;
+  /** The frozen-input field that must equal the transitioning entity's slug. */
+  slugInputField: string;
+  /**
+   * The provider output id (the admitted evidence ref's `provenanceLabel`)
+   * whose whole-artifact digest must equal the pinned artifact's digest.
+   */
+  resultOutputId: string;
 }
 
 /** A state-machine lifecycle defined over one frontmatter field. */
@@ -197,13 +225,94 @@ export interface WorkflowStageDef {
    * profile's declared artifact types at load.
    */
   artifactWrites?: string[];
+  /** Optional product action whose authenticated preparation settles this stage. */
+  productAction?: string;
+  /** Optional closed typed-input contract; when present the stage parks for it. */
+  humanInput?: HumanInputDescriptorV1;
   /** Optional gate, `<kind>:<id>` where kind ∈ {trust,human,agent}. */
   gate?: string;
+  /** Optional verified predecessor subject required by this human gate. */
+  subjectGate?: SubjectGateDescriptorV1;
   /**
    * Prior stage ids this stage was renamed FROM; lets an in-flight run on an old
    * id be adapted rather than blocked.
    */
   previousIds?: string[];
+}
+
+/** A human gate whose approval is bound to one verified predecessor artifact. */
+export interface SubjectGateDescriptorV1 {
+  /** Earlier stage whose core-minted verifier receipt supplies the subject. */
+  outputStageId: string;
+  /** Required artifact type named by that receipt. */
+  artifactType: string;
+  /** Process-pinned host verifier id that minted the receipt. */
+  verifierId: string;
+}
+
+/** Common constraints shared by every human-input field kind. */
+export interface HumanInputFieldBaseV1 {
+  required?: boolean;
+  default?: string | string[] | null;
+}
+
+/** A bounded string supplied by an authenticated operator. */
+export interface HumanInputStringFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "string";
+  maxBytes: number;
+  nullable?: boolean;
+}
+
+/** A scalar selected from a closed string set. */
+export interface HumanInputEnumFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "enum";
+  values: string[];
+}
+
+/** A live entity reference, optionally constrained by lifecycle state. */
+export interface HumanInputEntityRefFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "entity-ref";
+  entityTypes: string[];
+  lifecycleStates?: string[];
+  allowedInput?: string;
+}
+
+/** A healthy hash-pinned artifact reference. */
+export interface HumanInputArtifactRefFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "artifact-ref";
+  artifactTypes: string[];
+  allowedInput?: string;
+}
+
+/** A bounded list of bounded strings. */
+export interface HumanInputStringListFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "string-list";
+  maxItems: number;
+  maxItemBytes: number;
+}
+
+/** A bounded list of entity or artifact references. */
+export interface HumanInputRefListFieldV1 extends HumanInputFieldBaseV1 {
+  kind: "ref-list";
+  referenceKind: "entity" | "artifact";
+  maxItems: number;
+  entityTypes?: string[];
+  artifactTypes?: string[];
+  lifecycleStates?: string[];
+  allowedInput?: string;
+}
+
+/** The six closed field forms admitted by a human-input stage. */
+export type HumanInputFieldV1 =
+  | HumanInputStringFieldV1 | HumanInputEnumFieldV1
+  | HumanInputEntityRefFieldV1 | HumanInputArtifactRefFieldV1
+  | HumanInputStringListFieldV1 | HumanInputRefListFieldV1;
+
+/** Declarative typed human-input contract carried by a workflow stage. */
+export interface HumanInputDescriptorV1 {
+  schemaVersion: 1;
+  schemaId: string;
+  fields: Record<string, HumanInputFieldV1>;
 }
 
 /** A declarative, non-executable workflow definition. */
@@ -234,6 +343,8 @@ export interface WorkflowActionDef {
   /** The declared workflow this action operates on. */
   workflow: string;
   operation: "start" | "resume" | "advance" | "gate" | "cancel" | "fail" | "status" | "submit";
+  /** Optional explicit submit shape; required only for declarative human input. */
+  submitKind?: "page" | "artifact" | "human-input";
   inputSchema?: Record<string, ActionInputField>;
   /** Per-surface REQUESTED capability (a request, not a grant). All 4 surfaces required. */
   permissions: Record<ActionSurface, CapabilityClass>;
@@ -280,6 +391,32 @@ export interface ArtifactTypeDef {
   maxBytes: number;
   /** OPTIONAL partial scalar field-contract over top-level JSON object fields (json only). */
   metadata?: Record<string, FieldDef>;
+  /**
+   * OPTIONAL member-bearing declaration (json only; exclusive with `metadata`):
+   * the declared file becomes a core-schema MEMBER MANIFEST listing flat
+   * sibling leaves by name, sha256, and byte count, so the pinned ref is a
+   * Merkle root over binary-capable members (see src/artifacts/members.ts).
+   */
+  members?: ArtifactMembersDef;
+}
+
+/**
+ * The generic member policy of a member-bearing artifact type. Vocabulary is
+ * structural only (counts, bytes, names, extensions) — never a product's.
+ */
+export interface ArtifactMembersDef {
+  /** Maximum number of member leaves. */
+  maxCount: number;
+  /** Inclusive per-member byte ceiling. */
+  maxMemberBytes: number;
+  /** Inclusive ceiling over the SUM of member byte counts. */
+  maxTotalBytes: number;
+  /** When present, every member's lower-cased extension must be one of these (e.g. ".tex"). */
+  allowedExtensions?: string[];
+  /** Member names that must each be present. */
+  requiredNames?: string[];
+  /** When true, any member OUTSIDE `requiredNames` is refused. */
+  exactNames?: boolean;
 }
 
 /** A profile pack: the full declarative description of a wiki's entity types. */
@@ -501,3 +638,9 @@ export function toEntityProblemView(problem: EntityProblem, root: string): Entit
     message: problem.message,
   };
 }
+
+/** Brand tripwires. `SlugSafe` sat three lines above `EntityId` and was missed. */
+import type { BrandAssertFalse, BrandAssignable, BrandProbe } from "../types/brand-assertions.js";
+
+type _SlugSafeIsBranded = BrandAssertFalse<BrandAssignable<BrandProbe, SlugSafe>>;
+type _EntityIdIsBranded = BrandAssertFalse<BrandAssignable<BrandProbe, EntityId>>;

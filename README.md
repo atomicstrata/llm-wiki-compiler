@@ -1,5 +1,43 @@
 # llmwiki
 
+> Development candidate: `1.4.0-dev.20260919` is a local integration build, not
+> an npm release. It restores generic domain SDK, preparation, operation-bundle,
+> provider and workflow capabilities while preserving the public compiler and
+> viewer. Standalone AutoSci/Newsroom process packages are not included; their
+> existing builtin ontology templates remain supported.
+
+See [Compiler, integrations, and products](ARCHITECTURE.md) for the ownership
+boundaries between base llmwiki, configurable domain capabilities, external
+orchestration, and product implementations.
+
+For application integration, see [SDK package selection](https://llmwiki.atomicstrata.ai/guides/sdk-packages)
+and [SDK upgrade notes](https://llmwiki.atomicstrata.ai/guides/sdk-upgrade). The standard package keeps
+`createWiki` and its local workflows. Scoped supporting packages are implementation
+dependencies; applications should continue importing `llm-wiki-compiler`.
+Experimental SDK type and workflow changes can require consumer updates.
+Before these candidate guides are deployed, read their sources under
+`docs/guides/sdk-packages.mdx` and `docs/guides/sdk-upgrade.mdx` in this checkout.
+
+### Development runtime authority
+
+SDK clients can prepare, observe and retire record effects with explicit grants.
+Preparation does not approve or apply a change. Review a proposed manifest with
+`llmwiki operation inspect <digest>`; the separate local operator command
+`llmwiki product apply <digest>` requires operation-approval authority. An
+embedder trusted-write grant does not grant operation approval.
+
+Generic product packs can use `product init`, `preview`, `invoke`, `resume` and
+`status`. Provider execution is opt-in through the operator-selected
+`LLMWIKI_PROVIDER_INVOCATION_MODULE`; product configuration cannot select trusted
+host code on the operator's behalf. Both optional backend packages pin this
+development compiler version. The development backend is not a sandbox.
+
+Live workflow projections and retained output/PDF routes are loopback-only.
+Providers should use the generic bounded fact panel; the experiment-specific
+projection input remains deprecated compatibility, not a core product workflow.
+Relation compaction currently refuses operation-bound history rather than
+discarding provenance needed for recovery.
+
 [![CI](https://img.shields.io/github/actions/workflow/status/atomicstrata/llm-wiki-compiler/ci.yml?branch=main&logo=github&label=CI)](https://github.com/atomicstrata/llm-wiki-compiler/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/llm-wiki-compiler?logo=npm&label=npm)](https://www.npmjs.com/package/llm-wiki-compiler)
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)

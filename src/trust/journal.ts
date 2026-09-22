@@ -32,12 +32,22 @@ import { mkdir, readdir, unlink, rename, type FileHandle } from "fs/promises";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import path from "path";
-import { LLMWIKI_DIR, JOURNAL_PRESTATE_MAX_BYTES } from "../utils/constants.js";
+import {
+  LLMWIKI_DIR, JOURNAL_PRESTATE_MAX_BYTES,
+} from "../utils/constants.js";
 import { realpath } from "fs/promises";
 import { confineUnderRoot, safeRealpath, isInsideDir } from "../utils/path-confine.js";
-import { readConfinedLeaf, type ReadLeafOptions } from "../utils/confined-read.js";
+import { readConfinedLeaf, readConfinedLeafBuffer, type ReadLeafOptions } from "../utils/confined-read.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { note } from "../utils/output.js";
+import {
+  binaryPreState, isCanonicalBase64, preStateDecodedByteCount, preStateRestoreContent,
+  JournalAggregateBudgetExceededError, type RecordedPreState,
+} from "./journal-prestate.js";
+
+// The pre-state encoding/budget rules live in ./journal-prestate.ts; re-export
+// the pieces callers catch or type against so the journal stays one import.
+export { JournalAggregateBudgetExceededError, type RecordedPreState } from "./journal-prestate.js";
 
 /**
  * A mutation target could not be safely captured into the pre-state journal: it
@@ -69,8 +79,14 @@ const ABSENT = { absent: true } as const;
 /** How many base-36 random characters to append to a batch id for uniqueness. */
 const BATCH_ID_RANDOM_CHARS = 6;
 
-/** The pre-state of one target: prior file bytes, or the absent marker. */
-export type PreState = { absent: true } | { absent: false; content: string };
+/**
+ * The pre-state of one target: prior file bytes, or the absent marker. A
+ * present pre-state's `content` is UTF-8 text when `encoding` is absent (the
+ * legacy shape — every pre-discriminant journal parses and replays
+ * byte-identically) or canonical base64 of the raw bytes when `encoding` is
+ * `"base64"` (binary captures record base64 ALWAYS; see ./journal-prestate.ts).
+ */
+export type PreState = { absent: true } | RecordedPreState;
 
 /** One target's recorded pre-state under its absolute on-disk path. */
 export interface JournalEntry {
@@ -93,6 +109,16 @@ export interface JournalBatch {
   status: BatchStatus;
   /** Per-target pre-state records, in declaration order. */
   entries: JournalEntry[];
+  /**
+   * IN-MEMORY aggregate budget over recorded pre-states, in DECODED bytes
+   * (never persisted — replay needs no budget; a loaded batch records nothing
+   * more). OPT-IN: absent unless `openBatch` was given a budget, and an absent
+   * budget admits everything — existing callers (the compile executor journals
+   * an unbounded number of page pre-states per batch) are never refused.
+   */
+  aggregatePreStateBudget?: number;
+  /** IN-MEMORY decoded-byte total of the pre-states recorded so far. */
+  aggregatePreStateBytes?: number;
 }
 
 /** Absolute path to the journal directory for a project root. */
@@ -161,23 +187,82 @@ async function persist(batch: JournalBatch): Promise<void> {
   await atomicWrite(file, JSON.stringify(payload, null, 2), { confineRoot: batch.root });
 }
 
+/** {@link openBatch} options: the aggregate pre-state budget override. */
+export interface OpenBatchOptions {
+  /**
+   * Aggregate cap over this batch's recorded pre-states, in DECODED bytes.
+   * OPT-IN: a caller whose batch is bounded BY CONSTRUCTION (e.g. a
+   * member-bearing artifact write, at most `maxCount` × `maxMemberBytes`)
+   * passes one; ABSENT MEANS UNBUDGETED, which is exactly the pre-existing
+   * behaviour every current caller keeps — the compile executor journals an
+   * unbounded number of page pre-states in one batch, so a default ceiling
+   * would make a previously-succeeding compile refuse partway through.
+   */
+  maxAggregatePreStateBytes?: number;
+}
+
 /**
  * Open a fresh `pending` batch and persist its (empty) journal file. Targets
  * are recorded one at a time via {@link recordPreState} before any write lands.
  *
  * @param root - Absolute project root the journal hangs off.
+ * @param opts - Optional aggregate pre-state budget (see {@link OpenBatchOptions}).
  * @returns The opened, persisted {@link JournalBatch}.
  */
-export async function openBatch(root: string): Promise<JournalBatch> {
+export async function openBatch(root: string, opts: OpenBatchOptions = {}): Promise<JournalBatch> {
   // FAIL CLOSED UP FRONT on a symlinked `.llmwiki/journal` escaping root, with a
   // clear error, rather than relying solely on the persist-time `confineRoot`
   // (defense in depth). A confined real journal dir is a no-op on the happy path.
   await assertJournalDirConfined(root);
   const random = Math.random().toString(36).slice(2, 2 + BATCH_ID_RANDOM_CHARS);
   const batchId = `${Date.now()}-${process.pid}-${random}`;
-  const batch: JournalBatch = { batchId, root, status: "pending", entries: [] };
+  const batch: JournalBatch = {
+    batchId, root, status: "pending", entries: [],
+    ...(opts.maxAggregatePreStateBytes === undefined
+      ? {} : { aggregatePreStateBudget: opts.maxAggregatePreStateBytes }),
+    aggregatePreStateBytes: 0,
+  };
   await persist(batch);
   return batch;
+}
+
+/**
+ * Admit one pre-state against the batch's aggregate DECODED-byte budget, or
+ * throw {@link JournalAggregateBudgetExceededError} BEFORE the entry is
+ * appended or persisted — the journal on disk never grows past the budget and
+ * remains consistently replayable after the refusal.
+ */
+function admitWithinAggregateBudget(batch: JournalBatch, targetPath: string, preState: PreState): void {
+  const wouldBe = (batch.aggregatePreStateBytes ?? 0) + preStateDecodedByteCount(preState);
+  const budget = batch.aggregatePreStateBudget;
+  if (budget !== undefined && wouldBe > budget) {
+    throw new JournalAggregateBudgetExceededError(targetPath, wouldBe, budget);
+  }
+  batch.aggregatePreStateBytes = wouldBe;
+}
+
+/**
+ * Admit, append, and DURABLY persist one entry — or leave the batch exactly as
+ * it was.
+ *
+ * The rollback is the write-ahead guarantee, not tidiness: if `persist` fails
+ * after the in-memory push, a retry for that same target would exit through the
+ * dedupe as an apparent success while the DURABLE journal still lacks the
+ * pre-state — and the caller would then mutate a target it cannot restore. On
+ * failure the entry and its budget charge are withdrawn, so the retry genuinely
+ * re-records (or fails again).
+ */
+async function appendDurably(batch: JournalBatch, entry: JournalEntry): Promise<void> {
+  admitWithinAggregateBudget(batch, entry.targetPath, entry.preState);
+  batch.entries.push(entry);
+  try {
+    await persist(batch);
+  } catch (error) {
+    batch.entries.pop();
+    batch.aggregatePreStateBytes =
+      (batch.aggregatePreStateBytes ?? 0) - preStateDecodedByteCount(entry.preState);
+    throw error;
+  }
 }
 
 /**
@@ -210,8 +295,39 @@ export async function recordPreState(batch: JournalBatch, targetPath: string, op
   const prior = await readConfinedLeaf(batch.root, targetPath, expectedDir, JOURNAL_PRESTATE_MAX_BYTES, opts);
   if (prior.kind === "unavailable") throw new JournalPreStateUnreadableError(targetPath);
   const preState: PreState = prior.kind === "absent" ? ABSENT : { absent: false, content: prior.body };
-  batch.entries.push({ targetPath, preState });
-  await persist(batch);
+  await appendDurably(batch, { targetPath, preState });
+}
+
+/** {@link recordBinaryPreState} options: the per-target cap plus the read seam. */
+export interface RecordBinaryPreStateOptions extends ReadLeafOptions {
+  /**
+   * Per-target pre-state cap in raw bytes. A caller whose targets may
+   * legitimately exceed the text backstop (e.g. a store whose declared member
+   * ceiling is larger) passes its own; default {@link JOURNAL_PRESTATE_MAX_BYTES}.
+   */
+  maxPreStateBytes?: number;
+}
+
+/**
+ * Record one BINARY-SAFE target pre-state: the same confinement, dedupe, and
+ * budget rules as {@link recordPreState}, but captured through the buffer
+ * reader and recorded base64-ALWAYS (one invariant, no content sniffing — a
+ * binary pre-state routed through a UTF-8 string round-trip would be silently
+ * corrupted, and a crash-revert would restore corrupt bytes). Text targets
+ * keep using {@link recordPreState}, whose journals stay byte-identical to the
+ * legacy shape.
+ */
+export async function recordBinaryPreState(
+  batch: JournalBatch, targetPath: string, opts: RecordBinaryPreStateOptions = {},
+): Promise<void> {
+  if (batch.entries.some((entry) => entry.targetPath === targetPath)) return;
+  const { maxPreStateBytes, ...readOpts } = opts;
+  const expectedDir = await expectedLeafParentDir(targetPath, batch.root);
+  const prior = await readConfinedLeafBuffer(
+    batch.root, targetPath, expectedDir, maxPreStateBytes ?? JOURNAL_PRESTATE_MAX_BYTES, readOpts);
+  if (prior.kind === "unavailable") throw new JournalPreStateUnreadableError(targetPath);
+  const preState: PreState = prior.kind === "absent" ? ABSENT : binaryPreState(prior.body);
+  await appendDurably(batch, { targetPath, preState });
 }
 
 /**
@@ -301,11 +417,18 @@ export async function revertEntry(entry: JournalEntry, root: string): Promise<vo
     return;
   }
   const confinedPath = await reconfineTarget(entry.targetPath, root);
+  // Decode per the entry's recorded encoding: the raw string for a UTF-8
+  // (legacy) entry — byte-identical to the pre-discriminant behavior — or the
+  // decoded Buffer for a base64 entry. Null means non-canonical base64, which
+  // fails CLOSED as an unreadable pre-state (the parse-side validator already
+  // refuses it; this guards a batch constructed in memory).
+  const restored = preStateRestoreContent(entry.preState);
+  if (restored === null) throw new JournalPreStateUnreadableError(entry.targetPath);
   // `confinedPath` is resolved against realpath(root); pass that SAME canonical
   // root form to atomicWrite so its relative-path confine check is invariant to
   // the symlink form root was supplied in (e.g. /var vs /private/var on macOS).
   const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
-  await atomicWrite(confinedPath, entry.preState.content, { confineRoot: realRoot });
+  await atomicWrite(confinedPath, restored, { confineRoot: realRoot });
 }
 
 /** Validate one parsed entry has a string `targetPath` and a well-formed `preState`. */
@@ -314,9 +437,22 @@ function isValidEntry(entry: unknown): entry is JournalEntry {
   const { targetPath, preState } = entry as Record<string, unknown>;
   if (typeof targetPath !== "string") return false;
   if (typeof preState !== "object" || preState === null) return false;
-  const { absent, content } = preState as Record<string, unknown>;
-  if (absent === true) return content === undefined;
-  return absent === false && typeof content === "string";
+  return isValidPreState(preState as Record<string, unknown>);
+}
+
+/**
+ * Validate one parsed pre-state: the absent marker (bare), the legacy/UTF-8
+ * text shape (`encoding` absent or `"utf8"`), or a base64 entry whose content
+ * is STRICTLY CANONICAL — non-canonical alphabet, whitespace, or bad padding
+ * refuses the entry (and with it the batch, which quarantine then fails
+ * closed) rather than ever decoding permissively into a revert.
+ */
+function isValidPreState(preState: Record<string, unknown>): boolean {
+  const { absent, content, encoding } = preState;
+  if (absent === true) return content === undefined && encoding === undefined;
+  if (absent !== false || typeof content !== "string") return false;
+  if (encoding === undefined || encoding === "utf8") return true;
+  return encoding === "base64" && isCanonicalBase64(content);
 }
 
 /**

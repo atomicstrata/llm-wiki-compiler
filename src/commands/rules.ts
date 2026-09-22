@@ -18,7 +18,8 @@
 import { existsSync } from "fs";
 import path from "path";
 import { atomicWrite } from "../utils/markdown.js";
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import * as output from "../utils/output.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import {
@@ -52,7 +53,7 @@ export async function rulesExtractCommand(): Promise<void> {
     return;
   }
 
-  const locked = await acquireLock(root);
+  const locked = await acquireMutationLock(root, "ordinary");
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
     process.exitCode = 1;
@@ -163,7 +164,7 @@ async function mutateUnderLock(
     return;
   }
 
-  const locked = await acquireLock(root);
+  const locked = await acquireMutationLock(root, "ordinary");
   if (!locked) {
     output.status("!", output.error("Could not acquire lock. Try again later."));
     process.exitCode = 1;

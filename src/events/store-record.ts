@@ -22,7 +22,7 @@ import {
   openGraphFileAppend,
 } from "../utils/jsonl-store.js";
 import type { EventRecord, EventStoreHeader } from "./types.js";
-import { EVENT_STORE_SCHEMA_VERSION, EventStoreSymlinkError } from "./types.js";
+import { EVENT_STORE_BASE_WRITE_VERSION, EventStoreSymlinkError } from "./types.js";
 
 /** The record fields the per-record checksum is computed over (all but `checksum`). */
 export type EventChecksumInput = Omit<EventRecord, "checksum">;
@@ -47,11 +47,15 @@ export function serializeEventRecord(input: EventChecksumInput): string {
   return JSON.stringify(record) + "\n";
 }
 
-/** The header line (with trailing newline) written when a store is created. */
-export function eventHeaderLine(): string {
+/**
+ * The header line (with trailing newline) written when a store is created. The
+ * version defaults to the ordinary base write version; the operation upgrade
+ * seam passes {@link EVENT_STORE_OPERATION_VERSION}.
+ */
+export function eventHeaderLine(version: number = EVENT_STORE_BASE_WRITE_VERSION): string {
   const header: EventStoreHeader = {
     kind: "event-store-header",
-    schemaVersion: EVENT_STORE_SCHEMA_VERSION,
+    schemaVersion: version,
   };
   return JSON.stringify(header) + "\n";
 }

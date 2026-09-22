@@ -54,7 +54,9 @@ async function auditArtifact(
   const leaves = await entries(root, relative);
   if (!Array.isArray(leaves)) return [`artifact directory is unreadable or unsafe: ${relative}`];
   const expected = new Set([fileName, `${fileName}.manifest.json`]);
-  if (leaves.some((leaf) => !expected.has(leaf))) return [`artifact directory contains unexpected files: ${relative}`];
+  // The shared resolver checks the complete member set; legacy types keep the pair check.
+  const membersType = profile.artifacts?.[artifactType]?.members !== undefined;
+  if (!membersType && leaves.some((leaf) => !expected.has(leaf))) return [`artifact directory contains unexpected files: ${relative}`];
   const paths = artifactPaths(root, artifactType, slug, fileName);
   const manifest = await readArtifactManifest(root, paths);
   if (manifest.kind !== "ok") return [`artifact manifest is ${manifest.kind}: ${artifactType}/${slug}`];

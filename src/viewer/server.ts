@@ -28,12 +28,16 @@ import { handleApiSource } from "./api-sources.js";
 import { loadShellTemplate } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { searchPages } from "./search.js";
-import { workflowStatus } from "../workflows/status.js";
+import { workflowStatus } from "../workflow-history/status.js";
 import { buildWorkflowRunsEnvelope } from "./workflow-runs.js";
 import { listCandidatePage } from "../compiler/candidates.js";
 import { buildReviewsEnvelope, REVIEW_LIST_LIMIT } from "./reviews.js";
 import { tryRenderBody, writeJson, writeJsonError, writeRenderFailed } from "./respond.js";
 import type { ViewerSnapshot } from "./types.js";
+import { buildViewerSnapshot } from "./snapshot.js";
+import { handleApiWorkflowRun, type ViewerDeps } from "./workflow-run-projection.js";
+import { handleApiStageOutput, parseStageOutputPath } from "./workflow-artifact.js";
+import { handleApiWorkflowPdf, parsePdfPath } from "./workflow-pdf.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
 
@@ -45,10 +49,14 @@ const CONTENT_SECURITY_POLICY =
 
 /** Configuration knobs accepted by `startViewerServer`. */
 interface ViewerServerConfig {
+  /** Opt-in journey navigation; never advertised on a non-loopback bind. */
+  workflowJourneys?: boolean;
   /** Listening host. `--allow-lan` callers set this to a non-loopback bind address. */
   host: string;
   /** Listening port. `0` lets the OS pick a free port. */
   port: number;
+  /** Optional fixed live-provider deadline; omitted uses the run-proportionate default. */
+  providerTimeoutMs?: number;
 }
 
 /** Handle returned by `startViewerServer`. */
@@ -72,10 +80,11 @@ interface ViewerServerHandle {
 export async function startViewerServer(
   snapshot: ViewerSnapshot,
   config: ViewerServerConfig,
+  deps: ViewerDeps = {},
 ): Promise<ViewerServerHandle> {
   const boundConfig: ViewerServerConfig = { ...config };
   const server = http.createServer((req, res) => {
-    handleRequest(req, res, snapshot, boundConfig).catch((err) => {
+    handleRequest(req, res, snapshot, boundConfig, deps).catch((err) => {
       // Per spec: never return raw thrown error text to the client.
       // The per-route handlers catch render/sanitize failures locally
       // and emit `render_failed`; reaching here means a genuinely
@@ -109,6 +118,38 @@ export async function startViewerServer(
   };
 }
 
+/** Options for the public {@link startViewer} constructor. */
+export interface StartViewerOptions {
+  /** Show journey links on loopback; enabled by default for this new SDK constructor. */
+  workflowJourneys?: boolean;
+  /** Absolute project root the viewer reads from. */
+  root: string;
+  /** Listening host. */
+  host: string;
+  /** Listening port (`0` lets the OS pick). */
+  port: number;
+  /** Override the live stage-projection provider deadline in milliseconds. */
+  providerTimeoutMs?: number;
+}
+
+/**
+ * The GENERIC public viewer entry: build the frozen snapshot from `root` and start the
+ * server, threading optional construction-time `deps` (e.g. a product's live
+ * verified-stage projection provider). CORE owns snapshot construction here, so a
+ * product operator entry injects a provider WITHOUT deep-importing `buildViewerSnapshot`
+ * or reproducing snapshot building. The plain `llmwiki view` passes no deps.
+ */
+export async function startViewer(
+  options: StartViewerOptions,
+  deps: ViewerDeps = {},
+): Promise<ViewerServerHandle> {
+  const snapshot = await buildViewerSnapshot(options.root);
+  const timeout = options.providerTimeoutMs;
+  const config = { host: options.host, port: options.port, workflowJourneys: options.workflowJourneys ?? true,
+    ...(timeout === undefined ? {} : { providerTimeoutMs: timeout }) };
+  return startViewerServer(snapshot, config, deps);
+}
+
 /**
  * Dispatch a single request. The order matters:
  *   1. Set the mandatory security headers — every response carries them,
@@ -125,6 +166,7 @@ async function handleRequest(
   res: ServerResponse,
   snapshot: ViewerSnapshot,
   config: ViewerServerConfig,
+  deps: ViewerDeps,
 ): Promise<void> {
   applySecurityHeaders(res);
   if (!validateOriginHeaders(req, config)) {
@@ -136,7 +178,7 @@ async function handleRequest(
     writeJsonError(res, 404, "not_found", `${req.method ?? "?"} ${url.pathname}`);
     return;
   }
-  await routeRegistered(req, res, url, snapshot, LOOPBACK_HOSTS.has(config.host));
+  await routeRegistered(req, res, url, snapshot, config, deps);
 }
 
 /**
@@ -150,12 +192,26 @@ async function routeRegistered(
   res: ServerResponse,
   parsedUrl: URL,
   snapshot: ViewerSnapshot,
-  isLoopback: boolean,
+  config: ViewerServerConfig,
+  deps: ViewerDeps,
 ): Promise<void> {
   if (parsedUrl.pathname === "/") return handleShell(res);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
   const snapshotOnly = SNAPSHOT_ONLY_HANDLERS.get(parsedUrl.pathname);
   if (snapshotOnly) return snapshotOnly(res, snapshot);
+  return routeLiveResources(res, parsedUrl, snapshot, config, deps);
+}
+
+/** Route request-time resource reads without mixing them with static shell dispatch. */
+async function routeLiveResources(
+  res: ServerResponse, parsedUrl: URL, snapshot: ViewerSnapshot,
+  config: ViewerServerConfig, deps: ViewerDeps,
+): Promise<void> {
+  const isLoopback = LOOPBACK_HOSTS.has(config.host);
+  if (parsedUrl.pathname === "/api/workflow-runs") {
+    const journeys = workflowJourneysEnabled(config, deps);
+    return handleApiWorkflowRuns(res, snapshot.root, journeys);
+  }
   if (parsedUrl.pathname === "/api/index") return handleApiIndex(res, snapshot, isLoopback);
   if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
   if (ARTIFACT_PATHS.has(parsedUrl.pathname)) return handleApiArtifact(res, snapshot, parsedUrl, isLoopback);
@@ -163,10 +219,38 @@ async function routeRegistered(
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
+  if (parsedUrl.pathname.startsWith("/api/workflows/")) {
+    return dispatchWorkflowRoute(res, parsedUrl.pathname, snapshot.root, deps, config);
+  }
   // Unreachable: `isRouteRegistered` is the gate, and every branch
   // there has a matching dispatch above. If it ever fires, the two
   // functions have drifted — fail loudly rather than silently 404.
   throw new Error(`route registration drift: no handler for ${parsedUrl.pathname}`);
+}
+
+/** Enable journey navigation only for loopback with an explicit opt-in or provider. */
+function workflowJourneysEnabled(config: ViewerServerConfig, deps: ViewerDeps): boolean {
+  return LOOPBACK_HOSTS.has(config.host) &&
+    (config.workflowJourneys === true || deps.liveStageProjectionProvider !== undefined);
+}
+
+/**
+ * The `/api/workflows/` family: the more specific `.../stage/:stageId/output` sub-path serves
+ * artifact bytes, `.../runs/:runId/pdf` serves the run's final PDF member (P9.6) with its own
+ * CSP, and the `.../runs/:runId` shape serves the per-run projection.
+ */
+function dispatchWorkflowRoute(
+  res: http.ServerResponse, pathname: string, root: string, deps: ViewerDeps, config: ViewerServerConfig,
+): Promise<void> {
+  if (!LOOPBACK_HOSTS.has(config.host)) {
+    writeJsonError(res, 403, "loopback_only", "Workflow content is available on loopback only.");
+    return Promise.resolve();
+  }
+  if (parseStageOutputPath(pathname) !== null) return handleApiStageOutput(res, pathname, root);
+  if (parsePdfPath(pathname) !== null) {
+    return handleApiWorkflowPdf(res, pathname, root, { provider: deps.liveStageProjectionProvider, timeoutMs: config.providerTimeoutMs });
+  }
+  return handleApiWorkflowRun(res, pathname, root, deps.liveStageProjectionProvider, config.providerTimeoutMs);
 }
 
 /**
@@ -184,7 +268,6 @@ const SNAPSHOT_ONLY_HANDLERS: ReadonlyMap<
   ["/api/pages", handleApiPages],
   ["/api/health", handleApiHealth],
   ["/api/graph", handleApiGraph],
-  ["/api/workflow-runs", (res, snapshot) => handleApiWorkflowRuns(res, snapshot.root)],
   ["/api/reviews", (res, snapshot) => handleApiReviews(res, snapshot.root)],
 ]);
 
@@ -207,8 +290,8 @@ const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
   ...ARTIFACT_PATHS,
 ]);
 
-/** Prefix-based registered routes (assets and per-page API). */
-const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/", "/api/source/"];
+/** Prefix routes preserve public resources and add product workflow projections. */
+const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/", "/api/source/", "/api/workflows/"];
 
 /** True when (method, path) is one of the v1 registered routes. */
 function isRouteRegistered(method: string | undefined, pathname: string): boolean {
@@ -371,8 +454,9 @@ function handleApiGraph(res: ServerResponse, snapshot: ViewerSnapshot): void {
  * empty list. Strictly read-only: no run-state mutation, status fields only
  * (no machine-local paths).
  */
-async function handleApiWorkflowRuns(res: ServerResponse, root: string): Promise<void> {
-  writeJson(res, 200, buildWorkflowRunsEnvelope(await workflowStatus(root)));
+async function handleApiWorkflowRuns(res: ServerResponse, root: string, journeys: boolean): Promise<void> {
+  const envelope = buildWorkflowRunsEnvelope(await workflowStatus(root));
+  writeJson(res, 200, journeys ? { ...envelope, workflowJourneys: true } : envelope);
 }
 
 /**

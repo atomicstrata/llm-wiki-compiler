@@ -46,8 +46,8 @@
 import type { ProfilePack, EntityTypeDef, FieldDef, FieldType, LifecycleDef, RelationTypeDef, WorkflowDef, WorkflowStageDef } from "./types.js";
 import { BODY_TIER_TOKEN } from "./types.js";
 import { isSlugSafe } from "./identity.js";
-import { RESERVED_CORE_VERBS } from "./reserved-verbs.js";
-import { assert, parseGrammarGate, lifecycleStates } from "./validate-helpers.js";
+import { PROFILE_V1_RESERVED_VERBS } from "./reserved-verbs.js";
+import { assert, lifecycleStates } from "./validate-helpers.js";
 import { validateWorkflowActions } from "./validate-workflow-actions.js";
 import { assertRelationRequirementsDeclared } from "./validate-relation-requirements.js";
 import { assertArtifactRequirementsDeclared, collectArtifactOrderingWarnings } from "./validate-artifact-requirements.js";
@@ -57,6 +57,11 @@ import { ProfileValidationError } from "./errors.js";
 import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR, CONCEPTS_DIR, QUERIES_DIR, WORKFLOW_PROJECTION_DIR } from "../utils/constants.js";
 import { isValidArtifactFileName, MAX_ARTIFACT_BYTES } from "../artifacts/name.js";
 import { getConnectorDef } from "../connectors/registry.js";
+import { assertMembersDef } from "./validate-artifact-members.js";
+import { validateStageExecutor, validateStageGate, validateSubjectGate } from "./validate-stage-authority.js";
+
+
+
 
 export { ProfileValidationError } from "./errors.js";
 
@@ -490,20 +495,18 @@ function validateStageArtifactWrites(wf: string, stage: WorkflowStageDef, artifa
  * `human:`/`agent:` gates are satisfied by approval regardless of output, so
  * they stay valid with no writes/artifactWrites.
  */
-function validateStage(wf: string, stage: WorkflowStageDef, seen: Set<string>, entities: Set<string>, artifactTypes: Set<string>): void {
+function validateStage(
+  wf: string, stage: WorkflowStageDef, seen: Set<string>, priorStages: WorkflowStageDef[],
+  entities: Record<string, EntityTypeDef>, artifactTypes: Set<string>,
+): void {
   assert(isSlugSafe(stage.id), `workflow '${wf}' stage id '${stage.id}' must be slug-safe`);
   assert(!seen.has(stage.id), `workflow '${wf}' has a duplicate stage id '${stage.id}'`);
   seen.add(stage.id);
-  validateStageEndpoints(wf, stage, entities);
+  validateStageEndpoints(wf, stage, new Set(Object.keys(entities)));
   validateStageArtifactWrites(wf, stage, artifactTypes);
-  if (stage.gate !== undefined) {
-    const kind = parseGrammarGate(stage.gate);
-    assert(kind !== null, `workflow '${wf}' stage '${stage.id}' has a malformed gate '${stage.gate}'`);
-    if (kind === "trust") {
-      const producesOutput = stage.writes.length > 0 || (stage.artifactWrites ?? []).length > 0;
-      assert(producesOutput, `workflow '${wf}' stage '${stage.id}' has a 'trust:' gate but declares no writes or artifactWrites — a trust gate is satisfiable only by a stage output`);
-    }
-  }
+  validateStageExecutor(wf, stage, entities, artifactTypes);
+  validateStageGate(wf, stage);
+  validateSubjectGate(wf, stage, priorStages, artifactTypes);
 }
 
 /**
@@ -565,7 +568,7 @@ function validateProjectionFile(wf: string, def: WorkflowDef): void {
 /**
  * Validate the optional `workflows` block (fail-closed). Each workflow key must
  * be slug-safe and must NOT collide with a reserved core CLI verb (see
- * {@link RESERVED_CORE_VERBS}). Within a workflow, every stage id must be
+ * {@link PROFILE_V1_RESERVED_VERBS}). Within a workflow, every stage id must be
  * slug-safe and unique, every `reads`/`writes` entry must reference a declared
  * entity type, any `gate` must match `<kind>:<id>` for kind ∈ {trust,human,agent},
  * any stage `previousIds` rename source must be slug-safe, must not alias a current
@@ -585,9 +588,13 @@ function validateWorkflows(
   const declared = new Set(Object.keys(entities));
   for (const [wf, def] of Object.entries(workflows)) {
     assert(isSlugSafe(wf), `workflow key '${wf}' must be slug-safe`);
-    assert(!RESERVED_CORE_VERBS.has(wf), `workflow id '${wf}' is reserved — it collides with a core CLI verb`);
+    assert(!PROFILE_V1_RESERVED_VERBS.has(wf), `workflow id '${wf}' is reserved — it collides with a core CLI verb`);
     const seen = new Set<string>();
-    for (const stage of def.stages) validateStage(wf, stage, seen, declared, declaredArtifactTypes);
+    const priorStages: WorkflowStageDef[] = [];
+    for (const stage of def.stages) {
+      validateStage(wf, stage, seen, priorStages, entities, declaredArtifactTypes);
+      priorStages.push(stage);
+    }
     assertStagePreviousIds(wf, def, seen);
     validateProjectionFile(wf, def);
   }
@@ -611,6 +618,7 @@ function validateArtifacts(profile: ProfilePack, declaredArtifactTypes: Set<stri
       `artifact ${JSON.stringify(id)} maxBytes must be in 1..${MAX_ARTIFACT_BYTES}`);
     assert(def.contentKind === "json" || def.metadata === undefined,
       `artifact ${JSON.stringify(id)} metadata is permitted only when contentKind is "json"`);
+    if (def.members !== undefined) assertMembersDef(id, def);
     // The SHARED FieldType union includes artifactRef, which would make `metadata`
     // a third consumer of it — but Layer B and ref-health never run on artifact
     // bodies, so a nested artifact→artifact ref would be silently half-supported.

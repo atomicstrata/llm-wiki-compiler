@@ -132,7 +132,12 @@ export async function readCappedNoFollowBuffer(filePath: string, maxBytes: numbe
 }
 
 /** Test-only seam: fires between open and the {dev,ino} binding check (mirrors {@link readConfinedPageOutcome}). */
-export interface ReadLeafOptions { afterOpenForTest?: () => Promise<void>; }
+export interface ReadLeafOptions {
+  afterOpenForTest?: () => Promise<void>;
+  beforePostReadCheckForTest?: () => Promise<void>;
+  /** Authoritative stores refuse hard-linked aliases. */
+  requireSingleLink?: boolean;
+}
 
 /**
  * Resolve `root`'s realpath and rebuild `expectedDir` under it; null if root is
@@ -145,9 +150,11 @@ export interface ReadLeafOptions { afterOpenForTest?: () => Promise<void>; }
  * side uses, rather than duplicating it.
  */
 export async function resolveExpectedReal(root: string, expectedDir: string): Promise<string | null> {
+  const lexicalRoot = path.resolve(root), lexicalExpected = path.resolve(expectedDir);
+  if (!isInsideDir(lexicalExpected, lexicalRoot)) return null;
   const realRoot = await realpath(root).catch(() => null);
   if (realRoot === null) return null;
-  return path.join(realRoot, path.relative(path.resolve(root), expectedDir));
+  return path.join(realRoot, path.relative(lexicalRoot, lexicalExpected));
 }
 
 /** Classify an `open()` failure as a clean ABSENT (`ENOENT`) vs an UNAVAILABLE fault. */
@@ -175,7 +182,11 @@ async function passesPostOpenChecks(leaf: string, expectedReal: string, canonica
 }
 
 /** A confirmed-in-root, confirmed-regular open handle, or the absent/unavailable outcome that stopped short of one. */
-export type ConfinedLeafOpen = { kind: "absent" } | { kind: "unavailable" } | { kind: "confirmed"; handle: FileHandle; size: number };
+export type ConfinedLeafOpen = { kind: "absent" } | { kind: "unavailable" } | {
+  kind: "confirmed"; handle: FileHandle; size: number; dev: number; ino: number; mode: number; uid: number; nlink: number;
+  leaf: string; expectedReal: string; canonicalLeaf: string;
+  beforePostReadCheckForTest?: () => Promise<void>;
+};
 
 /** Close `handle` (best-effort) then return `result` — avoids repeating the close-then-return pair at every early-exit branch below. */
 async function closeReturning<T>(handle: FileHandle, result: T): Promise<T> {
@@ -203,14 +214,18 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
   try {
     handle = await openFileNoFollow(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (err) {
-    return { kind: classifyLeafOpenError(err) };
+    if (classifyLeafOpenError(err) !== "absent") return { kind: "unavailable" };
+    return await hasCanonicalExistingAncestor(expectedDir, expectedReal) ? { kind: "absent" } : { kind: "unavailable" };
   }
   try {
     const opened = await handle.stat();
     if (!opened.isFile()) return await closeReturning(handle, { kind: "unavailable" });
+    if (opts.requireSingleLink && opened.nlink !== 1) return await closeReturning(handle, { kind: "unavailable" });
     if (opts.afterOpenForTest) await opts.afterOpenForTest();
     if (!(await passesPostOpenChecks(leaf, expectedReal, canonicalLeaf, opened))) return await closeReturning(handle, { kind: "unavailable" });
-    return { kind: "confirmed", handle, size: opened.size };
+    return { kind: "confirmed", handle, size: opened.size, dev: opened.dev, ino: opened.ino,
+      mode: opened.mode, uid: opened.uid, nlink: opened.nlink, leaf, expectedReal, canonicalLeaf,
+      beforePostReadCheckForTest: opts.beforePostReadCheckForTest };
   } catch {
     return await closeReturning(handle, { kind: "unavailable" });
   }
@@ -224,17 +239,56 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
  * the handle.
  */
 export async function readWithinCapOrElse<T>(opened: Extract<ConfinedLeafOpen, { kind: "confirmed" }>, maxBytes: number, onOversize: (actualBytes: number) => T): Promise<CappedLeafRead | T> {
+  const result = await readConfirmedBufferOrElse(opened, maxBytes, onOversize);
+  if (typeof result !== "object" || result === null || !("kind" in result) || result.kind !== "ok") {
+    return result as CappedLeafRead | T;
+  }
+  try {
+    return { kind: "ok", body: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(result.body) };
+  } catch { return { kind: "unavailable" }; }
+}
+
+/** Exact bytes from the same confined handle; no decoding or second path open. */
+export async function readConfirmedBufferOrElse<T>(opened: Extract<ConfinedLeafOpen, { kind: "confirmed" }>, maxBytes: number, onOversize: (actualBytes: number) => T): Promise<CappedLeafReadBuffer | T> {
   try {
     if (opened.size > maxBytes) return onOversize(opened.size);
     const bytes = await readBoundedBytes(opened.handle, maxBytes);
+    await opened.beforePostReadCheckForTest?.();
+    const after = await opened.handle.stat();
+    if (!after.isFile() || after.dev !== opened.dev || after.ino !== opened.ino || after.nlink !== opened.nlink
+      || !(await passesPostOpenChecks(opened.leaf, opened.expectedReal, opened.canonicalLeaf, after))) return { kind: "unavailable" };
     if (bytes.length > maxBytes) return onOversize((await opened.handle.stat()).size);
-    return { kind: "ok", body: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes) };
+    if (after.size !== opened.size || bytes.length !== opened.size) return { kind: "unavailable" };
+    return { kind: "ok", body: bytes };
   } catch {
     return { kind: "unavailable" };
   } finally {
     await opened.handle.close().catch(() => {});
   }
 }
+
+/** Treat ENOENT as clean absence only below the exact canonical ancestor chain. */
+async function hasCanonicalExistingAncestor(expectedDir: string, expectedReal: string): Promise<boolean> {
+  let lexical = path.resolve(expectedDir), canonical = expectedReal;
+  for (;;) {
+    try {
+      return await realpath(lexical) === canonical;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
+      try {
+        await lstat(lexical);
+        return false;
+      } catch (lstatError) {
+        if ((lstatError as NodeJS.ErrnoException).code !== "ENOENT") return false;
+      }
+    }
+    const parent = path.dirname(lexical);
+    if (parent === lexical) return false;
+    lexical = parent;
+    canonical = path.dirname(canonical);
+  }
+}
+
 
 /** Read at most one byte beyond the cap, including when the inode grows mid-read. */
 async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<Buffer> {
@@ -266,6 +320,13 @@ export async function readConfinedLeaf(root: string, leaf: string, expectedDir: 
   const opened = await openConfinedLeaf(root, leaf, expectedDir, opts);
   if (opened.kind !== "confirmed") return opened;
   return readWithinCapOrElse(opened, maxBytes, () => ({ kind: "unavailable" as const }));
+}
+
+/** Binary sibling of the confined text reader, with identical cap and path policy. */
+export async function readConfinedLeafBuffer(root: string, leaf: string, expectedDir: string, maxBytes: number, opts: ReadLeafOptions = {}): Promise<CappedLeafReadBuffer> {
+  const opened = await openConfinedLeaf(root, leaf, expectedDir, opts);
+  if (opened.kind !== "confirmed") return opened;
+  return readConfirmedBufferOrElse(opened, maxBytes, () => ({ kind: "unavailable" as const }));
 }
 
 /** Test-only seam: lets a test interpose between `open` and the post-check. */

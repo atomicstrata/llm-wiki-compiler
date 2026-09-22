@@ -7,7 +7,7 @@
  */
 
 import type { Command } from "commander";
-import { stateResetCommand } from "../commands/state-reset.js";
+import { stateResetCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 /** Register the `state` command group (currently just `state reset`) on `program`. */
 export function registerStateCommands(program: Command): void {
@@ -21,9 +21,11 @@ export function registerStateCommands(program: Command): void {
     .command("reset")
     .description("Back up and reset the project state file. Requires --yes to apply.")
     .option("--yes", "Apply the reset (back up and remove the state file)")
-    .action(async (options: { yes?: boolean }) => {
+    // Scoped execution consumes exactly the previewed enumeration.
+    .option("--scope <scope>", "state|wiki|raw|log|checkpoints|all — every scope PREVIEWS its per-file plan without --yes and DELETES those files with it")
+    .action(async (options: { yes?: boolean; scope?: string }) => {
       try {
-        await stateResetCommand({ yes: options.yes });
+        await stateResetCommand({ yes: options.yes, scope: options.scope });
       } catch (err) {
         console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
         process.exit(1);

@@ -42,7 +42,7 @@ export function verifyTapIndex(
   if (Date.parse(index.generatedAt) > now.getTime() + MAX_INDEX_CLOCK_SKEW_MS) {
     refuse("not-yet-valid", "tap index generation time is too far in the future");
   }
-  verifySignature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
+  verifyEd25519Signature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
   return index as VerifiedTapIndex;
 }
 
@@ -58,7 +58,7 @@ export function verifyAcceptedTapIndex(
   }
   if (index.tap !== expectedTap) refuse("wrong-tap", `expected tap ${expectedTap}, received ${index.tap}`);
   if (index.signature.keyId !== trustedKey.keyId) refuse("wrong-key", "tap signature key does not match the trusted key");
-  verifySignature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
+  verifyEd25519Signature(canonicalBytes(tapIndexClaim(index)), index.signature, trustedKey, "tap-signature");
   return index as VerifiedTapIndex;
 }
 
@@ -82,7 +82,7 @@ export function verifySignedPackage(
   assertEvidenceNotRevoked(state, entry.payloadDigest, publisherKey.keyId);
   const computed = canonicalDigest(envelope.payload);
   if (computed !== envelope.payloadDigest || computed !== entry.payloadDigest) refuse("wrong-digest", "package payload digest does not match signed metadata");
-  verifySignature(canonicalBytes(packageClaim(envelope.coordinate, computed)), envelope.publisherSignature, publisherKey, "publisher-signature");
+  verifyEd25519Signature(canonicalBytes(packageClaim(envelope.coordinate, computed)), envelope.publisherSignature, publisherKey, "publisher-signature");
   const pkg = validateTemplatePackage(envelope.payload, { currentVersion, sourceType: "remote" });
   if (pkg.templateId !== coordinate.templateId || pkg.version !== coordinate.version || pkg.publisher !== coordinate.publisher) {
     refuse("wrong-identity", "package payload identity differs from its coordinate");
@@ -101,8 +101,8 @@ export function verifyPublisherRotation(
   if (rotation.oldSignature.keyId !== currentKey.keyId) refuse("rotation-old-key", "old rotation signature uses the wrong key");
   if (rotation.newSignature.keyId !== rotation.toKey.keyId) refuse("rotation-new-key", "new rotation signature uses the wrong key");
   const claim = canonicalBytes(rotationClaim(tap, rotation));
-  verifySignature(claim, rotation.oldSignature, currentKey, "rotation-old-signature");
-  verifySignature(claim, rotation.newSignature, rotation.toKey, "rotation-new-signature");
+  verifyEd25519Signature(claim, rotation.oldSignature, currentKey, "rotation-old-signature");
+  verifyEd25519Signature(claim, rotation.newSignature, rotation.toKey, "rotation-new-signature");
 }
 
 /** Require predecessor and successor signatures before replacing a tap root. */
@@ -116,12 +116,13 @@ export function verifyTapKeyRotation(
   if (rotation.oldSignature.keyId !== currentKey.keyId) refuse("tap-rotation-old-key", "old tap rotation signature uses the wrong key");
   if (rotation.newSignature.keyId !== rotation.toKey.keyId) refuse("tap-rotation-new-key", "new tap rotation signature uses the wrong key");
   const claim = canonicalBytes(tapRotationClaim(tap, rotation));
-  verifySignature(claim, rotation.oldSignature, currentKey, "tap-rotation-old-signature");
-  verifySignature(claim, rotation.newSignature, rotation.toKey, "tap-rotation-new-signature");
+  verifyEd25519Signature(claim, rotation.oldSignature, currentKey, "tap-rotation-old-signature");
+  verifyEd25519Signature(claim, rotation.newSignature, rotation.toKey, "tap-rotation-new-signature");
   return rotation.toKey;
 }
 
-function verifySignature(bytes: Buffer, signature: Ed25519Signature, key: PublisherKey, code: string): void {
+/** Verify one Ed25519 signature over already-selected canonical claim bytes. */
+export function verifyEd25519Signature(bytes: Buffer, signature: Ed25519Signature, key: PublisherKey, code: string): void {
   if (signature.algorithm !== "ed25519") refuse("algorithm", "only Ed25519 signatures are supported");
   if (signature.keyId !== key.keyId) refuse("wrong-key", "signature key id does not match its verification key");
   const publicKey = importEd25519PublicKey(key);

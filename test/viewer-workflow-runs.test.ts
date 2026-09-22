@@ -44,6 +44,7 @@ describe("llmwiki view — /api/workflow-runs", () => {
     const handle = await startViewer(root);
     const { status, body } = await fetchJson(handle, "/api/workflow-runs");
     expect(status).toBe(200);
+    expect(body).not.toHaveProperty("workflowJourneys");
     const rows = rowsOf(body);
     const row = rows.find((r) => r.runId === run.runId);
     expect(row).toBeDefined();

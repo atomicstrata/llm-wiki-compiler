@@ -13,49 +13,73 @@
  * symbols without forming an import cycle.
  */
 
-import {
-  listCandidateFileIds,
-} from "../utils/candidate-store.js";
+import { candidatePath, UnsafeCandidateIdError } from "./candidate-paths.js";
+import { safeReadFile } from "../utils/markdown.js";
+import { TextDecoder } from "node:util";
+import { opendir } from "node:fs/promises";
+import { listCandidateFileIds } from "../utils/candidate-store.js";
 import {
   resolveConfinedCandidatesDir,
+  UnsafeCandidateDirError,
 } from "./candidate-store-paths.js";
-import { candidatePath } from "./candidate-paths.js";
-import { safeReadFile } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import { CANDIDATES_DIR } from "../utils/constants.js";
-import type { ReviewCandidate, SourceState } from "../utils/types.js";
-import type { HeldReason, PolicyHeldReasonCode, ReviewMode } from "../review/policy.js";
-import type { TrustDecision } from "../trust/decision.js";
+import {
+  assertCandidateStoreBinding,
+  captureCandidateCustody,
+  captureCandidateStoreBinding,
+  CandidateCustodyUnavailableError,
+  CandidateLeafUnavailableError,
+  type CandidateCustodyRead,
+  type CandidateCustodyReceipt,
+  type CandidateStoreBinding,
+} from "./candidate-custody.js";
+import { sanitizeCandidate } from "./candidate-sanitize.js";
+import type { CandidateCustodyPolicy } from "./candidate-custody-limits.js";
+export { DEFAULT_HELD_REASONS } from "./candidate-sanitize.js";
+import type { ReviewCandidate } from "../utils/types.js";
 
-/** Default metadata for legacy `compile --review` callers. */
-export const DEFAULT_HELD_REASONS: HeldReason[] = [{ code: "manual-review-requested" }];
+/** Fatal decoder: persisted mutation authority never repairs malformed UTF-8. */
+const CANDIDATE_DECODER = new TextDecoder("utf-8", { fatal: true });
 
-/** All valid ReviewMode values. */
-const VALID_REVIEW_MODES: ReviewMode[] = ["policy", "forced", "imported", "connector"];
+/** Internal candidate enumeration entry retaining both observable identities. */
+export interface CandidateFileEntry {
+  readonly fileId: string;
+  readonly candidate: ReviewCandidate;
+  readonly custodyReceipt: CandidateCustodyReceipt;
+}
 
-/** All valid PolicyHeldReasonCode values — mirrors the closed union in policy.ts. */
-const VALID_HELD_REASON_CODES: PolicyHeldReasonCode[] = [
-  "low-confidence",
-  "contradicted",
-  "schema-violating",
-  "provenance-violating",
-  "all",
-  "manual-review-requested",
-  "imported-okf",
-  "connector-fetched",
-];
+/** A bounded regular candidate leaf whose bytes cannot form a valid record. */
+export class CandidateRecordMalformedError extends Error {
+  constructor() {
+    super("candidate record is malformed; inspect .llmwiki/candidates and repair or quarantine invalid records before compiling");
+    this.name = "CandidateRecordMalformedError";
+  }
+}
 
-/** All valid TrustDecision values — mirrors the closed union in trust/decision.ts. */
-const VALID_TRUST_DECISIONS: TrustDecision[] = [
-  "allow",
-  "allow-with-warning",
-  "stage-for-review",
-  "quarantine",
-  "deny",
-];
+/** Maximum pending JSON leaves a strict mutation scan will authorize. */
+const MAX_MUTATION_JSON_LEAVES = 200;
 
-/** Strict lowercase sha256 hex string. */
-const SHA256_HEX = /^[0-9a-f]{64}$/;
+/** One archive entry plus the maximum JSON leaves may exist directly. */
+const MAX_MUTATION_DIRECT_ENTRIES = 201;
+
+/** Deterministic seams for candidate-store replacement tests. */
+export interface CandidateMutationScanHooks {
+  afterInitialCustodyForTest?: () => Promise<void>;
+  afterOpenForTest?: () => Promise<void>;
+}
+
+/** Validate the public store path, then capture one race-sensitive binding. */
+export async function captureCandidateMutationStoreBinding(
+  root: string,
+  requireLiteral = true,
+): Promise<CandidateStoreBinding | null> {
+  const resolved = await resolveConfinedCandidatesDir(root, CANDIDATES_DIR);
+  if (resolved === null) return null;
+  const binding = await captureCandidateStoreBinding(root, requireLiteral);
+  if (binding === null) throw new CandidateCustodyUnavailableError();
+  return binding;
+}
 
 /** Find the pending candidate for a slug, if one exists. */
 export async function readCandidateBySlug(
@@ -166,146 +190,50 @@ export async function readCandidateSnapshot(
   }
 }
 
-/**
- * Sanitize and default every consumed field at the IO boundary. Ensures that
- * user-edited or legacy candidate files can never crash downstream consumers
- * (review list, review show, listCandidates).
- *
- * Fields that can be safely defaulted are corrected in place:
- * - `generatedAt`: non-string values are replaced with a sentinel ISO string.
- * - `reviewMode`: unknown values default to `"forced"` (safe legacy assumption).
- * - `heldReasons`: non-array, missing, or entries with invalid codes are cleaned;
- *   if the result is empty after filtering, defaults to `DEFAULT_HELD_REASONS`.
- * - `sourceStates`: non-object values are treated as absent; entries with unsafe
- *   keys (path separators, `..` traversal) or invalid field types are dropped so
- *   approval can never write malformed state from a bad candidate file.
- */
-function sanitizeCandidate(candidate: ReviewCandidate): ReviewCandidate {
-  const generatedAt =
-    typeof candidate.generatedAt === "string"
-      ? candidate.generatedAt
-      : new Date(0).toISOString();
-
-  const reviewMode: ReviewMode = VALID_REVIEW_MODES.includes(candidate.reviewMode)
-    ? candidate.reviewMode
-    : "forced";
-
-  const heldReasons = sanitizeHeldReasons(candidate.heldReasons);
-  const sourceStates = sanitizeSourceStates(candidate.sourceStates);
-  const connectorProvenance = sanitizeConnectorProvenance(candidate.connectorProvenance);
-
-  const result: ReviewCandidate = { ...candidate, generatedAt, reviewMode, heldReasons };
-  if (sourceStates !== undefined) result.sourceStates = sourceStates;
-  else delete result.sourceStates;
-  if (connectorProvenance !== undefined) result.connectorProvenance = connectorProvenance;
-  else delete result.connectorProvenance;
-  sanitizeTypedTarget(result);
-  return result;
+/** Parse, validate, and sanitize one exact bounded custody read. */
+function parseCandidateEntry(
+  fileId: string,
+  custody: CandidateCustodyRead,
+): CandidateFileEntry {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(CANDIDATE_DECODER.decode(custody.bytes));
+  } catch {
+    throw new CandidateRecordMalformedError();
+  }
+  if (!isValidCandidate(parsed)) throw new CandidateRecordMalformedError();
+  return { fileId, candidate: sanitizeCandidate(parsed), custodyReceipt: custody.receipt };
 }
 
-/** Validate connector provenance read from disk, dropping malformed values. */
-function sanitizeConnectorProvenance(raw: unknown): ReviewCandidate["connectorProvenance"] {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const value = raw as Record<string, unknown>;
-  const keys = [
-    "connectorId",
-    "connectorVersion",
-    "sourceUrl",
-    "fetchedAt",
-    "contentHash",
-    "draftContentHash",
-    "idempotencyKey",
-  ];
-  for (const key of keys) {
-    if (typeof value[key] !== "string") return undefined;
-  }
-  if (!SHA256_HEX.test(value.contentHash as string)) return undefined;
-  if (!SHA256_HEX.test(value.draftContentHash as string)) return undefined;
-  if (!SHA256_HEX.test(value.idempotencyKey as string)) return undefined;
-  return {
-    connectorId: value.connectorId as string,
-    connectorVersion: value.connectorVersion as string,
-    sourceUrl: value.sourceUrl as string,
-    fetchedAt: value.fetchedAt as string,
-    contentHash: value.contentHash as string,
-    draftContentHash: value.draftContentHash as string,
-    idempotencyKey: value.idempotencyKey as string,
-  };
+/** Read one candidate entry, returning null only for a genuinely absent leaf. */
+async function readCandidateEntry(
+  root: string,
+  fileId: string,
+  expectedStore?: CandidateStoreBinding,
+  policy: CandidateCustodyPolicy = "bounded",
+): Promise<CandidateFileEntry | null> {
+  const custody = await captureCandidateCustody(root, fileId, expectedStore, policy);
+  return custody === null ? null : parseCandidateEntry(fileId, custody);
 }
 
-/**
- * Validate the Phase-2 typed-staging fields in place. Drops `targetEntityType`
- * unless it's a string and `trustDecision` unless it's a valid TrustDecision,
- * so a hand-edited or malformed candidate file can never carry junk metadata.
- * @param candidate - The candidate to sanitize (mutated in place).
- */
-function sanitizeTypedTarget(candidate: ReviewCandidate): void {
-  if (typeof candidate.targetEntityType !== "string") {
-    delete candidate.targetEntityType;
-  }
-  if (!VALID_TRUST_DECISIONS.includes(candidate.trustDecision as TrustDecision)) {
-    delete candidate.trustDecision;
+/** List tolerant-read identities while mapping store I/O to typed unavailability. */
+async function listCandidateFileIdsForRead(dir: string): Promise<string[]> {
+  try {
+    return await listCandidateFileIds(dir);
+  } catch {
+    throw new CandidateCustodyUnavailableError();
   }
 }
 
-/** Filter `heldReasons` to only entries with a valid code shape; default when empty. */
-function sanitizeHeldReasons(raw: unknown): HeldReason[] {
-  if (!Array.isArray(raw)) return DEFAULT_HELD_REASONS;
-  const valid = raw.filter(
-    (r): r is HeldReason =>
-      r !== null &&
-      typeof r === "object" &&
-      typeof (r as Record<string, unknown>).code === "string" &&
-      VALID_HELD_REASON_CODES.includes((r as HeldReason).code),
-  );
-  return valid.length > 0 ? valid : DEFAULT_HELD_REASONS;
-}
-
-/**
- * Return true when a source-state key is a safe plain basename.
- * Rejects any key containing `/`, `\`, or the sequence `..` to prevent
- * path-traversal attacks when the key is later used as a state.json entry.
- */
-function isSourceKeysafe(key: string): boolean {
-  return !key.includes("/") && !key.includes("\\") && !key.includes("..");
-}
-
-/**
- * Validate and filter a raw `sourceStates` value from disk.
- *
- * Rules enforced per entry:
- * - Key must be a safe plain basename (no path separators, no `..`).
- * - `hash` must be a non-empty string.
- * - `concepts` must be a `string[]`.
- * - `compiledAt` must be a string.
- *
- * If `raw` is not a plain object, returns `undefined` (treated as absent).
- * Valid entries are kept; invalid ones are silently dropped.
- */
-function sanitizeSourceStates(
-  raw: unknown,
-): Record<string, SourceState> | undefined {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const result: Record<string, SourceState> = {};
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (!isSourceKeyValid(key, value)) continue;
-    result[key] = value as SourceState;
-  }
-  return result;
-}
-
-/** Return true when both the key is path-safe and the entry fields are valid. */
-function isSourceKeyValid(key: string, value: unknown): boolean {
-  if (!isSourceKeysafe(key)) return false;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const entry = value as Record<string, unknown>;
-  return (
-    typeof entry.hash === "string" &&
-    entry.hash.length > 0 &&
-    Array.isArray(entry.concepts) &&
-    (entry.concepts as unknown[]).every((c) => typeof c === "string") &&
-    typeof entry.compiledAt === "string"
-  );
+/** Strict mutation reader: absence and malformed/unavailable bytes fail closed. */
+export async function readCandidateEntryForMutation(
+  root: string,
+  fileId: string,
+  expectedStore?: CandidateStoreBinding,
+): Promise<CandidateFileEntry> {
+  const entry = await readCandidateEntry(root, fileId, expectedStore);
+  if (entry === null) throw new CandidateCustodyUnavailableError();
+  return entry;
 }
 
 /** Defensive type-guard so corrupted candidate files don't blow up the CLI. */
@@ -321,6 +249,84 @@ function isValidCandidate(value: unknown): value is ReviewCandidate {
   );
 }
 
+/** Enumerate sanitized candidates with their confined filename identities. */
+export async function listCandidateFileEntries(
+  root: string,
+  rejectUnsafeIds = false,
+): Promise<CandidateFileEntry[]> {
+  const dir = await resolveConfinedCandidatesDir(root, CANDIDATES_DIR);
+  if (dir === null) return []; // absent candidates dir → nothing pending
+  const ids = await listCandidateFileIdsForRead(dir);
+  const entries: CandidateFileEntry[] = [];
+  for (const fileId of ids) {
+    try {
+      const entry = await readCandidateEntry(root, fileId, undefined, "public");
+      if (entry) entries.push(entry);
+    } catch (error) {
+      if (error instanceof UnsafeCandidateDirError ||
+          (error instanceof CandidateCustodyUnavailableError && !(error instanceof CandidateLeafUnavailableError)) ||
+          (rejectUnsafeIds && error instanceof UnsafeCandidateIdError)) throw error;
+      output.note(`[llmwiki] Skipping unparseable candidate file: ${fileId}.json`);
+    }
+  }
+  entries.sort(compareCandidateEntries);
+  return entries;
+}
+
+/** Compare exact filename identities by their UTF-8 byte sequence. */
+export function compareCandidateFileIdsUtf8(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+/** Deterministic generation-time then exact filename-byte ordering. */
+function compareCandidateEntries(left: CandidateFileEntry, right: CandidateFileEntry): number {
+  const generated = left.candidate.generatedAt < right.candidate.generatedAt
+    ? -1
+    : Number(left.candidate.generatedAt > right.candidate.generatedAt);
+  return generated || compareCandidateFileIdsUtf8(left.fileId, right.fileId);
+}
+
+/** Enumerate through one previously captured store binding. */
+export async function listCandidateMutationFileIdsForBinding(
+  root: string,
+  binding: CandidateStoreBinding,
+  hooks: CandidateMutationScanHooks = {},
+): Promise<string[]> {
+  const ids: string[] = [];
+  let directEntries = 0;
+  let directory: Awaited<ReturnType<typeof opendir>> | undefined;
+  try {
+    await hooks.afterInitialCustodyForTest?.();
+    await assertCandidateStoreBinding(root, binding);
+    directory = await opendir(binding.realDir);
+    await hooks.afterOpenForTest?.();
+    await assertCandidateStoreBinding(root, binding);
+    for await (const entry of directory) {
+      directEntries += 1;
+      if (directEntries > MAX_MUTATION_DIRECT_ENTRIES) {
+        throw new CandidateCustodyUnavailableError();
+      }
+      if (!entry.name.endsWith(".json")) continue;
+      if (ids.length >= MAX_MUTATION_JSON_LEAVES) {
+        throw new CandidateCustodyUnavailableError();
+      }
+      ids.push(entry.name.slice(0, -5));
+    }
+    await assertCandidateStoreBinding(root, binding);
+  } catch (error) {
+    if (error instanceof CandidateCustodyUnavailableError) throw error;
+    throw new CandidateCustodyUnavailableError();
+  } finally {
+    await directory?.close().catch(() => {});
+  }
+  return ids.sort(compareCandidateFileIdsUtf8);
+}
+
+/** Sort a selected mutation batch using the shared deterministic order. */
+export function sortCandidateFileEntries(entries: CandidateFileEntry[]): CandidateFileEntry[] {
+  return entries.sort(compareCandidateEntries);
+}
+
 /**
  * File ids of every pending candidate file, from one `readdir`. Nothing is
  * opened here — this is the cheap half of listing, and the only half
@@ -331,7 +337,7 @@ function isValidCandidate(value: unknown): value is ReviewCandidate {
 async function pendingCandidateFileIds(root: string): Promise<string[]> {
   const dir = await resolveConfinedCandidatesDir(root, CANDIDATES_DIR);
   if (dir === null) return []; // absent candidates dir → nothing pending
-  return listCandidateFileIds(dir);
+  return listCandidateFileIdsForRead(dir);
 }
 
 /** Read and sanitize the named candidates, dropping the ones that fail to parse. */

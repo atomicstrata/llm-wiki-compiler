@@ -8,8 +8,8 @@ import path from "node:path";
 import { resolveConfinedCandidatesDir } from "../../compiler/candidate-store-paths.js";
 import { readConfinedLeaf } from "../../utils/confined-read.js";
 import { CANDIDATES_ARCHIVE_DIR } from "../../utils/constants.js";
-import { isTerminalStatus } from "../../workflows/with-lock.js";
-import { readRun } from "../../workflows/store.js";
+import { isTerminalStatus } from "../../workflow-history/definition.js";
+import { readRun } from "../../workflow-history/store.js";
 import { confinedEntries } from "./corpus.js";
 
 const MAX_ARCHIVED_CANDIDATE_BYTES = 4 * 1024 * 1024;

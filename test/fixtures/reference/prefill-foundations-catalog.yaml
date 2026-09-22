@@ -1,0 +1,78 @@
+# VENDORED at the AutoSci reference pin (approved 2026-08-20, internal repo only):
+#   commit 7690889388b1c0e5ec9cad4c38e5e16d066357d3
+#   path   i18n/en/skills/prefill/foundations-catalog.yaml
+#   blob   f80733104de99484892fa6f27fa3a4ee801b73b2
+domains:
+  general:
+    - slug: gradient-descent
+      title: "Gradient Descent"
+      summary: "一阶优化算法家族，通过沿损失函数梯度的反方向迭代更新参数"
+    - slug: backpropagation
+      title: "Backpropagation"
+      summary: "利用链式法则高效计算神经网络中各参数梯度的算法"
+    - slug: regularization
+      title: "Regularization"
+      summary: "防止过拟合的技术家族，包括 L1/L2 正则化、dropout、早停等"
+    - slug: cross-validation
+      title: "Cross-Validation"
+      summary: "将数据划分为训练集和验证集以评估模型泛化能力的方法"
+    - slug: optimization
+      title: "Optimization"
+      summary: "机器学习中最小化损失函数的方法论，包括 SGD、Adam 等优化器"
+  NLP:
+    - slug: transformer
+      title: "Transformer"
+      summary: "基于自注意力机制的序列建模架构，取代 RNN 成为 NLP 主流"
+    - slug: attention-mechanism
+      title: "Attention Mechanism"
+      summary: "允许模型动态关注输入不同部分的机制"
+    - slug: recurrent-neural-networks
+      title: "Recurrent Neural Networks"
+      summary: "通过隐藏状态处理序列数据的神经网络架构，已被 Transformer 大幅取代"
+    - slug: word-embeddings
+      title: "Word Embeddings"
+      summary: "将离散词语映射到连续向量空间的表示学习方法"
+    - slug: sequence-to-sequence
+      title: "Sequence-to-Sequence Models"
+      summary: "编码器-解码器架构，用于变长输入到变长输出的映射"
+    - slug: language-model
+      title: "Language Model"
+      summary: "学习文本概率分布的模型，是 GPT/BERT 等预训练模型的基础"
+    - slug: tokenization
+      title: "Tokenization"
+      summary: "将文本切分为模型可处理的基本单元的方法"
+    - slug: pre-training
+      title: "Pre-training"
+      summary: "在大规模无标注数据上学习通用表示的训练范式"
+  CV:
+    - slug: convolutional-neural-networks
+      title: "Convolutional Neural Networks"
+      summary: "利用卷积操作提取空间特征的神经网络架构"
+    - slug: residual-connections
+      title: "Residual Connections"
+      summary: "通过跳跃连接缓解深层网络梯度消失的技术"
+    - slug: batch-normalization
+      title: "Batch Normalization"
+      summary: "通过规范化中间层激活值加速训练的技术"
+    - slug: generative-adversarial-networks
+      title: "Generative Adversarial Networks"
+      summary: "生成器和判别器对抗训练的生成模型框架"
+    - slug: data-augmentation
+      title: "Data Augmentation"
+      summary: "通过对训练数据施加变换来增加数据多样性的技术"
+    - slug: image-classification
+      title: "Image Classification"
+      summary: "将图像分配到预定义类别的视觉任务"
+  RL:
+    - slug: markov-decision-process
+      title: "Markov Decision Process"
+      summary: "强化学习的数学框架，定义状态、动作、转移和奖励"
+    - slug: policy-gradient
+      title: "Policy Gradient Methods"
+      summary: "直接优化策略函数的强化学习方法族"
+    - slug: q-learning
+      title: "Q-Learning"
+      summary: "学习状态-动作价值函数的无模型强化学习算法"
+    - slug: reward-shaping
+      title: "Reward Shaping"
+      summary: "通过设计辅助奖励信号引导强化学习agent学习的技术"

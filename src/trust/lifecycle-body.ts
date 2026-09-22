@@ -21,8 +21,8 @@ const RESERVED_EVIDENCE_KEYS: ReadonlySet<string> = new Set(["slug"]);
 
 /**
  * Reduce caller-supplied `evidence` to ONLY the keys that are legitimately
- * settable for THIS transition: the fields the entity's lifecycle declares as
- * `transitionRequirements[toState]`, MINUS any reserved identity key. Any key the
+ * settable for THIS transition: scalar `transitionRequirements` plus fields named
+ * by `transitionArtifactRequirements`, MINUS any reserved identity key. Any key the
  * caller passes that is not a declared evidence field for the target state — a
  * `title` clobber, a planted `slug`, arbitrary junk — is DROPPED. When the target
  * state declares no requirements, NO evidence key is admitted.
@@ -37,7 +37,9 @@ export function allowedEvidence(
   toState: string,
   evidence?: LifecycleEvidence,
 ): LifecycleEvidence {
-  const declared = def.lifecycle!.transitionRequirements?.[toState] ?? [];
+  const scalar = def.lifecycle!.transitionRequirements?.[toState] ?? [];
+  const artifact = def.lifecycle!.transitionArtifactRequirements?.[toState]?.map((item) => item.field) ?? [];
+  const declared = new Set([...scalar, ...artifact]);
   const allowed: LifecycleEvidence = {};
   for (const field of declared) {
     if (RESERVED_EVIDENCE_KEYS.has(field)) continue;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import path from "path";
-import { mkdir, rm, writeFile } from "fs/promises";
+import { mkdir, rm, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import { exec, CLI } from "./fixtures/cli-runner.js";
 
@@ -54,7 +54,8 @@ describe("CLI smoke tests", () => {
 
   it("prints version", async () => {
     const { stdout } = await exec("node", [CLI, "--version"]);
-    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/);
+    const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    expect(stdout.trim()).toBe(manifest.version);
   }, 30_000);
 
   it("advertises --concurrency on every command that drives a compile", async () => {

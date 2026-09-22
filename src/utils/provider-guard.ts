@@ -55,6 +55,7 @@ export class UnknownProviderError extends Error {
  * should name them.
  */
 const PROVIDER_KEY_VARS: Record<string, string | readonly string[] | null> = {
+  offline: null,
   anthropic: "ANTHROPIC_API_KEY",
   "claude-agent": null,
   "codex-agent": null,

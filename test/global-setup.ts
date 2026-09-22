@@ -21,26 +21,11 @@
  */
 
 import { execFile } from "child_process";
-import { readFileSync } from "fs";
-import { createRequire } from "module";
+import { resolveTsupCli } from "../scripts/tsup-command.js";
 import { promisify } from "util";
 import path from "path";
 
 const exec = promisify(execFile);
-const require = createRequire(import.meta.url);
-
-/**
- * Absolute path to tsup's CLI entry, read from its `bin` field rather than
- * hardcoded, so a tsup release that moves the file cannot silently break this.
- */
-function resolveTsupCli(): string {
-  const manifestPath = require.resolve("tsup/package.json");
-  const { bin } = JSON.parse(readFileSync(manifestPath, "utf8")) as {
-    bin: string | Record<string, string>;
-  };
-  const entry = typeof bin === "string" ? bin : bin.tsup;
-  return path.join(path.dirname(manifestPath), entry);
-}
 
 export async function setup(): Promise<void> {
   await exec(process.execPath, [resolveTsupCli()], { cwd: path.resolve(".") });

@@ -13,8 +13,10 @@ import { atomicWrite } from "../utils/markdown.js";
 import {
   readConfinedLeaf,
   openConfinedLeaf,
+  readConfirmedBufferOrElse,
   readWithinCapOrElse,
   type CappedLeafRead,
+  type CappedLeafReadBuffer,
   type ReadLeafOptions,
 } from "../utils/confined-read.js";
 import { isSlugSafe, isSafeFilenameComponent } from "../profile/identity.js";
@@ -41,18 +43,39 @@ export type ManifestRead =
   | { kind: "ok"; manifest: ArtifactManifest } | { kind: "absent" }
   | { kind: "unavailable" } | { kind: "malformed" };
 
+/** The validated canonical paths of one artifact: its two targets, their dir, and the dir relative to root. */
+export interface ArtifactPathsV1 {
+  bytesPath: string;
+  manifestPath: string;
+  expectedDir: string;
+  /** `artifacts/<type>/<slug>` — the form the confined directory sweeps take. */
+  relativeDir: string;
+}
+
 /** Build the two targets + expected dir, validating every segment first. */
-export function artifactPaths(root: string, artifactType: string, slug: string, fileName: string): { bytesPath: string; manifestPath: string; expectedDir: string } {
+export function artifactPaths(root: string, artifactType: string, slug: string, fileName: string): ArtifactPathsV1 {
   if (!isSlugSafe(artifactType)) throw new ArtifactPathError("type", artifactType);
   if (!isSlugSafe(slug)) throw new ArtifactPathError("slug", slug);
   if (!isSafeFilenameComponent(fileName)) throw new ArtifactPathError("fileName", fileName);
-  const expectedDir = path.join(root, "artifacts", artifactType, slug);
+  const relativeDir = path.join("artifacts", artifactType, slug);
+  const expectedDir = path.join(root, relativeDir);
   const bytesPath = path.join(expectedDir, fileName);
-  return { bytesPath, manifestPath: `${bytesPath}.manifest.json`, expectedDir };
+  return { bytesPath, manifestPath: `${bytesPath}.manifest.json`, expectedDir, relativeDir };
+}
+
+/** The canonical path of one member leaf beside the manifest, validating its name first. */
+export function memberLeafPath(expectedDir: string, fileName: string): string {
+  if (!isSafeFilenameComponent(fileName)) throw new ArtifactPathError("member", fileName);
+  return path.join(expectedDir, fileName);
 }
 
 export function hashArtifactBody(body: string): string {
   return createHash("sha256").update(body, "utf8").digest("hex");
+}
+
+/** Write one member leaf's raw bytes, confined and durable, like the artifact body. */
+export async function writeArtifactMember(root: string, leafPath: string, bytes: Uint8Array): Promise<void> {
+  await atomicWrite(leafPath, bytes, { confineRoot: root, durable: true });
 }
 
 export async function writeArtifactFiles(root: string, paths: { bytesPath: string; manifestPath: string }, body: string, manifest: ArtifactManifest): Promise<void> {
@@ -87,7 +110,10 @@ export function parseManifest(raw: unknown): ArtifactManifest | null {
   };
 }
 
-export async function readArtifactManifest(root: string, paths: { manifestPath: string; expectedDir: string }, maxBytes = 64 * 1024): Promise<ManifestRead> {
+/** Sidecar ceiling is independent of the profile's artifact body ceiling. */
+export const ARTIFACT_MANIFEST_MAX_BYTES = 64 * 1024;
+
+export async function readArtifactManifest(root: string, paths: { manifestPath: string; expectedDir: string }, maxBytes = ARTIFACT_MANIFEST_MAX_BYTES): Promise<ManifestRead> {
   const read = await readConfinedLeaf(root, paths.manifestPath, paths.expectedDir, maxBytes);
   if (read.kind === "absent") return { kind: "absent" };
   if (read.kind === "unavailable") return { kind: "unavailable" };
@@ -121,4 +147,14 @@ export async function readArtifactBody(root: string, paths: { bytesPath: string;
   const opened = await openConfinedLeaf(root, paths.bytesPath, paths.expectedDir, opts);
   if (opened.kind !== "confirmed") return opened;
   return readWithinCapOrElse(opened, maxBytes, (actualBytes) => ({ kind: "oversize" as const, actualBytes }));
+}
+
+/** A member leaf's raw-byte read outcome: the buffer read plus the same `oversize` discrimination as the body. */
+export type ArtifactMemberRead = CappedLeafReadBuffer | { kind: "oversize"; actualBytes: number };
+
+/** Read one member leaf's raw bytes through the SAME confined, no-follow, capped open as the body. */
+export async function readArtifactMemberBytes(root: string, leafPath: string, expectedDir: string, maxBytes: number): Promise<ArtifactMemberRead> {
+  const opened = await openConfinedLeaf(root, leafPath, expectedDir);
+  if (opened.kind !== "confirmed") return opened;
+  return readConfirmedBufferOrElse(opened, maxBytes, (actualBytes) => ({ kind: "oversize" as const, actualBytes }));
 }

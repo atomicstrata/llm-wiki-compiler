@@ -20,9 +20,9 @@
  * and exits 1 itself only on a malformed `--input` pair.
  */
 
-import * as output from "../utils/output.js";
-import { MAX_WORKFLOW_SUBMIT_FILE_BYTES } from "../utils/constants.js";
-import { readCappedNoFollow } from "../utils/confined-read.js";
+import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { MAX_WORKFLOW_SUBMIT_FILE_BYTES } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { readCappedNoFollow } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { assertInputDepthWithinBounds, WorkflowInputBoundsError } from "../workflows/input-bounds.js";
 import { listWorkflows } from "../workflows/list.js";
 import { showWorkflow, type WorkflowStageDetail } from "../workflows/show.js";
@@ -30,8 +30,6 @@ import { listRunEvents } from "../workflows/run-events.js";
 import { startWorkflow } from "../workflows/start.js";
 import { workflowStatus } from "../workflows/status.js";
 import { advanceWorkflow } from "../workflows/advance.js";
-import { approveGate, resolveGateKind } from "../workflows/gate.js";
-import { confirmHumanGateInteractively } from "../workflows/human-gate-confirm.js";
 import { cancelWorkflow } from "../workflows/cancel.js";
 import { failWorkflow } from "../workflows/fail.js";
 import { resumeWorkflow } from "../workflows/resume.js";
@@ -42,35 +40,27 @@ import {
   printRunStatus,
   printRunPosition,
   isProblematic,
-  processHumanGateIo,
   type WorkflowStartOptions,
 } from "./workflow-shared.js";
-import type { WorkflowActorKind, WorkflowRun } from "../workflows/types.js";
-import type { AppendRelationInput } from "../relations/store.js";
+import type { WorkflowRun } from "../workflows/types.js";
+import type { AppendRelationInput } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 export { parseJsonObject } from "./workflow-shared.js";
 export type { WorkflowStartOptions };
 export { workflowAdaptCommand, workflowProjectCommand } from "./workflow-adapt.js";
+export { workflowGateApproveCommand } from "./workflow-gate.js";
 export {
   workflowActionListCommand,
   workflowActionShowCommand,
   workflowActionRunCommand,
 } from "./workflow-action.js";
 
-/**
- * The actor kinds `gate approve --actor` accepts, for fail-closed validation.
- * `human` is DELIBERATELY excluded (C1): a `human` actor is producible ONLY by the
- * interactive TTY proof, never by a self-asserted flag. The flag asserts `agent` (the
- * default for the non-interactive/agent path) or `system`.
- */
-const ACTOR_KINDS: readonly WorkflowActorKind[] = ["agent", "system"];
-
 /** The `--kind` values `workflow submit` accepts, for fail-closed validation. */
-const STAGE_OUTPUT_KINDS: ReadonlySet<string> = new Set(["page", "relation", "lifecycle-transition", "artifact"]);
+const STAGE_OUTPUT_KINDS: ReadonlySet<string> = new Set(["page", "relation", "lifecycle-transition", "artifact", "human-input"]);
 
 /** Options accepted by `workflow submit` — the union of every kind's flags. */
 export interface WorkflowSubmitOptions {
-  /** The output kind: `page`, `relation`, `lifecycle-transition`, or `artifact` (required). */
+  /** The output kind: page, relation, lifecycle-transition, artifact, or human-input. */
   kind?: string;
   /** Target entity type (for `page`/`lifecycle-transition`). */
   entityType?: string;
@@ -84,20 +74,8 @@ export interface WorkflowSubmitOptions {
   toState?: string;
   /** Path to a JSON evidence file (optional, for `lifecycle-transition`). */
   evidenceFile?: string;
-  /** Path to a JSON `AppendRelationInput` file (for `relation`). */
+  /** Path to a JSON relation or human-input payload. */
   outputFile?: string;
-}
-
-/** Options accepted by `workflow gate approve` (the approving actor's kind + label). */
-export interface WorkflowGateApproveOptions {
-  /**
-   * The approving actor kind for a NON-human gate (`agent` default, or `system`).
-   * `human` is NOT accepted as a flag value (C1) — a human gate is approved only via
-   * the interactive TTY proof, never a self-asserted `--actor human`.
-   */
-  actor?: string;
-  /** Optional human-readable label identifying the actor. */
-  actorLabel?: string;
 }
 
 /**
@@ -124,7 +102,13 @@ function printStageDetail(stage: WorkflowStageDetail): void {
   console.log(`- ${stage.id}`);
   console.log(`    reads:  ${stage.reads.join(", ") || "(none)"}`);
   console.log(`    writes: ${stage.writes.join(", ") || "(none)"}`);
+  if (stage.humanInput !== undefined) {
+    console.log(`    humanInput: ${stage.humanInput.schemaId} (${Object.keys(stage.humanInput.fields).join(", ") || "no fields"})`);
+  }
   if (stage.gate !== undefined) console.log(`    gate:   ${stage.gate}`);
+  if (stage.subjectGate !== undefined) {
+    console.log(`    subject: ${stage.subjectGate.outputStageId} ${stage.subjectGate.artifactType} ${stage.subjectGate.verifierId}`);
+  }
   if (stage.previousIds !== undefined) console.log(`    previousIds: ${stage.previousIds.join(", ")}`);
 }
 
@@ -163,7 +147,8 @@ export async function workflowEventsCommand(runId: string): Promise<number> {
     return 0;
   }
   for (const event of events) {
-    const scope = [event.stageId && `stage=${event.stageId}`, event.gateId && `gate=${event.gateId}`, event.decision && `decision=${event.decision}`]
+    const scope = [event.stageId && `stage=${event.stageId}`, event.gateId && `gate=${event.gateId}`,
+      event.decision && `decision=${event.decision}`, event.subjectDigest && `subject=${event.subjectDigest}`]
       .filter(Boolean)
       .join(" ");
     console.log(`${event.at}  ${event.type}  ${event.actorKind}${scope ? `  ${scope}` : ""}  v${event.stateVersionBefore}→${event.stateVersionAfter}`);
@@ -223,68 +208,6 @@ export async function workflowAdvanceCommand(runId: string): Promise<number> {
   output.status("→", output.info(`outcome: ${outcome}`));
   printRunPosition(run);
   return 0;
-}
-
-/**
- * Validate the NON-human `actor` (default `"agent"`) is an accepted actor kind, or
- * print an error and exit 1. `human` is NOT an accepted flag value (C1): it is
- * producible only by the interactive proof, so passing `--actor human` is rejected
- * here and a human gate is approved via the interactive path instead.
- *
- * @param actor - The raw `--actor` value (undefined defaults to `"agent"`).
- * @returns The validated non-human actor kind (never returns on an unaccepted kind).
- */
-function actorKindOrExit(actor: string | undefined): WorkflowActorKind {
-  const kind = actor ?? "agent";
-  if (!ACTOR_KINDS.includes(kind as WorkflowActorKind)) {
-    console.error(`\x1b[31mError:\x1b[0m --actor ${JSON.stringify(kind)} cannot satisfy a gate (expected agent|system; a human gate is approved via interactive confirmation)`);
-    process.exit(1);
-  }
-  return kind as WorkflowActorKind;
-}
-
-/**
- * Approve a `human:` gate via the INTERACTIVE TTY proof (C1), or exit 1. A human
- * gate is satisfiable ONLY by an interactive operator retyping the echoed token; a
- * non-interactive (piped/redirected) subprocess — the agent case — fails closed
- * here with NO approval. Only on a confirmed proof does this call `approveGate` with
- * the `human` actor kind.
- */
-async function approveHumanGateInteractively(runId: string, gateId: string, actorLabel?: string): Promise<void> {
-  const confirmed = await confirmHumanGateInteractively(gateId, processHumanGateIo());
-  if (!confirmed) {
-    console.error(`\x1b[31mError:\x1b[0m human gate ${JSON.stringify(gateId)} was not interactively confirmed; nothing approved`);
-    process.exit(1);
-  }
-  const run = await approveGate(process.cwd(), runId, gateId, { actorKind: "human", actorLabel });
-  output.status("+", output.success(`Approved gate ${gateId} (${run.satisfiedGates.join(", ")})`));
-  console.log(`currentStage: ${run.currentStage ?? "(none)"}`);
-}
-
-/**
- * Approve a gate on a run's current stage. A `human:` gate routes through the
- * INTERACTIVE TTY proof (C1) — a non-interactive subprocess fails closed, never via
- * a self-asserted flag. A non-human gate validates the `--actor` kind (`agent`
- * default, or `system`; `human` is rejected as a flag value) and approves directly.
- * The gate errors (`GateActorMismatchError`/`UnknownGateError`/`TrustGateNotHereError`/
- * `RunNotActiveError`/`RunUnavailableError`) propagate to the cli.ts action wrapper.
- *
- * @param runId - The run id to approve a gate on.
- * @param gateId - The id of the current stage's gate to satisfy.
- * @param options - The approving actor's kind (non-human) and optional label.
- */
-export async function workflowGateApproveCommand(
-  runId: string,
-  gateId: string,
-  options: WorkflowGateApproveOptions,
-): Promise<void> {
-  if ((await resolveGateKind(process.cwd(), runId, gateId)) === "human") {
-    return approveHumanGateInteractively(runId, gateId, options.actorLabel);
-  }
-  const actorKind = actorKindOrExit(options.actor);
-  const run = await approveGate(process.cwd(), runId, gateId, { actorKind, actorLabel: options.actorLabel });
-  output.status("+", output.success(`Approved gate ${gateId} (${run.satisfiedGates.join(", ")})`));
-  console.log(`currentStage: ${run.currentStage ?? "(none)"}`);
 }
 
 /**
@@ -429,6 +352,16 @@ async function buildArtifactOutput(options: WorkflowSubmitOptions): Promise<Stag
   return { kind: "artifact", artifactType, slug, body };
 }
 
+/** Build a `human-input` output from a bounded JSON object file. */
+async function buildHumanInputOutput(options: WorkflowSubmitOptions): Promise<StageOutput> {
+  const file = requireOption(options.outputFile, "--output-file");
+  const parsed = await readJsonFileOrExit(file, "--output-file");
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return failSubmit(`--output-file ${JSON.stringify(file)} must contain a JSON object`);
+  }
+  return { kind: "human-input", input: parsed as Record<string, unknown> };
+}
+
 /**
  * Build the discriminated {@link StageOutput} for `--kind`, or fail the submit
  * (exit 1) on an unknown kind or a bad flag combo — all validation runs BEFORE
@@ -436,10 +369,11 @@ async function buildArtifactOutput(options: WorkflowSubmitOptions): Promise<Stag
  */
 async function buildStageOutput(options: WorkflowSubmitOptions): Promise<StageOutput> {
   const kind = requireOption(options.kind, "--kind");
-  if (!STAGE_OUTPUT_KINDS.has(kind)) failSubmit(`unknown --kind ${JSON.stringify(kind)} (expected page|relation|lifecycle-transition|artifact)`);
+  if (!STAGE_OUTPUT_KINDS.has(kind)) failSubmit(`unknown --kind ${JSON.stringify(kind)} (expected page|relation|lifecycle-transition|artifact|human-input)`);
   if (kind === "page") return buildPageOutput(options);
   if (kind === "lifecycle-transition") return buildLifecycleOutput(options);
   if (kind === "artifact") return buildArtifactOutput(options);
+  if (kind === "human-input") return buildHumanInputOutput(options);
   return buildRelationOutput(options);
 }
 

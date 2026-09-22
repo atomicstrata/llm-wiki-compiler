@@ -62,6 +62,22 @@ function assertArtifactReq(
   assert(declaredArtifactTypes.has(req.artifactType), `${where} artifactType '${req.artifactType}' is not a declared artifact type`);
   const scope = field!.artifactTypes;
   assert(scope === undefined || scope.includes(req.artifactType), `${where} artifactType '${req.artifactType}' is outside the declared scope of field '${req.field}'`);
+  assertExecutionProvenance(where, req);
+}
+
+/**
+ * Validate the optional execution-provenance arm (fail-closed, same M1 rule):
+ * each declared coordinate must be a non-empty string, or the write-time
+ * verifier could never match a run and the requirement would be silently
+ * unsatisfiable — a load failure, never a runtime surprise.
+ */
+function assertExecutionProvenance(where: string, req: ArtifactPreconditionReq): void {
+  const arm = req.executionProvenance;
+  if (arm === undefined) return; // omitted-for-default: existence/health only
+  const nonEmpty = (value: unknown): boolean => typeof value === "string" && value.length > 0;
+  assert(nonEmpty(arm.actionId), `${where} executionProvenance.actionId must be a non-empty string`);
+  assert(nonEmpty(arm.slugInputField), `${where} executionProvenance.slugInputField must be a non-empty string`);
+  assert(nonEmpty(arm.resultOutputId), `${where} executionProvenance.resultOutputId must be a non-empty string`);
 }
 
 /**
