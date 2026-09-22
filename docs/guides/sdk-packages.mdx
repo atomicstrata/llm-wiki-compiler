@@ -9,7 +9,7 @@ when evaluating it; do not assume the new package names are available from the r
 
 ## Supported entry point
 
-Applications, including llmflow, should install and import `llm-wiki-compiler`.
+Applications, including external coordinators, should install and import `llm-wiki-compiler`.
 The scoped packages below are publicly downloadable implementation dependencies,
 not separately supported consumer APIs. Direct exports are for compiler maintainers.
 Scoping does not make them private or establish a security boundary.
@@ -21,11 +21,11 @@ Scoping does not make them private or establish a security boundary.
 | Existing CLI or complete SDK | `llm-wiki-compiler` | `createWiki` |
 | Knowledge and domain services without local execution | `@atomicstrata/llmwiki-core` | `createWikiCore` |
 | Explicit compiler-local workflow composition | `@atomicstrata/llmwiki-local-workflows` plus matching core | `createLocalWorkflowRuntime` with an explicit host |
-| Product-wide process coordination | External application such as llmflow | Application-owned orchestration |
+| Product-wide process coordination | Your own application or orchestration platform | Application-owned orchestration calling the standard package |
 
 The standard package requires both core and the local engine at exact matching
 versions. Existing users do not need to select or construct a host. The engine
-is optional for core-only consumers, not an optional dependency of the standard
+can be omitted in internal core-only composition, but is not an optional dependency of the standard
 distribution. No existing CLI command is removed by choosing the standard package.
 
 ## Engine-free implementation
@@ -75,7 +75,13 @@ research or creative-asset modules likewise do not belong in compiler core.
 New reusable record, verification and authority mechanisms belong in core.
 Product sequencing, human decisions and revision strategy belong in the external
 coordinator. Existing compiler-local workflows remain supported on their
-experimental terms; they are not silently rerouted through llmflow.
+experimental terms; they are not silently rerouted through an external coordinator.
+
+The two are tiers, not a migration path. The local engine executes locally per
+invocation and retains run state and pending human gates between sessions.
+Reach for an external coordinator for automatic scheduling, worker recovery,
+distributed execution, managed approval routing or cross-project coordination; see
+[When to use the local engine](/cli/workflow#when-to-use-the-local-engine).
 
 ## Distribution requirements
 

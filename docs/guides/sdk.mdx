@@ -78,9 +78,13 @@ authority merely because the caller can import it.
 
 ### External orchestration and operation authority
 
-An external coordinator such as llmflow owns process sequencing, human interaction
-and revision policy. It calls core services for retained data and authorized
-effects; it does not replace the compiler's authority checks.
+An external coordinator (your own application or orchestration platform) owns
+process sequencing, human interaction and revision policy. It calls core
+services for retained data and authorized effects; it does not replace the
+compiler's authority checks. It is the tier above the compiler-local workflow
+engine, not a replacement for it: the local engine remains the supported way to
+advance a profile-declared workflow through local invocations, retaining its
+state and pending human gates between sessions.
 
 Use `wiki.operations` to prepare, observe and retire operation proposals. The SDK
 deliberately exposes no operation apply method. The separately authorized local
