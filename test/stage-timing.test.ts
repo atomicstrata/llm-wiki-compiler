@@ -7,6 +7,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { timeStage } from "../src/utils/stage-timing.js";
 
@@ -69,3 +70,12 @@ it("never fails the measured work when the log cannot be written", async () => {
   vi.stubEnv("LLMWIKI_STAGE_TIMING_FILE", missingParent);
   expect(await timeStage("compile.finalize", async () => "done")).toBe("done");
 });
+
+it.runIf(process.platform !== "win32")("returns and rethrows promptly when the log path is a FIFO nobody reads", async () => {
+  const fifo = path.join(await scratch(), "timing.fifo");
+  execFileSync("mkfifo", [fifo]);
+  vi.stubEnv("LLMWIKI_STAGE_TIMING_FILE", fifo);
+  expect(await timeStage("compile.detect-changes", async () => "done")).toBe("done");
+  const failure = new Error("stage failed");
+  await expect(timeStage("compile.extraction", async () => { throw failure; })).rejects.toBe(failure);
+}, 5_000);

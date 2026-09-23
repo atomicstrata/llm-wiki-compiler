@@ -434,13 +434,13 @@ async function runCompilePipeline(
       };
       // Ownerless frozen reconciliation mutates the draft; otherwise null keeps
       // the no-change path from rewriting state unnecessarily.
-      await seedThenFinalize(
+      await timeStage("compile.finalize", () => seedThenFinalize(
         root,
         schema,
         emptyGeneration,
         options,
         hasOwnerlessFrozen ? draft : null,
-      );
+      ));
       return {
         ...emptyCompileResult(),
         skipped: buckets.unchanged.length,

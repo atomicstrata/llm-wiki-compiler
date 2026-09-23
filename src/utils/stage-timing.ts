@@ -9,9 +9,16 @@
  * stage name, the duration, whether the stage threw, and the process id, never
  * source text, page content, prompts, paths, or credentials, so the log is safe to
  * share. A failure to write the log never changes the command's outcome.
+ *
+ * The sink must be a regular file. It is opened without following a symlink and
+ * with O_NONBLOCK, so a FIFO with no reader fails the open at once instead of
+ * blocking a stage (and the project lock it runs under) forever; anything that is
+ * not a regular file is skipped. New logs are created 0600; an existing file keeps
+ * its own mode.
  */
-import { appendFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
 import path from "node:path";
+import { openFileNoFollow } from "./no-follow-open.js";
 import { performance } from "node:perf_hooks";
 
 /** The fixed set of stage names; the log never contains anything caller-supplied. */
@@ -26,6 +33,8 @@ export type TimedStage =
 
 const TIMING_FILE_ENV = "LLMWIKI_STAGE_TIMING_FILE";
 const RECORD_VERSION = 1;
+const SINK_FLAGS = fsConstants.O_WRONLY | fsConstants.O_APPEND | fsConstants.O_CREAT
+  | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK;
 
 /** The configured log path, or null when timing is off (unset, blank, or relative). */
 function timingFile(): string | null {
@@ -37,9 +46,14 @@ function timingFile(): string | null {
 async function record(file: string, stage: TimedStage, ms: number, ok: boolean): Promise<void> {
   const line = JSON.stringify({ v: RECORD_VERSION, stage, ms: Math.round(ms * 1000) / 1000, ok, pid: process.pid });
   try {
-    await appendFile(file, `${line}\n`, { mode: 0o600 });
+    const handle = await openFileNoFollow(file, SINK_FLAGS, 0o600);
+    try {
+      if ((await handle.stat()).isFile()) await handle.appendFile(`${line}\n`);
+    } finally {
+      await handle.close();
+    }
   } catch {
-    // Deliberately silent: a missing or read-only log path is not the command's concern.
+    // Deliberately silent: an unusable log path is not the measured command's concern.
   }
 }
 
