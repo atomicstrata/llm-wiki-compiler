@@ -23,12 +23,9 @@ import { releaseLock } from "../../src/utils/lock.js";
 import type { OperationRun } from "../../src/operation-bundles/run-types.js";
 import type { OperationRunId } from "../../src/operation-bundles/ids.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
-import { readPreparationKey } from "../../src/preparations/key-epoch.js";
-import { preparationManifestDigest } from "../../src/preparations/manifest-parse.js";
 import { readPreparationManifest } from "../../src/preparations/manifest-store.js";
-import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";
 import { appendPreparationTransitionLocked, handoffStartBinding, readPreparationRun } from "../../src/preparations/run-store.js";
-import { stagePreparationLocked } from "../../src/preparations/stage.js";
+import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";
 import { createOperationIntentCompilerV1, type HostMutationTargetV1 } from "../../src/preparations/intent-compiler.js";
 import { normalizeProviderProposals } from "../../src/preparations/proposals.js";
 import { decideReconciliation } from "../../src/preparations/reconciliation.js";
@@ -39,7 +36,7 @@ import type { PreparationHandoffObligationsV1 } from "../../src/preparations/ser
 import type { HandoffBundleAuthoritiesV1 } from "../../src/preparations/handoff-bundle.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";
 import type { PreparationEvidenceRef } from "../../src/operation-bundles/types.js";
-import { fixturePlan, stageRequest } from "./store-fixture.js";
+import { stagePreparation } from "./lifecycle-fixture.js";
 import { adapters, ATTEMPT, contract, evidence, identitySetRef, PROVIDER_PIN } from "./task7-fixture.js";
 
 const ACTOR = { id: "operator", surface: "cli" } as const;
@@ -199,14 +196,7 @@ export async function readCreatedGenesisRun(
 
 /** Stage a preparation and drive its run to the `handoff-ready` state. */
 export async function stageReadyPreparation(root: string): Promise<PreparationRunBinding> {
-  const staged = await stagePreparationLocked(root, stageRequest(fixturePlan()));
-  if (staged.status !== "staged") throw new Error(`not staged: ${staged.status}`);
-  const key = await readPreparationKey(root);
-  if (key.status !== "ok") throw new Error("no preparation key");
-  const binding: PreparationRunBinding = {
-    runId: staged.manifest.runId, preparationId: staged.manifest.preparationId, workspaceId: staged.manifest.workspaceId,
-    manifestDigest: preparationManifestDigest(staged.manifest), keyEpochId: key.keyEpochId,
-  };
+  const { binding } = await stagePreparation(root);
   await drive(root, binding, "phase-started", "running", { kind: "phase", phaseInstanceId: `phi_${"a".repeat(64)}`, phaseState: "running" }, "2026-07-23T00:01:00.000Z");
   await drive(root, binding, "handoff-ready", "handoff-ready", { kind: "none" }, "2026-07-23T00:02:00.000Z");
   return binding;

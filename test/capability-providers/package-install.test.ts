@@ -13,6 +13,7 @@ import {
 } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";
+import { authorizedProviderRoots } from "./provider-roots.js";
 import { addProviderSource, installRemoteProvider, refreshProviderSource } from "../../src/capability-providers/packages/remote-install.js";
 import { approveLocalProviderExecution, installLocalProvider } from "../../src/capability-providers/packages/local-install.js";
 import {
@@ -343,12 +344,7 @@ function remoteRequest(fixture: ReturnType<typeof providerDistribution>, seams: 
 }
 
 async function isolatedPaths(nowForTest = () => new Date("2026-07-17T12:00:00Z")) {
-  const root = await temporaryRoot("llmwiki-provider-state-");
-  await mkdir(path.join(root, "config"), { mode: 0o700 });
-  await mkdir(path.join(root, "cache"), { mode: 0o700 });
-  return authorizeProviderPathsForTest({
-    configRoot: path.join(root, "config"), cacheRoot: path.join(root, "cache"), nowForTest,
-  } as never);
+  return authorizedProviderRoots(await temporaryRoot("llmwiki-provider-state-"), nowForTest);
 }
 
 async function temporaryRoot(prefix: string): Promise<string> {
