@@ -87,6 +87,7 @@ import type {
   SourceChange,
   SourceState,
 } from "../utils/types.js";
+import { timeStage } from "../utils/stage-timing.js";
 
 /** Empty CompileResult used when no pipeline work runs (e.g. lock contention). */
 function emptyCompileResult(): CompileResult {
@@ -404,7 +405,7 @@ async function runCompilePipeline(
   // SINGLE flush after the resolution phase commits (see finalizeWiki below).
   const draft = await CompileStateDraft.load(root);
   const state = draft.read();
-  const detected = await detectChanges(root, state);
+  const detected = await timeStage("compile.detect-changes", () => detectChanges(root, state));
   const changes = promoteForPromptModifiers(
     applyChangeFilter(detected, options.changeFilter),
     state,
@@ -472,9 +473,9 @@ async function runCompilePipeline(
   // Resolve once so an invalid override warns a single time, then cap both the
   // extraction and page-generation fan-outs identically.
   const concurrency = resolveCompileConcurrency(options.concurrency);
-  const extractions = await runExtractionPhases(
+  const extractions = await timeStage("compile.extraction", () => runExtractionPhases(
     root, buckets.toCompile, state, { scoped: changes, detected }, concurrency,
-  );
+  ));
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
     reportFrozenSlugs(frozenSlugs);
@@ -483,7 +484,7 @@ async function runCompilePipeline(
   // Snapshot pages on disk before generation so the journal can tell which
   // produced pages are new (created) versus overwritten (updated).
   const existingIds = await listExistingPageIds(root);
-  const generation = await generatePagesPhase(
+  const generation = await timeStage("compile.page-generation", () => generatePagesPhase(
     root,
     extractions,
     frozenSlugs,
@@ -492,7 +493,7 @@ async function runCompilePipeline(
     options,
     reviewPolicy,
     concurrency,
-  );
+  ));
 
   if (!options.review) {
     const written = new Set(generation.writtenPages.map((entry) => entry.slug));
@@ -512,7 +513,7 @@ async function runCompilePipeline(
     // no-source-changes branch (see seedThenFinalize). The draft flush is the
     // single durable state write, done inside finalizeWiki after resolution
     // commits.
-    await seedThenFinalize(root, schema, generation, options, draft);
+    await timeStage("compile.finalize", () => seedThenFinalize(root, schema, generation, options, draft));
     await logCompile(root, buckets, generation, existingIds);
   }
   verbose(`compile finished in ${Date.now() - startMs} ms`);
@@ -673,7 +674,7 @@ async function finalizeWiki(
 
   await generateIndex(root);
   await generateMOC(root);
-  if (embeddings) await safelyUpdateEmbeddings(root, allChangedSlugs);
+  if (embeddings) await timeStage("compile.embeddings", () => safelyUpdateEmbeddings(root, allChangedSlugs));
 }
 
 /**

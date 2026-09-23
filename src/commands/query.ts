@@ -28,6 +28,7 @@ import { loadSelectedRefRecords } from "../search/retrieval.js";
 import { slugFromPageId, type PageId } from "../utils/page-id.js";
 import type { PageRecordWithId } from "../utils/page-registry.js";
 import { selectRelevantPages, type SelectedPages } from "./query-selection.js";
+import { timeStage } from "../utils/stage-timing.js";
 import { maybeSaveQueryPage, assertQuerySaveOptions } from "./query-publication.js";
 export { assertQuerySaveOptions } from "./query-publication.js";
 import { buildQueryDocument } from "./query-document.js";
@@ -171,9 +172,9 @@ export async function generateAnswer(
 
   const scopedOrReview = options.pageScope !== undefined || options.review === true;
   const hydratedGrounding = scopedOrReview || options.grounding === "hydrated";
-  const selection = await selectRelevantPages(root, question, Boolean(options.debug), options.pageScope, {
+  const selection = await timeStage("query.retrieval", () => selectRelevantPages(root, question, Boolean(options.debug), options.pageScope, {
     embeddingFailure: options.embeddingFailure ?? (scopedOrReview ? "fallback" : "throw"),
-  });
+  }));
   // Human/log surfaces use the QUALIFIED pageId so same-slug pages
   // (`concepts/foo` vs `papers/foo`) are distinguishable; the structured
   // `selectedPages` API field stays bare slugs for back-compat (buildResultFields).
@@ -198,7 +199,7 @@ export async function generateAnswer(
   const hydratedIds = new Set(hydratedPairs.map((pair) => pair.pageId));
   const promptChunks = hydratedGrounding
     ? selection.chunks.filter((chunk) => hydratedIds.has(chunk.pageId)) : selection.chunks;
-  const answer = await callAnswerLLM(question, pagesContent, promptChunks, options.onToken);
+  const answer = await timeStage("query.answer", () => callAnswerLLM(question, pagesContent, promptChunks, options.onToken));
   // Advisory citation report over the canonical saved body: a snapshot for the
   // caller, never permission to publish. Its failure preserves the answer.
   const { document, body } = buildQueryDocument(question, answer, new Date().toISOString());

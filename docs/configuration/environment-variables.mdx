@@ -352,6 +352,7 @@ place because extraction depends on structured arguments, not optional prose.
 |---|---|---|
 | `LLMWIKI_DEBUG` | `1` or `verbose` | Debug tracing for the `claude-agent` provider only. `1` prints a concise one-line trace per SDK message plus subprocess errors. `verbose` additionally enables the Agent SDK's full verbose logging |
 | `LLMWIKI_VERBOSE` | any non-empty value | Enable verbose progress output on commands that accept `--verbose` (`compile`, `refresh`, `quickstart`, `ingest`, `ingest-session`, `query`, `context`, `export`, `import`). Equivalent to passing `--verbose` on the command line. Detail is richest for `compile`, `refresh`, and `quickstart`, which print per-step lines for source parsing, concept merging, page writes, embedding batches, and total compile time |
+| `LLMWIKI_STAGE_TIMING_FILE` | absolute file path | Off by default. When set to an absolute path, `compile` and `query` append one JSON line per stage (`compile.detect-changes`, `compile.extraction`, `compile.page-generation`, `compile.finalize`, `compile.embeddings`, `query.retrieval`, `query.answer`) with only `v`, `stage`, `ms`, `ok`, and `pid`: no source text, prompts, answers, paths, or credentials. A relative path is ignored, and a log that cannot be written never fails the command. `compile.embeddings` runs inside `compile.finalize`, so its time is included in both |
 
 ---
 
