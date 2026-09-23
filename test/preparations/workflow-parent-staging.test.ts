@@ -15,11 +15,8 @@ import { writeRun } from "../../src/workflows/store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus } from "../../src/workflows/types.js";
 import { stagePreparationLocked } from "../../src/preparations/stage.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
-import { readPreparationRun } from "../../src/preparations/run-store.js";
-import { readPreparationKey } from "../../src/preparations/key-epoch.js";
-import { preparationManifestDigest } from "../../src/preparations/manifest-parse.js";
 import type { PreparationId, PreparationRunId } from "../../src/preparations/ids.js";
-import { fixturePlan, stageRequest } from "./store-fixture.js";
+import { fixturePlan, readReplayedRun, stageRequest } from "./store-fixture.js";
 
 const root = useTempRoot();
 const RUN_ID = "journey-2026-08-29-0001";
@@ -118,13 +115,7 @@ describe("under-lock get-or-create", () => {
     expect(replay.status).toBe("staged");
     if (replay.status !== "staged") throw new Error("unreachable");
     expect(replay.manifest.preparationId).toBe(IDS.preparationId);
-    const key = await readPreparationKey(root.dir);
-    if (key.status !== "ok") throw new Error("key missing after replay");
-    // fallow-ignore-next-line code-duplication
-    const run = await readPreparationRun(root.dir, {
-      runId: IDS.runId, preparationId: IDS.preparationId, workspaceId: replay.manifest.workspaceId,
-      manifestDigest: preparationManifestDigest(replay.manifest), keyEpochId: key.keyEpochId,
-    });
+    const run = await readReplayedRun(root.dir, replay.manifest, IDS);
     expect(run.status === "ok" && run.run.state).toBe("planned");
   });
 });

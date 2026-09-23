@@ -19,6 +19,10 @@ import type { PreparationPrincipalV1, PreparationRunBinding } from "../../src/pr
 import type { StagePreparationRequest } from "../../src/preparations/stage.js";
 import { validPlan } from "./plan-fixture.js";
 import { declareMaterializationCapacity } from "./materialization-fixture.js";
+import { readPreparationKey } from "../../src/preparations/key-epoch.js";
+import { preparationManifestDigest, type PreparationManifestV1 } from "../../src/preparations/manifest-parse.js";
+import { readPreparationRun } from "../../src/preparations/run-store.js";
+import type { PreparationId, PreparationRunId } from "../../src/preparations/ids.js";
 
 /** The one canonical structured seed every fixture preparation freezes into evidence. */
 export const SEED_VALUE = { seed: "initial-input", version: 1 };
@@ -148,4 +152,20 @@ export async function stageBoundPreparation(
   const key = await readPreparationKey(root);
   if (key.status !== "ok") throw new Error("staged key unavailable");
   return bindingFor(staged.manifest, key.keyEpochId);
+}
+
+/**
+ * Read the run a replayed stage produced, addressed by the ids the test pinned
+ * (not the manifest's own, so a replay that minted a different run reads absent)
+ * under the current key epoch. A missing key fails loudly rather than reading nothing.
+ */
+export async function readReplayedRun(
+  root: string, manifest: PreparationManifestV1, ids: { runId: PreparationRunId; preparationId: PreparationId },
+): Promise<Awaited<ReturnType<typeof readPreparationRun>>> {
+  const key = await readPreparationKey(root);
+  if (key.status !== "ok") throw new Error("key missing after replay");
+  return readPreparationRun(root, {
+    runId: ids.runId, preparationId: ids.preparationId, workspaceId: manifest.workspaceId,
+    manifestDigest: preparationManifestDigest(manifest), keyEpochId: key.keyEpochId,
+  });
 }

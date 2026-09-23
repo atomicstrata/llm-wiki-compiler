@@ -8,6 +8,7 @@ import path from "node:path";
 import { lstat, mkdir, mkdtemp, realpath, rename, symlink, writeFile } from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";
+import { authorizedProviderRoots } from "./provider-roots.js";
 import { addProviderSource, installRemoteProvider, refreshProviderSource } from "../../src/capability-providers/packages/remote-install.js";
 import { readProviderInstallState } from "../../src/capability-providers/packages/state-store.js";
 import { installBuiltinProvider } from "../../src/capability-providers/packages/builtin.js";
@@ -48,16 +49,9 @@ describe("provider package install races", () => {
 describe("provider package installer serialization", () => {
   it("serializes two installers into one immutable installation record", async () => {
     const fixture = providerDistribution();
-    // Keep this serialization fixture self-contained from the installation suite.
-    // fallow-ignore-next-line code-duplication
     const root = await realpath(await mkdtemp(path.join(os.tmpdir(), "llmwiki-provider-install-race-")));
     roots.push(root);
-    await mkdir(path.join(root, "config"), { mode: 0o700 });
-    await mkdir(path.join(root, "cache"), { mode: 0o700 });
-    const paths = await authorizeProviderPathsForTest({
-      configRoot: path.join(root, "config"), cacheRoot: path.join(root, "cache"),
-      nowForTest: () => new Date("2026-07-17T12:00:00Z"),
-    } as never);
+    const paths = await authorizedProviderRoots(root, () => new Date("2026-07-17T12:00:00Z"));
     await addProviderSource(paths, {
       name: "official", indexUrl: "https://tap.example/index.json", trustedKey: TAP.publicKey,
     });

@@ -13,6 +13,7 @@ import {
   approveLocalProviderExecution, installLocalProvider,
 } from "../../src/capability-providers/packages/local-install.js";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";
+import { authorizedProviderRoots } from "./provider-roots.js";
 import { addProviderSource, installRemoteProvider, refreshProviderSource } from "../../src/capability-providers/packages/remote-install.js";
 import {
   readProviderInstallState, withProviderStateLock, writeProviderInstallState,
@@ -178,12 +179,6 @@ function pinForPayload(payload: Record<string, unknown>, coordinateText: string,
 }
 
 /** Create isolated config/cache roots authorized through the Task 3 seam. */
-async function providerPaths(root: string, nowForTest: () => Date) {
-  // This mirrors the existing Task 3 test root setup while keeping Task 4 fixtures self-contained.
-  // fallow-ignore-next-line code-duplication
-  await mkdir(path.join(root, "config"), { mode: 0o700 });
-  await mkdir(path.join(root, "cache"), { mode: 0o700 });
-  return authorizeProviderPathsForTest({
-    configRoot: path.join(root, "config"), cacheRoot: path.join(root, "cache"), nowForTest,
-  });
+function providerPaths(root: string, nowForTest: () => Date) {
+  return authorizedProviderRoots(root, nowForTest);
 }

@@ -9,11 +9,8 @@
 
 import { describe, expect, it } from "vitest";
 import { useTempRoot } from "../fixtures/temp-root.js";
-import { readPreparationRun } from "../../src/preparations/run-store.js";
-import { readPreparationKey } from "../../src/preparations/key-epoch.js";
-import { preparationManifestDigest } from "../../src/preparations/manifest-parse.js";
 import { stagePreparationLocked, type StageFaultsForTest } from "../../src/preparations/stage.js";
-import { fixturePlan, stageRequest } from "./store-fixture.js";
+import { fixturePlan, readReplayedRun, stageRequest } from "./store-fixture.js";
 import type { PreparationId, PreparationRunId } from "../../src/preparations/ids.js";
 
 const root = useTempRoot();
@@ -26,12 +23,7 @@ async function crashThenReplay(faults: StageFaultsForTest) {
   await expect(stagePreparationLocked(root.dir, request)).rejects.toThrow();
   const replay = await stagePreparationLocked(root.dir, stageRequest(fixturePlan(), { idsForTest: IDS, clock: CLOCK }));
   if (replay.status !== "staged") throw new Error("replay did not stage");
-  const key = await readPreparationKey(root.dir);
-  if (key.status !== "ok") throw new Error("key missing after replay");
-  const run = await readPreparationRun(root.dir, {
-    runId: IDS.runId, preparationId: IDS.preparationId, workspaceId: replay.manifest.workspaceId,
-    manifestDigest: preparationManifestDigest(replay.manifest), keyEpochId: key.keyEpochId,
-  });
+  const run = await readReplayedRun(root.dir, replay.manifest, IDS);
   return { replay, run };
 }
 
