@@ -160,7 +160,8 @@ llmwiki review show <id>                          # inspect the draft before dec
 
 `--candidates` selects all pending concept/query drafts instead of live pages.
 Typed profile candidates, malformed records, and drafts without prose are listed
-as skipped. It does not run live-page health metrics, thresholds, or regression
+as skipped. A draft whose target directory is not recognized is assessed as the
+concepts page that approval would write. It does not run live-page health metrics, thresholds, or regression
 deltas. Without this flag, evaluation continues to select live pages as before.
 
 Each candidate reference includes its ID, target, generation time, SHA-256 of the

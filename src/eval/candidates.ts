@@ -16,9 +16,14 @@ import { createCitationJudge, selectDeterministicSample, type CitationPair } fro
 import type { CandidateAssessment, CandidateEvalReport, CandidateReference } from "./candidate-types.js";
 import type { ReviewCandidate } from "../utils/types.js";
 
+/** The directory approval writes to: any value other than "queries" routes to concepts. */
+function approvalDirectory(candidate: ReviewCandidate): "concepts" | "queries" {
+  return candidate.targetDirectory === "queries" ? "queries" : "concepts";
+}
+
 /** Capture identity of the loaded record, including metadata and full page content. */
 function referenceFor(candidate: ReviewCandidate, raw: string): CandidateReference {
-  return { id: candidate.id, target: `${candidate.targetDirectory ?? "concepts"}/${candidate.slug}`,
+  return { id: candidate.id, target: `${approvalDirectory(candidate)}/${candidate.slug}`,
     generatedAt: candidate.generatedAt, revision: evaluationHash(raw),
     contentHash: evaluationHash(candidate.body) };
 }
@@ -36,9 +41,9 @@ function generationHashes(raw: string): Record<string, string> {
 /** Preserve invalid/unsupported queue entries as explicit skips. */
 function skipReason(candidate: ReviewCandidate | undefined, id: string): string | undefined {
   if (!candidate || candidate.id !== id) return "Candidate is missing, malformed, or has a mismatched file id.";
-  if (candidate.targetEntityType || ![undefined, "concepts", "queries"].includes(candidate.targetDirectory)) {
-    return "Typed profile candidates are outside this evaluation scope.";
-  }
+  // Only typed candidates leave the default pages; an unrecognized directory is
+  // still published by approval (into concepts), so it is assessed like one.
+  if (candidate.targetEntityType) return "Typed profile candidates are outside this evaluation scope.";
   return undefined;
 }
 

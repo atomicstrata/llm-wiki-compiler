@@ -186,6 +186,16 @@ describe("pending candidate evaluation", () => {
     expect(report.judgeUnavailable).toBeUndefined();
   });
 
+  it("assesses a record with an unknown target directory at the concepts page approval would write", async () => {
+    await env.writeSource("ref.md", source);
+    const candidate = await stage();
+    const file = path.join(env.dir, ".llmwiki/candidates", `${candidate.id}.json`);
+    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, "utf8")), targetDirectory: "elsewhere" }));
+    const report = await evaluateCandidates(env.dir, "fast");
+    expect(report.skippedCandidates).toEqual([]);
+    expect(report.candidates.map(item => item.target)).toEqual(["concepts/same"]);
+  });
+
   it("skips a valid record copied under a different file id", async () => {
     const candidate = await stage();
     const raw = await readFile(path.join(env.dir, ".llmwiki/candidates", `${candidate.id}.json`), "utf8");
