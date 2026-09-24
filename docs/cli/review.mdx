@@ -151,6 +151,11 @@ candidate body. Connector candidates require the hash shown by `review show`;
 do not compute a new pin without reviewing changed content. A supplied hash is
 checked for ordinary candidates too.
 
+The batch enters the same mutation recovery gate as single approval. Unsettled
+operation bundles or unfinished preparation maintenance block approval before
+candidate promotion. Candidate storage must also be available and writable
+before any live page writes. These failures retain pending candidates.
+
 The command re-reads and validates candidates under the lock before applying
 the valid subset. Missing or invalid candidates remain unapproved. Identical IDs
 are processed once. Conflicting pins for the same ID, or different candidates
@@ -160,6 +165,21 @@ platform, including case-sensitive filesystems and pages that do not yet exist.
 For example, `Alpha` and `alpha` in the same namespace conflict; their original
 paths are not renamed. Every contender remains pending, so input order cannot
 choose a winner. The same slug in different namespaces remains independent.
+
+Destination preconditions are checked under that same lock. A candidate with
+`expectedTargetHash` requires the current page to match that hash;
+`expectTargetAbsent` requires the page to remain absent. Changed, removed, or
+unverifiable destinations receive an individual `invalid` result. The candidate
+body hash does not replace this destination check. Re-propose stale repairs
+against the current page before approving them.
+
+Generic candidates use the same citation checks as single approval: broken
+targets are refused, pending chains and repairable prefixes remain allowed, and
+an unavailable citation check warns without changing generic approval policy.
+Validated answer candidates receive `invalid` with instructions to use
+`llmwiki review approve <id>` individually. This preserves their exact validated
+bytes by keeping them out of the batch link-repair tail. Other valid candidates
+in a mixed batch can still proceed.
 
 Candidates that update source state must agree on the recorded hash of every
 shared source. If valid candidates contain different revisions of a source,
@@ -179,6 +199,9 @@ With `--json`, stdout contains one JSON result. The envelope includes:
 | `timingsMs` | Total duration and timings for reached phases such as validation, promotion, link repair, index, and cleanup. |
 | `error` | A shared technical error, when present. |
 
+`timingsMs.lockWait` includes lock acquisition and the shared recovery gate.
+Recovery is not measured again as a separate batch phase.
+
 Candidate statuses are `approved`, `invalid`, `conflict`, or `failed`. Exit code
 `0` means the operation completed without refusals. Exit code `1` covers both
 partial results and technical failures: inspect the JSON `status` before
@@ -189,7 +212,12 @@ the finalizer. The existing single-candidate commands remain available.
   A batch is not a transaction over the entire wiki. Page promotion uses the
   write journal, but source-state updates and finalization are an idempotent
   tail. A finalization failure can leave written pages while their candidates
-  remain pending. Retry the retained candidates to complete that tail.
+  remain pending. Ordinary candidates without destination preconditions can be
+  retried to complete that tail. Preconditions are checked again on every retry:
+  if promotion already changed a protected destination, the old proposal is
+  refused even when its body matches the live page. Inspect the published page
+  and unfinished finalization, and re-propose against the current destination;
+  do not remove the precondition to force approval.
 
   Candidate removal starts only after finalization succeeds. An interruption
   during removal can leave some candidates cleared and others pending; a retry
@@ -205,12 +233,16 @@ counts, quarantines, and stored vectors remain unchanged. Unlike single approval
 and compile, a batch does not drain the older embedding backlog or perform a
 whole-store migration. If the existing store is legacy, incompatible with the
 active embedding configuration, or unreadable, the embedding refresh is deferred
-with a warning; run `llmwiki compile` for full reconciliation. Strict embedding
-mode still reports refresh failure as an error.
+with a warning; run `llmwiki compile` for full reconciliation. This preserves
+durable pending work and its existing attempt counts: requiring a migration
+does not consume provider attempts or quarantine pages. Strict embedding mode
+still reports refresh failure as an error after preserving that work.
 
-Before changing links, the batch records affected page IDs in
+Before promoting any candidate page, the batch validates its intent storage and
+records the initially known candidate page IDs in
 `.llmwiki/review-embedding-intent.json`, associated with the exact candidate
-snapshots. A reordered retry, or a retry of a retained subset, recovers that
+snapshots. It also records additional affected IDs before changing their links.
+A reordered retry, or a retry of a retained subset, recovers that
 group's work even when its links were already written before an index or Map of
 Content failure. Other interrupted groups and unrelated pending embeddings are
 not retried. Entries are cleared only after refresh completes or durably hands
@@ -218,8 +250,11 @@ off the work to the embedding retry queue. Explicitly disabling embeddings
 also permits completion; a later full compile reconciles missing vectors.
 
 The intent file is confined to the project and capped at **1 MiB**. Unreadable,
-invalid, oversized, or unwritable intent storage fails the operation and keeps
-candidates for retry. A full or unreadable embedding retry queue likewise fails
+invalid, oversized, or unwritable intent storage detected in preflight fails
+before candidate promotion or source-state finalization and keeps candidates
+pending. Capacity for initially known work is checked at this point; capacity
+for newly discovered collateral work is checked before its link writes. A later
+failure can still leave earlier writes in place. A full or unreadable embedding retry queue likewise fails
 batch finalization rather than forgetting unrecorded work. Repair storage or
 free retry capacity, then retry the retained candidates. Keep their snapshots
 unchanged until recovery finishes: editing or rejecting them does not erase

@@ -26,8 +26,15 @@ const intentSchema = z.object({
 });
 type IntentEntry = z.infer<typeof intentSchema>["entries"][number];
 
+/** One locked session retaining ownership of this batch's embedding work. */
+export interface ReviewEmbeddingIntent {
+  pageIds: Set<PageId>;
+  record(pageIds: PageId[]): Promise<void>;
+  clear(): Promise<void>;
+}
+
 /** Open only work owned by these exact candidate snapshots; preserve all other entries. */
-export async function openReviewEmbeddingIntent(root: string, candidates: ReviewCandidate[]) {
+export async function openReviewEmbeddingIntent(root: string, candidates: ReviewCandidate[]): Promise<ReviewEmbeddingIntent> {
   const directory = await resolveConfinedPrivateDir(root);
   const file = path.join(directory, INTENT_FILE);
   const entries = await readIntent(directory, file);
@@ -40,12 +47,14 @@ export async function openReviewEmbeddingIntent(root: string, candidates: Review
     candidates: [...new Set([...keys, ...selected.flatMap(entry => entry.candidates)])],
     pageIds: [...new Set(selected.flatMap(entry => entry.pageIds))],
   };
+  const pageIds = new Set<PageId>(owned.pageIds);
   return {
-    pageIds: new Set<PageId>(owned.pageIds),
+    pageIds,
     /** Record before mutations, propagating failures rather than losing retry intent. */
-    async record(pageIds: PageId[]): Promise<void> {
-      owned.pageIds = [...new Set([...owned.pageIds, ...pageIds])];
+    async record(additionalIds: PageId[]): Promise<void> {
+      owned.pageIds = [...new Set([...owned.pageIds, ...additionalIds])];
       await persistIntent(directory, file, [...untouched, owned]);
+      for (const id of additionalIds) pageIds.add(id);
     },
     /** Retire only this work after handing it to the normal embedding retry lifecycle. */
     async clear(): Promise<void> {

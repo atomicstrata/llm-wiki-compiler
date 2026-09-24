@@ -12,6 +12,18 @@ import { resolveEmbeddingModel, storeMatchesActiveEmbedding, STORE_VERSION, type
 import { assertEmbeddingStoreValid } from "./embeddings-validate.js";
 import type { PageId } from "./page-id.js";
 
+/** Why an affected-only update cannot safely interpret the existing store. */
+export type FullEmbeddingReconciliationReason = "unreadable" | "legacy" | "backend" | "invalid";
+
+/** Typed refusal that preserves retry budgets until full reconciliation runs. */
+export class FullEmbeddingReconciliationRequiredError extends Error {
+  constructor(readonly reason: FullEmbeddingReconciliationReason, detail?: string) {
+    const suffix = detail === undefined ? "" : ` (${detail})`;
+    super(`Embedding store requires full reconciliation: ${reason}${suffix}. Run compile to reconcile the full embedding store.`);
+    this.name = "FullEmbeddingReconciliationRequiredError";
+  }
+}
+
 /** An update whose writes and provider requests are confined to the supplied IDs. */
 export interface ScopedEmbeddingUpdate {
   store: EmbeddingStoreV3;
@@ -51,9 +63,18 @@ async function readScopedStore(root: string): Promise<EmbeddingStoreV3> {
   if (result.kind === "absent") {
     return { version: STORE_VERSION, model: resolveEmbeddingModel(), dimensions: 0, entries: [], chunks: [] };
   }
-  if (result.kind !== "parsed" || result.parsed.version !== STORE_VERSION || !storeMatchesActiveEmbedding(result.parsed.store)) {
-    throw new Error("Embedding store requires full reconciliation; run compile before retrying scoped embeddings.");
-  }
-  assertEmbeddingStoreValid(result.parsed.store);
+  if (result.kind === "unavailable") throw new FullEmbeddingReconciliationRequiredError("unreadable", result.reason);
+  if (result.parsed.version !== STORE_VERSION) throw new FullEmbeddingReconciliationRequiredError("legacy");
+  if (!storeMatchesActiveEmbedding(result.parsed.store)) throw new FullEmbeddingReconciliationRequiredError("backend");
+  assertScopedStoreValid(result.parsed.store);
   return result.parsed.store as unknown as EmbeddingStoreV3;
+}
+
+/** Translate structural validation failures into the scoped planner contract. */
+function assertScopedStoreValid(store: Record<string, unknown>): void {
+  try {
+    assertEmbeddingStoreValid(store);
+  } catch {
+    throw new FullEmbeddingReconciliationRequiredError("invalid");
+  }
 }

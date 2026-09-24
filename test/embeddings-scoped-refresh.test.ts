@@ -35,10 +35,11 @@ async function writePage(slug: string, revision = 1): Promise<void> {
 }
 
 /** Respect the production lock precondition around the complete refresh lifecycle. */
-async function refresh(ids: string[] = [ALPHA], full = false): Promise<void> {
+async function refresh(ids: string[] = [ALPHA], full = false): Promise<boolean | void> {
   await acquireLockBlocking(ctx.dir);
   try {
-    await (full ? refreshEmbeddingsDrainingPending : refreshAffectedEmbeddings)(ctx.dir, ids);
+    if (full) return await refreshEmbeddingsDrainingPending(ctx.dir, ids);
+    return await refreshAffectedEmbeddings(ctx.dir, ids);
   } finally {
     await releaseLock(ctx.dir);
   }
@@ -131,27 +132,53 @@ it.each(["count", "bytes"] as const)("defers new work without evicting unrelated
   const provider = successfulProvider();
   const pending = fullEmbeddingMarker(limit, 1);
   await writePendingEmbeddings(ctx.dir, pending);
-  await refresh();
+  expect(await refresh()).toBe(false);
   expect(provider).not.toHaveBeenCalled();
   expect(await loadPendingEmbeddings(ctx.dir)).toEqual(pending);
   expect(await readV3Store(ctx.dir)).toBeNull();
   expect(console.log).toHaveBeenCalledWith(expect.stringContaining("1 page(s) deferred"));
 });
 
-it.each(["legacy", "backend", "corrupt"])("defers a %s store without changing its bytes or embedding unrelated pages", async kind => {
+it.each(["legacy", "backend", "invalid", "corrupt"])("blocks repeated scoped refreshes without spending attempts for a %s store", async kind => {
   const provider = successfulProvider();
   await refresh([], true);
   const file = path.join(ctx.dir, ".llmwiki/embeddings.json");
   const store = JSON.parse(await readFile(file, "utf8"));
   if (kind === "legacy") store.version = 2;
   if (kind === "backend") store.fingerprint = "different-backend";
+  if (kind === "invalid") store.entries[0].vector = [];
   const before = kind === "corrupt" ? "invalid-json" : JSON.stringify(store);
   await writeFile(file, before);
+  await seedRetryState(1);
   provider.mockClear();
-  await refresh();
+  for (let attempt = 0; attempt <= MAX_PENDING_EMBEDDING_ATTEMPTS; attempt += 1) {
+    expect(await refresh()).toBe(true);
+  }
   expect(provider).not.toHaveBeenCalled();
   expect(await readFile(file, "utf8")).toBe(before);
-  expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: ALPHA, attempts: 1 }]);
+  expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: ALPHA, attempts: 1 });
+  await expectUnrelatedBudgets();
+  expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
+  await refresh([], true);
+  expect((await loadPendingEmbeddings(ctx.dir)).some(entry => entry.pageId === ALPHA)).toBe(false);
+  expect(provider).toHaveBeenCalled();
+});
+
+it("preserves retry state before surfacing full reconciliation in strict mode", async () => {
+  const provider = successfulProvider();
+  await refresh([], true);
+  const file = path.join(ctx.dir, ".llmwiki/embeddings.json");
+  const store = JSON.parse(await readFile(file, "utf8"));
+  store.version = 2;
+  await writeFile(file, JSON.stringify(store));
+  await seedRetryState(1);
+  provider.mockClear();
+  vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+  await expect(refresh()).rejects.toThrow("Run compile to reconcile the full embedding store");
+  expect(provider).not.toHaveBeenCalled();
+  expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: ALPHA, attempts: 1 });
+  await expectUnrelatedBudgets();
+  expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
 });
 
 it("leaves unreadable retry state untouched instead of replacing unrelated recovery data", async () => {

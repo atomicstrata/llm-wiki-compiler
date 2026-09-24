@@ -17,6 +17,8 @@ import type { ReviewBatchItem, ReviewBatchCandidateResult } from "./review-batch
 import { candidatePageNamespace } from "./review-finalize.js";
 import { rejectBatchRelationGates } from "./review-batch-gates.js";
 import { rejectSourceSnapshotConflicts } from "./review-batch-sources.js";
+import { targetUnchangedSincePropose } from "./review-target-precondition.js";
+import { genericPublicationRefusal, isValidatedAnswer } from "./review-publication.js";
 
 /** One candidate and its validated mutations, linked to its output entry. */
 export interface PlannedReviewApproval {
@@ -72,11 +74,12 @@ async function planOneCandidate(
   result: ReviewBatchCandidateResult,
 ): Promise<PlannedReviewApproval | null> {
   try {
-    const candidate = await readCandidate(root, item.id);
+    const candidate = await readCandidate(root, item.id, { strictIo: true });
     if (!candidate) throw new CandidateValidationError("Candidate missing or malformed.");
     if (!candidateHashMatches(candidate, item.draftContentHash)) {
       throw new CandidateValidationError("Content hash missing or stale; re-review required.");
     }
+    await checkBatchPublication(root, candidate);
     const planned = candidate.targetEntityType
       ? await planTypedCandidate(root, candidate)
       : await planDefaultCandidate(root, candidate);
@@ -89,6 +92,18 @@ async function planOneCandidate(
     result.error = error.message;
     return null;
   }
+}
+
+/** Preserve shared target/citation policy while keeping validated answers on the single path. */
+async function checkBatchPublication(root: string, candidate: ReviewCandidate): Promise<void> {
+  if (isValidatedAnswer(candidate)) {
+    throw new CandidateValidationError("Validated answers must be approved individually with review approve.");
+  }
+  if (!(await targetUnchangedSincePropose(root, candidate))) {
+    throw new CandidateValidationError("Target page changed since this proposal; re-propose against the current page.");
+  }
+  const problem = await genericPublicationRefusal(root, candidate);
+  if (problem) throw new CandidateValidationError(problem);
 }
 
 /** Require connector pins and honor optional body pins for every other candidate. */

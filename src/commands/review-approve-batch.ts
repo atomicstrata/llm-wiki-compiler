@@ -7,12 +7,13 @@
  * on retry. There is no whole-operation transaction or durable approval receipt.
  */
 
-import { acquireLock, releaseLock } from "../utils/lock.js";
+import { releaseLock } from "../utils/lock.js";
+import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import { withQuiet } from "../utils/output.js";
 import { deleteCandidate } from "../compiler/candidates.js";
+import { assertCandidateMutationAccess } from "../compiler/candidate-custody.js";
 import { applyApprovedMutationsLocked } from "../trust/executor.js";
-import { recoverJournalBeforeCompile } from "../trust/journal-recovery.js";
-import { finalizeReviewApprovals, timeReviewPhase } from "./review-finalize.js";
+import { finalizeReviewApprovals, prepareReviewEmbeddingIntent, timeReviewPhase } from "./review-finalize.js";
 import { planReviewBatch, uniqueBatchItems, type PlannedReviewApproval } from "./review-batch-plan.js";
 import { readReviewBatchManifest } from "./review-batch-input.js";
 import {
@@ -53,7 +54,7 @@ export async function approveReviewBatch(root: string, manifest: ReviewBatchMani
     const validated = parseReviewBatchManifest(manifest);
     const unique = uniqueBatchItems(validated.candidates);
     result.results = unique.results;
-    await timeReviewPhase(result.timingsMs, "lockWait", async () => { locked = await acquireLock(root); });
+    await timeReviewPhase(result.timingsMs, "lockWait", async () => { locked = await acquireMutationLock(root, "review"); });
     if (!locked) throw new Error("Could not acquire lock. Try again later.");
     await runBatchUnderLock(root, { ...validated, candidates: unique.items }, result);
     result.status = result.results.every((item) => item.status === "approved") ? "completed" : "partial";
@@ -68,24 +69,23 @@ export async function approveReviewBatch(root: string, manifest: ReviewBatchMani
   return result;
 }
 
-/** Recover before planning, then apply and finalize the entire valid subset once. */
+/** Plan after the shared recovery gate, then preflight storage before promoting the valid subset. */
 async function runBatchUnderLock(
   root: string,
   manifest: ReviewBatchManifest,
   result: ReviewBatchResult,
 ): Promise<void> {
-  await timeReviewPhase(result.timingsMs, "recovery", async () => {
-    const recovered = await recoverJournalBeforeCompile(root);
-    if (recovered.status === "unsafe") throw new Error("Journal recovery unsafe; no approvals attempted.");
-  });
   let approvals: PlannedReviewApproval[] = [];
   await timeReviewPhase(result.timingsMs, "validation", async () => {
     approvals = await planReviewBatch(root, manifest.candidates, result.results);
   });
   if (approvals.length === 0) return;
+  await assertCandidateMutationAccess(root, false);
+  const candidates = approvals.map(approval => approval.candidate);
+  const intent = await prepareReviewEmbeddingIntent(root, candidates);
   await timeReviewPhase(result.timingsMs, "promotion", () =>
     applyApprovedMutationsLocked(root, approvals.flatMap((approval) => approval.planned)));
-  await finalizeReviewApprovals(root, approvals.map((approval) => approval.candidate), result.timingsMs, "affected-only");
+  await finalizeReviewApprovals(root, candidates, result.timingsMs, { embeddingScope: "affected-only", intent });
   result.finalized = true;
   await timeReviewPhase(result.timingsMs, "cleanup", async () => {
     for (const approval of approvals) {
