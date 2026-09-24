@@ -111,6 +111,22 @@ it("preserves stale and deleted unrelated page/chunk vectors without global migr
   expect(provider.mock.calls.flatMap(([texts]) => texts).every(text => text.includes("alpha"))).toBe(true);
 });
 
+it("settles affected deleted pages after pruning their vectors without charging retry attempts", async () => {
+  const provider = successfulProvider();
+  await refresh([], true);
+  await unlink(path.join(ctx.dir, "wiki/concepts/alpha.md"));
+  await seedRetryState(LAST_ATTEMPT);
+  provider.mockClear();
+  await refresh();
+  const store = (await readV3Store(ctx.dir))!;
+  expect(store.entries.some(entry => entry.pageId === ALPHA)).toBe(false);
+  expect(store.chunks?.some(entry => entry.pageId === ALPHA)).toBe(false);
+  expect((await loadPendingEmbeddings(ctx.dir)).some(entry => entry.pageId === ALPHA)).toBe(false);
+  await expectUnrelatedBudgets();
+  expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
+  expect(provider).not.toHaveBeenCalled();
+});
+
 it.each(["count", "bytes"] as const)("defers new work without evicting unrelated retry records at %s capacity", async limit => {
   const provider = successfulProvider();
   const pending = fullEmbeddingMarker(limit, 1);

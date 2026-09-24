@@ -163,7 +163,7 @@ it("refreshes enabled embeddings once without consuming unrelated prior pending 
   const a = await stageBatchCandidate(root.dir, "alpha");
   const b = await stageBatchCandidate(root.dir, "beta");
   const core = vi.spyOn(embeddings, "updateEmbeddingsLockedCore")
-    .mockImplementation(async (_root, ids) => ({ embedded: ids, eligible: ids }));
+    .mockImplementation(async (_root, ids) => ({ embedded: ids, eligible: ids, pruned: [] }));
   await approveBatch(root.dir, a.id, b.id);
   expect(core).toHaveBeenCalledTimes(1);
   expect(core.mock.calls[0][1]).toEqual(["concepts/alpha", "concepts/beta"]);
