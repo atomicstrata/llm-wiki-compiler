@@ -24,7 +24,6 @@
  */
 
 import path from "path";
-import { readFile } from "fs/promises";
 import { validateWikiPage } from "../utils/markdown.js";
 import { planPageMutation, type PagePlannedMutation } from "../trust/planner.js";
 import { applyApprovedMutationsLocked } from "../trust/executor.js";
@@ -57,6 +56,7 @@ import type { ReviewCandidate } from "../utils/types.js";
 import { runReviewUnderLock, readCandidateUnderLock } from "./review-helpers.js";
 import { checkCandidatePublication, checkAnswerPlan, isValidatedAnswer } from "./review-publication.js";
 import { finalizeReviewApprovals } from "./review-finalize.js";
+import { targetUnchangedSincePropose } from "./review-target-precondition.js";
 
 /** CLI/API options accepted by `review approve`. */
 export interface ReviewApproveOptions {
@@ -154,54 +154,6 @@ export function connectorPinMatches(candidate: ReviewCandidate, supplied: string
   if (!isConnectorCandidate(candidate)) return true;
   if (supplied === undefined) return false;
   return sha256Text(candidate.body) === supplied;
-}
-
-/**
- * The wiki path a candidate would land at — the SAME routing
- * {@link routeApprovedPageWrite} uses — so the stale-target guard inspects the
- * exact page the write will touch.
- */
-function candidateTargetPath(root: string, candidate: ReviewCandidate): string {
-  if (candidate.targetEntityType) {
-    return path.join(root, "wiki", candidate.targetEntityType, `${candidate.slug}.md`);
-  }
-  const dir = candidate.targetDirectory === "queries" ? QUERIES_DIR : CONCEPTS_DIR;
-  return path.join(root, dir, `${candidate.slug}.md`);
-}
-
-/**
- * A candidate that captured the target page's content at propose time (a
- * `lint --fix-propose` repair carries `expectedTargetHash`) is safe to write
- * only while the LIVE target still matches. If the page was edited — or removed —
- * since the proposal, a stale fix would clobber the newer content, so the write
- * is refused. Candidates with no expectation always pass; the caller's normal
- * create/overwrite path is unchanged for them.
- */
-async function targetUnchangedSincePropose(root: string, candidate: ReviewCandidate): Promise<boolean> {
-  // A CONTRADICTORY precondition — expecting the target both absent AND at a
-  // specific digest — can never be honestly satisfied, so a candidate carrying
-  // both (only a damaged or tampered one does) is refused outright rather than
-  // letting the expect-absent branch recreate stale content over the digest.
-  if (candidate.expectTargetAbsent && candidate.expectedTargetHash !== undefined) return false;
-  if (candidate.expectTargetAbsent) {
-    // The proposal expected NO page. Refuse if one now exists (created since the
-    // proposal); allow only when it is still absent. Any read error other than
-    // ENOENT is treated as "cannot confirm absent" and refused, fail-closed.
-    try {
-      await readFile(candidateTargetPath(root, candidate), "utf8");
-      return false; // a page appeared since the proposal — do not overwrite it
-    } catch (err) {
-      return (err as NodeJS.ErrnoException).code === "ENOENT";
-    }
-  }
-  if (candidate.expectedTargetHash === undefined) return true;
-  let current: string;
-  try {
-    current = await readFile(candidateTargetPath(root, candidate), "utf8");
-  } catch {
-    return false; // the target the fix was built against is gone — refuse, do not recreate it
-  }
-  return sha256Text(current) === candidate.expectedTargetHash;
 }
 
 /**

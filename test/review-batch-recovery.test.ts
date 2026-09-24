@@ -88,7 +88,7 @@ it("fails closed on an unsafe journal without touching candidate pages", async (
   await writeFile(journalPath(root.dir, journal.batchId), "malformed journal");
   const result = await approveBatch(root.dir, candidate.id);
   expect(result.status).toBe("failed");
-  expect(result.error).toContain("Journal recovery unsafe");
+  expect(result.error).toContain("journal recovery unsafe");
   expect(existsSync(path.join(root.dir, "wiki/concepts/alpha.md"))).toBe(false);
   expect(await candidates.readCandidate(root.dir, candidate.id)).not.toBeNull();
 });

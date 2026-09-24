@@ -11,12 +11,11 @@ import { generateMOC } from "../compiler/obsidian.js";
 import { resolveAndApplyLinks } from "../compiler/resolver.js";
 import { repairAndApplyLinks } from "../compiler/link-repair.js";
 import { refreshEmbeddingsDrainingPending, refreshAffectedEmbeddings } from "../utils/embeddings-refresh.js";
-import type { EmbeddingRefreshScope } from "../utils/embeddings.js";
 import { qualifiedPageId } from "../utils/page-id.js";
 import { readState, writeState } from "../utils/state.js";
 import type { ReviewCandidate } from "../utils/types.js";
 import { isValidatedAnswer } from "./review-publication.js";
-import { openReviewEmbeddingIntent } from "./review-embedding-intent.js";
+import { openReviewEmbeddingIntent, type ReviewEmbeddingIntent } from "./review-embedding-intent.js";
 
 /** Timings in milliseconds for the shared, ordered approval tail. */
 export interface ReviewFinalizeTimings {
@@ -26,6 +25,21 @@ export interface ReviewFinalizeTimings {
   index: number;
   moc: number;
   embeddings: number;
+}
+
+/** Scoped finalization requires the same intent session persisted before promotion. */
+type ReviewFinalizeOptions =
+  | { embeddingScope?: "drain"; intent?: never }
+  | { embeddingScope: "affected-only"; intent: ReviewEmbeddingIntent };
+
+/** Validate and persist all initially known work before any candidate page writes. */
+export async function prepareReviewEmbeddingIntent(
+  root: string,
+  candidates: ReviewCandidate[],
+): Promise<ReviewEmbeddingIntent> {
+  const intent = await openReviewEmbeddingIntent(root, candidates);
+  await intent.record(candidates.map(candidate => qualifiedPageId(candidatePageNamespace(candidate), candidate.slug)));
+  return intent;
 }
 
 /** Run and time a phase, preserving its elapsed time even when it throws. */
@@ -47,17 +61,15 @@ export async function finalizeReviewApprovals(
   root: string,
   candidates: ReviewCandidate[],
   timings: Partial<ReviewFinalizeTimings> = {},
-  embeddingScope: EmbeddingRefreshScope = "drain",
+  options: ReviewFinalizeOptions = {},
 ): Promise<void> {
   if (candidates.length === 0) return;
   const slugs = [...new Set(candidates.map((candidate) => candidate.slug))];
-  const intent = embeddingScope === "affected-only" ? await openReviewEmbeddingIntent(root, candidates) : undefined;
+  const { intent, embeddingScope = "drain" } = options;
   const pageIds = intent?.pageIds ?? new Set<string>();
   for (const candidate of candidates) pageIds.add(qualifiedPageId(candidatePageNamespace(candidate), candidate.slug));
-  await intent?.record([...pageIds]);
   const beforeApply = intent ? async (ids: string[]) => {
     await intent.record(ids);
-    for (const id of ids) pageIds.add(id);
   } : undefined;
   await timeReviewPhase(timings, "sourceState", () => persistApprovedSourceStates(root, candidates));
   if (candidates.some((candidate) => !isValidatedAnswer(candidate))) {

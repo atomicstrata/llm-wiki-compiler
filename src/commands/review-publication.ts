@@ -26,7 +26,13 @@ function refuse(candidate: ReviewCandidate, message: string): false {
 /** Apply policy only after connector prerequisites and under-lock admission. */
 export async function checkCandidatePublication(root: string, candidate: ReviewCandidate): Promise<boolean> {
   if (isValidatedAnswer(candidate)) return checkAnswer(root, candidate);
-  if (candidate.targetEntityType) return true;
+  const problem = await genericPublicationRefusal(root, candidate);
+  return problem ? refuse(candidate, problem) : true;
+}
+
+/** Return generic citation refusals without changing the caller's process exit status. */
+export async function genericPublicationRefusal(root: string, candidate: ReviewCandidate): Promise<string | undefined> {
+  if (candidate.targetEntityType) return undefined;
   // Every other candidate lands in wiki/concepts or wiki/queries at approval
   // (any non-"queries" directory routes to concepts), so the check applies to all.
   let broken: string[];
@@ -34,9 +40,9 @@ export async function checkCandidatePublication(root: string, candidate: ReviewC
     broken = await genericBrokenTargets(root, candidate.body);
   } catch (error) {
     output.status("!", output.warn(`Candidate ${candidate.id}: citation check unavailable (${String(error)}); continuing existing approval policy.`));
-    return true;
+    return undefined;
   }
-  return broken.length ? refuse(candidate, `broken citation targets: ${broken.join(", ")}`) : true;
+  return broken.length ? `broken citation targets: ${broken.join(", ")}` : undefined;
 }
 
 /** Digest is an edit detector; current resolution, rather than its observations, authorizes approval. */

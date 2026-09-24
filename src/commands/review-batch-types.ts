@@ -40,7 +40,9 @@ export interface ReviewBatchCandidateResult {
 
 /** Measured phases; absent phases were not reached, and failed phases retain timing. */
 export interface ReviewBatchTimings extends Partial<ReviewFinalizeTimings> {
+  /** Includes the shared mutation gate's journal, bundle, and preparation recovery. */
   lockWait?: number;
+  /** Reserved for older producers that measured page-journal recovery separately. */
   recovery?: number;
   validation?: number;
   promotion?: number;

@@ -36,6 +36,7 @@ import { ENV_EMBEDDINGS } from "./constants.js";
 import { verbose } from "./output.js";
 import type { PageId } from "./page-id.js";
 import { loadEmbeddingRetry, loadScopedEmbeddingRetry } from "./embeddings-retry.js";
+import { FullEmbeddingReconciliationRequiredError } from "./embeddings-scoped.js";
 
 /**
  * Refresh embeddings for `changedPageIds` while DRAINING the durable pending
@@ -104,7 +105,7 @@ async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: 
     );
     await retry.succeed([...embedded, ...pruned], eligible);
   } catch (err) {
-    await retry.fail();
+    if (!(err instanceof FullEmbeddingReconciliationRequiredError)) await retry.fail();
     const message = err instanceof Error ? err.message : String(err);
     handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
   }
