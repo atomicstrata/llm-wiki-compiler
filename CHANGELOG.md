@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Query page selection sends the wiki index before the question.** Without embeddings, every query on a wiki selects pages over the same index, which previously came after the question, so no two queries shared a prompt prefix. With the index first, backends that reuse a common prefix can skip it on later queries; the prompt size is unchanged. Replaying 5 queries on an 11-document docs wiki offline, the shared-prefix share of selection prompts rose from 0.4% to 80% (the most possible, since the first query has nothing earlier to share).
+
 - Incremental compile reuses committed extraction metadata for unchanged shared
   contributors and regenerates only affected concepts, reducing repeated model
   calls as the wiki grows. Unchanged contributors retain their ownership and
