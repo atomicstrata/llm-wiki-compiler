@@ -46,7 +46,7 @@ function sourcesSectionLines(): string[] {
  * downstream auditor can distinguish pages produced under different prompt
  * generations even when the model id is identical. Format is `vMAJOR`.
  */
-export const PROMPT_VERSION = "v3";
+export const PROMPT_VERSION = "v4";
 
 /**
  * The caller's system policy as prompt lines, or nothing when none is set.
@@ -54,7 +54,9 @@ export const PROMPT_VERSION = "v3";
  * ADDITIVE by construction: the policy lands after every built-in instruction
  * and is introduced as something to follow *in addition to* them, never as a
  * replacement. It is also placed before the source material, so the whole
- * instruction block still precedes the untrusted content it describes.
+ * instruction block still precedes the untrusted content it describes. (The
+ * page prompt names its concept after the source material, so pages sharing
+ * sources share a prompt prefix; the concept is repeated in the user message.)
  *
  * This is advisory prompt text, not an enforceable boundary. A policy makes a
  * model more likely to follow an editorial or publication rule; it cannot make
@@ -189,8 +191,39 @@ export function buildExtractionPrompt(
 }
 
 /**
+ * The page prompt's fixed citation and inference instructions. Static text, so
+ * it is part of the prefix every page prompt shares.
+ */
+const PAGE_ATTRIBUTION_LINES: readonly string[] = [
+  "Source attribution: at the end of each prose paragraph, append a citation",
+  "marker identifying which source file(s) and line range the paragraph drew from.",
+  "PREFERRED format: ^[filename.md:START-END] where START and END are the line numbers",
+  "shown in the numbered source content below (e.g. ' 42 | some text' → line 42).",
+  "Use this whenever you can identify the specific numbered lines supporting the claim.",
+  "Fallback format: ^[filename.md] when the claim draws from the source broadly and",
+  "no specific line range applies. For multi-source paragraphs: ^[a.md:1-5, b.md:10-12].",
+  "Place citations only at the end of prose paragraphs or sentences — not on",
+  "headings, list items, or code blocks.",
+  "Do not cite YAML frontmatter lines (the --- ... --- block at the top of a file) as",
+  "source evidence for substantive claims — those lines are metadata, not content.",
+  "If a claim relates to a metadata field (e.g. document date or author), leave it uncited.",
+  "Source filenames are visible as `--- SOURCE: filename.md ---` headers in the content below.",
+  "",
+  "If a paragraph is your inference rather than a direct extraction, leave it",
+  "uncited — downstream lint rules will count uncited paragraphs as 'inferred'",
+  "so lint can surface excess-inferred-paragraphs warnings on review.",
+];
+
+/**
  * Build the system prompt for wiki page generation.
  * Instructs the LLM to write a complete wiki page for a single concept.
+ *
+ * Ordered from most to least shared: fixed instructions, then the source
+ * material (closed by an end marker, so wiki context after it is never read as
+ * source), then the per-page parts (existing page, related pages, concept).
+ * Every page drawn from the same sources then starts with an identical prefix,
+ * which backends that reuse a common prompt prefix can skip re-reading; for
+ * backends that do not, the prompt stays essentially the same size.
  * @param concept - The concept title to write about.
  * @param sourceContent - The source material to draw from.
  * @param existingPage - The current page content if updating (empty for new pages).
@@ -213,35 +246,21 @@ export function buildPagePrompt(
 
   return [
     ...withLangLine(
-      `You are a wiki author. Write a clear, well-structured markdown page about "${concept}".`,
+      'You are a wiki author. Write a clear, well-structured markdown page about the concept named in the "Concept to write about" line after the source material.',
       "Draw facts only from the provided source material.",
       ...sourcesSectionLines(),
       "Suggest [[wikilinks]] to related concepts where appropriate.",
       "Write in a neutral, informative tone. Be concise but thorough.",
     ),
     "",
-    "Source attribution: at the end of each prose paragraph, append a citation",
-    "marker identifying which source file(s) and line range the paragraph drew from.",
-    "PREFERRED format: ^[filename.md:START-END] where START and END are the line numbers",
-    "shown in the numbered source content below (e.g. ' 42 | some text' → line 42).",
-    "Use this whenever you can identify the specific numbered lines supporting the claim.",
-    "Fallback format: ^[filename.md] when the claim draws from the source broadly and",
-    "no specific line range applies. For multi-source paragraphs: ^[a.md:1-5, b.md:10-12].",
-    "Place citations only at the end of prose paragraphs or sentences — not on",
-    "headings, list items, or code blocks.",
-    "Do not cite YAML frontmatter lines (the --- ... --- block at the top of a file) as",
-    "source evidence for substantive claims — those lines are metadata, not content.",
-    "If a claim relates to a metadata field (e.g. document date or author), leave it uncited.",
-    "Source filenames are visible as `--- SOURCE: filename.md ---` headers in the content below.",
-    "",
-    "If a paragraph is your inference rather than a direct extraction, leave it",
-    "uncited — downstream lint rules will count uncited paragraphs as 'inferred'",
-    "so lint can surface excess-inferred-paragraphs warnings on review.",
+    ...PAGE_ATTRIBUTION_LINES,
     ...systemPolicyLines(),
-    existingSection,
-    relatedSection,
     "\n\n--- SOURCE MATERIAL ---\n\n",
     sourceContent,
+    "\n\n--- END SOURCE MATERIAL ---",
+    existingSection,
+    relatedSection,
+    `\n\nConcept to write about: "${concept}".`,
   ].join("\n");
 }
 
