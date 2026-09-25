@@ -56,7 +56,9 @@ export async function selectPages(
   const systemPrompt =
     "You are a knowledge base assistant. Given a question and a wiki index, select the most relevant pages.";
 
-  const userMessage = `Question: ${question}\n\nWiki Index:\n${indexContent}`;
+  // Index first, question last: without embeddings the index is identical
+  // across queries, so this keeps it a prompt prefix every query shares.
+  const userMessage = `Wiki Index:\n${indexContent}\n\nQuestion: ${question}`;
 
   const rawResult = await callClaude({
     system: systemPrompt,
