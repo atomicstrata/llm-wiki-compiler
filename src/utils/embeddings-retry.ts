@@ -34,11 +34,12 @@ class EmbeddingRetry {
     private readonly root: string,
     private pending: PendingEmbedding[],
     private quarantined: PendingEmbedding[],
+    private readonly scope?: ReadonlySet<PageId>,
   ) {}
 
   /** Active retry ids; overflow quarantines must never reach the provider again. */
   get pageIds(): PageId[] {
-    return this.pending.filter(entry => !exhausted(entry)).map((entry) => entry.pageId);
+    return this.active.map((entry) => entry.pageId);
   }
 
   /** Record explicit work before even store discovery can fail. */
@@ -49,33 +50,49 @@ class EmbeddingRetry {
     }
     // The writer applies both resource caps. Never attempt work it dropped.
     this.pending = await loadPendingEmbeddings(this.root);
+    if (this.scope) {
+      const recorded = new Set(this.pageIds);
+      this.deferred = [...this.scope].filter(id => !recorded.has(id));
+    }
   }
 
   /** Add discovered work to the budget while excluding durable quarantines. */
   async prepare(discovered: PageId[]): Promise<PageId[]> {
     const blocked = new Set([...this.quarantined, ...this.pending.filter(exhausted)].map((entry) => entry.pageId));
-    const allowed = discovered.filter((id) => !blocked.has(id));
+    const allowed = discovered.filter((id) => !blocked.has(id) && this.includes(id));
     // Already recorded budgets take precedence over newly discovered work.
     this.pending = mergeFreshAttempts(this.pending, [...this.pending.map(e => e.pageId), ...allowed]);
     await this.recordPending();
     const recorded = new Set(this.pageIds);
-    this.deferred = allowed.filter(id => !recorded.has(id));
+    const unrecorded = allowed.filter(id => !recorded.has(id));
+    this.deferred = this.scope ? [...new Set([...this.deferred, ...unrecorded])] : unrecorded;
     return allowed.filter(id => recorded.has(id));
   }
 
   /** Clear completed work and age temporarily ineligible entries. */
   async succeed(embedded: PageId[], eligible: PageId[]): Promise<void> {
-    await this.settle(settleAfterSuccess(this.pending.filter(e => !exhausted(e)), embedded, eligible));
+    await this.settle(settleAfterSuccess(this.active, embedded, eligible));
   }
 
   /** Count failures for explicit and automatically discovered work alike. */
   async fail(): Promise<void> {
-    await this.settle(settleAfterFailure(this.pending.filter(e => !exhausted(e)), this.pageIds));
+    await this.settle(settleAfterFailure(this.active, this.pageIds));
+  }
+
+  /** Restrict batch reconciliation without changing the compiler's full-drain default. */
+  private includes(id: PageId): boolean {
+    return this.scope === undefined || this.scope.has(id);
+  }
+
+  /** Only attempted IDs may consume budgets or be settled by this refresh. */
+  private get active(): PendingEmbedding[] {
+    return this.pending.filter(entry => this.includes(entry.pageId) && !exhausted(entry));
   }
 
   /** Persist exclusions before removing active entries, then report new quarantines. */
   private async settle(result: SettleResult): Promise<void> {
-    const retiring = [...this.pending.filter(exhausted), ...result.quarantined];
+    const untouched = this.pending.filter(entry => !this.includes(entry.pageId));
+    const retiring = [...this.pending.filter(entry => this.includes(entry.pageId) && exhausted(entry)), ...result.quarantined];
     if (retiring.length > 0) {
       this.quarantined.push(...retiring);
       await writePendingEmbeddings(this.root, this.quarantined, QUARANTINED_EMBEDDINGS_FILE);
@@ -84,9 +101,29 @@ class EmbeddingRetry {
     const durable = new Set(this.quarantined.map(e => e.pageId));
     const held = retiring.filter(e => !durable.has(e.pageId));
     // Retain overflow with its exhausted count; never retire an unpersisted exclusion.
-    if (this.pending.length > 0) await writePendingEmbeddings(this.root, [...held, ...result.survivors]);
+    if (this.pending.length > 0) await writePendingEmbeddings(this.root, [...untouched, ...held, ...result.survivors]);
     warnQuarantined(result.quarantined);
   }
+}
+
+/** Load an affected-only retry set, retaining unrelated budgets and exclusions verbatim. */
+export async function loadScopedEmbeddingRetry(root: string, affectedIds: PageId[]): Promise<EmbeddingRetry> {
+  const [pendingRead, quarantineRead] = await Promise.all([
+    readPendingMarker(root), readPendingMarker(root, QUARANTINED_EMBEDDINGS_FILE),
+  ]);
+  if (pendingRead.status === "unavailable" || quarantineRead.status === "unavailable") {
+    throw new Error("Embedding retry state unavailable; scoped refresh cannot preserve unrelated entries.");
+  }
+  const scope = new Set(affectedIds);
+  const prior = quarantineRead.entries;
+  const quarantined = prior.filter(entry => !scope.has(entry.pageId));
+  if (quarantined.length !== prior.length) await writePendingEmbeddings(root, quarantined, QUARANTINED_EMBEDDINGS_FILE);
+  const blocked = new Set(prior.map(entry => entry.pageId));
+  const pending = pendingRead.entries.filter(entry =>
+    !scope.has(entry.pageId) || (!blocked.has(entry.pageId) && !exhausted(entry)));
+  // Preserve all existing entries before new work so the marker's caps cannot evict unrelated IDs.
+  const merged = mergeFreshAttempts(pending, [...pending.map(entry => entry.pageId), ...affectedIds]);
+  return new EmbeddingRetry(root, merged, quarantined, scope);
 }
 
 /** Load retry state; only an explicit page change releases a quarantined id. */

@@ -26,7 +26,7 @@ it("publishes exact direct-save bytes, leaves same-slug concept unchanged and re
   expect(await readFile(sameSlug, "utf8")).toBe(original);
   expect(await readFile(path.join(root.dir, "wiki/index.md"), "utf8")).toContain("answer");
   expect(await readFile(path.join(root.dir, "wiki/MOC.md"), "utf8")).toContain("answer");
-  expect(updateEmbeddingsLockedCore).toHaveBeenCalledWith(expect.any(String), ["queries/answer"], expect.any(Function));
+  expect(updateEmbeddingsLockedCore).toHaveBeenCalledWith(expect.any(String), ["queries/answer"], expect.any(Function), "drain");
   await expect(candidateBytes(root.dir, candidate.id)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
