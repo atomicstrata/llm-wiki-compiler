@@ -86,6 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Query page selection sends the wiki index before the question.** Without embeddings, every query on a wiki selects pages over the same index, which previously came after the question, so no two queries shared a prompt prefix. With the index first, backends that reuse a common prefix can skip it on later queries; the prompt size is unchanged. Replaying 5 queries on an 11-document docs wiki offline, the shared-prefix share of selection prompts rose from 0.4% to 80% (the most possible, since the first query has nothing earlier to share).
 
+- **Page prompts put shared content first.** The page-generation prompt now orders its parts from most to least shared: fixed instructions, then the source material (now closed by an end marker), then the existing page, related pages and the concept name. Pages drawn from the same sources now share an identical prompt prefix, which backends that reuse a common prefix can skip re-reading; for backends that do not, the prompt stays essentially the same size. Replaying an 11-document docs corpus offline, the share of page-prompt text that is a prefix already sent in an earlier page prompt rose from 0.5% to 88%. `PROMPT_VERSION` advances to `v4`, which also resets the unreleased extraction-reuse metadata once: the next compile that adds or changes a source re-extracts that source's co-owners.
+
 - Incremental compile reuses committed extraction metadata for unchanged shared
   contributors and regenerates only affected concepts, reducing repeated model
   calls as the wiki grows. Unchanged contributors retain their ownership and

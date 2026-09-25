@@ -153,10 +153,10 @@ describe("the policy in the prompt", () => {
 });
 
 describe("PROMPT_VERSION", () => {
-  // The constant names the prompt IMPLEMENTATION, so the conditional Sources
-  // branch is a new generation. Pinned because nothing else in the repo asserts
-  // its value, and a silent revert would mislabel every page compiled after it.
-  it("is v3, the generation with an optional Sources instruction", () => {
-    expect(PROMPT_VERSION).toBe("v3");
+  // The constant names the prompt IMPLEMENTATION, so a reordered page prompt
+  // is a new generation. Pinned because nothing else in the repo asserts its
+  // value, and a silent revert would mislabel every page compiled after it.
+  it("is v4, the generation with the source material before per-page parts", () => {
+    expect(PROMPT_VERSION).toBe("v4");
   });
 });
