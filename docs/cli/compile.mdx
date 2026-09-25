@@ -125,6 +125,27 @@ file is dropped. The pass uses no model calls.
 
 Compile is hash-based and incremental. Each source file's content is fingerprinted on ingest; on subsequent compiles, only sources whose content hash has changed are re-processed through the LLM. When sources and generation settings are unchanged, compile skips extraction and page generation: it makes no chat-model calls and does not regenerate those pages. Embedding reconciliation still runs as described below.
 
+When a changed or new source shares concepts with existing sources, compile also
+includes those contributors when rebuilding pages. For unchanged contributors,
+it can reuse successful extraction metadata stored with their live ownership in
+`.llmwiki/state.json`, avoiding another extraction call while still reading their
+current source text for page generation. Index growth alone does not reassign an
+unchanged source's concepts. Only current or previous concepts of freshly
+extracted sources, plus explicit reconciliation targets, are regenerated.
+Reused contributors supply evidence to those pages without causing their other
+pages to regenerate. Their existing ownership records remain intact. A page
+shared by many sources still receives all contributing evidence within the
+configured prompt budget.
+
+Reuse requires matching source bytes, extraction prompt and tool schema, instructions, language,
+provider and model, plus matching published concept ownership. Missing or invalid
+metadata falls back to extraction; older projects acquire it as sources compile.
+Deletion reconciliation, pending retries and `--review` use fresh extraction.
+Held or rejected concept assignments are not stored as reusable metadata. To
+force fresh extraction for a source, remove its entry from `.llmwiki/state.json`
+before compiling; deleting only its `extraction` field disables reuse the next
+time that source is scheduled, but does not itself schedule work.
+
 Embedding reuse depends on page content and the active embedding configuration, independently of source compilation state.
 
 Within a single run, both phases call the LLM in parallel: concept extraction across changed sources and page generation across merged concepts both run under one shared concurrency cap. The default is 5 simultaneous calls. On a cold start or a large refresh, raise it with `--concurrency` or [`LLMWIKI_COMPILE_CONCURRENCY`](/configuration/environment-variables#compile) to cut wall-clock; lower it if your provider rate-limits the run. The same flag is available on `llmwiki refresh`, `llmwiki watch`, and `llmwiki quickstart`.

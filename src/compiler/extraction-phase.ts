@@ -30,6 +30,7 @@ import * as output from "../utils/output.js";
 import { verbose } from "../utils/output.js";
 import { INDEX_FILE, SOURCES_DIR } from "../utils/constants.js";
 import pLimit from "p-limit";
+import { reusableExtraction } from "./extraction-snapshot.js";
 import type {
   ExtractedConcept,
   SourceChange,
@@ -51,12 +52,13 @@ async function extractSourcesLimited(
   root: string,
   files: string[],
   limit: ReturnType<typeof pLimit>,
+  reuse: ExtractionReuse,
 ): Promise<ExtractionResult[]> {
   let aborted = false;
   return Promise.all(files.map((file) => limit(async () => {
     if (aborted) throw new Error(`extraction skipped for ${file}: a prior source failed`);
     try {
-      return await extractForSource(root, file);
+      return await extractForSource(root, file, reuse);
     } catch (err) {
       aborted = true;
       throw err;
@@ -76,6 +78,12 @@ export interface ChangeSets {
   detected: SourceChange[];
 }
 
+/** Only unchanged sources not explicitly requested by this run may reuse metadata. */
+interface ExtractionReuse {
+  state: WikiState;
+  eligible: ReadonlySet<string>;
+}
+
 /**
  * Phase 1: extract concepts for the directly-changed batch, then repeatedly
  * expand to unchanged sources whose concepts overlap newly extracted slugs.
@@ -89,9 +97,11 @@ export async function runExtractionPhases(
   state: WikiState,
   changeSets: ChangeSets,
   concurrency: number,
+  reusableSources: ReadonlySet<string> = new Set(),
 ): Promise<ExtractionResult[]> {
   const limit = pLimit(concurrency);
-  const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit);
+  const reuse = { state, eligible: reusableSources };
+  const extractions = await extractSourcesLimited(root, toCompile.map((c) => c.file), limit, reuse);
 
   while (true) {
     const extracted = new Set(extractions.map((result) => result.sourceFile));
@@ -102,7 +112,7 @@ export async function runExtractionPhases(
     for (const file of lateAffected) {
       output.status("~", output.info(`${file} [shares concept with new source]`));
     }
-    const batch = await extractSourcesLimited(root, lateAffected, limit);
+    const batch = await extractSourcesLimited(root, lateAffected, limit, reuse);
     extractions.push(...batch);
   }
 
@@ -116,11 +126,17 @@ export async function runExtractionPhases(
 async function extractForSource(
   root: string,
   sourceFile: string,
+  reuse: ExtractionReuse,
 ): Promise<ExtractionResult> {
-  output.status("*", output.info(`Extracting: ${sourceFile}`));
-
   const sourcePath = path.join(root, SOURCES_DIR, sourceFile);
   const sourceContent = await readFile(sourcePath, "utf-8");
+  const cached = reuse.eligible.has(sourceFile)
+    ? reusableExtraction(reuse.state.sources[sourceFile], sourceContent) : undefined;
+  if (cached) {
+    output.status("~", output.dim(`Reusing extraction: ${sourceFile}`));
+    return { sourceFile, sourcePath, sourceContent, concepts: cached, reused: true };
+  }
+  output.status("*", output.info(`Extracting: ${sourceFile}`));
   const lines = sourceContent.split("\n").length;
   const chars = sourceContent.length;
   verbose(`source ${sourceFile}: ${lines} lines, ${chars} chars`);
@@ -131,7 +147,8 @@ async function extractForSource(
     const names = concepts.map((c) => c.concept).join(", ");
     output.status("*", output.dim(`  Found ${concepts.length} concepts: ${names}`));
   }
-  return { sourceFile, sourcePath, sourceContent, concepts };
+  return { sourceFile, sourcePath, sourceContent, concepts,
+    previousConcepts: reuse.state.sources[sourceFile]?.concepts ?? [] };
 }
 
 /**

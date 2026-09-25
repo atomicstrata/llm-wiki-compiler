@@ -86,6 +86,8 @@ export interface SourceState {
   hash: string;
   concepts: string[];
   compiledAt: string;
+  /** Optional committed extraction metadata; malformed or older entries are cache misses. */
+  extraction?: { fingerprint: string; sourceHash: string; concepts: ExtractedConcept[] };
   /**
    * v2 typed-ownership mirror of {@link concepts}: each bare concept slug
    * minted into a branded `concepts/<slug>` {@link EntityId}. Kept ALONGSIDE

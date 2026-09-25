@@ -84,6 +84,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Incremental compile reuses committed extraction metadata for unchanged shared
+  contributors and regenerates only affected concepts, reducing repeated model
+  calls as the wiki grows. Unchanged contributors retain their ownership and
+  supply evidence without regenerating unrelated pages; deletion/retry reconciliation and reviewed
+  compiles remain fresh. Optional snapshots live in `.llmwiki/state.json` and
+  fall back to extraction when missing or incompatible. See
+  [incremental compilation](docs/cli/compile.mdx).
+
 - Query saving now validates citations freshly under the project lock. Direct
   saves refuse pending or broken links; reviewed staging allows pending links.
   Unavailable validation refuses both while preserving the generated answer.

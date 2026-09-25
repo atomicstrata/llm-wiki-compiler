@@ -22,6 +22,10 @@ export interface ExtractionResult {
   sourcePath: string;
   sourceContent: string;
   concepts: ExtractedConcept[];
+  /** Committed metadata reused for an unchanged contributor, not new work. */
+  reused?: true;
+  /** Prior assignments also need regeneration if fresh extraction drops them. */
+  previousConcepts?: string[];
 }
 
 /**

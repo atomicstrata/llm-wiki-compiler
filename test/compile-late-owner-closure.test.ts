@@ -9,6 +9,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
+import { readState, writeState } from "../src/utils/state.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
 import {
   conceptResponse,
@@ -29,7 +30,7 @@ function extractionFor(system: string, expanded: boolean): string {
 }
 
 describe("late owner discovery", () => {
-  it("continues extracting newly discovered owners until the graph is stable", async () => {
+  it.each([false, true])("preserves fixed-point discovery on cache misses (snapshots: %s)", async (snapshots) => {
     await writeFile(
       path.join(ctx.dir, "sources", "d.md"),
       "# Y\n\nD contributes to Y.",
@@ -41,6 +42,11 @@ describe("late owner discovery", () => {
     );
 
     await compileAndReport(ctx.dir);
+    if (!snapshots) {
+      const state = await readState(ctx.dir);
+      for (const entry of Object.values(state.sources)) delete entry.extraction;
+      await writeState(ctx.dir, state);
+    }
     expanded = true;
     systems.length = 0;
     await writeFile(
@@ -54,7 +60,9 @@ describe("late owner discovery", () => {
       await readFile(path.join(ctx.dir, "wiki", "concepts", "y.md"), "utf-8"),
     );
     expect(systems.filter((system) => system.includes("--- SOURCE DOCUMENT ---")))
-      .toHaveLength(3);
-    expect(y.meta.sources).toEqual(["b.md", "d.md"]);
+      .toHaveLength(snapshots ? 1 : 3);
+    // Cached assignments are stable, but a legacy/cache-miss source still
+    // discovers Y and must pull D into the batch before generating that page.
+    expect(y.meta.sources).toEqual(snapshots ? ["d.md"] : ["b.md", "d.md"]);
   });
 });
