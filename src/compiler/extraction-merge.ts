@@ -19,6 +19,21 @@ import type { ExtractionResult } from "./deps.js";
 import type { ExtractedConcept } from "../utils/types.js";
 import type { MergedConcept } from "./types.js";
 
+/**
+ * Fresh extraction changes pages, reused metadata only supplies their evidence.
+ * Include previous assignments so losing an assignment still updates a page
+ * owned by another source. Reconciliation explicitly names additional work.
+ */
+function affectedPageSlugs(extractions: ExtractionResult[], rebuild: ReadonlySet<string>): Set<string> {
+  const affected = new Set(rebuild);
+  for (const result of extractions) {
+    if (result.reused) continue;
+    for (const slug of result.previousConcepts ?? []) affected.add(slug);
+    for (const concept of result.concepts) affected.add(slugify(concept.concept));
+  }
+  return affected;
+}
+
 /** Add one extracted concept to the slug-indexed merge accumulators. */
 function mergeConcept(
   result: ExtractionResult,
@@ -106,6 +121,8 @@ export function reconcileConceptMetadata(
  * fits the budget, the output is byte-identical to the previous unbudgeted
  * concatenation. Slugs in `rebuildSlugs` carry a clean-rebuild marker so page
  * rendering does not feed stale content from removed sources back to the LLM.
+ * Reused contributors participate only in affected concepts, without widening
+ * the page set to their unrelated assignments.
  */
 export function mergeExtractions(
   extractions: ExtractionResult[],
@@ -114,13 +131,14 @@ export function mergeExtractions(
 ): MergedConcept[] {
   const bySlug = new Map<string, MergedConcept>();
   const slicesBySlug = new Map<string, SourceSlice[]>();
+  const affected = affectedPageSlugs(extractions, rebuildSlugs);
 
   for (const result of extractions) {
     if (result.concepts.length === 0) continue;
 
     for (const concept of result.concepts) {
       const slug = slugify(concept.concept);
-      if (frozenSlugs.has(slug)) continue;
+      if (frozenSlugs.has(slug) || !affected.has(slug)) continue;
       mergeConcept(result, concept, bySlug, slicesBySlug, rebuildSlugs);
     }
   }

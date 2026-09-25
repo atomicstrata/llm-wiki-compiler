@@ -65,6 +65,7 @@ import { resolveCompileConcurrency } from "./concurrency.js";
 import pLimit from "p-limit";
 import { mergeExtractions } from "./extraction-merge.js";
 import { runExtractionPhases } from "./extraction-phase.js";
+import { reusableSourceFiles, withExtractionSnapshot } from "./extraction-snapshot.js";
 import { generateMergedPage } from "./review-pipeline.js";
 import { generateSeedPages } from "./seed-pages.js";
 import {
@@ -259,7 +260,9 @@ async function persistExtractionStates(
   // this source as a contributor.
   const liveSlugsForSource = buildLiveSlugsForSource(writtenPages);
   for (const result of extractions) {
-    if (result.concepts.length === 0) continue;
+    // Reused contributors keep their complete committed ownership, including
+    // concepts outside this run's page set and shared pages held for review.
+    if (result.reused || result.concepts.length === 0) continue;
     const liveSlugs = new Set(liveSlugsForSource.get(result.sourceFile) ?? []);
     // A slug held for another attempt is still OWNED by the source that
     // extracted it. Recording only WRITTEN slugs drops that claim, and unlike a
@@ -273,6 +276,9 @@ async function persistExtractionStates(
     await persistSourceStateFiltered(
       draft, result.sourcePath, result.sourceFile, result.concepts, liveSlugs,
     );
+    draft.setSource(result.sourceFile, withExtractionSnapshot(
+      draft.read().sources[result.sourceFile], result, liveSlugsForSource.get(result.sourceFile),
+    ));
   }
 }
 
@@ -411,6 +417,7 @@ async function runCompilePipeline(
     state,
   );
   await markUnchangedPendingSources(root, changes);
+  const reusableSources = reusableSourceFiles(state, changes, detected, Boolean(options.review));
   augmentWithAffectedSources(changes, findAffectedSources(state, changes, detected));
   const reconciliationSlugs = findReconciliationSlugs(state, changes);
 
@@ -474,7 +481,7 @@ async function runCompilePipeline(
   // extraction and page-generation fan-outs identically.
   const concurrency = resolveCompileConcurrency(options.concurrency);
   const extractions = await timeStage("compile.extraction", () => runExtractionPhases(
-    root, buckets.toCompile, state, { scoped: changes, detected }, concurrency,
+    root, buckets.toCompile, state, { scoped: changes, detected }, concurrency, reusableSources,
   ));
   if (!options.review) {
     freezeFailedExtractions(draft, extractions, frozenSlugs);
