@@ -90,6 +90,11 @@ export function decorateEntityPages(
  * wiki — so it reads a slug index built once per page list ({@link slugIndexFor})
  * instead of scanning the page list four times per link. Within each bucket the
  * first page in list order wins, preserving the previous `.find()` semantics.
+ *
+ * The index is cached against the `pages` array itself, so a caller must not
+ * add, remove or edit entries (their `pageDirectory`, `slug` or `aliases`)
+ * after the first lookup against that array. To resolve against a changed
+ * list, pass a new array.
  */
 export function resolveBareSlug(
   slug: string,
@@ -143,12 +148,23 @@ function buildSlugIndex(pages: ReadonlyArray<PageIndexEntry>): PageSlugIndex {
     queryByAlias: new Map(),
   };
   for (const page of pages) {
-    const bySlug = page.pageDirectory === "queries" ? index.queryBySlug : index.conceptBySlug;
-    const byAlias = page.pageDirectory === "queries" ? index.queryByAlias : index.conceptByAlias;
-    claim(bySlug, page.slug, page);
-    for (const alias of page.aliases ?? []) claim(byAlias, slugify(alias), page);
+    const buckets = bucketsFor(index, page.pageDirectory);
+    // Typed entity pages share the snapshot list but are never wikilink targets.
+    if (!buckets) continue;
+    claim(buckets.bySlug, page.slug, page);
+    for (const alias of page.aliases ?? []) claim(buckets.byAlias, slugify(alias), page);
   }
   return index;
+}
+
+/** The slug and alias tables for a page directory, or null for a typed directory. */
+function bucketsFor(
+  index: PageSlugIndex,
+  directory: ViewerPage["pageDirectory"],
+): { bySlug: Map<string, PageIndexEntry>; byAlias: Map<string, PageIndexEntry> } | null {
+  if (directory === "concepts") return { bySlug: index.conceptBySlug, byAlias: index.conceptByAlias };
+  if (directory === "queries") return { bySlug: index.queryBySlug, byAlias: index.queryByAlias };
+  return null;
 }
 
 /** Slug index for this page list, built on first use and then reused. */
