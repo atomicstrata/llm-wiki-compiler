@@ -11,7 +11,7 @@ import { readdir } from "fs/promises";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR, SOURCES_DIR, STATE_FILE } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { safeReadFile, parseFrontmatter } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { readStateClassified } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { readStateClassified, readPageContent } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { loadPreviousReport, loadHistory } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { listSelectedSourceFiles } from "@atomicstrata/llmwiki-core/compiler-cli";
 
@@ -171,6 +171,9 @@ async function listSources(root: string): Promise<Array<Record<string, unknown>>
  * contains non-ASCII characters (any CJK slug) resolves to
  * `wiki/concepts/ai%E7%90%86….md` and is reported as missing.
  *
+ * Decoding can produce a path separator (`%2F`), so the result is untrusted;
+ * `loadPageWithMeta` confines it before any read.
+ *
  * @param value - Raw template variable, possibly percent-encoded.
  * @returns The decoded slug; the raw value when it is not valid escaping.
  */
@@ -182,14 +185,18 @@ function decodeSlug(value: string): string {
   }
 }
 
-/** Read a single page and return a structured payload (slug, meta, body). */
+/**
+ * Read a single page and return a structured payload (slug, meta, body). The
+ * slug is decoded from a caller's URI, so a `%2F` has become a real separator:
+ * {@link readPageContent} refuses anything but one filename component and
+ * confines the read to `dir`, and every refusal reads as a missing page.
+ */
 async function loadPageWithMeta(
   root: string,
   dir: string,
   slug: string,
 ): Promise<{ slug: string; meta: Record<string, unknown>; body: string }> {
-  const filePath = path.join(root, dir, `${slug}.md`);
-  const content = await safeReadFile(filePath);
+  const content = await readPageContent(root, dir, slug);
   if (!content) {
     throw new Error(`Page not found: ${dir}/${slug}.md`);
   }

@@ -383,7 +383,7 @@ describe("MCP resources", () => {
     expect(parsed).toMatchObject({ slug, body: "中文正文。" });
   });
 
-  it("falls back to the raw value when the slug is not valid escaping", async () => {
+  it("round-trips a literal percent sign through valid escaping", async () => {
     const slug = "50% off";
     await writePage(path.join(root, "wiki/concepts"), slug, { title: "Half", summary: "S" }, "Discount body.");
 
