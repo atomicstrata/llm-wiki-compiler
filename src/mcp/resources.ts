@@ -11,7 +11,7 @@ import { readdir } from "fs/promises";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR, SOURCES_DIR, STATE_FILE } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { safeReadFile, parseFrontmatter } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { readStateClassified } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { readStateClassified, readPageContent } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { loadPreviousReport, loadHistory } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { listSelectedSourceFiles } from "@atomicstrata/llmwiki-core/compiler-cli";
 
@@ -125,7 +125,7 @@ function registerConceptResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri, { slug }) => ({
-      contents: [jsonContent(uri, await loadPageWithMeta(root, CONCEPTS_DIR, String(slug)))],
+      contents: [jsonContent(uri, await loadPageWithMeta(root, CONCEPTS_DIR, decodeSlug(String(slug))))],
     }),
   );
 }
@@ -142,7 +142,7 @@ function registerQueryResource(server: McpServer, root: string): void {
       mimeType: "application/json",
     },
     async (uri, { slug }) => ({
-      contents: [jsonContent(uri, await loadPageWithMeta(root, QUERIES_DIR, String(slug)))],
+      contents: [jsonContent(uri, await loadPageWithMeta(root, QUERIES_DIR, decodeSlug(String(slug))))],
     }),
   );
 }
@@ -161,14 +161,42 @@ async function listSources(root: string): Promise<Array<Record<string, unknown>>
   return records;
 }
 
-/** Read a single page and return a structured payload (slug, meta, body). */
+/**
+ * Decode a URI template variable back to a slug.
+ *
+ * Resource URIs are built with `encodeURIComponent(slug)` (see
+ * `listPagesUnder`), and the MCP SDK normalises the request URI — which
+ * percent-encodes non-ASCII paths — before it matches the template, so
+ * `{slug}` arrives still encoded. Without this step a page whose slug
+ * contains non-ASCII characters (any CJK slug) resolves to
+ * `wiki/concepts/ai%E7%90%86….md` and is reported as missing.
+ *
+ * Decoding can produce a path separator (`%2F`), so the result is untrusted;
+ * `loadPageWithMeta` confines it before any read.
+ *
+ * @param value - Raw template variable, possibly percent-encoded.
+ * @returns The decoded slug; the raw value when it is not valid escaping.
+ */
+function decodeSlug(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Read a single page and return a structured payload (slug, meta, body). The
+ * slug is decoded from a caller's URI, so a `%2F` has become a real separator:
+ * {@link readPageContent} refuses anything but one filename component and
+ * confines the read to `dir`, and every refusal reads as a missing page.
+ */
 async function loadPageWithMeta(
   root: string,
   dir: string,
   slug: string,
 ): Promise<{ slug: string; meta: Record<string, unknown>; body: string }> {
-  const filePath = path.join(root, dir, `${slug}.md`);
-  const content = await safeReadFile(filePath);
+  const content = await readPageContent(root, dir, slug);
   if (!content) {
     throw new Error(`Page not found: ${dir}/${slug}.md`);
   }
@@ -229,7 +257,7 @@ async function listPagesUnder(
       const slug = f.replace(/\.md$/, "");
       // S13: percent-encode the slug so a page-part containing spaces or `#`
       // (e.g. `Foo #1`) round-trips through the URI rather than truncating at
-      // the `#` fragment delimiter. The read template decodes `{slug}` back.
+      // the `#` fragment delimiter. `decodeSlug` undoes this on read.
       return { uri: `llmwiki://${scheme}/${encodeURIComponent(slug)}`, name: slug };
     });
 
