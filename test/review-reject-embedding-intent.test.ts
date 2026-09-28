@@ -5,9 +5,11 @@
  * record it, or unreadable intent, refuses the rejection and keeps the candidate.
  */
 import { beforeEach, expect, it, vi } from "vitest";
-import { readFile, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import reviewRejectCommand from "../src/commands/review-reject.js";
+import * as rejection from "../src/compiler/candidate-rejection.js";
 import { listCandidates } from "../src/compiler/candidates.js";
 import * as indexgen from "../src/compiler/indexgen.js";
 import { loadProfile } from "../src/profile/load.js";
@@ -92,10 +94,15 @@ it("hands the rejected batch's embedding work to the retry queue and retires its
 
 // Content-hash discovery would re-find ordinary stale chunks on its own, but it
 // skips quarantined pages until an explicit change. The batch rewrote this page,
-// so the handoff must count as that change or its chunks stay stale for good.
-it("releases a quarantined page the batch rewrote so the next compile refreshes it", async () => {
+// so rejection must count as that change or its chunks stay stale for good. With
+// embeddings off at rejection nothing is queued, but quarantine must still lift.
+it.each(["on", "off"] as const)("releases a quarantined page the batch rewrote (embeddings %s at rejection) so the next compile refreshes it", async embeddings => {
   await writePendingEmbeddings(ctx.dir, [{ pageId: "concepts/linked-novel", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }], QUARANTINED_EMBEDDINGS_FILE);
-  for (const id of await interruptBatch()) await reject(id);
+  const ids = await interruptBatch();
+  vi.stubEnv("LLMWIKI_EMBEDDINGS", embeddings);
+  for (const id of ids) await reject(id);
+  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+  expect(await intentEntries()).toEqual([]);
   expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([]);
   await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
   await expectChunksCurrent("concepts/linked-novel", true);
@@ -142,3 +149,32 @@ it("rejects with a full queue when embeddings are off, since there is nothing to
   expect((await listCandidates(ctx.dir)).map(candidate => candidate.id)).not.toContain(novel);
   expect((await intentEntries())[0].candidates).toHaveLength(1);
 });
+
+it("releases the work of a record that lost an unrelated field and no longer passes admission", async () => {
+  const [novel] = await interruptBatch();
+  const file = path.join(ctx.dir, `.llmwiki/candidates/${novel}.json`);
+  const { title: _title, ...rest } = JSON.parse(await readFile(file, "utf8"));
+  await writeFile(file, JSON.stringify(rest));
+  await reject(novel);
+  expect((await listCandidates(ctx.dir)).map(candidate => candidate.id)).not.toContain(novel);
+  expect((await intentEntries())[0].candidates).toHaveLength(1);
+  expect((await loadPendingEmbeddings(ctx.dir)).map(entry => entry.pageId)).toEqual(expect.arrayContaining(NOVEL_WORK));
+});
+
+it("refuses without hanging when the record becomes a FIFO between the pre-lock check and the lock", async () => {
+  const [novel] = await interruptBatch();
+  const file = path.join(ctx.dir, `.llmwiki/candidates/${novel}.json`);
+  const intentBefore = await readFile(path.join(ctx.dir, INTENT_FILE), "utf8");
+  vi.spyOn(rejection, "loadRejectableCandidateOrFail").mockImplementation(async () => {
+    await rm(file);
+    execFileSync("mkfifo", [file]);
+    return true;
+  });
+  try {
+    await expect(reject(novel)).rejects.toThrow();
+    expect(await readFile(path.join(ctx.dir, INTENT_FILE), "utf8")).toBe(intentBefore);
+  } finally {
+    await rm(file, { force: true });
+    process.exitCode = undefined;
+  }
+}, 10_000);

@@ -26,6 +26,8 @@ const intentSchema = z.object({
   })),
 });
 type IntentEntry = z.infer<typeof intentSchema>["entries"][number];
+/** The candidate fields that identify one promoted snapshot. */
+type SnapshotFields = Partial<Record<"id" | "slug" | "targetDirectory" | "targetEntityType" | "body", unknown>>;
 
 /** One locked session retaining ownership of this batch's embedding work. */
 export interface ReviewEmbeddingIntent {
@@ -63,20 +65,22 @@ export async function openReviewEmbeddingIntent(root: string, candidates: Review
 }
 
 /**
- * Detach a rejected snapshot from the intent entries it keys. Their page IDs go
- * to `handOff` (the normal embedding retry queue) before the intent is
- * rewritten, so archiving the candidate cannot strand work that only it could
- * reopen. Entries still keyed by other snapshots keep their IDs for those batches.
+ * Detach a rejected record from the intent entries its snapshot keys. The key
+ * comes from the raw captured bytes, not admission, so a record that lost an
+ * unrelated field still releases its work. Page IDs go to `handOff` (the normal
+ * embedding retry path) before the intent is rewritten; entries still keyed by
+ * other snapshots keep their IDs for those batches.
  */
 export async function releaseRejectedIntent(
   root: string,
-  candidate: ReviewCandidate,
+  recordBytes: Buffer,
   handOff: (pageIds: PageId[]) => Promise<void>,
 ): Promise<void> {
+  const key = rawSnapshotKey(recordBytes);
+  if (key === null) return;
   const directory = await resolveConfinedPrivateDir(root);
   const file = path.join(directory, INTENT_FILE);
   const entries = await readIntent(directory, file);
-  const key = snapshotKey(candidate);
   const owning = entries.filter(entry => entry.candidates.includes(key));
   if (owning.length === 0) return;
   await handOff([...new Set(owning.flatMap(entry => entry.pageIds))]);
@@ -87,10 +91,23 @@ export async function releaseRejectedIntent(
 }
 
 /** Identify a candidate by the exact snapshot a batch promoted, so edits never inherit its work. */
-function snapshotKey(candidate: ReviewCandidate): string {
+function snapshotKey(candidate: SnapshotFields): string {
   return sha256Text(JSON.stringify([
     candidate.id, candidate.slug, candidate.targetDirectory, candidate.targetEntityType, candidate.body,
   ]));
+}
+
+/**
+ * Key raw record bytes as batch admission would. Admission passes these fields
+ * through unchanged except a non-string targetEntityType, which it drops.
+ * Bytes that are not a JSON object can never have been admitted, so have no key.
+ */
+function rawSnapshotKey(bytes: Buffer): string | null {
+  const record = parseJson(bytes.toString("utf8"));
+  if (typeof record !== "object" || record === null || Array.isArray(record)) return null;
+  const fields = record as SnapshotFields;
+  const targetEntityType = typeof fields.targetEntityType === "string" ? fields.targetEntityType : undefined;
+  return snapshotKey({ ...fields, targetEntityType });
 }
 
 /** Read a bounded, handle-bound regular leaf; never treat corrupt recovery data as empty. */

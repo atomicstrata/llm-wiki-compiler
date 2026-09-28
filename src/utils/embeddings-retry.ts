@@ -159,6 +159,20 @@ export async function queueScopedEmbeddingRetry(root: string, affectedIds: PageI
   return retry.deferred;
 }
 
+/**
+ * Lift quarantine for explicitly changed IDs without queueing or attempting
+ * work. With refreshes disabled this is the whole handoff: a later enabled
+ * compile's content-hash discovery re-finds their stale vectors, but only once
+ * they are no longer excluded.
+ */
+export async function releaseScopedQuarantine(root: string, changedIds: PageId[]): Promise<void> {
+  const read = await readPendingMarker(root, QUARANTINED_EMBEDDINGS_FILE);
+  if (read.status === "unavailable") throw new Error("Embedding quarantine state unavailable; cannot release changed pages.");
+  const changed = new Set(changedIds);
+  const kept = read.entries.filter(entry => !changed.has(entry.pageId));
+  if (kept.length !== read.entries.length) await writePendingEmbeddings(root, kept, QUARANTINED_EMBEDDINGS_FILE);
+}
+
 /** Load retry state; only an explicit page change releases a quarantined id. */
 export async function loadEmbeddingRetry(root: string, changedPageIds: PageId[]): Promise<EmbeddingRetry> {
   const prior = await loadPendingEmbeddings(root, QUARANTINED_EMBEDDINGS_FILE);
