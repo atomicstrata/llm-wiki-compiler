@@ -167,7 +167,7 @@ function coerceEntry(raw: unknown): PendingEmbedding | null {
  * then BYTE-cap the serialized JSON to `<= ` {@link MAX_PENDING_EMBEDDINGS_BYTES} by
  * tail-dropping until `JSON.stringify` fits the reader's `fstat` byte cap.
  */
-function normalizeMarker(entries: unknown[]): PendingEmbedding[] {
+export function normalizeMarker(entries: unknown[]): PendingEmbedding[] {
   const deduped = new Map<string, PendingEmbedding>();
   for (const item of entries) {
     const entry = coerceEntry(item);

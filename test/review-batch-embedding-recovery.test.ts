@@ -134,7 +134,7 @@ it("does not consume embedding recovery owned by a different interrupted batch",
   await expectCompletedApproval([novel]);
 });
 
-it.each(["capacity", "corrupt"] as const)("retains candidates and intent until %s retry storage is repaired", async kind => {
+it.each(["capacity", "corrupt"] as const)("refuses before promoting anything when %s retry storage cannot record the batch", async kind => {
   const ids = await stageLinkedTargets();
   const marker = path.join(ctx.dir, PENDING_EMBEDDINGS_FILE);
   if (kind === "capacity") await writePendingEmbeddings(ctx.dir, fullEmbeddingMarker("count", 1));
@@ -142,6 +142,19 @@ it.each(["capacity", "corrupt"] as const)("retains candidates and intent until %
   const previousMarker = await readFile(marker, "utf8");
   await expectFailedApprovalRetained(ids);
   expect(await readFile(marker, "utf8")).toBe(previousMarker);
+  await expect(readFile(path.join(ctx.dir, "wiki/concepts/novel.md"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(path.join(ctx.dir, "wiki/concepts/linked-novel.md"), "utf8")).not.toContain("[[novel|");
+  await writePendingEmbeddings(ctx.dir, UNRELATED_PENDING);
+  await expectCompletedApproval(ids);
+});
+
+// The preflight covers the approved pages; links rewritten during finalization
+// are only known then, so their overflow must still be recorded and retried.
+it("records link-rewrite work that overflows a queue with room only for the approved pages", async () => {
+  const ids = await stageLinkedTargets();
+  const roomForApproved = fullEmbeddingMarker("count", 1).slice(ids.length);
+  await writePendingEmbeddings(ctx.dir, roomForApproved);
+  await expectFailedApprovalRetained(ids);
   const intent = await readFile(path.join(ctx.dir, ".llmwiki/review-embedding-intent.json"), "utf8");
   for (const pageId of COLLATERAL_IDS) expect(intent).toContain(pageId);
   await expectCollateralChunksCurrent(false);

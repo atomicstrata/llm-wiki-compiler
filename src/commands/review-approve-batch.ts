@@ -16,6 +16,8 @@ import { applyApprovedMutationsLocked } from "../trust/executor.js";
 import { finalizeReviewApprovals, prepareReviewEmbeddingIntent, timeReviewPhase } from "./review-finalize.js";
 import { planReviewBatch, uniqueBatchItems, type PlannedReviewApproval } from "./review-batch-plan.js";
 import { readReviewBatchManifest } from "./review-batch-input.js";
+import { unrecordableScopedIds } from "../utils/embeddings-retry.js";
+import { embeddingsDisabled } from "../utils/embeddings-config.js";
 import {
   parseReviewBatchManifest,
   REVIEW_BATCH_SCHEMA_VERSION,
@@ -83,6 +85,7 @@ async function runBatchUnderLock(
   await assertCandidateMutationAccess(root, false);
   const candidates = approvals.map(approval => approval.candidate);
   const intent = await prepareReviewEmbeddingIntent(root, candidates);
+  await assertRetryCapacity(root, [...intent.pageIds]);
   await timeReviewPhase(result.timingsMs, "promotion", () =>
     applyApprovedMutationsLocked(root, approvals.flatMap((approval) => approval.planned)));
   await finalizeReviewApprovals(root, candidates, result.timingsMs, { embeddingScope: "affected-only", intent });
@@ -93,6 +96,22 @@ async function runBatchUnderLock(
       approval.result.status = "approved";
     }
   });
+}
+
+/**
+ * Refuse before promotion when the embedding retry marker could not record this
+ * batch's known pages, so a full marker leaves every candidate pending instead
+ * of failing finalization after the pages are live. Links rewritten during
+ * finalization are only known later; their capacity is still checked there.
+ */
+async function assertRetryCapacity(root: string, pageIds: string[]): Promise<void> {
+  if (embeddingsDisabled()) return;
+  const unrecordable = await unrecordableScopedIds(root, pageIds);
+  if (unrecordable.length === 0) return;
+  throw new Error(
+    `Embedding retry queue is full: ${unrecordable.length} approved page(s) could not be recorded for retry. ` +
+    "Run `llmwiki compile` to work through queued embeddings, then retry; no candidate was approved.",
+  );
 }
 
 /** Initialize the versioned envelope before reading files or acquiring locks. */

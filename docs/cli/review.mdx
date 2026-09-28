@@ -254,9 +254,17 @@ invalid, oversized, or unwritable intent storage detected in preflight fails
 before candidate promotion or source-state finalization and keeps candidates
 pending. Capacity for initially known work is checked at this point; capacity
 for newly discovered collateral work is checked before its link writes. A later
-failure can still leave earlier writes in place. A full or unreadable embedding retry queue likewise fails
-batch finalization rather than forgetting unrecorded work. Repair storage or
-free retry capacity, then retry the retained candidates. Keep their snapshots
+failure can still leave earlier writes in place.
+
+Before promoting any candidate, the batch also checks that the embedding retry
+queue can record the pages it already knows about, using the same caps as the
+refresh itself. A full or unreadable queue refuses the batch with every
+candidate still pending and nothing written; run `llmwiki compile` to work
+through queued embeddings (or repair the queue file), then retry. Pages whose
+links are rewritten during finalization are only known at that point: if the
+queue cannot hold their work, finalization fails rather than forgetting it, and
+the retained candidates recover it on retry. Repair storage or free retry
+capacity, then retry the retained candidates. Keep their snapshots
 unchanged until recovery finishes: editing or rejecting them does not erase
 their intent. If snapshots were removed, restore them from backup to complete
 recovery; do not delete the intent file merely to bypass a storage error.

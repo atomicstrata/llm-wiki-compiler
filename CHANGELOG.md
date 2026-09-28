@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Batch review approval.** `llmwiki review approve-batch --input <manifest.json>` approves a set of review candidates with one finalization instead of one per candidate. Contributed by @LorenzoGentile in #231: single and batch approval now share one finalizer that keeps single approval's preconditions, recovery gate and citation policy; the batch records its embedding work in `.llmwiki/review-embedding-intent.json` before promoting any page, so an interrupted batch recovers its own work without touching unrelated retries; and a store that needs migration defers instead of spending retries. See the `review` command docs for the full contract.
+
 - Validated answer publication: `query --save --review` and SDK `review: true`
   stage separate validated-answer review candidates with IDs, canonical answer
   documents, body-only audit digests and a closed precondition on the target
@@ -123,6 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   without promotion admission, so malformed metadata can still be cleared.
 
 ### Fixed
+
+- **Batch approval refuses up front when the embedding retry queue is full.** A full or unreadable retry queue was only discovered at finalization, after the batch's pages were already live. The batch now checks, before promoting anything, that the queue can record its known pages using the same caps as the refresh, and refuses with every candidate still pending if not. Link rewrites discovered during finalization are still checked there and recovered on retry. With embeddings disabled there is nothing to queue and the check is skipped.
 
 - **Wikilink resolution no longer rewrites code.** The rule-based resolver linked every mention of a page title, including inside code, so commands and paths such as `.llmwiki/state.json` were corrupted into `.[[llmwiki|llmwiki]]/state.json`. It now skips literal Markdown, using the parser-backed check link repair uses plus raw HTML blocks: fenced code (including indented, nested and blockquoted fences), indented code blocks, HTML blocks such as `<pre>` and `<script>`, and inline code spans, including spans that wrap a line. Link repair itself is unchanged. Prose mentions are linked as before. On an 88-page docs wiki, links inside code fell from 168 to 13 (the remainder were written by the model, not the resolver).
 

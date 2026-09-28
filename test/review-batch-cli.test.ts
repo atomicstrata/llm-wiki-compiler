@@ -11,6 +11,8 @@ import { createHash } from "node:crypto";
 import type { ReviewBatchItem, ReviewBatchResult } from "../src/commands/review-batch-types.js";
 import { REVIEW_BATCH_MAX_CANDIDATES, REVIEW_BATCH_MAX_INPUT_BYTES } from "../src/commands/review-batch-types.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
+import { writePendingEmbeddings } from "../src/utils/pending-embeddings.js";
+import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 
 const FIXTURE_DATE = "2026-09-17T00:00:00.000Z";
 const CLI_ENV = { LLMWIKI_EMBEDDINGS: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "" };
@@ -119,3 +121,21 @@ afterEach(async () => { await rm(root, { recursive: true, force: true }); });
     expectCLIExit(await runCLI(["review", "reject", "beta-bbbbbbbb"], root, CLI_ENV), 0);
     expect(await readdir(path.join(root, "wiki/concepts"))).toEqual(["alpha-topic.md"]);
   });
+
+// A full embedding retry queue refuses before any page is promoted; with
+// embeddings disabled there is nothing to queue, so the batch still completes.
+it.each([
+  ["refuses before promotion when embeddings are on", {}, 1],
+  ["completes when embeddings are off", { LLMWIKI_EMBEDDINGS: "off" }, 0],
+] as const)("with a full retry queue it %s", async (_label, env, exitCode) => {
+  await candidate("alpha-aaaaaaaa", "alpha-topic", "Alpha topic");
+  await writePendingEmbeddings(root, fullEmbeddingMarker("count", 1));
+  await writeFile(path.join(root, "approval.json"), JSON.stringify({ schemaVersion: 1, candidates: [{ id: "alpha-aaaaaaaa" }] }));
+  const run = await runCLI(["review", "approve-batch", "--input", "approval.json", "--json"], root,
+    { OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "", ...env });
+  expectCLIExit(run, exitCode);
+  const result = JSON.parse(run.stdout) as ReviewBatchResult;
+  const promoted = (await readdir(path.join(root, "wiki/concepts"))).includes("alpha-topic.md");
+  expect(promoted).toBe(exitCode === 0);
+  if (exitCode === 1) expect(result).toMatchObject({ status: "failed", error: expect.stringMatching(/retry queue is full/) });
+});

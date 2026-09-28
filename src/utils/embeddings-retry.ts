@@ -13,6 +13,7 @@ import {
   readPendingMarker,
   writePendingEmbeddings,
   mergeFreshAttempts,
+  normalizeMarker,
   settleAfterSuccess,
   settleAfterFailure,
   warnQuarantined,
@@ -108,22 +109,43 @@ class EmbeddingRetry {
 
 /** Load an affected-only retry set, retaining unrelated budgets and exclusions verbatim. */
 export async function loadScopedEmbeddingRetry(root: string, affectedIds: PageId[]): Promise<EmbeddingRetry> {
+  const { pending, quarantined } = await readScopedRetryState(root);
+  const scope = new Set(affectedIds);
+  const released = quarantined.filter(entry => !scope.has(entry.pageId));
+  if (released.length !== quarantined.length) await writePendingEmbeddings(root, released, QUARANTINED_EMBEDDINGS_FILE);
+  return new EmbeddingRetry(root, scopedPendingEntries(pending, quarantined, affectedIds), released, scope);
+}
+
+/**
+ * Affected IDs a scoped refresh could not record in the retry marker, computed
+ * with the refresh's own merge and the marker's own caps, without writing.
+ * Batch approval checks this before promoting pages, so a full marker refuses
+ * the batch up front instead of failing after pages are already live.
+ */
+export async function unrecordableScopedIds(root: string, affectedIds: PageId[]): Promise<PageId[]> {
+  const { pending, quarantined } = await readScopedRetryState(root);
+  const recorded = new Set(normalizeMarker(scopedPendingEntries(pending, quarantined, affectedIds)).map(e => e.pageId));
+  return [...new Set(affectedIds)].filter(id => !recorded.has(id));
+}
+
+/** Both markers, refusing to guess when either cannot be read. */
+async function readScopedRetryState(root: string): Promise<{ pending: PendingEmbedding[]; quarantined: PendingEmbedding[] }> {
   const [pendingRead, quarantineRead] = await Promise.all([
     readPendingMarker(root), readPendingMarker(root, QUARANTINED_EMBEDDINGS_FILE),
   ]);
   if (pendingRead.status === "unavailable" || quarantineRead.status === "unavailable") {
     throw new Error("Embedding retry state unavailable; scoped refresh cannot preserve unrelated entries.");
   }
+  return { pending: pendingRead.entries, quarantined: quarantineRead.entries };
+}
+
+/** The retry entries a scoped refresh records: unrelated budgets first, then the affected work. */
+function scopedPendingEntries(pending: PendingEmbedding[], quarantined: PendingEmbedding[], affectedIds: PageId[]): PendingEmbedding[] {
   const scope = new Set(affectedIds);
-  const prior = quarantineRead.entries;
-  const quarantined = prior.filter(entry => !scope.has(entry.pageId));
-  if (quarantined.length !== prior.length) await writePendingEmbeddings(root, quarantined, QUARANTINED_EMBEDDINGS_FILE);
-  const blocked = new Set(prior.map(entry => entry.pageId));
-  const pending = pendingRead.entries.filter(entry =>
-    !scope.has(entry.pageId) || (!blocked.has(entry.pageId) && !exhausted(entry)));
+  const blocked = new Set(quarantined.map(entry => entry.pageId));
+  const kept = pending.filter(entry => !scope.has(entry.pageId) || (!blocked.has(entry.pageId) && !exhausted(entry)));
   // Preserve all existing entries before new work so the marker's caps cannot evict unrelated IDs.
-  const merged = mergeFreshAttempts(pending, [...pending.map(entry => entry.pageId), ...affectedIds]);
-  return new EmbeddingRetry(root, merged, quarantined, scope);
+  return mergeFreshAttempts(kept, [...kept.map(entry => entry.pageId), ...affectedIds]);
 }
 
 /** Load retry state; only an explicit page change releases a quarantined id. */
