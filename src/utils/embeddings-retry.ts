@@ -148,6 +148,17 @@ function scopedPendingEntries(pending: PendingEmbedding[], quarantined: PendingE
   return mergeFreshAttempts(kept, [...kept.map(entry => entry.pageId), ...affectedIds]);
 }
 
+/**
+ * Durably queue affected IDs for the next refresh without attempting them,
+ * using the scoped refresh's own write-ahead step. Returns the IDs the retry
+ * marker's caps could not record, so callers can refuse rather than drop work.
+ */
+export async function queueScopedEmbeddingRetry(root: string, affectedIds: PageId[]): Promise<PageId[]> {
+  const retry = await loadScopedEmbeddingRetry(root, affectedIds);
+  await retry.recordPending();
+  return retry.deferred;
+}
+
 /** Load retry state; only an explicit page change releases a quarantined id. */
 export async function loadEmbeddingRetry(root: string, changedPageIds: PageId[]): Promise<EmbeddingRetry> {
   const prior = await loadPendingEmbeddings(root, QUARANTINED_EMBEDDINGS_FILE);

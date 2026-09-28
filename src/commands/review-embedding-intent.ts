@@ -4,6 +4,7 @@
  * process exit must not lose IDs just because links are already correct on retry.
  * Candidate snapshot keys let a subset/reordered retry recover its own work
  * without draining unrelated embedding backlog or other interrupted batches.
+ * Rejecting a snapshot hands the work it keys to the embedding retry queue first.
  * Callers hold the project lock; malformed/oversize/unwritable intent fails closed.
  */
 import path from "node:path";
@@ -38,9 +39,7 @@ export async function openReviewEmbeddingIntent(root: string, candidates: Review
   const directory = await resolveConfinedPrivateDir(root);
   const file = path.join(directory, INTENT_FILE);
   const entries = await readIntent(directory, file);
-  const keys = candidates.map(candidate => sha256Text(JSON.stringify([
-    candidate.id, candidate.slug, candidate.targetDirectory, candidate.targetEntityType, candidate.body,
-  ])));
+  const keys = candidates.map(snapshotKey);
   const selected = entries.filter(entry => entry.candidates.some(key => keys.includes(key)));
   const untouched = entries.filter(entry => !selected.includes(entry));
   const owned: IntentEntry = {
@@ -63,14 +62,54 @@ export async function openReviewEmbeddingIntent(root: string, candidates: Review
   };
 }
 
+/**
+ * Detach a rejected snapshot from the intent entries it keys. Their page IDs go
+ * to `handOff` (the normal embedding retry queue) before the intent is
+ * rewritten, so archiving the candidate cannot strand work that only it could
+ * reopen. Entries still keyed by other snapshots keep their IDs for those batches.
+ */
+export async function releaseRejectedIntent(
+  root: string,
+  candidate: ReviewCandidate,
+  handOff: (pageIds: PageId[]) => Promise<void>,
+): Promise<void> {
+  const directory = await resolveConfinedPrivateDir(root);
+  const file = path.join(directory, INTENT_FILE);
+  const entries = await readIntent(directory, file);
+  const key = snapshotKey(candidate);
+  const owning = entries.filter(entry => entry.candidates.includes(key));
+  if (owning.length === 0) return;
+  await handOff([...new Set(owning.flatMap(entry => entry.pageIds))]);
+  const remaining = entries
+    .map(entry => owning.includes(entry) ? { ...entry, candidates: entry.candidates.filter(k => k !== key) } : entry)
+    .filter(entry => entry.candidates.length > 0);
+  await persistIntent(directory, file, remaining);
+}
+
+/** Identify a candidate by the exact snapshot a batch promoted, so edits never inherit its work. */
+function snapshotKey(candidate: ReviewCandidate): string {
+  return sha256Text(JSON.stringify([
+    candidate.id, candidate.slug, candidate.targetDirectory, candidate.targetEntityType, candidate.body,
+  ]));
+}
+
 /** Read a bounded, handle-bound regular leaf; never treat corrupt recovery data as empty. */
 async function readIntent(directory: string, file: string): Promise<IntentEntry[]> {
   const read = await readConfinedLeaf(path.dirname(directory), file, directory, MAX_INTENT_BYTES);
   if (read.kind === "absent") return [];
   if (read.kind !== "ok") throw new Error("Review embedding intent unavailable; retry after repairing its storage.");
-  const parsed = intentSchema.safeParse(JSON.parse(read.body));
+  const parsed = intentSchema.safeParse(parseJson(read.body));
   if (!parsed.success) throw new Error("Invalid review embedding intent; recovery cannot safely continue.");
   return parsed.data.entries;
+}
+
+/** Truncated JSON is invalid intent too; let the schema report it with the same refusal. */
+function parseJson(body: string): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Bound writes symmetrically with reads and leave the last durable intent intact on failure. */
