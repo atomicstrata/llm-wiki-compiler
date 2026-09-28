@@ -18,6 +18,7 @@ import { MAX_PENDING_EMBEDDING_ATTEMPTS, PENDING_EMBEDDINGS_FILE, QUARANTINED_EM
 import { collectEligibleLivePages } from "../src/utils/embeddings-collect.js";
 import { refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
 import { acquireLockBlocking, releaseLock } from "../src/utils/lock.js";
+import * as markers from "../src/utils/pending-embeddings.js";
 import { loadPendingEmbeddings, writePendingEmbeddings } from "../src/utils/pending-embeddings.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
 import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
@@ -74,6 +75,13 @@ async function expectChunksCurrent(pageId: string, current: boolean): Promise<vo
   else expect(stored).not.toEqual(live.chunkContentHashes);
 }
 
+/** A refused rejection keeps the candidate pending and the intent byte-for-byte unchanged. */
+async function expectRefusedAndRetained(id: string, intentBefore: string, reason: RegExp): Promise<void> {
+  await expect(reject(id)).rejects.toThrow(reason);
+  expect((await listCandidates(ctx.dir)).map(candidate => candidate.id)).toContain(id);
+  expect(await readFile(path.join(ctx.dir, INTENT_FILE), "utf8")).toBe(intentBefore);
+}
+
 /** Candidate keys and page IDs currently recorded in the intent file. */
 async function intentEntries(): Promise<{ candidates: string[]; pageIds: string[] }[]> {
   return JSON.parse(await readFile(path.join(ctx.dir, INTENT_FILE), "utf8")).entries;
@@ -93,19 +101,47 @@ it("hands the rejected batch's embedding work to the retry queue and retires its
 });
 
 // Content-hash discovery would re-find ordinary stale chunks on its own, but it
-// skips quarantined pages until an explicit change. The batch rewrote this page,
-// so rejection must count as that change or its chunks stay stale for good. With
-// embeddings off at rejection nothing is queued, but quarantine must still lift.
-it.each(["on", "off"] as const)("releases a quarantined page the batch rewrote (embeddings %s at rejection) so the next compile refreshes it", async embeddings => {
-  await writePendingEmbeddings(ctx.dir, [{ pageId: "concepts/linked-novel", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }], QUARANTINED_EMBEDDINGS_FILE);
-  const ids = await interruptBatch();
+// skips excluded pages until an explicit change: quarantined ones, and exhausted
+// pending entries kept when quarantine overflowed. The batch rewrote this page,
+// so rejection must lift that exclusion (queueing it when embeddings are on) or
+// its chunks stay stale for good. Unrelated exclusions must survive.
+const EXCLUSIONS = ["quarantine", "exhausted"] as const;
+const EXCLUDED_REWRITE = [{ pageId: "concepts/linked-novel", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }];
+const UNRELATED_QUARANTINE = [{ pageId: "concepts/unrelated", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }];
+it.each(EXCLUSIONS.flatMap(kind => (["on", "off"] as const).map(mode => [kind, mode] as const)))(
+  "lifts the %s exclusion on a rewritten page (embeddings %s at rejection) so the next compile refreshes it",
+  async (kind, embeddings) => {
+    const marker = kind === "quarantine" ? QUARANTINED_EMBEDDINGS_FILE : PENDING_EMBEDDINGS_FILE;
+    await writePendingEmbeddings(ctx.dir, [...EXCLUDED_REWRITE, ...(kind === "quarantine" ? UNRELATED_QUARANTINE : [])], marker);
+    if (kind === "exhausted") await writePendingEmbeddings(ctx.dir, UNRELATED_QUARANTINE, QUARANTINED_EMBEDDINGS_FILE);
+    const ids = await interruptBatch();
+    vi.stubEnv("LLMWIKI_EMBEDDINGS", embeddings);
+    for (const id of ids) await reject(id);
+    vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+    expect(await intentEntries()).toEqual([]);
+    expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
+    await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
+    await expectChunksCurrent("concepts/linked-novel", true);
+  },
+);
+
+// Marker writers swallow write and unlink failures. Simulate one that reports
+// success without persisting: the rejection must refuse, not retire the intent.
+it.each([
+  ["off", "write", QUARANTINED_EMBEDDINGS_FILE],
+  ["off", "clear", QUARANTINED_EMBEDDINGS_FILE],
+  ["off", "clear", PENDING_EMBEDDINGS_FILE],
+  ["on", "write", QUARANTINED_EMBEDDINGS_FILE],
+] as const)("refuses with embeddings %s when a swallowed %s of %s leaves the exclusion", async (embeddings, path_, marker) => {
+  const extra = path_ === "write" ? UNRELATED_QUARANTINE : [];
+  await writePendingEmbeddings(ctx.dir, [...EXCLUDED_REWRITE, ...extra], marker);
+  const [novel] = await interruptBatch();
+  const intentBefore = await readFile(path.join(ctx.dir, INTENT_FILE), "utf8");
+  const write = markers.writePendingEmbeddings;
+  vi.spyOn(markers, "writePendingEmbeddings").mockImplementation(async (root, entries, file = PENDING_EMBEDDINGS_FILE) =>
+    file === marker ? undefined : write(root, entries, file));
   vi.stubEnv("LLMWIKI_EMBEDDINGS", embeddings);
-  for (const id of ids) await reject(id);
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
-  expect(await intentEntries()).toEqual([]);
-  expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([]);
-  await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
-  await expectChunksCurrent("concepts/linked-novel", true);
+  await expectRefusedAndRetained(novel, intentBefore, /still excluded/);
 });
 
 it("keeps the entry for a batch-mate still pending, which later completes", async () => {
@@ -123,9 +159,7 @@ it.each(["queue", "intent"] as const)("refuses and keeps the candidate while the
   if (kind === "queue") await writePendingEmbeddings(ctx.dir, fullEmbeddingMarker("count", 1));
   else await writeFile(path.join(ctx.dir, INTENT_FILE), "{");
   const intentBefore = await readFile(path.join(ctx.dir, INTENT_FILE), "utf8");
-  await expect(reject(novel)).rejects.toThrow(kind === "queue" ? /retry queue is full/ : /intent/);
-  expect((await listCandidates(ctx.dir)).map(candidate => candidate.id)).toContain(novel);
-  expect(await readFile(path.join(ctx.dir, INTENT_FILE), "utf8")).toBe(intentBefore);
+  await expectRefusedAndRetained(novel, intentBefore, kind === "queue" ? /retry queue is full/ : /intent/);
 });
 
 it("rejects through the CLI after the queue is repaired, and refuses while it is full", async () => {

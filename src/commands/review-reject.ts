@@ -19,7 +19,7 @@
 
 import { archiveRejectedCandidate, loadRejectableCandidateOrFail } from "../compiler/candidate-rejection.js";
 import { embeddingsDisabled } from "../utils/embeddings-config.js";
-import { queueScopedEmbeddingRetry, releaseScopedQuarantine } from "../utils/embeddings-retry.js";
+import { queueScopedEmbeddingRetry, releaseScopedExclusions } from "../utils/embeddings-retry.js";
 import * as output from "../utils/output.js";
 import type { PageId } from "../utils/page-id.js";
 import { releaseRejectedIntent } from "./review-embedding-intent.js";
@@ -43,11 +43,11 @@ async function rejectUnderLock(root: string, id: string): Promise<void> {
 
 /**
  * Queue released pages like a finished batch would. Disabled refreshes queue
- * nothing, but still lift quarantine so a later enabled compile can re-find them.
+ * nothing, but still lift their exclusions so a later enabled compile can re-find them.
  */
 async function handOffEmbeddingWork(root: string, pageIds: PageId[]): Promise<void> {
   if (pageIds.length === 0) return;
-  if (embeddingsDisabled()) return releaseScopedQuarantine(root, pageIds);
+  if (embeddingsDisabled()) return releaseScopedExclusions(root, pageIds);
   const unrecorded = await queueScopedEmbeddingRetry(root, pageIds);
   if (unrecorded.length === 0) return;
   throw new Error(
