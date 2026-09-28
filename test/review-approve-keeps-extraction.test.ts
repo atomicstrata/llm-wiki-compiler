@@ -15,6 +15,7 @@ import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
 import { listCandidates } from "../src/compiler/candidate-read.js";
 import reviewApproveCommand from "../src/commands/review-approve.js";
+import { approveBatch } from "./fixtures/review-batch.js";
 import { readState } from "../src/utils/state.js";
 import { mockSharedConceptProvider, useReconciliationProject } from "./fixtures/reconciliation-project.js";
 
@@ -29,12 +30,17 @@ async function addSource(name: string): Promise<void> {
 }
 
 /** Approve every pending candidate, run from the project root as the CLI would be. */
-async function approveAll(): Promise<void> {
+async function approveAll(mode: "single" | "batch"): Promise<void> {
   vi.spyOn(console, "log").mockImplementation(() => {});
   const previous = process.cwd();
   process.chdir(ctx.dir);
   try {
-    for (const candidate of await listCandidates(ctx.dir)) await reviewApproveCommand(candidate.id);
+    const candidates = await listCandidates(ctx.dir);
+    if (mode === "batch") {
+      expect((await approveBatch(ctx.dir, ...candidates.map(candidate => candidate.id))).status).toBe("completed");
+    } else {
+      for (const candidate of candidates) await reviewApproveCommand(candidate.id);
+    }
   } finally {
     process.chdir(previous);
   }
@@ -42,13 +48,13 @@ async function approveAll(): Promise<void> {
 }
 
 describe("review approval keeps unchanged co-owner extraction", () => {
-  it("approving a shared page leaves co-owners reusable on the next compile", async () => {
+  it.each(["single", "batch"] as const)("%s approval leaves shared-page co-owners reusable on the next compile", async mode => {
     const provider = mockSharedConceptProvider(["Alpha", "Beta", "Gamma", "Delta"]);
     await addSource("Beta");
     await compileAndReport(ctx.dir);
     await addSource("Gamma");
     await compileAndReport(ctx.dir, { review: true });
-    await approveAll();
+    await approveAll(mode);
     const state = (await readState(ctx.dir)).sources;
     expect(state["gamma.md"].concepts).toEqual(expect.arrayContaining(["shared", "gamma"]));
     expect(state["alpha.md"].extraction).toBeDefined();

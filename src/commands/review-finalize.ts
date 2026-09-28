@@ -13,7 +13,7 @@ import { repairAndApplyLinks } from "../compiler/link-repair.js";
 import { refreshEmbeddingsDrainingPending, refreshAffectedEmbeddings } from "../utils/embeddings-refresh.js";
 import { qualifiedPageId } from "../utils/page-id.js";
 import { readState, writeState } from "../utils/state.js";
-import type { ReviewCandidate } from "../utils/types.js";
+import type { ReviewCandidate, SourceState } from "../utils/types.js";
 import { isValidatedAnswer } from "./review-publication.js";
 import { openReviewEmbeddingIntent, type ReviewEmbeddingIntent } from "./review-embedding-intent.js";
 
@@ -105,18 +105,21 @@ async function persistApprovedSourceStates(root: string, candidates: ReviewCandi
   const state = await readState(root);
   for (const candidate of defaults) {
     for (const [source, entry] of Object.entries(candidate.sourceStates!)) {
-      const existing = state.sources[source];
-      const concepts = existing?.concepts ?? [];
-      const merged = [...new Set([...concepts, candidate.slug])];
-      // Unchanged co-owners retain the extraction snapshot that compile revalidates.
-      const unchanged = existing?.hash === entry.hash && merged.length === concepts.length;
-      state.sources[source] = {
-        hash: entry.hash,
-        concepts: merged,
-        compiledAt: new Date().toISOString(),
-        ...(unchanged && existing?.extraction ? { extraction: existing.extraction } : {}),
-      };
+      state.sources[source] = approvedSourceState(state.sources[source], candidate.slug, entry.hash);
     }
   }
   await writeState(root, state);
+}
+
+/** Preserve extraction only when approval leaves a co-owner's hash and concept set unchanged. */
+function approvedSourceState(existing: SourceState | undefined, slug: string, hash: string): SourceState {
+  const concepts = existing?.concepts ?? [];
+  const merged = [...new Set([...concepts, slug])];
+  const unchanged = existing?.hash === hash && merged.length === concepts.length;
+  return {
+    hash,
+    concepts: merged,
+    compiledAt: new Date().toISOString(),
+    ...(unchanged && existing?.extraction ? { extraction: existing.extraction } : {}),
+  };
 }
