@@ -83,6 +83,19 @@ it("completes an interrupted release without a second grant", async () => {
   expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([]);
 });
 
+// An ineligible page ages without a content hash. If its quarantine append does
+// not persist (swallowed write, or a full quarantine file), a missing record must
+// not pass for a durable hashless one: the exhausted entry has to stay pending.
+it.each(["swallowed", "full"] as const)("holds a hashless exhausted entry in pending when its quarantine append is %s", async kind => {
+  await writeFile(path.join(ctx.dir, "wiki/concepts/alpha.md"), "---\ntitle: alpha\nsummary: alpha\norphaned: true\n---\nalpha body\n");
+  await writePendingEmbeddings(ctx.dir, [{ pageId: PAGE, attempts: MAX - 1 }]);
+  if (kind === "full") await writePendingEmbeddings(ctx.dir, fullEmbeddingMarker("count", MAX), QUARANTINED_EMBEDDINGS_FILE);
+  else swallowMarkerWrites(QUARANTINED_EMBEDDINGS_FILE);
+  await refresh();
+  expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE, attempts: MAX, ineligible: true }]);
+  expect((await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).some(e => e.pageId === PAGE)).toBe(false);
+});
+
 it("keeps the exclusion when a quarantine append was not followed by the pending removal", async () => {
   const exhausted = await bound(MAX);
   await writePendingEmbeddings(ctx.dir, [exhausted], QUARANTINED_EMBEDDINGS_FILE);

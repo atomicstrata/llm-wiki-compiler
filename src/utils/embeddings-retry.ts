@@ -139,7 +139,7 @@ class EmbeddingRetry {
     this.quarantined = await loadPendingEmbeddings(this.root, QUARANTINED_EMBEDDINGS_FILE);
     const durable = new Map(this.quarantined.map(e => [e.pageId, e]));
     // Retain overflow in pending with its exhausted count; never retire an unpersisted exclusion.
-    return new Set(entries.filter(e => durable.get(e.pageId)?.contentHash === e.contentHash).map(e => e.pageId));
+    return new Set(entries.filter(e => sameExclusion(durable.get(e.pageId), e)).map(e => e.pageId));
   }
 
   /** Restrict batch reconciliation without changing the compiler's full-drain default. */
@@ -169,6 +169,15 @@ function withFreshWork(
 function unrecorded(ids: PageId[], pending: PendingEmbedding[], quarantined: PendingEmbedding[]): PageId[] {
   const handled = new Set([...pending, ...quarantined].map(e => e.pageId));
   return [...new Set(ids)].filter(id => !handled.has(id));
+}
+
+/**
+ * A retirement is durable only when the quarantine file holds this exact record.
+ * A missing record never matches, even for a hashless (ineligible) entry.
+ */
+function sameExclusion(persisted: PendingEmbedding | undefined, intended: PendingEmbedding): boolean {
+  return persisted !== undefined && persisted.attempts === intended.attempts &&
+    persisted.contentHash === intended.contentHash && persisted.ineligible === intended.ineligible;
 }
 
 /** Write a marker and confirm the persisted result is exactly what was intended. */
