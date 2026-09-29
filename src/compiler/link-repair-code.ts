@@ -23,14 +23,36 @@ export interface LiteralMarkdownOptions {
   htmlBlocks?: boolean;
 }
 
-/** Locate literal blocks by their original line ranges. */
-function blockSpans(body: string, parser: MarkdownIt): Span[] {
+/** Literal blocks, and the inline-content blocks where code spans may occur, by original line range. */
+function blockSpans(body: string, parser: MarkdownIt): { literal: Span[]; inline: Span[] } {
   const offsets = [0];
   for (const match of body.matchAll(/\n/g)) offsets.push(match.index + 1);
   offsets.push(body.length);
-  return parser.parse(body, {})
-    .filter(token => ["fence", "code_block", "html_block"].includes(token.type) && token.map)
-    .map(token => ({ start: offsets[token.map![0]], end: offsets[token.map![1]] }));
+  const tokens = parser.parse(body, {}).filter(token => token.map);
+  const span = (token: (typeof tokens)[number]) => ({ start: offsets[token.map![0]], end: offsets[token.map![1]] });
+  return {
+    literal: tokens.filter(token => ["fence", "code_block", "html_block"].includes(token.type)).map(span),
+    inline: [
+      ...tokens.filter(token => token.type === "inline").map(span),
+      // Table cells' inline tokens carry no source map; markdown-it splits each
+      // row into cells at unescaped pipes before inline parsing, so do the same.
+      ...tokens.filter(token => token.type === "tr_open").flatMap(token => tableCellSpans(body, span(token))),
+    ],
+  };
+}
+
+/** Split one table row's source into its cells at unescaped `|`. */
+function tableCellSpans(body: string, row: Span): Span[] {
+  const cells: Span[] = [];
+  let start = row.start;
+  for (let at = row.start; at < row.end; at++) {
+    if (body[at] === "\\") { at++; continue; }
+    if (body[at] !== "|") continue;
+    cells.push({ start, end: at });
+    start = at + 1;
+  }
+  cells.push({ start, end: row.end });
+  return cells;
 }
 
 /** Locate matched code spans; an unmatched backtick remains ordinary prose. */
@@ -52,13 +74,14 @@ function inlineSpans(body: string): Span[] {
 
 /** Return a predicate identifying matches inside literal Markdown regions. */
 export function isLiteralMarkdown(body: string, options: LiteralMarkdownOptions = {}): (offset: number) => boolean {
-  const spans = blockSpans(body, options.htmlBlocks ? markdownWithHtml : markdown);
-  // Inline scanning must not pair a prose backtick with a fenced block's run.
-  let start = 0;
-  for (const block of [...spans, { start: body.length, end: body.length }]) {
-    spans.push(...inlineSpans(body.slice(start, block.start))
-      .map(span => ({ start: span.start + start, end: span.end + start })));
-    start = block.end;
+  const { literal, inline } = blockSpans(body, options.htmlBlocks ? markdownWithHtml : markdown);
+  // Code spans pair backticks only within one inline block (a paragraph, heading,
+  // list item or table cell), as Markdown does: an unmatched backtick never pairs
+  // with one in another block, or with a fenced block's run.
+  const spans = [...literal];
+  for (const block of inline) {
+    spans.push(...inlineSpans(body.slice(block.start, block.end))
+      .map(span => ({ start: span.start + block.start, end: span.end + block.start })));
   }
   return offset => spans.some(span => offset >= span.start && offset < span.end);
 }

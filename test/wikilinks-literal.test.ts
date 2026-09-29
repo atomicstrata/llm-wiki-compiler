@@ -15,6 +15,8 @@ import { planLintFixes } from "../src/linter/fix-plan.js";
 import { countWikilinks } from "../src/schema/helpers.js";
 import { extractWikilinkSlugs, extractWikilinkTargets } from "../src/wiki/collect.js";
 import { findWikilinks } from "../src/wiki/wikilinks.js";
+import { recognizedWikilinkTargets } from "../src/wiki/wikilink-tokens.js";
+import { slugify } from "../src/utils/markdown.js";
 import { tempRootTracker } from "./temp-roots.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 
@@ -52,6 +54,24 @@ describe("findWikilinks", () => {
 
   it("finds nothing in text without link brackets", () => {
     expect(findWikilinks("plain `code` and prose")).toEqual([]);
+  });
+});
+
+// The renderer (viewer and answer reporting) is the authority on which links
+// exist; the extractor must find exactly the targets it recognizes.
+const RENDERER_CASES: Record<string, string> = {
+  "unmatched backticks in separate paragraphs": "One ` stray.\n\nSee [[Missing]].\n\nAnother ` stray.",
+  "code in a table cell": "| a | b |\n| - | - |\n| `[[In Code]]` | [[In Cell]] |",
+  "heading and list code": "# Title `[[Heading Code]]` [[Heading Link]]\n\n- item `[[List Code]]` and [[List Link]]",
+  "blockquote code": "> quoted `[[Quote Code]]` and [[Quote Link]]",
+  "link across lines": "Broken [[Across\nLines]] link.",
+  "bracket inside": "Nested [[a [b] c]] text.",
+  "inline html is text": "Raw <code>[[Html Text]]</code> here.",
+};
+
+describe("agreement with the renderer's recognizer", () => {
+  it.each(Object.entries(RENDERER_CASES))("finds exactly the renderer's links: %s", (_label, body) => {
+    expect(findWikilinks(body).map(link => slugify(link.target))).toEqual(recognizedWikilinkTargets(body));
   });
 });
 

@@ -4,7 +4,9 @@
  * page body. Text inside literal Markdown (fenced, indented or inline code) is
  * not a link: link repair and publication approval already skip it, so every
  * other reader (lint, lint fix plans, the link graph, schema link counts, the
- * `rm` plan and OKF export) must agree with them about which links exist.
+ * `rm` plan and OKF export) must agree with them about which links exist. A
+ * link may not span lines or contain `[`, matching the renderer's recognizer
+ * (`recognizedWikilinkTargets`).
  */
 
 import { isLiteralMarkdown } from "../compiler/link-repair-code.js";
@@ -23,7 +25,8 @@ export interface WikilinkMatch {
   line: number;
 }
 
-const WIKILINK = /\[\[([^\]]+)\]\]/g;
+// As the viewer and answer reporting recognize them: no newline or `[` inside one link.
+const WIKILINK = /\[\[([^\]\n[]+)\]\]/g;
 
 /**
  * Every wikilink in `text` that Markdown renders as a link, in order. The text
