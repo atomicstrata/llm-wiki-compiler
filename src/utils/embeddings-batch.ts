@@ -24,6 +24,26 @@ import {
 } from "./constants.js";
 import * as output from "./output.js";
 import { EmbeddingIntegrityError, assertVectorValid, assertEveryVectorValid } from "./embeddings-validate.js";
+import type { EmbeddingRequestObserver } from "./embedding-attempts.js";
+
+/** The work items one provider request carries, for attempt accounting. */
+interface RequestTrack {
+  observer: EmbeddingRequestObserver;
+  indices: number[];
+}
+
+/** Report one provider request (call plus response validation) to the observer. */
+async function observed<T>(track: RequestTrack | undefined, request: () => Promise<T>): Promise<T> {
+  track?.observer.sending(track.indices);
+  try {
+    const result = await request();
+    track?.observer.succeeded(track.indices);
+    return result;
+  } catch (err) {
+    track?.observer.failed(track.indices);
+    throw err;
+  }
+}
 
 // Re-export so existing test imports `{ EmbeddingIntegrityError } from embeddings-batch.js` keep working.
 export { EmbeddingIntegrityError } from "./embeddings-validate.js";
@@ -123,13 +143,16 @@ async function validatedBatch(
   sub: string[],
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  track?: RequestTrack,
 ): Promise<number[][]> {
-  const vecs = await provider.embedBatch!(sub, inputType); // already index-normalized by the provider
-  if (vecs.length !== sub.length) {
-    throw new EmbeddingIntegrityError(`cardinality: got ${vecs.length} for ${sub.length} inputs`);
-  }
-  assertEveryVectorValid(vecs, expectedDim);
-  return vecs;
+  return observed(track, async () => {
+    const vecs = await provider.embedBatch!(sub, inputType); // already index-normalized by the provider
+    if (vecs.length !== sub.length) {
+      throw new EmbeddingIntegrityError(`cardinality: got ${vecs.length} for ${sub.length} inputs`);
+    }
+    assertEveryVectorValid(vecs, expectedDim);
+    return vecs;
+  });
 }
 
 /** Validated single-item fallback path. */
@@ -138,10 +161,12 @@ async function sequentialEmbed(
   sub: string[],
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  track?: RequestTrack,
 ): Promise<number[][]> {
   const out: number[][] = [];
-  for (const text of sub) {
-    out.push(await embedOneSequential(provider, text, expectedDim, inputType));
+  for (const [i, text] of sub.entries()) {
+    const item = track && { observer: track.observer, indices: [track.indices[i]] };
+    out.push(await embedOneSequential(provider, text, expectedDim, inputType, item));
   }
   return out;
 }
@@ -152,16 +177,18 @@ async function embedOneSequential(
   text: string,
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  track?: RequestTrack,
 ): Promise<number[]> {
-  try {
+  const request = () => observed(track, async () => {
     const v = await provider.embed(text, inputType);
     assertVectorValid(v, expectedDim);
     return v;
+  });
+  try {
+    return await request();
   } catch (err) {
     if (!isTransient(err)) throw err;
-    const retried = await provider.embed(text, inputType);
-    assertVectorValid(retried, expectedDim);
-    return retried;
+    return request();
   }
 }
 
@@ -174,12 +201,13 @@ async function retryThenFallback(
   sub: string[],
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  track?: RequestTrack,
 ): Promise<number[][]> {
   try {
-    return await validatedBatch(provider, sub, expectedDim, inputType);
+    return await validatedBatch(provider, sub, expectedDim, inputType, track);
   } catch (retryErr) {
     if (isTransient(retryErr) || isRequestTooLarge(retryErr)) {
-      return sequentialEmbed(provider, sub, expectedDim, inputType);
+      return sequentialEmbed(provider, sub, expectedDim, inputType, track);
     }
     throw retryErr; // integrity / auth / unknown — surface it
   }
@@ -200,14 +228,15 @@ async function embedSubBatch(
   sub: string[],
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  track?: RequestTrack,
 ): Promise<number[][]> {
-  if (!provider.embedBatch) return sequentialEmbed(provider, sub, expectedDim, inputType);
+  if (!provider.embedBatch) return sequentialEmbed(provider, sub, expectedDim, inputType, track);
   try {
-    return await validatedBatch(provider, sub, expectedDim, inputType);
+    return await validatedBatch(provider, sub, expectedDim, inputType, track);
   } catch (err) {
     if (isIntegrityError(err) || isAuthError(err)) throw err;
-    if (isRequestTooLarge(err)) return sequentialEmbed(provider, sub, expectedDim, inputType);
-    if (isTransient(err)) return retryThenFallback(provider, sub, expectedDim, inputType);
+    if (isRequestTooLarge(err)) return sequentialEmbed(provider, sub, expectedDim, inputType, track);
+    if (isTransient(err)) return retryThenFallback(provider, sub, expectedDim, inputType, track);
     throw err; // unknown — surface it
   }
 }
@@ -225,13 +254,15 @@ export async function embedTextBatch(
   batchSize: number,
   expectedDim?: number,
   inputType: EmbeddingInputType = "document",
+  observer?: EmbeddingRequestObserver,
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
   const out: number[][] = [];
   for (const sub of chunked(texts, batchSize)) {
     const startIndex = out.length;
+    const track = observer && { observer, indices: sub.map((_, i) => startIndex + i) };
     try {
-      out.push(...(await embedSubBatch(provider, sub, expectedDim, inputType)));
+      out.push(...(await embedSubBatch(provider, sub, expectedDim, inputType, track)));
     } catch (err) {
       if (err && typeof err === "object" && (err as { failedIndex?: number }).failedIndex === undefined) {
         (err as { failedIndex?: number }).failedIndex = startIndex;
@@ -253,6 +284,7 @@ export async function embedTextBatch(
  * @param getText - Map an item to the text sent to the provider.
  * @param getLabel - Map a work index to the label named in the error.
  * @param pass - `"page"` or `"chunk"` — names the failing pass in the error.
+ * @param observer - Optional attempt accounting; `getLabel` must return the item's pageId.
  * @returns One vector per item, in input order.
  */
 export async function embedWorkItems<T>(
@@ -263,9 +295,10 @@ export async function embedWorkItems<T>(
   pass: "page" | "chunk",
   batchSize: number,
   expectedDim?: number,
+  observer?: EmbeddingRequestObserver,
 ): Promise<number[][]> {
   try {
-    return await embedTextBatch(provider, items.map(getText), batchSize, expectedDim);
+    return await embedTextBatch(provider, items.map(getText), batchSize, expectedDim, "document", observer);
   } catch (err) {
     throw enrichEmbedError(err, pass, getLabel);
   }

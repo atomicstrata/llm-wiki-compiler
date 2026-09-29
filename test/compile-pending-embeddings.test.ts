@@ -68,7 +68,7 @@ describe("durable pending-embedding refresh list across compiles", () => {
     // Compile 2: NO source changed (same sources), refresh now SUCCEEDS. The
     // drain must invoke the core with the prior-pending id and clear the marker.
     // The core now returns what it embedded + the eligible universe; alpha is
-    // both, so settleAfterSuccess clears it.
+    // both, so settlement clears it.
     const okSpy = vi
       .spyOn(embeddings, "updateEmbeddingsLockedCore")
       .mockResolvedValue({ embedded: [ALPHA_ID], eligible: [ALPHA_ID], pruned: [] });

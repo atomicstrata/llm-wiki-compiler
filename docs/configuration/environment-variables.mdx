@@ -201,18 +201,37 @@ with `LLMWIKI_EMBEDDINGS` skips generation entirely, including in strict mode.
 ### Embedding retries and quarantine
 
 Explicit changes and automatically discovered missing or stale vectors share a
-durable retry budget in `.llmwiki/pending-embeddings.json`. After five failed
-refresh attempts, llmwiki warns and moves the page into
-`.llmwiki/quarantined-embeddings.json`. Later automatic scans exclude it, allowing
-other pages to embed. These files use bounded, root-confined reads and atomic
-writes; neither is read or changed while refreshes are disabled.
+durable retry budget in `.llmwiki/pending-embeddings.json`. Each budget is bound to
+the page's embeddable content (its title, summary and body chunks): an attempt is
+charged against the content actually sent to the embedding provider, recorded
+before the request is made.
 
-Each retry file is limited to 5,000 entries and 256 KiB. A refresh only attempts
-pages whose budgets fit in the pending file; additional pages wait for a later
-compile. Existing failed-attempt counts take precedence over new work. If the
-quarantine file is full, exhausted entries stay in the pending file but are not
-retried. If both files fill with exhausted entries, new embedding work pauses
-until you recover those entries. The limits do not cause retries to restart.
+Only real failures are charged:
+
+- Pages in the request that failed are charged one attempt.
+- Pages sent earlier in the same run that were not at fault are not charged.
+- Pages the run never reached are not charged.
+- A run that fails before any provider request charges nobody, but is still reported.
+- If every request succeeds but the results cannot be saved, the pages sent are
+  charged, so paid work that can never be saved stops.
+
+After five failed attempts for the same content, llmwiki warns and moves the page
+into `.llmwiki/quarantined-embeddings.json`. Later refreshes skip it while its
+content is unchanged, allowing other pages to embed.
+
+A quarantined page is retried automatically, with a fresh budget, as soon as its
+content changes. That includes changes made while refreshes were disabled, or
+outside llmwiki. Re-saving identical content does not reset the budget. These files
+use bounded, root-confined reads and atomic writes, and llmwiki re-reads them after
+writing. Neither file is read or changed while refreshes are disabled.
+
+Each retry file is limited to 5,000 entries and 512 KiB, which fits 5,000 typical
+page ids with their content hashes. A refresh only attempts pages whose budgets fit
+in the pending file; additional pages wait for a later compile. Existing entries are
+never evicted to make room for new work. If the quarantine file is full, exhausted
+entries stay in the pending file but are not retried. If both files fill with
+exhausted entries, new embedding work pauses until you recover those entries. The
+limits do not cause retries to restart.
 
 Deferred work is reported with a page count. No provider request is made for a
 page whose budget could not be recorded. Strict embedding mode reports this as
@@ -227,14 +246,24 @@ pages, pages no longer eligible for embeddings, invalid vectors, and vectors fro
 backend are not retained. Legacy-store upgrades do not preserve stale vectors
 for deferred pages; those pages wait for a successful refresh.
 
-After fixing the provider or page, edit its source and compile again, or re-save
-the page through its normal write workflow, to re-queue it with a fresh budget.
-Changing only embedding configuration does not clear quarantine. To retry all
-quarantined pages without regenerating source pages, remove
-both `.llmwiki/quarantined-embeddings.json` and `.llmwiki/pending-embeddings.json`
-from your project while no compile or refresh is running, then run `llmwiki compile`
-with refreshes enabled. Removing both also releases exhausted entries retained
-in pending at capacity. This resets all retry budgets and may incur costs.
+**Entries from earlier versions.** Quarantined entries written before retries were
+bound to content are re-queued once by the first compile with refreshes enabled.
+Each such page is bound to its current content and gets up to five additional retry
+rounds; one round can issue more than one provider request. llmwiki prints a
+one-time notice with the count, and `llmwiki status` reports these entries until
+then. After that, they follow the rules above.
+
+**Resetting after fixing a provider.** Unchanged content stays quarantined even
+after the provider is fixed, so reset its retry entries explicitly:
+
+1. Make sure no compile or refresh is running.
+2. Remove the page's entries from both `.llmwiki/quarantined-embeddings.json` and
+   `.llmwiki/pending-embeddings.json`. To reset every page, remove both files.
+3. Run `llmwiki compile` with refreshes enabled.
+
+Removing both files also releases exhausted entries retained in pending at capacity.
+Resetting restarts retry budgets and may incur costs. Changing only embedding
+configuration does not clear quarantine.
 
 ### Embedding storage
 

@@ -14,12 +14,13 @@
  * review intent. Before archiving, that work is handed to the embedding retry
  * queue, keyed from the same captured bytes the move archives; if the queue
  * cannot record it, or either store is unreadable, the rejection refuses and
- * the candidate stays pending.
+ * the candidate stays pending. A page whose content is still excluded stays
+ * excluded; that never blocks the rejection.
  */
 
 import { archiveRejectedCandidate, loadRejectableCandidateOrFail } from "../compiler/candidate-rejection.js";
 import { embeddingsDisabled } from "../utils/embeddings-config.js";
-import { queueScopedEmbeddingRetry, releaseScopedExclusions } from "../utils/embeddings-retry.js";
+import { queueScopedEmbeddingRetry } from "../utils/embeddings-retry.js";
 import * as output from "../utils/output.js";
 import type { PageId } from "../utils/page-id.js";
 import { releaseRejectedIntent } from "./review-embedding-intent.js";
@@ -42,12 +43,12 @@ async function rejectUnderLock(root: string, id: string): Promise<void> {
 }
 
 /**
- * Queue released pages like a finished batch would. Disabled refreshes queue
- * nothing, but still lift their exclusions so a later enabled compile can re-find them.
+ * Queue released pages like a finished batch would. Disabled refreshes touch no
+ * retry file: the next enabled refresh rediscovers these pages by their stale
+ * vectors and admits any whose content differs from an excluded attempt.
  */
 async function handOffEmbeddingWork(root: string, pageIds: PageId[]): Promise<void> {
-  if (pageIds.length === 0) return;
-  if (embeddingsDisabled()) return releaseScopedExclusions(root, pageIds);
+  if (pageIds.length === 0 || embeddingsDisabled()) return;
   const unrecorded = await queueScopedEmbeddingRetry(root, pageIds);
   if (unrecorded.length === 0) return;
   throw new Error(

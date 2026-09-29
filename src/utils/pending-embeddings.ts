@@ -27,7 +27,8 @@
  *  - On SUCCESS only the ids actually re-embedded are cleared. An id that the core
  *    SKIPPED (transiently ineligible: orphaned/untitled/`includeInSearch:false`/
  *    profile-invalid) is RETAINED with an incremented attempt count — never cleared
- *    while un-embedded — until it embeds or ages out. See {@link settleAfterSuccess}.
+ *    while un-embedded — until it embeds or ages out. Settlement lives in
+ *    `retry-exclusions.ts`, which binds attempts to the content actually sent.
  * The pure settle/merge/quarantine helpers live here for easy unit-testing.
  *
  * ## Backward-compat
@@ -104,13 +105,17 @@ import {
 export interface PendingEmbedding {
   pageId: string;
   attempts: number;
+  /**
+   * Hash of the embeddable content these attempts were charged against. An
+   * exclusion applies only while the live page still hashes to it.
+   */
+  contentHash?: string;
+  /** Attempts come from ineligibility aging; no content was ever sent. */
+  ineligible?: true;
 }
 
-/** Outcome of a settle step: active survivors + ids to persist as quarantined. */
-export interface SettleResult {
-  survivors: PendingEmbedding[];
-  quarantined: PendingEmbedding[];
-}
+/** Truncated SHA-256 hex used only to detect embeddable-content changes. */
+const CONTENT_HASH_PATTERN = /^[0-9a-f]{16}$/;
 
 /** Both retry files share the same bounded schema and confined I/O. */
 type EmbeddingMarkerFile = typeof PENDING_EMBEDDINGS_FILE | typeof QUARANTINED_EMBEDDINGS_FILE;
@@ -154,16 +159,29 @@ function coerceEntry(raw: unknown): PendingEmbedding | null {
     return isValidPageId(raw) ? { pageId: raw, attempts: 0 } : null;
   }
   if (typeof raw !== "object" || raw === null) return null;
-  const { pageId, attempts } = raw as { pageId?: unknown; attempts?: unknown };
+  const { pageId, attempts, contentHash, ineligible } = raw as Record<string, unknown>;
   if (!isValidPageId(pageId)) return null;
-  return { pageId, attempts: toAttempts(attempts) };
+  const entry: PendingEmbedding = { pageId, attempts: toAttempts(attempts) };
+  if (typeof contentHash === "string" && CONTENT_HASH_PATTERN.test(contentHash)) entry.contentHash = contentHash;
+  else if (ineligible === true) entry.ineligible = true;
+  return entry;
+}
+
+/**
+ * Resolve a duplicate id within one marker (only hand edits or older binaries
+ * produce one, since writes are whole-file): the most attempts wins, and a tie
+ * prefers the entry bound to a content hash, so a duplicate never grants budget.
+ */
+function preferredDuplicate(prior: PendingEmbedding, next: PendingEmbedding): PendingEmbedding {
+  if (next.attempts !== prior.attempts) return next.attempts > prior.attempts ? next : prior;
+  return !prior.contentHash && next.contentHash ? next : prior;
 }
 
 /**
  * The SINGLE normalization both the writer and reader apply, so a written marker
  * can NEVER be one the reader later discards (the asymmetric-cap bug): coerce each
  * element (migrating legacy strings, dropping non-PageIds), DEDUP by `pageId`
- * keeping the MAX attempts seen, COUNT-cap to {@link MAX_PENDING_EMBEDDING_IDS},
+ * keeping the MAX attempts seen (see {@link preferredDuplicate}), COUNT-cap to {@link MAX_PENDING_EMBEDDING_IDS},
  * then BYTE-cap the serialized JSON to `<= ` {@link MAX_PENDING_EMBEDDINGS_BYTES} by
  * tail-dropping until `JSON.stringify` fits the reader's `fstat` byte cap.
  */
@@ -173,8 +191,7 @@ export function normalizeMarker(entries: unknown[]): PendingEmbedding[] {
     const entry = coerceEntry(item);
     if (entry === null) continue;
     const prior = deduped.get(entry.pageId);
-    if (prior === undefined) deduped.set(entry.pageId, entry);
-    else prior.attempts = Math.max(prior.attempts, entry.attempts);
+    deduped.set(entry.pageId, prior === undefined ? entry : preferredDuplicate(prior, entry));
   }
   let bounded = [...deduped.values()].slice(0, MAX_PENDING_EMBEDDING_IDS);
   while (
@@ -357,66 +374,6 @@ export function mergeFreshAttempts(prior: PendingEmbedding[], freshIds: string[]
 }
 
 /**
- * Settle the marker after a SUCCESSFUL (all-or-nothing) refresh, keyed off the
- * core's report of what it actually embedded vs the eligible universe:
- *  - `embedded` → done, removed.
- *  - in `eligible` but NOT embedded (unusual) → kept UNCHANGED (still live).
- *  - NOT in `eligible` (ineligible OR deleted) → cannot embed as-is → attempts++;
- *    QUARANTINE at the cap so a permanently-ineligible id ages out rather than
- *    being cleared un-embedded (the silent-never-re-queue bug) or lingering forever.
- * Pure — returns survivors to write back + the quarantined entries to warn on.
- */
-export function settleAfterSuccess(
-  merged: PendingEmbedding[],
-  embedded: string[],
-  eligible: string[],
-): SettleResult {
-  const embeddedSet = new Set(embedded);
-  const eligibleSet = new Set(eligible);
-  const survivors: PendingEmbedding[] = [];
-  const quarantined: PendingEmbedding[] = [];
-  for (const entry of merged) {
-    if (embeddedSet.has(entry.pageId)) continue; // embedded → clear
-    if (eligibleSet.has(entry.pageId)) { survivors.push(entry); continue; } // live, retry as-is
-    bumpOrQuarantine(entry, survivors, quarantined); // ineligible/deleted → age out
-  }
-  return { survivors, quarantined };
-}
-
-/**
- * Settle the marker after a FAILED (thrown) refresh: the whole all-or-nothing batch
- * failed, so increment attempts for EVERY id in the batch and QUARANTINE those over
- * the cap — so a poison id that throws (non-transient provider error / integrity
- * error) stops wedging the batch on the next compile instead of looping forever.
- * Pure — returns survivors + quarantined.
- */
-export function settleAfterFailure(merged: PendingEmbedding[], toRefresh: string[]): SettleResult {
-  const inBatch = new Set(toRefresh);
-  const survivors: PendingEmbedding[] = [];
-  const quarantined: PendingEmbedding[] = [];
-  for (const entry of merged) {
-    if (!inBatch.has(entry.pageId)) { survivors.push(entry); continue; }
-    bumpOrQuarantine(entry, survivors, quarantined);
-  }
-  return { survivors, quarantined };
-}
-
-/**
- * Increment one entry's failed-attempt count, then route it: under the cap →
- * survivors (retry next compile); at/over the cap → quarantined (age out). Shared by
- * both settle paths so the age-out rule lives in ONE place.
- */
-function bumpOrQuarantine(
-  entry: PendingEmbedding,
-  survivors: PendingEmbedding[],
-  quarantined: PendingEmbedding[],
-): void {
-  const bumped: PendingEmbedding = { pageId: entry.pageId, attempts: entry.attempts + 1 };
-  if (bumped.attempts >= MAX_PENDING_EMBEDDING_ATTEMPTS) quarantined.push(bumped);
-  else survivors.push(bumped);
-}
-
-/**
  * Emit a VISIBLE warning naming each quarantined page-id + its attempt count, so a
  * poison id is NEVER silently discarded. Routed through the shared output/warn path
  * (not raw console). No-op when nothing was quarantined.
@@ -427,7 +384,7 @@ export function warnQuarantined(quarantined: PendingEmbedding[]): void {
       "!",
       output.warn(
         `Quarantined pending embedding for ${entry.pageId} after ${entry.attempts} failed refresh attempt(s); ` +
-          `it will not be retried. Re-save or edit the source to re-queue it.`,
+          `it will not be retried until its content changes. After fixing the provider, reset its retry entries to re-queue it.`,
       ),
     );
   }

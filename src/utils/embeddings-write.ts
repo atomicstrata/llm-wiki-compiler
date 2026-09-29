@@ -13,6 +13,7 @@
  * and the page `embeddingTextHash` differ.
  */
 
+import type { EmbeddingAttemptRecorder } from "./embedding-attempts.js";
 import { getEmbeddingProvider } from "./embedding-provider.js";
 import { embedWorkItems, makeCountingProvider } from "./embeddings-batch.js";
 import type {
@@ -49,6 +50,7 @@ export interface ReembedReport {
  * @param reembedIds - The pageIds to (re-)embed this write.
  * @param batchSize - Provider batch size.
  * @param expectedDim - Expected vector dimension (omit on a dimensionless store).
+ * @param recorder - Optional attempt accounting for the retry budget.
  */
 export async function reembedIntoStore(
   migrated: EmbeddingStoreV3,
@@ -56,14 +58,16 @@ export async function reembedIntoStore(
   reembedIds: Set<PageId>,
   batchSize: number,
   expectedDim: number | undefined,
+  recorder?: EmbeddingAttemptRecorder,
 ): Promise<{ store: EmbeddingStoreV3; report: ReembedReport }> {
   const byId = new Map(collected.map((p) => [p.pageId, p]));
   const targets = [...reembedIds].map((id) => byId.get(id)).filter((p): p is CollectedPage => Boolean(p));
   const { provider, requestCount } = makeCountingProvider(getEmbeddingProvider());
   const now = new Date().toISOString();
 
-  const pageEntries = await embedPageLevel(provider, targets, batchSize, expectedDim, now);
-  const chunkEntries = await embedChunkLevel(provider, targets, batchSize, expectedDim, now);
+  const pass = { provider, batchSize, expectedDim, now, recorder };
+  const pageEntries = await embedPageLevel(pass, targets);
+  const chunkEntries = await embedChunkLevel(pass, targets);
 
   const reembedSet = new Set(targets.map((p) => p.pageId));
   const store = mergeReembedded(migrated, pageEntries, chunkEntries, reembedSet);
@@ -73,17 +77,24 @@ export async function reembedIntoStore(
   };
 }
 
+/** Shared settings for the page and chunk passes of one re-embed. */
+interface EmbedPass {
+  provider: ReturnType<typeof makeCountingProvider>["provider"];
+  batchSize: number;
+  expectedDim: number | undefined;
+  now: string;
+  recorder?: EmbeddingAttemptRecorder;
+}
+
 /** Embed the page-level vector for each target, keyed by pageId with its text hash. */
 async function embedPageLevel(
-  provider: ReturnType<typeof makeCountingProvider>["provider"],
+  { provider, batchSize, expectedDim, now, recorder }: EmbedPass,
   targets: CollectedPage[],
-  batchSize: number,
-  expectedDim: number | undefined,
-  now: string,
 ): Promise<PageEmbeddingV3[]> {
   if (targets.length === 0) return [];
+  const pageAt = (i: number) => targets[i]?.pageId;
   const vectors = await embedWorkItems(
-    provider, targets, (p) => p.embeddingText, (i) => targets[i]?.pageId, "page", batchSize, expectedDim,
+    provider, targets, (p) => p.embeddingText, pageAt, "page", batchSize, expectedDim, recorder?.observe(pageAt),
   );
   return targets.map((page, i) => ({
     pageId: page.pageId,
@@ -97,16 +108,14 @@ async function embedPageLevel(
 
 /** Embed every chunk of every target in one shared batch, keyed by (pageId, index). */
 async function embedChunkLevel(
-  provider: ReturnType<typeof makeCountingProvider>["provider"],
+  { provider, batchSize, expectedDim, now, recorder }: EmbedPass,
   targets: CollectedPage[],
-  batchSize: number,
-  expectedDim: number | undefined,
-  now: string,
 ): Promise<ChunkEmbeddingV3[]> {
   const work = buildChunkWork(targets);
   if (work.length === 0) return [];
+  const pageAt = (i: number) => work[i]?.pageId;
   const vectors = await embedWorkItems(
-    provider, work, (w) => w.text, (i) => work[i]?.pageId, "chunk", batchSize, expectedDim,
+    provider, work, (w) => w.text, pageAt, "chunk", batchSize, expectedDim, recorder?.observe(pageAt),
   );
   return work.map((w, i) => ({
     pageId: w.pageId,

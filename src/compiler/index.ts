@@ -700,13 +700,15 @@ async function finalizeWiki(
  * counts) with any prior-pending entries and recorded to a durable, root-confined
  * write-ahead marker BEFORE the attempt. AFTER the attempt the marker is reconciled
  * per-id rather than all-or-nothing:
- *  - SUCCESS → {@link settleAfterSuccess} clears only the ids the core actually
- *    embedded; an id it SKIPPED (transiently ineligible) is retained with an
- *    incremented attempt count, never cleared un-embedded.
- *  - FAILURE → {@link settleAfterFailure} increments attempts for the whole batch.
- * Either way, an id that fails {@link MAX_PENDING_EMBEDDING_ATTEMPTS} times is
+ *  - SUCCESS → only the ids actually persisted are cleared; an id the core
+ *    SKIPPED (transiently ineligible) is retained with an incremented attempt
+ *    count, never cleared un-embedded.
+ *  - FAILURE → only the pages in the failing provider request are charged (or
+ *    every sent page when the run failed after its requests succeeded).
+ * Attempts are bound to the content that was sent. An id that fails
+ * {@link MAX_PENDING_EMBEDDING_ATTEMPTS} times for the same content is
  * QUARANTINED (dropped + a visible warning), so a poison id can neither loop forever
- * (re-billing the provider) nor wedge the all-or-nothing batch it shares.
+ * (re-billing the provider) nor wedge the healthy pages that share its batch.
  *
  * `finalizeWiki` calls this on EVERY non-review compile (including the
  * no-source-changes early branch), so prior-pending ids are drained — retried —

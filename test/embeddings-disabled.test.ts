@@ -16,6 +16,7 @@ import * as embeddings from "../src/utils/embeddings.js";
 import * as output from "../src/utils/output.js";
 import * as provider from "../src/utils/provider.js";
 import type { PageId } from "../src/utils/page-id.js";
+import { EmbeddingAttemptRecorder } from "../src/utils/embedding-attempts.js";
 
 const PAGE_ID = "concepts/alpha" as PageId;
 const PENDING_CONTENT = '[{"pageId":"concepts/prior","attempts":2}]\n';
@@ -107,7 +108,7 @@ describe("LLMWIKI_EMBEDDINGS", () => {
 
     await refreshEmbeddingsDrainingPending(root, []);
 
-    expect(provider).toHaveBeenCalledWith(root, [], expect.any(Function), "drain");
+    expect(provider).toHaveBeenCalledWith(root, [], expect.any(Function), "drain", expect.any(EmbeddingAttemptRecorder));
     expect(existsSync(pendingPath())).toBe(false);
   });
 

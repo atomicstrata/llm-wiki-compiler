@@ -244,7 +244,7 @@ describe("write cap: marker can never exceed the reader's bounds", () => {
 
   it("drops the tail when long ids would blow the byte cap even within the count cap", async () => {
     const entries = fresh(
-      ...Array.from({ length: MAX_PENDING_EMBEDDING_IDS }, (_, i) => `concepts/${"p".repeat(60)}${i}`),
+      ...Array.from({ length: MAX_PENDING_EMBEDDING_IDS }, (_, i) => `concepts/${"p".repeat(120)}${i}`),
     );
     await writePendingEmbeddings(root, entries);
     expect(await markerBytes()).toBeLessThanOrEqual(MAX_PENDING_EMBEDDINGS_BYTES);

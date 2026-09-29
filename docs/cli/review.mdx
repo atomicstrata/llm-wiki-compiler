@@ -267,7 +267,8 @@ the retained candidates recover it on retry. Repair storage or free retry
 capacity, then retry the retained candidates. Keep their snapshots
 unchanged until recovery finishes: editing them does not erase their intent.
 Rejecting a retained candidate hands its recorded work to the embedding retry
-queue, so the next `compile` refreshes it, and removes only that candidate from
+queue, so the next `compile` refreshes it (pages still quarantined for unchanged
+content stay excluded), and removes only that candidate from
 the intent; batch-mates still pending keep their recovery. If snapshots were
 removed, restore them from backup to complete recovery; do not delete the
 intent file merely to bypass a storage error.
@@ -304,7 +305,7 @@ llmwiki review reject <id>
 
 Rejected candidates are moved to `.llmwiki/candidates/archive/`. They no longer appear in `review list`, but they remain on disk for audit purposes. A rejected candidate for an unchanged source won't be re-extracted on the next `compile` - the rejection is sticky until the source itself changes.
 
-If the candidate was retained by an interrupted `approve-batch`, rejection first hands its recorded embedding work to the embedding retry queue (see batch recovery under `review approve-batch` above). When that queue is full, or the intent or queue storage is unreadable, rejection refuses and the candidate stays pending: run `llmwiki compile` to work through queued embeddings, or repair the storage, then reject again. With embeddings disabled there is nothing to queue: rejection releases the intent and lifts any retry exclusion on those pages (quarantine, or an exhausted retry budget), so a later `compile` with embeddings enabled finds and refreshes their stale vectors. Rejection confirms the retry state was actually updated before releasing the intent, and refuses if it was not.
+If the candidate was retained by an interrupted `approve-batch`, rejection first hands its recorded embedding work to the embedding retry queue (see batch recovery under `review approve-batch` above). When that queue is full, or the intent or queue storage is unreadable, rejection refuses and the candidate stays pending: run `llmwiki compile` to work through queued embeddings, or repair the storage, then reject again. Rejection re-reads the queue to confirm the work was recorded, and refuses if it was not. A page that is quarantined for exactly its current content stays quarantined and does not block the rejection. With embeddings disabled, rejection only releases the intent and never touches the retry files: the next `compile` with embeddings enabled finds the pages' stale vectors and refreshes any whose content changed since a failed attempt.
 
 Malformed or unsupported validated-answer metadata cannot be promoted: `review show` and `review approve` report an invalid-candidate diagnostic, while list and collection paths skip the record with a named warning. You can still reject its explicit safe ID to archive the original queue file through the existing archive mechanism without accepting its metadata. The rename path preserves bytes; the existing text-copy fallback does not guarantee byte preservation. Unsafe IDs, symlinks, non-regular files, missing files, and detected file replacement refuse; raw rejection does not bypass path confinement.
 

@@ -36,7 +36,6 @@ import { ENV_EMBEDDINGS } from "./constants.js";
 import { verbose } from "./output.js";
 import type { PageId } from "./page-id.js";
 import { loadEmbeddingRetry, loadScopedEmbeddingRetry } from "./embeddings-retry.js";
-import { FullEmbeddingReconciliationRequiredError } from "./embeddings-scoped.js";
 
 /**
  * Refresh embeddings for `changedPageIds` while DRAINING the durable pending
@@ -48,20 +47,21 @@ import { FullEmbeddingReconciliationRequiredError } from "./embeddings-scoped.js
  *     BEFORE the attempt, so a swallowed failure or crash leaves a retry list.
  *  3. Run {@link updateEmbeddingsLockedCore} (the LOCK-FREE core — see the
  *     file-level lock precondition).
- *  4a. On SUCCESS: {@link settleAfterSuccess} clears only the ids the core
- *      actually embedded; an eligible-but-unembedded id is retained, and an
- *      ineligible id over the attempt cap is quarantined. Survivors are written
- *      back (empty → marker deleted) and quarantined ids are warned.
- *  4b. On FAILURE: {@link settleAfterFailure} increments attempts for the whole
- *      batch, quarantining any over the cap; survivors written back, quarantined
- *      warned, and the failure is surfaced non-fatally.
+ *     Before any provider request, the core hands each page's content hash to
+ *     the retry layer, which admits it (unless its unchanged content is still
+ *     excluded) and pre-charges one attempt against that content.
+ *  4. Settle exactly once, from what the attempt recorder saw: persisted pages
+ *     are cleared; pages in a terminally failed request, or sent in a run that
+ *     failed after all its requests succeeded, keep their charge (quarantined at
+ *     the cap); everything else admitted is refunded; ineligible pages age out.
+ *     A failure is surfaced non-fatally (strict mode rethrows).
  *
  * When no explicit or pending ids exist, the core still receives an empty
  * change set. Its content-hash migration discovers missing or stale vectors,
  * which makes the first enabled no-op compile reconcile pages written while
  * refreshes were disabled. A healthy store returns without provider calls or
  * writes. Discovered work is recorded before provider calls and shares the retry
- * limit; quarantined ids remain excluded until an explicit page change.
+ * limit; quarantined ids remain excluded until their content changes.
  *
  * @param root - Absolute project root the marker is confined under.
  * @param changedPageIds - Qualified page-ids changed this run (may be empty —
@@ -99,18 +99,37 @@ async function refreshEmbeddings(root: string, changedPageIds: PageId[], scope: 
   // Write-ahead intent: record BEFORE the attempt so a swallowed failure or crash
   // leaves a durable retry list even though source-state already marks sources current.
   await retry.recordPending();
-  try {
-    const { embedded, eligible, pruned } = await updateEmbeddingsLockedCore(
-      root, retry.pageIds, (ids) => retry.prepare(ids), scope,
-    );
-    await retry.succeed([...embedded, ...pruned], eligible);
-  } catch (err) {
-    if (!(err instanceof FullEmbeddingReconciliationRequiredError)) await retry.fail();
-    const message = err instanceof Error ? err.message : String(err);
-    handleSafeEmbeddingFailure(err, `Skipped embeddings update: ${message}`);
+  const failure = await attemptAndSettle(root, retry, scope);
+  if (failure !== undefined) {
+    const message = failure instanceof Error ? failure.message : String(failure);
+    handleSafeEmbeddingFailure(failure, `Skipped embeddings update: ${message}`);
   }
   reportDeferredWork(retry.deferred);
   return retry.deferred.length === 0;
+}
+
+/**
+ * Run the core, then settle exactly once from what it actually sent. A core
+ * failure and a settlement failure are both reported, never settled twice.
+ */
+async function attemptAndSettle(
+  root: string,
+  retry: Awaited<ReturnType<typeof loadEmbeddingRetry>>,
+  scope: EmbeddingRefreshScope,
+): Promise<unknown> {
+  let result: Awaited<ReturnType<typeof updateEmbeddingsLockedCore>> | undefined;
+  let failure: unknown;
+  try {
+    result = await updateEmbeddingsLockedCore(root, retry.pageIds, (ids, hashes) => retry.prepare(ids, hashes), scope, retry.recorder);
+  } catch (err) {
+    failure = err;
+  }
+  try {
+    await retry.settle(result);
+  } catch (err) {
+    failure ??= err;
+  }
+  return failure;
 }
 
 /** Report after settlement, so strict-mode deferral cannot charge successful work again. */

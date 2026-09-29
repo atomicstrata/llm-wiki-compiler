@@ -12,20 +12,16 @@ import reviewRejectCommand from "../src/commands/review-reject.js";
 import * as rejection from "../src/compiler/candidate-rejection.js";
 import { listCandidates } from "../src/compiler/candidates.js";
 import * as indexgen from "../src/compiler/indexgen.js";
-import { loadProfile } from "../src/profile/load.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { MAX_PENDING_EMBEDDING_ATTEMPTS, PENDING_EMBEDDINGS_FILE, QUARANTINED_EMBEDDINGS_FILE } from "../src/utils/constants.js";
-import { collectEligibleLivePages } from "../src/utils/embeddings-collect.js";
-import { refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
-import { acquireLockBlocking, releaseLock } from "../src/utils/lock.js";
-import * as markers from "../src/utils/pending-embeddings.js";
 import { loadPendingEmbeddings, writePendingEmbeddings } from "../src/utils/pending-embeddings.js";
 import { useCompileProject } from "./fixtures/compile-project.js";
+import { expectChunksCurrent, liveContentHash } from "./fixtures/embedding-chunks.js";
+import { drainUnderLock, retryFileBytes, swallowMarkerWrites } from "./fixtures/embedding-retry-state.js";
 import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 import { useEmbeddingRefreshEnvironment } from "./fixtures/embedding-refresh.js";
 import { stageBatchCandidate, approveBatch } from "./fixtures/review-batch.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
-import { readV3Store } from "./fixtures/v3-store.js";
 
 const ctx = useCompileProject({ dirSuffix: "reject-embedding-intent" });
 const INTENT_FILE = ".llmwiki/review-embedding-intent.json";
@@ -38,14 +34,8 @@ beforeEach(async () => {
     await writeFile(path.join(ctx.dir, `wiki/concepts/linked-${slug}.md`),
       `---\ntitle: Reference ${slug}\nsummary: Topic reference\n---\n${slug === "novel" ? "Novel" : "Other"} Topic.\n`);
   }
-  await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
+  await drainUnderLock(ctx.dir);
 });
-
-/** Run a direct core call under the project lock the CLI would hold. */
-async function withLock(run: () => Promise<void>): Promise<void> {
-  await acquireLockBlocking(ctx.dir);
-  try { await run(); } finally { await releaseLock(ctx.dir); }
-}
 
 /** Leave both candidates retained with intent after the batch tail fails at index generation. */
 async function interruptBatch(): Promise<string[]> {
@@ -67,14 +57,6 @@ async function reject(id: string): Promise<void> {
   try { await reviewRejectCommand(id); } finally { process.chdir(previous); }
 }
 
-/** Persisted chunk hashes match live content only once the queued work was embedded. */
-async function expectChunksCurrent(pageId: string, current: boolean): Promise<void> {
-  const live = (await collectEligibleLivePages(ctx.dir, await loadProfile(ctx.dir))).find(page => page.pageId === pageId)!;
-  const stored = (await readV3Store(ctx.dir))!.chunks!.filter(chunk => chunk.pageId === pageId).map(chunk => chunk.contentHash);
-  if (current) expect(stored).toEqual(live.chunkContentHashes);
-  else expect(stored).not.toEqual(live.chunkContentHashes);
-}
-
 /** A refused rejection keeps the candidate pending and the intent byte-for-byte unchanged. */
 async function expectRefusedAndRetained(id: string, intentBefore: string, reason: RegExp): Promise<void> {
   await expect(reject(id)).rejects.toThrow(reason);
@@ -94,54 +76,55 @@ it("hands the rejected batch's embedding work to the retry queue and retires its
   expect(await listCandidates(ctx.dir)).toEqual([]);
   expect(await intentEntries()).toEqual([]);
   expect((await loadPendingEmbeddings(ctx.dir)).map(entry => entry.pageId)).toEqual(expect.arrayContaining(NOVEL_WORK));
-  await expectChunksCurrent("concepts/linked-novel", false);
-  await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
-  await expectChunksCurrent("concepts/linked-novel", true);
+  await expectChunksCurrent(ctx.dir, "concepts/linked-novel", false);
+  await drainUnderLock(ctx.dir);
+  await expectChunksCurrent(ctx.dir, "concepts/linked-novel", true);
   expect(await loadPendingEmbeddings(ctx.dir)).toEqual([]);
 });
 
-// Content-hash discovery would re-find ordinary stale chunks on its own, but it
-// skips excluded pages until an explicit change: quarantined ones, and exhausted
-// pending entries kept when quarantine overflowed. The batch rewrote this page,
-// so rejection must lift that exclusion (queueing it when embeddings are on) or
-// its chunks stay stale for good. Unrelated exclusions must survive.
+// Rejecting the last candidate must not lose recovery, whatever the embeddings
+// switch says, and must never write a retry file while embeddings are off. A
+// rewritten page excluded for its OLD content recovers at the next enabled
+// refresh; one excluded for exactly the content the batch left stays excluded
+// (retry limits hold for unchanged content), and the rejection still succeeds.
 const EXCLUSIONS = ["quarantine", "exhausted"] as const;
-const EXCLUDED_REWRITE = [{ pageId: "concepts/linked-novel", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }];
+const REWRITTEN = "concepts/linked-novel";
 const UNRELATED_QUARANTINE = [{ pageId: "concepts/unrelated", attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }];
-it.each(EXCLUSIONS.flatMap(kind => (["on", "off"] as const).map(mode => [kind, mode] as const)))(
-  "lifts the %s exclusion on a rewritten page (embeddings %s at rejection) so the next compile refreshes it",
-  async (kind, embeddings) => {
-    const marker = kind === "quarantine" ? QUARANTINED_EMBEDDINGS_FILE : PENDING_EMBEDDINGS_FILE;
-    await writePendingEmbeddings(ctx.dir, [...EXCLUDED_REWRITE, ...(kind === "quarantine" ? UNRELATED_QUARANTINE : [])], marker);
-    if (kind === "exhausted") await writePendingEmbeddings(ctx.dir, UNRELATED_QUARANTINE, QUARANTINED_EMBEDDINGS_FILE);
-    const ids = await interruptBatch();
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", embeddings);
-    for (const id of ids) await reject(id);
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
-    expect(await intentEntries()).toEqual([]);
-    expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
-    await withLock(() => refreshEmbeddingsDrainingPending(ctx.dir, []));
-    await expectChunksCurrent("concepts/linked-novel", true);
-  },
-);
+const REJECTION_CASES = EXCLUSIONS.flatMap(kind =>
+  (["on", "off"] as const).flatMap(mode => (["changed", "identical"] as const).map(content => [kind, mode, content] as const)));
 
-// Marker writers swallow write and unlink failures. Simulate one that reports
-// success without persisting: the rejection must refuse, not retire the intent.
-it.each([
-  ["off", "write", QUARANTINED_EMBEDDINGS_FILE],
-  ["off", "clear", QUARANTINED_EMBEDDINGS_FILE],
-  ["off", "clear", PENDING_EMBEDDINGS_FILE],
-  ["on", "write", QUARANTINED_EMBEDDINGS_FILE],
-] as const)("refuses with embeddings %s when a swallowed %s of %s leaves the exclusion", async (embeddings, path_, marker) => {
-  const extra = path_ === "write" ? UNRELATED_QUARANTINE : [];
-  await writePendingEmbeddings(ctx.dir, [...EXCLUDED_REWRITE, ...extra], marker);
+/** Exclude the rewritten page for one version of its content, beside an unrelated quarantine. */
+async function exclude(kind: typeof EXCLUSIONS[number], contentHash: string): Promise<void> {
+  const entry = { pageId: REWRITTEN, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS, contentHash };
+  await writePendingEmbeddings(ctx.dir, kind === "quarantine" ? [entry, ...UNRELATED_QUARANTINE] : UNRELATED_QUARANTINE, QUARANTINED_EMBEDDINGS_FILE);
+  if (kind === "exhausted") await writePendingEmbeddings(ctx.dir, [entry]);
+}
+
+it.each(REJECTION_CASES)("rejecting the last candidate with a %s exclusion (embeddings %s) and %s content", async (kind, mode, content) => {
+  const before = await liveContentHash(ctx.dir, REWRITTEN);
+  if (content === "changed") await exclude(kind, before);
+  const ids = await interruptBatch();
+  if (content === "identical") await exclude(kind, await liveContentHash(ctx.dir, REWRITTEN));
+  const markersBefore = await retryFileBytes(ctx.dir);
+  vi.stubEnv("LLMWIKI_EMBEDDINGS", mode);
+  for (const id of ids) await reject(id);
+  if (mode === "off") expect(await retryFileBytes(ctx.dir)).toEqual(markersBefore);
+  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+  expect(await listCandidates(ctx.dir)).toEqual([]);
+  expect(await intentEntries()).toEqual([]);
+  await drainUnderLock(ctx.dir);
+  await expectChunksCurrent(ctx.dir, REWRITTEN, content === "changed");
+  expect((await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).map(e => e.pageId))
+    .toEqual(content === "identical" && kind === "quarantine" ? [REWRITTEN, "concepts/unrelated"] : ["concepts/unrelated"]);
+});
+
+// The marker writer swallows write failures, so the handoff re-reads what it wrote:
+// a pending write that reports success without persisting must refuse the rejection.
+it("refuses with embeddings on when a swallowed pending write leaves the work unqueued", async () => {
   const [novel] = await interruptBatch();
   const intentBefore = await readFile(path.join(ctx.dir, INTENT_FILE), "utf8");
-  const write = markers.writePendingEmbeddings;
-  vi.spyOn(markers, "writePendingEmbeddings").mockImplementation(async (root, entries, file = PENDING_EMBEDDINGS_FILE) =>
-    file === marker ? undefined : write(root, entries, file));
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", embeddings);
-  await expectRefusedAndRetained(novel, intentBefore, /still excluded/);
+  swallowMarkerWrites(PENDING_EMBEDDINGS_FILE);
+  await expectRefusedAndRetained(novel, intentBefore, /could not be queued/);
 });
 
 it("keeps the entry for a batch-mate still pending, which later completes", async () => {
@@ -151,7 +134,7 @@ it("keeps the entry for a batch-mate still pending, which later completes", asyn
   expect(await intentEntries()).toEqual([{ candidates: entry.candidates.slice(1), pageIds: entry.pageIds }]);
   expect((await approveBatch(ctx.dir, other)).status).toBe("completed");
   expect(await intentEntries()).toEqual([]);
-  await expectChunksCurrent("concepts/linked-novel", true);
+  await expectChunksCurrent(ctx.dir, "concepts/linked-novel", true);
 });
 
 it.each(["queue", "intent"] as const)("refuses and keeps the candidate while the %s cannot take the work", async kind => {

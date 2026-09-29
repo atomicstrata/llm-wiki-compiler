@@ -34,13 +34,14 @@ import { releaseLock } from "./lock.js";
 import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { loadProfile } from "../profile/load.js";
 import { migrateEmbeddingStore } from "./embeddings-migrate.js";
-import { collectEligibleLivePages, requestedPagesExistence, type PageExistence, type CollectedPage } from "./embeddings-collect.js";
+import { collectEligibleLivePages, contentHashesOf, requestedPagesExistence, type PageExistence, type CollectedPage } from "./embeddings-collect.js";
 import { reembedIntoStore, type ReembedReport } from "./embeddings-write.js";
 import type { PageId } from "./page-id.js";
 import { ENV_EMBEDDINGS } from "./constants.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
 import { retainDeferredEmbeddings } from "./embeddings-deferred.js";
-import { planScopedEmbeddingUpdate } from "./embeddings-scoped.js";
+import { planScopedEmbeddingUpdate, type EmbeddingPrepare } from "./embeddings-scoped.js";
+import type { EmbeddingAttemptRecorder } from "./embedding-attempts.js";
 
 /** Full reconciliation is the legacy default; batches can opt into affected-only writes. */
 export type EmbeddingRefreshScope = "drain" | "affected-only";
@@ -79,8 +80,10 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
  *
  * @param root - Project root path.
  * @param changedPageIds - Qualified page ids whose pages changed this write.
- * @param prepare - Optional write-ahead callback that filters the discovered intent set.
+ * @param prepare - Optional write-ahead callback that filters the discovered intent set. It also
+ *   receives each page's live content hash, so retry budgets bind to the content being sent.
  * @param scope - The default drain reconciles globally; affected-only preserves unrelated records and refuses migrations.
+ * @param recorder - Optional attempt accounting: which pages reached the provider, and whether the store persisted.
  * @returns `embedded` = the re-embed INTENT set — the ids this write ATTEMPTED to
  *   re-embed (`[]` on the no-persist early return). It may OVER-include: a
  *   migration-only id that `reembedIntoStore` later skips (e.g. filtered against
@@ -92,14 +95,15 @@ export async function updateEmbeddings(root: string, changedPageIds: PageId[]): 
 export async function updateEmbeddingsLockedCore(
   root: string,
   changedPageIds: PageId[],
-  prepare?: (pageIds: PageId[]) => Promise<PageId[]>,
+  prepare?: EmbeddingPrepare,
   scope: EmbeddingRefreshScope = "drain",
+  recorder?: EmbeddingAttemptRecorder,
 ): Promise<{ embedded: PageId[]; eligible: PageId[]; pruned: PageId[] }> {
   if (embeddingsDisabled()) {
     output.verbose(`embeddings: skipped because ${ENV_EMBEDDINGS} disables refreshes`);
     return { embedded: [], eligible: [], pruned: [] };
   }
-  if (scope === "affected-only") return updateAffectedEmbeddings(root, changedPageIds, prepare);
+  if (scope === "affected-only") return updateAffectedEmbeddings(root, changedPageIds, prepare, recorder);
   const model = resolveEmbeddingModel();
   const profile = await loadProfile(root);
   const collected = await collectEligibleLivePages(root, profile);
@@ -117,7 +121,7 @@ export async function updateEmbeddingsLockedCore(
   const discovered = unionReembed(reembedPageIds, changedPageIds, collected);
   // The draining caller records discovered work BEFORE any provider call and
   // removes quarantined ids. Direct callers retain the existing refresh contract.
-  const reembed = prepare ? new Set(await prepare([...discovered])) : discovered;
+  const reembed = prepare ? new Set(await prepare([...discovered], contentHashesOf(collected))) : discovered;
   retainDeferredEmbeddings(preservable, migrated, new Set([...discovered].filter(id => !reembed.has(id))));
   const pruned = absentRequestedPageIds(changedPageIds, await requestedPagesExistence(root, profile, changedPageIds), migrated);
 
@@ -127,7 +131,7 @@ export async function updateEmbeddingsLockedCore(
   // with nothing eligible stays clean — never materialize an empty store.
   if (!shouldPersist(parsedOld, migrated, reembed, onDiskVersion)) return { embedded: [], eligible, pruned };
 
-  await embedAndPersist(root, migrated, collected, reembed, onDiskVersion);
+  await embedAndPersist(root, migrated, collected, reembed, onDiskVersion, recorder);
   // The re-embed INTENT set (what we attempted). It may over-include an id the
   // writer skips — see the @returns note; the marker lifecycle tolerates that.
   return { embedded: [...reembed], eligible, pruned };
@@ -143,12 +147,13 @@ function absentRequestedPageIds(requested: PageId[], existence: Map<PageId, Page
 async function updateAffectedEmbeddings(
   root: string,
   affectedIds: PageId[],
-  prepare?: (ids: PageId[]) => Promise<PageId[]>,
+  prepare?: EmbeddingPrepare,
+  recorder?: EmbeddingAttemptRecorder,
 ): Promise<{ embedded: PageId[]; eligible: PageId[]; pruned: PageId[] }> {
   if (affectedIds.length === 0) return { embedded: [], eligible: [], pruned: [] };
   const update = await planScopedEmbeddingUpdate(root, affectedIds, prepare);
   if (update.reembed.size > 0) {
-    await embedAndPersist(root, update.store, update.collected, update.reembed, STORE_VERSION);
+    await embedAndPersist(root, update.store, update.collected, update.reembed, STORE_VERSION, recorder);
   } else if (update.pruned) await writeEmbeddingStore(root, update.store);
   return { embedded: [...update.reembed], eligible: update.eligible, pruned: update.prunedIds };
 }
@@ -208,15 +213,17 @@ async function embedAndPersist(
   collected: CollectedPage[],
   reembed: Set<PageId>,
   onDiskVersion: number,
+  recorder?: EmbeddingAttemptRecorder,
 ): Promise<void> {
   const batchSize = resolveEmbedBatchSize(getActiveEmbeddingProviderName());
   const expectedDim = migrated.dimensions > 0 ? migrated.dimensions : undefined;
-  const { store, report } = await reembedIntoStore(migrated, collected, reembed, batchSize, expectedDim);
+  const { store, report } = await reembedIntoStore(migrated, collected, reembed, batchSize, expectedDim, recorder);
   // Stamp the identity of the configuration that actually produced these vectors.
   // Done here, at the single write boundary, so no path can persist a store whose
   // provenance is unrecorded — that is what the next read gates preservation on.
   const stamped: EmbeddingStoreV3 = { ...store, fingerprint: resolveEmbeddingFingerprint() };
   await writeEmbeddingStore(root, stamped);
+  recorder?.markPersisted();
   reportPersist(stamped, report, onDiskVersion);
 }
 

@@ -43,15 +43,17 @@ Status distinguishes pages awaiting another embedding attempt from pages whose
 automatic retries have stopped:
 
 - `embeddings-refresh-pending`: pages waiting for an embedding refresh.
-- `embeddings-refresh-quarantined`: pages that reached the retry limit. The
-  warning persists until you explicitly re-queue them, even if no pending work
-  remains. It includes exhausted entries retained in the pending file.
+- `embeddings-refresh-quarantined`: pages that reached the retry limit for their
+  current content. The warning persists until their content changes or you reset
+  their retry entries, even if no pending work remains. It includes exhausted
+  entries retained in the pending file, and notes entries from earlier versions
+  that the next enabled compile will re-queue once.
 - `embeddings-quarantine-unavailable`: the quarantine marker cannot be read
   safely, so status cannot verify which retries have stopped.
 
 These warnings also appear in `status --json`, SDK status, and MCP `wiki_status`.
 Inspection never retries embeddings or changes either marker. Fix the provider
-or page before re-queuing; see [embedding retry recovery](/configuration/environment-variables#embedding-retries-and-quarantine).
+or page before resetting retry entries; see [embedding retry recovery](/configuration/environment-variables#embedding-retries-and-quarantine).
 
 ## Flags
 

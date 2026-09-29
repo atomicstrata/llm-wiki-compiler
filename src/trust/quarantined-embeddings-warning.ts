@@ -29,14 +29,24 @@ export async function quarantinedEmbeddingsWarning(root: string): Promise<Quaran
     };
   }
   const held = pending.entries.filter(entry => entry.attempts >= MAX_PENDING_EMBEDDING_ATTEMPTS);
-  const ids = new Set([...quarantine.entries, ...held].map(entry => entry.pageId));
+  const stopped = [...quarantine.entries, ...held];
+  const ids = new Set(stopped.map(entry => entry.pageId));
   if (ids.size === 0) return null;
   return {
     code: "embeddings-refresh-quarantined",
     file: quarantine.entries.length > 0 ? QUARANTINED_EMBEDDINGS_FILE : PENDING_EMBEDDINGS_FILE,
     message: `${ids.size} page(s) have stopped embedding refreshes after repeated failures; semantic search may be incomplete. ` +
       `Inspect ${QUARANTINED_EMBEDDINGS_FILE} and exhausted entries in ${PENDING_EMBEDDINGS_FILE}. ` +
-      "Fix the provider or page, then edit its source and compile, or re-save the page, to retry. " +
-      "An unchanged compile does not reset their retry budgets.",
+      "A page is retried automatically once its content changes; unchanged content keeps its retry limit. " +
+      "After fixing the provider, reset these pages' retry entries (see the embedding retry docs) to retry unchanged content." +
+      legacyNote(stopped),
   };
+}
+
+/** Exclusions from before content hashing are re-queued once by the next enabled compile. */
+function legacyNote(stopped: { pageId: string; contentHash?: string; ineligible?: true }[]): string {
+  const legacy = new Set(stopped.filter(e => e.contentHash === undefined && e.ineligible !== true).map(e => e.pageId));
+  if (legacy.size === 0) return "";
+  return ` ${legacy.size} of them predate content-bound retries and will be re-queued once by the next compile ` +
+    `with embeddings enabled (up to ${MAX_PENDING_EMBEDDING_ATTEMPTS} additional retry rounds each).`;
 }

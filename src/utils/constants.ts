@@ -209,11 +209,11 @@ export const QUARANTINED_EMBEDDINGS_FILE = ".llmwiki/quarantined-embeddings.json
  * marker), and {@link loadPendingEmbeddings} runs on EVERY non-review compile,
  * slurping the whole file before `JSON.parse`. A multi-GB marker (or a `/dev/zero`
  * symlink target) would exhaust memory/latency before any validation runs, a local
- * DoS on each compile. 256 KiB is far above any legitimate id list (thousands of
- * ~40-char qualified ids fit comfortably) yet bounds the read. A bloated marker is
+ * DoS on each compile. 512 KiB is far above any legitimate id list (5,000 typical
+ * ids with their content hashes fit comfortably) yet bounds the read. A bloated marker is
  * treated as corrupt — fail OPEN (return `[]`) so a bad marker never breaks compile.
  */
-export const MAX_PENDING_EMBEDDINGS_BYTES = 256 * 1024; // 256 KiB
+export const MAX_PENDING_EMBEDDINGS_BYTES = 512 * 1024; // 512 KiB: 5,000 typical hash-bound entries
 
 /**
  * Maximum number of pending page-ids honored from the marker. The marker is

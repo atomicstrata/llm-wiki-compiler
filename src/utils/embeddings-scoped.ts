@@ -6,23 +6,29 @@
  */
 
 import { loadProfile } from "../profile/load.js";
-import { collectEligibleLivePages, requestedPagesExistence, type CollectedPage } from "./embeddings-collect.js";
+import { collectEligibleLivePages, contentHashesOf, requestedPagesExistence, type CollectedPage } from "./embeddings-collect.js";
 import { readStoredEmbeddings } from "./embeddings-storage.js";
 import { resolveEmbeddingModel, storeMatchesActiveEmbedding, STORE_VERSION, type EmbeddingStoreV3 } from "./embeddings-store.js";
 import { assertEmbeddingStoreValid } from "./embeddings-validate.js";
 import type { PageId } from "./page-id.js";
 
 /** Why an affected-only update cannot safely interpret the existing store. */
-export type FullEmbeddingReconciliationReason = "unreadable" | "legacy" | "backend" | "invalid";
+type FullEmbeddingReconciliationReason = "unreadable" | "legacy" | "backend" | "invalid";
 
 /** Typed refusal that preserves retry budgets until full reconciliation runs. */
-export class FullEmbeddingReconciliationRequiredError extends Error {
+class FullEmbeddingReconciliationRequiredError extends Error {
   constructor(readonly reason: FullEmbeddingReconciliationReason, detail?: string) {
     const suffix = detail === undefined ? "" : ` (${detail})`;
     super(`Embedding store requires full reconciliation: ${reason}${suffix}. Run compile to reconcile the full embedding store.`);
     this.name = "FullEmbeddingReconciliationRequiredError";
   }
 }
+
+/**
+ * Retry write-ahead hook: given the pages about to be embedded and each one's
+ * live content hash, durably charge their budgets and return those admitted.
+ */
+export type EmbeddingPrepare = (pageIds: PageId[], contentHashes: ReadonlyMap<PageId, string>) => Promise<PageId[]>;
 
 /** An update whose writes and provider requests are confined to the supplied IDs. */
 export interface ScopedEmbeddingUpdate {
@@ -38,14 +44,14 @@ export interface ScopedEmbeddingUpdate {
 export async function planScopedEmbeddingUpdate(
   root: string,
   affectedIds: PageId[],
-  prepare?: (ids: PageId[]) => Promise<PageId[]>,
+  prepare?: EmbeddingPrepare,
 ): Promise<ScopedEmbeddingUpdate> {
   const affected = new Set(affectedIds);
   const store = await readScopedStore(root);
   const profile = await loadProfile(root);
   const collected = (await collectEligibleLivePages(root, profile)).filter(page => affected.has(page.pageId));
   const eligible = collected.map(page => page.pageId);
-  const reembed = new Set(prepare ? await prepare(eligible) : eligible);
+  const reembed = new Set(prepare ? await prepare(eligible, contentHashesOf(collected)) : eligible);
   const eligibleSet = new Set(eligible);
   const keep = (entry: { pageId: PageId }): boolean => !affected.has(entry.pageId) || eligibleSet.has(entry.pageId);
   const entries = store.entries.filter(keep);

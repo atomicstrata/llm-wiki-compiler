@@ -16,6 +16,7 @@ import { readV3Store } from "./fixtures/v3-store.js";
 import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 import { approveBatch, stageBatchCandidate } from "./fixtures/review-batch.js";
 import { useEmbeddingRefreshEnvironment, writeEmbeddingTestPage } from "./fixtures/embedding-refresh.js";
+import { liveContentHash } from "./fixtures/embedding-chunks.js";
 
 const ctx = useCompileProject({ dirSuffix: "scoped-embeddings" });
 const ALPHA = "concepts/alpha";
@@ -83,7 +84,7 @@ it("charges only affected pending IDs when the provider fails", async () => {
   await seedRetryState();
   await refresh();
   await expectUnrelatedBudgets();
-  expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: ALPHA, attempts: 1 });
+  expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: ALPHA, attempts: 1, contentHash: await liveContentHash(ctx.dir, ALPHA) });
   expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(UNRELATED_QUARANTINE);
 });
 
@@ -93,7 +94,7 @@ it("quarantines only an affected exhausted ID and preserves unrelated exhausted 
   await refresh();
   await expectUnrelatedBudgets();
   expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([
-    ...UNRELATED_QUARANTINE, { pageId: ALPHA, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS },
+    ...UNRELATED_QUARANTINE, { pageId: ALPHA, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS, contentHash: await liveContentHash(ctx.dir, ALPHA) },
   ]);
 });
 

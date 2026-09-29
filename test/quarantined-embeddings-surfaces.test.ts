@@ -52,6 +52,17 @@ it("reports exhausted pending entries even without a quarantine file", async () 
   expect(result.lint.results).toContainEqual(expect.objectContaining({ rule: "quarantined-embeddings", file: PENDING_EMBEDDINGS_FILE }));
 });
 
+it.each([
+  ["notes a one-time re-queue for exclusions that predate content hashing", undefined, true],
+  ["omits the re-queue note once exclusions are bound to content", "0123456789abcdef", false],
+] as const)("%s", async (_label, contentHash, noted) => {
+  const entry = contentHash ? { pageId: "concepts/held", attempts: 5, contentHash } : { pageId: "concepts/held", attempts: 5 };
+  await writePendingEmbeddings(ctx.dir, [entry], QUARANTINED_EMBEDDINGS_FILE);
+  const warning = (await inspect()).status.warnings?.find(w => w.code === QUARANTINED);
+  expect(warning?.message).toContain("once its content changes");
+  expect(warning?.message.includes("1 of them predate content-bound retries")).toBe(noted);
+});
+
 it.each(["{bad", "{}"])("reports an unreadable quarantine instead of healthy status: %s", async (body) => {
   await writeFile(path.join(ctx.dir, QUARANTINED_EMBEDDINGS_FILE), body);
   const result = await inspect();

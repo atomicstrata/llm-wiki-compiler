@@ -16,6 +16,7 @@ import { useCompileProject } from "./fixtures/compile-project.js";
 import { readV3Store } from "./fixtures/v3-store.js";
 import { fullEmbeddingMarker } from "./fixtures/embedding-marker-capacity.js";
 import { useEmbeddingRefreshEnvironment, writeEmbeddingTestPage } from "./fixtures/embedding-refresh.js";
+import { liveContentHash } from "./fixtures/embedding-chunks.js";
 
 const ctx = useCompileProject({ dirSuffix: "reconciliation-retry" });
 const PAGE_ID = "concepts/alpha";
@@ -46,6 +47,11 @@ function failProvider() {
     .mockRejectedValue(new Error("embedding backend unavailable"));
 }
 
+/** Alpha's retry entry, bound to its current live content. */
+async function alphaEntry(attempts: number) {
+  return { pageId: PAGE_ID, attempts, contentHash: await liveContentHash(ctx.dir, PAGE_ID) };
+}
+
 /** Reach quarantine from the last permitted pending attempt. */
 async function quarantinePage(): Promise<void> {
   await writePendingEmbeddings(ctx.dir, [{ pageId: PAGE_ID, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS - 1 }]);
@@ -61,14 +67,15 @@ describe("automatic reconciliation retry budget", () => {
     const provider = failProvider();
     await refresh();
     expect(provider).toHaveBeenCalledTimes(1);
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS }]);
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([await alphaEntry(MAX_PENDING_EMBEDDING_ATTEMPTS)]);
     await refresh();
-    await refresh(["concepts/new-page"]);
+    await refresh(["concepts/new-page", PAGE_ID]);
     expect(provider).toHaveBeenCalledTimes(1);
     expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(full);
-    await refresh([PAGE_ID]);
+    await writePage("alpha", 2);
+    await refresh();
     expect(provider).toHaveBeenCalledTimes(2);
-    expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: PAGE_ID, attempts: 1 });
+    expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual(await alphaEntry(1));
   });
 
   it("does not retry a quarantined eligible page on subsequent unchanged refreshes", async () => {
@@ -82,7 +89,7 @@ describe("automatic reconciliation retry budget", () => {
 
     expect(provider).toHaveBeenCalledTimes(attempted);
     expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([
-      { pageId: PAGE_ID, attempts: MAX_PENDING_EMBEDDING_ATTEMPTS },
+      await alphaEntry(MAX_PENDING_EMBEDDING_ATTEMPTS),
     ]);
   });
 
@@ -94,8 +101,10 @@ describe("automatic reconciliation retry budget", () => {
     });
     await refresh();
     expect(provider).toHaveBeenCalled();
-    expect(recorded.every((entries) => entries.length === 1 && entries[0].pageId === PAGE_ID && entries[0].attempts === 0)).toBe(true);
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: 1 }]);
+    // The attempt is charged against the content being sent before the request is made.
+    const charged = await alphaEntry(1);
+    expect(recorded.every((entries) => JSON.stringify(entries) === JSON.stringify([charged]))).toBe(true);
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([charged]);
   });
 
   it("bounds failures of backfill discovered with no initial pending entry", async () => {
@@ -123,13 +132,24 @@ describe("automatic reconciliation retry budget", () => {
     expect(await loadPendingEmbeddings(ctx.dir)).toEqual([]);
   });
 
-  it("releases quarantine for an explicit page change with a fresh attempt budget", async () => {
+  it("keeps quarantine for an explicit refresh of unchanged content", async () => {
+    const provider = failProvider();
+    await quarantinePage();
+    const quarantined = await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE);
+    provider.mockClear();
+    await refresh([PAGE_ID]);
+    expect(provider).not.toHaveBeenCalled();
+    expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(quarantined);
+  });
+
+  it("releases quarantine when the page content changes, with a fresh attempt budget", async () => {
     const provider = failProvider();
     await quarantinePage();
     provider.mockClear();
-    await refresh([PAGE_ID]);
+    await writePage("alpha", 2);
+    await refresh();
     expect(provider).toHaveBeenCalled();
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: 1 }]);
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([await alphaEntry(1)]);
     expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual([]);
   });
 
@@ -137,7 +157,7 @@ describe("automatic reconciliation retry budget", () => {
     failProvider();
     vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
     await expect(refresh()).rejects.toThrow("embedding backend unavailable");
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: 1 }]);
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([await alphaEntry(1)]);
   });
 
   it("honors quarantine left alongside a pending entry by an interrupted settlement", async () => {
@@ -149,7 +169,10 @@ describe("automatic reconciliation retry budget", () => {
     expect(provider).not.toHaveBeenCalled();
     expect(await loadPendingEmbeddings(ctx.dir)).toEqual([]);
     await refresh([PAGE_ID]);
-    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([{ pageId: PAGE_ID, attempts: 1 }]);
+    expect(provider).not.toHaveBeenCalled();
+    await writePage("alpha", 2);
+    await refresh();
+    expect(await loadPendingEmbeddings(ctx.dir)).toEqual([await alphaEntry(1)]);
   });
 
   it("does not release or rewrite quarantine while refreshes are disabled", async () => {
@@ -229,7 +252,7 @@ describe("deferred reconciliation", () => {
 
   it("also retains cached vectors for quarantined pages without a capacity warning", async () => {
     const { provider, old } = await staleCache();
-    await writePendingEmbeddings(ctx.dir, [{ pageId: PAGE_ID, attempts: 5 }], QUARANTINED_EMBEDDINGS_FILE);
+    await writePendingEmbeddings(ctx.dir, [await alphaEntry(MAX_PENDING_EMBEDDING_ATTEMPTS)], QUARANTINED_EMBEDDINGS_FILE);
     await refresh();
     expect(provider).not.toHaveBeenCalled();
     await expectAlphaCache(old);

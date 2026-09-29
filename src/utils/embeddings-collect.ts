@@ -25,6 +25,7 @@ import path from "node:path";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { collectNamespacedPageRecords, buildEmbeddingText } from "./embeddings-pages.js";
 import { hashChunkText, splitIntoChunks } from "./retrieval.js";
+import { sha256Text } from "../connectors/hash.js";
 import { parseQualifiedPageId, qualifiedPageId, type PageId } from "./page-id.js";
 import { pageEmbedSurfaces } from "./embed-eligibility.js";
 import { collectEntityPages, invalidEntityPagePaths } from "../profile/collect.js";
@@ -43,6 +44,23 @@ export interface CollectedPage extends EligibleLivePage {
   chunkTexts: string[];
   /** The exact text passed to the provider for the page-level embedding. */
   embeddingText: string;
+}
+
+/** Hex digits kept from SHA-256: enough to detect content changes, never used for integrity. */
+const CONTENT_HASH_HEX_LENGTH = 16;
+
+/**
+ * Identify everything the embedding provider receives for a page: its page-level
+ * text and every body chunk, in order. Embedding retry budgets and exclusions are
+ * bound to this value, so changed content is never treated as already failed.
+ */
+export function pageContentHash(page: Pick<EligibleLivePage, "embeddingTextHash" | "chunkContentHashes">): string {
+  return sha256Text([page.embeddingTextHash, ...page.chunkContentHashes].join("\n")).slice(0, CONTENT_HASH_HEX_LENGTH);
+}
+
+/** Each collected page's live content hash, keyed by pageId. */
+export function contentHashesOf(collected: CollectedPage[]): ReadonlyMap<PageId, string> {
+  return new Map(collected.map(page => [page.pageId, pageContentHash(page)]));
 }
 
 /**

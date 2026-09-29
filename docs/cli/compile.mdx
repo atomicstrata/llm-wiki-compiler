@@ -177,7 +177,9 @@ removing the setting, run `llmwiki compile` to reconcile the index. Existing
 vectors remain available to retrieval while refreshes are disabled.
 
 Failed reconciliation uses the same five-attempt limit as changed-page refreshes.
-After the limit, the page is quarantined and unchanged compiles stop retrying it.
+Attempts are bound to the page's content: after five failures for the same content
+the page is quarantined, and compiles stop retrying it until its content changes.
+Content changed while refreshes were disabled is picked up by the next enabled compile.
 With `LLMWIKI_EMBED_STRICT=1`, an embedding-generation failure also fails an
 otherwise unchanged compile. See the [embedding environment reference](/configuration/environment-variables#embeddings)
 for failure handling and quarantine recovery.
