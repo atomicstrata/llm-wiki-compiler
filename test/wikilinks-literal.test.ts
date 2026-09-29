@@ -62,6 +62,7 @@ describe("findWikilinks", () => {
 const RENDERER_CASES: Record<string, string> = {
   "unmatched backticks in separate paragraphs": "One ` stray.\n\nSee [[Missing]].\n\nAnother ` stray.",
   "code in a table cell": "| a | b |\n| - | - |\n| `[[In Code]]` | [[In Cell]] |",
+  "table pipe after two backslashes": "| a | b |\n| - | - |\n| `[[Code]]\\\\|x` | [[Live]] |",
   "heading and list code": "# Title `[[Heading Code]]` [[Heading Link]]\n\n- item `[[List Code]]` and [[List Link]]",
   "blockquote code": "> quoted `[[Quote Code]]` and [[Quote Link]]",
   "link across lines": "Broken [[Across\nLines]] link.",

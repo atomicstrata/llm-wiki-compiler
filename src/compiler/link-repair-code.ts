@@ -41,13 +41,16 @@ function blockSpans(body: string, parser: MarkdownIt): { literal: Span[]; inline
   };
 }
 
-/** Split one table row's source into its cells at unescaped `|`. */
+/**
+ * Split one table row's source into its cells at unescaped `|`. As in
+ * markdown-it's table rule, any backslash directly before a `|` escapes it,
+ * even when that backslash is itself preceded by another backslash.
+ */
 function tableCellSpans(body: string, row: Span): Span[] {
   const cells: Span[] = [];
   let start = row.start;
   for (let at = row.start; at < row.end; at++) {
-    if (body[at] === "\\") { at++; continue; }
-    if (body[at] !== "|") continue;
+    if (body[at] !== "|" || body[at - 1] === "\\") continue;
     cells.push({ start, end: at });
     start = at + 1;
   }
