@@ -285,7 +285,7 @@ async function custodyDownload(
   }
   try {
     await assertAuthorizedProviderDirectory(paths, downloads);
-    const read = await open(leaf, fsConstants.O_RDONLY | (process.platform === "win32" ? 0 : fsConstants.O_NOFOLLOW));
+    const read = await open(leaf, fsConstants.O_RDONLY | (process.platform === "win32" ? 0 : fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
     try {
       await assertDownloadLeafBound(paths, downloads, leaf, read);
       const observed = await read.readFile();

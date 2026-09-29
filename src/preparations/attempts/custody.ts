@@ -107,7 +107,9 @@ export async function copyIntoCustody(
   let source: Awaited<ReturnType<typeof open>> | undefined;
   let dest: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    source = await open(sourcePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    // O_NONBLOCK: a FIFO planted as the source must not block the copy; it is then refused as non-regular.
+    source = await open(sourcePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    if (!(await source.stat()).isFile()) return null;
     // The destination open is INSIDE the try: a create-only collision (two outputs
     // hashing alike) must fail this copy closed, never throw past the caller's
     // custody discard and strand a temporary directory (zero-write violation).

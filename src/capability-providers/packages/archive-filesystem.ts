@@ -364,7 +364,7 @@ async function assertFileBound(
 
 async function syncFile(leaf: string): Promise<void> {
   const noFollow = process.platform === "win32" ? 0 : fsConstants.O_NOFOLLOW;
-  const handle = await open(leaf, fsConstants.O_RDONLY | noFollow);
+  const handle = await open(leaf, fsConstants.O_RDONLY | fsConstants.O_NONBLOCK | noFollow);
   try {
     const entry = await handle.stat();
     if (!entry.isFile()) throw new Error("provider package leaf is unavailable");

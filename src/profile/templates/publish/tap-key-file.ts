@@ -5,7 +5,7 @@
  */
 import { constants as fsConstants, type Stats } from "node:fs";
 import { lstat, realpath, type FileHandle } from "node:fs/promises";
-import { openFileNoFollow } from "../../../utils/no-follow-open.js";
+import { NoFollowOpenError, openFileNoFollow } from "../../../utils/no-follow-open.js";
 import path from "node:path";
 import { decodeUtf8, readBoundedFromHandle } from "./bounded-read.js";
 import {
@@ -40,6 +40,9 @@ export async function openTapPublicKey(file: string): Promise<SelectedTapPublicK
   } catch (error) {
     await parentHandle.close().catch(() => {});
     if (error instanceof Error && error.message.startsWith("tap key ")) throw error;
+    if (error instanceof NoFollowOpenError && error.reason === "not-regular") {
+      throw new Error("tap key file must be a regular file and not a symlink or special file");
+    }
     throw new Error("tap key file could not be opened safely");
   }
 }
