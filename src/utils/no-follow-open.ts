@@ -1,6 +1,7 @@
 /**
  * Leaf-only no-follow opening for reads and append-only stores.
- * Native platforms retain their callers' exact flags. Without O_NOFOLLOW,
+ * Every open adds O_NONBLOCK and returns only a handle to a regular file, so a
+ * FIFO or other special file planted at a leaf is refused instead of blocking. Without O_NOFOLLOW,
  * bind a regular leaf's pre-open identity to its handle and post-open lstat
  * before returning that handle. Missing append targets use exclusive creation;
  * opening must never truncate or write before verification. Parent confinement
@@ -11,11 +12,18 @@ import { constants, type BigIntStats } from "node:fs";
 import { lstat, open } from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
 
+/** Human-readable refusal reasons; callers surface these messages directly. */
+const REFUSAL_DETAIL = {
+  "symlink": "symlink",
+  "not-regular": "not a regular file (a FIFO, device, directory or socket)",
+  "identity": "identity",
+} as const;
+
 /** A leaf-policy rejection, distinct from an ordinary filesystem I/O failure. */
 export class NoFollowOpenError extends Error {
   readonly code: string;
   constructor(readonly reason: "symlink" | "not-regular" | "identity") {
-    super(`No-follow open refused: ${reason}`);
+    super(`No-follow open refused: ${REFUSAL_DETAIL[reason]}`);
     this.name = "NoFollowOpenError";
     this.code = reason === "symlink" ? "ELOOP" : "ENOFOLLOW";
   }
@@ -79,15 +87,32 @@ async function openPortable(file: string, flags: number, mode: number | undefine
 }
 
 /**
- * Open an internal read/append leaf with the caller's native flags, or a verified
- * portable fallback. The caller owns and closes the returned handle. Unsupported
+ * Open an internal read/append leaf with the caller's flags plus O_NONBLOCK, or a
+ * verified portable fallback, and return it only if it is a regular file. The caller owns and closes the returned handle. Unsupported
  * write modes are refused before opening so verification cannot follow damage.
  */
 export async function openFileNoFollow(file: string, flags: number, mode?: number): Promise<FileHandle> {
-  if (constants.O_NOFOLLOW) return open(file, flags, mode);
+  // O_NOFOLLOW does not stop a FIFO: a plain open blocks until a peer appears,
+  // hanging the caller (often while it holds the project lock). O_NONBLOCK makes
+  // a read open return at once and a write open fail fast (ENXIO); the handle is
+  // then refused unless it is a regular file, so no caller ever reads a FIFO.
+  const nonBlocking = flags | (constants.O_NONBLOCK ?? 0);
+  if (constants.O_NOFOLLOW) return requireRegularHandle(await open(file, nonBlocking, mode));
   const writes = flags & (constants.O_WRONLY | constants.O_RDWR | constants.O_CREAT);
   if ((flags & constants.O_TRUNC) || (flags & constants.O_RDWR) || (writes && !(flags & constants.O_APPEND))) {
     throw new Error("Portable no-follow opening supports only reads and append-only writes");
   }
-  return openPortable(file, flags, mode, true);
+  return openPortable(file, nonBlocking, mode, true);
+}
+
+/** Close and refuse a handle to anything but a regular file (a FIFO, device, directory or socket). */
+async function requireRegularHandle(handle: FileHandle): Promise<FileHandle> {
+  try {
+    if ((await handle.stat()).isFile()) return handle;
+  } catch (err) {
+    await handle.close().catch(() => {});
+    throw err;
+  }
+  await handle.close().catch(() => {});
+  throw new NoFollowOpenError("not-regular");
 }

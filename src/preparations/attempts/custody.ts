@@ -11,6 +11,7 @@
  */
 
 import { mkdtemp, open, rm } from "node:fs/promises";
+import { openFileNoFollow } from "../../utils/no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -107,7 +108,7 @@ export async function copyIntoCustody(
   let source: Awaited<ReturnType<typeof open>> | undefined;
   let dest: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    source = await open(sourcePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    source = await openCustodyObject(sourcePath);
     // The destination open is INSIDE the try: a create-only collision (two outputs
     // hashing alike) must fail this copy closed, never throw past the caller's
     // custody discard and strand a temporary directory (zero-write violation).
@@ -137,12 +138,21 @@ async function streamVerifiedCopy(
   return hash.digest("hex") === bareDigest ? total : null;
 }
 
+/**
+ * Open a custody object for reading without following a symlink and without
+ * blocking: a FIFO swapped in at any stage (copy, verification, CAS link) is
+ * refused as non-regular instead of hanging publication under the project lock.
+ */
+function openCustodyObject(file: string) {
+  return openFileNoFollow(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+}
+
 /** Re-hash one temporary custody object and confirm it matches its ref exactly. */
 async function verifyTempObject(item: PendingEvidenceV1, cap: number): Promise<boolean> {
   if (item.ref.byteCount > cap) return false;
   let handle;
   try {
-    handle = await open(item.tempPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openCustodyObject(item.tempPath);
   } catch { return false; }
   try {
     const hash = createHash("sha256");
@@ -166,7 +176,7 @@ async function linkIntoCas(root: string, location: PreparationEvidenceLocation, 
   const bare = item.ref.digest.slice(SHA256_PREFIX.length);
   let handle;
   try {
-    handle = await open(item.tempPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    handle = await openCustodyObject(item.tempPath);
   } catch { return false; }
   try {
     const streamed = await streamPreparationEvidenceCreateOnly(root, location, handle, bare, cap);
