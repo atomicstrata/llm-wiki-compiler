@@ -95,6 +95,13 @@ describe("computeRemovalPlan", () => {
     expect(plan.brokenLinks).toEqual([{ file: "wiki/concepts/shared.md", target: "junk" }]);
   });
 
+  it("does not report a link to the deleted page written inside code", () => {
+    const plan = planFor({
+      pages: [{ filePath: "wiki/concepts/shared.md", content: "Example: `[[Junk]]`\n\n```\n[[Junk]]\n```\n" }],
+    });
+    expect(plan.brokenLinks).toEqual([]);
+  });
+
   it("reports pending candidates that reference the removed source", () => {
     const candidate = { id: "c1", sources: ["bad.md"] } as ReviewCandidate;
     const other = { id: "c2", sources: ["good.md"] } as ReviewCandidate;

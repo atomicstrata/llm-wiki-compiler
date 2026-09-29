@@ -32,8 +32,8 @@ import {
   CITATION_PATTERN,
   collectAllPages,
   type PageScope,
-  findMatchesInContent,
 } from "./rules-shared.js";
+import { findWikilinks } from "../wiki/wikilinks.js";
 
 // Re-export the shared walk helpers and the citation + cross-link families so
 // every importer of `rules.js` keeps a single, unchanged surface.
@@ -53,9 +53,6 @@ export {
 /** Rule id for a page whose body is too short to carry a claim; the profile registry declares it by this name. */
 export const EMPTY_PAGE_RULE = "empty-page";
 const MIN_BODY_LENGTH = 50;
-
-/** Pattern matching [[Wikilink Title]] references in markdown content. */
-const WIKILINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 
 /**
  * Build a set of slugs for all existing wiki pages.
@@ -81,8 +78,8 @@ export async function checkBrokenWikilinks(root: string, scope: PageScope = "gen
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    for (const { captured, line } of findMatchesInContent(page.content, WIKILINK_PATTERN)) {
-      const linkTarget = captured.split("|")[0].trim();
+    // Links inside code are text, not links: link repair and publication skip them too.
+    for (const { inner: captured, target: linkTarget, line } of findWikilinks(page.content)) {
       const linkSlug = slugify(linkTarget);
       if (!existingSlugs.has(linkSlug) && pendingSlugs.has(linkSlug)) {
         results.push({

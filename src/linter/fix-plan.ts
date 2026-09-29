@@ -26,12 +26,12 @@
  */
 
 import path from "node:path";
-import { findMatchesInContent, collectAllPages, type PageScope } from "./rules-shared.js";
+import { collectAllPages, type PageScope } from "./rules-shared.js";
 import { listLinkResolvablePendingSlugs } from "../compiler/candidates.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
+import { findWikilinks } from "../wiki/wikilinks.js";
 
 /** The wikilink form the linter scans for; shared so the two cannot diverge. */
-const WIKILINK = /\[\[([^\]]+)\]\]/g;
 
 /** One concrete, reviewable edit a deterministic fix would make. */
 export interface LintFixEditV1 {
@@ -85,8 +85,7 @@ export async function planLintFixes(root: string, scope: PageScope = "wiki-wide"
   const byTitle = pagesByTitleSlug(pages);
   const plans: LintFixPlanV1[] = [];
   for (const page of pages) {
-    for (const { captured, line } of findMatchesInContent(page.content, WIKILINK)) {
-      const target = captured.split("|")[0]!.trim();
+    for (const { inner: captured, target, line } of findWikilinks(page.content)) {
       const slug = slugify(target);
       if (existing.has(slug) || pending.has(slug)) continue;
       plans.push(planForBrokenLink(page.filePath, line, captured, target, byTitle.get(slug) ?? []));

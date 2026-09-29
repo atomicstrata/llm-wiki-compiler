@@ -32,9 +32,9 @@
 
 import path from "path";
 import { findSharedConcepts } from "../compiler/deps.js";
-import { findMatchesInContent } from "../linter/rules-shared.js";
 import { slugify } from "../utils/markdown.js";
 import type { WikiState, ReviewCandidate } from "../utils/types.js";
+import { findWikilinks } from "../wiki/wikilinks.js";
 
 /**
  * Matches `[[Target]]` and `[[Target|Display]]`, capturing the inner text.
@@ -44,7 +44,6 @@ import type { WikiState, ReviewCandidate } from "../utils/types.js";
  * one. Keeping the third copy local follows that precedent and avoids widening
  * this change into a refactor of the linter's module boundaries.
  */
-const WIKILINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 
 /** A surviving page holding a wikilink to a page this removal would delete. */
 export interface BrokenLinkRef {
@@ -205,8 +204,8 @@ function findBrokenLinks(
   const refs: BrokenLinkRef[] = [];
   for (const page of pages) {
     if (doomed.has(path.basename(page.filePath, ".md"))) continue;
-    for (const { captured } of findMatchesInContent(page.content, WIKILINK_PATTERN)) {
-      const target = slugify(captured.split("|")[0].trim());
+    for (const link of findWikilinks(page.content)) {
+      const target = slugify(link.target);
       if (doomed.has(target)) refs.push({ file: page.filePath, target });
     }
   }

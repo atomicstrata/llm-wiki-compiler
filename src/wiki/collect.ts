@@ -32,9 +32,8 @@ import { parseFrontmatterStatus, slugify } from "../utils/markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import type { PageDirectory } from "../export/types.js";
 import { safeRealpath, isInsideDir } from "../utils/path-confine.js";
+import { findWikilinks } from "./wikilinks.js";
 
-/** Regex that matches `[[wikilink]]` or `[[wikilink|alias]]` patterns. */
-const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 
 /**
  * Structural status of a single page's frontmatter, surfaced to callers so
@@ -79,13 +78,7 @@ export interface RawWikiPage {
  * produces. Returns deduplicated targets.
  */
 export function extractWikilinkSlugs(body: string): string[] {
-  const slugs = new Set<string>();
-  WIKILINK_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = WIKILINK_RE.exec(body)) !== null) {
-    slugs.add(slugify(match[1].trim()));
-  }
-  return [...slugs];
+  return [...new Set(findWikilinks(body).map(link => slugify(link.target)))];
 }
 
 /**
@@ -96,13 +89,9 @@ export function extractWikilinkSlugs(body: string): string[] {
 export function extractWikilinkTargets(body: string): { slug: string; display: string }[] {
   const seen = new Set<string>();
   const targets: { slug: string; display: string }[] = [];
-  WIKILINK_RE.lastIndex = 0;
-  let match: RegExpExecArray | null;
-  while ((match = WIKILINK_RE.exec(body)) !== null) {
-    const target = match[1].trim();
-    const alias = match[2]?.trim();
+  for (const { target, label } of findWikilinks(body)) {
     const slug = slugify(target);
-    const display = alias ?? target;
+    const display = label ?? target;
     if (!seen.has(slug)) {
       seen.add(slug);
       targets.push({ slug, display });

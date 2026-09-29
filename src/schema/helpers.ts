@@ -9,9 +9,9 @@
 import yaml from "js-yaml";
 import type { PageKind, SchemaConfig } from "./types.js";
 import { PAGE_KINDS } from "./types.js";
+import { findWikilinks } from "../wiki/wikilinks.js";
 
 /** Pattern matching [[Wikilink Title]] references in markdown content. */
-const WIKILINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 
 /**
  * Resolve a page's kind from its raw frontmatter value, falling back to the
@@ -34,8 +34,7 @@ export function resolvePageKind(rawKind: unknown, schema: SchemaConfig): PageKin
  * @returns Number of wikilink references found.
  */
 export function countWikilinks(body: string): number {
-  const matches = body.match(WIKILINK_PATTERN);
-  return matches ? matches.length : 0;
+  return findWikilinks(body).length;
 }
 
 /**

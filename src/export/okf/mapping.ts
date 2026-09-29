@@ -7,6 +7,7 @@ import path from "node:path";
 import type { ExportPage } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
+import { isLiteralMarkdown } from "../../compiler/link-repair-code.js";
 
 const DERIVED_CITATIONS = /\n+#\s+Citations\b[\s\S]*$/;
 
@@ -143,37 +144,35 @@ export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
 const WIKILINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 // any bundle-relative markdown link to a `.md` doc: captures display text + path (no leading slash, no .md)
 const OKF_LINK = /\[([^\]]+)\]\(\/([^)]+?)\.md\)/g;
-const FENCE = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g; // capturing → fenced blocks at odd split indices
-// Only fenced blocks are protected; single-backtick inline code (e.g. `[[x]]`)
-// is NOT — a wikilink inside inline code will still be rewritten. Acceptable for v0.1.
 
-/** Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links, SKIPPING fenced code. */
+/**
+ * Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links. Links inside
+ * literal Markdown (fenced, indented or inline code) are text, not links, and
+ * stay verbatim, matching link repair and publication.
+ */
 export function wikilinksToOkf(body: string, resolve: LinkResolver): string {
-  return body
-    .split(FENCE)
-    .map((seg, i) =>
-      i % 2 === 1
-        ? seg
-        : seg.replace(WIKILINK, (match, rawSlug: string, disp?: string) => {
-            const slug = slugify(rawSlug);
-            const target = resolve(slug);
-            if (!target) return match;
-            return `[${disp ?? target.title}](/${target.path})`;
-          }),
-    )
-    .join("");
+  const literal = isLiteralMarkdown(body);
+  return body.replace(WIKILINK, (match: string, rawSlug: string, disp: string | undefined, offset: number) => {
+    if (literal(offset)) return match;
+    const target = resolve(slugify(rawSlug));
+    if (!target) return match;
+    return `[${disp ?? target.title}](/${target.path})`;
+  });
 }
 
 /**
  * Reverse: OKF link -> [[slug]] when `resolveLink(path)` maps the link's path to a known
  * bundle doc; an unknown/external path is left verbatim. `[[slug]]` when text === title,
- * else `[[slug|text]]`.
+ * else `[[slug|text]]`. Links inside literal Markdown stay verbatim, mirroring the forward
+ * direction, so a round trip never turns a code example into a wikilink.
  */
 export function okfLinksToWikilinks(
   body: string,
   resolveLink: (linkPath: string) => { slug: string; title: string } | null,
 ): string {
-  return body.replace(OKF_LINK, (match, text: string, linkPath: string) => {
+  const literal = isLiteralMarkdown(body);
+  return body.replace(OKF_LINK, (match: string, text: string, linkPath: string, offset: number) => {
+    if (literal(offset)) return match;
     const r = resolveLink(linkPath);
     if (!r) return match;
     return r.title === text ? `[[${r.slug}]]` : `[[${r.slug}|${text}]]`;
