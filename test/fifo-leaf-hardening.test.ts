@@ -9,10 +9,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
-import { mkdir, mkdtemp, open, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { copyIntoCustody } from "../src/preparations/attempts/custody.js";
+import { copyIntoCustody, publishCustodyLocked } from "../src/preparations/attempts/custody.js";
+import { mintPreparationId } from "../src/preparations/ids.js";
+import { preparationPaths } from "../src/preparations/paths.js";
+import * as noFollow from "../src/utils/no-follow-open.js";
 import { loadProfile } from "../src/profile/load.js";
 import { loadBatch } from "../src/trust/journal.js";
 import { readConfinedRaw } from "../src/utils/embeddings-store.js";
@@ -133,3 +137,56 @@ it("keeps `llmwiki status` responsive with a FIFO planted at the pending-embeddi
   expect(run).not.toBe("blocked");
   expectCLIExit((run as { value: Awaited<ReturnType<typeof runCLI>> }).value, 0);
 }, 20_000);
+
+/** One pending custody object holding `body`, as an attempt leg would leave it. */
+async function custodyObject(root: string, body: string) {
+  const tempPath = path.join(root, "custody", "object.bin");
+  await mkdir(path.dirname(tempPath), { recursive: true });
+  await writeFile(tempPath, body);
+  const digest = `sha256:${createHash("sha256").update(body).digest("hex")}`;
+  const ref = { digest, byteCount: Buffer.byteLength(body) } as Parameters<typeof publishCustodyLocked>[2][number]["ref"];
+  return { tempPath, ref };
+}
+
+const LOCATION = { workspaceId: "ws-fifo", preparationId: mintPreparationId() };
+
+/** A project whose preparation evidence directory exists, as publication expects. */
+async function preparationProject(): Promise<string> {
+  const root = await project();
+  await mkdir(preparationPaths(root, LOCATION.workspaceId).evidenceRoot(LOCATION.preparationId), { recursive: true });
+  return root;
+}
+
+it("control: publishes a regular custody object", async () => {
+  const root = await preparationProject();
+  expect(await settle(publishCustodyLocked(root, LOCATION, [await custodyObject(root, "evidence")], 1024))).toEqual({ value: true });
+});
+
+it("refuses a custody object replaced by a FIFO before verification", async () => {
+  const root = await preparationProject();
+  const item = await custodyObject(root, "evidence");
+  await rm(item.tempPath);
+  await plantFifo(root, path.relative(root, item.tempPath));
+  expect(await settle(publishCustodyLocked(root, LOCATION, [item], 1024))).toEqual({ value: false });
+});
+
+// The swap lands after verification succeeded, on the CAS link's own open:
+// the second open of the same object. If the link stage bypassed the hardened
+// helper, no swap would happen and `swapped` would stay false.
+it("refuses a custody object replaced by a FIFO between verification and the CAS link", async () => {
+  const root = await preparationProject();
+  const item = await custodyObject(root, "evidence");
+  const real = noFollow.openFileNoFollow;
+  let opens = 0;
+  let swapped = false;
+  vi.spyOn(noFollow, "openFileNoFollow").mockImplementation(async (file, flags, mode) => {
+    if (file === item.tempPath && ++opens === 2) {
+      await rm(file);
+      await plantFifo(root, path.relative(root, file));
+      swapped = true;
+    }
+    return real(file, flags, mode);
+  });
+  expect(await settle(publishCustodyLocked(root, LOCATION, [item], 1024))).toEqual({ value: false });
+  expect(swapped).toBe(true);
+});
