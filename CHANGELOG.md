@@ -139,6 +139,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Viewer tests no longer fail each other at random.** The viewer test harness's own tests wrote throwaway modules into `src/viewer/assets/`, and any viewer test mounting at the same moment loaded them and failed. They now pass those modules to the harness in memory, and a test checks that the shared directory is never touched.
+
 - **Links written inside code are no longer treated as links.** A `[[...]]` inside fenced, indented or inline code is text, and link repair and publication already skipped it. Lint, `lint --fix` plans, the link graph (backlinks, orphans and the viewer graph), schema link counts, the `rm` plan and OKF export/import now agree. Lint no longer reports code examples as broken wikilinks: on two live docs wikis, 12 of 13 and 13 of 24 reported broken links were inside code. OKF export no longer rewrites a wikilink in inline code, and OKF import no longer turns a link inside code into a wikilink.
 
 - **Every wikilink reader now finds exactly the links the viewer renders.** Readers used to treat some `[[...]]` text as links that the viewer and answer citations do not: an escaped `\[[...]]`, a wikilink inside a Markdown link's text or URL, an autolink, a reference definition, and `[[...]]` written as a link's text as in `[[text]](url)`. A link containing a lone `]`, such as `[[a]b]]`, was missed. Lint, `lint --fix` plans, the link graph, schema link counts, the `rm` plan, link repair and OKF export now take links from the viewer's own parser, so they agree on every page. Link repair and OKF export no longer rewrite text inside a URL, a link's text or an escaped bracket.

@@ -6,10 +6,10 @@
  * rewrite so adding a new viewer module never silently fails to mount.
  */
 
-import { rm, writeFile } from "fs/promises";
+import { readdir } from "fs/promises";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
-import { jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
+import { describe, expect, it } from "vitest";
+import { jsonResponse, mountViewerDom, mountViewerDomWith, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 const EMPTY_ENVELOPE = {
   project: { title: "demo", rootName: "demo" },
@@ -69,29 +69,21 @@ describe("viewer JSDOM harness", () => {
 // --- Export-form support ---
 //
 // The harness must strip every `export` keyword before JSDOM's `eval` sees
-// it (there is no module loader). These tests write real, throwaway module
-// files into src/viewer/assets/ — the harness discovers modules by
-// directory scan, so this is the only way to pin its behaviour against a
-// module it did not already know about — and delete them in `afterEach` so
-// a failed assertion can never leave a stray file poisoning later runs.
+// it (there is no module loader). These tests mount throwaway modules the
+// harness did not already know about, passed in memory: they go through the
+// same discovery order and rewriting as files in src/viewer/assets/. Writing
+// them into that shared directory, as these tests once did, made every other
+// viewer test mounting at the same moment load them and fail.
 const ASSETS_DIR = path.resolve("src/viewer/assets");
-const SUPPORTED_FIXTURE = path.join(ASSETS_DIR, "viewer-export-form-check.js");
-const UNSUPPORTED_FIXTURE = path.join(ASSETS_DIR, "viewer-export-default-check.js");
+const UNSUPPORTED_MODULE = { "viewer-export-default-check.js": "export default function tempDefaultExport() {}\n" };
 
 describe("viewer JSDOM harness — export form support", () => {
-  afterEach(async () => {
-    await rm(SUPPORTED_FIXTURE, { force: true });
-    await rm(UNSUPPORTED_FIXTURE, { force: true });
-  });
-
   it("mounts export-const and export-async-function forms with callable exports", async () => {
-    await writeFile(
-      SUPPORTED_FIXTURE,
-      'export async function tempAsyncExport() { return "ok"; }\n' +
+    const { dom } = await mountViewerDomWith(responder, {
+      "viewer-export-form-check.js":
+        'export async function tempAsyncExport() { return "ok"; }\n' +
         'export const tempConstExport = () => "ok";\n',
-      "utf-8",
-    );
-    const { dom } = await mountViewerDom(responder);
+    });
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, Record<string, unknown>>;
     }).__viewerModules;
@@ -101,8 +93,14 @@ describe("viewer JSDOM harness — export form support", () => {
   });
 
   it("fails loudly, naming the file, for an unsupported export form", async () => {
-    await writeFile(UNSUPPORTED_FIXTURE, "export default function tempDefaultExport() {}\n", "utf-8");
-    await expect(mountViewerDom(responder)).rejects.toThrow(/viewer-export-default-check\.js/);
+    await expect(mountViewerDomWith(responder, UNSUPPORTED_MODULE)).rejects.toThrow(/viewer-export-default-check\.js/);
+  });
+
+  it("never adds a throwaway module to the shared assets", async () => {
+    const before = await readdir(ASSETS_DIR);
+    await expect(mountViewerDomWith(responder, UNSUPPORTED_MODULE)).rejects.toThrow();
+    expect(await readdir(ASSETS_DIR)).toEqual(before);
+    await expect(mountViewerDom(responder)).resolves.toBeDefined();
   });
 });
 
@@ -112,23 +110,15 @@ describe("viewer JSDOM harness — export form support", () => {
 // import spanning several lines (one named binding per line, as several
 // real viewer-*.js files do) still rewrites into a registry read. This was
 // previously verified only by an ad-hoc script, never by a running test.
-const MULTILINE_IMPORT_FIXTURE = path.join(ASSETS_DIR, "viewer-multiline-import-check.js");
-
 describe("viewer JSDOM harness — multi-line imports", () => {
-  afterEach(async () => {
-    await rm(MULTILINE_IMPORT_FIXTURE, { force: true });
-  });
-
   it("rewrites a multi-line import into a registry read", async () => {
-    await writeFile(
-      MULTILINE_IMPORT_FIXTURE,
-      'import {\n  el,\n  heading,\n} from "./viewer-dom.js";\n\n' +
+    const { dom } = await mountViewerDomWith(responder, {
+      "viewer-multiline-import-check.js":
+        'import {\n  el,\n  heading,\n} from "./viewer-dom.js";\n\n' +
         "export function tempMultilineImportCheck() {\n" +
         '  return typeof el === "function" && typeof heading === "function";\n' +
         "}\n",
-      "utf-8",
-    );
-    const { dom } = await mountViewerDom(responder);
+    });
     const registry = (dom.window as unknown as {
       __viewerModules: Record<string, { tempMultilineImportCheck: () => boolean }>;
     }).__viewerModules;

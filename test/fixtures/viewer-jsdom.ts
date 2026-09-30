@@ -186,8 +186,8 @@ function moduleToRegistryScript(source: string, specifier: string): string {
 }
 
 /** List the client modules to mount, honouring MODULE_ORDER first. */
-async function listModuleFiles(): Promise<string[]> {
-  const entries = await readdir(ASSETS_DIR);
+async function listModuleFiles(extraModules: ExtraModules): Promise<string[]> {
+  const entries = [...await readdir(ASSETS_DIR), ...Object.keys(extraModules)];
   const modules = entries.filter(
     (name) =>
       name.startsWith("viewer-") &&
@@ -329,10 +329,39 @@ export async function mountViewerDom(
   graphHandle: GraphHandleMode = "present",
   beforeBoot?: (window: JSDOM["window"]) => void,
 ): Promise<MountResult> {
+  return mount({ responder, startHash, graphHandle, beforeBoot, extraModules: {} });
+}
+
+/** Throwaway client modules, by file name, mounted as if they were in the assets directory. */
+type ExtraModules = Readonly<Record<string, string>>;
+
+/**
+ * Mount the viewer plus `extraModules`, which go through the same discovery
+ * order and export rewriting as files in `src/viewer/assets`. Tests of the
+ * harness itself use this instead of writing throwaway files there: a file in
+ * the shared directory was loaded by every other viewer test mounting at the
+ * same moment, failing it.
+ */
+export async function mountViewerDomWith(responder: FetchResponder, extraModules: ExtraModules): Promise<MountResult> {
+  return mount({ responder, graphHandle: "present", extraModules });
+}
+
+/** Everything one mount needs. */
+interface MountOptions {
+  responder: FetchResponder;
+  startHash?: string;
+  graphHandle: GraphHandleMode;
+  beforeBoot?: (window: JSDOM["window"]) => void;
+  extraModules: ExtraModules;
+}
+
+/** Boot the viewer shell and every client module inside JSDOM. */
+async function mount(options: MountOptions): Promise<MountResult> {
+  const { responder, startHash, graphHandle, beforeBoot, extraModules } = options;
   const [html, entrySrc, moduleFiles] = await Promise.all([
     readFile(SHELL_PATH, "utf-8"),
     readFile(path.join(ASSETS_DIR, ENTRY_SCRIPT), "utf-8"),
-    listModuleFiles(),
+    listModuleFiles(extraModules),
   ]);
   const fetchMock = vi.fn(async (input: string | URL) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -353,7 +382,7 @@ export async function mountViewerDom(
   if (themeBoot) dom.window.eval(themeBoot);
   for (const name of moduleFiles) {
     if (name === "viewer-graph.js") continue;
-    const source = await readOptional(name);
+    const source = Object.hasOwn(extraModules, name) ? extraModules[name] : await readOptional(name);
     if (source === null) continue;
     dom.window.eval(moduleToRegistryScript(source, `./${name}`));
   }
