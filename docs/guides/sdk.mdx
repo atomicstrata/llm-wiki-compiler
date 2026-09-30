@@ -214,8 +214,9 @@ Both methods return `IngestResult` with `filename`, `chars`, and `truncated` fie
   - `options.save` - request publication in `wiki/queries/` after fresh citation validation and the direct-save profile gate.
   - `options.review` - with `save`, stage a validated review candidate instead of publishing; allowed in profile-enabled projects. `review` without `save` rejects before any provider request.
   - `options.debug` - include retrieval detail (selected chunks, scores) in the result.
+  - `options.embeddingFailure` - `"fallback"` (default) selects pages without embeddings when the embedding call fails and adds an `embedding-degraded` warning; `"throw"` rejects instead.
 
-  Returns `QueryResult` with `answer`, legacy display slugs in `selectedPages`, qualified grounding identities in `pageIds` and `refs`, `reasoning`, and `answerCitations` when collection succeeds. When requested, `debug` contains retrieval details. `saved` identifies a published query slug; `candidateId` identifies a staged proposal; `publicationRefusal` describes a refused save or staging request. These publication fields are mutually exclusive and absent when neither publication/staging nor refusal occurs, such as a query without saving or without grounding.
+  Returns `QueryResult` with `answer`, legacy display slugs in `selectedPages`, qualified grounding identities in `pageIds` and `refs`, `reasoning`, and `answerCitations` when collection succeeds. The grounding fields name only pages whose content reached the answer model: a selected page that can't be read is left out and named in a `page-hydration-dropped` warning. Retrieval problems are reported in `warnings`. When requested, `debug` contains retrieval details. `saved` identifies a published query slug; `candidateId` identifies a staged proposal; `publicationRefusal` describes a refused save or staging request. These publication fields are mutually exclusive and absent when neither publication/staging nor refusal occurs, such as a query without saving or without grounding.
 </ParamField>
 
 `answerCitations` is a version-1 report of unique, normalized answer-body wikilink targets in first-occurrence order. Successful collection returns it, including `{ version: 1, citations: [] }` when no links are recognized; a query with no grounding also returns an empty report. If collection fails, the field is absent, meaning citations are unavailable. The answer remains available; any requested publication performs its own fresh check and may succeed or return a refusal. SDK calls remain quiet, including warnings and refusals. Optional fields keep older `QueryResult` producers compatible. Import `QueryResult`, `AnswerCitation`, and `AnswerCitationReport` from the package entry point.
@@ -252,10 +253,12 @@ if (result.publicationRefusal) {
 
 Review candidates require fresh approval after all pending targets are published. Body edits require regeneration/restaging, and so does a target page that changed, appeared, or was deleted after staging; frontmatter-only title/summary edits are outside the audit digest. See the [policy matrix and snapshot limits](/cli/query#publication-and-review-policy) and [review recovery and sibling cleanup](/cli/review#validated-answer-candidates). Existing MCP `query_wiki` callers using `save: true` receive the same answer-preserving refusal in the JSON result, with no saved slug. MCP has no review option; its no-save behavior stays unchanged.
 
-<ParamField body="wiki.search(question)" type="Promise<PageRecord[]>">
+<ParamField body="wiki.search(question, options?)" type="Promise<SearchResult>">
   Select and hydrate the most relevant page records for a question. Uses semantic embeddings when available, falls back to LLM-based index selection. **Requires LLM credentials.**
 
-  Returns an array of full `PageRecord` objects including frontmatter and body.
+  - `options.embeddingFailure` - `"fallback"` (default) selects pages without embeddings when the embedding call fails and adds an `embedding-degraded` warning; `"throw"` rejects instead.
+
+  Returns `pages` (full `PageRecord` objects including frontmatter and body), the selected `refs`, and any retrieval `warnings`.
 </ParamField>
 
 ### Pages and sources

@@ -4,7 +4,8 @@
  * v3 store PRESENT, a failing embedding call (the keyless configuration — an
  * agent provider that cannot embed) degrades `pickSearchRefs` to the LLM/index
  * fallback — which needs no embedder — with an `embedding-degraded` warning,
- * instead of aborting the whole search.
+ * instead of aborting the whole search. This is the default; `embeddingFailure:
+ * "throw"` keeps the strict rejection.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -20,13 +21,14 @@ vi.mock("../src/utils/llm.js", () => ({
 const seedRootWithPageStore = useAlphaPageFixture("search-embed-degrade", true);
 
 describe("search embedding failure degrades to the fallback", () => {
-  it("returns fallback refs and carries the embedding-degraded warning", async () => {
+  it("returns fallback refs with the embedding-degraded warning by default", async () => {
     const root = await seedRootWithPageStore();
     const embed = mockEmbeddingFailure();
 
     const stdout = vi.spyOn(console, "log").mockImplementation(() => {});
-    await expect(pickSearchRefs(root, "what is alpha?")).rejects.toThrow("no embedding credentials");
-    const { refs, warnings } = await pickSearchRefs(root, "what is alpha?", { embeddingFailure: "fallback" });
+    await expect(pickSearchRefs(root, "what is alpha?", { embeddingFailure: "throw" }))
+      .rejects.toThrow("no embedding credentials");
+    const { refs, warnings } = await pickSearchRefs(root, "what is alpha?");
     // PRECONDITION pinned: the v3 store was loaded and the embed call was
     // actually reached — the degrade is witnessed, not vacuously absent.
     expect(embed, "the embedding path was never reached").toHaveBeenCalled();

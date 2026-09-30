@@ -133,7 +133,7 @@ export async function selectRelevantPages(
   return enrich({ refs, reasoning, chunks: [], warnings: [] });
 }
 
-/** Page-level candidate hits plus an optional opt-in recovery warning. */
+/** Page-level candidate hits plus the warning recorded when embedding failed. */
 interface PageLookup {
   hits: Awaited<ReturnType<typeof findRelevantPagesV3>>["hits"];
   stalePageIds: PageId[];
@@ -141,8 +141,8 @@ interface PageLookup {
 }
 
 /**
- * Preserve public page-level embedding errors unless fallback is requested.
- * Recovery is reported as data rather than an additional stdout diagnostic.
+ * Degrade a page-level embedding error to fallback selection unless `throw`
+ * is requested. Recovery is reported as data rather than a stdout diagnostic.
  */
 async function tryFindRelevantPages(
   root: string,
@@ -154,7 +154,7 @@ async function tryFindRelevantPages(
   try {
     return await findRelevantPagesV3(root, store, "search", question, EMBEDDING_TOP_K, profile);
   } catch (err) {
-    if (options.embeddingFailure !== "fallback") throw err;
+    if (options.embeddingFailure === "throw") throw err;
     const message = err instanceof Error ? err.message : String(err);
     return {
       hits: [],

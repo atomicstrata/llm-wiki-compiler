@@ -121,9 +121,12 @@ function buildChunkProvenance(chunks: ChunkCitation[]): string {
 
 /** Options for generateAnswer — programmatic-friendly. */
 interface GenerateAnswerOptions {
-  /** Opt into embedding-error recovery; scoped/review queries default to fallback. */
+  /**
+   * On an embedding error, `fallback` (the default) selects pages without
+   * embeddings and reports an `embedding-degraded` warning; `throw` rejects.
+   */
   embeddingFailure?: "throw" | "fallback";
-  /** Report/filter to hydrated grounding. Scoped/review queries always use this mode. */
+  /** Accepted for compatibility: grounding is always the hydrated set. */
   grounding?: "hydrated";
   /** Persist the answer as a wiki query page when set. */
   save?: boolean;
@@ -170,10 +173,8 @@ export async function generateAnswer(
     throw new Error("Wiki index not found. Run `llmwiki compile` first.");
   }
 
-  const scopedOrReview = options.pageScope !== undefined || options.review === true;
-  const hydratedGrounding = scopedOrReview || options.grounding === "hydrated";
   const selection = await timeStage("query.retrieval", () => selectRelevantPages(root, question, Boolean(options.debug), options.pageScope, {
-    embeddingFailure: options.embeddingFailure ?? (scopedOrReview ? "fallback" : "throw"),
+    embeddingFailure: options.embeddingFailure ?? "fallback",
   }));
   // Human/log surfaces use the QUALIFIED pageId so same-slug pages
   // (`concepts/foo` vs `papers/foo`) are distinguishable; the structured
@@ -184,21 +185,19 @@ export async function generateAnswer(
 
   // Hydrate via the qualified-id loader (confined, namespace-correct per pageId):
   // a `papers/foo` ref loads wiki/<papers-dir>/foo.md, never wiki/concepts/foo.md.
-  // Scoped/review and explicitly hydrated queries use the live pairs as their
-  // grounding identity. Ordinary public queries retain their selected-ref contract.
+  // The live pairs are the grounding identity: only pages the model is shown.
   const hydratedPairs = await loadSelectedRefRecords(root, selection.refs);
   const pagesContent = renderRefRecords(hydratedPairs);
   verbose(`context pack: ${pagesContent.length} chars`);
 
   if (!pagesContent) {
-    return buildEmptyResult(selection, hydratedGrounding ? hydratedPairs : undefined);
+    return buildEmptyResult(selection, hydratedPairs);
   }
 
-  // Hydrated mode restricts excerpts to the reported live parents; ordinary
-  // queries preserve the public prompt, including excerpts beyond the ref cap.
+  // Excerpts are restricted to the reported live parents, so an excerpt whose
+  // page fell beyond the ref cap or failed to hydrate never reaches the model.
   const hydratedIds = new Set(hydratedPairs.map((pair) => pair.pageId));
-  const promptChunks = hydratedGrounding
-    ? selection.chunks.filter((chunk) => hydratedIds.has(chunk.pageId)) : selection.chunks;
+  const promptChunks = selection.chunks.filter((chunk) => hydratedIds.has(chunk.pageId));
   const answer = await timeStage("query.answer", () => callAnswerLLM(question, pagesContent, promptChunks, options.onToken));
   // Advisory citation report over the canonical saved body: a snapshot for the
   // caller, never permission to publish. Its failure preserves the answer.
@@ -209,8 +208,8 @@ export async function generateAnswer(
   // Preserve the public activity log for ordinary CLI/MCP questions, even when
   // not saved as pages. Explicitly scoped reads and review proposals retain
   // their no-activity-log contract; a saved scoped answer is a write.
-  // Log only after generation succeeds, using the selected grounding policy.
-  const resultFields = buildResultFields(selection, hydratedGrounding ? hydratedPairs : undefined);
+  // Log only after generation succeeds, naming only the hydrated grounding.
+  const resultFields = buildResultFields(selection, hydratedPairs);
   if (options.review !== true && (options.save === true || options.pageScope === undefined)) {
     await appendLog(root, "query", question, {
       details: resultFields.pageIds.length > 0 ? [`Pages: ${formatWikilinkList(resultFields.pageIds)}`] : [],
@@ -241,24 +240,22 @@ function renderRefRecord({ pageId, record }: PageRecordWithId): string {
 }
 
 /** Build the empty-pages result while preserving any debug/chunk context. */
-function buildEmptyResult(selection: SelectedPages, hydratedPairs?: PageRecordWithId[]): QueryResult {
+function buildEmptyResult(selection: SelectedPages, hydratedPairs: PageRecordWithId[]): QueryResult {
   return { answer: "", ...buildResultFields(selection, hydratedPairs), answerCitations: { version: 1, citations: [] } };
 }
 
 /**
- * The shared identity/diagnostic fields of a {@link QueryResult}, built from
- * selected refs by default, matching public behavior. With hydrated pairs,
- * drop unreadable refs and report them as `page-hydration-dropped` warnings.
+ * The shared identity/diagnostic fields of a {@link QueryResult}. Identity is
+ * the hydrated grounding; a selected ref that failed to hydrate is dropped from
+ * it and reported as a `page-hydration-dropped` warning instead.
  */
 function buildResultFields(
   selection: SelectedPages,
-  hydratedPairs?: PageRecordWithId[],
+  hydratedPairs: PageRecordWithId[],
 ): Omit<QueryResult, "answer" | "saved"> {
-  const hydratedIds = hydratedPairs && new Set(hydratedPairs.map((pair) => pair.pageId));
-  const refs = hydratedIds ? selection.refs.filter((ref) => hydratedIds.has(ref.pageId)) : selection.refs;
-  const droppedIds = selection.refs
-    .filter((ref) => hydratedIds && !hydratedIds.has(ref.pageId))
-    .map((ref) => ref.pageId);
+  const hydratedIds = new Set(hydratedPairs.map((pair) => pair.pageId));
+  const refs = selection.refs.filter((ref) => hydratedIds.has(ref.pageId));
+  const droppedIds = selection.refs.filter((ref) => !hydratedIds.has(ref.pageId)).map((ref) => ref.pageId);
   return {
     selectedPages: refs.map((ref) => slugFromPageId(ref.pageId)),
     pageIds: refs.map((ref) => ref.pageId),
@@ -321,6 +318,7 @@ export default async function queryCommand(
   // Newline after streamed answer so subsequent terminal output formats cleanly.
   process.stdout.write("\n");
 
+  printQueryWarnings(result);
   if (result.debug) printDebugSnapshot(result.debug);
 
   if (!result.answer) {
@@ -331,6 +329,15 @@ export default async function queryCommand(
   if (result.answerCitations) printAnswerCitationReport(result.answerCitations);
 
   printPublicationOutcome(result, Boolean(options.save));
+}
+
+/**
+ * Show the result's retrieval warnings, such as an embedding fallback or a
+ * selected page that was dropped from grounding. SDK and MCP callers receive
+ * the same warnings as data.
+ */
+function printQueryWarnings(result: QueryResult): void {
+  for (const warning of result.warnings ?? []) output.status("!", output.warn(warning.message));
 }
 
 /** Distinguish a published page, staged proposal, and answer-preserving refusal. */

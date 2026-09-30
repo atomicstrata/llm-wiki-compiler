@@ -93,7 +93,9 @@ Staging prints a candidate ID and leaves live pages, indexes, and embeddings unc
 
 2. **BM25 reranking.** The top-K chunks are reranked using BM25 (lexical scoring) to surface chunks where your question's exact terms appear prominently. This corrects for cases where semantic similarity alone would pick conceptually adjacent but not directly relevant content.
 
-The final evidence pack is the full content of the selected pages, loaded and passed to the LLM as grounding context. When no embedding store is present, the command falls back to sending the full `wiki/index.md` to the LLM for page selection.
+The final evidence pack is the full content of the selected pages, loaded and passed to the LLM as grounding context. When no embedding store is present, the command falls back to sending the full `wiki/index.md` to the LLM for page selection. It also falls back when the embedding call fails, for example with a provider that cannot embed, and prints an `embedding-degraded` warning after the answer.
+
+Only pages whose content reached the LLM count as grounding. If a selected page can't be read, it is left out of the answer's grounding and the activity log, and a warning names it. Excerpts are sent only for pages in that grounding.
 
 If you need wikilink-graph expansion - pulling in pages directly referenced by the top results - use [`llmwiki context`](#llmwiki-context-prompt---json) instead. `context` packages an extended evidence pack with graph neighbors and citation metadata, designed for agent pipelines that build their own prompts.
 

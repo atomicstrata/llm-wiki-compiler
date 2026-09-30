@@ -335,7 +335,9 @@ export interface WikiCore {
    * Returns the hydrated pages plus any `warnings` from the embedding load: an
    * outdated (non-v3) or unavailable index degrades to lexical/index selection
    * and reports `embedding-index-outdated` so the caller SEES why semantic
-   * retrieval contributed nothing (S6).
+   * retrieval contributed nothing (S6). An embedding error likewise degrades to
+   * fallback selection with an `embedding-degraded` warning unless
+   * `embeddingFailure: "throw"` is passed.
    */
   search(question: string, options?: { embeddingFailure?: "throw" | "fallback" }): Promise<SearchResult>;
   /**
@@ -354,9 +356,9 @@ export interface WikiCore {
    */
   query(question: string, options?: {
     save?: boolean; review?: boolean; debug?: boolean; pageScope?: readonly string[];
-    /** Opt-in error recovery; scoped queries default to fallback. */
+    /** On an embedding error, `fallback` (default) degrades with an `embedding-degraded` warning; `throw` rejects. */
     embeddingFailure?: "throw" | "fallback";
-    /** Opt-in hydrated provenance; scoped queries always use this mode. */
+    /** Accepted for compatibility: `pageIds` and `refs` always name only pages shown to the model. */
     grounding?: "hydrated";
   }): Promise<QueryResult>;
   /** Fetch a single page by directory and slug. No LLM required. */

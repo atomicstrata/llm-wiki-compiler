@@ -86,6 +86,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Queries report only the pages the model saw, and fall back when embedding fails.** These were opt-in before and are now the default for `llmwiki query`, the SDK `query` and `search`, and the MCP `query_wiki` and `search_pages` tools.
+  - `pageIds`, `refs`, `selectedPages` and the activity log name only pages whose content reached the answer model. A selected page that can't be read is left out and reported in a `page-hydration-dropped` warning. Excerpts from pages outside that set are no longer sent to the model.
+  - When the embedding call fails, for example with a provider that cannot embed, pages are selected without embeddings and an `embedding-degraded` warning is returned instead of an error. Pass `embeddingFailure: "throw"` for the old strict behavior.
+  - `llmwiki query` now prints the result's warnings after the answer.
+  - `grounding: "hydrated"` is still accepted but no longer changes anything.
+
 - **Embedding retry limits are now bound to page content.**
   - Pages changed while embeddings were off are refreshed again. A page that hit the retry limit used to stay excluded if it changed while embeddings were disabled, or outside llmwiki. Each retry entry now records the content it failed on, and the next compile with embeddings enabled retries any page whose content has changed since. With embeddings disabled, no command touches the retry files at all; this restores the earlier guarantee, including for `review reject`.
   - Retry limits hold for unchanged content. Re-saving identical content, or naming the page explicitly, no longer resets its budget. After fixing a provider, reset the page's retry entries instead; the environment-variables docs describe how.

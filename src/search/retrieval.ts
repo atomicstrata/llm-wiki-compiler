@@ -62,7 +62,10 @@ export interface SearchSelection {
   warnings: SearchWarning[];
 }
 
-/** Opt-in recovery from embedder failures; omitted preserves public error semantics. */
+/**
+ * How retrieval handles an embedding error: `fallback` (the default) selects
+ * pages without embeddings and reports `embedding-degraded`; `throw` rejects.
+ */
 export interface RetrievalOptions {
   embeddingFailure?: "throw" | "fallback";
 }
@@ -136,8 +139,9 @@ export function withStaleWarning(base: SearchWarning[], stalePageIds: PageId[]):
 }
 
 /**
- * Run chunk-then-page retrieval, preserving public failure semantics by default.
- * Explicit fallback returns a structured warning, never a stdout diagnostic:
+ * Run chunk-then-page retrieval. An embedding error degrades to fallback
+ * selection unless `throw` is requested, and the fallback is reported as a
+ * structured warning, never a stdout diagnostic:
  * this library also serves the MCP stdio transport.
  */
 async function selectViaEmbeddings(
@@ -159,7 +163,7 @@ async function selectViaEmbeddings(
     const refs = pageHits.map((p) => ({ pageId: p.pageId, slug: p.slug, title: p.title, kind: "page" as const }));
     return { refs, stalePageIds: pageStale };
   } catch (err) {
-    if (options.embeddingFailure !== "fallback") throw err;
+    if (options.embeddingFailure === "throw") throw err;
     const message = err instanceof Error ? err.message : String(err);
     return {
       refs: [],
@@ -221,14 +225,15 @@ export async function selectFallbackRefs(
 /**
  * Resolve relevant page slugs for a question — the bare-slug compatibility shim.
  * Internally runs the v3 pipeline and projects each ref to its slug, preserving
- * the legacy `string[]` return contract.
+ * the legacy `string[]` return contract. It has no warnings channel, so an
+ * embedding error rejects rather than silently degrading to fallback selection.
  *
  * @param root - Absolute path to the wiki workspace root.
  * @param question - The query used to rank pages.
  * @returns Ordered list of relevant page slugs.
  */
 export async function pickSearchSlugs(root: string, question: string): Promise<string[]> {
-  const { refs } = await pickSearchRefs(root, question);
+  const { refs } = await pickSearchRefs(root, question, { embeddingFailure: "throw" });
   return refs.map((ref) => ref.slug);
 }
 

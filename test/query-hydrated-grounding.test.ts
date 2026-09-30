@@ -52,10 +52,11 @@ async function seedRoot(): Promise<string> {
 
 describe("query grounding identity is the HYDRATED set", () => {
   it.each([
+    {},
     { grounding: "hydrated" as const },
     { pageScope: ["concepts/alpha", "concepts/ghost"] },
     { review: true },
-  ])("drops an unreadable page with opted-in hydrated grounding: %j", async (options) => {
+  ])("drops an unreadable page from grounding: %j", async (options) => {
     const root = await seedRoot();
     state.selection = ["concepts/alpha", "concepts/ghost"];
     state.onSelect = () => rm(path.join(root, "wiki/concepts", "ghost.md"));
@@ -84,18 +85,6 @@ describe("query grounding identity is the HYDRATED set", () => {
     }
   });
 
-  it("preserves selected refs and activity-log identities by default after a hydration drop", async () => {
-    const root = await seedRoot();
-    state.selection = ["concepts/alpha", "concepts/ghost"];
-    state.onSelect = () => rm(path.join(root, "wiki/concepts", "ghost.md"));
-    const result = await generateAnswer(root, "what is alpha?");
-    expect(result.pageIds).toEqual(state.selection);
-    expect(result.selectedPages).toEqual(["alpha", "ghost"]);
-    expect(result.answer).not.toContain("GHOST_BODY");
-    expect(result.warnings?.some((warning) => warning.code === "page-hydration-dropped")).not.toBe(true);
-    expect(await readFile(path.join(root, "log.md"), "utf8")).toContain("concepts/ghost");
-  });
-
   it("reports all pages and NO drop warning when every selected page hydrates", async () => {
     const root = await seedRoot();
     state.selection = ["concepts/alpha", "concepts/ghost"];
@@ -105,7 +94,7 @@ describe("query grounding identity is the HYDRATED set", () => {
     expect((result.warnings ?? []).map((w) => w.code)).not.toContain("page-hydration-dropped");
   });
 
-  it.each([undefined, "hydrated"] as const)("preserves the %s chunk grounding policy", async (grounding) => {
+  it.each([undefined, "hydrated"] as const)("renders only grounded excerpts with grounding=%s", async (grounding) => {
     // Chunk retrieval keeps up to CHUNK_RERANK_KEEP excerpts but collapses
     // parents to QUERY_PAGE_LIMIT refs — seed MORE chunk parents than the ref
     // cap so an excerpt whose parent is outside the grounding would reach the
@@ -132,7 +121,6 @@ describe("query grounding identity is the HYDRATED set", () => {
     // answer mock) names a parent the result reports as grounding.
     const rendered = [...result.answer.matchAll(/^--- (\S+) \(chunk /gm)].map((match) => match[1]!);
     expect(rendered.length, "no excerpt reached the prompt").toBeGreaterThan(0);
-    if (grounding === "hydrated") expect(rendered.every((parent) => result.pageIds.includes(parent))).toBe(true);
-    else expect(new Set(rendered)).toEqual(retrievedParents);
+    expect(rendered.filter((parent) => !result.pageIds.includes(parent)), "an excerpt outside the grounding reached the model").toEqual([]);
   });
 });

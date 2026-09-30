@@ -4,6 +4,7 @@
  * (the keyless configuration — an agent provider that cannot embed) degrades
  * the page-level leg to the LLM/index fallback — which needs no embedder —
  * with an `embedding-degraded` warning, instead of aborting the whole query.
+ * This is the default; `embeddingFailure: "throw"` keeps the strict rejection.
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -21,16 +22,14 @@ const seedRootWithPageStore = useAlphaPageFixture("embed-degrade", true);
 
 describe("page-level embedding failure degrades to the fallback", () => {
   it.each([
+    {},
     { embeddingFailure: "fallback" as const },
     { pageScope: ["concepts/alpha"] },
     { review: true },
-  ])("answers via fallback only when opted in: %j", async (options) => {
+  ])("answers via fallback by default and on request: %j", async (options) => {
     const root = await seedRootWithPageStore();
     const embed = mockEmbeddingFailure();
 
-    await expect(generateAnswer(root, "what is alpha?")).rejects.toThrow("no embedding credentials");
-    await expect(generateAnswer(root, "what is alpha?", { ...options, embeddingFailure: "throw" }))
-      .rejects.toThrow("no embedding credentials");
     const result = await generateAnswer(root, "what is alpha?", options);
     // PRECONDITION pinned: the v3 store was loaded and the embed call was
     // actually reached — the degrade is witnessed, not vacuously absent.
@@ -39,4 +38,14 @@ describe("page-level embedding failure degrades to the fallback", () => {
     expect(result.pageIds).toEqual(["concepts/alpha"]);
     expect((result.warnings ?? []).map((w) => w.code)).toContain("embedding-degraded");
   });
+
+  it.each([{}, { pageScope: ["concepts/alpha"] }, { review: true }])(
+    "rejects when strict embedding errors are requested: %j",
+    async (options) => {
+      const root = await seedRootWithPageStore();
+      mockEmbeddingFailure();
+      await expect(generateAnswer(root, "what is alpha?", { ...options, embeddingFailure: "throw" }))
+        .rejects.toThrow("no embedding credentials");
+    },
+  );
 });

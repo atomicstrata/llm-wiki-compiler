@@ -110,6 +110,8 @@ The server exposes eleven tools. Read-only tools work without provider credentia
 
 **`get_context_pack` vs `query_wiki`:** these tools serve different purposes. `get_context_pack` *packages evidence* - it assembles a structured JSON envelope of relevant pages, semantic chunks, and citations that the agent uses for its own reasoning. `query_wiki` *generates an answer* - it calls the LLM and returns prose. Use `get_context_pack` when the agent needs grounded source material to reason over; use `query_wiki` when you want a finished answer.
 
+`query_wiki` and `search_pages` fall back to selecting pages without embeddings when the embedding call fails, and report it as an `embedding-degraded` warning in the result instead of failing. `query_wiki`'s `pageIds` and `refs` name only pages whose content reached the answer model; a selected page that can't be read is named in a `page-hydration-dropped` warning.
+
 `query_wiki` has no review option. Its existing no-save path returns the answer and advisory citations without publication checks. See [publication policy and recovery](/cli/query#publication-and-review-policy) before using `save: true`.
 
 ### MCP resources
