@@ -23,7 +23,7 @@ import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 const tracker = tempRootTracker();
 afterEach(() => tracker.cleanup());
 
-/** One prose link and the same kind of link in every literal form. */
+/** One prose link, the same kind of link in every literal form, and text the renderer does not read as a link. */
 const BODY = [
   "Prose links to [[Prose Target|the target]].",
   "",
@@ -34,6 +34,8 @@ const BODY = [
   "```",
   "",
   "    [[Indented Code]]",
+  "",
+  "Escaped \\[[Escaped Link]] and [see [[Label Link]]](https://example.com).",
   "",
 ].join("\n");
 
@@ -68,6 +70,19 @@ const RENDERER_CASES: Record<string, string> = {
   "link across lines": "Broken [[Across\nLines]] link.",
   "bracket inside": "Nested [[a [b] c]] text.",
   "inline html is text": "Raw <code>[[Html Text]]</code> here.",
+  "escaped bracket": "Escaped \\[[Escaped]] and [[Live]].",
+  "escaped backslash keeps the link": "Two \\\\[[Kept]] here.",
+  "link text": "[outer [[Label]] text](https://example.com) and [[Live]]",
+  "link text by reference": "[outer [[Label]] text][r] and [[Live]]\n\n[r]: https://example.com",
+  "link destination": "[docs](https://example.com/[[Dest]]) and [[Live]]",
+  "autolink": "<https://example.com/[[Auto]]> and [[Live]]",
+  "reference definition title": "[r]: https://example.com \"[[Title]]\"\n\nUse [r] and [[Live]].",
+  "reference definition destination": "[r]: <[[Dest]]>\n\nUse [r] and [[Live]].",
+  "footnote-shaped definition": "[^1]: [[Note]]\n\n[[Live]]",
+  "wikilink used as link text": "[[Text]](https://example.com) and [[Live]]",
+  "wikilink used as a reference": "[[Text]][r] and [[Live]]\n\n[r]: https://example.com",
+  "closing bracket inside": "See [[a]b]] now.",
+  "image alt text": "![alt [[Alt]]](image.png) and [[Live]]",
 };
 
 describe("agreement with the renderer's recognizer", () => {

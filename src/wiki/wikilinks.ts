@@ -1,21 +1,20 @@
 /**
  * @file src/wiki/wikilinks.ts
  * @description The single reader of `[[target]]` / `[[target|label]]` links in a
- * page body. Text inside literal Markdown (fenced, indented or inline code) is
- * not a link: link repair and publication approval already skip it, so every
- * other reader (lint, lint fix plans, the link graph, schema link counts, the
- * `rm` plan and OKF export) must agree with them about which links exist. A
- * link may not span lines or contain `[`, matching the renderer's recognizer
- * (`recognizedWikilinkTargets`).
+ * page body. A link exists exactly when the renderer (the viewer and answer
+ * reporting) recognizes one, so text in code, escaped brackets, link text and
+ * destinations, autolinks and reference definitions is not a link. Lint, lint
+ * fix plans, the link graph, schema link counts, the `rm` plan, link repair
+ * and OKF export all read links here, so they agree about which links exist.
  */
 
-import { isLiteralMarkdown } from "../compiler/link-repair-code.js";
+import { locateWikilinks } from "./wikilink-locate.js";
 
 /** One live wikilink occurrence. */
 export interface WikilinkMatch {
   /** Everything between the brackets, as written (`target` or `target|label`). */
   inner: string;
-  /** The link target, trimmed, before any `|`. */
+  /** The link target as the renderer reads it, trimmed, before any `|`. */
   target: string;
   /** The display label after `|`, trimmed, when present. */
   label?: string;
@@ -25,28 +24,39 @@ export interface WikilinkMatch {
   line: number;
 }
 
-// As the viewer and answer reporting recognize them: no newline or `[` inside one link.
-const WIKILINK = /\[\[([^\]\n[]+)\]\]/g;
+/** The brackets around a link's inner text. */
+const BRACKETS_LENGTH = "[[]]".length;
 
 /**
  * Every wikilink in `text` that Markdown renders as a link, in order. The text
- * is parsed for literal regions only when it contains `[[`, so pages without
- * links cost a substring search.
+ * is parsed only when it contains `[[`, so pages without links cost a
+ * substring search.
  */
 export function findWikilinks(text: string): WikilinkMatch[] {
   if (!text.includes("[[")) return [];
-  const literal = isLiteralMarkdown(text);
   const lineStarts = lineStartOffsets(text);
-  const links: WikilinkMatch[] = [];
-  for (const match of text.matchAll(WIKILINK)) {
-    if (literal(match.index)) continue;
-    const inner = match[1];
-    const bar = inner.indexOf("|");
-    const target = (bar < 0 ? inner : inner.slice(0, bar)).trim();
-    const label = bar < 0 ? undefined : inner.slice(bar + 1).trim();
-    links.push({ inner, target, label, index: match.index, line: lineOf(lineStarts, match.index) });
+  return locateWikilinks(text).map(({ start, end, inner: parsed }) => {
+    const bar = parsed.indexOf("|");
+    const target = (bar < 0 ? parsed : parsed.slice(0, bar)).trim();
+    const label = bar < 0 ? undefined : parsed.slice(bar + 1).trim();
+    return { inner: text.slice(start + 2, end - 2), target, label, index: start, line: lineOf(lineStarts, start) };
+  });
+}
+
+/**
+ * Replace each live wikilink with `rewrite(link)`, leaving it verbatim when that
+ * returns undefined. Text that is not a link is never touched.
+ */
+export function rewriteWikilinks(text: string, rewrite: (link: WikilinkMatch) => string | undefined): string {
+  let result = "";
+  let copiedUpTo = 0;
+  for (const link of findWikilinks(text)) {
+    const replacement = rewrite(link);
+    if (replacement === undefined) continue;
+    result += text.slice(copiedUpTo, link.index) + replacement;
+    copiedUpTo = link.index + link.inner.length + BRACKETS_LENGTH;
   }
-  return links;
+  return result + text.slice(copiedUpTo);
 }
 
 /** Offsets at which each line begins. */

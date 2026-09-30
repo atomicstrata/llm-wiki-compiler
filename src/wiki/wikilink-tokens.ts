@@ -15,16 +15,33 @@ import { registerCitationTokens } from "./citation-tokens.js";
 const OPEN = "[";
 const CHAR_OPEN_BRACKET = 0x5b; // "["
 
+/**
+ * Sees each recognized link with its offsets in the parse's source, so a caller
+ * can map it back to page bytes (see wikilink-locate.ts) without the token's
+ * metadata, which the viewer renders, changing.
+ */
+export type WikilinkObserver = (token: Token, state: StateInline, start: number, end: number) => void;
+
 /** Register production wikilink recognition without resolution or rendering. */
-export function registerWikilinkTokens(md: MarkdownIt): void {
-  md.inline.ruler.after("link", "wikilink", parseWikilink);
+export function registerWikilinkTokens(md: MarkdownIt, observe?: WikilinkObserver): void {
+  md.inline.ruler.after("link", "wikilink", (state, silent) => parseWikilink(state, silent, observe));
+}
+
+/**
+ * A parser with the production wikilink and citation rules, configured as the
+ * viewer and answer reporting read a page. It is the single authority on which
+ * wikilinks a body contains.
+ */
+export function createWikilinkRecognizer(observe?: WikilinkObserver): MarkdownIt {
+  const md = new MarkdownIt({ html: false, linkify: false, breaks: false });
+  registerWikilinkTokens(md, observe);
+  registerCitationTokens(md);
+  return md;
 }
 
 /** Return normalized target occurrences in Markdown document order. */
 export function recognizedWikilinkTargets(body: string): string[] {
-  const md = new MarkdownIt({ html: false, linkify: false, breaks: false });
-  registerWikilinkTokens(md);
-  registerCitationTokens(md);
+  const md = createWikilinkRecognizer();
   const targets: string[] = [];
   collectTargets(md.parse(body, {}), targets);
   return targets;
@@ -39,7 +56,7 @@ function collectTargets(tokens: Token[], result: string[]): void {
 }
 
 /** Recognize one wikilink using the viewer's existing Markdown exclusions. */
-function parseWikilink(state: StateInline, silent: boolean): boolean {
+function parseWikilink(state: StateInline, silent: boolean, observe?: WikilinkObserver): boolean {
   if (state.src.charCodeAt(state.pos) !== CHAR_OPEN_BRACKET) return false;
   if (state.src.charCodeAt(state.pos + 1) !== CHAR_OPEN_BRACKET) return false;
   if (shouldDeferInlineRule(state, silent)) return false;
@@ -52,6 +69,7 @@ function parseWikilink(state: StateInline, silent: boolean): boolean {
   const slug = slugify(rawTarget.trim());
   const token = state.push("wikilink", "", 0);
   token.meta = { slug, display };
+  observe?.(token, state, state.pos, closeAt + 2);
   state.pos = closeAt + 2;
   return true;
 }

@@ -23,16 +23,13 @@ import path from "path";
 import { readdir } from "node:fs/promises";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { readConfinedWikiPage, warnDroppedWikiReadIfPresent } from "./confined-wiki-read.js";
-import { isLiteralMarkdown } from "./link-repair-code.js";
+import { rewriteWikilinks } from "../wiki/wikilinks.js";
 import { listLinkResolvablePendingSlugs } from "./candidate-read.js";
 import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
 import type { PageId } from "../utils/page-id.js";
 import type { CompilePageNamespace, CompilePageWrite } from "./compile-write.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import * as output from "../utils/output.js";
-
-/** `[[target]]` and `[[target|alias]]`, capturing everything between brackets. */
-const WIKILINK_PATTERN = /\[\[([^\]]+)\]\]/g;
 
 /** Separator joining slug words, and therefore the prefix boundary. */
 const SLUG_SEPARATOR = "-";
@@ -86,12 +83,10 @@ function repairBody(
   resolve: (targetSlug: string) => string | null,
 ): { body: string; repaired: number } {
   let repaired = 0;
-  const literal = isLiteralMarkdown(body);
-  const next = body.replace(WIKILINK_PATTERN, (match, inner: string, offset: number) => {
-    if (literal(offset)) return match;
+  const next = rewriteWikilinks(body, ({ inner }) => {
     const { target, alias } = splitWikilink(inner);
     const resolved = resolve(slugify(target));
-    if (!resolved) return match;
+    if (!resolved) return undefined;
     repaired += 1;
     return `[[${resolved}|${alias}]]`;
   });

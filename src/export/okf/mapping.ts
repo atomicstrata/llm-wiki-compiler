@@ -8,6 +8,7 @@ import type { ExportPage } from "../types.js";
 import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
 import { isLiteralMarkdown } from "../../compiler/link-repair-code.js";
+import { rewriteWikilinks } from "../../wiki/wikilinks.js";
 
 const DERIVED_CITATIONS = /\n+#\s+Citations\b[\s\S]*$/;
 
@@ -141,22 +142,20 @@ export function mapPageToOkfFrontmatter(page: ExportPage): OkfFrontmatter {
   return fm as unknown as OkfFrontmatter;
 }
 
-const WIKILINK = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
 // any bundle-relative markdown link to a `.md` doc: captures display text + path (no leading slash, no .md)
 const OKF_LINK = /\[([^\]]+)\]\(\/([^)]+?)\.md\)/g;
 
 /**
- * Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links. Links inside
- * literal Markdown (fenced, indented or inline code) are text, not links, and
+ * Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links. Only text the
+ * renderer reads as a link is rewritten; code, escaped brackets and link text
  * stay verbatim, matching link repair and publication.
  */
 export function wikilinksToOkf(body: string, resolve: LinkResolver): string {
-  const literal = isLiteralMarkdown(body);
-  return body.replace(WIKILINK, (match: string, rawSlug: string, disp: string | undefined, offset: number) => {
-    if (literal(offset)) return match;
-    const target = resolve(slugify(rawSlug));
-    if (!target) return match;
-    return `[${disp ?? target.title}](/${target.path})`;
+  return rewriteWikilinks(body, ({ inner }) => {
+    const bar = inner.indexOf("|");
+    const disp = bar < 0 ? undefined : inner.slice(bar + 1) || undefined;
+    const target = resolve(slugify(bar < 0 ? inner : inner.slice(0, bar)));
+    return target ? `[${disp ?? target.title}](/${target.path})` : undefined;
   });
 }
 

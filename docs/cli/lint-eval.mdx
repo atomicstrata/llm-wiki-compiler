@@ -22,7 +22,7 @@ llmwiki lint
 
 | Rule | Severity | What it flags |
 |------|----------|---------------|
-| Broken wikilinks | Error | `[[links]]` that don't resolve to any page or alias |
+| Broken wikilinks | Error | `[[links]]` that don't resolve to any page or alias. Only text the viewer renders as a link is checked: `[[...]]` inside code, after a backslash, or inside a Markdown link's text or URL is ignored |
 | Duplicate concepts | Error | Multiple pages that represent the same concept |
 | Broken citations | Error | `^[source.md]` or `^[source.md:42-58]` markers pointing to missing files, impossible line ranges (e.g. line `0`, or `8-3`), or ranges past end-of-file |
 | Malformed citations | Error | Citation markers that don't parse as valid source references |

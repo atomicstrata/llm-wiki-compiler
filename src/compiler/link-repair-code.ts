@@ -15,10 +15,10 @@ const markdownWithHtml = new MarkdownIt({ html: true });
 /** Which literal regions a caller must leave untouched. */
 export interface LiteralMarkdownOptions {
   /**
-   * Also treat raw HTML blocks as literal. Off by default so link repair keeps
-   * matching the viewer and answer-publication rules, which read wikilinks in
-   * HTML blocks as live links; the resolver turns it on because it must never
-   * insert a new link into code.
+   * Also treat raw HTML blocks as literal. Off by default, matching the viewer,
+   * which reads wikilinks in HTML blocks as live links; the resolver turns it on
+   * because it must never insert a new link into code. Which existing wikilinks
+   * are links is decided by `findWikilinks`, not by this check.
    */
   htmlBlocks?: boolean;
 }

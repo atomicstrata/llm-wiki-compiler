@@ -74,7 +74,12 @@ describe("repairLinks", () => {
     "```md\n[[Argo CD]]\n```", "~~~md\n[[Argo CD]]\n~~~",
     "`[[Argo CD]]`", "``code ` [[Argo CD]]``", "    [[Argo CD]]",
     "> ```\n> [[Argo CD]]\n> ```", "\\` prose `[[Argo CD]]`",
-  ])("preserves code examples: %s", async (example) => {
+    // Not links to the renderer either: repair must not rewrite them.
+    "Escaped \\[[Argo CD]].", "[see [[Argo CD]]](https://example.com)",
+    // A space would end the URL, so these targets have none.
+    "[docs](https://example.com/[[Argo-CD]])", "<https://example.com/[[Argo-CD]]>",
+    "[ref]: https://example.com \"[[Argo CD]]\"",
+  ])("preserves text that is not a link: %s", async (example) => {
     await writePage("argo-cd-guide", "Details.");
     await writePage("deployment", `${example}\n\nProse [[Argo CD]].`);
     await repairAndApply();
