@@ -18,6 +18,7 @@ import { readWikiPageContentOrWarn } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
 import { isLiteralMarkdown } from "./link-repair-code.js";
+import { insertsOnlyALink } from "../wiki/wikilink-insertion.js";
 import type { PageId } from "../utils/page-id.js";
 import type { CompilePageNamespace, CompilePageWrite } from "./compile-write.js";
 import * as output from "../utils/output.js";
@@ -138,7 +139,9 @@ function cachedLiteralRegions(): (text: string) => (offset: number) => boolean {
 /**
  * Add [[wikilinks]] to a page's body for any title mentions.
  * Skips literal Markdown (fenced, indented and inline code, HTML blocks),
- * already-linked text, citations and non-word-boundary matches.
+ * already-linked text, citations, non-word-boundary matches, and any place
+ * the renderer would not read a link: Markdown link URLs and text, autolinks,
+ * image alt text and reference definitions.
  */
 function addWikilinks(body: string, titles: PageInfo[], selfTitle: string): string {
   let result = body;
@@ -156,9 +159,13 @@ function addWikilinks(body: string, titles: PageInfo[], selfTitle: string): stri
     const isLiteral = literalRegions(result);
 
     // Process matches in reverse to preserve positions
+    const link = `[[${page.slug}|${page.title}]]`;
     for (const m of matches.reverse()) {
       if (!isLinkablePosition(result, m.start, m.end, isLiteral)) continue;
-      result = result.slice(0, m.start) + `[[${page.slug}|${page.title}]]` + result.slice(m.end);
+      // The cheap checks above cannot see Markdown links, autolinks, image alt
+      // text or reference definitions; the renderer can.
+      if (!insertsOnlyALink(result, m, link, page.title)) continue;
+      result = result.slice(0, m.start) + link + result.slice(m.end);
     }
   }
 

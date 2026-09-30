@@ -68,3 +68,35 @@ describe("interlink resolution leaves code untouched", () => {
     expect(after).toBe(`See ${LINK}.\n\n${code}\n\nThen ${LINK}.\n`);
   });
 });
+
+describe("interlink resolution never writes a link where the renderer would not read one", () => {
+  // Each place a title can appear but a link cannot. A link written there
+  // broke a URL, destroyed a reference definition, or split a table cell.
+  it.each([
+    ["a Markdown link's URL", "See [the docs](https://example.com/llmwiki) here."],
+    ["an autolink", "Visit <https://example.com/llmwiki> now."],
+    ["a Markdown link's text", "Read [about llmwiki](https://example.com) first."],
+    ["an image's alt text", "![llmwiki logo](logo.png)"],
+    ["a reference definition's URL", "Use [r].\n\n[r]: https://example.com/llmwiki"],
+    ["a reference definition's label", "Use [llmwiki].\n\n[llmwiki]: https://example.com"],
+    ["a table cell, where the link's pipe would split the cell", "| a | b |\n| - | - |\n| llmwiki | x |"],
+  ])("leaves %s untouched and still links the prose around it", async (_label, markdown) => {
+    const after = await resolveBody(`See llmwiki.\n\n${markdown}\n\nThen llmwiki.\n`);
+    expect(after).toBe(`See ${LINK}.\n\n${markdown}\n\nThen ${LINK}.\n`);
+  });
+
+  it("links a title whose characters the renderer escapes", async () => {
+    const root = await roots.create("resolver-escaped-title");
+    const title = "Newton's Law & Co";
+    await writeFile(path.join(root, "wiki/concepts/newtons-law.md"), `---\ntitle: "${title}"\nsummary: s\nsources: []\n---\n\nTarget.\n`);
+    const pagePath = path.join(root, "wiki/concepts/remove-command.md");
+    await writeFile(pagePath, `${PAGE_FRONTMATTER}Read about ${title} today.\n`);
+    await resolveAndApplyLinks(root, ["remove-command"], []);
+    expect(await readFile(pagePath, "utf-8")).toContain(`Read about [[newtons-law|${title}]] today.`);
+  });
+
+  it("still links prose that only looks like Markdown, including an apostrophe", async () => {
+    const after = await resolveBody("An [unlinked] note on llmwiki's design & llmwiki <tags>.\n");
+    expect(after).toBe(`An [unlinked] note on ${LINK}'s design & ${LINK} <tags>.\n`);
+  });
+});
