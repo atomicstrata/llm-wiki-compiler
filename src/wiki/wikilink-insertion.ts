@@ -8,13 +8,19 @@
  * an image's alt text, a reference definition, or code. Writing a link there
  * corrupts the page, for example by breaking a URL or destroying a reference
  * definition. Rather than list those places, the check asks the viewer's own
- * parser: the page must render exactly as it would with the title written
- * there as plain text, with every wikilink rendered as its display text. An
- * insertion anywhere the renderer would not read as a link changes the
- * rendering and is refused.
+ * parser two things:
+ *
+ * - The renderer must read the inserted text as a link, at exactly the place
+ *   it was written. An unused reference definition renders nothing, so a
+ *   rendering comparison alone cannot see a link written into its URL.
+ * - The page must render exactly as it would with the title written there as
+ *   plain text, with every wikilink rendered as its display text, so the
+ *   insertion changes nothing around it (image alt text, a reference
+ *   definition's label turned into a link).
  */
 
 import type Token from "markdown-it/lib/token.mjs";
+import { locateWikilinks } from "./wikilink-locate.js";
 import { createWikilinkRecognizer } from "./wikilink-tokens.js";
 
 const renderer = createWikilinkRecognizer();
@@ -23,8 +29,9 @@ renderer.renderer.rules.wikilink = (tokens: Token[], index: number): string =>
   renderer.utils.escapeHtml(tokens[index].meta.display);
 
 /**
- * True when replacing `text[range.start, range.end)` with `link` renders the
- * page exactly as replacing it with `display` does, apart from the link itself.
+ * True when replacing `text[range.start, range.end)` with `link` makes the
+ * renderer read `link` as a link there, and renders the page exactly as
+ * replacing it with `display` does, apart from the link itself.
  */
 export function insertsOnlyALink(
   text: string,
@@ -34,5 +41,8 @@ export function insertsOnlyALink(
 ): boolean {
   const before = text.slice(0, range.start);
   const after = text.slice(range.end);
-  return renderer.render(before + link + after) === renderer.render(before + display + after);
+  const next = before + link + after;
+  const linkEnd = range.start + link.length;
+  const isRecognized = locateWikilinks(next).some(found => found.start === range.start && found.end === linkEnd);
+  return isRecognized && renderer.render(next) === renderer.render(before + display + after);
 }

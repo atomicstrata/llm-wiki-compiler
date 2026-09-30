@@ -79,6 +79,9 @@ describe("interlink resolution never writes a link where the renderer would not 
     ["an image's alt text", "![llmwiki logo](logo.png)"],
     ["a reference definition's URL", "Use [r].\n\n[r]: https://example.com/llmwiki"],
     ["a reference definition's label", "Use [llmwiki].\n\n[llmwiki]: https://example.com"],
+    // Unused definitions render nothing, so only link recognition can see these.
+    ["an unused reference definition's URL", "[r]: https://example.com/llmwiki"],
+    ["an unused reference definition's title", "[r]: https://example.com \"About llmwiki\""],
     ["a table cell, where the link's pipe would split the cell", "| a | b |\n| - | - |\n| llmwiki | x |"],
   ])("leaves %s untouched and still links the prose around it", async (_label, markdown) => {
     const after = await resolveBody(`See llmwiki.\n\n${markdown}\n\nThen llmwiki.\n`);
