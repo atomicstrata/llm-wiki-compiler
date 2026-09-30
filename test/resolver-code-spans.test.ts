@@ -74,7 +74,7 @@ describe("interlink resolution never writes a link where the renderer would not 
   // broke a URL, destroyed a reference definition, or split a table cell.
   it.each([
     ["a Markdown link's URL", "See [the docs](https://example.com/llmwiki) here."],
-    ["an autolink", "Visit <https://example.com/llmwiki> now."],
+    ["an autolink", "Visit <https://example.com/llmwiki/docs> now."],
     ["a Markdown link's text", "Read [about llmwiki](https://example.com) first."],
     ["an image's alt text", "![llmwiki logo](logo.png)"],
     ["a reference definition's URL", "Use [r].\n\n[r]: https://example.com/llmwiki"],

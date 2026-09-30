@@ -64,7 +64,7 @@ wiki/
 
 ## Wikilinks and Alias Resolution
 
-llmwiki uses standard `[[double-bracket]]` wikilink syntax throughout the wiki. During the interlink resolution phase, the compiler scans every concept page for title mentions and wraps them in `[[slug|Title]]` links. The piped alias form keeps Obsidian link resolution stable when a page's filename differs from its display title.
+llmwiki uses standard `[[double-bracket]]` wikilink syntax throughout the wiki. During the interlink resolution phase, the compiler scans every concept page for title mentions and wraps them in `[[slug|Title]]` links. The piped alias form keeps Obsidian link resolution stable when a page's filename differs from its display title. Mentions are linked only in prose: never in code, in a Markdown link's text or URL, in image alt text, in a reference definition, or in a table cell, where the link's `|` would split the cell.
 
 You can also declare aliases in a page's frontmatter to make a page reachable under multiple names:
 
