@@ -353,6 +353,39 @@ compile. Embedding failures warn and leave lexical retrieval available unless
 you enable `LLMWIKI_EMBED_STRICT`.
 
   </Tab>
+  <Tab title="Cheaper Inference">
+
+The `cheaperinference` provider routes calls through [Cheaper Inference](https://cheaperinference.com), a hosted LLM gateway that exposes an OpenAI-compatible API for models from several labs. Model names are bare ids (for example `gpt-5.4-mini` or `claude-sonnet-5`), and the built-in default model is `gpt-5.4-mini`. See the [model list](https://cheaperinference.com/markets) for available ids.
+
+For more demanding source material, set `LLMWIKI_MODEL` to a stronger model that supports tool calls; concept extraction requires structured tool arguments.
+
+**Variables**
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_PROVIDER` | Yes | Set to `cheaperinference` |
+| `CHEAPER_INFERENCE_API_KEY` | Yes | Your Cheaper Inference API key (`ci_live_...`) from [cheaperinference.com/signup](https://cheaperinference.com/signup) |
+| `LLMWIKI_MODEL` | No | Model name override, such as `claude-sonnet-5` |
+
+**Setup**
+
+```bash
+export LLMWIKI_PROVIDER=cheaperinference
+export CHEAPER_INFERENCE_API_KEY=ci_live_...
+llmwiki compile
+```
+
+**Embeddings**
+
+Cheaper Inference has no embeddings endpoint, so the provider fails closed instead of inheriting OpenAI's embedding semantics. To keep Cheaper Inference for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+
+```bash
+export LLMWIKI_PROVIDER=cheaperinference
+export LLMWIKI_EMBEDDING_PROVIDER=openai
+export OPENAI_EMBEDDINGS_API_KEY=<your-key>
+```
+
+  </Tab>
   <Tab title="Atlas Cloud">
 
 The `atlascloud` provider routes calls through [Atlas Cloud](https://www.atlascloud.ai), a hosted gateway exposing an OpenAI-compatible API across models from several vendors. Model names are namespaced by publisher (for example `qwen/qwen3.5-35b-a3b`).

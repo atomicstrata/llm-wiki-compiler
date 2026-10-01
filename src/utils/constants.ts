@@ -76,6 +76,7 @@ export const SUPPORTED_PROVIDER_INPUTS = [
   "ollama",
   "minimax",
   "orcarouter",
+  "cheaperinference",
   "copilot",
   "atlascloud",
   "atlas-cloud",
@@ -100,6 +101,7 @@ export const PROVIDER_MODELS: Record<string, string> = {
   ollama: "llama3.1",
   minimax: "MiniMax-M2.7",
   orcarouter: "openai/gpt-4o-mini",
+  cheaperinference: "gpt-5.4-mini",
   copilot: "gpt-4o",
   // Atlas Cloud's catalogue marks tool support per model in `supported_features`,
   // and `qwen/qwen3.5-flash` carries no such entry while 35 of its 136 models

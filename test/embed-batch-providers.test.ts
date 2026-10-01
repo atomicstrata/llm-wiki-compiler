@@ -11,6 +11,7 @@ import { OpenAIProvider } from "../src/providers/openai.js";
 import { voyageEmbed, voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 import { CopilotProvider } from "../src/providers/copilot.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
+import { CheaperInferenceProvider } from "../src/providers/cheaperinference.js";
 
 // Build a provider and stub its embeddingsClient.embeddings.create.
 function providerWithEmbeddings(create: (args: unknown) => unknown): OpenAIProvider {
@@ -103,6 +104,7 @@ describe("CopilotProvider.embedBatch", () => {
 describe("providers without an embeddings endpoint", () => {
   it.each<[string, () => OpenAIProvider, RegExp]>([
     ["MiniMax", () => new MiniMaxProvider("MiniMax-M2.7", "test-key"), /MiniMax.*does not support embeddings/i],
+    ["Cheaper Inference", () => new CheaperInferenceProvider("gpt-5.4-mini", "test-key"), /Cheaper Inference.*does not support embeddings/i],
   ])("%s throws explicit unsupported errors instead of inheriting OpenAI embeddings", async (_name, make, message) => {
     const p = make();
     Reflect.set(p, "embeddingsClient", {

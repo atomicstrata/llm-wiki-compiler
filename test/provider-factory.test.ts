@@ -15,6 +15,7 @@ import { MiniMaxProvider } from "../src/providers/minimax.js";
 import { AtlasCloudProvider } from "../src/providers/atlascloud.js";
 import { ATLASCLOUD_BASE_URL, PROVIDER_MODELS } from "../src/utils/constants.js";
 import { OrcaRouterProvider } from "../src/providers/orcarouter.js";
+import { CheaperInferenceProvider } from "../src/providers/cheaperinference.js";
 
 const TEST_SETTINGS_PATH_ENV = "LLMWIKI_CLAUDE_SETTINGS_PATH";
 const tempDirs: string[] = [];
@@ -71,6 +72,7 @@ describe("getProvider", () => {
     delete process.env.ATLASCLOUD_BASE_URL;
     delete process.env.ATLAS_CLOUD_BASE_URL;
     delete process.env.ORCAROUTER_API_KEY;
+    delete process.env.CHEAPER_INFERENCE_API_KEY;
 
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -193,6 +195,19 @@ describe("getProvider", () => {
     process.env.LLMWIKI_PROVIDER = "orcarouter";
     delete process.env.ORCAROUTER_API_KEY;
     expect(() => getProvider()).toThrow("ORCAROUTER_API_KEY");
+  });
+
+  it("returns CheaperInferenceProvider when LLMWIKI_PROVIDER=cheaperinference", () => {
+    process.env.LLMWIKI_PROVIDER = "cheaperinference";
+    process.env.CHEAPER_INFERENCE_API_KEY = "test-key";
+    const provider = getProvider();
+    expect(provider).toBeInstanceOf(CheaperInferenceProvider);
+  });
+
+  it("throws when CHEAPER_INFERENCE_API_KEY is absent for cheaperinference provider", () => {
+    process.env.LLMWIKI_PROVIDER = "cheaperinference";
+    delete process.env.CHEAPER_INFERENCE_API_KEY;
+    expect(() => getProvider()).toThrow("CHEAPER_INFERENCE_API_KEY");
   });
 
   it("respects LLMWIKI_MODEL override", () => {

@@ -18,6 +18,7 @@ import { OpenAIProvider } from "../providers/openai.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { OrcaRouterProvider } from "../providers/orcarouter.js";
+import { CheaperInferenceProvider } from "../providers/cheaperinference.js";
 import { CopilotProvider } from "../providers/copilot.js";
 import { ClaudeAgentProvider } from "../providers/claude-agent.js";
 import { CodexAgentProvider } from "../providers/codex-agent.js";
@@ -115,6 +116,8 @@ export function buildProvider(providerName: string): LLMProvider {
       return getMiniMaxProvider();
     case "orcarouter":
       return getOrcaRouterProvider();
+    case "cheaperinference":
+      return getCheaperInferenceProvider();
     case "copilot":
       return getCopilotProvider();
     case "atlascloud":
@@ -139,7 +142,7 @@ function readOptionalEnv(name: string): string | undefined {
 }
 
 function getModelForProvider(
-  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
+  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter" | "cheaperinference",
 ): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
@@ -165,6 +168,18 @@ function getOrcaRouterProvider(): OrcaRouterProvider {
     );
   }
   return new OrcaRouterProvider(getModelForProvider("orcarouter"), apiKey, readOptionalEnv("LLMWIKI_EMBEDDING_MODEL"));
+}
+
+/** Build the gateway client with the same nonblank-key rule as the guard. */
+function getCheaperInferenceProvider(): CheaperInferenceProvider {
+  const apiKey = readOptionalEnv("CHEAPER_INFERENCE_API_KEY");
+  if (!apiKey) {
+    throw new Error(
+      "Cheaper Inference provider requires CHEAPER_INFERENCE_API_KEY environment variable.\n" +
+      '  Set it with: export CHEAPER_INFERENCE_API_KEY=your_key',
+    );
+  }
+  return new CheaperInferenceProvider(getModelForProvider("cheaperinference"), apiKey);
 }
 
 function getCopilotProvider(): CopilotProvider {
@@ -253,6 +268,6 @@ export function resolveActiveModelId(): string {
     return readOptionalEnv("LLMWIKI_MODEL") ?? PROVIDER_MODELS["codex-agent"];
   }
   return getModelForProvider(
-    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
+    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter" | "cheaperinference",
   );
 }
