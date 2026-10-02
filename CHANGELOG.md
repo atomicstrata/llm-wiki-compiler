@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-10-02
+
 ### Fixed
 
 - **`codex-agent` compiles again.** Concept extraction failed with `invalid_json_schema` (#266), because Codex accepts only strict output schemas: every object closed with `additionalProperties: false`, and every property required. The provider now sends Codex a strict copy of each tool schema. Optional fields become nullable, and a `null` answer is dropped before the reply is checked against the original schema, so optional fields keep their meaning. Thanks to @frankstallone for the report and the diagnosis.

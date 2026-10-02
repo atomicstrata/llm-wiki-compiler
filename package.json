@@ -1,6 +1,6 @@
 {
   "name": "llm-wiki-compiler",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Compile documents into a persistent, cited knowledge wiki for AI agents. CLI, MCP server, and TypeScript SDK.",
   "mcpName": "io.github.atomicstrata/llmwiki",
   "type": "module",
@@ -71,8 +71,8 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@atomicstrata/llmwiki-core": "1.4.1",
-    "@atomicstrata/llmwiki-local-workflows": "1.4.1",
+    "@atomicstrata/llmwiki-core": "1.4.2",
+    "@atomicstrata/llmwiki-local-workflows": "1.4.2",
     "@anthropic-ai/claude-agent-sdk": "^0.3.163",
     "@anthropic-ai/sdk": "^0.101.0",
     "@modelcontextprotocol/sdk": "^1.29.0",

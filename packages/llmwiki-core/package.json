@@ -1,7 +1,7 @@
 {
   "name": "@atomicstrata/llmwiki-core",
   "description": "Engine-free llmwiki knowledge and domain SDK",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "module",
   "publishConfig": { "access": "public" },
   "main": "./dist/index.js",

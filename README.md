@@ -400,7 +400,7 @@ volta run --node 24 npx mint dev --port 3001
 
 ## Current release
 
-**Release `1.4.1`:** Documentation update for the `1.4.0` features below.
+**Release `1.4.2`:** Fixes `llmwiki compile` with the `codex-agent` provider, which Codex rejected with `invalid_json_schema` in `1.4.1`. The `1.4.0` features below are unchanged.
 
 - Keep personal Claude coding instructions out of generated pages and answers.
 - Clarify wiki-link alias targets; newly generated pages record prompt version `v6`.
@@ -419,11 +419,11 @@ volta run --node 24 npx mint dev --port 3001
 - Compare source excerpts and pending proposals in the experimental, read-only
   source-review cockpit, explicitly enabled through the SDK on loopback.
 
-The compiler and its supporting packages ship together at `1.4.1` through the
+The compiler and its supporting packages ship together at `1.4.2` through the
 npm `latest` dist-tag. Install the standard entry point:
 
 ```bash
-npm install --global llm-wiki-compiler@1.4.1
+npm install --global llm-wiki-compiler@1.4.2
 ```
 
 Existing CLI and standard `createWiki` entry points remain available. Experimental

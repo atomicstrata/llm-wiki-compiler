@@ -20,6 +20,6 @@
     "prepack": "npm run build:lib"
   },
   "peerDependencies": {
-    "@atomicstrata/llmwiki-core": "1.4.1"
+    "@atomicstrata/llmwiki-core": "1.4.2"
   }
 }
