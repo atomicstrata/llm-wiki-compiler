@@ -14,7 +14,7 @@ import type { LLMTool } from "../utils/provider.js";
 import { QUERY_PAGE_LIMIT } from "../utils/constants.js";
 
 /** Tool schema for page selection (provider-agnostic). */
-const PAGE_SELECTION_TOOL: LLMTool = {
+export const PAGE_SELECTION_TOOL: LLMTool = {
   name: "select_pages",
   description: "Select the most relevant wiki pages to answer a question",
   input_schema: {

@@ -17,6 +17,7 @@ import path from "node:path";
 import Ajv from "ajv";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
 import { registerCodexProcess, signalCodexTree } from "./codex-agent-lifecycle.js";
+import { dropNullOptionals, toStrictSchema } from "./codex-strict-schema.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_TERMINATE_GRACE_MS = 1_000;
@@ -322,10 +323,11 @@ export class CodexAgentProvider implements LLMProvider {
       throw new CodexAgentError(`Codex CLI requires exactly one structured tool schema; received ${tools.length}.`);
     }
     const schema = tools[0].input_schema;
-    const raw = await this.invoke(buildPrompt(system, messages, true), schema);
+    // Codex accepts only strict schemas; the reply is mapped back and checked against the original.
+    const raw = await this.invoke(buildPrompt(system, messages, true), toStrictSchema(schema));
     let parsed: unknown;
     try {
-      parsed = JSON.parse(raw);
+      parsed = dropNullOptionals(JSON.parse(raw), schema);
     } catch {
       throw new CodexAgentError("Codex CLI returned invalid JSON for a structured request.");
     }

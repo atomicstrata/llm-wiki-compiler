@@ -41,7 +41,7 @@ export interface CitationPair {
   lineEnd: number;
 }
 
-const JUDGE_TOOL: LLMTool = {
+export const JUDGE_TOOL: LLMTool = {
   name: "judge_citation",
   description: "Rate how well the source excerpt supports the claim.",
   input_schema: {

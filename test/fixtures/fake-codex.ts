@@ -5,6 +5,11 @@
  * The executable records argv, cwd, stdin, schema, and its complete environment
  * before returning configured last-message output. This keeps tests faithful to
  * the real spawn boundary without adding a production-only binary override.
+ *
+ * Like real Codex, it rejects an output schema that is not strict (an object
+ * without `additionalProperties: false`, or a property missing from
+ * `required`) with exit code 1 and an `invalid_json_schema` diagnostic, so a
+ * provider that forwards a non-strict schema fails here as it does live (#266).
  */
 
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -88,6 +93,24 @@ const fs = require("node:fs");
 const { spawn } = require("node:child_process");
 const args = process.argv.slice(2);
 const after = (flag) => { const i = args.indexOf(flag); return i < 0 ? null : args[i + 1]; };
+function strictSchemaProblem(node, at) {
+  if (!node || typeof node !== "object") return null;
+  if (node.properties && typeof node.properties === "object") {
+    if (node.additionalProperties !== false) return at + ": additionalProperties must be false";
+    const required = Array.isArray(node.required) ? node.required : [];
+    for (const name of Object.keys(node.properties)) {
+      if (!required.includes(name)) return at + "." + name + ": must be required";
+      const inner = strictSchemaProblem(node.properties[name], at + "." + name);
+      if (inner) return inner;
+    }
+  }
+  if (node.items) { const inner = strictSchemaProblem(node.items, at + "[]"); if (inner) return inner; }
+  for (const branch of Array.isArray(node.anyOf) ? node.anyOf : []) {
+    const inner = strictSchemaProblem(branch, at + "|");
+    if (inner) return inner;
+  }
+  return null;
+}
 let prompt = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => { prompt += chunk; });
@@ -98,6 +121,11 @@ process.stdin.on("end", () => {
   fs.appendFileSync(${literal(capturePath)}, JSON.stringify({
     args, cwd: process.cwd(), env: process.env, pid: process.pid, prompt, schema,
   }) + "\\n");
+  const problem = strictSchemaProblem(schema, "$");
+  if (problem) {
+    process.stderr.write("invalid_json_schema: " + problem + "\\n");
+    process.exit(1);
+  }
   if (${literal(options.hang === true)}) {
     const markReady = () => fs.writeFileSync(${literal(readyPath)}, "ready\\n");
     process.on("SIGTERM", () => {
