@@ -6,6 +6,10 @@
  * an MCP CallToolResult. Tools that need an LLM provider validate the
  * provider lazily — the server itself starts without credentials so
  * read-only tools always work.
+ *
+ * Every handler runs under `withQuiet`: over stdio, stdout is the JSON-RPC
+ * stream, and the pipelines print progress there (`* Ingesting [file]: ...`,
+ * the compile report). Same guard as the OKF tools in `okf-tools.ts`.
  */
 
 import { z } from "zod";
@@ -24,6 +28,7 @@ import { loadNonDefaultProfile } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { isSlugSafe } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { resolveArtifactRef, declaresArtifactTypes } from "@atomicstrata/llmwiki-core/compiler-cli";
 import type { ArtifactRef } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { withQuiet } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { jsonResult, errorResult } from "./result.js";
 
 /** Register all 10 wiki tools on the given MCP server instance. */
@@ -55,10 +60,10 @@ function registerIngestTool(server: McpServer, root: string): void {
           .describe("URL (http/https) or absolute path to a .md/.txt file"),
       },
     },
-    async ({ source }) => {
+    async ({ source }) => withQuiet(async () => {
       const result = await ingestSource(root, source);
       return jsonResult(result);
-    },
+    }),
   );
 }
 
@@ -74,11 +79,11 @@ function registerCompileTool(server: McpServer, root: string): void {
         "Requires an LLM provider with credentials.",
       inputSchema: {},
     },
-    async () => {
+    async () => withQuiet(async () => {
       ensureCompileProviderAvailable();
       const result = await compileAndReport(root);
       return jsonResult(result);
-    },
+    }),
   );
 }
 
@@ -106,11 +111,11 @@ function registerQueryTool(server: McpServer, root: string): void {
           .describe("Include retrieval debug info (selected chunks/pages + scores)."),
       },
     },
-    async ({ question, save, debug }) => {
+    async ({ question, save, debug }) => withQuiet(async () => {
       ensureProviderAvailable();
       const result = await generateAnswer(root, question, { save, debug });
       return jsonResult(result);
-    },
+    }),
   );
 }
 
@@ -127,14 +132,14 @@ function registerSearchTool(server: McpServer, root: string): void {
         question: z.string().describe("The query used to rank pages."),
       },
     },
-    async ({ question }) => {
+    async ({ question }) => withQuiet(async () => {
       ensureProviderAvailable();
       const { refs, warnings } = await pickSearchRefs(root, question);
       const records = await loadSelectedRefs(root, refs);
       // S6: surface degrade warnings in the RESULT payload (not a log) so an
       // agent SEES that an outdated index meant lexical-only contribution.
       return jsonResult({ pages: records, refs, warnings });
-    },
+    }),
   );
 }
 
@@ -150,13 +155,13 @@ function registerReadTool(server: McpServer, root: string): void {
         slug: z.string().describe("Page slug, without .md extension."),
       },
     },
-    async ({ slug }) => {
+    async ({ slug }) => withQuiet(async () => {
       const page = await readPageRecord(root, slug);
       if (!page) {
         throw new Error(`Page not found: ${slug}`);
       }
       return jsonResult(page);
-    },
+    }),
   );
 }
 
@@ -170,10 +175,10 @@ function registerLintTool(server: McpServer, root: string): void {
         "empty pages, broken citations). Returns structured diagnostics. No LLM call.",
       inputSchema: {},
     },
-    async () => {
+    async () => withQuiet(async () => {
       const summary = await lint(root);
       return jsonResult(summary);
-    },
+    }),
   );
 }
 
@@ -195,7 +200,7 @@ function registerStatusTool(server: McpServer, root: string): void {
         "the true totals. Read-only — never modifies the workspace.",
       inputSchema: {},
     },
-    async () => jsonResult(await collectStatus(root)),
+    async () => withQuiet(async () => jsonResult(await collectStatus(root))),
   );
 }
 
@@ -217,7 +222,7 @@ function registerContextPackTool(server: McpServer, root: string): void {
   server.registerTool(
     "get_context_pack",
     contextPackToolConfig(),
-    async (args) => jsonResult(await buildContextPackFromArgs(root, args)),
+    async (args) => withQuiet(async () => jsonResult(await buildContextPackFromArgs(root, args))),
   );
 }
 
@@ -333,10 +338,10 @@ function registerEvalTool(server: McpServer, root: string): void {
           .describe("Append results to eval history (default false; set true to persist a checkpoint)"),
       },
     },
-    async ({ suite, sampleSize, record }) => {
+    async ({ suite, sampleSize, record }) => withQuiet(async () => {
       const report = await runEval(root, suite, sampleSize ?? DEFAULT_SAMPLE_SIZE, record ?? false);
       return jsonResult(report);
-    },
+    }),
   );
 }
 
@@ -383,7 +388,7 @@ function registerVerifyArtifactTool(server: McpServer, root: string): void {
         sha256: z.string().describe("The 64-character lowercase-hex sha256 digest to verify against."),
       },
     },
-    async ({ artifactType, slug, sha256 }) => {
+    async ({ artifactType, slug, sha256 }) => withQuiet(async () => {
       const invalid = invalidArtifactRefInput({ artifactType, slug, sha256 });
       if (invalid) return errorResult(invalid);
 
@@ -398,6 +403,6 @@ function registerVerifyArtifactTool(server: McpServer, root: string): void {
       // verdict) IS the metadata this tool projects — one read, not two.
       const { health, manifest } = await resolveArtifactRef(root, loaded.profile, ref);
       return jsonResult({ ...(manifest ?? {}), health });
-    },
+    }),
   );
 }
