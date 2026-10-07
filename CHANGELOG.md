@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **MCP wiki tools no longer write progress lines to stdout.** Over stdio, stdout is the JSON-RPC stream, and `ingest_source` printed its progress lines there, which a strict MCP client can treat as a broken stream. Contributed by @vishalhabib99 in #270: every wiki tool handler now runs quietly, as the OKF tools already did, and a test keeps their stdout clean.
+
 ## [1.4.2] - 2026-10-02
 
 ### Fixed
