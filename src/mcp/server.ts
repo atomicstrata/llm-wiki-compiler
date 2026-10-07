@@ -9,6 +9,11 @@
  * Transport: stdio. The server reads JSON-RPC messages on stdin and
  * writes responses on stdout, which is the standard surface area for
  * Claude Desktop, Cursor, and other MCP-aware clients.
+ *
+ * Because stdout is the protocol stream, the process runs in quiet mode from
+ * the moment the server starts: no tool, resource or future handler may print
+ * progress there. Handlers also scope quiet mode themselves, for callers that
+ * register them on a server of their own.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -17,6 +22,7 @@ import { registerWikiTools } from "./tools.js";
 import { registerOkfTools } from "./okf-tools.js";
 import { registerWorkflowActionTools } from "./workflow-action-tools.js";
 import { registerWikiResources } from "./resources.js";
+import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 interface ServerOptions {
   /** Project root directory the server operates on. */
@@ -58,6 +64,8 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
   registerWorkflowActionTools(server, root);
   registerWikiResources(server, root);
 
+  // From here stdout carries only JSON-RPC, for every handler registered above.
+  output.setQuiet(true);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
