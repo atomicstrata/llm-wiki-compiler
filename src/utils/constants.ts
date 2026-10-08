@@ -560,6 +560,9 @@ export const ENV_EMBED_STRICT = "LLMWIKI_EMBED_STRICT";
 /** Env var: when set to any non-empty value, enables verbose progress output. */
 export const ENV_VERBOSE = "LLMWIKI_VERBOSE";
 
+/** Env var: port override for `llmwiki view`. */
+export const ENV_VIEW_PORT = "LLMWIKI_VIEW_PORT";
+
 /**
  * Resource cap on the embedding store file. Mirrors {@link MAX_RELATION_STORE_BYTES}:
  * the same fstat-based cap that the reader enforces before the whole-file parse is

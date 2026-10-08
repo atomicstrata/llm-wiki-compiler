@@ -11,6 +11,7 @@ import { Command } from "commander";
 import { ingestCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { ingestSessionCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { viewCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { resolvePort } from "./cli/view-port.js";
 import { visualizeCommand, type VisualizeOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { compileCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { rmCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
@@ -107,7 +108,8 @@ program
   .option("--open", "Open the viewer in the default browser after startup")
   .action(async (options: { port?: string; host?: string; allowLan?: boolean; open?: boolean }) => {
     try {
-      await viewCommand(options);
+      const port = resolvePort(options.port);
+      await viewCommand({ ...options, port });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);

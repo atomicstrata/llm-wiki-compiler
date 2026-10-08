@@ -99,7 +99,7 @@ export { listSelectedSourceFiles } from "./sources/scan.js";
 export { collectStatus } from "./status/collect.js";
 export type { TrustDecision } from "./trust/decision.js";
 export { readCappedNoFollow } from "./utils/confined-read.js";
-export { ENV_VERBOSE, MAX_WORKFLOW_SUBMIT_FILE_BYTES, CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR, SOURCES_DIR, STATE_FILE } from "./utils/constants.js";
+export { ENV_VERBOSE, ENV_VIEW_PORT, MAX_WORKFLOW_SUBMIT_FILE_BYTES, CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR, SOURCES_DIR, STATE_FILE } from "./utils/constants.js";
 export { safeReadFile, parseFrontmatter } from "./utils/markdown.js";
 export { applyLanguageOption } from "./utils/output-language.js";
 export * as output from "./utils/output.js";

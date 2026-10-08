@@ -29,9 +29,13 @@ Press `Ctrl+C` to stop the server.
 | Flag | Description |
 |------|-------------|
 | `--open` | Automatically open the viewer URL in your default browser after the server starts. |
-| `--port <port>` | Listen on a specific port instead of a randomly assigned one. Accepts any integer from 0 to 65535. |
+| `--port <port>` | Listen on a specific port instead of a randomly assigned one. Accepts any integer from 0 to 65535. Defaults to the `LLMWIKI_VIEW_PORT` environment variable when set, or an OS-assigned port (`0`). |
 | `--host <host>` | Bind to a specific network interface IP (e.g. `192.168.1.10`). **Must be used together with `--allow-lan`.** See the security note below. |
 | `--allow-lan` | Permit binding beyond the loopback interface. **Must be used together with `--host <host>`.** |
+
+### Environment variables
+
+- `LLMWIKI_VIEW_PORT`: Port to listen on when `--port` is not specified. Accepts an integer in `[0, 65535]`. If both `--port` and `LLMWIKI_VIEW_PORT` are set, the `--port` flag takes precedence.
 
 ## Routes
 

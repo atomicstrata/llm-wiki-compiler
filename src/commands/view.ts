@@ -76,7 +76,7 @@ function openInBrowser(url: string): void {
  * Apply the spec's host/port symmetry: `--allow-lan` and `--host`
  * together unlock non-loopback bind; either alone is a fatal error.
  */
-function resolveBindConfig(options: ViewCommandOptions): { host: string; port: number } {
+export function resolveBindConfig(options: ViewCommandOptions): { host: string; port: number } {
   const hostFlag = typeof options.host === "string" && options.host.length > 0;
   const allowLan = options.allowLan === true;
   assertHostAllowLanSymmetry(hostFlag, allowLan);

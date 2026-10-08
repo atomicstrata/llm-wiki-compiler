@@ -51,8 +51,9 @@ export async function startViewerCLI(
   args: string[],
   cwd: string,
   timeoutMs: number = DEFAULT_READY_TIMEOUT_MS,
+  envOverrides: NodeJS.ProcessEnv = {},
 ): Promise<ViewerProcessHandle> {
-  return spawnAwaitingReadiness(["view", ...args], cwd, timeoutMs, "viewer", { env: process.env });
+  return spawnAwaitingReadiness(["view", ...args], cwd, timeoutMs, "viewer", { env: { ...process.env, ...envOverrides } });
 }
 
 /**
