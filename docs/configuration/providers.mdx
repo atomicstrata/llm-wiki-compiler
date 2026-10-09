@@ -197,6 +197,22 @@ Use the `openai` provider for any OpenAI-compatible server, including cloud Open
 | `OPENAI_EMBEDDINGS_BASE_URL` | No | Separate endpoint for embeddings. When unset, embeddings use the same client and base URL as chat |
 | `OPENAI_EMBEDDINGS_API_KEY` | No | Credential for that separate embeddings endpoint. When unset, the embeddings client reuses `OPENAI_API_KEY` - set this whenever the endpoint belongs to someone else |
 
+**GPT-6 Luna on a compatible gateway**
+
+If your endpoint exposes `gpt-6-luna`, select it with the existing model setting:
+
+```bash
+export LLMWIKI_PROVIDER=openai
+export LLMWIKI_MODEL=gpt-6-luna
+llmwiki compile
+```
+
+Keep your endpoint and credentials configured as above. llmwiki sends
+`max_completion_tokens` and defaults `reasoning_effort` to `none` for this model
+in text generation, streaming, and tool calls. The existing
+[request overrides](/configuration/environment-variables#openai-compatible-request-options)
+still take precedence. This selection does not change the embedding model.
+
 **Split endpoint example** (separate servers for generation and embeddings)
 
 ```bash
@@ -310,7 +326,7 @@ For a namespaced reasoning model, automatic request-field detection does not
 strip the provider prefix. If its upstream API requires `max_completion_tokens`,
 set `LLMWIKI_OPENAI_TOKEN_PARAM=max_completion_tokens` explicitly. Set
 `LLMWIKI_OPENAI_REASONING_EFFORT` only to a value supported by that model; the
-unprefixed GPT-5.6 default does not apply to a namespaced id. See
+unprefixed GPT-5.6 and GPT-6 Luna defaults do not apply to a namespaced id. See
 [OpenAI-compatible request options](/configuration/environment-variables#openai-compatible-request-options).
 
 **Variables**

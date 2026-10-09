@@ -96,8 +96,8 @@ providers, or Ollama's native structured-output requests.
 
 | Variable | Required | Description |
 |---|---|---|
-| `LLMWIKI_OPENAI_TOKEN_PARAM` | No | Force the token-limit field: `max_tokens` or `max_completion_tokens`. Detected from the model id by default (`o1`, `o3`, `o4`, and `gpt-5` prefixes get `max_completion_tokens`). Set it when a gateway serves a reasoning model under an id those prefixes do not match |
-| `LLMWIKI_OPENAI_REASONING_EFFORT` | No | Set `reasoning_effort` to `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Unset defaults to `none` for GPT-5.6 IDs and their hyphenated variants; other models keep their server default. Choose a value your model and endpoint support |
+| `LLMWIKI_OPENAI_TOKEN_PARAM` | No | Force the token-limit field: `max_tokens` or `max_completion_tokens`. Detected from the model id by default (`o1`, `o3`, `o4`, and `gpt-5` prefixes, plus `gpt-6-luna` and its hyphenated variants, get `max_completion_tokens`). Set it when a gateway serves a reasoning model under an id those prefixes do not match |
+| `LLMWIKI_OPENAI_REASONING_EFFORT` | No | Set `reasoning_effort` to `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. Unset defaults to `none` for GPT-5.6 and GPT-6 Luna IDs and their hyphenated variants; other models keep their server default. Choose a value your model and endpoint support |
 
 Invalid values fail on the first request attempt, before network access, without
 retry backoff. Valid values are checked against the installed SDK vocabulary;
