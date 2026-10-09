@@ -2,7 +2,7 @@
  * Request-shape adaptation for OpenAI-compatible chat completions.
  *
  * The Chat Completions body is not uniform across models any more. Reasoning
- * models (the o-series and the GPT-5 family) reject `max_tokens` outright and
+ * models (the o-series, GPT-5 family, and GPT-6 Luna) reject `max_tokens` outright and
  * require `max_completion_tokens`; the OpenAI SDK's own types have carried
  * `max_tokens` as deprecated since 6.x. Several of those models also reject a
  * request that carries function tools without `reasoning_effort`.
@@ -38,6 +38,9 @@ type TokenParam = (typeof TOKEN_PARAMS)[number];
  * an arbitrary vendor id would misfire in both directions.
  */
 const MAX_COMPLETION_TOKEN_PREFIXES = ["o1", "o3", "o4", "gpt-5"];
+
+/** Luna gateway ids use completion tokens and accept the no-reasoning default. */
+const LUNA_MODEL = /^gpt-6-luna(?:$|-)/i;
 
 /**
  * Accepted `reasoning_effort` values, mirroring the SDK's `ReasoningEffort`.
@@ -93,7 +96,7 @@ export function reasoningParams(
 /**
  * The effort a model needs when nobody configured one.
  *
- * Only the GPT-5.6 family gets the compatibility default needed for function
+ * GPT-5.6 and GPT-6 Luna get the compatibility default needed for function
  * tools on Chat Completions. Older families retain their server defaults:
  * notably, GPT-5 and GPT-5 mini reject `none`. Model-name boundaries avoid
  * applying this contract to an unrelated gateway id such as `gpt-5.60`.
@@ -105,7 +108,7 @@ const DEFAULT_REASONING_EFFORT_MODEL = /^gpt-5\.6(?:$|-)/i;
 function defaultReasoningParams(
   model: string,
 ): Pick<OpenAI.ChatCompletionCreateParams, "reasoning_effort"> | object {
-  return DEFAULT_REASONING_EFFORT_MODEL.test(model)
+  return DEFAULT_REASONING_EFFORT_MODEL.test(model) || LUNA_MODEL.test(model)
     ? { reasoning_effort: "none" as OpenAI.ReasoningEffort }
     : {};
 }
@@ -115,7 +118,7 @@ function resolveTokenParam(model: string): TokenParam {
   const override = process.env[TOKEN_PARAM_ENV]?.trim();
   if (override) return readTokenParamOverride(override);
   const id = model.toLowerCase();
-  return MAX_COMPLETION_TOKEN_PREFIXES.some(prefix => id.startsWith(prefix))
+  return LUNA_MODEL.test(model) || MAX_COMPLETION_TOKEN_PREFIXES.some(prefix => id.startsWith(prefix))
     ? "max_completion_tokens"
     : "max_tokens";
 }
