@@ -169,7 +169,7 @@ describe("CLI integration — LLMWIKI_VIEW_PORT and --port precedence", () => {
     }
   });
 
-  it("rejects invalid LLMWIKI_VIEW_PORT on startup with exit code non-zero", async () => {
+  it("rejects invalid LLMWIKI_VIEW_PORT on startup with exit code 1", async () => {
     const root = await makeTempRoot("viewer-port-invalid-env");
     let failure: { code?: number | null; stderr?: string } | null = null;
     try {
@@ -182,7 +182,8 @@ describe("CLI integration — LLMWIKI_VIEW_PORT and --port precedence", () => {
       failure = err as { code?: number | null; stderr?: string };
     }
     expect(failure).not.toBeNull();
-    expect(failure?.code).not.toBe(0);
+    // Exactly 1: a timeout kill reports a null code, which must not pass.
+    expect(failure?.code).toBe(1);
     expect(String(failure?.stderr ?? "")).toMatch(/Invalid LLMWIKI_VIEW_PORT value: not-a-port/);
   });
 

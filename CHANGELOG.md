@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`llmwiki view` picks up wiki changes without a restart.** The viewer now rebuilds its snapshot in the background when a request arrives, at most once every five seconds, so reloading the tab after a compile shows the new pages. A request never waits for a rebuild, and a failed rebuild keeps the last good snapshot. Contributed by @Erick0412-dev in #275 (#272). Closing the viewer also stops refreshing: a rebuild still running at that point is discarded, and shutdown waits at most two seconds for it. A named pipe at `wiki/index.md` is now treated as an unavailable index instead of a read that never returns.
+- **`LLMWIKI_VIEW_PORT` sets the viewer's port.** `llmwiki view` reads its listening port from this variable when `--port` is not given; `--port` still wins, and an invalid value fails at startup with an error naming the variable. Contributed by @Erick0412-dev in #274 (#271).
+
 ### Fixed
 
 - **MCP wiki tools no longer write progress lines to stdout.** Over stdio, stdout is the JSON-RPC stream, and `ingest_source` printed its progress lines there, which a strict MCP client can treat as a broken stream. Contributed by @vishalhabib99 in #270: every wiki tool handler now runs quietly, as the OKF tools already did, and a test keeps their stdout clean. The stdio server as a whole now runs in quiet mode too, so resources, workflow tools and any future handler are covered, and a test reads the raw stream from the built CLI to check that every line is a JSON-RPC message.

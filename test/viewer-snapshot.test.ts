@@ -3,11 +3,13 @@
  *
  * Focused on the security-sensitive corners that the per-endpoint tests
  * cannot easily reach: symlinked `wiki/index.md` (must be treated as
- * unavailable, not served), and the index outgoing-link resolution that
+ * unavailable, not served), a named pipe at `wiki/index.md` (must not
+ * block the build), and the index outgoing-link resolution that
  * Slice 2 wires through `resolveBareSlugList`.
  */
 
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "child_process";
 import { mkdir, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -46,6 +48,17 @@ describe("buildViewerSnapshot — wiki/index.md handling", () => {
     await symlink(outsideIndex, path.join(root, "wiki/index.md"));
     await expectIndexUnavailable(root);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "treats a named pipe at wiki/index.md as unavailable instead of blocking on it",
+    async () => {
+      const root = await makeTempRoot("snapshot-index-fifo");
+      await mkdir(path.join(root, "wiki"), { recursive: true });
+      // Nothing ever writes to the pipe, so a blocking read would hang until the test times out.
+      execFileSync("mkfifo", [path.join(root, "wiki/index.md")]);
+      await expectIndexUnavailable(root);
+    },
+  );
 
   it("treats a symlinked wiki/index.md pointing at an in-root file as unavailable", async () => {
     const root = await makeTempRoot("snapshot-index-symlink-inroot");

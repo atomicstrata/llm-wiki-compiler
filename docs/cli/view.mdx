@@ -24,6 +24,12 @@ Viewer ready at http://127.0.0.1:54321
 
 Press `Ctrl+C` to stop the server.
 
+## How the viewer picks up changes
+
+The viewer serves a snapshot of your wiki rather than reading disk for every page. While it runs, it rebuilds that snapshot in the background when a request arrives, at most once every five seconds. So after you compile, refresh, or edit pages, reload the browser tab a few seconds later to see the result - no restart is needed.
+
+A request is always answered from the current snapshot and never waits for a rebuild, so the first reload after a change can still show the previous state. If a rebuild fails, the viewer keeps serving the last good snapshot and prints a warning in the terminal.
+
 ## Flags
 
 | Flag | Description |
@@ -73,7 +79,7 @@ An entity page that violates its profile's field contract - a missing required f
 
 Typed entity pages carry the same citation chips and provenance as compiled pages. They do not carry a freshness verdict: freshness is derived from the sources a page was compiled from, and entity pages are authored rather than compiled, so they always read as unverified rather than being labelled fresh on no evidence.
 
-Typed pages show **Connected records** below the body. Read the directional sentences and click a record title to follow a connection. Missing or invalid records remain visible but unlinked. Connections and supporting source passages are sorted and limited to 100 entries, with the full count shown when truncated. These descriptions are captured at startup; restart the viewer after changing records or connections.
+Typed pages show **Connected records** below the body. Read the directional sentences and click a record title to follow a connection. Missing or invalid records remain visible but unlinked. Connections and supporting source passages are sorted and limited to 100 entries, with the full count shown when truncated. These descriptions come from the viewer's snapshot, so a change to records or connections appears after the next [refresh](#how-the-viewer-picks-up-changes).
 
 Under **Sources and supporting evidence**, **Where these details came from** explains recorded imports. **View imported metadata (not the paper)** opens the descriptive response, not proof that the original document was stored. Importer versions and content hashes are under **Technical details**. Source passages open the stored source text at `#/_source/<filename>` with physical line ranges, including frontmatter. Empty sections distinguish no recorded connections, no linked supporting passages, and no import history.
 
@@ -93,13 +99,13 @@ The Lint panel breaks the cached findings down by rule: the error and warning to
 
 Alongside it, **Record problems** lists what the entity collector found in a project running a non-default profile: one row per problem, naming the kind of problem, the project-relative page path it applies to - or the entity type, for a problem about a whole entity directory - and the collector's own message. Typical entries are a required frontmatter field missing from an entity page, a filename that is not slug-safe, and an entity directory that could not be read. The panel is not rendered at all when the collector found nothing, and never appears for a project on the built-in default profile. The list it carries is capped; when there are more problems than that, the panel says how many it is showing out of how many exist. `llmwiki status` applies the same cap; `llmwiki export` carries the complete list.
 
-Alongside those, **Freshness** draws one bar per concept page coloured by that page's status, and **Traceability** reports the share of citations that resolve to a real source span. The viewer is read-only, so nothing on this screen changes your wiki - re-run `llmwiki lint` and reload the page to refresh the cached findings. The lint cache is the one file the viewer re-reads on every request, so no restart is needed for it; page and graph data are still frozen at startup.
+Alongside those, **Freshness** draws one bar per concept page coloured by that page's status, and **Traceability** reports the share of citations that resolve to a real source span. The viewer is read-only, so nothing on this screen changes your wiki - re-run `llmwiki lint` and reload the page to refresh the cached findings. The lint cache is re-read on every request, so it never waits for a snapshot refresh; page and graph data come from the snapshot, which [refreshes in the background](#how-the-viewer-picks-up-changes).
 
 **Review queue.** The `#/reviews` route lists the review candidates under `.llmwiki/candidates/` that are still waiting for you: each one's proposed title, its summary, the source files behind it, how long it has waited, where approval would write it, and one chip per reason it is held - low confidence, contradictions, a schema or citation problem, a manual `--review` request, an Open Knowledge Format (OKF) import, or a connector fetch. Hover a chip for the specific detail behind it, such as the confidence score that fell short. When nothing is pending, the route says so and names the command that fills the queue.
 
 The route shows at most 200 candidates at a time. A review policy that holds every page (`heldReasons: all`) can queue one candidate per compiled page, and this route re-reads them from disk on every visit, so the cap keeps a large queue from turning each visit into a full re-read. When the queue is longer than that, the pane says so above the list - `Showing 200 of 5000 pending candidates` - and points you at `llmwiki review list`, which is not capped. Candidates are shown in candidate-id order, which is alphabetical by the slug each one would be written to, rather than the oldest-first order `llmwiki review list` uses: the generation time lives inside each candidate file, so ordering by it would mean opening every file to decide which 200 to show.
 
-This is the one route that re-reads disk on every visit rather than serving the startup snapshot, because candidates are written and cleared by the CLI while the viewer runs - so approving or rejecting one and revisiting `#/reviews` shows the new queue without a restart. It is read-only like the rest of the viewer: use `llmwiki review approve <id>` or `llmwiki review reject <id>` to act on a candidate. The route reads a local `/api/reviews` endpoint that serves only these list fields - never the candidate's generated page body, and never a filesystem path from your machine. Its response carries the candidates it serves plus a `total` count of everything pending, which is where the "showing N of M" line comes from.
+This route re-reads disk on every visit rather than serving the snapshot, because candidates are written and cleared by the CLI while the viewer runs - so approving or rejecting one and revisiting `#/reviews` shows the new queue straight away. It is read-only like the rest of the viewer: use `llmwiki review approve <id>` or `llmwiki review reject <id>` to act on a candidate. The route reads a local `/api/reviews` endpoint that serves only these list fields - never the candidate's generated page body, and never a filesystem path from your machine. Its response carries the candidates it serves plus a `total` count of everything pending, which is where the "showing N of M" line comes from.
 
 **Lifecycle status.** Open **Maintain → Lifecycle status** (`#/pipeline`) to see each category’s possible stages separately from its current record counts. Counts include zero for unused stages: `1 imported`, `0 triaged`, `0 distilled`. These are an inventory, not completion percentages or proof that workflow steps ran.
 
@@ -109,7 +115,7 @@ The state check is scoped to records included in the count. Records rejected by 
 
 Expand **How records connect** below the category rows. The table names each supported relationship, the categories it connects and the number of recorded links. Click a positive count to inspect connected records, then click a record title to open it. Zero counts say **No links yet**. Missing records remain visible without a broken navigation link. At most 100 links are displayed per connection type, with the full count shown when truncated. Exact relationship identifiers remain under **Technical details**.
 
-The route serves the startup snapshot like the rest of the viewer, so a profile edited while the viewer runs needs a restart to appear. Time-in-state is deliberately absent: nothing records when a page entered its current state, and a file's modification time answers a different question.
+The route serves the snapshot like the rest of the viewer, so a profile edited while the viewer runs appears after the next [refresh](#how-the-viewer-picks-up-changes). Time-in-state is deliberately absent: nothing records when a page entered its current state, and a file's modification time answers a different question.
 
 **Workflow runs.** The `#/workflows` route lists every workflow run under `.llmwiki/workflows/runs/`: which workflow each run belongs to, its run id, its lifecycle status, and the stage it currently sits on. Workflows are declared by a profile, so a project on the built-in default profile has none - run `llmwiki workflow list` to see what your active profile declares.
 
@@ -117,7 +123,7 @@ The route exists for the **parked** runs. A run stops and waits whenever it need
 
 The viewer cannot move a run, so each parked row names the CLI command that does - `llmwiki workflow submit <run-id>` or `llmwiki workflow gate approve <run-id> <gate-id>` - as text you copy, never as a button. If the run store itself is unreadable, the route says so as a red problem row rather than reporting an empty list, so a broken store never reads as "no runs".
 
-Like `#/reviews`, this route re-reads disk on every visit rather than serving the startup snapshot, because the CLI advances runs while the viewer is open - approve a gate and revisit `#/workflows` to see the run move without a restart. It reads a local `/api/workflow-runs` endpoint that serves only these status fields: run id, classification, status, current stage, workflow id, the two parked flags, and the problem reason. Never the run record itself, and never a filesystem path from your machine.
+Like `#/reviews`, this route re-reads disk on every visit rather than serving the snapshot, because the CLI advances runs while the viewer is open - approve a gate and revisit `#/workflows` to see the run move straight away. It reads a local `/api/workflow-runs` endpoint that serves only these status fields: run id, classification, status, current stage, workflow id, the two parked flags, and the problem reason. Never the run record itself, and never a filesystem path from your machine.
 
 **Sidebar navigation.** **Dashboard** stands above the category list. On a profile project, **Categories** contains its record categories; on the default profile, **Browse** contains Concepts and Queries. **Explore** separately contains Source files and Graph explorer. **Maintain** contains Health & lint, the review queue, Workflows and, on profile projects, Lifecycle status.
 
@@ -153,7 +159,7 @@ Those fields lead because the list below them is the default profile's vocabular
 
 Both graph views initially fit the settled layout to the available space. You can still zoom and pan; use **Fit** on the dashboard graph to restore its framing.
 
-Record details use readable labels under **About this record**, with exact field keys under **Technical details**. **Information origin** describes whether information was extracted, merged, inferred or imported; it is not a verification verdict. The header reports when the viewer snapshot was loaded, not when the wiki was compiled, and explains when compilation tracking data is unavailable.
+Record details use readable labels under **About this record**, with exact field keys under **Technical details**. **Information origin** describes whether information was extracted, merged, inferred or imported; it is not a verification verdict. The header reports when the viewer snapshot was last built, not when the wiki was compiled, and explains when compilation tracking data is unavailable.
 
 ## Security model
 
@@ -161,7 +167,7 @@ Record details use readable labels under **About this record**, with exact field
 
 On a typed-profile project, source entries open at `#/_source/<filename>`. This is the raw ingested file in `sources/`, not a typed entity in `wiki/sources` and not necessarily a copy of an original publication. A recorded HTTP(S) origin is a clickable locator; for a Crossref import, it may identify the retrieved metadata rather than the original paper.
 
-Local source previews support filenames ending in lowercase `.md` and preserve physical file lines, including frontmatter. Citation links can select a range with `?start=N&end=M`. Previews are inert text, limited to 1 MiB, and unavailable for unsafe, missing, unreadable or unsupported files. Source listing membership is frozen at viewer startup; content is read again when requested.
+Local source previews support filenames ending in lowercase `.md` and preserve physical file lines, including frontmatter. Citation links can select a range with `?start=N&end=M`. Previews are inert text, limited to 1 MiB, and unavailable for unsafe, missing, unreadable or unsupported files. Source listing membership comes from the snapshot; content is read again when requested.
 
 Attached files lead with the filename, a readable file-check result, and local **Preview** and **Download** controls when access is available. Pinned references and manifests remain under **Technical details**; declared JSON metadata uses readable field labels. Each request rechecks the confined file, manifest, pinned SHA-256 and schema. Failed checks suppress bytes. Text and JSON previews are inert text; binary previews are unsupported. Empty records say **No files attached**. Checking is bounded to the first 100 references with an explicit total when truncated.
 
@@ -209,10 +215,9 @@ llmwiki lint
 # Repair stale pages
 llmwiki refresh --stale
 
-# The viewer's snapshot is frozen at startup - stop it (Ctrl+C) and run
-# llmwiki view --open again to see the refreshed pages
+# Reload the viewer tab a few seconds later to see the refreshed pages
 ```
 
 <Note>
-The viewer is read-only. If you want to add sources, compile new pages, approve review candidates, or run queries, use the CLI commands or the MCP server. It serves a frozen snapshot of `wiki/` taken when it started, not a live view of disk - restart `llmwiki view` to pick up pages compiled since, and there is no "save" or "edit" function inside the browser UI.
+The viewer is read-only. If you want to add sources, compile new pages, approve review candidates, or run queries, use the CLI commands or the MCP server. It serves a snapshot of `wiki/` that it [refreshes in the background](#how-the-viewer-picks-up-changes), so reload the tab to pick up pages compiled since, and there is no "save" or "edit" function inside the browser UI.
 </Note>

@@ -11,6 +11,9 @@
  *   - Resilient fallback: If rebuilding throws an error or returns a mismatched root,
  *     preserves the previous valid snapshot and logs a warning so the server remains stable.
  *   - Non-blocking: Triggers rebuild in the background so request latency is never stalled.
+ *   - Disposal: Once disposed, no rebuild starts and a rebuild already in flight
+ *     can no longer publish. Shutdown waits for that rebuild only for a bounded
+ *     time, so a stuck one cannot hold the process open.
  */
 
 import type { ViewerSnapshot } from "./types.js";
@@ -21,6 +24,13 @@ export const DEFAULT_REFRESH_INTERVAL_MS = 5_000;
 
 /** Lower bound on the refresh interval to avoid excessive rebuilds on disk. */
 export const MIN_REFRESH_INTERVAL_MS = 1_000;
+
+/**
+ * Longest `dispose()` waits for a rebuild already in flight. A build cannot be
+ * cancelled midway, so shutdown is bounded instead: Ctrl+C must still exit when
+ * a rebuild is stuck on slow or unresponsive storage.
+ */
+export const REBUILD_SHUTDOWN_WAIT_MS = 2_000;
 
 /** Options for configuring the snapshot manager. */
 export interface SnapshotManagerOptions {
@@ -48,6 +58,7 @@ export class ViewerSnapshotManager {
   private readonly now: () => number;
   private lastRebuildTime: number;
   private inFlightRebuild: Promise<void> | null = null;
+  private isDisposed = false;
 
   constructor(initialSnapshot: ViewerSnapshot, options: SnapshotManagerOptions = {}) {
     this.currentSnapshot = initialSnapshot;
@@ -89,37 +100,62 @@ export class ViewerSnapshotManager {
    * for the rebuild to complete.
    */
   async getSnapshot(): Promise<ViewerSnapshot> {
-    if (!this.enabled || !this.root) {
-      return this.currentSnapshot;
+    if (this.isRebuildDue()) {
+      this.inFlightRebuild = this.rebuild(this.root!);
     }
-
-    const currentTime = this.now();
-    if (currentTime - this.lastRebuildTime < this.refreshIntervalMs) {
-      return this.currentSnapshot;
-    }
-
-    if (this.inFlightRebuild !== null) {
-      return this.currentSnapshot;
-    }
-
-    this.inFlightRebuild = (async () => {
-      try {
-        const next = await this.buildSnapshot(this.root!);
-        if (next && next.root === this.root) {
-          this.currentSnapshot = next;
-        } else if (next && next.root !== this.root) {
-          console.warn(
-            `viewer snapshot rebuild returned mismatched root (expected "${this.root}", got "${next.root}"); retaining previous snapshot`,
-          );
-        }
-      } catch (err) {
-        console.warn("viewer snapshot rebuild failed, retaining previous snapshot:", err);
-      } finally {
-        this.lastRebuildTime = this.now();
-        this.inFlightRebuild = null;
-      }
-    })();
-
     return this.currentSnapshot;
+  }
+
+  /**
+   * Stop refreshing for good. Resolves once any rebuild already in flight has
+   * settled, or after {@link REBUILD_SHUTDOWN_WAIT_MS} if it has not; either
+   * way that rebuild's result is discarded rather than published.
+   */
+  async dispose(): Promise<void> {
+    this.isDisposed = true;
+    if (this.inFlightRebuild === null) return;
+    let timer: NodeJS.Timeout | undefined;
+    const waitExpired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, REBUILD_SHUTDOWN_WAIT_MS);
+    });
+    try {
+      await Promise.race([this.inFlightRebuild, waitExpired]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** True when a request should start a background rebuild. */
+  private isRebuildDue(): boolean {
+    if (this.isDisposed || !this.enabled || !this.root) return false;
+    if (this.inFlightRebuild !== null) return false;
+    return this.now() - this.lastRebuildTime >= this.refreshIntervalMs;
+  }
+
+  /** Build a fresh snapshot and publish it unless the manager was disposed meanwhile. */
+  private async rebuild(root: string): Promise<void> {
+    try {
+      const next = await this.buildSnapshot(root);
+      if (this.isDisposed) return;
+      this.publish(next, root);
+    } catch (err) {
+      if (this.isDisposed) return;
+      console.warn("viewer snapshot rebuild failed, retaining previous snapshot:", err);
+    } finally {
+      this.lastRebuildTime = this.now();
+      this.inFlightRebuild = null;
+    }
+  }
+
+  /** Swap in a rebuilt snapshot, refusing one built for a different root. */
+  private publish(next: ViewerSnapshot, root: string): void {
+    if (!next) return;
+    if (next.root !== root) {
+      console.warn(
+        `viewer snapshot rebuild returned mismatched root (expected "${root}", got "${next.root}"); retaining previous snapshot`,
+      );
+      return;
+    }
+    this.currentSnapshot = next;
   }
 }
