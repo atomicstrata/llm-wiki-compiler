@@ -14,6 +14,7 @@ import { getActiveProviderName, resolveActiveModelId } from "../utils/provider.j
 import type { ExtractedConcept, SourceState, SourceChange, WikiState } from "../utils/types.js";
 import type { ExtractionResult } from "./deps.js";
 import { buildExtractionPrompt, CONCEPT_EXTRACTION_TOOL, PROMPT_VERSION } from "./prompts.js";
+import { plainConceptTitle } from "./concept-title.js";
 
 const conceptSchema = z.object({
   concept: z.string().min(1), summary: z.string(), is_new: z.boolean(),
@@ -65,6 +66,8 @@ export function reusableExtraction(entry: SourceState | undefined, content: stri
   const parsed = snapshotSchema.safeParse(entry?.extraction);
   if (!parsed.success || !entry) return undefined;
   const snapshot = parsed.data;
+  // Re-extract legacy markup instead of reusing its already-corrupted identity.
+  if (snapshot.concepts.some(({ concept }) => plainConceptTitle(concept) !== concept)) return undefined;
   if (snapshot.fingerprint !== extractionFingerprint()) return undefined;
   if (snapshot.sourceHash !== entry.hash || snapshot.sourceHash !== extractionSourceHash(content)) return undefined;
   const slugs = new Set(snapshot.concepts.map((concept) => slugify(concept.concept)));
