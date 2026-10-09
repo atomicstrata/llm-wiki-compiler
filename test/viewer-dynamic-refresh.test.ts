@@ -8,7 +8,8 @@
  *   - Root pinning: preserves previous snapshot if rebuild returns mismatched root.
  *   - Concurrent requests trigger only one rebuild.
  *   - Resilient fallback when rebuild throws.
- *   - Disposal: no rebuild starts afterwards and one in flight is discarded.
+ *   - Disposal: no rebuild starts afterwards, one in flight is discarded, and the
+ *     wait for it is bounded.
  *   - HTTP integration: startViewerServer is static by default; startViewer refreshes;
  *     close() waits for a rebuild in flight.
  *
@@ -28,6 +29,7 @@ import {
   ViewerSnapshotManager,
   DEFAULT_REFRESH_INTERVAL_MS,
   MIN_REFRESH_INTERVAL_MS,
+  REBUILD_SHUTDOWN_WAIT_MS,
 } from "../src/viewer/snapshot-manager.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 
@@ -280,6 +282,34 @@ describe("ViewerSnapshotManager unit behavior", () => {
     rebuild.resolve(makeStubSnapshot("/test/root", 7));
     await disposing;
     expect(mgr.getCurrentSnapshot().counts.concepts).toBe(1);
+  });
+
+  it("dispose gives up on a rebuild that never settles once the shutdown wait expires", async () => {
+    vi.useFakeTimers();
+    try {
+      let currentTime = 100_000;
+      const mgr = new ViewerSnapshotManager(makeStubSnapshot("/test/root", 1), {
+        root: "/test/root",
+        refreshIntervalMs: 1_000,
+        buildSnapshot: () => new Promise<ViewerSnapshot>(() => {}),
+        now: () => currentTime,
+      });
+      currentTime += 2_000;
+      await mgr.getSnapshot();
+
+      let isDisposeSettled = false;
+      const disposing = mgr.dispose().then(() => {
+        isDisposeSettled = true;
+      });
+      await vi.advanceTimersByTimeAsync(REBUILD_SHUTDOWN_WAIT_MS - 1);
+      expect(isDisposeSettled).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(1);
+      await disposing;
+      expect(isDisposeSettled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("starts no rebuild once disposed", async () => {

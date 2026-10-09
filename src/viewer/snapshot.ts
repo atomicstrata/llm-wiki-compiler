@@ -21,11 +21,12 @@
  *   - selected source discovery for the source-file count and read allowlist
  */
 
-import { readFile, realpath } from "fs/promises";
+import { realpath } from "fs/promises";
 import path from "path";
 import { listSelectedSourceEntries } from "../sources/scan.js";
 import { countCandidates } from "../compiler/candidates.js";
 import { readStateClassified, isPlainObject } from "../utils/state.js";
+import { readCappedNoFollow } from "../utils/confined-read.js";
 import type { ClassifiedState } from "../utils/state.js";
 import { collectViewerPages, decorateEntityPages, resolveBareSlugList } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
@@ -269,6 +270,12 @@ function buildProject(root: string): ViewerProject {
  * (say) `<root>/README.md` would let the index endpoint render
  * content that has no business being the project's compiled index.
  * A symlinked `wiki/` directory is dropped by the same equality check.
+ *
+ * The read itself goes through the non-blocking no-follow reader, so a
+ * named pipe planted at `wiki/index.md` is unavailable rather than a read
+ * that never returns. That matters more now that the snapshot is rebuilt
+ * while the viewer runs: a stuck read would stall every later refresh.
+ * The index has no size limit of its own, hence the infinite cap.
  */
 async function readIndexFile(root: string): Promise<{ available: boolean; body: string }> {
   let canonicalRoot: string;
@@ -287,12 +294,9 @@ async function readIndexFile(root: string): Promise<{ available: boolean; body: 
   if (resolved !== expectedIndex) {
     return { available: false, body: "" };
   }
-  try {
-    const body = await readFile(resolved, "utf-8");
-    return { available: true, body };
-  } catch {
-    return { available: false, body: "" };
-  }
+  const read = await readCappedNoFollow(resolved, Number.POSITIVE_INFINITY);
+  if (read.kind !== "ok") return { available: false, body: "" };
+  return { available: true, body: read.body };
 }
 
 /**

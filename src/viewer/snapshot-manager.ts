@@ -12,7 +12,8 @@
  *     preserves the previous valid snapshot and logs a warning so the server remains stable.
  *   - Non-blocking: Triggers rebuild in the background so request latency is never stalled.
  *   - Disposal: Once disposed, no rebuild starts and a rebuild already in flight
- *     can no longer publish, so nothing outlives the server that owned the manager.
+ *     can no longer publish. Shutdown waits for that rebuild only for a bounded
+ *     time, so a stuck one cannot hold the process open.
  */
 
 import type { ViewerSnapshot } from "./types.js";
@@ -23,6 +24,13 @@ export const DEFAULT_REFRESH_INTERVAL_MS = 5_000;
 
 /** Lower bound on the refresh interval to avoid excessive rebuilds on disk. */
 export const MIN_REFRESH_INTERVAL_MS = 1_000;
+
+/**
+ * Longest `dispose()` waits for a rebuild already in flight. A build cannot be
+ * cancelled midway, so shutdown is bounded instead: Ctrl+C must still exit when
+ * a rebuild is stuck on slow or unresponsive storage.
+ */
+export const REBUILD_SHUTDOWN_WAIT_MS = 2_000;
 
 /** Options for configuring the snapshot manager. */
 export interface SnapshotManagerOptions {
@@ -100,12 +108,21 @@ export class ViewerSnapshotManager {
 
   /**
    * Stop refreshing for good. Resolves once any rebuild already in flight has
-   * settled; that rebuild's result is discarded rather than published, because
-   * the build itself cannot be cancelled midway.
+   * settled, or after {@link REBUILD_SHUTDOWN_WAIT_MS} if it has not; either
+   * way that rebuild's result is discarded rather than published.
    */
   async dispose(): Promise<void> {
     this.isDisposed = true;
-    await this.inFlightRebuild;
+    if (this.inFlightRebuild === null) return;
+    let timer: NodeJS.Timeout | undefined;
+    const waitExpired = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, REBUILD_SHUTDOWN_WAIT_MS);
+    });
+    try {
+      await Promise.race([this.inFlightRebuild, waitExpired]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /** True when a request should start a background rebuild. */

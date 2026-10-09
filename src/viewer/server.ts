@@ -74,7 +74,7 @@ interface ViewerServerHandle {
   port: number;
   /** Actual host the server bound to. */
   host: string;
-  /** Graceful shutdown — resolves when all sockets have drained and no snapshot rebuild is left running. */
+  /** Graceful shutdown — resolves when all sockets have drained and refreshing has stopped (waiting a bounded time for a rebuild in flight). */
   close(): Promise<void>;
 }
 
