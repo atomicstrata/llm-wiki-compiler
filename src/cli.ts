@@ -117,6 +117,7 @@ program
   });
 
 addProviderOption(program.command("compile").description("Compile sources/ into an interlinked wiki"))
+  .option("--no-pages-limit", "Remove the requested 3–8 concepts per source; allow source-supported results with no pages")
   .option("--instructions <path>", "Add UTF-8 project instructions for this compile (max 64 KiB); changing or omitting them recompiles affected pages")
   .option(
     "--review",
@@ -139,6 +140,7 @@ addProviderOption(program.command("compile").description("Compile sources/ into 
     review?: boolean;
     lang?: string;
     sourcesSection?: boolean;
+    pagesLimit?: boolean;
     instructions?: string;
     concurrency?: string;
     verbose?: boolean;
@@ -150,7 +152,8 @@ addProviderOption(program.command("compile").description("Compile sources/ into 
       applySourcesSectionOption(options.sourcesSection);
       const systemPolicy = await readInstructions(options.instructions);
       requireCompileProvider();
-      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency), systemPolicy });
+      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency), systemPolicy,
+        noPagesLimit: options.pagesLimit === false });
     } catch (err) {
       console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
       process.exit(1);
@@ -172,6 +175,7 @@ program
   });
 
 addProviderOption(program.command("refresh").description("Recompile only stale/changed pages without touching unrelated new sources"))
+  .option("--no-pages-limit", "Use source-supported extraction without a requested concept count during the scoped recompile")
   .option("--stale", "Resolve stale/orphaned pages and recompile them")
   .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
   .option(
@@ -179,12 +183,13 @@ addProviderOption(program.command("refresh").description("Recompile only stale/c
     "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
   )
   .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: ProviderOption & { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean }) => {
+  .action(async (options: ProviderOption & { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean; pagesLimit?: boolean }) => {
     try {
       applyProviderOption(options);
       setVerbose(verboseEnabled(options.verbose));
       const code = await refreshCommand(
-        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency) },
+        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency),
+          noPagesLimit: options.pagesLimit === false },
         requireCompileProvider,
       );
       process.exit(code);

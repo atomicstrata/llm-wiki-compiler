@@ -43,7 +43,7 @@ async function arrangeReconciliation(): Promise<ReconciliationProbe> {
   const pageSystems: string[] = [];
   vi.spyOn(AnthropicProvider.prototype, "toolCall").mockImplementation(async (system) => {
     extractionSystems.push(system);
-    return phase === "failed" ? JSON.stringify({ concepts: [] }) : EXTRACTION;
+    return phase === "failed" ? "invalid extraction output" : EXTRACTION;
   });
   vi.spyOn(AnthropicProvider.prototype, "complete").mockImplementation(async (system) => {
     pageSystems.push(system);

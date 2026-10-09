@@ -69,7 +69,7 @@ export function summarizeCompile(
 
   const errors = [...generation.errors];
   for (const result of extractions) {
-    if (result.concepts.length === 0) {
+    if (result.failed) {
       errors.push(`No concepts extracted from ${result.sourceFile}`);
     }
   }

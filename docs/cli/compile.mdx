@@ -21,12 +21,44 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 | Flag | Description |
 |------|-------------|
 | `--review` | Write generated pages to `.llmwiki/candidates/` instead of `wiki/`. Pages are held for human review and don't appear in the live wiki until you approve them with `llmwiki review approve <id>`. |
+| `--no-pages-limit` | Opt into extraction without the default requested 3–8 concepts per source, including zero concepts. Changing or removing this flag recompiles affected sources; see [Extraction without a requested page count](#extraction-without-a-requested-page-count). |
 | `--provider <name>` | Override `LLMWIKI_PROVIDER` for this compile only. Use `codex-agent` to delegate both compile phases to non-interactive `codex exec`. |
 | `--instructions <path>` | Read an explicit UTF-8 instruction file (maximum 64 KiB) and append it to the built-in compile instructions. Changing or omitting the file option regenerates affected pages. |
 | `--lang <code>` | Override the output language for this compile run (e.g. `zh-CN`, `Chinese`, `ja`, `Japanese`). Wins over the `LLMWIKI_OUTPUT_LANG` environment variable. Unset preserves the model's default behaviour. Changing it regenerates already-compiled pages — see [Prompt modifiers and recompilation](#prompt-modifiers-and-recompilation). |
 | `--no-sources-section` | Stop asking the model for a trailing `## Sources` section in generated pages. Provenance is unaffected: the `sources:` frontmatter and the inline `^[file.md:1-5]` citation markers are produced by the compiler and stay exactly as they are. Equivalent to setting `LLMWIKI_SOURCES_SECTION=off`. |
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
+
+## Extraction without a requested page count
+
+By default, the extraction prompt requests 3–8 concepts per source. This is
+guidance to the model, not a hard limit enforced by the compiler. The default
+prompts and empty-result retry behavior are unchanged.
+
+```bash
+llmwiki compile --no-pages-limit
+```
+
+With this flag, the prompt has no minimum, maximum, or target concept count.
+It asks for topics supported by the source and allows `concepts: []` when none
+warrant a page. Page instructions also discourage expanding brief mentions
+with outside knowledge. These are instructions, not a factual-accuracy gate;
+generated pages still need review.
+
+On a non-review compile in this mode, an explicit empty result records the
+source as processed in `.llmwiki/state.json`; an unchanged source is skipped on
+the next run. Malformed or partially invalid output remains a retryable error
+and preserves previous concept assignments. If a valid result drops an
+assignment, shared pages rebuild from remaining contributors without stale page
+context, and pages with no remaining contributors become orphaned. `--review`
+continues to defer live state changes.
+
+The selection is recorded as `pagesLimit=off` in page provenance and in the
+project's prompt-modifier digest. Adding or removing the flag on a subsequent
+compile regenerates affected sources, even when their files have not changed;
+cached extractions from the other mode are not reused. This can incur provider
+costs. The option applies to this invocation, so pass it on each compile that
+should use this mode.
 
 ## Nested source folders
 
@@ -231,6 +263,11 @@ llmwiki refresh --stale
 
 This recompiles only the sources that own stale pages and cleans up pages whose sources were all deleted (orphaned pages). Unrelated new sources that haven't been compiled yet are deliberately skipped - use `llmwiki compile` to bring those in separately.
 
+Use `llmwiki refresh --stale --no-pages-limit` to select the same opt-in extraction
+mode during a scoped refresh. The flag does not widen the refresh selection or
+record a new project-wide modifier digest; use a full `compile` to change the
+mode for the entire project.
+
 ### `--dry-run`
 
 ```bash
@@ -291,7 +328,8 @@ This is not an input-context limit. `LLMWIKI_PROMPT_BUDGET_CHARS` limits combine
 source text during page generation, not the complete source passed to concept
 extraction. For textbooks, split sources into coherent chapters or sections and
 inspect the stored files under `sources/` to check what ingestion retained.
-Extraction asks for 3–8 concepts per source, not an exhaustive textbook index;
+Extraction asks for 3–8 concepts per source by default; `--no-pages-limit` removes
+that requested range. Neither mode promises an exhaustive textbook index, and
 a larger output budget alone does not guarantee more concepts or valid pages.
 
 Changing the output budget does not invalidate successfully compiled sources.
