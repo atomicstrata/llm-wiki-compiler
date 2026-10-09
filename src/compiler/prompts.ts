@@ -14,6 +14,7 @@ import type { PageKindRule, SeedPage } from "../schema/index.js";
 import { languageDirective } from "../utils/output-language.js";
 import { activeSystemPolicy } from "./prompt-modifiers.js";
 import { sourcesSectionEnabled } from "../utils/sources-section.js";
+import { plainConceptTitle } from "./concept-title.js";
 
 /**
  * Build a list of optional prompt lines, omitting empty entries so the
@@ -333,7 +334,7 @@ function mapRawConcept(c: RawConcept): ExtractedConcept {
     ? (c.provenance_state as ProvenanceState)
     : undefined;
   return {
-    concept: c.concept as string,
+    concept: plainConceptTitle(c.concept as string),
     summary: c.summary as string,
     is_new: c.is_new as boolean,
     tags: Array.isArray(c.tags) ? (c.tags as string[]) : undefined,

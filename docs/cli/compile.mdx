@@ -28,6 +28,19 @@ Run from your project root. If `sources/` is empty or doesn't exist yet, compile
 | `--concurrency <n>` | Maximum LLM calls run in parallel during this compile, across both extraction and page generation. Wins over the `LLMWIKI_COMPILE_CONCURRENCY` environment variable; defaults to `5`. Values above `50` are clamped. |
 | `--verbose` | Print detailed per-step progress: source sizes, concept merge details, page char counts, embedding batch summary, and total compile time. Equivalent to setting `LLMWIKI_VERBOSE=1`. Quiet mode (`--json`) always wins over verbose. |
 
+## Concept titles
+
+When extraction returns a concept name containing a valid wikilink, the compiler
+uses its display text before calculating the page slug and merging sources.
+For example, `[[Quality-Control|Quality Control]]` and `Quality Control` identify
+the same page, keeping both sources instead of creating a second page with a
+concatenated slug. Ordinary bracketed text and incomplete wikilinks are preserved.
+
+Cached extractions containing wikilink markup in concept names are not reused;
+the affected source is extracted again when it participates in compilation.
+This does not rename existing pages or migrate their ownership and review
+records. Existing duplicate pages need a separately reviewed recovery.
+
 ## Nested source folders
 
 By default, compile reads only top-level `.md` files in `sources/`. To compile
