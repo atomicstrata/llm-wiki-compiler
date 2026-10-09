@@ -64,7 +64,7 @@ interface ViewerServerConfig {
   port: number;
   /** Optional fixed live-provider deadline; omitted uses the run-proportionate default. */
   providerTimeoutMs?: number;
-  /** Minimum interval in milliseconds between on-request snapshot rebuilds. Defaults to 5000 ms. */
+  /** Minimum interval in milliseconds between on-request snapshot rebuilds. Omitted or <= 0 keeps the snapshot static. */
   refreshIntervalMs?: number;
 }
 
@@ -74,7 +74,7 @@ interface ViewerServerHandle {
   port: number;
   /** Actual host the server bound to. */
   host: string;
-  /** Graceful shutdown — closes the listener and resolves when all sockets drain. */
+  /** Graceful shutdown — resolves when all sockets have drained and no snapshot rebuild is left running. */
   close(): Promise<void>;
 }
 
@@ -127,7 +127,12 @@ export async function startViewerServer(
   return {
     host: config.host,
     port: address.port,
-    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    close: async () => {
+      // Dispose first so a request draining during shutdown cannot start a rebuild.
+      const rebuildSettled = snapshotManager.dispose();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await rebuildSettled;
+    },
   };
 }
 
