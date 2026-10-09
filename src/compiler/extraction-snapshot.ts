@@ -14,6 +14,7 @@ import { getActiveProviderName, resolveActiveModelId } from "../utils/provider.j
 import type { ExtractedConcept, SourceState, SourceChange, WikiState } from "../utils/types.js";
 import type { ExtractionResult } from "./deps.js";
 import { buildExtractionPrompt, CONCEPT_EXTRACTION_TOOL, PROMPT_VERSION } from "./prompts.js";
+import { noPagesLimitEnabled } from "./prompt-modifiers.js";
 
 const conceptSchema = z.object({
   concept: z.string().min(1), summary: z.string(), is_new: z.boolean(),
@@ -23,7 +24,7 @@ const conceptSchema = z.object({
   promptModifiers: z.array(z.string()).optional(),
 }).strict();
 const snapshotSchema = z.object({
-  fingerprint: z.string(), sourceHash: z.string(), concepts: z.array(conceptSchema).min(1),
+  fingerprint: z.string(), sourceHash: z.string(), concepts: z.array(conceptSchema),
 }).strict();
 
 /** Hash the bytes actually supplied to extraction, not a later disk read. */
@@ -65,6 +66,7 @@ export function reusableExtraction(entry: SourceState | undefined, content: stri
   const parsed = snapshotSchema.safeParse(entry?.extraction);
   if (!parsed.success || !entry) return undefined;
   const snapshot = parsed.data;
+  if (!noPagesLimitEnabled() && snapshot.concepts.length === 0) return undefined;
   if (snapshot.fingerprint !== extractionFingerprint()) return undefined;
   if (snapshot.sourceHash !== entry.hash || snapshot.sourceHash !== extractionSourceHash(content)) return undefined;
   const slugs = new Set(snapshot.concepts.map((concept) => slugify(concept.concept)));

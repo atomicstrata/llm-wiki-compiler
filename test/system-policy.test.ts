@@ -156,7 +156,7 @@ describe("PROMPT_VERSION", () => {
   // The constant names the prompt IMPLEMENTATION, so a page prompt that offers
   // link targets is a new generation. Pinned because nothing else in the repo
   // asserts its value, and a silent revert would mislabel every page after it.
-  it("is v6, the generation that clarifies target-first link aliases", () => {
-    expect(PROMPT_VERSION).toBe("v6");
+  it("is v7, the generation with opt-in extraction without a page quota", () => {
+    expect(PROMPT_VERSION).toBe("v7");
   });
 });
