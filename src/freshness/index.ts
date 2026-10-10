@@ -12,7 +12,7 @@ import { realpath } from "fs/promises";
 import path from "path";
 import { readStateClassified } from "../utils/state.js";
 import type { ClassifiedState } from "../utils/state.js";
-import { hashFile } from "../compiler/hasher.js";
+import { hashFile, NotRegularFileError } from "../compiler/hasher.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 
 /** Compute the three orthogonal freshness signals for one page. */
@@ -149,10 +149,12 @@ async function resolvesInsideSources(resolved: string, realSourcesRoot: string):
 }
 
 /**
- * Classify one source entry from state.json, guarding against both path traversal
- * and symlink escapes. A poisoned key like `../../etc/passwd` is rejected by the
- * cheap lexical check (first gate). A symlink inside sources/ pointing outside is
- * rejected by the realpath check (second gate). Both cases return exists:false.
+ * Classify one source entry from state.json, guarding against path traversal,
+ * symlink escapes and non-regular files. A poisoned key like `../../etc/passwd`
+ * is rejected by the cheap lexical check (first gate). A symlink inside sources/
+ * pointing outside is rejected by the realpath check (second gate). A named pipe
+ * or directory where the source used to be is rejected by the hasher (third
+ * gate). All three return exists:false, since none can be verified as the source.
  */
 async function classifySource(
   sourcesRoot: string,
@@ -160,20 +162,17 @@ async function classifySource(
   file: string,
   entry: { hash: string; concepts: string[] },
 ): Promise<SourceFreshness> {
+  const unverifiable = { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
   const resolved = path.resolve(sourcesRoot, file);
   const lexicallyInside = resolved === sourcesRoot || resolved.startsWith(sourcesRoot + path.sep);
-  if (!lexicallyInside) {
-    return { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
+  if (!lexicallyInside || !existsSync(resolved)) return unverifiable;
+  // Symlink escapes sources/ — treat as unverifiable, never hash/read it.
+  if (!(await resolvesInsideSources(resolved, realSourcesRoot))) return unverifiable;
+  try {
+    const currentHash = await hashFile(resolved);
+    return { recordedHash: entry.hash, currentHash, exists: true, concepts: entry.concepts };
+  } catch (err) {
+    if (err instanceof NotRegularFileError) return unverifiable;
+    throw err;
   }
-  const exists = existsSync(resolved);
-  if (exists && !(await resolvesInsideSources(resolved, realSourcesRoot))) {
-    // Symlink escapes sources/ — treat as unverifiable, never hash/read it.
-    return { recordedHash: entry.hash, currentHash: null, exists: false, concepts: entry.concepts };
-  }
-  return {
-    recordedHash: entry.hash,
-    currentHash: exists ? await hashFile(resolved) : null,
-    exists,
-    concepts: entry.concepts,
-  };
 }
