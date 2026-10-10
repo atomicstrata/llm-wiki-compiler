@@ -7,21 +7,42 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile } from "fs/promises";
+import { constants as fsConstants } from "fs";
+import { open } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { WikiState, SourceChange } from "../utils/types.js";
 import { listSelectedSourceFiles } from "../sources/scan.js";
 import { isSourceSelected, loadSourceSelection, type SourceSelection } from "../sources/selection.js";
 
+/** Thrown by {@link hashFile} for a path that is not a regular file (a named pipe, directory or device). */
+export class NotRegularFileError extends Error {
+  constructor(filePath: string) {
+    super(`Not a regular file: ${filePath}`);
+    this.name = "NotRegularFileError";
+  }
+}
+
 /**
  * Read a file and compute its SHA-256 hash.
+ *
+ * The file is opened non-blocking and checked on the open handle before any
+ * read: opening a named pipe for reading otherwise waits forever for a writer,
+ * which would hang whichever command or viewer refresh was hashing sources.
+ *
  * @param filePath - Absolute path to the file to hash.
  * @returns Hex-encoded SHA-256 digest of the file contents.
+ * @throws {NotRegularFileError} When the path is not a regular file.
  */
 export async function hashFile(filePath: string): Promise<string> {
-  const content = await readFile(filePath, "utf-8");
-  return createHash("sha256").update(content).digest("hex");
+  const handle = await open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NONBLOCK ?? 0));
+  try {
+    if (!(await handle.stat()).isFile()) throw new NotRegularFileError(filePath);
+    const content = await handle.readFile("utf-8");
+    return createHash("sha256").update(content).digest("hex");
+  } finally {
+    await handle.close();
+  }
 }
 
 /**

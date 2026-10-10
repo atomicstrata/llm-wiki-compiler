@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdir, writeFile, symlink } from "fs/promises";
 import path from "path";
 import { createHash } from "node:crypto";
+import { execFileSync } from "child_process";
 import { computeFreshness, buildFreshnessSnapshot } from "../src/freshness/index.js";
 import type { FreshnessSnapshot } from "../src/freshness/types.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
@@ -151,6 +152,27 @@ describe("buildFreshnessSnapshot", () => {
       expect.objectContaining({ exists: true, currentHash: sha256Hex(normalContent) }),
     );
   });
+
+  it.skipIf(process.platform === "win32")(
+    "treats a named pipe where a source used to be as not-exists instead of blocking on it",
+    async () => {
+      const normalContent = "normal content";
+      await writeSourceFile(env.dir, "normal.md", normalContent);
+      // Nothing ever writes to the pipe, so a blocking read would hang until the test times out.
+      execFileSync("mkfifo", [path.join(env.dir, "sources", "pipe.md")]);
+      await writeSourceState(env.dir, {
+        "pipe.md": { hash: "recorded", concepts: ["piped"] },
+        "normal.md": { hash: sha256Hex(normalContent), concepts: ["normal"] },
+      });
+
+      const snap = await buildFreshnessSnapshot(env.dir);
+
+      expect(snap.sources["pipe.md"]).toEqual({ recordedHash: "recorded", currentHash: null, exists: false, concepts: ["piped"] });
+      expect(snap.sources["normal.md"]).toEqual(
+        expect.objectContaining({ exists: true, currentHash: sha256Hex(normalContent) }),
+      );
+    },
+  );
 
   it("treats path-traversal keys as not-exists without throwing or reading outside sources/", async () => {
     // State contains a traversal key and a normal key.
