@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, writeFile, mkdir, rm } from "fs/promises";
 import path from "path";
 import os from "os";
-import { detectChanges, hashFile } from "../src/compiler/hasher.js";
+import { execFileSync } from "child_process";
+import { detectChanges, hashFile, NotRegularFileError } from "../src/compiler/hasher.js";
 import type { WikiState } from "../src/utils/types.js";
 
 function emptyState(): WikiState {
@@ -25,6 +26,23 @@ describe("hashFile", () => {
     await writeFile(file, "hello world", "utf-8");
     const hash = await hashFile(file);
     expect(hash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it.skipIf(process.platform === "win32")("rejects a named pipe instead of waiting on it", async () => {
+    const fifo = path.join(tmpDir, "pipe.md");
+    // Nothing ever writes to the pipe, so a blocking open would hang until the test times out.
+    execFileSync("mkfifo", [fifo]);
+    await expect(hashFile(fifo)).rejects.toBeInstanceOf(NotRegularFileError);
+  });
+
+  it("rejects a directory as not a regular file", async () => {
+    const dir = path.join(tmpDir, "folder.md");
+    await mkdir(dir);
+    await expect(hashFile(dir)).rejects.toBeInstanceOf(NotRegularFileError);
+  });
+
+  it("still reports a missing file as ENOENT", async () => {
+    await expect(hashFile(path.join(tmpDir, "absent.md"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("returns different hashes for different content", async () => {
