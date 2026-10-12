@@ -73,6 +73,7 @@ export const SUPPORTED_PROVIDER_INPUTS = [
   "claude-agent",
   "codex-agent",
   "openai",
+  "converse",
   "ollama",
   "minimax",
   "orcarouter",

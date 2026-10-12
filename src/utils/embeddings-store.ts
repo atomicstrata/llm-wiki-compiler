@@ -27,6 +27,7 @@
 import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import { constants as fsConstants } from "node:fs";
 import { createHash } from "node:crypto";
+import { resolveEmbeddingDimensions } from "./embedding-dimensions.js";
 import path from "path";
 import {
   getActiveEmbeddingProviderName,
@@ -309,11 +310,14 @@ export function resolveEmbeddingFingerprint(): string {
   // embed via Voyage, so moving between them must not trigger a rebuild.
   // NUL-separated: no env value can contain one, so no pair of distinct
   // configurations can collide by concatenation.
-  const identity = [
+  const parts = [
     resolveEmbeddingBackend(providerName),
     resolveEmbeddingModel(),
     resolveEmbeddingEndpoint(providerName),
-  ].join("\0");
+  ];
+  const dimensions = resolveEmbeddingDimensions();
+  if (dimensions !== undefined) parts.push(String(dimensions));
+  const identity = parts.join("\0");
   // HASHED because this is persisted. The endpoint component is a free-form URL
   // that routinely carries a credential as userinfo or a query parameter, and
   // .llmwiki/embeddings.json gets committed, copied between machines, and pasted

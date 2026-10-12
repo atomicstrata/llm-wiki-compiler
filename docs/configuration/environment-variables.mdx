@@ -14,7 +14,7 @@ You don't need to set everything - only the variables relevant to your chosen pr
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `orcarouter`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
+| `LLMWIKI_PROVIDER` | `anthropic` | Provider to use. One of: `anthropic`, `openai`, `converse`, `ollama`, `minimax`, `copilot`, `claude-agent`, `codex-agent`, `orcarouter`, `atlascloud` (aliases: `atlas-cloud`, `atlas`) |
 | `LLMWIKI_MODEL` | Provider default | Model name to use. Overrides the provider's built-in default model. For `codex-agent`, unset delegates model choice to Codex and a set value is passed through with `--model` |
 | `LLMWIKI_EMBEDDINGS` | Enabled | Set to `off`, `false`, `0`, or `no` (case-insensitive) to skip all embedding refreshes, including compile, review approval, import, and `query --save`. Existing embedding and pending files are left untouched. |
 | `LLMWIKI_EMBEDDING_PROVIDER` | Active chat provider | Backend serving embeddings, independent of `LLMWIKI_PROVIDER`. One of `anthropic`, `claude-agent`, `openai`, `ollama`, `orcarouter` |
@@ -36,8 +36,8 @@ When you set `LLMWIKI_EMBEDDING_PROVIDER`, the named provider's own credential i
 
 The check runs at startup, before any compile or query work begins, so a misspelled provider name or a missing key fails immediately instead of part-way through a run. Compile skips embedding-only checks when refreshes are disabled, but still validates the provider used to generate pages.
 
-`codex-agent` is the exception to the default embedding-provider value. Because
-Codex cannot embed, commands that consume or produce embeddings require
+`codex-agent` and `converse` are exceptions to the default embedding-provider value. Because
+they cannot embed, commands that consume or produce embeddings require
 `LLMWIKI_EMBEDDING_PROVIDER` to be set explicitly. A missing or unusable
 embedding backend fails actionably rather than silently degrading. Compile does
 not require one when `LLMWIKI_EMBEDDINGS` disables refreshes. The keyless
@@ -86,6 +86,29 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 | `OPENAI_BASE_URL` | For custom or local endpoints | Base URL for chat and tool calls. **Must include `/v1`** |
 | `OPENAI_EMBEDDINGS_BASE_URL` | No | Separate base URL for embeddings requests. When unset, embeddings use the same client and base URL as chat |
 | `OPENAI_EMBEDDINGS_API_KEY` | No | Credential for embeddings requests. When unset, embeddings reuse `OPENAI_API_KEY` - set this whenever the embeddings endpoint belongs to someone else |
+
+## Converse gateway
+
+`LLMWIKI_CONVERSE_TOOL_CHOICE` accepts `any` (default) or `auto`. Use `auto`
+when the selected model rejects forced tool selection. Structured calls still
+require a tool result; a text-only response is an error.
+
+For the independent OpenAI embedding provider, `LLMWIKI_EMBEDDING_DIMENSIONS`
+optionally requests a positive vector size. Returned vectors must match it.
+Changing this value invalidates the embedding index until a successful rebuild;
+omitting it preserves the endpoint's default dimensions.
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_MODEL` | Yes | Explicit model supporting text, streaming, and required tool calls; there is no Converse default |
+| `LLMWIKI_CONVERSE_BASE_URL` | Yes | HTTP(S) gateway route; no userinfo, query, or fragment. Use HTTPS for remote services |
+| `LLMWIKI_CONVERSE_API_KEY` | Yes | Bearer credential for that route, independent of embedding credentials |
+| `LLMWIKI_REQUEST_TIMEOUT_MS` | No | Positive integer request deadline in milliseconds; defaults to 600000 |
+
+These values apply only to `LLMWIKI_PROVIDER=converse`. The adapter does not use
+AWS credential discovery or SigV4. Set an explicit embedding backend or disable
+embedding refreshes for compilation. See [Providers](/configuration/providers)
+for a complete example and failure behavior.
 
 ## OpenAI-compatible request options
 

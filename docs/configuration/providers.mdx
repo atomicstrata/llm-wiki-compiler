@@ -19,6 +19,46 @@ This means that if you already have Claude Code configured on your machine, you 
 ## Providers
 
 <Tabs>
+  <Tab title="Converse gateway">
+
+Use `converse` for a gateway exposing the Amazon Bedrock Converse and
+ConverseStream protocols with bearer authentication. It supports text generation,
+streaming, and required tool calls. The existing default provider is unchanged.
+
+```bash
+export LLMWIKI_PROVIDER=converse
+export LLMWIKI_MODEL=your-tool-capable-model-id
+export LLMWIKI_CONVERSE_BASE_URL=https://gateway.example.com/proxy/your-route
+export LLMWIKI_CONVERSE_API_KEY=your-gateway-token
+export LLMWIKI_EMBEDDINGS=off
+llmwiki compile
+```
+
+Set all three model, endpoint, and credential values explicitly. The provider
+appends `/model/<encoded-model-id>/converse` or `/converse-stream` to the endpoint.
+The endpoint must be HTTP(S), without userinfo, query parameters, or a fragment.
+Use HTTPS for remote services. This adapter does not discover AWS credentials,
+sign requests with SigV4, select a default model, or switch to another provider.
+Tool selection defaults to `any`. For models that reject forced tool selection,
+set `LLMWIKI_CONVERSE_TOOL_CHOICE=auto`; extraction still fails unless the model
+returns the requested tool and a valid structured result.
+
+Converse does not serve embeddings. To enable them, explicitly configure
+`LLMWIKI_EMBEDDING_PROVIDER` and that backend's model, endpoint, and credential.
+For OpenAI-compatible embeddings, use `OPENAI_EMBEDDINGS_BASE_URL` and
+`OPENAI_EMBEDDINGS_API_KEY`; the Converse token is never reused for that service.
+Compile can run with embeddings disabled; semantic retrieval needs a separate
+compatible embedding backend.
+
+`LLMWIKI_REQUEST_TIMEOUT_MS` bounds a request, including streaming, and defaults
+to ten minutes. Incomplete or truncated output fails instead of becoming a page.
+Errors retain HTTP status without copying remote error bodies into diagnostics.
+The compiler's existing retry and review behavior still applies. Model/provider
+provenance is persisted normally; the gateway token is not written to the wiki.
+Route availability and data retention remain properties of your selected service,
+not guarantees provided by this adapter.
+
+  </Tab>
   <Tab title="Anthropic (Default)">
 
 The Anthropic provider uses the official `@anthropic-ai/sdk` to call Claude directly. It is the default when `LLMWIKI_PROVIDER` is unset.

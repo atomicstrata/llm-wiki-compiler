@@ -330,6 +330,7 @@ Provider selection is environment-driven:
 | Claude Agent SDK | Local Claude Code login, `LLMWIKI_PROVIDER=claude-agent` |
 | OpenAI Codex CLI | Local Codex login / ChatGPT subscription, `LLMWIKI_PROVIDER=codex-agent`; explicit embedding provider required |
 | OpenAI-compatible | `LLMWIKI_PROVIDER=openai`, `OPENAI_API_KEY`, optional `OPENAI_BASE_URL` |
+| Converse-compatible gateway | `LLMWIKI_PROVIDER=converse`, explicit `LLMWIKI_MODEL`, `LLMWIKI_CONVERSE_BASE_URL`, and `LLMWIKI_CONVERSE_API_KEY`; separate embedding provider required when enabled |
 | Ollama | `LLMWIKI_PROVIDER=ollama`, `OLLAMA_HOST` |
 | GitHub Copilot | `LLMWIKI_PROVIDER=copilot`, `GITHUB_TOKEN=$(gh auth token)` |
 | Atlas Cloud | `LLMWIKI_PROVIDER=atlascloud`, `ATLASCLOUD_API_KEY` |

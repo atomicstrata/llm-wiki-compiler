@@ -15,6 +15,7 @@ import {
 } from "./constants.js";
 import { AnthropicProvider } from "../providers/anthropic.js";
 import { OpenAIProvider } from "../providers/openai.js";
+import { ConverseProvider, resolveConverseModel, resolveConverseSettings } from "../providers/converse.js";
 import { OllamaProvider } from "../providers/ollama.js";
 import { MiniMaxProvider } from "../providers/minimax.js";
 import { OrcaRouterProvider } from "../providers/orcarouter.js";
@@ -92,6 +93,7 @@ const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(
 export function buildProvider(providerName: string): LLMProvider {
   switch (providerName) {
     case "offline": return new OfflineProvider();
+    case "converse": return new ConverseProvider(resolveConverseSettings());
     case "anthropic":
       return getAnthropicProvider();
     case "claude-agent":
@@ -242,6 +244,7 @@ export function getActiveProviderName(): string {
  */
 export function resolveActiveModelId(): string {
   const providerName = getProviderName();
+  if (providerName === "converse") return resolveConverseModel();
   if (providerName === "offline") return PROVIDER_MODELS.offline;
   if (providerName === "anthropic") {
     return resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;

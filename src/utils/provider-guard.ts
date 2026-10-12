@@ -29,6 +29,7 @@ import {
   isEmbeddingProviderExplicit,
 } from "./embedding-provider.js";
 import { embeddingsDisabled } from "./embeddings-config.js";
+import { resolveConverseSettings } from "../providers/converse.js";
 
 /** Thrown when the active provider has no usable credentials. */
 export class ProviderUnavailableError extends Error {
@@ -114,11 +115,11 @@ function ensureRequiredProvidersAvailable(requireEmbeddings: boolean): void {
   if (requireEmbeddings) ensureEmbeddingProviderAvailable();
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
 
-  if (requireEmbeddings && provider === "codex-agent" && !isEmbeddingProviderExplicit()) {
+  if (requireEmbeddings && (provider === "codex-agent" || provider === "converse") && !isEmbeddingProviderExplicit()) {
     throw new ProviderUnavailableError(
       provider,
       ["LLMWIKI_EMBEDDING_PROVIDER"],
-      `The "codex-agent" provider cannot serve embeddings and never degrades silently.\n` +
+      `The "${provider}" provider cannot serve embeddings and never degrades silently.\n` +
         `  Set LLMWIKI_EMBEDDING_PROVIDER to an existing embedding backend such as "ollama" or "openai".`,
     );
   }
@@ -132,6 +133,10 @@ function ensureRequiredProvidersAvailable(requireEmbeddings: boolean): void {
  * through the Claude Code settings fallback chain.
  */
 function ensureChatProviderAvailable(provider: string): void {
+  if (provider === "converse") {
+    resolveConverseSettings();
+    return;
+  }
   if (provider === "anthropic") {
     const auth = resolveAnthropicAuthFromEnv();
     if (!auth.apiKey && !auth.authToken) {

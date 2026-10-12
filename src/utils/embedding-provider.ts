@@ -23,6 +23,7 @@
 
 import type { LLMProvider } from "./provider.js";
 import { buildProvider, getActiveProviderName, getProvider } from "./provider.js";
+import { resolveEmbeddingDimensions } from "./embedding-dimensions.js";
 
 /**
  * Providers with embeddings wired up in llmwiki. Other providers override
@@ -180,6 +181,7 @@ export function resolveEmbeddingEndpoint(providerName: string): string {
  * fingerprints — see its docstring for why that distinction has to exist.
  */
 export function hasEmbeddingConfigurationOverride(): boolean {
+  if (resolveEmbeddingDimensions() !== undefined) return true;
   if (isEmbeddingProviderExplicit()) return true;
   return resolveEmbeddingEndpoint(getActiveEmbeddingProviderName()) !== "";
 }
@@ -235,6 +237,9 @@ function credentialProblem(name: string): EmbeddingProviderProblem | null {
  * promoting that to a hard failure would break every project relying on it.
  */
 export function findEmbeddingProviderProblem(): EmbeddingProviderProblem | null {
+  if (resolveEmbeddingDimensions() !== undefined && getActiveEmbeddingProviderName() !== "openai") {
+    throw new Error("LLMWIKI_EMBEDDING_DIMENSIONS requires the openai embedding provider");
+  }
   const name = explicitEmbeddingProviderName();
   if (name === undefined) return null;
   return capabilityProblem(name) ?? credentialProblem(name);
