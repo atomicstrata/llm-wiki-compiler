@@ -98,7 +98,7 @@ require a tool result; a text-only response is an error.
 | `LLMWIKI_MODEL` | Yes | Explicit model supporting text, streaming, and required tool calls; there is no Converse default |
 | `LLMWIKI_CONVERSE_BASE_URL` | Yes | HTTP(S) gateway route; no userinfo, query, or fragment. Use HTTPS for remote services |
 | `LLMWIKI_CONVERSE_API_KEY` | Yes | Bearer credential for that route, independent of embedding credentials |
-| `LLMWIKI_REQUEST_TIMEOUT_MS` | No | Integer request deadline in milliseconds, including streaming, from 1 to 2147483647; defaults to 600000. Any other value fails before compilation |
+| `LLMWIKI_REQUEST_TIMEOUT_MS` | No | Integer request deadline in milliseconds, including streaming, from 1 to 2147483647; unset or blank defaults to 600000. Invalid explicit values fail before compilation |
 
 These values apply only to `LLMWIKI_PROVIDER=converse`. The adapter does not use
 AWS credential discovery or SigV4. Set an explicit embedding backend or disable
@@ -316,7 +316,7 @@ pages and `state.json` intact.
 
 | Variable | When unset | Description |
 |---|---|---|
-| `LLMWIKI_REQUEST_TIMEOUT_MS` | Provider built-in default (10 min for `openai`, 30 min for `ollama`) | Per-request timeout override in milliseconds. Applies to both the `openai` and `ollama` backends. When unset, each provider falls back to its own built-in default |
+| `LLMWIKI_REQUEST_TIMEOUT_MS` | Provider built-in default (10 min for `openai` and `converse`, 30 min for `ollama`) | Per-request timeout override in milliseconds. Converse requires an integer from 1 to 2147483647 and rejects invalid explicit values before compilation; unset or blank uses its default. OpenAI and Ollama retain their existing fallback behavior |
 | `OLLAMA_TIMEOUT_MS` | 30-minute `ollama` built-in default | Ollama-specific timeout override in milliseconds. Wins over `LLMWIKI_REQUEST_TIMEOUT_MS` when both are set |
 
 Timeout resolution for Ollama: explicit constructor option → `OLLAMA_TIMEOUT_MS` → `LLMWIKI_REQUEST_TIMEOUT_MS` → built-in 30-minute default.
