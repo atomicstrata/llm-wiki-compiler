@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
-import { listenLoopback } from "./fixtures/converse-http.js";
+import { closeLoopback, listenLoopback } from "./fixtures/loopback-http.js";
 
 let server: Server;
 let workspace: string;
@@ -33,8 +33,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  server.closeAllConnections();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await closeLoopback(server);
   await rm(workspace, { recursive: true, force: true });
 });
 

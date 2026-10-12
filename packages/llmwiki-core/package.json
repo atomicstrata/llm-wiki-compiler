@@ -3,9 +3,7 @@
   "description": "Engine-free llmwiki knowledge and domain SDK",
   "version": "1.4.2",
   "type": "module",
-  "publishConfig": {
-    "access": "public"
-  },
+  "publishConfig": { "access": "public" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [

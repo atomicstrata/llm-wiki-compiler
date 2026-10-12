@@ -4,21 +4,6 @@
  * the same binary protocol delivered by a Converse-compatible service.
  */
 import { crc32 } from "node:zlib";
-import type { Server } from "node:http";
-
-/** Start an isolated HTTP service and return its loopback base URL. */
-export async function listenLoopback(server: Server): Promise<string> {
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Expected TCP address");
-  return `http://127.0.0.1:${address.port}`;
-}
-
-/** Close active HTTP sockets before returning from a transport fixture. */
-export async function closeLoopback(server: Server): Promise<void> {
-  server.closeAllConnections();
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-}
 
 /** Encode one named JSON event using the AWS event-stream framing specification. */
 export function converseEvent(eventType: string, payload: unknown): Buffer {

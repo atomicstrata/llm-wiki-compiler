@@ -7,7 +7,9 @@ import { createServer, type Server } from "node:http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";
 import { ensureCompileProviderAvailable } from "../src/utils/provider-guard.js";
-import { converseEvent, listenLoopback, closeLoopback } from "./fixtures/converse-http.js";
+import { resolveConverseSettings } from "../src/providers/converse.js";
+import { converseEvent } from "./fixtures/converse-http.js";
+import { listenLoopback, closeLoopback } from "./fixtures/loopback-http.js";
 
 describe("Converse generation route", () => {
   let server: Server;
@@ -144,6 +146,22 @@ describe("Converse generation route", () => {
     vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", "20");
     delayMs = 150;
     await expect(getProvider().complete("Write", [{ role: "user", content: "Facts" }], 128)).rejects.toThrow("Converse request timed out");
+  });
+
+  it.each(["1.5", "0", "-1", "invalid", "Infinity", "NaN", "2147483648", "4294967296", "9007199254740992"])("rejects invalid request timeout before compilation: %s", (timeout) => {
+    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    expect(() => ensureCompileProviderAvailable(false)).toThrow("LLMWIKI_REQUEST_TIMEOUT_MS");
+    expect(requests).toHaveLength(0);
+  });
+
+  it.each([undefined, "", "   "])("defaults the request deadline only when unset or blank: %s", (timeout) => {
+    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    expect(resolveConverseSettings().requestTimeoutMs).toBe(600_000);
+  });
+
+  it.each(["1", " 1500 ", "2147483647"])("accepts a supported integer request timeout: %s", (timeout) => {
+    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    expect(resolveConverseSettings().requestTimeoutMs).toBe(Number(timeout));
   });
 
   it("does not expose model content in streamed error events", async () => {

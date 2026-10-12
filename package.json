@@ -4,10 +4,7 @@
   "description": "Compile documents into a persistent, cited knowledge wiki for AI agents. CLI, MCP server, and TypeScript SDK.",
   "mcpName": "io.github.atomicstrata/llmwiki",
   "type": "module",
-  "workspaces": [
-    "packages/llmwiki-core",
-    "packages/llmwiki-local-workflows"
-  ],
+  "workspaces": ["packages/llmwiki-core", "packages/llmwiki-local-workflows"],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

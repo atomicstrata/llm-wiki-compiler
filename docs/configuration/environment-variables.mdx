@@ -93,17 +93,12 @@ Either `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies authentication - 
 when the selected model rejects forced tool selection. Structured calls still
 require a tool result; a text-only response is an error.
 
-For the independent OpenAI embedding provider, `LLMWIKI_EMBEDDING_DIMENSIONS`
-optionally requests a positive vector size. Returned vectors must match it.
-Changing this value invalidates the embedding index until a successful rebuild;
-omitting it preserves the endpoint's default dimensions.
-
 | Variable | Required | Description |
 |---|---|---|
 | `LLMWIKI_MODEL` | Yes | Explicit model supporting text, streaming, and required tool calls; there is no Converse default |
 | `LLMWIKI_CONVERSE_BASE_URL` | Yes | HTTP(S) gateway route; no userinfo, query, or fragment. Use HTTPS for remote services |
 | `LLMWIKI_CONVERSE_API_KEY` | Yes | Bearer credential for that route, independent of embedding credentials |
-| `LLMWIKI_REQUEST_TIMEOUT_MS` | No | Positive integer request deadline in milliseconds; defaults to 600000 |
+| `LLMWIKI_REQUEST_TIMEOUT_MS` | No | Integer request deadline in milliseconds, including streaming, from 1 to 2147483647; defaults to 600000. Any other value fails before compilation |
 
 These values apply only to `LLMWIKI_PROVIDER=converse`. The adapter does not use
 AWS credential discovery or SigV4. Set an explicit embedding backend or disable

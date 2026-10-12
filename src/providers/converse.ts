@@ -8,6 +8,8 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
 
 const REQUEST_TIMEOUT_MS = 600_000;
+/** Node timers overflow above this and fire at once, aborting every request. */
+const MAX_TIMER_MS = 2_147_483_647;
 const BEARER_AUTH_SCHEME = "smithy.api#httpBearerAuth";
 
 /** Configuration for an explicit Converse route; all values are required. */
@@ -15,8 +17,8 @@ export interface ConverseSettings {
   model: string;
   baseURL: string;
   apiKey: string;
-  requestTimeoutMs?: number;
-  toolChoice?: "any" | "auto";
+  requestTimeoutMs: number;
+  toolChoice: "any" | "auto";
 }
 
 /** Resolve the explicitly selected model without reading credentials. */
@@ -30,7 +32,7 @@ export function resolveConverseSettings(): ConverseSettings {
     model: resolveConverseModel(),
     baseURL: validateEndpoint(requiredSetting("LLMWIKI_CONVERSE_BASE_URL")),
     apiKey: requiredSetting("LLMWIKI_CONVERSE_API_KEY"),
-    requestTimeoutMs: requestTimeout(),
+    requestTimeoutMs: resolveRequestTimeout(),
     toolChoice: resolveToolChoice(),
   };
 }
@@ -42,11 +44,12 @@ export class ConverseProvider implements LLMProvider {
   constructor(private readonly settings: ConverseSettings) {
     this.client = new BedrockRuntimeClient({
       region: "converse-gateway",
-      endpoint: validateEndpoint(settings.baseURL),
+      endpoint: settings.baseURL,
       token: { token: settings.apiKey },
       httpAuthSchemeProvider: () => [{ schemeId: BEARER_AUTH_SCHEME }],
       maxAttempts: 1,
-      requestHandler: new NodeHttpHandler({ requestTimeout: REQUEST_TIMEOUT_MS }),
+      // The Bedrock client defaults to HTTP/2; gateways commonly speak HTTP/1.1 only.
+      requestHandler: new NodeHttpHandler(),
     });
   }
 
@@ -110,7 +113,7 @@ export class ConverseProvider implements LLMProvider {
 
   /** Bound the complete request, including consumption of a streamed body. */
   private requestOptions(): { abortSignal: AbortSignal } {
-    return { abortSignal: AbortSignal.timeout(this.settings.requestTimeoutMs ?? REQUEST_TIMEOUT_MS) };
+    return { abortSignal: AbortSignal.timeout(this.settings.requestTimeoutMs) };
   }
 
   /** Share canonical messages and inference settings across all Converse operations. */
@@ -166,16 +169,22 @@ function validateEndpoint(value: string): string {
   }
 }
 
-/** Reuse the common request deadline setting, rejecting invalid explicit values. */
-function requestTimeout(): number {
+/** Read the shared request deadline, rejecting values a timer cannot honour. */
+function resolveRequestTimeout(): number {
   const raw = process.env.LLMWIKI_REQUEST_TIMEOUT_MS?.trim();
   if (!raw) return REQUEST_TIMEOUT_MS;
   const value = Number(raw);
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error("LLMWIKI_REQUEST_TIMEOUT_MS must be a positive integer");
+  if (!Number.isSafeInteger(value) || value <= 0 || value > MAX_TIMER_MS) {
+    throw new Error(`LLMWIKI_REQUEST_TIMEOUT_MS must be an integer from 1 to ${MAX_TIMER_MS}`);
+  }
   return value;
 }
 
-/** Allow endpoints that accept tools but reject forced selection, still requiring a tool response. */
+/**
+ * Allow endpoints that accept tools but reject forced selection, still requiring
+ * a tool response. Needed in practice: Sonnet behind a Bedrock gateway returned
+ * HTTP 400 for `any` and compiled successfully with `auto`.
+ */
 function resolveToolChoice(): "any" | "auto" {
   const value = process.env.LLMWIKI_CONVERSE_TOOL_CHOICE?.trim() || "any";
   if (value !== "any" && value !== "auto") throw new Error("LLMWIKI_CONVERSE_TOOL_CHOICE must be any or auto");

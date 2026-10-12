@@ -12,7 +12,6 @@ import * as output from "../utils/output.js";
 import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 import { reasoningParams, tokenLimitParams } from "./openai-request.js";
 import { extraBodyParams } from "./openai-extra-body.js";
-import { assertRequestedEmbeddingDimensions, resolveEmbeddingDimensions } from "../utils/embedding-dimensions.js";
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -158,7 +157,7 @@ export class OpenAIProvider implements LLMProvider {
     // The OpenAI SDK (v6+) throws on a missing/empty key at construction. Real
     // credential validation is owned by the provider guard, so pass a
     // placeholder when unset to defer the check to that single source of truth.
-    const resolvedKey = options.apiKey?.trim() || process.env.OPENAI_API_KEY?.trim() || PLACEHOLDER_API_KEY;
+    const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? PLACEHOLDER_API_KEY;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
     this.client = new OpenAI({
       apiKey: resolvedKey,
@@ -292,11 +291,9 @@ export class OpenAIProvider implements LLMProvider {
       model: this.embeddingModel(),
       input: text,
       encoding_format: "float",
-      dimensions: resolveEmbeddingDimensions(),
     });
     const vector = response.data[0]?.embedding;
     assertVectorValid(vector); // non-empty + finite (replaces the Array.isArray-only check)
-    assertRequestedEmbeddingDimensions(vector);
     return vector;
   }
 
@@ -307,11 +304,8 @@ export class OpenAIProvider implements LLMProvider {
       model: this.embeddingModel(),
       input: texts,
       encoding_format: "float",
-      dimensions: resolveEmbeddingDimensions(),
     });
-    const vectors = normalizeEmbeddingData(response.data, texts.length);
-    vectors.forEach(assertRequestedEmbeddingDimensions);
-    return vectors;
+    return normalizeEmbeddingData(response.data, texts.length);
   }
 
   /** Default embedding model for this provider. Subclasses may override. */
