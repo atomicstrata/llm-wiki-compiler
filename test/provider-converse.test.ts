@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";
 import { ensureCompileProviderAvailable } from "../src/utils/provider-guard.js";
 import { resolveConverseSettings } from "../src/providers/converse.js";
+import { callClaude } from "../src/utils/llm.js";
 import { converseEvent } from "./fixtures/converse-http.js";
 import { listenLoopback, closeLoopback } from "./fixtures/loopback-http.js";
 
@@ -104,11 +105,33 @@ describe("Converse generation route", () => {
     await expect(getProvider().stream("Write", [{ role: "user", content: "Facts" }], 128)).rejects.toThrow("Converse generation did not finish");
   });
 
-  it.each([401, 429, 503])("reports HTTP %s without echoing remote content", async (status) => {
+  it.each([400, 401, 403, 404, 429, 503])("reports HTTP %s without echoing remote content", async (status) => {
     statusCode = status;
     responseBody = { message: "secret-sentinel and uploaded-source-sentinel", __type: "ValidationException" };
-    await expect(getProvider().complete("Write", [{ role: "user", content: "Facts" }], 128)).rejects.toThrow(`Converse request failed (HTTP ${status})`);
+    await expect(getProvider().complete("Write", [{ role: "user", content: "Facts" }], 128)).rejects.toMatchObject({
+      message: `Converse request failed (HTTP ${status})`,
+      nonRetryable: status >= 400 && status < 500 && status !== 429,
+    });
     expect(requests).toHaveLength(1);
+  });
+
+  it.each([400, 401, 403, 404])("does not retry HTTP %s in the compiler wrapper", async (status) => {
+    statusCode = status;
+    responseBody = { message: "secret-sentinel", __type: "ValidationException" };
+    await expect(callClaude({ system: "Write", messages: [], maxTokens: 128 }))
+      .rejects.toThrow(`Converse request failed (HTTP ${status})`);
+    expect(requests).toHaveLength(1);
+  });
+
+  it.each([429, 503])("retries transient HTTP %s in the compiler wrapper", async (status) => {
+    statusCode = status;
+    responseBody = { __type: "ThrottlingException" };
+    const pending = callClaude({ system: "Write", messages: [], maxTokens: 128 });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    statusCode = 200;
+    responseBody = { output: { message: { content: [{ text: "Recovered" }] } }, stopReason: "end_turn" };
+    await expect(pending).resolves.toBe("Recovered");
+    expect(requests).toHaveLength(2);
   });
 
   it.each(["max_tokens", "content_filtered", undefined])("rejects incomplete non-streaming output (%s)", async (stopReason) => {

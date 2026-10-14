@@ -34,7 +34,7 @@ function dependencyName(specifier: string): string[] {
   return [specifier.split("/").slice(0, specifier.startsWith("@") ? 2 : 1).join("/")];
 }
 
-it("declares exactly the dependencies used by built core JavaScript and declarations", () => {
+it("declares exactly the dependencies and peers used by built core JavaScript and declarations", () => {
   // Fallow assigns shared src/ imports to the root workspace, not this package.
   // Audit the delivered output instead, including types needed by SDK consumers.
   const directory = path.join(SRC_DIR, "../packages/llmwiki-core");
@@ -43,7 +43,8 @@ it("declares exactly the dependencies used by built core JavaScript and declarat
     .flatMap(file => literalModuleImports(path.join(directory, "dist", file)))
     .flatMap(dependencyName);
   const manifest = JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8"));
-  expect([...new Set(imports)].sort()).toEqual(Object.keys(manifest.dependencies).sort());
+  const declared = { ...manifest.dependencies, ...manifest.peerDependencies };
+  expect([...new Set(imports)].sort()).toEqual(Object.keys(declared).sort());
 });
 
 it("allows engine dependencies only within the engine, Node, or declared core contracts", () => {

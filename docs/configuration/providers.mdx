@@ -25,6 +25,16 @@ Use `converse` for a gateway exposing the Amazon Bedrock Converse and
 ConverseStream protocols with bearer authentication. It supports text generation,
 streaming, and required tool calls. The existing default provider is unchanged.
 
+Install the optional protocol packages alongside your llmwiki installation
+(add `-g` if llmwiki is installed globally):
+
+```bash
+npm install @aws-sdk/client-bedrock-runtime @smithy/node-http-handler
+```
+
+These packages are loaded only when making a Converse request. Other providers
+and CLI commands do not require them.
+
 ```bash
 export LLMWIKI_PROVIDER=converse
 export LLMWIKI_MODEL=your-tool-capable-model-id

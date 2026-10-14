@@ -3,8 +3,7 @@
  * Uses the AWS protocol SDK for request and event-stream handling, without AWS
  * credential discovery or implicit endpoint selection. Embeddings stay separate.
  */
-import { BedrockRuntimeClient, BedrockRuntimeServiceException, ConverseCommand, ConverseStreamCommand, type ConverseCommandInput, type ToolInputSchema } from "@aws-sdk/client-bedrock-runtime";
-import { NodeHttpHandler } from "@smithy/node-http-handler";
+import type { BedrockRuntimeServiceException, ConverseCommandInput, ToolInputSchema } from "@aws-sdk/client-bedrock-runtime";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
 
 const REQUEST_TIMEOUT_MS = 600_000;
@@ -39,32 +38,24 @@ export function resolveConverseSettings(): ConverseSettings {
 
 /** Converse text and structured generation; this provider never creates embeddings. */
 export class ConverseProvider implements LLMProvider {
-  private readonly client: BedrockRuntimeClient;
+  private runtime?: ReturnType<typeof createConverseRuntime>;
 
-  constructor(private readonly settings: ConverseSettings) {
-    this.client = new BedrockRuntimeClient({
-      region: "converse-gateway",
-      endpoint: settings.baseURL,
-      token: { token: settings.apiKey },
-      httpAuthSchemeProvider: () => [{ schemeId: BEARER_AUTH_SCHEME }],
-      maxAttempts: 1,
-      // The Bedrock client defaults to HTTP/2; gateways commonly speak HTTP/1.1 only.
-      requestHandler: new NodeHttpHandler(),
-    });
-  }
+  constructor(private readonly settings: ConverseSettings) {}
 
   /** Complete using Converse's canonical messages and explicit token budget. */
   async complete(system: string, messages: LLMMessage[], maxTokens: number): Promise<string> {
-    const command = new ConverseCommand(this.requestBody(system, messages, maxTokens));
-    const response = await this.client.send(command, this.requestOptions()).catch(failConverseRequest);
+    const { client, sdk, failRequest } = await this.getRuntime();
+    const command = new sdk.ConverseCommand(this.requestBody(system, messages, maxTokens));
+    const response = await client.send(command, this.requestOptions()).catch(failRequest);
     requireFinished(response.stopReason);
     return requireText(response.output?.message?.content?.map((block) => block.text ?? "").join("") ?? "");
   }
 
   /** Decode the native event stream and forward each text delta to the caller. */
   async stream(system: string, messages: LLMMessage[], maxTokens: number, onToken?: (text: string) => void): Promise<string> {
-    const command = new ConverseStreamCommand(this.requestBody(system, messages, maxTokens));
-    const response = await this.client.send(command, this.requestOptions()).catch(failConverseRequest);
+    const { client, sdk, failRequest } = await this.getRuntime();
+    const command = new sdk.ConverseStreamCommand(this.requestBody(system, messages, maxTokens));
+    const response = await client.send(command, this.requestOptions()).catch(failRequest);
     let text = "";
     let stopReason: string | undefined;
     try {
@@ -80,7 +71,7 @@ export class ConverseProvider implements LLMProvider {
         }
       }
     } catch (error) {
-      failConverseRequest(error);
+      failRequest(error);
     }
     requireFinished(stopReason);
     return requireText(text);
@@ -88,7 +79,8 @@ export class ConverseProvider implements LLMProvider {
 
   /** Return the requested structured tool input as the compiler's JSON payload. */
   async toolCall(system: string, messages: LLMMessage[], tools: LLMTool[], maxTokens: number): Promise<string> {
-    const response = await this.client.send(new ConverseCommand({
+    const { client, sdk, failRequest } = await this.getRuntime();
+    const response = await client.send(new sdk.ConverseCommand({
       ...this.requestBody(system, messages, maxTokens),
       toolConfig: {
         tools: tools.map((tool) => ({ toolSpec: {
@@ -97,7 +89,7 @@ export class ConverseProvider implements LLMProvider {
         } })),
         toolChoice: this.settings.toolChoice === "auto" ? { auto: {} } : { any: {} },
       },
-    }), this.requestOptions()).catch(failConverseRequest);
+    }), this.requestOptions()).catch(failRequest);
     requireFinished(response.stopReason, true);
     const tool = response.output?.message?.content?.find((block) => block.toolUse)?.toolUse;
     if (!tool || tool.input === undefined || !tools.some((candidate) => candidate.name === tool.name)) {
@@ -109,6 +101,11 @@ export class ConverseProvider implements LLMProvider {
   /** Require a separately configured embedding provider. */
   async embed(_text: string): Promise<number[]> {
     throw new Error("Converse does not serve embeddings; set LLMWIKI_EMBEDDING_PROVIDER or disable embeddings");
+  }
+
+  /** Load optional dependencies on first use and share initialization across calls. */
+  private getRuntime(): ReturnType<typeof createConverseRuntime> {
+    return this.runtime ??= createConverseRuntime(this.settings);
   }
 
   /** Bound the complete request, including consumption of a streamed body. */
@@ -127,6 +124,36 @@ export class ConverseProvider implements LLMProvider {
   }
 }
 
+/** Import the protocol libraries only when a Converse request needs them. */
+async function loadConverseDependencies() {
+  try {
+    return await Promise.all([
+      import("@aws-sdk/client-bedrock-runtime"),
+      import("@smithy/node-http-handler"),
+    ]);
+  } catch {
+    throw Object.assign(new Error(
+      "Converse requires optional packages. Install them alongside llmwiki: " +
+      "npm install @aws-sdk/client-bedrock-runtime @smithy/node-http-handler",
+    ), { nonRetryable: true });
+  }
+}
+
+/** Initialize the bearer-only transport after its optional libraries are available. */
+async function createConverseRuntime(settings: ConverseSettings) {
+  const [sdk, { NodeHttpHandler }] = await loadConverseDependencies();
+  const client = new sdk.BedrockRuntimeClient({
+    region: "converse-gateway",
+    endpoint: settings.baseURL,
+    token: { token: settings.apiKey },
+    httpAuthSchemeProvider: () => [{ schemeId: BEARER_AUTH_SCHEME }],
+    maxAttempts: 1,
+    // The Bedrock client defaults to HTTP/2; gateways commonly speak HTTP/1.1 only.
+    requestHandler: new NodeHttpHandler(),
+  });
+  return { client, sdk, failRequest: (error: unknown): never => failConverseRequest(error, sdk.BedrockRuntimeServiceException) };
+}
+
 /** Read one nonblank value at the environment boundary. */
 function requiredSetting(name: string): string {
   const value = process.env[name]?.trim();
@@ -135,9 +162,13 @@ function requiredSetting(name: string): string {
 }
 
 /** Report transport status without copying a service message that may contain input. */
-function failConverseRequest(error: unknown): never {
-  const status = error instanceof BedrockRuntimeServiceException ? error.$metadata.httpStatusCode : undefined;
-  if (status) throw new Error(`Converse request failed (HTTP ${status})`);
+function failConverseRequest(error: unknown, ServiceException: typeof BedrockRuntimeServiceException): never {
+  const status = error instanceof ServiceException ? error.$metadata.httpStatusCode : undefined;
+  if (status) {
+    throw Object.assign(new Error(`Converse request failed (HTTP ${status})`), {
+      nonRetryable: status >= 400 && status < 500 && status !== 429,
+    });
+  }
   if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
     throw new Error("Converse request timed out");
   }

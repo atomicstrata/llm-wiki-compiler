@@ -75,10 +75,8 @@
     "@anthropic-ai/sdk": "^0.101.0",
     "@atomicstrata/llmwiki-core": "1.4.2",
     "@atomicstrata/llmwiki-local-workflows": "1.4.2",
-    "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mozilla/readability": "^0.6.0",
-    "@smithy/node-http-handler": "^4.12.1",
     "ajv": "^8.20.0",
     "canonicalize": "^3.0.0",
     "chokidar": "^4.0.0",
@@ -96,11 +94,13 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
     "@copilotkit/aimock": "^1.15.1",
     "@fontsource/dm-sans": "5.2.6",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/nunito": "5.2.7",
     "@fontsource/space-grotesk": "^5.3.0",
+    "@smithy/node-http-handler": "^4.12.1",
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^21.1.0",
     "@types/markdown-it": "^14.1.2",
@@ -113,6 +113,14 @@
     "tsup": "^8.0.0",
     "typescript": "5.9.3",
     "vitest": "^3.2.7"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
+    "@smithy/node-http-handler": "^4.12.1"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-bedrock-runtime": { "optional": true },
+    "@smithy/node-http-handler": { "optional": true }
   },
   "volta": {
     "node": "24.16.0"
