@@ -60,6 +60,19 @@ cached extractions from the other mode are not reused. This can incur provider
 costs. The option applies to this invocation, so pass it on each compile that
 should use this mode.
 
+## Concept titles
+
+When extraction returns a concept name containing a valid wikilink, the compiler
+uses its display text before calculating the page slug and merging sources.
+For example, `[[Quality-Control|Quality Control]]` and `Quality Control` identify
+the same page, keeping both sources instead of creating a second page with a
+concatenated slug. Ordinary bracketed text and incomplete wikilinks are preserved.
+
+Cached extractions containing wikilink markup in concept names are not reused;
+the affected source is extracted again when it participates in compilation.
+This does not rename existing pages or migrate their ownership and review
+records. Existing duplicate pages need a separately reviewed recovery.
+
 ## Nested source folders
 
 By default, compile reads only top-level `.md` files in `sources/`. To compile
