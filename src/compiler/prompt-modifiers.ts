@@ -5,7 +5,8 @@
  *
  * A modifier is a knob that changes what the page prompt ASKS FOR without
  * changing the committed prompt wording: the output language, set by `--lang`
- * or `LLMWIKI_OUTPUT_LANG`, the Sources-section preference, and the caller policy
+ * or `LLMWIKI_OUTPUT_LANG`, the Sources-section preference, the opt-in extraction
+ * mode selected by `--no-pages-limit`, and the caller policy
  * passed to `compile`. Two facts follow from that, and this
  * module is the single source for both:
  *
@@ -42,6 +43,7 @@ export function activePromptModifiers(): Record<string, string> {
   const lang = getOutputLanguage();
   if (lang) modifiers.lang = lang;
   if (!sourcesSectionEnabled()) modifiers.sourcesSection = "off";
+  if (noPagesLimitEnabled()) modifiers.pagesLimit = "off";
   const policy = activeSystemPolicy();
   if (policy) modifiers.policy = sha256(policy);
   return modifiers;
@@ -73,6 +75,17 @@ export function activePromptModifiers(): Record<string, string> {
  * which is the same bug.
  */
 const policyScope = new AsyncLocalStorage<string | undefined>();
+const noPagesLimitScope = new AsyncLocalStorage<boolean>();
+
+/** Scope the opt-in extraction mode to one compile, including overlapping SDK calls. */
+export function withRunNoPagesLimit<T>(enabled: boolean | undefined, fn: () => T): T {
+  return noPagesLimitScope.run(enabled === true, fn);
+}
+
+/** Whether this compile removed the default requested concept range. */
+export function noPagesLimitEnabled(): boolean {
+  return noPagesLimitScope.getStore() === true;
+}
 
 /**
  * Run `fn` with `policy` as the active caller policy, restoring the previous

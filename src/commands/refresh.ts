@@ -16,6 +16,8 @@ import * as output from "../utils/output.js";
 import type { CompileResult } from "../utils/types.js";
 
 interface RefreshCommandOptions {
+  /** Use the same opt-in extraction mode as compile --no-pages-limit. */
+  noPagesLimit?: boolean;
   stale?: boolean;
   dryRun?: boolean;
   /** Max concurrent LLM calls during the scoped recompile (forwarded to CompileOptions). */
@@ -79,6 +81,7 @@ async function runRefresh(
     changeFilter: plan.changeFilter,
     skipSeedPages: true,
     concurrency: options.concurrency,
+    noPagesLimit: options.noPagesLimit,
   });
   return reportCompileOutcome(result, plan);
 }

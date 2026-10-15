@@ -32,11 +32,13 @@ import {
   promoteForPromptModifiers,
   promptModifiersDigest,
   withRunSystemPolicy,
+  withRunNoPagesLimit,
 } from "./prompt-modifiers.js";
 import {
   findAffectedSources,
   findReconciliationSlugs,
   freezeFailedExtractions,
+  findWithdrawnConcepts,
   persistFrozenSlugs,
   type ExtractionResult,
 } from "./deps.js";
@@ -145,7 +147,7 @@ export async function compileAndReport(
     // the modifier digest it contributes is visible to the invalidation check
     // rather than only to the prompt builders further down.
     return await withRunSystemPolicy(options.systemPolicy, () =>
-      runCompilePipeline(root, options),
+      withRunNoPagesLimit(options.noPagesLimit, () => runCompilePipeline(root, options)),
     );
   } finally {
     await releaseLock(root);
@@ -265,7 +267,7 @@ async function persistExtractionStates(
   for (const result of extractions) {
     // Reused contributors keep their complete committed ownership, including
     // concepts outside this run's page set and shared pages held for review.
-    if (result.reused || result.concepts.length === 0) continue;
+    if (result.reused || result.failed) continue;
     const liveSlugs = new Set(liveSlugsForSource.get(result.sourceFile) ?? []);
     // A slug held for another attempt is still OWNED by the source that
     // extracted it. Recording only WRITTEN slugs drops that claim, and unlike a
@@ -490,6 +492,8 @@ async function runCompilePipeline(
     freezeFailedExtractions(draft, extractions, frozenSlugs);
     reportFrozenSlugs(frozenSlugs);
   }
+
+  for (const slug of findWithdrawnConcepts(extractions)) reconciliationSlugs.add(slug);
 
   // Snapshot pages on disk before generation so the journal can tell which
   // produced pages are new (created) versus overwritten (updated).

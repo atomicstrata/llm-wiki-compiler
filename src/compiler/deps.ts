@@ -16,12 +16,15 @@ import { slugify } from "../utils/markdown.js";
 import * as output from "../utils/output.js";
 import type { WikiState, SourceChange, ExtractedConcept } from "../utils/types.js";
 import type { CompileStateDraft } from "./compile-state-draft.js";
+import { noPagesLimitEnabled } from "./prompt-modifiers.js";
 
 export interface ExtractionResult {
   sourceFile: string;
   sourcePath: string;
   sourceContent: string;
   concepts: ExtractedConcept[];
+  /** Invalid extraction output; an explicit empty array is a successful result. */
+  failed?: true;
   /** Committed metadata reused for an unchanged contributor, not new work. */
   reused?: true;
   /** Prior assignments also need regeneration if fresh extraction drops them. */
@@ -372,7 +375,7 @@ export function findSharedConcepts(
  * to keep dependency tracking intact.
  * @param draft - In-memory CompileStateDraft the function reads/mutates instead of disk state,
  *   buffering source entries with a blank hash so they are retried on the next compile.
- * @param results - Extraction results from this batch; entries with no concepts are failed.
+ * @param results - Extraction results from this batch, with invalid output marked failed.
  * @param frozenSlugs - Mutable set of frozen slugs; old concept slugs from failed sources
  *   are added here to prevent them from being orphaned prematurely.
  */
@@ -382,7 +385,7 @@ export function freezeFailedExtractions(
   frozenSlugs: Set<string>,
 ): void {
   for (const result of results) {
-    if (result.concepts.length > 0) continue;
+    if (!result.failed) continue;
 
     output.status("!", output.warn(`${result.sourceFile}: no concepts — will retry.`));
     const oldConcepts = draft.read().sources[result.sourceFile]?.concepts ?? [];
@@ -394,4 +397,18 @@ export function freezeFailedExtractions(
       compiledAt: new Date().toISOString(),
     });
   }
+}
+
+/** Find prior assignments withdrawn by a successful opt-in extraction. */
+export function findWithdrawnConcepts(results: ExtractionResult[]): Set<string> {
+  const withdrawn = new Set<string>();
+  if (!noPagesLimitEnabled()) return withdrawn;
+  for (const result of results) {
+    if (result.failed || result.reused) continue;
+    const current = new Set(result.concepts.map((concept) => slugify(concept.concept)));
+    for (const slug of result.previousConcepts ?? []) {
+      if (!current.has(slug)) withdrawn.add(slug);
+    }
+  }
+  return withdrawn;
 }

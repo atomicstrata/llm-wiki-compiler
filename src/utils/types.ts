@@ -180,6 +180,8 @@ export interface ReviewedCandidateRef {
 
 /** Optional behaviour controls for the compile pipeline. */
 export interface CompileOptions {
+  /** Remove the requested 3–8 concepts per source; allow source-supported empty results. */
+  noPagesLimit?: boolean;
   /**
    * Write generated pages as candidates under .llmwiki/candidates/ instead
    * of mutating wiki/. Reviewers approve/reject via `llmwiki review`.

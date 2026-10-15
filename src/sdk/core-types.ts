@@ -232,6 +232,8 @@ export interface SdkStagePreparationInput {
 
 /** Compile options exposed through the SDK. A public subset of the core CompileOptions shape. */
 export interface SdkCompileOptions {
+  /** Opt into source-supported extraction without a requested concept count, including no pages. */
+  noPagesLimit?: boolean;
   /** Write generated pages as candidates for review instead of mutating wiki/. */
   review?: boolean;
   /**
