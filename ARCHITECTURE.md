@@ -8,9 +8,7 @@ orchestration platform.
 
 ## Compiler and query flow
 
-This document describes the architecture of the `1.5.0-rc.1` release
-candidate. The stable `1.4.2` release shares it except for the storage
-separation described below. The CLI, MCP server,
+This document describes the architecture of the `1.5.0` release. The CLI, MCP server,
 and standard SDK share compiler services rather than maintaining separate
 knowledge stores. Sources live under `sources/`, generated Markdown under
 `wiki/`, and compiler state, review candidates, and recovery metadata under
@@ -62,7 +60,7 @@ use Voyage credentials separately from the Claude login.
 
 ## Storage separation
 
-Starting with `1.5.0-rc.1`, wiki behavior is separated from the filesystem
+Starting with `1.5.0`, wiki behavior is separated from the filesystem
 operations that persist it.
 
 **Why.** The code that decides what a wiki does (which sources changed, what a

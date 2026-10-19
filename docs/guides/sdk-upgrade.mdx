@@ -3,19 +3,19 @@ title: "SDK upgrade notes"
 description: "Compatibility boundaries when adopting the split-package release."
 ---
 
-The first section covers the `1.5.0-rc.1` release candidate relative to the
-stable `1.4.2` release. The remaining sections cover `1.4.0` relative to `1.3.0`.
-The stable release uses the npm `latest` dist-tag; release candidates use
-`next`. Use an exact version when testing an upgrade.
+The first section covers `1.5.0` relative to `1.4.2`. The remaining sections
+cover `1.4.0` relative to `1.3.0`. The stable release uses the npm `latest`
+dist-tag; release candidates use `next`. Use an exact version when testing an
+upgrade.
 
-## 1.5.0 release candidate
+## 1.5.0
 
-`1.5.0-rc.1` is a preview for early testing, not the stable release. Install it
-by exact version, together with its supporting packages, which it pins to the
-same version:
+`1.5.0` is the stable release and ships the same code as the `1.5.0-rc.1`
+candidate. Install it by exact version, together with its supporting packages,
+which it pins to the same version:
 
 ```bash
-npm install llm-wiki-compiler@1.5.0-rc.1
+npm install llm-wiki-compiler@1.5.0
 ```
 
 **Storage separation.** Compilation, retrieval, review, artifacts and project
@@ -43,12 +43,12 @@ under `v6`.
 optional peer dependencies; install them only when you select Converse. See
 [provider setup](/configuration/providers).
 
-**MCP Registry.** The registry entry `io.github.atomicstrata/llmwiki` is not
-updated for release candidates. To try the candidate from an MCP client, point
-the client at an installed `llmwiki serve` from `1.5.0-rc.1`.
+**MCP Registry.** The registry entry `io.github.atomicstrata/llmwiki` is
+published for `1.5.0` after the npm release. Release candidates do not update
+the registry entry.
 
-Back up a wiki you care about before trying any preview release, and reopen it
-with your actual CLI or SDK integration before relying on the candidate.
+Back up a wiki you care about before upgrading, and reopen it with your actual
+CLI or SDK integration before relying on the new release.
 
 ## Claude provider correction
 

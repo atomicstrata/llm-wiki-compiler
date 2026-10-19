@@ -41,15 +41,15 @@ Install the `llm-wiki-compiler` package globally. The package registers the `llm
 npm install -g llm-wiki-compiler
 ```
 
-### Try the 1.5.0 release candidate
+### Upgrading to 1.5.0
 
-`1.5.0-rc.1` is a preview of the next minor release, published to the npm `next` dist-tag. The stable release, `1.4.2`, stays on `latest`, and the command above continues to install it. Install the candidate by exact version:
+The command above installs the stable `1.5.0` release from the npm `latest` dist-tag. To pin it, install it by exact version:
 
 ```bash
-npm install -g llm-wiki-compiler@1.5.0-rc.1
+npm install -g llm-wiki-compiler@1.5.0
 ```
 
-The candidate separates wiki behavior from local file I/O, adds the [Converse gateway provider](/configuration/providers), the [`--no-pages-limit`](/cli/compile) extraction mode, and viewer refresh with `LLMWIKI_VIEW_PORT`, and fixes several compile, MCP and freshness issues. Existing projects open without a migration or new setting: the directory layout, file formats and defaults are unchanged. Back up a wiki you care about before trying any preview. See the [upgrade notes](/guides/sdk-upgrade) for details.
+`1.5.0` separates wiki behavior from local file I/O, adds the [Converse gateway provider](/configuration/providers), the [`--no-pages-limit`](/cli/compile) extraction mode, and viewer refresh with `LLMWIKI_VIEW_PORT`, and fixes several compile, MCP and freshness issues. Existing projects open without a migration or new setting: the directory layout, file formats and defaults are unchanged. Back up a wiki you care about before upgrading. See the [upgrade notes](/guides/sdk-upgrade) for details.
 
 Verify the installation:
 

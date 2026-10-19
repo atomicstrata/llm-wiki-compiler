@@ -1,7 +1,7 @@
 {
   "name": "@atomicstrata/llmwiki-local-workflows",
   "description": "Optional compiler-local workflow engine using explicit llmwiki core services",
-  "version": "1.5.0-rc.1",
+  "version": "1.5.0",
   "type": "module",
   "publishConfig": { "access": "public" },
   "main": "./dist/index.js",
@@ -30,6 +30,6 @@
     "./package.json": "./package.json"
   },
   "peerDependencies": {
-    "@atomicstrata/llmwiki-core": "1.5.0-rc.1"
+    "@atomicstrata/llmwiki-core": "1.5.0"
   }
 }
