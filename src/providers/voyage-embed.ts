@@ -7,6 +7,7 @@
  * exact same request logic. Requires the VOYAGE_API_KEY environment variable.
  */
 
+import { normalizeUsage, recordUsage, usageEnabled } from "./usage.js";
 import { EMBEDDING_MODELS } from "../utils/constants.js";
 import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 
@@ -33,6 +34,7 @@ function resolveVoyageApiKey(): string {
 
 /** Execute a POST request to the Voyage embeddings endpoint. */
 async function voyagePost(input: string | string[], model: string, inputType: VoyageInputType): Promise<Response> {
+  usageEnabled();
   const apiKey = resolveVoyageApiKey();
   return fetch(VOYAGE_EMBEDDINGS_URL, {
     method: "POST",
@@ -58,7 +60,8 @@ export async function voyageEmbed(
   if (!response.ok) {
     throw voyageError(response.status, await response.text());
   }
-  const json = (await response.json()) as { data?: Array<{ embedding?: number[] }> };
+  const json = (await response.json()) as VoyageResponse;
+  recordVoyageUsage(json, model, "embed", response.headers);
   const vector = json.data?.[0]?.embedding;
   assertVectorValid(vector); // reject [], NaN, ±Infinity (spec C1) — protects the query path too
   return vector;
@@ -87,7 +90,8 @@ export async function voyageEmbedBatch(
   if (!response.ok) {
     throw voyageError(response.status, await response.text());
   }
-  const json = (await response.json()) as { data?: Array<{ index?: number; embedding?: number[] }> };
+  const json = (await response.json()) as VoyageResponse;
+  recordVoyageUsage(json, model, "embedBatch", response.headers);
   return normalizeEmbeddingData(json.data ?? [], texts.length);
 }
 
@@ -110,4 +114,17 @@ export abstract class VoyageEmbeddingProvider {
   async embedBatch(texts: string[], inputType: VoyageInputType = "document"): Promise<number[][]> {
     return voyageEmbedBatchDefault(texts, inputType);
   }
+}
+
+/** Provider wire fields needed for vectors and content-free usage receipts. */
+interface VoyageResponse {
+  model?: string;
+  data?: Array<{ index?: number; embedding?: number[] }>;
+  usage?: { total_tokens: number };
+}
+
+/** Voyage embeddings have no output token charge. */
+function recordVoyageUsage(response: VoyageResponse, model: string, operation: "embed" | "embedBatch", headers: Headers): void {
+  recordUsage(() => ({ provider: "voyage", model: response.model || model, operation, requestId: headers.get("x-request-id") ?? undefined,
+    usage: normalizeUsage(response.usage && { inputTokens: response.usage.total_tokens, outputTokens: response.usage.total_tokens == null ? null : 0 }) }));
 }

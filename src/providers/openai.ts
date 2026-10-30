@@ -6,6 +6,7 @@
  */
 
 import OpenAI from "openai";
+import { normalizeUsage, recordUsage, usageEnabled } from "./usage.js";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
@@ -152,6 +153,7 @@ export class OpenAIProvider implements LLMProvider {
   protected readonly configuredEmbeddingModel?: string;
 
   constructor(model: string, options: OpenAIProviderOptions = {}) {
+    usageEnabled();
     this.model = model;
     this.configuredEmbeddingModel = options.embeddingModel;
     // The OpenAI SDK (v6+) throws on a missing/empty key at construction. Real
@@ -213,6 +215,7 @@ export class OpenAIProvider implements LLMProvider {
       ...this.requestBase(system, messages, maxTokens),
     });
 
+    recordUsage(() => ({ provider: "openai", model: response.model || this.model, requestId: response._request_id, responseId: response.id, operation: "complete", usage: openaiUsage(response.usage) }));
     return response.choices[0]?.message?.content ?? "";
   }
 
@@ -241,20 +244,36 @@ export class OpenAIProvider implements LLMProvider {
     system: string,
     messages: LLMMessage[],
     maxTokens: number,
-    onToken?: (text: string) => void,
+    onToken: (text: string) => void = () => {},
   ): Promise<string> {
-    const stream = await this.client.chat.completions.create({
+    const request = this.client.chat.completions.create({
       ...this.requestBase(system, messages, maxTokens),
       stream: true,
+      ...(usageEnabled() ? { stream_options: { include_usage: true } } : {}),
     });
+    const { data: stream, request_id: requestId } = usageEnabled()
+      ? await request.withResponse()
+      : { data: await request, request_id: undefined };
 
     let fullText = "";
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content;
-      if (delta) {
-        fullText += delta;
-        onToken?.(delta);
+    let usage: OpenAI.CompletionUsage | null = null;
+    let model = this.model;
+    let responseId: string | undefined;
+    let streamCompleted = false;
+    try {
+      for await (const chunk of stream) {
+        model = chunk.model || model;
+        responseId = chunk.id || responseId;
+        if (chunk.usage) usage = chunk.usage;
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onToken(delta);
+        }
       }
+      streamCompleted = true;
+    } finally {
+      recordUsage(() => ({ provider: "openai", model, requestId, responseId, operation: "stream", usageComplete: streamCompleted, usage: openaiUsage(usage) }));
     }
 
     return fullText;
@@ -275,6 +294,7 @@ export class OpenAIProvider implements LLMProvider {
       tool_choice: "required",
     });
 
+    recordUsage(() => ({ provider: "openai", model: response.model || this.model, requestId: response._request_id, responseId: response.id, operation: "toolCall", usage: openaiUsage(response.usage) }));
     // openai v6 made tool_calls a union of function and custom calls; only the
     // function variant carries `.function`.
     const toolCall = response.choices[0]?.message?.tool_calls?.[0];
@@ -292,6 +312,7 @@ export class OpenAIProvider implements LLMProvider {
       input: text,
       encoding_format: "float",
     });
+    recordUsage(() => ({ provider: "openai", model: response.model || this.embeddingModel(), requestId: response._request_id, operation: "embed", usage: embeddingUsage(response.usage) }));
     const vector = response.data[0]?.embedding;
     assertVectorValid(vector); // non-empty + finite (replaces the Array.isArray-only check)
     return vector;
@@ -305,6 +326,7 @@ export class OpenAIProvider implements LLMProvider {
       input: texts,
       encoding_format: "float",
     });
+    recordUsage(() => ({ provider: "openai", model: response.model || this.embeddingModel(), requestId: response._request_id, operation: "embedBatch", usage: embeddingUsage(response.usage) }));
     return normalizeEmbeddingData(response.data, texts.length);
   }
 
@@ -312,4 +334,21 @@ export class OpenAIProvider implements LLMProvider {
   protected embeddingModel(): string {
     return this.configuredEmbeddingModel ?? EMBEDDING_MODELS.openai;
   }
+}
+
+/** Include the documented wire field even with older OpenAI SDK typings. */
+type OpenAIUsageWithCacheWrites = OpenAI.CompletionUsage & {
+  prompt_tokens_details?: { cache_write_tokens?: number | null };
+};
+
+/** OpenAI prompt tokens already include both cache reads and writes. */
+function openaiUsage(usage: OpenAIUsageWithCacheWrites | null | undefined) {
+  return normalizeUsage(usage && { inputTokens: usage.prompt_tokens, outputTokens: usage.completion_tokens,
+    cacheReadTokens: usage.prompt_tokens_details?.cached_tokens,
+    cacheWriteTokens: usage.prompt_tokens_details?.cache_write_tokens });
+}
+
+/** Embeddings consume input tokens only; absent usage stays unknown. */
+function embeddingUsage(usage: { prompt_tokens: number } | undefined) {
+  return normalizeUsage(usage && { inputTokens: usage.prompt_tokens, outputTokens: usage.prompt_tokens == null ? null : 0 });
 }

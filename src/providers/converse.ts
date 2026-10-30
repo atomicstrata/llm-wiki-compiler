@@ -3,8 +3,9 @@
  * Uses the AWS protocol SDK for request and event-stream handling, without AWS
  * credential discovery or implicit endpoint selection. Embeddings stay separate.
  */
-import type { BedrockRuntimeServiceException, ConverseCommandInput, ToolInputSchema } from "@aws-sdk/client-bedrock-runtime";
+import type { BedrockRuntimeServiceException, ConverseCommandInput, TokenUsage, ToolInputSchema } from "@aws-sdk/client-bedrock-runtime";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
+import { normalizeUsage, recordUsage, usageEnabled } from "./usage.js";
 
 const REQUEST_TIMEOUT_MS = 600_000;
 /** Node timers overflow above this and fire at once, aborting every request. */
@@ -40,38 +41,45 @@ export function resolveConverseSettings(): ConverseSettings {
 export class ConverseProvider implements LLMProvider {
   private runtime?: ReturnType<typeof createConverseRuntime>;
 
-  constructor(private readonly settings: ConverseSettings) {}
+  constructor(private readonly settings: ConverseSettings) {
+    usageEnabled();
+  }
 
   /** Complete using Converse's canonical messages and explicit token budget. */
   async complete(system: string, messages: LLMMessage[], maxTokens: number): Promise<string> {
     const { client, sdk, failRequest } = await this.getRuntime();
     const command = new sdk.ConverseCommand(this.requestBody(system, messages, maxTokens));
     const response = await client.send(command, this.requestOptions()).catch(failRequest);
+    recordUsage(() => ({ provider: "converse", model: this.settings.model, requestId: response.$metadata.requestId, operation: "complete", usage: converseUsage(response.usage) }));
     requireFinished(response.stopReason);
     return requireText(response.output?.message?.content?.map((block) => block.text ?? "").join("") ?? "");
   }
 
   /** Decode the native event stream and forward each text delta to the caller. */
-  async stream(system: string, messages: LLMMessage[], maxTokens: number, onToken?: (text: string) => void): Promise<string> {
+  async stream(system: string, messages: LLMMessage[], maxTokens: number, onToken: (text: string) => void = () => {}): Promise<string> {
     const { client, sdk, failRequest } = await this.getRuntime();
     const command = new sdk.ConverseStreamCommand(this.requestBody(system, messages, maxTokens));
     const response = await client.send(command, this.requestOptions()).catch(failRequest);
     let text = "";
     let stopReason: string | undefined;
+    let usage: TokenUsage | undefined;
+    let streamCompleted = false;
     try {
       for await (const event of response.stream ?? []) {
-        if (Object.keys(event).some((key) => key.endsWith("Exception") || key === "$unknown")) {
-          throw new Error("Converse stream failed");
-        }
+        requireKnownStreamEvent(event);
+        if (event.metadata?.usage) usage = event.metadata.usage;
         if (event.messageStop) stopReason = event.messageStop.stopReason;
         const delta = event.contentBlockDelta?.delta?.text;
         if (delta) {
           text += delta;
-          onToken?.(delta);
+          onToken(delta);
         }
       }
+      streamCompleted = true;
     } catch (error) {
       failRequest(error);
+    } finally {
+      recordUsage(() => ({ provider: "converse", model: this.settings.model, requestId: response.$metadata.requestId, operation: "stream", usageComplete: streamCompleted, usage: converseUsage(usage) }));
     }
     requireFinished(stopReason);
     return requireText(text);
@@ -90,6 +98,7 @@ export class ConverseProvider implements LLMProvider {
         toolChoice: this.settings.toolChoice === "auto" ? { auto: {} } : { any: {} },
       },
     }), this.requestOptions()).catch(failRequest);
+    recordUsage(() => ({ provider: "converse", model: this.settings.model, requestId: response.$metadata.requestId, operation: "toolCall", usage: converseUsage(response.usage) }));
     requireFinished(response.stopReason, true);
     const tool = response.output?.message?.content?.find((block) => block.toolUse)?.toolUse;
     if (!tool || tool.input === undefined || !tools.some((candidate) => candidate.name === tool.name)) {
@@ -121,6 +130,19 @@ export class ConverseProvider implements LLMProvider {
       messages: messages.map(({ role, content }) => ({ role, content: [{ text: content }] })),
       inferenceConfig: { maxTokens },
     };
+  }
+}
+
+/** Converse reports uncached input separately from cache reads and writes. */
+function converseUsage(usage: { inputTokens?: number; outputTokens?: number; cacheReadInputTokens?: number; cacheWriteInputTokens?: number } | undefined) {
+  return normalizeUsage(usage && { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadInputTokens, cacheWriteTokens: usage.cacheWriteInputTokens }, true);
+}
+
+/** Reject protocol errors before their content can enter generated text. */
+function requireKnownStreamEvent(event: object): void {
+  if (Object.keys(event).some((key) => key.endsWith("Exception") || key === "$unknown")) {
+    throw new Error("Converse stream failed");
   }
 }
 
