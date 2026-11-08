@@ -39,6 +39,19 @@ describe("ensureProviderAvailable error taxonomy", () => {
     expect(err.missing).toContain("OPENAI_API_KEY");
   });
 
+  it("throws ProviderUnavailableError naming RUNCRATE_API_KEY when it is missing", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+    delete process.env.RUNCRATE_API_KEY;
+    const err = assertUnavailableError(catchGuardError(), "runcrate");
+    expect(err.missing).toContain("RUNCRATE_API_KEY");
+  });
+
+  it("accepts the runcrate provider when RUNCRATE_API_KEY is set", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+    process.env.RUNCRATE_API_KEY = "runcrate-test-key";
+    expect(() => ensureProviderAvailable()).not.toThrow();
+  });
+
   it("throws ProviderUnavailableError with both Atlas Cloud key aliases when missing", () => {
     process.env.LLMWIKI_PROVIDER = "atlas-cloud";
     delete process.env.ATLASCLOUD_API_KEY;

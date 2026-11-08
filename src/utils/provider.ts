@@ -29,6 +29,7 @@ import {
   resolveAtlasCloudApiKeyFromEnv,
   resolveAtlasCloudBaseURLFromEnv,
 } from "../providers/atlascloud.js";
+import { RuncrateProvider } from "../providers/runcrate.js";
 import {
   resolveAnthropicAuthFromEnv,
   resolveAnthropicBaseURLFromEnv,
@@ -122,6 +123,8 @@ export function buildProvider(providerName: string): LLMProvider {
       return getCopilotProvider();
     case "atlascloud":
       return getAtlasCloudProvider();
+    case "runcrate":
+      return getRuncrateProvider();
     default:
       throw new Error(`Unhandled provider: ${providerName}`);
   }
@@ -174,7 +177,7 @@ function readOptionalEnv(name: string): string | undefined {
 }
 
 function getModelForProvider(
-  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
+  providerName: "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter" | "runcrate",
 ): string {
   return process.env.LLMWIKI_MODEL ?? PROVIDER_MODELS[providerName];
 }
@@ -228,6 +231,17 @@ function getAtlasCloudProvider(): AtlasCloudProvider {
     apiKey,
     resolveAtlasCloudBaseURLFromEnv(),
   );
+}
+
+function getRuncrateProvider(): RuncrateProvider {
+  const apiKey = readOptionalEnv("RUNCRATE_API_KEY");
+  if (!apiKey) {
+    throw new Error(
+      "Runcrate provider requires RUNCRATE_API_KEY environment variable.\n" +
+      "  Set it with: export RUNCRATE_API_KEY=your_key",
+    );
+  }
+  return new RuncrateProvider(getModelForProvider("runcrate"), apiKey);
 }
 
 function getAnthropicProvider(): AnthropicProvider {
@@ -291,6 +305,6 @@ export function resolveActiveModelId(): string {
     return readOptionalEnv("LLMWIKI_MODEL") ?? PROVIDER_MODELS["codex-agent"];
   }
   return getModelForProvider(
-    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter",
+    providerName as "openai" | "ollama" | "minimax" | "copilot" | "atlascloud" | "orcarouter" | "runcrate",
   );
 }

@@ -64,6 +64,7 @@ const PROVIDER_KEY_VARS: Record<string, string | readonly string[] | null> = {
   ollama: null,
   minimax: "MINIMAX_API_KEY",
   orcarouter: "ORCAROUTER_API_KEY",
+  runcrate: "RUNCRATE_API_KEY",
   copilot: "GITHUB_TOKEN",
   atlascloud: ATLASCLOUD_API_KEY_ENV_VARS,
 };

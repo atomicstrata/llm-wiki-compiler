@@ -12,6 +12,7 @@ import { ClaudeAgentProvider } from "../src/providers/claude-agent.js";
 import { CopilotProvider } from "../src/providers/copilot.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
+import { RuncrateProvider } from "../src/providers/runcrate.js";
 import { OllamaProvider } from "../src/providers/ollama.js";
 import { getEmbeddingProvider } from "../src/utils/embedding-provider.js";
 import { ensureProviderAvailable } from "../src/utils/provider-guard.js";
@@ -41,6 +42,7 @@ describe("codex-agent opt-in preservation", () => {
     ["minimax", "MINIMAX_API_KEY", MiniMaxProvider],
     ["copilot", "GITHUB_TOKEN", CopilotProvider],
     ["atlascloud", "ATLASCLOUD_API_KEY", AtlasCloudProvider],
+    ["runcrate", "RUNCRATE_API_KEY", RuncrateProvider],
   ])("keeps the existing %s provider factory behavior", (provider, key, expected) => {
     process.env.LLMWIKI_PROVIDER = provider;
     if (key) process.env[key] = "existing-provider-credential";
