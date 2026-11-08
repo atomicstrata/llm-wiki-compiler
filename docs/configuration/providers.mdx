@@ -477,9 +477,12 @@ The `runcrate` provider routes chat and tool calls through [Runcrate](https://ww
 
 **Setup**
 
+Runcrate does not serve embeddings to llmwiki, so either turn embedding refreshes off as below or route them to another backend (see Embeddings).
+
 ```bash
 export LLMWIKI_PROVIDER=runcrate
 export RUNCRATE_API_KEY=<your-key>
+export LLMWIKI_EMBEDDINGS=off
 llmwiki compile
 ```
 
