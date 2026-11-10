@@ -1,9 +1,10 @@
 /**
  * Hash routes for the v2 viewer.
  *
- * The server renders wikilinks as `#/<directory>/<slug>`, so the client keeps
- * that shape for pages and adds two reserved first segments: `sources` for an
- * ingested source (optionally with a cited line range) and `search`.
+ * The server renders wikilinks as `#/<directory>/<slug>` and source links as
+ * `#/_source/<file>`, the same forms the original client uses, so both clients
+ * follow the same links. A source route may carry a cited line range as
+ * `?start=12&end=15`. `search` is the one route only this client has.
  */
 
 /** A parsed location inside the viewer. */
@@ -14,7 +15,9 @@ export type Route =
   | { view: "search"; query: string };
 
 const HOME: Route = { view: "home" };
-const SOURCES_SEGMENT = "sources";
+/** Underscore-prefixed so it can never collide with a profile's entity type. */
+const SOURCE_SEGMENT = "_source";
+const WHOLE_NUMBER = /^\d+$/;
 const SEARCH_SEGMENT = "search";
 
 /** Parse `location.hash` into a route; anything malformed is the home route. */
@@ -25,7 +28,9 @@ export function parseRoute(hash: string): Route {
   const params = new URLSearchParams(rawQuery);
   if (segments[0] === SEARCH_SEGMENT) return { view: "search", query: params.get("q") ?? "" };
   if (segments.length !== 2) return HOME;
-  if (segments[0] === SOURCES_SEGMENT) return { view: "source", id: segments[1], ...parseLines(params.get("lines")) };
+  if (segments[0] === SOURCE_SEGMENT) {
+    return { view: "source", id: segments[1], ...lineRange(params.get("start"), params.get("end")) };
+  }
   return { view: "page", directory: segments[0], slug: segments[1] };
 }
 
@@ -42,15 +47,15 @@ export function pageIdHref(id: string): string {
 
 /** Hash for a source, optionally pointing at a cited line range. */
 export function sourceHref(id: string, lineStart?: number, lineEnd?: number): string {
-  const base = `#/${SOURCES_SEGMENT}/${encodeURIComponent(id)}`;
+  const base = `#/${SOURCE_SEGMENT}/${encodeURIComponent(id)}`;
   if (lineStart === undefined) return base;
-  return `${base}?lines=${lineStart}-${lineEnd ?? lineStart}`;
+  return `${base}?start=${lineStart}&end=${lineEnd ?? lineStart}`;
 }
 
 /** Hash for a citation chip's `data-file` / `data-line-start` / `data-line-end`; null without a file. */
 export function citationHref(file: string | undefined, lineStart?: string, lineEnd?: string): string | null {
   if (!file) return null;
-  const range = parseLines(lineStart === undefined ? null : `${lineStart}-${lineEnd ?? lineStart}`);
+  const range = lineRange(lineStart, lineEnd);
   return sourceHref(file, range.lineStart, range.lineEnd);
 }
 
@@ -68,11 +73,15 @@ function decodeSegments(rawPath: string): string[] | null {
   }
 }
 
-/** Parse `12` or `12-15` into a line range; anything else is no range. */
-function parseLines(value: string | null): { lineStart?: number; lineEnd?: number } {
-  const match = /^(\d+)(?:-(\d+))?$/.exec(value ?? "");
-  if (!match) return {};
-  const lineStart = Number(match[1]);
-  const lineEnd = Number(match[2] ?? match[1]);
+/** A whole number from a query value or data attribute; undefined for anything else. */
+function lineNumber(value: string | null | undefined): number | undefined {
+  return WHOLE_NUMBER.test(value ?? "") ? Number(value) : undefined;
+}
+
+/** A cited line range; the end defaults to the start, and a reversed range is no range. */
+function lineRange(start: string | null | undefined, end: string | null | undefined): { lineStart?: number; lineEnd?: number } {
+  const lineStart = lineNumber(start);
+  if (lineStart === undefined) return {};
+  const lineEnd = lineNumber(end) ?? lineStart;
   return lineEnd >= lineStart ? { lineStart, lineEnd } : {};
 }
