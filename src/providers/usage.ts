@@ -7,6 +7,17 @@ import { randomUUID } from "node:crypto";
 import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+/** Accounting failures must stop both inference retries and retrieval fallbacks. */
+export class UsageAccountingError extends Error {
+  readonly nonRetryable = true;
+
+  /** Preserve the underlying accounting failure for callers inspecting its cause. */
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "UsageAccountingError";
+  }
+}
+
 /** Counters use inclusive input tokens; cache counters are subsets of input. */
 interface ObservedUsage {
   inputTokens: number | null;
@@ -31,7 +42,7 @@ export function usageEnabled(): boolean {
   const directory = process.env.LLMWIKI_USAGE_DIRECTORY;
   if (!directory) return false;
   if (!path.isAbsolute(directory) || !process.env.LLMWIKI_USAGE_EXECUTION_ID?.trim()) {
-    throw Object.assign(new Error("Usage receipts require an absolute directory and execution id"), { nonRetryable: true });
+    throw new UsageAccountingError("Usage receipts require an absolute directory and execution id");
   }
   return true;
 }
@@ -50,7 +61,7 @@ export function recordUsage(observe: () => UsageReceipt): void {
     publishReceipt(process.env.LLMWIKI_USAGE_DIRECTORY!, eventId, JSON.stringify(event) + "\n");
   } catch (cause) {
     // Retrying inference cannot repair accounting storage and would consume more tokens.
-    throw Object.assign(new Error("Could not persist provider usage", { cause }), { nonRetryable: true });
+    throw new UsageAccountingError("Could not persist provider usage", { cause });
   }
 }
 
@@ -70,7 +81,7 @@ export function normalizeUsage(raw: {
 function tokenCount(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
-    throw Object.assign(new Error("Invalid provider usage counter"), { nonRetryable: true });
+    throw new UsageAccountingError("Invalid provider usage counter");
   }
   return value;
 }
