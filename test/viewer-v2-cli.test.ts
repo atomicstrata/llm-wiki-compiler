@@ -51,7 +51,7 @@ describe("llmwiki view-v2", () => {
     expect(page.html).toContain('<a href="#/_source/shot.md">Kiln log</a>');
     expect(await (await fetch(url("/api/source/shot.md/content"))).text()).toBe(SOURCE);
     expect((await (await fetch(url("/api/source/shot.md"))).json()).images).toEqual(["shot.png"]);
-    const image = await fetch(url("/api/source-image/shot.png"));
+    const image = await fetch(url("/api/source-image/shot.md/shot.png"));
     expect(Buffer.from(await image.arrayBuffer()).equals(PNG)).toBe(true);
   });
 });

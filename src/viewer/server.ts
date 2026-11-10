@@ -271,7 +271,7 @@ async function routeLiveResources(
   if (ARTIFACT_PATHS.has(parsedUrl.pathname)) return handleApiArtifact(res, snapshot, parsedUrl, isLoopback);
   if (parsedUrl.pathname.startsWith("/api/source/")) return handleApiSource(res, snapshot, parsedUrl.pathname, isLoopback);
   if (parsedUrl.pathname.startsWith(SOURCE_IMAGE_ROUTE_PREFIX)) {
-    return handleApiSourceImage(res, snapshot.root, parsedUrl.pathname, isLoopback);
+    return handleApiSourceImage(res, snapshot, parsedUrl.pathname, isLoopback);
   }
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);

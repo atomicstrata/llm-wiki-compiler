@@ -46,7 +46,7 @@ images: ["kiln-log.png"]
 Fired at cone 6 on Tuesday.
 ```
 
-The v2 client shows a source's images on the source, and on every page that cites it. The source's metadata at `GET /api/source/<file>` lists them, and `GET /api/source-image/<file>` serves each one. The server serves PNG, JPEG, GIF, and WebP files, and only when the viewer is bound to loopback, like source text.
+The v2 client shows a source's images on the source, and on every page that cites it. The source's metadata at `GET /api/source/<source>` lists them, and `GET /api/source-image/<source>/<file>` serves each one. An image is served only through a source that declares it, so a file left in `sources/images/` after its source is removed is not reachable. The server serves PNG, JPEG, GIF, and WebP files, and only when the viewer is bound to loopback, like source text.
 
 ## How the viewer picks up changes
 

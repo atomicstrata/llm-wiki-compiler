@@ -8,7 +8,7 @@ import { assertSafeSourceId, toRecord } from "../sources/source-record.js";
 import { diskLocalCappedReads } from "../storage/disk-local-reads.js";
 import type { LegacyLocalCappedReads } from "../storage/legacy-local-reads.js";
 import { PathSafetyError } from "./path-safety.js";
-import { declaredSourceImages } from "./api-source-images.js";
+import { declaredSourceImages } from "./source-image-names.js";
 
 /** A preview is deliberately bounded, not a streaming arbitrary-file interface. */
 const SOURCE_PREVIEW_BYTES = 1024 * 1024;

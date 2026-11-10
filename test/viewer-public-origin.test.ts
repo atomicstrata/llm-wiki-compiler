@@ -16,7 +16,7 @@ import type { ViewerSnapshot } from "../src/viewer/types.js";
 
 const PUBLIC_ORIGIN = "https://wiki.example.com";
 /** A registered route that needs no snapshot data: an absent image answers 404, never 403. */
-const DATA_ROUTE = "/api/source-image/absent.png";
+const DATA_ROUTE = "/api/source-image/absent.md/absent.png";
 const FORBIDDEN = 403;
 const NAVIGATION = { "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document" };
 

@@ -29,8 +29,8 @@ async function loadSourceImages(sourceIds: string[]): Promise<SourceImage[]> {
 export function SourceImageFigure({ sourceId, file }: SourceImage): ReactNode {
   return (
     <figure className="source-image">
-      <a href={sourceImageUrl(file)} target="_blank" rel="noreferrer">
-        <img src={sourceImageUrl(file)} alt={`Original image from ${sourceId}`} loading="lazy" />
+      <a href={sourceImageUrl(sourceId, file)} target="_blank" rel="noreferrer">
+        <img src={sourceImageUrl(sourceId, file)} alt={`Original image from ${sourceId}`} loading="lazy" />
       </a>
       <figcaption>
         From <a href={sourceHref(sourceId)}>{sourceId}</a>

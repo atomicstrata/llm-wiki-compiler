@@ -89,7 +89,7 @@ export async function fetchSourceText(id: string): Promise<string> {
   return response.text();
 }
 
-/** URL of an image kept in `sources/images/`. */
-export function sourceImageUrl(file: string): string {
-  return `/api/source-image/${encodeURIComponent(file)}`;
+/** URL of an image a source declares; the server serves it only through that source. */
+export function sourceImageUrl(sourceId: string, file: string): string {
+  return `/api/source-image/${encodeURIComponent(sourceId)}/${encodeURIComponent(file)}`;
 }
