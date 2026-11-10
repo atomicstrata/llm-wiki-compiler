@@ -14,7 +14,7 @@ const PNG = Buffer.from(
   "base64",
 );
 const PAGE = "---\ntitle: Kiln Notes\nsources: [shot.md]\n---\n\n# Kiln Notes\n\nFired at cone 6. ^[shot.md:5]\n\n## Sources\n\n- [Kiln log](shot.md)\n";
-const SOURCE = '---\nimages: ["shot.png"]\n---\n\n![Kiln log](images/shot.png)\n';
+const SOURCE = '---\nimages: ["shot.png"]\n---\n\nKiln log, cone 6.\n';
 
 describe("llmwiki view-v2", () => {
   let root: string;
@@ -50,6 +50,7 @@ describe("llmwiki view-v2", () => {
     expect(page.html).toContain('data-file="shot.md"');
     expect(page.html).toContain('<a href="#/_source/shot.md">Kiln log</a>');
     expect(await (await fetch(url("/api/source/shot.md/content"))).text()).toBe(SOURCE);
+    expect((await (await fetch(url("/api/source/shot.md"))).json()).images).toEqual(["shot.png"]);
     const image = await fetch(url("/api/source-image/shot.png"));
     expect(Buffer.from(await image.arrayBuffer()).equals(PNG)).toBe(true);
   });

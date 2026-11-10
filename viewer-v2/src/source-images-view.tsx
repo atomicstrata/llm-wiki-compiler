@@ -1,29 +1,26 @@
 /**
  * Shows the original images kept by a set of sources.
  *
- * A page cites sources, and a source may keep images. This loads each cited
- * source's text, finds its images, and shows them with a link back to the
- * source. A source whose text cannot be read contributes no images.
+ * A page cites sources, and a source may declare images. This asks the server
+ * for each cited source's metadata and shows the images it lists, each with a
+ * link back to its source.
  */
 import type { ReactNode } from "react";
-import { fetchSourceText, sourceImageUrl } from "./api";
+import { fetchSourceMeta, sourceImageUrl } from "./api";
+import { AsyncView } from "./async-view";
 import { sourceHref } from "./route";
-import { sourceImageNames } from "./source-images";
 import { useAsync } from "./use-async";
-
-/** Upper bound on sources read for one page, so a heavily cited page stays cheap. */
-const MAX_SOURCES_SCANNED = 12;
 
 interface SourceImage {
   sourceId: string;
   file: string;
 }
 
-/** Collect the images of every given source. */
+/** Collect the images every given source declares. */
 async function loadSourceImages(sourceIds: string[]): Promise<SourceImage[]> {
-  const perSource = await Promise.all(sourceIds.slice(0, MAX_SOURCES_SCANNED).map(async (sourceId) => {
-    const text = await fetchSourceText(sourceId).catch(() => "");
-    return sourceImageNames(text).map((file) => ({ sourceId, file }));
+  const perSource = await Promise.all(sourceIds.map(async (sourceId) => {
+    const meta = await fetchSourceMeta(sourceId);
+    return (meta.images ?? []).map((file) => ({ sourceId, file }));
   }));
   return perSource.flat();
 }
@@ -42,14 +39,19 @@ export function SourceImageFigure({ sourceId, file }: SourceImage): ReactNode {
   );
 }
 
-/** The images of all cited sources, or nothing when there are none. */
+/** The images of all cited sources, or nothing when they declare none. */
 export function SourceImages({ sourceIds }: { sourceIds: string[] }): ReactNode {
   const state = useAsync(() => loadSourceImages(sourceIds), sourceIds.join("\n"));
-  if (state.status !== "ready" || state.data.length === 0) return null;
+  // Most pages have no images, so stay quiet while checking; a failure is still shown.
+  if (state.status === "loading") return null;
   return (
-    <section className="source-images" aria-label="Images from cited sources">
-      <h2>Images</h2>
-      {state.data.map((image) => <SourceImageFigure key={`${image.sourceId}/${image.file}`} {...image} />)}
-    </section>
+    <AsyncView state={state}>
+      {(images) => images.length > 0 && (
+        <section className="source-images" aria-label="Images from cited sources">
+          <h2>Images</h2>
+          {images.map((image) => <SourceImageFigure key={`${image.sourceId}/${image.file}`} {...image} />)}
+        </section>
+      )}
+    </AsyncView>
   );
 }

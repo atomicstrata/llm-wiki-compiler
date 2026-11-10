@@ -1,9 +1,11 @@
 /**
- * Read-only image route for originals kept beside ingested sources.
+ * Original images kept beside ingested sources.
  *
  * A source can keep its original images (screenshots, photos, scans) in
- * `sources/images/`. `GET /api/source-image/<file>` serves one of them so a
- * viewer can show the original next to the text the wiki cites.
+ * `sources/images/` and name them in a frontmatter `images:` list.
+ * `declaredSourceImages` reads that list, and `GET /api/source-image/<file>`
+ * serves one image so a viewer can show the original next to the text the
+ * wiki cites.
  *
  * The route follows the same content rules as `/api/source/<id>/content`:
  * bytes are served on a loopback binding only, and every request re-reads the
@@ -15,6 +17,7 @@
 import path from "path";
 import type { ServerResponse } from "http";
 import { readConfinedCappedBuffer } from "../sdk/domain-read.js";
+import { parseFrontmatter } from "../utils/markdown.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
 import { writeJsonError } from "./respond.js";
 
@@ -36,6 +39,33 @@ const SOURCE_IMAGE_CONTENT_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
+/** True when `name` ends in an extension this route serves. */
+function hasServedExtension(name: string): boolean {
+  return Object.hasOwn(SOURCE_IMAGE_CONTENT_TYPES, path.extname(name).toLowerCase());
+}
+
+/** True when `name` is one path segment, with no separator or traversal. */
+function isSingleSegment(name: string): boolean {
+  try {
+    assertSafeSlug(name);
+    return true;
+  } catch (error) {
+    if (error instanceof PathSafetyError) return false;
+    throw error;
+  }
+}
+
+/** True for a name the image route would serve: one safe segment with a served extension. */
+function isSourceImageName(value: unknown): value is string {
+  return typeof value === "string" && hasServedExtension(value) && isSingleSegment(value);
+}
+
+/** The images a source declares in frontmatter `images:`, limited to names this route would serve. */
+export function declaredSourceImages(sourceContent: string): string[] {
+  const declared = parseFrontmatter(sourceContent).meta.images;
+  return Array.isArray(declared) ? declared.filter(isSourceImageName) : [];
+}
+
 /** Serve one image from `sources/images/`, or a JSON error envelope. */
 export async function handleApiSourceImage(
   res: ServerResponse,
@@ -49,8 +79,7 @@ export async function handleApiSourceImage(
     return;
   }
   const file = decodeImageName(pathname);
-  const contentType = file === null ? undefined : SOURCE_IMAGE_CONTENT_TYPES[path.extname(file).toLowerCase()];
-  if (file === null || contentType === undefined) {
+  if (!isSourceImageName(file)) {
     writeJsonError(res, 400, "invalid_source_image", "Invalid source image name.");
     return;
   }
@@ -61,19 +90,16 @@ export async function handleApiSourceImage(
     return;
   }
   res.statusCode = 200;
-  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Type", SOURCE_IMAGE_CONTENT_TYPES[path.extname(file).toLowerCase()]);
   res.end(read.body);
 }
 
-/** Decode the single file-name segment, or null when it is not one safe segment. */
+/** Decode the file-name segment of the route, or null when it is not valid percent-encoding. */
 function decodeImageName(pathname: string): string | null {
-  const encoded = pathname.slice(SOURCE_IMAGE_ROUTE_PREFIX.length);
   try {
-    const file = decodeURIComponent(encoded);
-    assertSafeSlug(file);
-    return file;
+    return decodeURIComponent(pathname.slice(SOURCE_IMAGE_ROUTE_PREFIX.length));
   } catch (error) {
-    if (error instanceof PathSafetyError || error instanceof URIError) return null;
+    if (error instanceof URIError) return null;
     throw error;
   }
 }

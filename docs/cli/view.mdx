@@ -36,17 +36,17 @@ The v2 client shows the page list with a title filter, each page with its citati
 
 ### Source images
 
-A source can keep its original images, such as screenshots or scans, in `sources/images/`. Name them in the source's frontmatter or embed them in its body:
+A source can keep its original images, such as screenshots or scans, in `sources/images/`. Name them in the source's frontmatter:
 
 ```markdown
 ---
 images: ["kiln-log.png"]
 ---
 
-![Kiln log](images/kiln-log.png)
+Fired at cone 6 on Tuesday.
 ```
 
-The v2 client shows a source's images on the source, and on every page that cites it. The server reads them from `GET /api/source-image/<file>`. It serves PNG, JPEG, GIF, and WebP files, and only when the viewer is bound to loopback, like source text.
+The v2 client shows a source's images on the source, and on every page that cites it. The source's metadata at `GET /api/source/<file>` lists them, and `GET /api/source-image/<file>` serves each one. The server serves PNG, JPEG, GIF, and WebP files, and only when the viewer is bound to loopback, like source text.
 
 ## How the viewer picks up changes
 

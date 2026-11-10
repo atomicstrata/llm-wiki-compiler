@@ -1,12 +1,11 @@
 /**
- * One ingested source: its images and its full text with line numbers, so a
+ * One ingested source: the images it declares and its full text with line numbers, so a
  * citation such as `notes.md:12-15` can be checked against the exact lines.
  */
 import { useEffect, useRef, type ReactNode } from "react";
 import { fetchSourceMeta, fetchSourceText, type SourceMeta } from "./api";
 import { AsyncView } from "./async-view";
 import { SourceImageFigure } from "./source-images-view";
-import { sourceImageNames } from "./source-images";
 import { useAsync } from "./use-async";
 
 interface SourceViewProps {
@@ -60,7 +59,7 @@ export function SourceView({ id, lineStart, lineEnd }: SourceViewProps): ReactNo
             <span>{id}</span>
             {meta.locator && <a href={meta.locator} target="_blank" rel="noreferrer">Original</a>}
           </p>
-          {sourceImageNames(text).map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}
+          {(meta.images ?? []).map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}
           <SourceLines text={text} lineStart={lineStart} lineEnd={lineEnd} />
         </article>
       )}

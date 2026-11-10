@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`llmwiki view-v2`: a React client for the viewer.** It serves the same local read-only server and JSON API as `llmwiki view`, with a page list, pages, search, and sources with numbered lines. Selecting a citation chip opens the source at the cited lines.
 - **`--public-origin` for a viewer behind a reverse proxy.** `llmwiki view --public-origin https://wiki.example.com` accepts that origin in `Host` and `Origin`, so a viewer reached through a proxy or tunnel can load its scripts and styles. Other origins are still refused.
 - **Links from a page to its sources.** A Markdown link to a source file, as in each page's `## Sources` list, now opens that source in the viewer. It was previously rendered without a destination.
-- **Source images.** A source can keep original images in `sources/images/` and name them in frontmatter `images:` or a Markdown embed. `GET /api/source-image/<file>` serves them on a loopback binding, and the v2 client shows them on the source and on every page that cites it.
+- **Source images.** A source can keep original images in `sources/images/` and name them in frontmatter `images:`. Source metadata lists them, `GET /api/source-image/<file>` serves them on a loopback binding, and the v2 client shows them on the source and on every page that cites it.
 
 ## [1.5.0] - 2026-10-19
 

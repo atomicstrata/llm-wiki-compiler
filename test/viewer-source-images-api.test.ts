@@ -1,7 +1,8 @@
 /**
- * The source image route serves originals kept in `sources/images/` from a real
- * viewer server: exact bytes on loopback, and nothing for names that are not
- * one safe raster-image file or for a non-loopback binding.
+ * Source images on a real viewer server: source metadata lists the images a
+ * source declares, and the image route serves their exact bytes on loopback and
+ * nothing for names that are not one safe raster-image file or for a
+ * non-loopback binding.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, writeFile } from "fs/promises";
@@ -22,8 +23,8 @@ describe("source image HTTP API", () => {
   let handle: Awaited<ReturnType<typeof startViewerServer>> | undefined;
   afterEach(async () => { await handle?.close(); handle = undefined; });
 
-  async function start(host = "127.0.0.1"): Promise<string> {
-    const snapshot = { root: ctx.dir, sourceFilenames: [] } as unknown as ViewerSnapshot;
+  async function start(host = "127.0.0.1", sourceFilenames: string[] = []): Promise<string> {
+    const snapshot = { root: ctx.dir, sourceFilenames } as unknown as ViewerSnapshot;
     handle = await startViewerServer(snapshot, { host, port: 0 });
     return `http://127.0.0.1:${handle.port}`;
   }
@@ -49,6 +50,15 @@ describe("source image HTTP API", () => {
     const response = await fetch(`${await start()}/api/source-image/${name}`);
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: { code: "invalid_source_image" } });
+  });
+
+  it("lists the images a source declares, keeping only names the route serves", async () => {
+    const declared = '["shot.png", "../secret.png", "nested/shot.png", "drawing.svg", 7]';
+    await writeFile(path.join(ctx.dir, "sources/shot.md"), `---\nimages: ${declared}\n---\nKiln log.\n`);
+    await writeFile(path.join(ctx.dir, "sources/plain.md"), "---\ntitle: Plain\n---\nNo images.\n");
+    const base = await start("127.0.0.1", ["shot.md", "plain.md"]);
+    expect((await (await fetch(`${base}/api/source/shot.md`)).json()).images).toEqual(["shot.png"]);
+    expect(await (await fetch(`${base}/api/source/plain.md`)).json()).not.toHaveProperty("images");
   });
 
   it("reports a missing image without leaking the requested name", async () => {

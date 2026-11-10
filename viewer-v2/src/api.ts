@@ -45,6 +45,8 @@ export interface SourceMeta {
   title?: string;
   health: string;
   locator?: string;
+  /** Files in `sources/images/` this source declares; absent when it declares none. */
+  images?: string[];
 }
 
 /** Read a JSON route, failing on any non-2xx status. */

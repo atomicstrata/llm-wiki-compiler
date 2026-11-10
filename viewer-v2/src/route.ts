@@ -4,7 +4,8 @@
  * The server renders wikilinks as `#/<directory>/<slug>` and source links as
  * `#/_source/<file>`, the same forms the original client uses, so both clients
  * follow the same links. A source route may carry a cited line range as
- * `?start=12&end=15`. `search` is the one route only this client has.
+ * `?start=12&end=15`. `#/_search?q=` is the one route only this client has.
+ * Both reserved segments start with an underscore, which no page directory can.
  */
 
 /** A parsed location inside the viewer. */
@@ -15,10 +16,9 @@ export type Route =
   | { view: "search"; query: string };
 
 const HOME: Route = { view: "home" };
-/** Underscore-prefixed so it can never collide with a profile's entity type. */
 const SOURCE_SEGMENT = "_source";
 const WHOLE_NUMBER = /^\d+$/;
-const SEARCH_SEGMENT = "search";
+const SEARCH_SEGMENT = "_search";
 
 /** Parse `location.hash` into a route; anything malformed is the home route. */
 export function parseRoute(hash: string): Route {

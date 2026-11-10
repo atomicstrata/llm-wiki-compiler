@@ -4,10 +4,7 @@
   "description": "Compile documents into a persistent, cited knowledge wiki for AI agents. CLI, MCP server, and TypeScript SDK.",
   "mcpName": "io.github.atomicstrata/llmwiki",
   "type": "module",
-  "workspaces": [
-    "packages/llmwiki-core",
-    "packages/llmwiki-local-workflows"
-  ],
+  "workspaces": ["packages/llmwiki-core", "packages/llmwiki-local-workflows"],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -21,8 +18,8 @@
     "llmwiki": "dist/cli.js"
   },
   "scripts": {
-    "build": "npm run build:viewer-v2 && tsup",
-    "build:viewer-v2": "tsc --noEmit -p viewer-v2 && vite build --config viewer-v2/vite.config.ts",
+    "build": "npm run typecheck:viewer-v2 && tsup",
+    "typecheck:viewer-v2": "tsc --noEmit -p viewer-v2",
     "dev:view-v2": "vite --config viewer-v2/vite.config.ts",
     "dev": "tsup --watch src --watch scripts --watch tsconfig.json --watch \"packages/*/package.json\" --watch \"packages/*/tsup.config.ts\"",
     "benchmark:review": "node scripts/benchmark-review-batch.mjs",
@@ -130,12 +127,8 @@
     "@smithy/node-http-handler": "^4.12.1"
   },
   "peerDependenciesMeta": {
-    "@aws-sdk/client-bedrock-runtime": {
-      "optional": true
-    },
-    "@smithy/node-http-handler": {
-      "optional": true
-    }
+    "@aws-sdk/client-bedrock-runtime": { "optional": true },
+    "@smithy/node-http-handler": { "optional": true }
   },
   "volta": {
     "node": "24.16.0"
