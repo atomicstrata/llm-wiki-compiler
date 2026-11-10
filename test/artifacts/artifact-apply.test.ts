@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import path from "path";
 import { readFile, writeFile, rm, mkdir, readdir, symlink, readlink, open, access } from "fs/promises";
 import { makeResearchLikeRoot } from "../fixtures/artifact-root.js"; // profile with the experiment-result artifact

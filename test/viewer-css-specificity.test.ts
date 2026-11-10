@@ -18,7 +18,7 @@
  * for looking at the page.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 

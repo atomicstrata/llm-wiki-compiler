@@ -17,7 +17,7 @@
  *    class of leak once already.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeCandidate, writeFreshCandidate } from "../src/compiler/candidates.js";

@@ -3,7 +3,7 @@
  * @description Closed broker-registry, request-envelope, and host-minted
  * receipt grammar tests for Provider V2 Task 6.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import {
   createHostBrokerRegistry, listHostBrokerContracts, resolveHostBrokerContract,

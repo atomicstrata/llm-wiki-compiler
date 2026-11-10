@@ -4,7 +4,7 @@
  * order rather than locale collation or filesystem enumeration order.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   compareCandidateFileIdsUtf8,
   listCandidateFileEntries,

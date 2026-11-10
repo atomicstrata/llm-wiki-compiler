@@ -13,7 +13,7 @@
  * brand is a module-private WeakSet, not because the process is adversary-proof.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assertLifecycleMutationPermit, mintLifecycleMutationPermit,
   type LifecycleMutationPermitV1,

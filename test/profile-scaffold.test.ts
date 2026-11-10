@@ -3,7 +3,7 @@
  * @description Verifies the deterministic beginner profile scaffold.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   buildStarterProfile,
   canonicalStarterProfileJson,

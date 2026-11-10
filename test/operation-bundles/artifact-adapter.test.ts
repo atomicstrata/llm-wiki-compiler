@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { artifactAdapter } from "../../src/operation-bundles/adapters/artifact.js";
 import { appendBoundEventLocked } from "../../src/events/store.js";
 import { artifactPaths, hashArtifactBody, writeArtifactFiles, type ArtifactManifest } from "../../src/artifacts/store.js";

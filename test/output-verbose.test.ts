@@ -7,7 +7,7 @@
  *  3. quiet wins over verbose (quiet suppresses output even when verbose is on)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import {
   setVerbose,
   setQuiet,

@@ -2,7 +2,7 @@
  * @file test/profile-template-signing-verify.test.ts
  * @description Native Ed25519 tap and publisher verification regressions.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { advancePublisherPins, emptyPublisherPinState } from "../src/profile/templates/signing/continuity.js";
 import { verifySignedPackage, verifyTapIndex, verifyTapKeyRotation } from "../src/profile/templates/signing/verify.js";
 import { COORDINATE, TAP_KEY, TAP_KEY_2, parsedIndex, parsedPackage, signedIndex, signedTapRotation } from "./fixtures/template-signing.js";

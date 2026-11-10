@@ -11,7 +11,7 @@
  * clause.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import { useFileProject } from "./fixtures/file-project.js";
 

@@ -24,7 +24,7 @@
  * co-commit assertion would mis-state the guarantee.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

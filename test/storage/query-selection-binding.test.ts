@@ -22,7 +22,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "bun:test";
 import { selectRelevantPagesFrom } from "../../src/commands/query-selection.js";
 import { loadProfile } from "../../src/profile/load.js";
 import type { LoadedProfile, ProfilePack } from "../../src/profile/types.js";
@@ -147,7 +147,7 @@ describe("query page selection over live page reads", () => {
       ],
       reasoning: "test", chunks: [], warnings: [],
     });
-    const prompt = vi.mocked(callClaude).mock.lastCall![0].messages[0]!.content as string;
+    const prompt = (callClaude as unknown as Mock<typeof callClaude>).mock.lastCall![0].messages[0]!.content as string;
     expect(prompt).toContain("- **concepts/alpha**: Alpha — as\n- **papers/p-one**: Paper One — ps");
     expect(prompt).not.toContain("CACHED");
   });

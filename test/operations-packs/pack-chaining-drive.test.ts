@@ -14,7 +14,7 @@
  * intent phase genuinely consumes phase 1's output rather than the action input.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";

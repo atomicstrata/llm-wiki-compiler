@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import {
   COORDINATE,

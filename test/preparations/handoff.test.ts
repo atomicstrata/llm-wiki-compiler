@@ -9,7 +9,7 @@
  * closed without creating a bundle.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { handoffPreparation, HandoffError } from "../../src/preparations/handoff.js";

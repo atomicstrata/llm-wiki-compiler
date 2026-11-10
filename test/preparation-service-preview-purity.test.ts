@@ -27,7 +27,7 @@
  * acquire it — and `stage`, in the same fixture, refuses.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { createPreparationService } from "../src/preparations/service.js";
 import type { PreparationServiceV1, PreviewRequestV1 } from "../src/preparations/service.js";

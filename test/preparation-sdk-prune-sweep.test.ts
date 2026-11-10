@@ -19,7 +19,7 @@
  */
 
 import { readFile, rm } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { PreparationGrant } from "../src/preparations/service.js";
 import { preparationPaths, preparationPruneUnitPaths } from "../src/preparations/paths.js";

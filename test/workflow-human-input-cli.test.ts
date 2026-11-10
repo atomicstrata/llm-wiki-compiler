@@ -5,7 +5,7 @@
  * through the same core admission and host-stamped envelope as the SDK surface.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

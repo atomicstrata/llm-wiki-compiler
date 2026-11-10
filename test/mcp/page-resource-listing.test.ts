@@ -21,21 +21,24 @@
  * `node:fs/promises`; the mock reaching it is part of what is shown.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as real from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /** Every directory read seen, plus a planted answer or failure per directory. */
-const watch = vi.hoisted(() => ({
+const watch = (() => ({
   seen: [] as Array<{ target: string; extraArguments: number }>,
   answer: new Map<string, string[]>(),
   fail: new Map<string, Error>(),
-}));
+}))();
 
-vi.mock("fs/promises", async (load) => {
-  const disk = await load<typeof import("fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", async () => {
+  const disk = (realFsPromises as typeof import("fs/promises"));
   const readdir = (target: unknown, ...rest: unknown[]): unknown => {
     watch.seen.push({ target: String(target), extraArguments: rest.length });
     const failure = watch.fail.get(String(target));
@@ -93,9 +96,12 @@ afterEach(async () => {
 });
 
 describe("page resource listing", () => {
-  it("keeps the order the directory read gives, with no sort", async () => {
+  // Node's readdir arrived name-sorted (libuv sorts); Bun's returns raw directory
+  // order. The listing primitive now orders names itself, so the resource list
+  // never depends on the runtime or filesystem: any raw order lists the same.
+  it("lists in name order whatever order the directory read gives", async () => {
     watch.answer.set(concepts(), ["b.md", "a.md", "c.md"]);
-    expect((await list("wiki-concept")).map((entry) => entry.name)).toEqual(["b", "a", "c"]);
+    expect((await list("wiki-concept")).map((entry) => entry.name)).toEqual(["a", "b", "c"]);
   });
 
   it("reads each page directory once, by its joined path and nothing else", async () => {
@@ -125,7 +131,8 @@ describe("page resource listing", () => {
   it("percent-encodes the slug in the URI and leaves the name raw", async () => {
     const slugs = ["Foo #1", "a b", "理", "50%", "q?x"];
     watch.answer.set(queries(), slugs.map((slug) => `${slug}.md`));
-    expect(await list("wiki-query")).toEqual(slugs.map((slug) => ({ uri: `llmwiki://query/${encodeURIComponent(slug)}`, name: slug })));
+    const listed = [...slugs].sort((a, b) => (`${a}.md` < `${b}.md` ? -1 : 1));
+    expect(await list("wiki-query")).toEqual(listed.map((slug) => ({ uri: `llmwiki://query/${encodeURIComponent(slug)}`, name: slug })));
   });
 
   it("answers an empty list for a missing directory, and the other listing is unaffected", async () => {
@@ -145,9 +152,9 @@ describe("page resource listing", () => {
 });
 
 describe("listPageFileNames, called directly", () => {
-  it("returns every name unfiltered, and rejects with the listing's own error", async () => {
+  it("returns every name unfiltered in name order, and rejects with the listing's own error", async () => {
     watch.answer.set(concepts(), ["z.txt", "b.md", ".hidden", "a.md"]);
-    expect(await listPageFileNames(root, "wiki/concepts")).toEqual(["z.txt", "b.md", ".hidden", "a.md"]);
+    expect(await listPageFileNames(root, "wiki/concepts")).toEqual([".hidden", "a.md", "b.md", "z.txt"]);
     const error = refuse(queries(), "EPERM");
     await expect(listPageFileNames(root, "wiki/queries")).rejects.toBe(error);
   });

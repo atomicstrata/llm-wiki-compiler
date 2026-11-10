@@ -3,7 +3,7 @@
  * Uses the real candidate journal, approval command, and wiki files; only the
  * external embedding backend is replaced to keep the test offline.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { writeCandidate } from "../src/compiler/candidates.js";

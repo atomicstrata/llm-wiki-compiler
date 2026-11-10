@@ -41,9 +41,13 @@ jobs:
         with:
           ref: ${{ inputs.public_sha }}
           fetch-depth: 0
+      # npm stays only as the registry client for `npm view`.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
       - name: Bind the entry to the tagged and published npm artifact
         shell: bash
         run: |
@@ -51,11 +55,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
           test "$(git rev-parse "v${RELEASE_VERSION}^{commit}")" = "$RELEASE_SHA"
           git merge-base --is-ancestor "$RELEASE_SHA" origin/main
-          test "$(node -p 'require("./package.json").version')" = "$RELEASE_VERSION"
+          test "$(jq -r .version package.json)" = "$RELEASE_VERSION"
           npm view "llm-wiki-compiler@${RELEASE_VERSION}" version gitHead mcpName --json > npm-release.json
           jq -e --arg sha "$RELEASE_SHA" --arg version "$RELEASE_VERSION" \
             '.version == $version and .gitHead == $sha and .mcpName == "io.github.atomicstrata/llmwiki"' npm-release.json
-          node scripts/mcp-manifest.mjs > server.json
+          bun scripts/mcp-manifest.mjs > server.json
       - name: Install pinned MCP publisher
         shell: bash
         run: |

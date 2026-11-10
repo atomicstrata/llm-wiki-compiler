@@ -8,7 +8,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 const ROOT = process.cwd();
 const PREPARATIONS = path.join(ROOT, "src", "preparations");

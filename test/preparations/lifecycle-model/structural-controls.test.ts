@@ -18,7 +18,7 @@ import path from "node:path";
 import {
   importedSpecifiers, importsNodeFilesystem, referencesSymbol, withoutComments,
 } from "./source-text.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   CURRENT_FILESYSTEM_OWNERS, EXPECTED_MODULE_ROLES, LIFECYCLE_MODULE_OWNERSHIP,
 } from "./module-ownership.js";

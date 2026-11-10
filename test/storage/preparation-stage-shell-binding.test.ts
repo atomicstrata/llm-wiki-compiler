@@ -18,7 +18,7 @@
  * the stage, preview-purity and plan suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import * as preview from "../../src/preparations/preview.js";
 import * as readiness from "../../src/preparations/service-readiness.js";

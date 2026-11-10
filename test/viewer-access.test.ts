@@ -1,5 +1,5 @@
 /** Access responses expose only declared metadata and gate bytes independently. */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, symlink } from "fs/promises";
 import path from "path";
 import { useTempRoot } from "./fixtures/temp-root.js";

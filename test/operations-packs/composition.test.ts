@@ -7,7 +7,7 @@
  * provider phase or the workspace contract), and a deferred configuration-flow reference.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { composeSingleRoot } from "../../src/operations-packs/composition.js";
 import { parseOperationsPack } from "../../src/operations-packs/parse.js";
 import { PackDeferredError, PackParseError } from "../../src/operations-packs/problems.js";

@@ -5,7 +5,7 @@
  * and the --target filter.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

@@ -9,7 +9,7 @@
 import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import os from "os";
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi } from "bun:test";
 
 /** Options controlling which source file is seeded in the project root. */
 export interface CompileProjectOptions {

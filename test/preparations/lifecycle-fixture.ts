@@ -16,7 +16,7 @@ import path from "node:path";
 import { PREPARATION_PRUNE_REGISTRY } from "../../src/preparations/paths.js";
 import { prunePreparationRunLocked, sweepPreparationOrphansLocked } from "../../src/preparations/retention.js";
 import { pruneUnitIdFor } from "../../src/preparations/prune-delete.js";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { preparationManifestDigest } from "../../src/preparations/manifest-parse.js";
 import { readPreparationKey } from "../../src/preparations/key-epoch.js";
 import { preparationKeyFile, preparationPaths } from "../../src/preparations/paths.js";

@@ -11,7 +11,7 @@
  * mock identity.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   comparableFile, comparableLink, comparableOutput, comparablePath,
   EMBEDDING_MODEL, expectedEmbeddingFingerprint, type RunIdentity,

@@ -30,7 +30,7 @@
  * carries the service half.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import {
   assertStageCapacity, StageCapacityError, type StageCapacityProjection,

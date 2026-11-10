@@ -3,7 +3,7 @@
  * @description Adversarial Provider logical-ID snapshot capture coverage for
  * bounded indexed copying, caller-controlled iteration, and fixed refusals.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import * as limits from "../../src/capability-providers/constants.js";
 import {
   parseInputId,

@@ -6,7 +6,7 @@
  * files copied under references/, stale pages removed on re-export, and
  * path-traversal slugs rejected.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, access } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

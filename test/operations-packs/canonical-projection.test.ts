@@ -18,7 +18,7 @@
  * same defect waiting to reappear.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { reconcileEvidence } from "../../src/operations-packs/handlers/reconcile.js";
 import type { PackEvidenceItemV1, PackReconcileInputV1 } from "../../src/operations-packs/handlers/types.js";
 import type { PackProjectionV2 } from "../../src/operations-packs/recipe-types.js";

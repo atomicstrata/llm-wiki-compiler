@@ -16,7 +16,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { CLI } from "./fixtures/run-cli.js";
 import { isQuiet, setQuiet } from "../src/utils/output.js";
 

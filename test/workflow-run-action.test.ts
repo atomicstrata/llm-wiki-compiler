@@ -12,7 +12,7 @@
  * read-only surface failing a staged-write op is a denial, not a coincidence.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installRunActionProfile, runActionProfile, plantLocalConfig } from "./fixtures/run-action-profile.js";
 import { runAction } from "../src/workflows/run-action.js";

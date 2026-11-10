@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { collectTemplateStatus } from "../src/profile/templates/status.js";
 import { planRemoteTemplateUpdate } from "../src/profile/templates/remote-lifecycle.js";
 import { applyRemoteTemplateUpdate } from "../src/profile/templates/update-apply.js";

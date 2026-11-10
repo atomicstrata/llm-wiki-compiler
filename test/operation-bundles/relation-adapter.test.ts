@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { relationAdapter } from "../../src/operation-bundles/adapters/relation.js";
 import { relationContentHash } from "../../src/relations/digest.js";
 import { appendLine, appendRelation, buildRelationRef } from "../../src/relations/store.js";

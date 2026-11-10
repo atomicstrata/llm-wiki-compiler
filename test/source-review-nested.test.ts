@@ -1,5 +1,5 @@
 /** Nested candidate identities survive approval without relaxing path confinement. */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import { rm, writeFile, unlink, symlink } from "node:fs/promises";
 import path from "node:path";
 import { createDemo } from "./fixtures/source-review-project.js";

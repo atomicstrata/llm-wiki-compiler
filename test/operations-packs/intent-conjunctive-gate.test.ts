@@ -16,7 +16,7 @@
  * relation type in one evidence set, each group drafting exactly its own.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compileIntents } from "../../src/operations-packs/handlers/intent-compile.js";
 import type { IntentPhaseBodyV2 } from "../../src/operations-packs/recipe-types.js";
 import type { PackEvidenceItemV1, PackHandlerBoundsV1, PackHostIdentitiesV1 } from "../../src/operations-packs/handlers/types.js";

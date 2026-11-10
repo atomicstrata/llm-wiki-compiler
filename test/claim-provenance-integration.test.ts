@@ -1,15 +1,15 @@
 /**
  * CLI-level integration tests for claim-level provenance lint rules.
  *
- * These tests run `node dist/cli.js lint` against temporary wiki fixtures
+ * These tests run `bun dist/cli.js lint` against temporary wiki fixtures
  * and assert on exit codes and stdout content. They cover the two new rules
  * (`broken-citation` with span suffixes and `malformed-claim-citation`) as
  * well as backward-compat scenarios where no new findings should appear.
  *
- * dist/cli.js is built once via the vitest globalSetup in test/global-setup.ts.
+ * dist/cli.js is built once by `bun run test` before the suite starts.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
@@ -37,7 +37,7 @@ async function writeSource(root: string, name: string, content: string): Promise
 /** Run `llmwiki lint` in a given directory. Returns stdout and exit code. */
 async function runLint(cwd: string): Promise<{ stdout: string; exitCode: number }> {
   try {
-    const { stdout } = await exec("node", [CLI, "lint"], { cwd });
+    const { stdout } = await exec("bun", [CLI, "lint"], { cwd });
     return { stdout: stripAnsi(stdout), exitCode: 0 };
   } catch (err: unknown) {
     const error = err as { stdout?: string; code?: number };

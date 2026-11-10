@@ -14,7 +14,7 @@
  * and embedding requests hit the same aimock server.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readFile, readdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

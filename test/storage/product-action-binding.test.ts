@@ -20,7 +20,7 @@
  * product binding, package, evidence capture and compiler suites show those.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as manifestAuthority from "../../src/products/binding/manifest-authority.js";
 import { ProductBindingError } from "../../src/products/binding/problems.js";
 import * as binding from "../../src/products/binding/resolve.js";

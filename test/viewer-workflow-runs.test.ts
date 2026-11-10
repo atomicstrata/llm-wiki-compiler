@@ -10,7 +10,7 @@
  * runs returns an empty list while the existing routes keep working unchanged.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { makeOutsideDir } from "./fixtures/outside-dir.js";
 import { installWorkflowProfile, WORKFLOW_PROFILE } from "./fixtures/workflow-profile.js";

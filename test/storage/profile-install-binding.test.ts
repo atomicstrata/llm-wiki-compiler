@@ -17,7 +17,7 @@
 
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "bun:test";
 import { ProfileScaffoldError, buildStarterProfile, installStarterProfile, installStarterProfileLockedWith, type StarterProfileInstallSteps } from "../../src/profile/scaffold.js";
 import { isTypedCorpusEmptyFrom, type TypedCorpusReads } from "../../src/profile/templates/corpus.js";
 import { installPackageLockedWith, type TemplateInstallSteps } from "../../src/profile/templates/install.js";

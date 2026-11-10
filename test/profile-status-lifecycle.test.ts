@@ -11,7 +11,7 @@
  * when no entity type declares a lifecycle, so default envelopes stay identical).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

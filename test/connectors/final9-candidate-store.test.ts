@@ -8,7 +8,7 @@
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { CandidateMutationSelectionHooks } from "../../src/compiler/candidate-selection.js";
 import { runConnector, type RunConnectorDeps } from "../../src/connectors/run.js";
 import { readEvents } from "../../src/events/store-read.js";

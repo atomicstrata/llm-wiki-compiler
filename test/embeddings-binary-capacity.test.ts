@@ -5,14 +5,15 @@
  */
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { binaryFixture } from "./fixtures/binary-embedding-store.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { writeEmbeddingStore, EmbeddingStoreFullError, type EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";
 import { encodeBinaryStore, decodeBinaryStore } from "../src/utils/embeddings-binary.js";
 
 const ctx = useConfinementRoots("binary-capacity");
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => restoreEnv());
 
 /** Each fixture exceeds one binding limit while retaining valid logical fields. */
 function oversizedStore(kind: string): EmbeddingStoreV3 {
@@ -31,7 +32,7 @@ function oversizedStore(kind: string): EmbeddingStoreV3 {
 }
 
 it.each(["metadata", "payload"])("preserves the prior binary when %s exceeds its limit", async (kind) => {
-  vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
+  stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
   await writeEmbeddingStore(ctx.root, binaryFixture());
   const directory = path.join(ctx.root, ".llmwiki");
   const file = path.join(directory, "embeddings.bin");

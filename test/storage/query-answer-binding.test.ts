@@ -37,9 +37,7 @@
 
 import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-// The hoisted `vi.mock` calls below run before this import is initialized, so each factory
-// refers to `passThrough` only inside its body, which runs when the mocked module is first imported.
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from "bun:test";
 import { passThrough } from "./pass-through-mock.js";
 // First, so the llm mock factory below can use it whichever module first imports the llm.
 import { offeringCallClaudeModule } from "../fixtures/typed-grounding.js";
@@ -61,18 +59,25 @@ import {
   writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-const offered = vi.hoisted(() => ({ offered: [] as string[] }));
+const offered = (() => ({ offered: [] as string[] }))();
+// Snapshot real modules before mock.module replaces them for this file.
+const realQuerySelection = { ...(await import("../../src/commands/query-selection.js")) };
+const realRetrieval = { ...(await import("../../src/search/retrieval.js")) };
+const realQueryCitationReport = { ...(await import("../../src/commands/query-citation-report.js")) };
+const realQueryPublication = { ...(await import("../../src/commands/query-publication.js")) };
+const realActivityLog = { ...(await import("../../src/utils/activity-log.js")) };
+
 vi.mock("../../src/utils/llm.js", () => offeringCallClaudeModule(offered));
 
-vi.mock("../../src/commands/query-selection.js", (original) => passThrough("selectRelevantPages")(original));
-vi.mock("../../src/search/retrieval.js", (original) => passThrough("loadSelectedRefRecords")(original));
-vi.mock("../../src/commands/query-citation-report.js", (original) => passThrough("reportQueryAnswerCitations")(original));
-vi.mock("../../src/commands/query-publication.js", (original) => passThrough("maybeSaveQueryPage")(original));
-vi.mock("../../src/utils/activity-log.js", (original) => passThrough("appendLog")(original));
+vi.mock("../../src/commands/query-selection.js", () => passThrough(realQuerySelection, "selectRelevantPages"));
+vi.mock("../../src/search/retrieval.js", () => passThrough(realRetrieval, "loadSelectedRefRecords"));
+vi.mock("../../src/commands/query-citation-report.js", () => passThrough(realQueryCitationReport, "reportQueryAnswerCitations"));
+vi.mock("../../src/commands/query-publication.js", () => passThrough(realQueryPublication, "maybeSaveQueryPage"));
+vi.mock("../../src/utils/activity-log.js", () => passThrough(realActivityLog, "appendLog"));
 
 /** The five root-taking steps the root route calls, in body order. */
 const ROOT_STEPS = [selectRelevantPages, loadSelectedRefRecords, reportQueryAnswerCitations, maybeSaveQueryPage, appendLog]
-  .map((step) => vi.mocked(step as (...args: never[]) => unknown));
+  .map((step) => step as unknown as Mock<(...args: never[]) => unknown>);
 
 const PREFIX = "query-answer-binding-";
 const QUESTION = "How do alpha and beta relate?";

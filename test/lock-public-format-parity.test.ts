@@ -3,7 +3,7 @@
  * runtime epoch identity. No legacy reader must interpret an epoch as ps text.
  */
 import { execFileSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   classifyOwnerLiveness, isLockRecordStale, parseOwner, readProcessStartTime, serializeOwner,
 } from "../src/utils/lock-owner.js";

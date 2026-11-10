@@ -23,7 +23,7 @@
 import type { Dirent } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { expect, vi } from "vitest";
+import { expect, vi } from "bun:test";
 import * as output from "../../src/utils/output.js";
 import type { TempRootTrackerV1 } from "../temp-roots.js";
 import { mintCopiedBeforeAsk, mintOnceThenRemove, writeFiles, type Minted } from "./copied-project.js";

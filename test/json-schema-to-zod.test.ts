@@ -6,7 +6,7 @@
  * keys, enums, nested objects/arrays, and the unknown-type fallback.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { z } from "zod";
 import { jsonSchemaToZodShape } from "../src/providers/json-schema-to-zod.js";
 

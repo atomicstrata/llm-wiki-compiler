@@ -13,7 +13,8 @@
  * spy on that facade would no longer see the write.
  */
 import path from "node:path";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import * as guarded from "../src/storage/disk-guarded-leaves.js";
 import {
@@ -30,7 +31,7 @@ const PAGES = ["a-healthy", "b-poison", "c-later"];
 useEmbeddingRefreshEnvironment();
 
 beforeEach(async () => {
-  vi.stubEnv("LLMWIKI_EMBED_BATCH_SIZE", "1");
+  stubEnv("LLMWIKI_EMBED_BATCH_SIZE", "1");
   for (const slug of PAGES) await writeEmbeddingTestPage(ctx.dir, slug);
 });
 
@@ -73,7 +74,7 @@ it("charges only the failing chunk request's page after the page pass succeeded"
 });
 
 it("charges only the terminally failing single request after a transient batch fallback", async () => {
-  vi.stubEnv("LLMWIKI_EMBED_BATCH_SIZE", "10");
+  stubEnv("LLMWIKI_EMBED_BATCH_SIZE", "10");
   const transient = Object.assign(new Error("service unavailable"), { status: 503 });
   vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockRejectedValue(transient);
   vi.spyOn(OpenAIProvider.prototype, "embed").mockImplementation(async text => {
@@ -85,12 +86,12 @@ it("charges only the terminally failing single request after a transient batch f
 });
 
 it("charges nobody when the run fails before any provider request, and still reports it", async () => {
-  vi.stubEnv("OPENAI_API_KEY", "");
+  stubEnv("OPENAI_API_KEY", "");
   const provider = vi.spyOn(OpenAIProvider.prototype, "embedBatch");
   await refresh();
   expect(provider).not.toHaveBeenCalled();
   expect(Object.values(await attempts())).toEqual([0, 0, 0]);
-  vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+  stubEnv("LLMWIKI_EMBED_STRICT", "on");
   await expect(refresh()).rejects.toThrow();
 });
 
@@ -157,7 +158,7 @@ it("settles once: a failed settlement write is reported, never followed by a sec
   vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockImplementation(async texts => texts.map(() => [0.5, 0.5]));
   // A successful run settles by clearing the pending file; refuse exactly that unlink. The pre-charges still persist.
   swallowMarkerWrites(PENDING_EMBEDDINGS_FILE, ["remove"]);
-  vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+  stubEnv("LLMWIKI_EMBED_STRICT", "on");
   await expect(refresh()).rejects.toThrow(/could not be settled/);
   expect(Object.values(await attempts())).toEqual([1, 1, 1]);
 });

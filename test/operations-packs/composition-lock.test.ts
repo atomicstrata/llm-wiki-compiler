@@ -7,7 +7,7 @@
  * evidence, not permission. A structurally malformed lock fails closed distinctly.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   parseCompositionLock, recomputeCompositionLock, verifyCompositionLock,
 } from "../../src/operations-packs/composition-lock.js";

@@ -36,7 +36,7 @@
 
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { EventReadSources } from "../../src/events/store-read.js";
 import { checkJournalHealth, checkJournalHealthFrom } from "../../src/linter/journal-rule.js";
 import { checkPendingEmbeddings, checkPendingEmbeddingsFrom } from "../../src/linter/pending-embeddings-rule.js";

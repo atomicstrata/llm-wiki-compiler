@@ -1,7 +1,7 @@
 /** Persistent quarantine diagnostics must reach real read surfaces without modifying retry state. */
 import { readFile, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { collectStatus } from "../src/status/collect.js";
 import { lint } from "../src/linter/index.js";
 import { writePendingEmbeddings } from "../src/utils/pending-embeddings.js";

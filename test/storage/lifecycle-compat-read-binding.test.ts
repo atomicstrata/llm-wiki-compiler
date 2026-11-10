@@ -17,7 +17,7 @@
  * and read suites show the projections over real registries.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   listQuarantineUnitsFromRoot, quarantineUnitListingOf, quarantineUnitPendingFromRoot, quarantineUnitPendingOf,
 } from "../../src/preparations/lifecycle-snapshot/compat.js";

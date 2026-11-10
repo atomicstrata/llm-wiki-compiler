@@ -1,19 +1,18 @@
 ---
-title: "Installing llmwiki: npm Setup and Provider Configuration"
+title: "Installing llmwiki: Bun Setup and Provider Configuration"
 sidebarTitle: "Installation"
-description: "Install llmwiki globally with npm and configure Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, Claude Agent SDK, or Codex CLI."
+description: "Install llmwiki globally with Bun and configure Anthropic, OpenAI-compatible, Ollama, GitHub Copilot, Claude Agent SDK, or Codex CLI."
 ---
 
-llmwiki is a Node.js CLI that you install once globally with npm. After installation, you point it at an LLM provider by setting a handful of environment variables - or in some cases, no variables at all if you're already logged into Claude Code. This page covers the full installation process and every supported provider.
+llmwiki is a Bun CLI that you install once globally with `bun add --global`. After installation, you point it at an LLM provider by setting a handful of environment variables - or in some cases, no variables at all if you're already logged into Claude Code. This page covers the full installation process and every supported provider.
 
 ## Requirements
 
 <Warning>
-  llmwiki requires **Node.js >= 24**. This is a hard minimum - the package will not run on earlier versions. Check your current version with `node --version` and update via [nodejs.org](https://nodejs.org) or a version manager (`nvm`, `fnm`) if needed.
+  llmwiki requires **Bun >= 1.3**. This is a hard minimum - the package will not run on earlier versions. Check your current version with `bun --version` and install or upgrade via [bun.sh](https://bun.sh) (`bun upgrade`) if needed.
 </Warning>
 
-- **Node.js >= 24** (see warning above)
-- **npm** (bundled with Node.js)
+- **Bun >= 1.3** (see warning above)
 - **Provider credentials** - required for compile and query; ingest is credential-free (see [Provider Setup](#provider-setup) below)
 
 ## Install llmwiki
@@ -38,7 +37,7 @@ Linux for untrusted projects; the Windows CI work remains open.
 Install the `llm-wiki-compiler` package globally. The package registers the `llmwiki` binary on your `PATH`:
 
 ```bash
-npm install -g llm-wiki-compiler
+bun add --global llm-wiki-compiler
 ```
 
 ### Upgrading to 1.5.0
@@ -46,7 +45,7 @@ npm install -g llm-wiki-compiler
 The command above installs the stable `1.5.0` release from the npm `latest` dist-tag. To pin it, install it by exact version:
 
 ```bash
-npm install -g llm-wiki-compiler@1.5.0
+bun add --global llm-wiki-compiler@1.5.0
 ```
 
 `1.5.0` separates wiki behavior from local file I/O, adds the [Converse gateway provider](/configuration/providers), the [`--no-pages-limit`](/cli/compile) extraction mode, and viewer refresh with `LLMWIKI_VIEW_PORT`, and fixes several compile, MCP and freshness issues. Existing projects open without a migration or new setting: the directory layout, file formats and defaults are unchanged. Back up a wiki you care about before upgrading. See the [upgrade notes](/guides/sdk-upgrade) for details.

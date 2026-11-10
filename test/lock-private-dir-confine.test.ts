@@ -14,7 +14,7 @@
  * `applyApprovedMutations` over a symlinked `.llmwiki` writes NOTHING out of tree.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdir, rm, symlink, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";

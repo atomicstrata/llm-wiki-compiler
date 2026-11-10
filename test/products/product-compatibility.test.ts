@@ -8,7 +8,7 @@
  * without asserting anything about providers, credentials, or grants.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assessStructuralCompatibility, HOST_DECLARED_CONTRACT_SET, type StructuralCompatibilityInputsV1,
 } from "../../src/products/compatibility.js";

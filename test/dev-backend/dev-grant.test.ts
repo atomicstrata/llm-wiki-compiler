@@ -19,7 +19,7 @@
  * confirmation from any other scope reddens every case here.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { resolveEffectiveProviderGrant } from "../../src/capability-providers/authority/grants-resolve.js";
 import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";

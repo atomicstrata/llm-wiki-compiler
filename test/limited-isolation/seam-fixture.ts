@@ -15,7 +15,7 @@
  * any pack-side execution, not for one product's vocabulary.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

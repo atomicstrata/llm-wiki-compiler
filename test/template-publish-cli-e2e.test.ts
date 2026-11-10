@@ -14,7 +14,7 @@
 import { spawnSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 
 const CLI = path.resolve("dist/cli.js");

@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { AUTOSCI_TEMPLATE } from "../src/profile/templates/builtin/autosci.js";
 import { getBuiltinTemplate } from "../src/profile/templates/registry.js";
 

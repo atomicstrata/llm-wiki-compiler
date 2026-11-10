@@ -8,7 +8,7 @@
  * unchanged by the ordering.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, type Mock } from "bun:test";
 
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 
@@ -17,15 +17,15 @@ const INDEX = "- concepts/alpha: Alpha summary\n- concepts/beta: Beta summary";
 /** User message of the n-th recorded selection call. */
 async function userMessageOf(call: number): Promise<string> {
   const { callClaude } = await import("../src/utils/llm.js");
-  const request = vi.mocked(callClaude).mock.calls[call][0] as { messages: Array<{ content: string }> };
+  const request = (callClaude as unknown as Mock<typeof callClaude>).mock.calls[call][0] as { messages: Array<{ content: string }> };
   return request.messages[0].content;
 }
 
 describe("selectPages prompt ordering", () => {
   beforeEach(async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    vi.mocked(callClaude).mockReset();
-    vi.mocked(callClaude).mockResolvedValue(JSON.stringify({ pages: ["concepts/alpha"], reasoning: "r" }));
+    (callClaude as unknown as Mock<typeof callClaude>).mockReset();
+    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue(JSON.stringify({ pages: ["concepts/alpha"], reasoning: "r" }));
   });
 
   it("gives two different questions over the same index an identical prefix through the index", async () => {

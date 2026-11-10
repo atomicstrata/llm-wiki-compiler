@@ -41,7 +41,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { scanPreparationInventoryFrom, type PreparationInventoryReads } from "../../src/preparations/capacity.js";
 import { MAX_PREPARATION_MANIFEST_BYTES, MAX_PREPARATION_RUN_BYTES } from "../../src/preparations/constants.js";
 import type { PreparationId } from "../../src/preparations/ids.js";

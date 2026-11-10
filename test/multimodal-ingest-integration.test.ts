@@ -1,7 +1,7 @@
 /**
  * CLI-level integration tests for the multimodal ingest command.
  *
- * These tests exercise the full CLI code path — spawning `node dist/cli.js
+ * These tests exercise the full CLI code path — spawning `bun dist/cli.js
  * ingest <file>` — for each supported source type, verifying that routing,
  * frontmatter, and content extraction all work together end-to-end.
  *
@@ -33,7 +33,7 @@
  * All fixture files are written to a tmp directory and cleaned up after each test.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import path from "path";
 import { mkdtemp, rm, readdir, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
@@ -152,7 +152,7 @@ async function assertExtensionRoutesTo(
 }
 
 describe("multimodal ingest CLI integration", () => {
-  // dist/cli.js is built once via vitest globalSetup (test/global-setup.ts)
+  // dist/cli.js is built once via the `bun run test` prebuild
 
   it("ingest --help shows help and exits 0", async () => {
     const result = await runCLI(["ingest", "--help"], process.cwd());

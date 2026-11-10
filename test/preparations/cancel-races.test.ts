@@ -9,7 +9,7 @@
  * claims cancelled.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { acquireLock, releaseLock } from "../../src/utils/lock.js";
 import { preparationPaths } from "../../src/preparations/paths.js";

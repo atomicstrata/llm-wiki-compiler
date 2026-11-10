@@ -3,7 +3,7 @@
  * Every query makes exactly selection + generation calls; validation and review
  * add none. Embedding refresh is explicitly disabled to avoid external traffic.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { useAimockLifecycle, mockClaudeEnv, type MockClaudeHandle } from "./fixtures/aimock-helper.js";

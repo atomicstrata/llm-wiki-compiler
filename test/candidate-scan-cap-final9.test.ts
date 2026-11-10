@@ -7,7 +7,7 @@
 
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_CANDIDATE_MUTATION_SCAN_BYTES,
   selectCandidateEntriesForMutationWithTotal,

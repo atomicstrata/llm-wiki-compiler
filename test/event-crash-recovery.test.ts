@@ -16,7 +16,7 @@
  * file BYTE-IDENTICAL (the round-3 invariant).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { EVENTS_FILE, EVENTS_HEAD_FILE } from "../src/utils/constants.js";

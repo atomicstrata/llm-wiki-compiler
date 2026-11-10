@@ -6,9 +6,9 @@
  * are still retried as before.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "bun:test";
 
-const mockComplete = vi.hoisted(() => vi.fn());
+const mockComplete = (() => vi.fn())();
 
 vi.mock("../src/utils/provider.js", () => ({
   getProvider: () => ({

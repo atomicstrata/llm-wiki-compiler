@@ -15,7 +15,7 @@
 
 import { mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidateStorePaths from "../../src/compiler/candidate-store-paths.js";
 import { UnsafeCandidateDirError } from "../../src/compiler/candidate-store-paths.js";
 import {

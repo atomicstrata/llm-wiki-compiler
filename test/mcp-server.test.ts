@@ -5,7 +5,7 @@
  * mirroring what an MCP client would invoke over the wire.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";

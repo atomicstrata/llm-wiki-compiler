@@ -6,7 +6,7 @@
 
 import path from "node:path";
 import { link, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   readOperationManifest,
   writeOperationManifestCreateOnly,

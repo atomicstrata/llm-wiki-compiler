@@ -13,7 +13,7 @@
  * outside content); a NORMAL real-file store still appends + reads (regression).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, writeFile, readFile, lstat } from "node:fs/promises";
 import path from "node:path";
 import { RELATIONS_FILE, WIKI_GRAPH_DIR } from "../src/utils/constants.js";

@@ -11,7 +11,7 @@
 import packageJson from "../package.json" with { type: "json" };
 import { chmod, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { addPackage } from "../src/profile/templates/publish/add.js";
 import { buildDistribution } from "../src/profile/templates/publish/build.js";
 import {

@@ -12,7 +12,7 @@
  * action is FILTERED to its own workflow's runs.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { runAction } from "../src/workflows/run-action.js";

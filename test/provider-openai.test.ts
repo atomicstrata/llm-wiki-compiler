@@ -4,7 +4,7 @@
  * converted to OpenAI format (parameters).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { translateToolToOpenAI } from "../src/providers/openai.js";
 import type { LLMTool } from "../src/utils/provider.js";
 

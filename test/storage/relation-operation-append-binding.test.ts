@@ -38,7 +38,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { eventPrevHash } from "../../src/events/event-digest.js";
 import type { EventBoundWriteSources } from "../../src/events/store.js";
 import * as eventRecord from "../../src/events/store-record.js";

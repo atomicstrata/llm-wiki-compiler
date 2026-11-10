@@ -16,7 +16,7 @@
  * CAS; the inputs and evidence-store suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import {
   initialInputMaterializeStepsOver, materializePlannedInitialInputs, materializePlannedInitialInputsWith, planInitialInputs,

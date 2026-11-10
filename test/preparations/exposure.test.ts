@@ -14,7 +14,7 @@
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { providerExposureDigest } from "../../src/capability-providers/authority/exposure.js";
 import { materializeProviderInputs } from "../../src/capability-providers/runtime/inputs.js";
 import type { ProviderInputRefV1 } from "../../src/capability-providers/authority/types.js";

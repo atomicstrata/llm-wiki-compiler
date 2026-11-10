@@ -10,7 +10,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect } from "vitest";
+import { afterEach, beforeEach, expect } from "bun:test";
 import { createWiki } from "../../src/sdk/wiki.js";
 import { readRun } from "../../src/workflows/store.js";
 import { startWorkflow } from "../../src/workflows/start.js";

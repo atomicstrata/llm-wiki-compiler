@@ -42,7 +42,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import {
   acquireMutationLock, acquirePreparationMutationLock,
 } from "../src/operation-bundles/lock-gate.js";

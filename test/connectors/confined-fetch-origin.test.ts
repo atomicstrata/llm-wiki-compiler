@@ -3,7 +3,7 @@
  * @description Exact-origin and dual-byte-cap regressions for registry fetches.
  */
 import { Readable } from "node:stream";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   confinedFetch,
   type ConfinedFetchSeams,

@@ -5,7 +5,7 @@
  * bounds, and the shared safe-component grammar.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assertAttemptId, assertBrokerRequestId, assertGateProofId, assertHandoffId,
   assertPhaseInstanceId, assertPreparationId, assertPreparationRunId,

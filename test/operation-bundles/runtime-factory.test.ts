@@ -10,7 +10,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { createOperationRuntime, createCliOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";
 import { refusingAuthorityProvider } from "../../src/operation-bundles/authority.js";
 import { authorityRequestFor, fixtureAuthority, stageSourceBundle } from "./executor-fixtures.js";

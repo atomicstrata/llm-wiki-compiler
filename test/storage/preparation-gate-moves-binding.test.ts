@@ -18,7 +18,7 @@
  * those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import { blockAtGate, blockAtGateWith, gateDriverStepsOver, resumeFromGateWith, type GateDriverSteps } from "../../src/preparations/gate-driver.js";
 import * as gates from "../../src/preparations/gates.js";

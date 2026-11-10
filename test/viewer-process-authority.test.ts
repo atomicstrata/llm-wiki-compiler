@@ -5,7 +5,7 @@
  * diagnose descriptor or workspace-composition drift.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installWorkflowProfile } from "./fixtures/workflow-profile.js";
 import { startWorkflow } from "../src/workflows/start.js";

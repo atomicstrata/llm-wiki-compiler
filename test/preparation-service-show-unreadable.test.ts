@@ -23,7 +23,7 @@
  * half mean something: it was run against an over-eager mutant and it fails there.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { chmod, rm, writeFile, readFile } from "node:fs/promises";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { runCLI } from "./fixtures/run-cli.js";

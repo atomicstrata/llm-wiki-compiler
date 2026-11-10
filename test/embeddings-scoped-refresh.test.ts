@@ -5,7 +5,8 @@
  */
 import { readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { refreshAffectedEmbeddings, refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
 import { acquireLockBlocking, releaseLock } from "../src/utils/lock.js";
@@ -174,7 +175,7 @@ it("preserves retry state before surfacing full reconciliation in strict mode", 
   await writeFile(file, JSON.stringify(store));
   await seedRetryState(1);
   provider.mockClear();
-  vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+  stubEnv("LLMWIKI_EMBED_STRICT", "on");
   await expect(refresh()).rejects.toThrow("Run compile to reconcile the full embedding store");
   expect(provider).not.toHaveBeenCalled();
   expect(await loadPendingEmbeddings(ctx.dir)).toContainEqual({ pageId: ALPHA, attempts: 1 });

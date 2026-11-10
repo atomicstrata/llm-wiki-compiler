@@ -8,17 +8,17 @@ Whether you're hitting your first `ProviderUnavailableError` or fine-tuning a la
 
 <AccordionGroup>
 
-<Accordion title="What Node.js version does llmwiki require?">
-llmwiki requires **Node.js >= 24**. This minimum was established in v0.5.0 to support modern test-mocking APIs and ESM features used throughout the compiler.
+<Accordion title="What runtime does llmwiki require?">
+llmwiki runs on **Bun >= 1.3**; the CLI launches with `#!/usr/bin/env bun`.
 
 Check your version before installing:
 
 ```bash
-node --version
-# v24.x.x  ✓
+bun --version
+# 1.3.x or later  ✓
 ```
 
-If you're on an older Node release, pin to `llm-wiki-compiler@<0.5.0` until you can upgrade your runtime. Earlier versions supported Node 18 and above.
+Releases before the Bun cutover ran on Node.js 24 or later; earlier still, `llm-wiki-compiler@<0.5.0` supported Node 18 and above.
 </Accordion>
 
 <Accordion title="I get 'ProviderUnavailableError' when running compile. What does this mean?">
@@ -266,5 +266,5 @@ Running `llmwiki watch` continuously prevents stale pages from accumulating - ea
 </AccordionGroup>
 
 <Note>
-Didn't find what you were looking for? Check the [GitHub Issues tracker](https://github.com/atomicstrata/llm-wiki-compiler/issues) to search prior bug reports and questions, or open a new issue with a clear reproduction case. Include your Node version, provider, and any relevant stderr output.
+Didn't find what you were looking for? Check the [GitHub Issues tracker](https://github.com/atomicstrata/llm-wiki-compiler/issues) to search prior bug reports and questions, or open a new issue with a clear reproduction case. Include your Bun version, provider, and any relevant stderr output.
 </Note>

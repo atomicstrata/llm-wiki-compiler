@@ -14,7 +14,7 @@
  * a passing exit code here is evidence the composition root is wired.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 
 import {

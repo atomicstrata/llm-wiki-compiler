@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { chmod, readFile, rename, writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import { writeIndexCache } from "../../src/profile/templates/taps/cache.js";
 import { parseCapabilityId, parseSha256Digest } from "../../src/capability-providers/ids.js";

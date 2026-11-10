@@ -32,7 +32,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { applyArtifactLockedWith, type ArtifactApplySources } from "../../src/artifacts/apply.js";
 import * as applyGuards from "../../src/artifacts/apply-guards.js";
 import { applyMembersLockedWith, type MembersApplySources } from "../../src/artifacts/apply-members.js";

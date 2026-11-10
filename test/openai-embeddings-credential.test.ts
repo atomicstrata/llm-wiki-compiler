@@ -17,7 +17,7 @@
  * people to ignore the message that matters.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "bun:test";
 import { OpenAIProvider, resetForwardedKeyWarnings } from "../src/providers/openai.js";
 import * as output from "../src/utils/output.js";
 import { createEnvSnapshot } from "./fixtures/env-snapshot.js";
@@ -40,7 +40,10 @@ function embeddingsKeyOf(provider: OpenAIProvider): string {
 
 /** Build a provider with a separate embeddings endpoint, capturing warnings. */
 function buildWithEndpoint(embeddingsBaseURL: string, embeddingsApiKey?: string) {
+  // Bun's spyOn returns the EXISTING spy when the method is already spied, so
+  // clear it: the messages must be this build's alone.
   const warn = vi.spyOn(output, "status").mockImplementation(() => {});
+  warn.mockClear();
   const provider = new OpenAIProvider("gpt-4o", { embeddingsBaseURL, embeddingsApiKey });
   const messages = warn.mock.calls.map((call) => String(call[1]));
   return { provider, messages };
@@ -92,7 +95,10 @@ describe("a separate embeddings endpoint", () => {
 describe("no separate embeddings endpoint", () => {
   it("shares the chat client, so no forwarding decision arises", () => {
     setEnv({ OPENAI_API_KEY: "sk-cloud" });
-    const warn = vi.spyOn(output, "status").mockImplementation(() => {});
+    // Bun's spyOn returns the EXISTING spy when the method is already spied, so
+  // clear it: the messages must be this build's alone.
+  const warn = vi.spyOn(output, "status").mockImplementation(() => {});
+  warn.mockClear();
     const provider = new OpenAIProvider("gpt-4o", {});
     expect(Reflect.get(provider, "embeddingsClient")).toBe(Reflect.get(provider, "client"));
     expect(warn).not.toHaveBeenCalled();
@@ -143,7 +149,10 @@ describe("a dedicated embeddings key with no separate endpoint", () => {
 
   it("does not warn: a key with no separate endpoint is forwarded nowhere", () => {
     setEnv({ OPENAI_API_KEY: "sk-cloud" });
-    const warn = vi.spyOn(output, "status").mockImplementation(() => {});
+    // Bun's spyOn returns the EXISTING spy when the method is already spied, so
+  // clear it: the messages must be this build's alone.
+  const warn = vi.spyOn(output, "status").mockImplementation(() => {});
+  warn.mockClear();
     new OpenAIProvider("gpt-4o", { embeddingsApiKey: "sk-embed" });
     expect(warn).not.toHaveBeenCalled();
   });

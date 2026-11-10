@@ -9,7 +9,7 @@
  * refused rather than looped.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   phaseIsReady, phasePredecessors, readyPhaseSchedule,
 } from "../../src/preparations/readiness.js";

@@ -2,7 +2,8 @@
  * Real filesystem witnesses for binary selection, sticky authority and refusal.
  * A valid old JSON store must never conceal an unavailable newer binary store.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, open, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
@@ -14,7 +15,7 @@ import { readStoredEmbeddings } from "../src/utils/embeddings-storage.js";
 import { MAX_BINARY_STORE_BYTES } from "../src/utils/embeddings-binary.js";
 
 const ctx = useConfinementRoots("binary-store");
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => restoreEnv());
 
 /** Canonical derived-store filenames, independent of the format selector. */
 function file(name: string): string { return path.join(ctx.root, ".llmwiki", name); }
@@ -32,7 +33,7 @@ describe("binary embedding persistence", () => {
   });
 
   it("keeps small default writes byte-identical JSON", async () => {
-    vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
+    stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
     const store = binaryFixture();
     await writeEmbeddingStore(ctx.root, store);
     expect(await readFile(file("embeddings.json"), "utf8")).toBe(JSON.stringify(store, null, 2));
@@ -40,18 +41,18 @@ describe("binary embedding persistence", () => {
   });
 
   it("reads and writes binary without the opt-in after initial migration", async () => {
-    vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "yes");
+    stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "yes");
     await writeEmbeddingStore(ctx.root, binaryFixture());
     const first = await readFile(file("embeddings.bin"));
     expect(first.subarray(0, 8).toString()).toBe("LLMWEB01");
-    vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
+    stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
     await writeEmbeddingStore(ctx.root, { ...binaryFixture(), model: "updated" });
     expect((await readStoreForUpdate(ctx.root))?.store.model).toBe("updated");
     await expect(stat(file("embeddings.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("refuses corrupt binary despite a valid legacy backup, then repairs binary only", async () => {
-    vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
+    stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
     await writeEmbeddingStore(ctx.root, binaryFixture());
     const backup = await readFile(file("embeddings.json"));
     const before = await stat(file("embeddings.json"));
@@ -79,7 +80,7 @@ describe("binary embedding persistence", () => {
   it("uses the binary counts and active fingerprint in stats and search", async () => {
     await mkdir(file("."), { recursive: true });
     await writeFile(file("embeddings.json"), JSON.stringify({ ...binaryFixture(), entries: [], chunks: [] }));
-    vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
+    stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
     await writeEmbeddingStore(ctx.root, { ...binaryFixture(), fingerprint: resolveEmbeddingFingerprint() });
     expect((await loadEmbeddingsForSearch(ctx.root)).store?.entries).toHaveLength(2);
     const stats = await collectStats(ctx.root);

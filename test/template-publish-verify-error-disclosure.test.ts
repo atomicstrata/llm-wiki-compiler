@@ -4,7 +4,7 @@
  * failures at the public CLI boundary.
  */
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
   createPublishDistribution,
   diagnostics,
@@ -27,7 +27,7 @@ describe("template publish verify error disclosure", () => {
     const secretPath = path.join(tree.root, `secret-\n\r\u001b-${"x".repeat(180)}`);
     tree.directory = secretPath;
 
-    const result = runPublishVerify(tree, args);
+    const result = runPublishVerify(tree, [...args]);
     const output = diagnostics(result);
 
     expect(result.status).not.toBe(0);

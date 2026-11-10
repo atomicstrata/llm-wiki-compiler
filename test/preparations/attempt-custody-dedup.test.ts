@@ -13,7 +13,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { readPreparationEvidence } from "../../src/preparations/evidence-store.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { providerLegRunner, type ProviderInvokeFn } from "../../src/preparations/attempts/provider.js";

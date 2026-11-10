@@ -6,7 +6,7 @@
  * refactors can't accidentally drift.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   budgetAndNumberSource,
   buildBudgetedCombinedContent,

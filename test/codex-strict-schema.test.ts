@@ -12,7 +12,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import Ajv from "ajv";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { PAGE_SELECTION_TOOL } from "../src/commands/page-selection.js";
 import { CONCEPT_EXTRACTION_TOOL } from "../src/compiler/prompts.js";
 import { RULE_EXTRACTION_TOOL } from "../src/compiler/rule-prompts.js";

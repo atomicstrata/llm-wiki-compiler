@@ -4,7 +4,7 @@
  * bounded one-line result reasons, and typed revoked-Proxy rejection.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   captureCandidateCustodyReceipts,
   CandidateCustodyBoundaryError,
@@ -31,7 +31,7 @@ function revokedArray(): unknown {
 }
 
 describe("Final8 connector runtime boundaries", () => {
-  afterEach(() => { process.exitCode = undefined; vi.restoreAllMocks(); });
+  afterEach(() => { process.exitCode = 0; vi.restoreAllMocks(); });
 
   it("rejects over-limit connector text before Unicode scanning", () => {
     const overLimit = `${"x".repeat(513)}\ud800`;

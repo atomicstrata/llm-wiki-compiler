@@ -10,7 +10,7 @@
  * completed run ({@link RunNotActiveError}).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { buildWorkflowProfile, installWorkflowProfile } from "./fixtures/workflow-profile.js";
 import { createWiki } from "../src/sdk/wiki.js";

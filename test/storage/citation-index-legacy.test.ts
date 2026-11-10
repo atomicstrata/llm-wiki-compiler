@@ -19,7 +19,7 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectAnswerCitationIndex } from "../../src/citations/answer-index.js";
 import { UnsafeCandidateDirError } from "../../src/compiler/candidate-store-paths.js";
 import { useTempRoot } from "../fixtures/temp-root.js";

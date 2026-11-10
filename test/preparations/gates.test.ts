@@ -7,7 +7,7 @@
  * smuggled onto a principal is not an authorization cache.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";

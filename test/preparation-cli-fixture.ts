@@ -11,7 +11,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 
 /** A bare directory — no `.llmwiki`, so the store is genuinely absent. */

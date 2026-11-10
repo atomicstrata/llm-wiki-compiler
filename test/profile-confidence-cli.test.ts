@@ -3,7 +3,7 @@
  * Exercise the real profile loader and lint registration, pin warning exits,
  * and retain the existing default corpus transcript independently of profiles.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readFile, realpath } from "node:fs/promises";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";

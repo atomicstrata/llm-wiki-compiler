@@ -17,7 +17,7 @@
  * disk's binding for the root they were given.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as answerManifest from "../../src/citations/answer-manifest.js";
 import { CandidateCustodyUnavailableError } from "../../src/compiler/candidate-custody.js";
 import {
@@ -142,7 +142,7 @@ describe("targeted candidate read and identity page over a memory record-directo
 });
 
 describe("the targeted loads and the bounded page over the same binding", () => {
-  afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
+  afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
   /** Every status line a load prints, ANSI-stripped. */
   const errorsOf = () => {
     const lines: string[] = [];
@@ -153,7 +153,7 @@ describe("the targeted loads and the bounded page over the same binding", () => 
   it("T1 a present candidate loads silently; an absent one prints its own line per caller and sets exit code 1", async () => {
     const lines = errorsOf();
     const dirs = memoryDirs([record("a", T1)]);
-    expect([(await loadCandidateOrFailFrom(dirs, "a"))?.id, lines, process.exitCode]).toEqual(["a", [], undefined]);
+    expect([(await loadCandidateOrFailFrom(dirs, "a"))?.id, lines, process.exitCode ?? 0]).toEqual(["a", [], 0]);
     expect(await loadCandidateOrFailFrom(dirs, "gone")).toBeNull();
     expect(await loadCandidateUnderLockOrFailFrom(dirs, "gone")).toBeNull();
     expect([lines, process.exitCode]).toEqual([["! Candidate not found: gone", "! Candidate gone was removed by another process during review."], 1]);

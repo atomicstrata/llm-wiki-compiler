@@ -39,7 +39,7 @@
  * `journal-health-surfaces.test.ts`).
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { scanWikiPagesFrom } from "../../src/compiler/indexgen.js";
 import {
   getPage, getPageFrom, listPages, listPagesFrom,

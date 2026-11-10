@@ -11,7 +11,7 @@
  * source, while keeping re-ingest of the same source idempotent.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, writeFile, readdir, readFile } from "fs/promises";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
@@ -19,7 +19,7 @@ import { useIngestWorkspaces } from "./fixtures/ingest-workspace.js";
 
 const workspaces = useIngestWorkspaces("collision");
 
-// Each case spawns 1–3 `node dist/cli.js ingest` subprocesses. Isolated they
+// Each case spawns 1–3 `bun dist/cli.js ingest` subprocesses. Isolated they
 // finish in 0.5–3.5s, but under full-suite parallel worker load the cold
 // Node startup contention can push a case past vitest's 5s default and turn
 // the file flaky. Give every case the same generous ceiling so failures

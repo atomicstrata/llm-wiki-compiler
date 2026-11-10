@@ -7,7 +7,7 @@
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { pageAdapter } from "../../src/operation-bundles/adapters/page.js";
 import type { OperationDigest, PageOperationMutation } from "../../src/operation-bundles/types.js";
 import { digestOf, makeBinding, makeContext, publishPayload, type BindingSet } from "./adapter-fixtures.js";

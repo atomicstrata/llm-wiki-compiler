@@ -14,7 +14,7 @@
  * `::1` route — CI on some Linux configs.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import http from "http";
 import net from "net";
 import { exec as execCb } from "child_process";
@@ -85,7 +85,7 @@ describe("CLI — wildcard host rejection", () => {
     const root = await makeTempRoot(`viewer-host-wildcard-${host.replace(/[:.*]/g, "-")}`);
     let stderr = "";
     try {
-      await exec(`node "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
+      await exec(`bun "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
         cwd: root,
         timeout: CLI_REJECTION_TIMEOUT_MS,
       });

@@ -16,7 +16,7 @@
  * boundary and drift suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { AuthoritySnapshotRequest } from "../../src/operation-bundles/authority.js";
 import * as keyEpoch from "../../src/operation-bundles/key-epoch.js";
 import {

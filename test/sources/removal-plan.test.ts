@@ -18,7 +18,7 @@
  * lock. Those two comparing at all depends on them being the same function.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   computeRemovalPlan,
   partitionConcepts,

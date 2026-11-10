@@ -7,7 +7,7 @@
  * including a deterministic swap-back race that proves the {dev,ino} guard.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, symlink, rename, realpath, chmod } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

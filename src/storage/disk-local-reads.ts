@@ -57,6 +57,14 @@ function entryKind(entry: Dirent | Stats): LocalEntryKind {
 }
 
 /**
+ * `readdir(dir)` in code-unit order. Node's libuv sorted every listing; Bun
+ * returns raw directory order, so the sort keeps listing-derived output stable.
+ */
+async function listNamesSorted(dir: string): Promise<string[]> {
+  return (await readdir(dir)).sort();
+}
+
+/**
  * NO GUARD. What is at `location`, by ONE `lstat`, so a final link is reported
  * as `"link"` and not followed: `"file"`, `"directory"`, `"link"` or `"other"`.
  * The location is used as given; parent directories are followed and nothing
@@ -147,7 +155,9 @@ function diskDirectory(canonicalDir: string): LocalDirectory {
   return {
     listEntries: async (relative) => {
       const entries = await readdir(path.join(canonicalDir, relative), { withFileTypes: true });
-      return entries.map((entry) => ({ name: entry.name, kind: entryKind(entry) }));
+      // Name order, as Node's libuv listed them (Bun returns raw directory order).
+      return entries.map((entry) => ({ name: entry.name, kind: entryKind(entry) }))
+        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     },
   };
 }
@@ -164,7 +174,7 @@ export function diskLocalReads(root: string): LegacyLocalReads {
     readText: (relPath) => readFile(locate(relPath), "utf-8"),
     exists: async (relPath) => existsSync(locate(relPath)),
     statNoFollow: async (relPath) => entryKind(await lstat(locate(relPath))),
-    listNames: (relDir) => readdir(locate(relDir)),
+    listNames: (relDir) => listNamesSorted(locate(relDir)),
     realDirectory: async (relDir) => {
       const canonicalDir = await resolveRealDir(root, relDir);
       return canonicalDir === null ? null : diskDirectory(canonicalDir);
@@ -203,7 +213,7 @@ export function diskLocalCappedReads(root: string): LegacyLocalCappedReads {
  */
 function diskEntityDirectory(expectedDir: string): LocalEntityDirectory {
   return {
-    listNames: () => readdir(expectedDir),
+    listNames: () => listNamesSorted(expectedDir),
     resolveEntry: async (name) => {
       const resolved = await safeRealpath(path.join(expectedDir, name));
       if (!resolved || !isInsideDir(resolved, expectedDir)) return null;

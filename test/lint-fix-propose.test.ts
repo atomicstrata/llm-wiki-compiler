@@ -14,7 +14,7 @@
  * the writer it calls.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdir, writeFile, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { useCommandProject } from "./fixtures/command-project.js";

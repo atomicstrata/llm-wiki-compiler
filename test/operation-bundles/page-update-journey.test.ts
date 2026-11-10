@@ -13,7 +13,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { useFileProject } from "../fixtures/file-project.js";
 import { journeyTarget, expectPageConflict } from "./page-journey-fixture.js";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";

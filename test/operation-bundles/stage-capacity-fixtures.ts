@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { createCatalogRecord } from "../../src/operation-bundles/catalog-store.js";
 import {

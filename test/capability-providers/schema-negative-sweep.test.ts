@@ -3,7 +3,7 @@
  * @description Table-driven rejection coverage for every forbidden Provider V2
  * schema feature, missing bound, prototype key, and structural resource cap.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseClosedProviderSchema } from "../../src/capability-providers/schema/parse.js";
 
 interface RejectionCase {

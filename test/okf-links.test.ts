@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { wikilinksToOkf, okfLinksToWikilinks } from "../src/export/okf/mapping.js";
 
 const resolve = (slug: string) =>

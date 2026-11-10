@@ -13,7 +13,7 @@
  * this is omitted-for-default and parity is intact.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../src/profile/validate.js";
 import { profileDigest } from "../src/profile/digest.js";
 import type { ProfilePack, RelationTypeDef } from "../src/profile/types.js";

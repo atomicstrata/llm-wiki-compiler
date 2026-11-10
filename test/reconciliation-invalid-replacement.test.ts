@@ -20,7 +20,7 @@
  * the pipeline continue and retire state around a page that was never written.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";

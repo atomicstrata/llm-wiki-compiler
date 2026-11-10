@@ -10,7 +10,7 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { symlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createStreamingCustodian } from "../../src/capability-providers/runtime/custodian.js";
 import { artifactClaim as claim, custodyOptions as options, useCustodyOutputRoots } from "./custody-fixture.js";
 

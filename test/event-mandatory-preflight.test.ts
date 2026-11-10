@@ -7,7 +7,7 @@
  * mutation). With a healthy event store, both succeed AND emit their event.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";

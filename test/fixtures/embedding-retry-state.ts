@@ -6,7 +6,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { PENDING_EMBEDDINGS_FILE, QUARANTINED_EMBEDDINGS_FILE } from "../../src/utils/constants.js";
 import { refreshEmbeddingsDrainingPending } from "../../src/utils/embeddings-refresh.js";
 import { acquireLockBlocking, releaseLock } from "../../src/utils/lock.js";

@@ -17,7 +17,7 @@
  * the operation-bundle and product apply suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as bundleTarget from "../../src/operation-bundles/bundle-target.js";
 import * as capacity from "../../src/operation-bundles/capacity.js";
 import * as executor from "../../src/operation-bundles/executor.js";

@@ -7,7 +7,7 @@
  * silently satisfy required output.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   RECONCILIATION_DECISIONS, ReconciliationAuthorityError, assertDeferPermitted,

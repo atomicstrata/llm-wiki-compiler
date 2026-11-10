@@ -10,7 +10,7 @@
  * `wiki_status` stdio test; the server runs `dist/`, so build before running.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { useMcpRoot, connectMcpClient, parseToolPayload } from "./fixtures/mcp-test-env.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";

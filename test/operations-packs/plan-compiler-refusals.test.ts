@@ -9,7 +9,7 @@
  * compiled plan that could not run is worse than a refusal.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompilePackActionRequestV1 } from "../../src/operations-packs/compiler-types.js";
 import { PackDeferredError, PackParseError } from "../../src/operations-packs/problems.js";

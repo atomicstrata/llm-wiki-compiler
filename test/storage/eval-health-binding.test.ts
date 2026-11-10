@@ -30,7 +30,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import { evaluateHealth, evaluateHealthFrom, runAllLintRules, runAllLintRulesFrom } from "../../src/eval/health.js";
 import { evaluatePageHealthDistribution, evaluatePageHealthDistributionFrom } from "../../src/eval/page-health-distribution.js";

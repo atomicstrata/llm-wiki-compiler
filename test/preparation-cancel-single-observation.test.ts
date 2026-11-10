@@ -25,13 +25,16 @@
  * module.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 
 /** Hoisted so the mock factory — which runs before the module body — can reach it. */
-const observed = vi.hoisted(() => ({ scans: 0 }));
+const observed = (() => ({ scans: 0 }))();
 
-vi.mock("../src/preparations/capacity.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/preparations/capacity.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realPreparationsCapacity = { ...(await import("../src/preparations/capacity.js")) };
+
+vi.mock("../src/preparations/capacity.js", async () => {
+  const actual = realPreparationsCapacity as typeof import("../src/preparations/capacity.js");
   return {
     ...actual,
     // A PASSTHROUGH, not a stub: the operation runs against the real scan and

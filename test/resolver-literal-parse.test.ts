@@ -9,13 +9,16 @@
  * milliseconds. Counting parser calls pins the behaviour without timing.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, type Mock } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { managedTempRoots } from "./fixtures/managed-temp-roots.js";
 
-vi.mock("../src/compiler/link-repair-code.js", async (importOriginal) => {
-  const real = await importOriginal<typeof import("../src/compiler/link-repair-code.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realCompilerLinkRepairCode = { ...(await import("../src/compiler/link-repair-code.js")) };
+
+vi.mock("../src/compiler/link-repair-code.js", async () => {
+  const real = realCompilerLinkRepairCode as typeof import("../src/compiler/link-repair-code.js");
   return { isLiteralMarkdown: vi.fn(real.isLiteralMarkdown) };
 });
 
@@ -36,7 +39,7 @@ describe("interlink resolution parses only when a title occurs", () => {
   it("never parses when no page mentions another page's title", async () => {
     const { resolveAndApplyLinks } = await import("../src/compiler/resolver.js");
     const { isLiteralMarkdown } = await import("../src/compiler/link-repair-code.js");
-    vi.mocked(isLiteralMarkdown).mockClear();
+    (isLiteralMarkdown as unknown as Mock<typeof isLiteralMarkdown>).mockClear();
     const { root, slugs } = await project("");
     await resolveAndApplyLinks(root, slugs, []);
     expect(isLiteralMarkdown).not.toHaveBeenCalled();
@@ -45,11 +48,11 @@ describe("interlink resolution parses only when a title occurs", () => {
   it("parses each page at most once per distinct body when a title occurs only in code", async () => {
     const { resolveAndApplyLinks } = await import("../src/compiler/resolver.js");
     const { isLiteralMarkdown } = await import("../src/compiler/link-repair-code.js");
-    vi.mocked(isLiteralMarkdown).mockClear();
+    (isLiteralMarkdown as unknown as Mock<typeof isLiteralMarkdown>).mockClear();
     const { root, slugs } = await project("`Topic 0` `Topic 1`");
     await resolveAndApplyLinks(root, slugs, []);
     // Every page mentions two titles, both inside code, so no page body changes:
     // one parse per page, not one per matching title.
-    expect(vi.mocked(isLiteralMarkdown).mock.calls.length).toBeLessThanOrEqual(PAGE_COUNT);
+    expect((isLiteralMarkdown as unknown as Mock<typeof isLiteralMarkdown>).mock.calls.length).toBeLessThanOrEqual(PAGE_COUNT);
   });
 });

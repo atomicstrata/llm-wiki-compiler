@@ -19,7 +19,7 @@
  */
 
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import queryCommand, { queryCommandStepsOver, queryCommandWith, type QueryCommandSteps } from "../../src/commands/query.js";
 import * as queryReads from "../../src/commands/query-reads.js";
 import * as diskLocations from "../../src/storage/disk-locations.js";
@@ -34,9 +34,9 @@ beforeEach(() => {
   vi.spyOn(output, "status").mockImplementation((_icon, message) => { lines.push(String(message)); });
   vi.spyOn(output, "header").mockImplementation(() => {});
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-  process.exitCode = undefined;
+  process.exitCode = 0;
 });
-afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
 
 /** Memory steps: an index that is there or not, and an answer pipeline returning `result`. Each call logged. */
 function stepsOf(log: string[], indexExists: boolean, result: object = { answer: "an answer" }): QueryCommandSteps {
@@ -59,7 +59,7 @@ describe("the query controller over its steps", () => {
   it("Q2 a missing index prints the guard's message and returns normally, never reaching the answer", async () => {
     const log: string[] = [];
     expect(await queryCommandWith(stepsOf(log, false), "why?", { save: true })).toBeUndefined();
-    expect([log, lines.some((line) => line.includes(MISSING)), process.exitCode]).toEqual([["index"], true, undefined]);
+    expect([log, lines.some((line) => line.includes(MISSING)), process.exitCode]).toEqual([["index"], true, 0]);
   });
 
   it("Q3 asks the answer pipeline with the command's options and a streaming callback; no answer is a message, not a failure", async () => {
@@ -67,7 +67,7 @@ describe("the query controller over its steps", () => {
     await queryCommandWith(stepsOf(log, true), "why?", { save: true, review: true, debug: false });
     await queryCommandWith(stepsOf(log, true, { answer: "" }), "how?", {});
     expect(log).toEqual(["index", "answer why? save=true review=true debug=false streams=function", "index", "answer how? save=undefined review=undefined debug=undefined streams=function"]);
-    expect([lines.some((line) => line.includes("No matching pages found")), process.exitCode]).toEqual([true, undefined]);
+    expect([lines.some((line) => line.includes("No matching pages found")), process.exitCode]).toEqual([true, 0]);
   });
 
   it("Q4 a publication refusal other than a disabled profile sets exit code 1", async () => {

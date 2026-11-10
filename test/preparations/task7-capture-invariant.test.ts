@@ -9,7 +9,7 @@
  * fails here rather than at a later adversarial review.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   CAPTURE_EXEMPT, ENTRY_PROBES, TASK7_MODULES, type EntryProbe,
 } from "./task7-entry-points.js";

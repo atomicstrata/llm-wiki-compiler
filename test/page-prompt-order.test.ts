@@ -10,7 +10,7 @@
  * still name the concept, and keep every per-page part it carried before.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { buildPagePrompt } from "../src/compiler/prompts.js";
 
 const SOURCE = "--- SOURCE: notes.md ---\n\n1 | Shared source text about caching.";

@@ -15,7 +15,7 @@
  * did not silently widen.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { reviewProductReadiness } from "../../src/products/readiness.js";
 import { readinessRequirement, installReadinessProvider, reviewReadinessDimension } from "./readiness-provider-fixture.js";
 import { installDevProvider } from "../../src/capability-providers/host/install.js";

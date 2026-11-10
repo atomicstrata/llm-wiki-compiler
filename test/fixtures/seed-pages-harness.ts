@@ -5,7 +5,7 @@
  * the `callClaude` stub, and the empty `PageGenerationResult` builder.
  */
 
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi } from "bun:test";
 import { rm } from "fs/promises";
 import * as llm from "../../src/utils/llm.js";
 import type { PageGenerationResult } from "../../src/compiler/types.js";

@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import reviewApproveCommand from "../../src/commands/review-approve.js";
 import reviewShowCommand from "../../src/commands/review-show.js";
 import { writeCandidate } from "../../src/compiler/candidates.js";
@@ -103,7 +103,7 @@ async function captureReviewShow(id: string): Promise<string> {
 
 describe("connector review approval pin", () => {
   afterEach(() => {
-    process.exitCode = undefined;
+    process.exitCode = 0;
   });
 
   it("review show prints a live hash of candidate.body, not stored draftContentHash", async () => {

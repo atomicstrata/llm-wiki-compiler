@@ -22,16 +22,20 @@
  * warning, and anything there (a directory or a link to one) goes on.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** When set, the next `statSync` throws this instead of answering. */
-const statFault = vi.hoisted(() => ({ error: null as Error | null }));
+const statFault = (() => ({ error: null as Error | null }))();
 
-vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFs = { ...(await import("node:fs")) };
+const realCompilerIndex = { ...(await import("../../src/compiler/index.js")) };
+
+vi.mock("node:fs", async () => {
+  const actual = realFs as typeof import("node:fs");
   const statSync = ((...args: Parameters<typeof actual.statSync>) => {
     if (statFault.error === null) return actual.statSync(...args);
     const error = statFault.error;
@@ -42,10 +46,10 @@ vi.mock("node:fs", async (importOriginal) => {
 });
 
 /** Stands in for the compile orchestrator, so reaching it is observable. */
-const compileSpy = vi.hoisted(() => vi.fn(async () => undefined));
+const compileSpy = (() => vi.fn(async () => undefined))();
 
-vi.mock("../../src/compiler/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../src/compiler/index.js")>()),
+vi.mock("../../src/compiler/index.js", async () => ({
+  ...(realCompilerIndex as typeof import("../../src/compiler/index.js")),
   compile: compileSpy,
 }));
 

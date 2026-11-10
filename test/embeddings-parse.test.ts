@@ -12,7 +12,7 @@
  *  - normal v2 store round-trips identically (regression gate)
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {

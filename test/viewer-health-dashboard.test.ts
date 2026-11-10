@@ -14,7 +14,7 @@
  * viewer.js around the health view rather than by the view itself.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { flushMicrotasks, jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 import {
   conceptPage,

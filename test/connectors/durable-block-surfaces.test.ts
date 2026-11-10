@@ -4,7 +4,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectExportPages } from "../../src/export/collect.js";
 import { lint } from "../../src/linter/index.js";
 import { promoteStagedEntityPage, stageEntityPage } from "../../src/trust/staging.js";

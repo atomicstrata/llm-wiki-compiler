@@ -12,7 +12,7 @@
  * profile argument in its signature.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

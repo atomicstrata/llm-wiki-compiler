@@ -25,18 +25,18 @@
  */
 
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 
 type Op = "mkdir" | "rename" | "readFile" | "writeFile" | "unlink";
 
 /** `calls` are [operation, ...arguments]; `faults` reject one operation on one path. */
-const io = vi.hoisted(() => ({
+const io = (() => ({
   on: false,
   calls: [] as unknown[][],
   faults: {} as Partial<Record<string, { at: string; error: Error }>>,
-}));
+}))();
 
-const recorder = vi.hoisted(() => {
+const recorder = (() => {
   type Fn = (...args: unknown[]) => unknown;
   /** Note the call while a move runs; reject it if a fault names this path. */
   const wrap = (name: string, real: Fn): Fn => (...args: unknown[]) => {
@@ -57,13 +57,18 @@ const recorder = vi.hoisted(() => {
     /** For `fs/promises` and `node:fs/promises`: the five promise calls. */
     ofFsPromises: <T extends object>(actual: T): T => withWrapped(actual, ["mkdir", "rename", "readFile", "writeFile", "unlink"]),
   };
-});
+})();
+
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
 
 // All four specifiers: the function under test uses the bare names before the move and storage uses the `node:` names after it.
-vi.mock("fs", async (load) => recorder.ofFs(await load<typeof import("fs")>()));
-vi.mock("node:fs", async (load) => recorder.ofFs(await load<typeof import("node:fs")>()));
-vi.mock("fs/promises", async (load) => recorder.ofFsPromises(await load<typeof import("fs/promises")>()));
-vi.mock("node:fs/promises", async (load) => recorder.ofFsPromises(await load<typeof import("node:fs/promises")>()));
+const realFs = { ...(await import("fs")) };
+
+vi.mock("fs", async () => recorder.ofFs((realFs as typeof import("fs"))));
+vi.mock("node:fs", async () => recorder.ofFs((realFs as typeof import("node:fs"))));
+vi.mock("fs/promises", async () => recorder.ofFsPromises((realFsPromises as typeof import("fs/promises"))));
+vi.mock("node:fs/promises", async () => recorder.ofFsPromises((realFsPromises as typeof import("node:fs/promises"))));
 
 import { resolveConfinedCandidatesDir } from "../../src/compiler/candidate-store-paths.js";
 import {
@@ -73,7 +78,7 @@ import { candidateFileId, moveCandidateToArchive } from "../../src/utils/candida
 import { RULE_CANDIDATES_ARCHIVE_DIR } from "../../src/utils/constants.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+const fs = realFsPromises as typeof import("node:fs/promises");
 const TEXT = '{"id":"a","note":"zażółć 規則"}';
 const NOW = "2026-05-31T00:00:00.000Z";
 useTempRoot();
@@ -84,7 +89,9 @@ const source = (): string => queue("a.json");
 const target = (): string => queue("archive", "a.json");
 const errorWith = (code: string): Error => Object.assign(new Error(`injected ${code}`), { code });
 const textAt = (file: string): Promise<string> => fs.readFile(file, "utf-8");
-const missing = (file: string): Promise<void> => expect(fs.lstat(file)).rejects.toMatchObject({ code: "ENOENT" });
+const missing = async (file: string): Promise<void> => {
+  await expect(fs.lstat(file)).rejects.toMatchObject({ code: "ENOENT" });
+};
 
 /** Write the pending file, and the archive directory unless told not to. */
 async function seed(withArchive = true): Promise<void> {

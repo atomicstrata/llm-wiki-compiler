@@ -4,7 +4,7 @@
  * so this observes the durable effect of a refresh rather than retry bookkeeping.
  * Also exposes a page's live content hash, which retry entries are bound to.
  */
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { loadProfile } from "../../src/profile/load.js";
 import { collectEligibleLivePages, pageContentHash } from "../../src/utils/embeddings-collect.js";
 import { readV3Store } from "./v3-store.js";

@@ -21,7 +21,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "bun:test";
 import { selectRelevantPages } from "../../src/commands/query-selection.js";
 import { resolveEmbeddingModel, type EmbeddingStoreV3 } from "../../src/utils/embeddings-store.js";
 import * as output from "../../src/utils/output.js";
@@ -105,7 +105,7 @@ describe("query page selection through its root function, as it behaves today", 
       reasoning: "test", chunks: [], warnings: [],
     });
     const { callClaude } = await import("../../src/utils/llm.js");
-    const prompt = vi.mocked(callClaude).mock.lastCall![0].messages[0]!.content as string;
+    const prompt = (callClaude as unknown as Mock<typeof callClaude>).mock.lastCall![0].messages[0]!.content as string;
     expect(prompt).toContain("- **concepts/alpha**: alpha Title — alpha summary\n- **concepts/beta**: beta Title — beta summary");
   });
 

@@ -8,7 +8,7 @@
  * emits so a malformed depth projection is rejected at profile LOAD, not at read.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../src/profile/validate.js";
 import type { ProfilePack } from "../src/profile/types.js";
 

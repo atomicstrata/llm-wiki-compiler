@@ -20,7 +20,7 @@ import { preparationPruneUnitPaths, PREPARATION_PRUNE_REGISTRY } from "../../src
 import { resolvePreparationLifecyclePending } from "../../src/preparations/recovery.js";
 import { enumeratePreparationReferences } from "../../src/preparations/references.js";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { preparationPaths } from "../../src/preparations/paths.js";
 import { scanPreparationInventory } from "../../src/preparations/capacity.js";

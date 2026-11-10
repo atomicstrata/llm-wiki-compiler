@@ -3,7 +3,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "noEmit": true,
-    "types": ["node", "vitest/globals"],
+    "types": ["bun"],
     "allowImportingTsExtensions": true
   },
   "include": ["src/**/*", "test/**/*", "scripts/test-typecheck*.ts", "scripts/typecheck-tests.ts"],

@@ -16,7 +16,7 @@ import { gateDecision } from "./preparations/lifecycle-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { scanPreparationInventory } from "../src/preparations/capacity.js";
 import { resolvePreparationLifecyclePending } from "../src/preparations/recovery.js";
 import { sweepPreparationOrphansLocked } from "../src/preparations/retention.js";

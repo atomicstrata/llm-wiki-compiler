@@ -18,7 +18,7 @@
  *  - a DEFAULT concepts candidate (no lifecycle) approves unchanged.
  */
 
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, afterEach, expect, vi } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

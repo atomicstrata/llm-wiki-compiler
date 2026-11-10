@@ -20,13 +20,17 @@
 
 import { mkdir, readdir, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 
 /** Every call of the atomic writer, as its raw argument list. */
-const writer = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+const writer = (() => ({ calls: [] as unknown[][] }))();
 
-vi.mock("../../src/utils/atomic-write.js", async (original) => {
-  const actual = await original<typeof import("../../src/utils/atomic-write.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realUtilsAtomicWrite = { ...(await import("../../src/utils/atomic-write.js")) };
+
+vi.mock("../../src/utils/atomic-write.js", async () => {
+  const actual = (realUtilsAtomicWrite as typeof import("../../src/utils/atomic-write.js"));
   const atomicWrite = (...args: unknown[]): Promise<void> => {
     writer.calls.push(args);
     return (actual.atomicWrite as (...rest: unknown[]) => Promise<void>)(...args);
@@ -89,7 +93,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.unstubAllEnvs();
+  restoreEnv();
   process.exitCode = exitCodeBefore;
 });
 
@@ -146,7 +150,7 @@ describe("rule candidates and the export", () => {
   it("B7 hands non-ASCII source text to the provider unchanged", async () => {
     await seedRuleSource(root());
     await writeFile(path.join(root(), "sources", "guide.md"), `${NON_ASCII_LINE}\nSecond line.`, "utf-8");
-    vi.stubEnv("LLMWIKI_OUTPUT_LANG", undefined);
+    stubEnv("LLMWIKI_OUTPUT_LANG", undefined);
     const call = vi.spyOn(llm, "callClaude").mockResolvedValue('{"rules":[]}');
     const result = await extractRuleCandidates(root(), NOW);
     expect(result.processedSources).toEqual(["guide.md"]);

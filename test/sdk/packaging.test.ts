@@ -18,7 +18,7 @@
  * Run explicitly with: `npm run test:pack`
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -75,7 +75,7 @@ async function verifyPrototypeWithheld(fixture: string): Promise<void> {
     const leaked = ["openProject", "registerProject", "startSimulatedHost", "openPagedProject"].filter((name) => name in standard || name in core);
     process.exit(leaked.length === 0 ? 0 : 5);
   `);
-  execFileSync("node", ["probe-withheld.mjs"], { cwd: fixture, stdio: "pipe" });
+  execFileSync("bun", ["probe-withheld.mjs"], { cwd: fixture, stdio: "pipe" });
   const installed = ["llm-wiki-compiler", "@atomicstrata/llmwiki-core"].map((name) => path.join(fixture, "node_modules", name));
   const files = (await Promise.all(installed.map(filesUnder))).flat();
   const leaking: string[] = [];
@@ -97,7 +97,7 @@ describe("packaging (slow; run via `npm run test:pack`)", () => {
       await writeFile(path.join(fixture, "package.json"), JSON.stringify({ name: "f", type: "module" }));
       execFileSync("npm", ["install", "--ignore-scripts", ...tarballs], { cwd: fixture, stdio: "ignore" });
       await writeFile(path.join(fixture, "probe.mjs"), `import { createWiki } from "llm-wiki-compiler"; if (typeof createWiki !== "function") process.exit(2);`);
-      execFileSync("node", ["probe.mjs"], { cwd: fixture, stdio: "ignore" });
+      execFileSync("bun", ["probe.mjs"], { cwd: fixture, stdio: "ignore" });
       await verifyPrototypeWithheld(fixture);
       await verifyInstalledTypes(repo, fixture);
     } finally {

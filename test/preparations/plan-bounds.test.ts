@@ -6,7 +6,7 @@
  * clamped. The five one-byte-over Milestone A handoff caps are checked exactly.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_HANDOFF_ACTIVE_STORE_BYTES, MAX_HANDOFF_AGGREGATE_PAYLOAD_BYTES,
   MAX_HANDOFF_ITEM_PAYLOAD_BYTES, MAX_HANDOFF_MANIFEST_BYTES,

@@ -5,7 +5,7 @@
  * duplicate-key body must be refused with a typed framing violation before the
  * bytes can reach the message grammar.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_PROTOCOL_FRAME_BYTES, MAX_PROTOCOL_STREAM_FRAMES,
 } from "../../src/capability-providers/constants.js";

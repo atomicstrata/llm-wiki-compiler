@@ -1,5 +1,5 @@
 /** Opt-in viewer integration keeps source bodies off default and LAN surfaces. */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { createDemo } from "./fixtures/source-review-project.js";
 import { startViewer } from "../src/viewer/server.js";

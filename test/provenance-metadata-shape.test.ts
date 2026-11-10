@@ -20,7 +20,7 @@
  * exercise the runtime field shape end-to-end.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import type {
   ExtractedConcept,
   ProvenanceMetadata,

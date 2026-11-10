@@ -6,7 +6,7 @@
  * assembled — so the returned markdown is free of viewer citation warnings.
  */
 
-import { vi, describe, it, expect } from "vitest";
+import { vi, describe, it, expect, type Mock } from "bun:test";
 import { callClaude } from "../src/utils/llm.js";
 import { renderMergedPageContent } from "../src/compiler/page-renderer.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -25,7 +25,7 @@ describe("renderMergedPageContent — citation normalization wired in", () => {
     const root = await makeTempRoot("page-renderer-normalize");
     const combinedContent = makeNumberedContent(source, 100);
 
-    vi.mocked(callClaude).mockResolvedValue("Neural scaling laws.^[81]");
+    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue("Neural scaling laws.^[81]");
 
     const result = await renderMergedPageContent(
       root,
@@ -52,7 +52,7 @@ describe("renderMergedPageContent — citation normalization wired in", () => {
     const root = await makeTempRoot("page-renderer-drop");
     const combinedContent = makeNumberedContent(source, 40);
 
-    vi.mocked(callClaude).mockResolvedValue("Claim.^[99]");
+    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue("Claim.^[99]");
 
     const result = await renderMergedPageContent(
       root,

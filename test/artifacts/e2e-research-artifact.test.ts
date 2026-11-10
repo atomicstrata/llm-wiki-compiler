@@ -29,7 +29,7 @@
  * surfaced, not that they're mutually exclusive).
  */
 
-import { describe, it, beforeAll, afterAll, expect } from "vitest";
+import { describe, it, beforeAll, afterAll, expect } from "bun:test";
 import { writeFile, rm, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { runCLI, expectCLIExit, expectCLIFailure } from "../fixtures/run-cli.js";

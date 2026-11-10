@@ -1,5 +1,5 @@
 /**
- * Shared helpers for CLI integration tests that spawn `node dist/cli.js`.
+ * Shared helpers for CLI integration tests that spawn `bun dist/cli.js`.
  *
  * Centralises the `exec` / `CLI` constants and the ANSI-stripping utility
  * so individual test files don't duplicate this boilerplate.

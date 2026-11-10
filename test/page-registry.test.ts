@@ -14,7 +14,7 @@
  * stale or forged v3 store (the prefilter drops their store entries).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, symlink } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

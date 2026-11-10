@@ -10,7 +10,7 @@
 import { stat } from "node:fs/promises";
 import { readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { installLocalProductPackage } from "../../src/products/packages/install.js";
 import { readProductInstallReceipt } from "../../src/products/packages/receipts.js";

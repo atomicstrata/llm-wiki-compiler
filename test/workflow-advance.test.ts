@@ -10,7 +10,7 @@
  * ({@link RunUnavailableError}, {@link RunNotActiveError}, {@link LockBusyError}).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

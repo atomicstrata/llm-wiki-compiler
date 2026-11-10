@@ -12,7 +12,7 @@
  *     sources/                  ← empty dir so broken-citation rule finds nothing
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import path from "path";
@@ -61,7 +61,7 @@ async function createWikiFixture(suffix: string, pageContent: string): Promise<s
 /** Run `llmwiki lint` in the given project root, always resolving (never rejecting). */
 async function runLint(root: string): Promise<{ stdout: string; code: number }> {
   try {
-    const { stdout } = await execFileAsync("node", [BUILT_CLI, "lint"], { cwd: root });
+    const { stdout } = await execFileAsync("bun", [BUILT_CLI, "lint"], { cwd: root });
     return { stdout, code: 0 };
   } catch (err: unknown) {
     const e = err as { stdout?: string; code?: number };
@@ -89,7 +89,7 @@ function assertNoConfidenceFindings(stdout: string): void {
 // ---------------------------------------------------------------------------
 
 describe("confidence metadata — CLI lint integration", () => {
-  // dist/cli.js is built once via vitest globalSetup (test/global-setup.ts)
+  // dist/cli.js is built once via the `bun run test` prebuild
 
   // -------------------------------------------------------------------------
   // low-confidence rule

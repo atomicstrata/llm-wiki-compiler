@@ -6,7 +6,7 @@
  * provider must refuse to snapshot without a declarative operations authority.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   authoritySnapshotDigest,
   OPERATION_AUTHORITY_COMPONENTS,

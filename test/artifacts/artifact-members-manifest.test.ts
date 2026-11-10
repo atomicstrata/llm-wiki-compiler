@@ -10,7 +10,7 @@
  * with metadata, ceilings sit inside the hard caps, and requiredNames must be
  * acceptable members themselves.
  */
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../../src/profile/validate.js";
 import { validateMemberManifestBody } from "../../src/artifacts/members.js";
 import type { ArtifactTypeDef, ProfilePack } from "../../src/profile/types.js";

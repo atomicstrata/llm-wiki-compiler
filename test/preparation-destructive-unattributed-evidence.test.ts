@@ -41,7 +41,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { openPreparationLifecycleNamespace } from "../src/preparations/lifecycle-fs/namespace.js";
 import { scanPreparationLifecycle } from "../src/preparations/lifecycle-snapshot/scan.js";
 import { projectLifecyclePending } from "../src/preparations/lifecycle-snapshot/compat.js";
@@ -113,9 +113,12 @@ describe("the projection EMITS an incompleteness that names no registry", () => 
  * scanner's own brand check ("lifecycle read was not scanner-minted"), and a
  * probe refusing for THAT reason looks exactly like a working fix.
  */
-const observation = vi.hoisted(() => ({ value: null as unknown }));
-vi.mock("../src/preparations/recovery.js", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../src/preparations/recovery.js")>(),
+const observation = (() => ({ value: null as unknown }))();
+// Snapshot real modules before mock.module replaces them for this file.
+const realPreparationsRecovery = { ...(await import("../src/preparations/recovery.js")) };
+
+vi.mock("../src/preparations/recovery.js", async () => ({
+  ...(realPreparationsRecovery as typeof import("../src/preparations/recovery.js")),
   resolvePreparationLifecyclePending: async () => observation.value,
 }));
 

@@ -31,7 +31,7 @@
 
 import { chmod, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { preparationKeyFile } from "../../src/preparations/paths.js";
 import {
   preparationPreflightRefusal, preparationResetPreflightRefusal, resolveHostReadiness,

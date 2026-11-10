@@ -28,7 +28,7 @@
  * selects a backend.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readPreparationKeyFrom, type PreparationKeyRead } from "../../src/preparations/key-epoch.js";
 import { preparationKeyEpochId } from "../../src/preparations/run-integrity.js";
 import {

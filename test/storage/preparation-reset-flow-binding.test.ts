@@ -15,7 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { mintLifecycleMutationPermit } from "../../src/preparations/lifecycle-mutation-permit.js";
 import { retirableUnitsFromLeaves, type QuarantineUnitLeaves } from "../../src/preparations/quarantine-move.js";

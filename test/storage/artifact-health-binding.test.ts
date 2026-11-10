@@ -37,7 +37,7 @@
 
 import { realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { formatArtifactRef } from "../../src/artifacts/ref.js";
 import { hashArtifactBody } from "../../src/artifacts/store.js";
 import { evaluateHealth, evaluateHealthFrom } from "../../src/eval/health.js";

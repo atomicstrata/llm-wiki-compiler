@@ -16,7 +16,7 @@
  * fingerprint cannot make it pass vacuously.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import path from "node:path";
 import { buildCollidingProject, echoCallClaudeModule, mockQueryVector } from "./fixtures/typed-grounding.js";
 import { changedPaths as changed, fingerprintTree as fingerprint } from "./fixtures/tree-fingerprint.js";
@@ -29,7 +29,8 @@ vi.mock("../src/utils/llm.js", () => echoCallClaudeModule());
 // machine and failing in CI, which is exactly what it did. The subject here is
 // filesystem mutation; provider availability is a different claim with its own
 // tests, so it is stubbed rather than depended on.
-vi.mock("../src/utils/provider-guard.js", () => ({ ensureProviderAvailable: () => {} }));
+const realProviderGuard = { ...(await import("../src/utils/provider-guard.js")) };
+vi.mock("../src/utils/provider-guard.js", () => ({ ...realProviderGuard, ensureProviderAvailable: () => {} }));
 
 
 /** A project with two same-slug pages, both retrievable. */

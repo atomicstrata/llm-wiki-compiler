@@ -1,7 +1,7 @@
 /** Real page-file setup and conflict assertions shared by update/delete executor journeys. */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { approveRequest, buildRuntime } from "./executor-fixtures.js";
 

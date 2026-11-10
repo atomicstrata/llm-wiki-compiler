@@ -1,5 +1,7 @@
 /** Reader-facing labels preserve exact identifiers without making them the primary UI. */
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
+import { waitFor } from "./wait-for.js";
+import { stubGlobal } from "./stubs.js";
 import { useViewerDocument } from "./fixtures/viewer-document.js";
 import { renderEntityContext } from "../src/viewer/assets/viewer-entity-context.js";
 import { buildEntityFields } from "../src/viewer/assets/viewer-entity-fields.js";
@@ -43,7 +45,7 @@ it("labels fields for readers while preserving exact keys in technical details",
 
 it("leads attachments with a filename and retains the reference under technical details", async () => {
   main.innerHTML = '<dd><span class="entity-field-ref">report/a@sha256:abc</span></dd>';
-  vi.stubGlobal("fetch", async () => Response.json({ health: "ok", fileName: "report.txt", contentAccess: "available", manifest: { bytes: 10 } }));
+  stubGlobal("fetch", async () => Response.json({ health: "ok", fileName: "report.txt", contentAccess: "available", manifest: { bytes: 10 } }));
   await decorateArtifactRefs(main, {});
   expect(main.querySelector(".artifact-detail")?.firstElementChild?.textContent).toBe("report.txt");
   expect(main.querySelector(".entity-field-ref")?.closest("details")?.textContent).toContain("report/a@sha256:abc");
@@ -52,7 +54,7 @@ it("leads attachments with a filename and retains the reference under technical 
 });
 
 it("opens the recorded connections and links their real records", async () => {
-  vi.stubGlobal("fetch", async () => Response.json({ nodes: [
+  stubGlobal("fetch", async () => Response.json({ nodes: [
     { id: "ideas/a", title: "Idea A" }, { id: "papers/b", title: "Paper B" },
   ], edges: [{ edgeKind: "relation", relationType: "builds-on", source: "ideas/a", target: "papers/b" }] }));
   renderPipeline(main, { profilePipeline: { entityTypes: [{ type: "ideas", pageCount: 1 }], relationTypes: [
@@ -61,27 +63,27 @@ it("opens the recorded connections and links their real records", async () => {
   const button = main.querySelector<HTMLButtonElement>(".pipeline-relation-count button");
   expect(button).not.toBeNull();
   button!.click();
-  await vi.waitFor(() => expect(main.querySelector('a[href="#/ideas/a"]')?.textContent).toBe("Idea A"));
+  await waitFor(() => expect(main.querySelector('a[href="#/ideas/a"]')?.textContent).toBe("Idea A"));
   expect(main.querySelector('a[href="#/papers/b"]')?.textContent).toBe("Paper B");
 });
 
 it("keeps missing endpoints unlinked and empty definitions noninteractive", async () => {
-  vi.stubGlobal("fetch", async () => Response.json({ nodes: [{ id: "ideas/a", title: "Idea", isDangling: true }],
+  stubGlobal("fetch", async () => Response.json({ nodes: [{ id: "ideas/a", title: "Idea", isDangling: true }],
     edges: [{ edgeKind: "relation", relationType: "tests", source: "ideas/a", target: "papers/missing" }] }));
   main.append(buildConnections([{ type: "tests", count: 1 }, { type: "supports", count: 0 }]));
   expect(main.querySelector('[data-relation-type="supports"] button')).toBeNull();
   expect(main.querySelector('[data-relation-type="supports"]')?.textContent).toContain("No links yet");
   main.querySelector<HTMLButtonElement>("button")!.click();
-  await vi.waitFor(() => expect(main.querySelector(".connection-records")?.textContent).toContain("record not found"));
+  await waitFor(() => expect(main.querySelector(".connection-records")?.textContent).toContain("record not found"));
   expect(main.querySelector(".connection-records a")).toBeNull();
 });
 
 it("offers a retry after a failed connection read", async () => {
-  vi.stubGlobal("fetch", async () => new Response("", { status: 503 }));
+  stubGlobal("fetch", async () => new Response("", { status: 503 }));
   main.append(buildConnections([{ type: "tests", count: 1 }]));
   const button = main.querySelector<HTMLButtonElement>("button")!;
   button.click();
-  await vi.waitFor(() => expect(main.textContent).toContain("Close and reopen"));
+  await waitFor(() => expect(main.textContent).toContain("Close and reopen"));
   expect(button.disabled).toBe(false);
   button.click();
   expect(main.querySelector<HTMLElement>(".connection-records")?.hidden).toBe(true);

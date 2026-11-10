@@ -19,7 +19,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";
 import { reviewProductReadiness } from "../../src/products/readiness.js";
 import type { ProductReadinessDimensionV2, ProviderRequirementV2 } from "../../src/operations-packs/types.js";

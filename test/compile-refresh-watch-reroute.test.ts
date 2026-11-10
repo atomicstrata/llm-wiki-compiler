@@ -19,7 +19,7 @@
  * byte-for-byte (the final on-disk page is the seed body, not the concept body).
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "bun:test";
 import { existsSync } from "fs";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import path from "path";

@@ -2,7 +2,7 @@
  * Bounded JSON serialization keeps existing small-store bytes while refusing
  * oversized candidates before one giant vector string is constructed.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { serializeEmbeddingJson } from "../src/utils/embeddings-json.js";
 import { binaryFixture } from "./fixtures/binary-embedding-store.js";
 

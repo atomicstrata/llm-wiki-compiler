@@ -18,16 +18,19 @@
  * `node:fs/promises`; the mock reaching it is part of what is shown.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as real from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** Calls seen by the mock, and the one path whose read is made to fail. */
-const watch = vi.hoisted(() => ({ seen: [] as string[], unreadable: "" }));
+const watch = (() => ({ seen: [] as string[], unreadable: "" }))();
 
-vi.mock("fs/promises", async (load) => {
-  const disk = await load<typeof import("fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", async () => {
+  const disk = (realFsPromises as typeof import("fs/promises"));
   const readFile = (target: unknown, ...options: unknown[]): unknown => {
     watch.seen.push(`readFile ${String(target)} ${JSON.stringify(options)}`);
     if (target === watch.unreadable) return Promise.reject(Object.assign(new Error("planted read failure"), { code: "EIO" }));

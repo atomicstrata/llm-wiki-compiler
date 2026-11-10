@@ -15,7 +15,7 @@
  * declared; and an action-less profile still validates (omitted-for-default).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfileShape, ProfileValidationError } from "../src/profile/validate.js";
 import type { ProfilePack, WorkflowActionDef, ActionInputField } from "../src/profile/types.js";
 

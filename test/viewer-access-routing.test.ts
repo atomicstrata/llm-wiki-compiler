@@ -3,7 +3,7 @@
  * Handler doubles isolate bind-policy propagation from resource validation;
  * real resource readers have separate content and confinement controls.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { ServerResponse } from "http";
 import http from "http";
 import { startViewerServer } from "../src/viewer/server.js";

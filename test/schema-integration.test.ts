@@ -7,7 +7,7 @@
  * lint rule evaluation — is exercised end-to-end without mocks.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import { existsSync } from "fs";
@@ -61,7 +61,7 @@ async function writeSchemaFile(root: string, schema: object): Promise<string> {
 // Tests
 // ---------------------------------------------------------------------------
 
-// dist/cli.js is built once via vitest globalSetup (see test/global-setup.ts).
+// dist/cli.js is built once by `bun run test` before the suite starts.
 // Per-file beforeAll(npx tsup) calls were removed to avoid the parallel-worker
 // race that PR #21 fixed — tsup's clean step would wipe dist/cli.js mid-test.
 

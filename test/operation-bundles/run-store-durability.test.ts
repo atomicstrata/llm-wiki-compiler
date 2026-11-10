@@ -4,7 +4,7 @@
  * confined no-follow reads, and durable complete operation-run replacement.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { chmod, copyFile, link, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";

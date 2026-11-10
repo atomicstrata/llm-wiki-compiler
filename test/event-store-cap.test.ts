@@ -16,7 +16,7 @@
  *   - A normal under-cap append still succeeds and chains correctly (regression).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { mkdtemp, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -26,11 +26,14 @@ import { appendEvent } from "../src/events/store.js";
 import { readEvents } from "../src/events/store-read.js";
 import { EventStoreFullError } from "../src/events/types.js";
 
+// Snapshot real modules before mock.module replaces them for this file.
+const realUtilsConstants = { ...(await import("../src/utils/constants.js")) };
+
 // Use a tiny store cap so the store-size tests stay fast (no 64 MB writes).
 // NOTE: the literal 1024 is inlined in the mock factory because vi.mock is hoisted
 // before variable declarations and cannot reference module-level const bindings.
-vi.mock("../src/utils/constants.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/utils/constants.js")>();
+vi.mock("../src/utils/constants.js", async () => {
+  const actual = realUtilsConstants as typeof import("../src/utils/constants.js");
   return { ...actual, MAX_EVENT_STORE_BYTES: 1024 };
 });
 

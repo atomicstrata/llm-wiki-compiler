@@ -4,7 +4,7 @@
  * and asserts the expected diagnostics.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, rm, writeFile } from "fs/promises";
 import path from "node:path";
 import {

@@ -1,8 +1,14 @@
 /**
  * Records project `.env` reads made by a real CLI subprocess.
  *
- * Loaded through Node's `--import` hook before the built CLI. It wraps only the
- * synchronous file API used by dotenv and leaves all file contents untouched.
+ * Loaded through Bun's `--preload` (via BUN_OPTIONS) before the built CLI. It
+ * wraps only the synchronous file API used by dotenv and leaves all file
+ * contents untouched.
+ *
+ * Bun can also load `.env` itself, natively and before any preload, which no
+ * file-API wrapper can observe. A project `.env` that sets
+ * LLMWIKI_TEST_DOTENV_SENTINEL is therefore recorded here when the variable is
+ * already present at preload time: only the runtime could have put it there.
  */
 
 import fs from "node:fs";
@@ -21,6 +27,10 @@ function resolveInput(file) {
 function shouldTrack(filePath) {
   if (path.basename(filePath) === ".env") return true;
   return configuredTarget ? filePath === path.resolve(configuredTarget) : false;
+}
+
+if (logPath && process.env.LLMWIKI_TEST_DOTENV_SENTINEL) {
+  fs.appendFileSync(logPath, "runtime-loaded .env before llmwiki started\n");
 }
 
 fs.readFileSync = function trackedReadFileSync(file, ...args) {

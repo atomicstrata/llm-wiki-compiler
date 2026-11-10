@@ -8,7 +8,7 @@
  *     and CLI flag takes precedence over env var in a spawned viewer process.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import net from "net";
 import path from "path";
 import { exec as execCb } from "child_process";
@@ -173,7 +173,7 @@ describe("CLI integration — LLMWIKI_VIEW_PORT and --port precedence", () => {
     const root = await makeTempRoot("viewer-port-invalid-env");
     let failure: { code?: number | null; stderr?: string } | null = null;
     try {
-      await exec(`node "${CLI}" view`, {
+      await exec(`bun "${CLI}" view`, {
         cwd: root,
         timeout: CLI_TIMEOUT_MS,
         env: { ...process.env, [ENV_VIEW_PORT]: "not-a-port" },

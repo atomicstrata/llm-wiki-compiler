@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { okfLinksToWikilinks } from "../src/export/okf/mapping.js";
 
 // resolveLink: linkPath -> { slug, title } | null for known bundle docs.

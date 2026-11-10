@@ -21,7 +21,7 @@
  * `absent` coercion would make a crash-revert DELETE a target that held content.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFile, readFile, mkdir, symlink, rm, mkdtemp, open, rename } from "fs/promises";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";

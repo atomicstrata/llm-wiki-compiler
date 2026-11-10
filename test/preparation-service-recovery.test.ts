@@ -16,7 +16,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { preparationKeyFile } from "../src/preparations/paths.js";
 import type { RecoveryResultV1 } from "../src/preparations/service.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";

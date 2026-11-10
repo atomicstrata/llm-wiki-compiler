@@ -40,7 +40,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { vi, afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { vi, afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { expectMintingDirectoryRemoved } from "./minted-directory.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
@@ -102,9 +103,9 @@ function modelStub(): Promise<string> {
   const next = queued.shift() ?? SUPPORTED;
   return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
 }
-const calls = (): number => vi.mocked(callClaude).mock.calls.length;
-const offline = (): void => { vi.stubEnv("LLMWIKI_PROVIDER", "offline"); };
-const withoutCredential = (): void => { vi.stubEnv("LLMWIKI_PROVIDER", "openai"); vi.stubEnv("OPENAI_API_KEY", ""); };
+const calls = (): number => (callClaude as unknown as Mock<typeof callClaude>).mock.calls.length;
+const offline = (): void => { stubEnv("LLMWIKI_PROVIDER", "offline"); };
+const withoutCredential = (): void => { stubEnv("LLMWIKI_PROVIDER", "openai"); stubEnv("OPENAI_API_KEY", ""); };
 
 type Evaluate = (suite: "fast" | "full", sampleSize?: number) => Promise<CandidateEvalReport>;
 /** What one run gave: its report or the message it rejected with, and how often the stub was asked. */
@@ -128,9 +129,9 @@ async function fiveRuns(evaluate: Evaluate): Promise<Run[]> {
 
 const tracker = tempRootTracker();
 let project: Minted<Run[]>;
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(AT)); vi.mocked(callClaude).mockImplementation(modelStub); });
-beforeEach(() => { offline(); vi.mocked(callClaude).mockReset().mockImplementation(modelStub); log.length = 0; });
-afterAll(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
+beforeAll(() => { setSystemTime(new Date(AT)); (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(modelStub); });
+beforeEach(() => { offline(); (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(modelStub); log.length = 0; });
+afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), (root) => fiveRuns((suite, sampleSize) => evaluateCandidates(root, suite, sampleSize)));
 });

@@ -24,7 +24,7 @@
 
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as capacity from "../../src/operation-bundles/capacity.js";
 import type { OperationInventory } from "../../src/operation-bundles/capacity.js";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";

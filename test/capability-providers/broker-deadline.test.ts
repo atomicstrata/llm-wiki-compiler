@@ -6,7 +6,8 @@
  * mutating effect whose deadline fires after transmission settles as
  * outcome-unknown rather than a retryable failure.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { waitFor } from "../wait-for.js";
 import { parseInvocationId } from "../../src/capability-providers/ids.js";
 import type { HostMutationExecutorV1 } from "../../src/capability-providers/brokers/remote-effect.js";
 import type { HostRepositoryBrokerV1 } from "../../src/capability-providers/brokers/repository.js";
@@ -148,7 +149,7 @@ describe("broker wall-time deadline", () => {
     }));
     const { dispatcher, request } = await mutatingDispatcher(execute, controller.signal);
     const pending = dispatchHostBrokerRequest(dispatcher, request);
-    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
     controller.abort();
     const result = await pending;
     expect(result.status).toBe("outcome-unknown");

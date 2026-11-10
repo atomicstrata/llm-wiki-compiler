@@ -11,7 +11,7 @@
  * UPGRADES rows to verified when its result is bound to the exact run version.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installWorkflowProfile, buildWorkflowProfile } from "./fixtures/workflow-profile.js";
 import { startWorkflow } from "../src/workflows/start.js";

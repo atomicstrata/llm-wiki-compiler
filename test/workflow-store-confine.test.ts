@@ -8,7 +8,7 @@
  * crashing the caller.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, writeFile, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";

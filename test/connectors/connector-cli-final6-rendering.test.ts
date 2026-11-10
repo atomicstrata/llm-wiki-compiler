@@ -4,7 +4,7 @@
  * while terminal output uses bounded, reversible, one-line ASCII escapes.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { connectorRunCommand } from "../../src/commands/connector.js";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
 import { runConnector, type RunConnectorResult } from "../../src/connectors/run.js";
@@ -39,7 +39,7 @@ async function captureCommand(runner: typeof runConnector): Promise<string[]> {
 describe("Final6 connector CLI candidate rendering", () => {
   afterEach(() => {
     delete process.env.LLMWIKI_CONNECTORS;
-    process.exitCode = undefined;
+    process.exitCode = 0;
     vi.restoreAllMocks();
   });
 
@@ -62,7 +62,7 @@ describe("Final6 connector CLI candidate rendering", () => {
     expect(rendered).toContain("\\u2028");
     expect(rendered).toContain("\\u202e");
     expect(rendered).toContain("\\u002c");
-    expect(process.exitCode).toBeUndefined();
+    expect(process.exitCode ?? 0).toBe(0);
   });
 
   it("uses the same encoding for recovery-required output", async () => {

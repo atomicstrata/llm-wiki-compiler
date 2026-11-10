@@ -2,24 +2,25 @@
  * Exercises gateway embeddings at the HTTP boundary, including independent
  * embedding selection and the model identity used to invalidate stored vectors.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { getEmbeddingProvider, findEmbeddingProviderProblem } from "../src/utils/embedding-provider.js";
 import { resolveEmbeddingModel } from "../src/utils/embeddings-store.js";
 
 beforeEach(() => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "orcarouter");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", undefined);
-  vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", undefined);
-  vi.stubEnv("ORCAROUTER_API_KEY", "gateway-key");
-  vi.stubEnv("OPENAI_EMBEDDINGS_BASE_URL", "https://wrong.example/v1");
-  vi.stubEnv("OPENAI_EMBEDDINGS_API_KEY", "wrong-key");
+  stubEnv("LLMWIKI_PROVIDER", "orcarouter");
+  stubEnv("LLMWIKI_EMBEDDING_PROVIDER", undefined);
+  stubEnv("LLMWIKI_EMBEDDING_MODEL", undefined);
+  stubEnv("ORCAROUTER_API_KEY", "gateway-key");
+  stubEnv("OPENAI_EMBEDDINGS_BASE_URL", "https://wrong.example/v1");
+  stubEnv("OPENAI_EMBEDDINGS_API_KEY", "wrong-key");
 });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { restoreEnv(); restoreGlobals(); });
 
 it.each([undefined, "openai/text-embedding-3-large"])("routes vectors and model identity together: %s", async (override) => {
-  vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", override);
+  stubEnv("LLMWIKI_EMBEDDING_MODEL", override);
   const requests: unknown[] = [];
-  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+  stubGlobal("fetch", async (url: string, init: RequestInit) => {
     expect(String(url)).toBe("https://api.orcarouter.ai/v1/embeddings");
     expect(new Headers(init.headers).get("authorization")).toBe("Bearer gateway-key");
     const body = JSON.parse(String(init.body));
@@ -42,11 +43,11 @@ it.each([undefined, "openai/text-embedding-3-large"])("routes vectors and model 
 });
 
 it("permits independent gateway selection but requires its own credential", () => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "orcarouter");
+  stubEnv("LLMWIKI_PROVIDER", "openai");
+  stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "orcarouter");
   expect(findEmbeddingProviderProblem()).toBeNull();
   expect(resolveEmbeddingModel()).toBe("openai/text-embedding-3-small");
-  vi.stubEnv("ORCAROUTER_API_KEY", " ");
+  stubEnv("ORCAROUTER_API_KEY", " ");
   expect(findEmbeddingProviderProblem()).toMatchObject({ kind: "unavailable", missing: ["ORCAROUTER_API_KEY"] });
   expect(() => getEmbeddingProvider()).toThrow("ORCAROUTER_API_KEY");
 });

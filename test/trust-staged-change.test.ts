@@ -13,7 +13,7 @@
  * 200-pending-candidate ceiling.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   type StagedChange,
   type CandidateKind,

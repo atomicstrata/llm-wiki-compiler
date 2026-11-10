@@ -12,7 +12,7 @@
  * is the pack materializer's, and the adapters are the host's real seven.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import {
   createPackMaterializer, PackMaterializationError,

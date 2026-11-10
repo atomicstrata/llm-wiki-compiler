@@ -16,7 +16,7 @@
  * split-brain the shared-enumeration rule forbids.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { selectSet } from "../../src/operations-packs/handlers/set-select.js";
 import type { SelectFilterPredicateV2, SelectPhaseBodyV2 } from "../../src/operations-packs/recipe-types.js";
 import type { PackEvidenceItemV1, PackSelectInputV1 } from "../../src/operations-packs/handlers/types.js";

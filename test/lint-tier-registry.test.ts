@@ -4,7 +4,7 @@
  * confidence is a stored judgement only when a numeric field is declared, and
  * an undeclared id is a configuration error rather than a silently dropped row.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import { groupByDeclaredTier, UnknownLintRuleTierError } from "../src/linter/tiers.js";
 import { declaredRuleTiers, lint } from "../src/linter/index.js";
 import * as profileLint from "../src/profile/lint.js";

@@ -8,7 +8,7 @@
  * never the tool-calling fallback. No `vi.mock`, no spy, no network.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmod, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

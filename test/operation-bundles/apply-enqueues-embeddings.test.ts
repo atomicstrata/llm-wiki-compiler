@@ -9,7 +9,7 @@
 import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { recoverOperationRunLocked } from "../../src/operation-bundles/recovery.js";
 import { loadPendingEmbeddings, writePendingEmbeddings } from "../../src/utils/pending-embeddings.js";

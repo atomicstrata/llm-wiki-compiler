@@ -2,16 +2,17 @@
  * The unrestricted extraction mode is opt-in. Keep legacy prompts and parsing
  * by default, isolate concurrent callers, and invalidate snapshots on a switch.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { buildExtractionPrompt, buildPagePrompt, parseConcepts, parseConceptExtraction } from "../src/compiler/prompts.js";
 import { activePromptModifiers, noPagesLimitEnabled, promptModifiersDigest, withRunNoPagesLimit } from "../src/compiler/prompt-modifiers.js";
 import { extractionSourceHash, reusableExtraction, snapshotExtraction } from "../src/compiler/extraction-snapshot.js";
 
 beforeEach(() => {
-  vi.stubEnv("LLMWIKI_OUTPUT_LANG", "");
-  vi.stubEnv("LLMWIKI_SOURCES_SECTION", "on");
+  stubEnv("LLMWIKI_OUTPUT_LANG", "");
+  stubEnv("LLMWIKI_SOURCES_SECTION", "on");
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => restoreEnv());
 
 describe("no-pages-limit selection", () => {
   it.each([undefined, false])("preserves the legacy guidance when the option is %s", enabled => {

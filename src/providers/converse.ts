@@ -134,7 +134,7 @@ async function loadConverseDependencies() {
   } catch {
     throw Object.assign(new Error(
       "Converse requires optional packages. Install them alongside llmwiki: " +
-      "npm install @aws-sdk/client-bedrock-runtime @smithy/node-http-handler",
+      "bun add @aws-sdk/client-bedrock-runtime @smithy/node-http-handler",
     ), { nonRetryable: true });
   }
 }

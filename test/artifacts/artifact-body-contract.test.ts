@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateArtifactBody } from "../../src/artifacts/body-contract.js";
 import type { ArtifactTypeDef } from "../../src/profile/types.js";
 

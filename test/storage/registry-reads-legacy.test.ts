@@ -17,7 +17,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildEmbeddingText } from "../../src/utils/embeddings-pages.js";
 import {
   buildLiveRegistryEntry, buildSurfaceEligibleCandidates, loadPageRecordPairsByPageId, loadPageRecordsByPageId,

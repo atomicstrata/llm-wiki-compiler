@@ -4,7 +4,7 @@
  * regressions for manifest-bound operation runs.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { mutationId } from "../../src/operation-bundles/ids.js";
 import { appendOperationTransition, signOperationRun } from "../../src/operation-bundles/run-integrity.js";
 import { parseOperationRun } from "../../src/operation-bundles/run-parse.js";

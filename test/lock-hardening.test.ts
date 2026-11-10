@@ -14,7 +14,7 @@
  *    holds (via the shared `expectLockAcquireRelease`).
  */
 
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, afterEach, expect, vi } from "bun:test";
 import { mkdir, rm, symlink, writeFile, readFile } from "fs/promises";
 import path from "path";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";

@@ -8,7 +8,7 @@
  * health dashboard renders when `/api/health.stateStatus === "corrupt"`.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   flushMicrotasks,
   jsonResponse,

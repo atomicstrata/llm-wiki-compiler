@@ -4,7 +4,7 @@
  * stage records and nothing drawn from the corpus, prompts, answers, or paths;
  * with it unset, no log appears.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
@@ -57,7 +57,7 @@ describe("stage timing through the CLI", () => {
     for (const secret of [SOURCE_TEXT, "Zyxwv", "Canned", cwd, "mock-key-for-aimock"]) expect(log).not.toContain(secret);
   }, 60_000);
 
-  it.runIf(process.platform !== "win32")("finishes compile promptly when the log path is a FIFO nobody reads", async () => {
+  it.if(process.platform !== "win32")("finishes compile promptly when the log path is a FIFO nobody reads", async () => {
     const handle = await startMock();
     const cwd = await aimock.makeWorkspace(`# Source\n\n${SOURCE_TEXT}\n`);
     const fifo = path.join(cwd, "timing.fifo");

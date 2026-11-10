@@ -11,7 +11,7 @@
  * DIVERTS the save destination rather than adding a second write.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { rm, readFile, mkdtemp, mkdir, writeFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

@@ -6,7 +6,7 @@
  * pinned without expanding the already-full review.test.ts file.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeCandidate, readCandidate } from "../src/compiler/candidates.js";
 import type { CandidateDraft } from "../src/compiler/candidates.js";
 import reviewListCommand from "../src/commands/review-list.js";
@@ -28,7 +28,7 @@ const BODY = [
 ].join("\n");
 
 function collectLogOutput(spy: ReturnType<typeof vi.spyOn>): string {
-  return spy.mock.calls.map((args) => args.join(" ")).join("\n");
+  return spy.mock.calls.map((args: unknown[]) => args.join(" ")).join("\n");
 }
 
 /**

@@ -16,7 +16,7 @@
  * show those.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as capacity from "../../src/preparations/capacity.js";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import { mintPreparationId, mintPreparationRunId } from "../../src/preparations/ids.js";

@@ -27,32 +27,37 @@
  */
 
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** `calls` are [function name, ...arguments] noted while `on`; `fault` rejects one `lstat` on one path. */
-const io = vi.hoisted(() => ({
+const io = (() => ({
   on: false,
   calls: [] as unknown[][],
   fault: null as null | { at: string; error: Error },
-}));
+}))();
 
 /**
- * The suite's `fs` tapper (`fs-taps.ts`, loaded in this hoisted block): each tapped call is noted with its arguments
- * while `on`, and the one faulted `lstat` path rejects with the fault instead of reaching the real function.
+ * The suite's `fs` tapper (`fs-taps.ts`): each tapped call is noted with its arguments while `on`, and
+ * the one faulted `lstat` path rejects with the fault instead of reaching the real function. It is built
+ * at top level so the mock factories below stay synchronous: Bun runs a factory eagerly, and an `await`
+ * inside one never resumes, hanging the file at load.
  */
-const tapper = vi.hoisted(async () => {
-  const { fsTapper } = await import("./fs-taps.js");
-  return fsTapper({
-    note: (name, args) => { if (io.on) io.calls.push([name, ...args]); },
-    answer: (name, args) => (name === "lstat" && io.fault !== null && io.fault.at === args[0] ? Promise.reject(io.fault.error) : undefined),
-  });
+const { fsTapper } = await import("./fs-taps.js");
+const tap = fsTapper({
+  note: (name, args) => { if (io.on) io.calls.push([name, ...args]); },
+  answer: (name, args) => (name === "lstat" && io.fault !== null && io.fault.at === args[0] ? Promise.reject(io.fault.error) : undefined),
 });
 
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
+
 // Both spellings of each module: `state-reset.ts` uses the bare names before the move, `reset-plan.ts` and storage the `node:` ones.
-vi.mock("fs", async (load) => (await tapper)(await load<typeof import("fs")>(), ["existsSync"]));
-vi.mock("node:fs", async (load) => (await tapper)(await load<typeof import("node:fs")>(), ["existsSync"]));
-vi.mock("fs/promises", async (load) => (await tapper)(await load<typeof import("fs/promises")>(), ["lstat", "rename", "readdir"]));
-vi.mock("node:fs/promises", async (load) => (await tapper)(await load<typeof import("node:fs/promises")>(), ["lstat", "rename", "readdir"]));
+const realFs = { ...(await import("fs")) };
+
+vi.mock("fs", () => tap(realFs as typeof import("fs"), ["existsSync"]));
+vi.mock("node:fs", () => tap(realFs as typeof import("node:fs"), ["existsSync"]));
+vi.mock("fs/promises", () => tap(realFsPromises as typeof import("fs/promises"), ["lstat", "rename", "readdir"]));
+vi.mock("node:fs/promises", () => tap(realFsPromises as typeof import("node:fs/promises"), ["lstat", "rename", "readdir"]));
 
 import { executeReset, planReset, type ResetPlanV1 } from "../../src/commands/reset-plan.js";
 import { stateResetCommand } from "../../src/commands/state-reset.js";
@@ -62,7 +67,7 @@ import * as lock from "../../src/utils/lock.js";
 import * as output from "../../src/utils/output.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+const fs = realFsPromises as typeof import("node:fs/promises");
 const STATE_BYTES = "\u0000not json { at all";
 const ctx = useTempRoot();
 let statuses: string[] = [];

@@ -13,7 +13,7 @@
  * the public `src/index.ts` surface, not just importable via a deep path.
  */
 
-import { describe, it, afterEach, expect } from "vitest";
+import { describe, it, afterEach, expect } from "bun:test";
 import { rm } from "node:fs/promises";
 import { createWiki, ArtifactVerifyUnavailableError } from "../../src/index.js";
 import type { SdkWriteArtifactInput, ArtifactRef, ArtifactHealth } from "../../src/index.js";

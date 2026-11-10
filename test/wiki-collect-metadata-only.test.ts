@@ -11,11 +11,14 @@
  * bounded prefix, never its full size.
  */
 
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, afterEach, expect, vi } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { scanEntityDir } from "../src/wiki/collect.js";
+
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
 
 /**
  * Spy that wraps `fs/promises.open` and tallies the bytes returned by each
@@ -24,7 +27,7 @@ import { scanEntityDir } from "../src/wiki/collect.js";
  * `vi.mock` because ESM named exports cannot be re-spied in place.
  */
 vi.mock("node:fs/promises", async () => {
-  const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  const actual = realFsPromises as typeof import("node:fs/promises");
   return {
     ...actual,
     open: async (...args: Parameters<typeof actual.open>) => {

@@ -6,7 +6,7 @@
  * when processed by `appendCitationWarningsForMarker` / `isMalformedCitationEntry`.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   normalizeCitationsInBody,
   normalizeCitations,

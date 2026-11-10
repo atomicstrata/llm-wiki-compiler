@@ -15,7 +15,7 @@
  * name what was passed.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { GATE_RECORDABLE_RUN_STATES } from "../src/preparations/service.js";
 import type { GateResultV1 } from "../src/preparations/service.js";
 import { stateOnlyTransitionStates } from "../src/preparations/run-validation.js";

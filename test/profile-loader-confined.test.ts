@@ -17,7 +17,7 @@
  * elsewhere in the test suite for symlink-dependent tests).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

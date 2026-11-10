@@ -8,7 +8,7 @@
  * writes until a later WOP slice binds the sealed body and evidence.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   createHostHandlerRegistry, hostHandlerRefFor, HOST_HANDLER_FAMILY_IDS,
 } from "../../src/operations-packs/handlers/registry.js";

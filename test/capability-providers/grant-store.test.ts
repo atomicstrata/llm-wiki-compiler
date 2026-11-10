@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
   operatorGrantRequestDigest, projectGrantScopeDigest, writeOperatorGrant,
 } from "../../src/capability-providers/authority/grants-resolve.js";

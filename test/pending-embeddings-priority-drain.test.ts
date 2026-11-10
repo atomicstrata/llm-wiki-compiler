@@ -13,7 +13,7 @@
  * asserts the fresh ids are still in the on-disk marker afterwards.
  */
 
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, afterEach, expect, vi } from "bun:test";
 import { writePendingEmbeddings, loadPendingEmbeddings } from "../src/utils/pending-embeddings.js";
 import { refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
 import { MAX_PENDING_EMBEDDING_IDS } from "../src/utils/constants.js";

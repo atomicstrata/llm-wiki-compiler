@@ -3,7 +3,8 @@
  * Only the LLM provider is mocked: strict collection, retrieval, persistence,
  * activity logging, and SDK quiet scopes all exercise production code.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createWiki } from "../src/index.js";
@@ -19,18 +20,18 @@ vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 const ctx = useTempRoot();
 const ANSWER = "The answer cites [[Alpha]].";
 beforeEach(async () => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-  vi.stubEnv("ANTHROPIC_API_KEY", "offline-test-key");
-  vi.stubEnv("VOYAGE_API_KEY", "");
+  stubEnv("LLMWIKI_PROVIDER", "anthropic");
+  stubEnv("ANTHROPIC_API_KEY", "offline-test-key");
+  stubEnv("VOYAGE_API_KEY", "");
   await stageCitationWorkspace(ctx.dir);
-  vi.mocked(callClaude).mockReset().mockImplementation(async (options) => {
+  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" });
     options.onToken?.(ANSWER);
     return ANSWER;
   });
 });
 afterEach(() => {
-  vi.unstubAllEnvs();
+  restoreEnv();
   setQuerySaveTestHookForTest(undefined);
 });
 
@@ -104,7 +105,7 @@ it("returns unavailable quietly without saving or changing page/candidate bytes"
 });
 
 it("distinguishes successful no-link collection from unavailable no-link collection", async () => {
-  vi.mocked(callClaude).mockImplementation(async (options) => options.tools
+  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(async (options) => options.tools
     ? JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" }) : "Plain answer.");
   const wiki = createWiki({ root: ctx.dir });
   expect((await wiki.query("Explain alpha")).answerCitations).toEqual({ version: 1, citations: [] });
@@ -129,7 +130,7 @@ it("propagates real save failures even after recovering a citation failure", asy
 it("propagates generation failure before collection, saving, or logging", async () => {
   await unreadablePage();
   const failure = new Error("provider generation failed");
-  vi.mocked(callClaude).mockImplementation(async (options) => {
+  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" });
     throw failure;
   });

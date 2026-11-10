@@ -27,7 +27,7 @@
 
 import { chmod, link, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { MAX_PREPARATION_KEY_FILE_BYTES } from "../../src/preparations/constants.js";
 import { readPreparationKey, readPreparationKeyEpoch } from "../../src/preparations/key-epoch.js";
 import { preparationKeyFile } from "../../src/preparations/paths.js";

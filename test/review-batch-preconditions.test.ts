@@ -3,7 +3,7 @@
  * Real proposals and destinations exercise stale repair refusal, namespace
  * routing, fail-closed reads, and retries after a partial finalization.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { lintFixProposeCommand } from "../src/commands/lint-fix-propose.js";

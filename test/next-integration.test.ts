@@ -14,7 +14,7 @@
  *   - human output never trips an ANSI escape into the JSON path
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";

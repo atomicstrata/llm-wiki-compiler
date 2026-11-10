@@ -34,7 +34,7 @@
  * this", deletes the test that actually covers it, and the suite stays green.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import type { PreparationPrincipal, StageResultV1 } from "../src/preparations/service.js";
 import { createWiki } from "../src/sdk/wiki.js";

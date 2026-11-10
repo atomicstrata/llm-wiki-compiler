@@ -20,7 +20,7 @@
  * sealed-input and run bindings are executed by no test.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   verifyExecutionProvenanceFrom, type ExecutionProvenanceReads,
 } from "../../src/artifacts/execution-provenance.js";

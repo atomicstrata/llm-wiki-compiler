@@ -40,7 +40,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as applyGuards from "../../src/artifacts/apply-guards.js";
 import { applyArtifactLocked, applyArtifactLockedWith, type ArtifactApplySources } from "../../src/artifacts/apply.js";
 import type { ArtifactLeafReads } from "../../src/artifacts/resolve.js";

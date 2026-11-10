@@ -34,9 +34,7 @@
 
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-// The hoisted `vi.mock` calls below run before this import is initialized, so each factory
-// refers to `passThrough` only inside its body, which runs when the mocked module is first imported.
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from "bun:test";
 import { passThrough } from "./pass-through-mock.js";
 import { buildContextPack, buildContextPackFrom } from "../../src/context/build.js";
 import { contextPackReadsOver, type ContextPackReads, type ContextPackSources } from "../../src/context/build-reads.js";
@@ -57,16 +55,24 @@ import {
   sourceFreshnessOf, unasked, writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-vi.mock("../../src/viewer/snapshot.js", (original) => passThrough("buildViewerSnapshot")(original));
-vi.mock("../../src/profile/block.js", (original) => passThrough("loadNonDefaultProfile")(original));
-vi.mock("../../src/project/state.js", (original) => passThrough("collectProjectState")(original));
-vi.mock("../../src/context/retrieval.js", (original) => passThrough("retrieveSemanticChunks")(original));
-vi.mock("../../src/context/provenance.js", (original) => passThrough("materializeSourceWindows")(original));
-vi.mock("../../src/trust/journal-health-warning.js", (original) => passThrough("journalHealthWarning")(original));
+// Snapshot real modules before mock.module replaces them for this file.
+const realSnapshot = { ...(await import("../../src/viewer/snapshot.js")) };
+const realBlock = { ...(await import("../../src/profile/block.js")) };
+const realState = { ...(await import("../../src/project/state.js")) };
+const realRetrieval = { ...(await import("../../src/context/retrieval.js")) };
+const realProvenance = { ...(await import("../../src/context/provenance.js")) };
+const realJournalHealthWarning = { ...(await import("../../src/trust/journal-health-warning.js")) };
+
+vi.mock("../../src/viewer/snapshot.js", () => passThrough(realSnapshot, "buildViewerSnapshot"));
+vi.mock("../../src/profile/block.js", () => passThrough(realBlock, "loadNonDefaultProfile"));
+vi.mock("../../src/project/state.js", () => passThrough(realState, "collectProjectState"));
+vi.mock("../../src/context/retrieval.js", () => passThrough(realRetrieval, "retrieveSemanticChunks"));
+vi.mock("../../src/context/provenance.js", () => passThrough(realProvenance, "materializeSourceWindows"));
+vi.mock("../../src/trust/journal-health-warning.js", () => passThrough(realJournalHealthWarning, "journalHealthWarning"));
 
 /** The six root-taking readers the root route calls, in body order. */
 const ROOT_READERS = [buildViewerSnapshot, loadNonDefaultProfile, collectProjectState, retrieveSemanticChunks, materializeSourceWindows, journalHealthWarning]
-  .map((reader) => vi.mocked(reader as (...args: never[]) => unknown));
+  .map((reader) => reader as unknown as Mock<(...args: never[]) => unknown>);
 
 const PREFIX = "context-pack-binding-";
 const REQUEST = { prompt: "alpha beta", includeSources: true, omitRoot: true };

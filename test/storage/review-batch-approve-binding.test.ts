@@ -17,7 +17,8 @@
  * review-batch suites show those.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as custody from "../../src/compiler/candidate-custody.js";
 import * as candidates from "../../src/compiler/candidates.js";
 import { approveReviewBatchWith, type ReviewBatchSteps } from "../../src/commands/review-approve-batch.js";
@@ -31,7 +32,7 @@ import { approveBatch, stageBatchCandidate, useQuietBatchTests } from "../fixtur
 import { tempRootTracker } from "../temp-roots.js";
 
 const tracker = tempRootTracker();
-afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await tracker.cleanup(); });
+afterEach(async () => { vi.restoreAllMocks(); restoreEnv(); await tracker.cleanup(); });
 
 /** What the memory steps answer, where a case says so. */
 interface BatchWorld { locked?: boolean; valid?: string[]; unrecordable?: string[]; finalizeFault?: Error }
@@ -66,7 +67,7 @@ async function approve(ids: string[], world: BatchWorld = {}) {
 
 describe("the batch approval sequence as a root-free body", () => {
   // Embeddings ON unless a case turns them off, whatever the ambient environment.
-  beforeEach(() => { vi.stubEnv("LLMWIKI_EMBEDDINGS", "on"); });
+  beforeEach(() => { stubEnv("LLMWIKI_EMBEDDINGS", "on"); });
 
   it("B1 locks, plans, checks access, opens the intent, checks retry capacity, promotes, finalizes, then deletes, and releases", async () => {
     const { result, log, statuses } = await approve(["a", "b"]);
@@ -85,7 +86,7 @@ describe("the batch approval sequence as a root-free body", () => {
     const full = await approve(["a"], { unrecordable: ["concepts/a"] });
     expect([full.result.status, full.result.error, full.statuses]).toEqual(["failed", expect.stringContaining("no candidate was approved"), ["failed"]]);
     expect(full.log).toEqual(["lock", "plan", "access", "intent 1", "capacity 1", "release"]);
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+    stubEnv("LLMWIKI_EMBEDDINGS", "off");
     const off = await approve(["a"], { unrecordable: ["concepts/a"] });
     expect([off.result.status, off.log.includes("capacity 1")]).toEqual(["completed", false]);
   });

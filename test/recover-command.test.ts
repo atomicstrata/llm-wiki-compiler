@@ -15,7 +15,7 @@
  *  - the project lock held by a live holder → clean failure, exit non-zero.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { rm, writeFile, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { runCLI } from "./fixtures/run-cli.js";

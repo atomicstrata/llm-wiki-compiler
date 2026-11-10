@@ -4,7 +4,7 @@
  */
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { twoSourceRmProject } from "../fixtures/rm-project.js";
 import { runCLI } from "../fixtures/run-cli.js";
 import { parkedSourceBundle } from "./executor-fixtures.js";

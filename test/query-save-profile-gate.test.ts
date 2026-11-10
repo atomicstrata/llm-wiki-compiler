@@ -10,7 +10,7 @@
  * full LLM answer pipeline.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 import path from "path";

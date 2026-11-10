@@ -8,7 +8,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { mintPreparationId } from "../../src/preparations/ids.js";
 import {

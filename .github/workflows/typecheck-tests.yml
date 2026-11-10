@@ -15,11 +15,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck:tests -- --base-ref "$TEST_TYPECHECK_BASE_REF"
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck:tests --base-ref "$TEST_TYPECHECK_BASE_REF"
         env:
           TEST_TYPECHECK_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}

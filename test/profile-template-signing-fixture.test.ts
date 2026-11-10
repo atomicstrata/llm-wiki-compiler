@@ -5,7 +5,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSignedPackage, parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";
 import { advancePublisherPins, emptyPublisherPinState } from "../src/profile/templates/signing/continuity.js";
 import type { PublisherKey } from "../src/profile/templates/signing/types.js";

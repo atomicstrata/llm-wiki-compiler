@@ -17,7 +17,7 @@
  * staging suites show those. The doubles are not a hosted store.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { OperationInventory } from "../../src/operation-bundles/capacity.js";
 import { MAX_MANIFEST_BYTES, MAX_PAYLOAD_BYTES, MAX_RUN_BYTES } from "../../src/operation-bundles/constants.js";
 import * as durableCandidate from "../../src/operation-bundles/durable-candidate.js";

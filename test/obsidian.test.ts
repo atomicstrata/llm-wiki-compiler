@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import { addObsidianMeta, generateMOC } from "../src/compiler/obsidian.js";

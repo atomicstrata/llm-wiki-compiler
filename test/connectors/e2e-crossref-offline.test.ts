@@ -5,7 +5,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import reviewApproveCommand from "../../src/commands/review-approve.js";
 import reviewShowCommand from "../../src/commands/review-show.js";
 import { listCandidates } from "../../src/compiler/candidates.js";
@@ -186,7 +186,7 @@ async function yearlessCrossrefFixture(): Promise<string> {
 describe("Crossref connector offline e2e", () => {
   afterEach(() => {
     delete process.env.LLMWIKI_CONNECTORS;
-    process.exitCode = undefined;
+    process.exitCode = 0;
     vi.restoreAllMocks();
   });
 
@@ -199,7 +199,7 @@ describe("Crossref connector offline e2e", () => {
       expect(showOutput).toContain("UNTRUSTED");
       await approveCandidate(root, candidate.id);
       expect(process.exitCode).toBe(1);
-      process.exitCode = undefined;
+      process.exitCode = 0;
 
       await approveCandidate(root, candidate.id, hashFromShow(showOutput));
       const page = await readFile(path.join(root, "wiki", "papers", "crossref-10-123-example.md"), "utf8");

@@ -1,4 +1,5 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { enforceCharLimit, buildDocument } from "../src/commands/ingest.js";
 import { MAX_SOURCE_CHARS, resolveMaxSourceChars } from "../src/utils/constants.js";
@@ -74,30 +75,30 @@ describe("ingest truncation metadata", () => {
 
 describe("LLMWIKI_MAX_SOURCE_CHARS", () => {
   afterEach(() => {
-    vi.unstubAllEnvs();
+    restoreEnv();
   });
 
   it("raises the ingest limit so a long document stays whole", () => {
-    vi.stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "250000");
+    stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "250000");
 
     expect(resolveMaxSourceChars()).toBe(250_000);
     expect(enforceCharLimit("q".repeat(150_000)).truncated).toBe(false);
   });
 
   it("falls back to the default when the variable is unset or empty", () => {
-    vi.stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "");
+    stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "");
 
     expect(resolveMaxSourceChars()).toBe(MAX_SOURCE_CHARS);
   });
 
   it("rejects a value below the minimum source length", () => {
-    vi.stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "12");
+    stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "12");
 
     expect(() => resolveMaxSourceChars()).toThrow(/LLMWIKI_MAX_SOURCE_CHARS/);
   });
 
   it("rejects a non-integer value", () => {
-    vi.stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "1.5");
+    stubEnv("LLMWIKI_MAX_SOURCE_CHARS", "1.5");
 
     expect(() => resolveMaxSourceChars()).toThrow(/LLMWIKI_MAX_SOURCE_CHARS/);
   });

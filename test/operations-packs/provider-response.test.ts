@@ -14,7 +14,7 @@
  * canonical projections existed.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { decodeProviderResponse } from "../../src/operations-packs/handlers/provider-response.js";
 import { PackHostHandlerError } from "../../src/operations-packs/handlers/types.js";
 

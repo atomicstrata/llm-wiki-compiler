@@ -21,7 +21,7 @@
  * via this seam without a contrived check, so they are noted rather than covered.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

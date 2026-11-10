@@ -17,20 +17,23 @@
  * `node:fs/promises`; the mock reaching them is part of what is shown.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 interface ReadCall { requested: number; position: unknown; bytesRead: number }
 /** What the mock saw and what it should do to the next opened handle. */
-const tape = vi.hoisted(() => ({
+const tape = (() => ({
   reads: {} as Record<string, ReadCall[]>, wholeReads: [] as string[],
   shortReadOf: null as number | null, closeError: null as Error | null,
-}));
+}))();
 
-vi.mock("fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", async () => {
+  const actual = realFsPromises as typeof import("fs/promises");
   const open = (async (target: unknown, ...rest: unknown[]) => {
     const handle = await (actual.open as (...args: unknown[]) => Promise<fs.FileHandle>)(target, ...rest);
     const realRead = handle.read.bind(handle) as (...args: unknown[]) => Promise<{ bytesRead: number }>;
@@ -161,12 +164,13 @@ describe("the metadata-only page scan", () => {
     expect(seen).toEqual({ prefixBytes: [CAP], wholeFileRead: false, title: "Big Body", hasBlock: true, body: "" });
   });
 
-  it("lists pages in listing order, skips non-pages and escapes, and tells a missing directory from a redirected one", async () => {
+  it("lists pages in name order, skips non-pages and escapes, and tells a missing directory from a redirected one", async () => {
     for (const name of ["b.md", "a.md", "c.md"]) await put(`wiki/concepts/${name}`, PAGE(name));
     await put("wiki/concepts/notes.txt", "not a page");
     await fs.writeFile(path.join(run.base, "outside.md"), PAGE("LEAK"));
     await fs.symlink(path.join(run.base, "outside.md"), at("wiki/concepts/leak.md"));
-    const listed = (await fs.readdir(at("wiki/concepts"))).filter((name) => ["a.md", "b.md", "c.md"].includes(name));
+    // Name order: the disk adapter sorts, as Node's libuv did (Bun's readdir does not).
+    const listed = (await fs.readdir(at("wiki/concepts"))).filter((name) => ["a.md", "b.md", "c.md"].includes(name)).sort();
     const scan = await scanEntityDir(run.root, "wiki/concepts", { includeBody: false });
     expect({ status: scan.dirStatus, stems: scan.scans.map((entry) => entry.stem) }).toEqual({ status: "ok", stems: listed.map((name) => name.slice(0, -3)) });
     expect(await scanEntityDir(run.root, "wiki/absent")).toEqual({ scans: [], dirStatus: "missing" });

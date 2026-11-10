@@ -25,7 +25,7 @@
  * actual output, not assumed).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readFile, writeFile, mkdir, rm, mkdtemp, realpath } from "fs/promises";
 import { existsSync } from "fs";
 import { tmpdir } from "os";

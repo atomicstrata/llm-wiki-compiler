@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { projectionAdapter } from "../../src/operation-bundles/adapters/projection.js";
 import { makeBinding, makeContext, projectionMutation } from "./adapter-fixtures.js";
 

@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { authorPackObligation } from "../../src/operations-packs/runtime/materializer-obligation.js";
 import { packPolicyContractFor } from "../../src/operations-packs/runtime/policy-contract.js";
 import type { PackIntentDraftV1 } from "../../src/operations-packs/handlers/types.js";

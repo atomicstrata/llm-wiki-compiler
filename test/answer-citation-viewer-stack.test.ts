@@ -2,7 +2,7 @@
  * Full viewer-stack parity witnesses include source-citation parsing and HTML
  * sanitization, which a bare wikilink-only markdown-it instance cannot cover.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { renderPageHtml } from "../src/viewer/render.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 import { recognizedWikilinkTargets } from "../src/wiki/wikilink-tokens.js";

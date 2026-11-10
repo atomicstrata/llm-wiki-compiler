@@ -17,7 +17,7 @@
  * than anything about the pack.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { assembleRunnerInput } from "../../src/operations-packs/runtime/runner-input.js";
 import type { PackProviderInvocationV1 } from "../../src/operations-packs/runtime/runner-input.js";

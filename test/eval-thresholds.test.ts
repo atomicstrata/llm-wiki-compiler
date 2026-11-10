@@ -3,6 +3,7 @@
  * Verifies each threshold key, the fast-suite edge case, and accumulation.
  */
 
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { checkThresholds } from "../src/eval/thresholds.js";

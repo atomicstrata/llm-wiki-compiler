@@ -34,7 +34,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, realpath, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { candidateAssessments, currentEvidenceReader, currentEvidenceReaderFrom, evaluationHash } from "../../src/eval/candidate-evidence.js";
 import { extractCitationPairs, extractCitationPairsFrom, type CitationPair, type CitationPairSources } from "../../src/eval/citation-support.js";
 import type { SourceFileReads } from "../../src/eval/source-path.js";

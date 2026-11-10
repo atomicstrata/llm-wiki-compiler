@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import Ajv from "ajv";
 import yaml from "js-yaml";
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import { connectMcpClient, useMcpRoot, type McpClientHandle } from "./fixtures/mcp-test-env.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");

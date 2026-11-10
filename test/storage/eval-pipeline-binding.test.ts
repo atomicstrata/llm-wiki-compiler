@@ -37,7 +37,8 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { describe, expect, it, vi, afterAll, beforeAll, beforeEach } from "vitest";
+import { describe, expect, it, vi, afterAll, beforeAll, beforeEach, setSystemTime, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { tempRootTracker } from "../temp-roots.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
@@ -88,7 +89,7 @@ async function stub(): Promise<string> {
   if (next instanceof Error) throw next;
   return next;
 }
-const timesAsked = (): number => vi.mocked(callClaude).mock.calls.length;
+const timesAsked = (): number => (callClaude as unknown as Mock<typeof callClaude>).mock.calls.length;
 
 type Suite = "fast" | "full";
 type Evaluate = (suite: Suite, sampleSize: number, record?: boolean) => Promise<EvalReport>;
@@ -122,12 +123,12 @@ const tracker = tempRootTracker();
 let project: Minted<OnDisk>;
 let unprovided: Minted<OnDisk>;
 const onDisk = (root: string): Evaluate => (suite, sampleSize, record) => runEval(root, suite, sampleSize, record);
-const offline = (): void => { vi.stubEnv("LLMWIKI_PROVIDER", "offline"); vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", ""); };
-const withoutCredential = (): void => { vi.stubEnv("LLMWIKI_PROVIDER", "openai"); vi.stubEnv("OPENAI_API_KEY", ""); };
+const offline = (): void => { stubEnv("LLMWIKI_PROVIDER", "offline"); stubEnv("LLMWIKI_EMBEDDING_PROVIDER", ""); };
+const withoutCredential = (): void => { stubEnv("LLMWIKI_PROVIDER", "openai"); stubEnv("OPENAI_API_KEY", ""); };
 
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(AT)); offline(); vi.mocked(callClaude).mockImplementation(stub); });
-beforeEach(() => { offline(); vi.mocked(callClaude).mockReset().mockImplementation(stub); log.length = 0; answers.length = 0; });
-afterAll(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
+beforeAll(() => { setSystemTime(new Date(AT)); offline(); (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(stub); });
+beforeEach(() => { offline(); (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(stub); log.length = 0; answers.length = 0; });
+afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), async (root) => ({ real: await realpath(root), runs: await fiveRuns(onDisk(root)) }));
   withoutCredential();

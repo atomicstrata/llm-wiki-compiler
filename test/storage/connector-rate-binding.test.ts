@@ -23,7 +23,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { updateRateStampLockedFrom } from "../../src/connectors/rate-limit.js";
 import { diskLocalCappedReads } from "../../src/storage/disk-local-reads.js";
 import { diskLocalRecords } from "../../src/storage/disk-local-records.js";

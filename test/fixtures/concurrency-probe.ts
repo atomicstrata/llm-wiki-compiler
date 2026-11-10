@@ -8,7 +8,7 @@
  * and restores mocks in afterEach.
  */
 
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { AnthropicProvider } from "../../src/providers/anthropic.js";
 
 /** Per-extraction sleep so concurrent calls measurably overlap. */

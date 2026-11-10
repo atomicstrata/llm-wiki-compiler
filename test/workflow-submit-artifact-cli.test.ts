@@ -5,7 +5,7 @@
  * submitStageOutput (default "workflow" origin). Command-level (not subprocess):
  * asserts the built output + applied result via the exported command fn.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import path from "node:path";
 import { writeFile } from "node:fs/promises";
 import { researchArtifactProfile, startArtifactRun, grantTrustedWrite, readArtifactEventOrigin } from "./fixtures/artifact-seam-fixtures.js";

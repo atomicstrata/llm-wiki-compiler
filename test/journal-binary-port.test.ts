@@ -3,7 +3,7 @@
  * ambiguous encodings, and retain the write-ahead guarantee after persistence
  * failure. These exercise real files and the existing journal replay surface.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmod, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as journal from "../src/trust/journal.js";

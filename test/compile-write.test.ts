@@ -20,7 +20,7 @@
  *    `floor:…`), the OTHER valid pages STILL write, and the call does NOT throw.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { writeFile, readFile, mkdir, access } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
