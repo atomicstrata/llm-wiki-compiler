@@ -4,7 +4,10 @@
   "description": "Compile documents into a persistent, cited knowledge wiki for AI agents. CLI, MCP server, and TypeScript SDK.",
   "mcpName": "io.github.atomicstrata/llmwiki",
   "type": "module",
-  "workspaces": ["packages/llmwiki-core", "packages/llmwiki-local-workflows"],
+  "workspaces": [
+    "packages/llmwiki-core",
+    "packages/llmwiki-local-workflows"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -18,7 +21,9 @@
     "llmwiki": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "npm run build:viewer-v2 && tsup",
+    "build:viewer-v2": "tsc --noEmit -p viewer-v2 && vite build --config viewer-v2/vite.config.ts",
+    "dev:view-v2": "vite --config viewer-v2/vite.config.ts",
     "dev": "tsup --watch src --watch scripts --watch tsconfig.json --watch \"packages/*/package.json\" --watch \"packages/*/tsup.config.ts\"",
     "benchmark:review": "node scripts/benchmark-review-batch.mjs",
     "dev:view": "node scripts/dev-viewer.mjs",
@@ -104,14 +109,20 @@
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^21.1.0",
     "@types/markdown-it": "^14.1.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@types/sanitize-html": "^2.16.1",
     "@types/turndown": "^5.0.0",
+    "@vitejs/plugin-react": "5.2.0",
     "esbuild": "0.28.1",
     "fallow": "2.82.0",
     "husky": "^9.1.7",
     "madge": "^8.0.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tsup": "^8.0.0",
     "typescript": "5.9.3",
+    "vite": "7.3.6",
     "vitest": "^3.2.7"
   },
   "peerDependencies": {
@@ -119,8 +130,12 @@
     "@smithy/node-http-handler": "^4.12.1"
   },
   "peerDependenciesMeta": {
-    "@aws-sdk/client-bedrock-runtime": { "optional": true },
-    "@smithy/node-http-handler": { "optional": true }
+    "@aws-sdk/client-bedrock-runtime": {
+      "optional": true
+    },
+    "@smithy/node-http-handler": {
+      "optional": true
+    }
   },
   "volta": {
     "node": "24.16.0"

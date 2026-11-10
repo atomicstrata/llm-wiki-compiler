@@ -19,12 +19,14 @@
  */
 
 import http from "http";
+import path from "path";
 import type { IncomingMessage, ServerResponse } from "http";
 import { AddressInfo } from "net";
 import { buildHealthResponse } from "./health.js";
 import { handleApiPage, handleApiPages } from "./api-pages.js";
 import { handleApiArtifact } from "./api-artifacts.js";
 import { handleApiSource } from "./api-sources.js";
+import { handleApiSourceImage, SOURCE_IMAGE_ROUTE_PREFIX } from "./api-source-images.js";
 import { loadShellTemplate } from "./shell.js";
 import { ASSETS_DIR, handleAsset } from "./static-assets.js";
 import { searchPages } from "./search.js";
@@ -52,8 +54,16 @@ const CONTENT_SECURITY_POLICY =
   "img-src 'self' data:; font-src 'self'; connect-src 'self'; " +
   "frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'none'";
 
+/** Which bundled browser client the shell route serves; omitted serves the original client. */
+export type ViewerUi = "v2";
+
+/** Subdirectory of the asset bundle that holds the v2 client build. */
+const VIEWER_V2_ASSETS_SUBDIRECTORY = "v2";
+
 /** Configuration knobs accepted by `startViewerServer`. */
 interface ViewerServerConfig {
+  /** Browser client to serve at `/`. The JSON API is the same for every client. */
+  ui?: ViewerUi;
   /** @experimental Opt-in, loopback-only source comparison. Off by default. */
   sourceChanges?: boolean;
   /** Opt-in journey navigation; never advertised on a non-loopback bind. */
@@ -138,6 +148,8 @@ export async function startViewerServer(
 
 /** Options for the public {@link startViewer} constructor. */
 export interface StartViewerOptions {
+  /** Browser client to serve at `/`; omitted serves the original client. */
+  ui?: ViewerUi;
   /** @experimental Opt-in, loopback-only source comparison. Off by default. */
   sourceChanges?: boolean;
   /** Show journey links on loopback; enabled by default for this new SDK constructor. */
@@ -168,6 +180,7 @@ export async function startViewer(
   const snapshot = await buildViewerSnapshot(options.root);
   const timeout = options.providerTimeoutMs;
   const config = {
+    ui: options.ui,
     host: options.host,
     port: options.port,
     sourceChanges: options.sourceChanges,
@@ -224,7 +237,7 @@ async function routeRegistered(
   config: ViewerServerConfig,
   deps: ViewerDeps,
 ): Promise<void> {
-  if (parsedUrl.pathname === "/") return handleShell(res);
+  if (parsedUrl.pathname === "/") return handleShell(res, config.ui);
   if (parsedUrl.pathname.startsWith("/assets/")) return handleAsset(res, parsedUrl.pathname);
   if (parsedUrl.pathname === "/api/reviews") return handleApiReviews(res, snapshot.root, sourceChangesEnabled(config));
   if (parsedUrl.pathname === "/api/source-changes") return handleSourceChanges(res, snapshot.root, config);
@@ -247,6 +260,9 @@ async function routeLiveResources(
   if (parsedUrl.pathname === "/api/search") return handleApiSearch(res, parsedUrl, snapshot);
   if (ARTIFACT_PATHS.has(parsedUrl.pathname)) return handleApiArtifact(res, snapshot, parsedUrl, isLoopback);
   if (parsedUrl.pathname.startsWith("/api/source/")) return handleApiSource(res, snapshot, parsedUrl.pathname, isLoopback);
+  if (parsedUrl.pathname.startsWith(SOURCE_IMAGE_ROUTE_PREFIX)) {
+    return handleApiSourceImage(res, snapshot.root, parsedUrl.pathname, isLoopback);
+  }
   if (parsedUrl.pathname.startsWith("/api/page/")) {
     return handleApiPage(res, parsedUrl.pathname, snapshot, isLoopback);
   }
@@ -322,7 +338,9 @@ const REGISTERED_EXACT_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /** Prefix routes preserve public resources and add product workflow projections. */
-const REGISTERED_PATH_PREFIXES: readonly string[] = ["/assets/", "/api/page/", "/api/source/", "/api/workflows/"];
+const REGISTERED_PATH_PREFIXES: readonly string[] = [
+  "/assets/", "/api/page/", "/api/source/", SOURCE_IMAGE_ROUTE_PREFIX, "/api/workflows/",
+];
 
 /** True when (method, path) is one of the v1 registered routes. */
 function isRouteRegistered(method: string | undefined, pathname: string): boolean {
@@ -436,10 +454,12 @@ function normalizeHostnameForOrigin(host: string): string {
  * shell carries no per-request data, so the client's own `/api/pages` fetch is
  * the single source of the page list (see `shell.ts`). A missing template
  * surfaces as a 500 `shell_missing` so the rest of the routes stay usable when
- * the asset bundle is incomplete.
+ * the asset bundle is incomplete. The v2 client's shell lives in its own
+ * subdirectory of the same bundle, so its files load through `/assets/v2/`.
  */
-async function handleShell(res: ServerResponse): Promise<void> {
-  const template = await loadShellTemplate(ASSETS_DIR);
+async function handleShell(res: ServerResponse, ui: ViewerUi | undefined): Promise<void> {
+  const shellDirectory = ui === "v2" ? path.join(ASSETS_DIR, VIEWER_V2_ASSETS_SUBDIRECTORY) : ASSETS_DIR;
+  const template = await loadShellTemplate(shellDirectory);
   if (template === null) {
     writeJsonError(res, 500, "shell_missing", "Viewer shell template not found on disk.");
     return;

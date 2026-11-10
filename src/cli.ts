@@ -10,8 +10,6 @@ import { createRequire } from "module";
 import { Command } from "commander";
 import { ingestCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { ingestSessionCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { viewCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { resolvePort } from "./cli/view-port.js";
 import { visualizeCommand, type VisualizeOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { compileCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { rmCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
@@ -41,6 +39,7 @@ import { registerProfileCommands } from "./cli/profile-commands.js";
 import { registerTemplateCommands } from "./cli/template-commands.js";
 import { registerArtifactCommands } from "./cli/artifact-commands.js";
 import { registerReviewCommands } from "./cli/review-commands.js";
+import { registerViewCommands } from "./cli/view-commands.js";
 import { registerEvalCommands } from "./cli/eval-commands.js";
 import { registerWorkflowCommands } from "./cli/workflow-commands.js";
 import { registerConnectorCommands } from "./cli/connector-commands.js";
@@ -99,22 +98,7 @@ program
     }
   });
 
-program
-  .command("view")
-  .description("Start a local read-only web viewer for the current wiki project")
-  .option("--port <port>", "Port to bind (default 0 — OS-assigned)")
-  .option("--host <host>", "Host to bind (requires --allow-lan; default 127.0.0.1)")
-  .option("--allow-lan", "Bind beyond loopback (requires --host); off by default for privacy")
-  .option("--open", "Open the viewer in the default browser after startup")
-  .action(async (options: { port?: string; host?: string; allowLan?: boolean; open?: boolean }) => {
-    try {
-      const port = resolvePort(options.port);
-      await viewCommand({ ...options, port });
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
+registerViewCommands(program);
 
 addProviderOption(program.command("compile").description("Compile sources/ into an interlinked wiki"))
   .option("--no-pages-limit", "Remove the requested 3–8 concepts per source; allow source-supported results with no pages")

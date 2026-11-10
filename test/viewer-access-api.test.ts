@@ -1,9 +1,9 @@
 /** Real HTTP handlers reverify pinned content and preserve remote metadata-only access. */
 import { afterEach, describe, it, expect } from "vitest";
-import http from "http";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { useTempRoot } from "./fixtures/temp-root.js";
+import { lanRequest } from "./fixtures/lan-request.js";
 import { seedArtifact } from "./fixtures/artifact-seed.js";
 import { startViewerServer } from "../src/viewer/server.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
@@ -77,15 +77,3 @@ describe("content HTTP API", () => {
     expect(JSON.parse(response.body)).toMatchObject({ error: { code: "loopback_only" } });
   });
 });
-
-/** Match the LAN bind's required Host header without relying on fetch overriding it. */
-function lanRequest(port: number, pathname: string): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    http.get({ host: "127.0.0.1", port, path: pathname, headers: { Host: `0.0.0.0:${port}` } }, (res) => {
-      let body = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => { body += chunk; });
-      res.on("end", () => resolve({ status: res.statusCode!, body }));
-    }).on("error", reject);
-  });
-}

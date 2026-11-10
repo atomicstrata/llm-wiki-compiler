@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`llmwiki view-v2`: a React client for the viewer.** It serves the same local read-only server and JSON API as `llmwiki view`, with a page list, pages, search, and sources with numbered lines. Selecting a citation chip opens the source at the cited lines.
+- **Source images.** A source can keep original images in `sources/images/` and name them in frontmatter `images:` or a Markdown embed. `GET /api/source-image/<file>` serves them on a loopback binding, and the v2 client shows them on the source and on every page that cites it.
+
 ## [1.5.0] - 2026-10-19
 
 Separate what a wiki does from how it is stored on disk, connect to

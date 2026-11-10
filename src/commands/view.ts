@@ -12,7 +12,7 @@
  */
 
 import { spawn } from "child_process";
-import { startViewer } from "../viewer/server.js";
+import { startViewer, type ViewerUi } from "../viewer/server.js";
 
 const LOOPBACK_HOST = "127.0.0.1";
 
@@ -38,6 +38,8 @@ interface ViewCommandOptions {
   host?: string;
   allowLan?: boolean;
   open?: boolean;
+  /** Browser client to serve; omitted serves the original client. */
+  ui?: ViewerUi;
 }
 
 /**
@@ -49,7 +51,7 @@ interface ViewCommandOptions {
 export default async function viewCommand(options: ViewCommandOptions): Promise<void> {
   const { host, port } = resolveBindConfig(options);
   const root = process.cwd();
-  const handle = await startViewer({ root, host, port, workflowJourneys: false });
+  const handle = await startViewer({ root, host, port, workflowJourneys: false, ui: options.ui });
   const url = buildReadyUrl(handle.host, handle.port);
   process.stdout.write(`Viewer ready at ${url}\n`);
   if (options.open) openInBrowser(url);

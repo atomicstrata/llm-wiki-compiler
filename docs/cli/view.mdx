@@ -24,6 +24,30 @@ Viewer ready at http://127.0.0.1:54321
 
 Press `Ctrl+C` to stop the server.
 
+## The v2 client
+
+`llmwiki view-v2` starts the same server with a newer browser client built with React. It takes the same flags as `llmwiki view` and reads the same JSON API.
+
+```bash
+llmwiki view-v2 --open
+```
+
+The v2 client shows the page list with a title filter, each page with its citation chips, search, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. It does not yet have the dashboard, graph, health, review, or workflow screens; use `llmwiki view` for those.
+
+### Source images
+
+A source can keep its original images, such as screenshots or scans, in `sources/images/`. Name them in the source's frontmatter or embed them in its body:
+
+```markdown
+---
+images: ["kiln-log.png"]
+---
+
+![Kiln log](images/kiln-log.png)
+```
+
+The v2 client shows a source's images on the source, and on every page that cites it. The server reads them from `GET /api/source-image/<file>`. It serves PNG, JPEG, GIF, and WebP files, and only when the viewer is bound to loopback, like source text.
+
 ## How the viewer picks up changes
 
 The viewer serves a snapshot of your wiki rather than reading disk for every page. While it runs, it rebuilds that snapshot in the background when a request arrives, at most once every five seconds. So after you compile, refresh, or edit pages, reload the browser tab a few seconds later to see the result - no restart is needed.
