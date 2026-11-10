@@ -64,6 +64,13 @@ const VIEWER_V2_ASSETS_SUBDIRECTORY = "v2";
 interface ViewerServerConfig {
   /** Browser client to serve at `/`. The JSON API is the same for every client. */
   ui?: ViewerUi;
+  /**
+   * Origin a trusted reverse proxy serves this viewer at, such as
+   * `https://wiki.example.com`. Browsers name that origin in `Host` and
+   * `Origin`, so without it every request arriving through a proxy fails the
+   * origin policy. Must already be a normalized origin; see `resolvePublicOrigin`.
+   */
+  publicOrigin?: string;
   /** @experimental Opt-in, loopback-only source comparison. Off by default. */
   sourceChanges?: boolean;
   /** Opt-in journey navigation; never advertised on a non-loopback bind. */
@@ -150,6 +157,8 @@ export async function startViewerServer(
 export interface StartViewerOptions {
   /** Browser client to serve at `/`; omitted serves the original client. */
   ui?: ViewerUi;
+  /** Origin a trusted reverse proxy serves this viewer at, such as `https://wiki.example.com`. */
+  publicOrigin?: string;
   /** @experimental Opt-in, loopback-only source comparison. Off by default. */
   sourceChanges?: boolean;
   /** Show journey links on loopback; enabled by default for this new SDK constructor. */
@@ -181,6 +190,7 @@ export async function startViewer(
   const timeout = options.providerTimeoutMs;
   const config = {
     ui: options.ui,
+    publicOrigin: options.publicOrigin,
     host: options.host,
     port: options.port,
     sourceChanges: options.sourceChanges,
@@ -374,8 +384,22 @@ function validateOriginHeaders(req: IncomingMessage, config: ViewerServerConfig)
     if (!isSameOrigin(origin, config)) return false;
   }
   const fetchSite = req.headers["sec-fetch-site"];
-  if (fetchSite === "cross-site") return false;
+  if (fetchSite === "cross-site" && !isPublicShellNavigation(req, config)) return false;
   return true;
+}
+
+/**
+ * True for a top-level navigation to the shell of a viewer that has a public
+ * origin. Following a link from another site, or returning from a proxy's
+ * sign-in page, is a cross-site navigation; the shell carries no wiki data, so
+ * admitting it leaks nothing. Every data route still rejects cross-site requests.
+ */
+function isPublicShellNavigation(req: IncomingMessage, config: ViewerServerConfig): boolean {
+  return config.publicOrigin !== undefined
+    && req.method === "GET"
+    && (req.url ?? "").split("?")[0] === "/"
+    && req.headers["sec-fetch-mode"] === "navigate"
+    && req.headers["sec-fetch-dest"] === "document";
 }
 
 /**
@@ -399,11 +423,13 @@ function buildAcceptableHostHeaders(config: ViewerServerConfig): string[] {
   if (config.host === "127.0.0.1" || config.host === "::1") {
     accepted.push(`localhost:${config.port}`);
   }
+  if (config.publicOrigin !== undefined) accepted.push(new URL(config.publicOrigin).host);
   return accepted;
 }
 
 /** True when the incoming `Origin` resolves to our own host:port. */
 function isSameOrigin(origin: string, config: ViewerServerConfig): boolean {
+  if (config.publicOrigin !== undefined && origin === config.publicOrigin) return true;
   try {
     const parsed = new URL(origin);
     const expectedHostname = normalizeHostnameForOrigin(config.host);

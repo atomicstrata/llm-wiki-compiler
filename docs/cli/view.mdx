@@ -62,6 +62,17 @@ A request is always answered from the current snapshot and never waits for a reb
 | `--port <port>` | Listen on a specific port instead of a randomly assigned one. Accepts any integer from 0 to 65535. Defaults to the `LLMWIKI_VIEW_PORT` environment variable when set, or an OS-assigned port (`0`). |
 | `--host <host>` | Bind to a specific network interface IP (e.g. `192.168.1.10`). **Must be used together with `--allow-lan`.** See the security note below. |
 | `--allow-lan` | Permit binding beyond the loopback interface. **Must be used together with `--host <host>`.** |
+| `--public-origin <origin>` | The origin a trusted reverse proxy serves the viewer at, such as `https://wiki.example.com`. See the reverse proxy note below. |
+
+### Behind a reverse proxy
+
+The viewer only answers requests addressed to its own bind address. A browser that reaches it through a reverse proxy or tunnel sends the public address instead, so the page loads but its scripts and styles are refused. Tell the viewer its public origin:
+
+```bash
+llmwiki view --port 18881 --public-origin https://wiki.example.com
+```
+
+The viewer then accepts that origin in `Host` and `Origin`, and lets a link from another site open the viewer's shell. Requests from any other origin are still refused. The viewer does not authenticate anyone, so put it behind a proxy that does, and keep it bound to loopback.
 
 ### Environment variables
 

@@ -16,6 +16,7 @@ interface ViewCliOptions {
   host?: string;
   allowLan?: boolean;
   open?: boolean;
+  publicOrigin?: string;
 }
 
 /** One viewer command: its name, help text, and the client it serves. */
@@ -48,6 +49,10 @@ function registerViewCommand(program: Command, spec: ViewCommandSpec): void {
     .option("--host <host>", "Host to bind (requires --allow-lan; default 127.0.0.1)")
     .option("--allow-lan", "Bind beyond loopback (requires --host); off by default for privacy")
     .option("--open", "Open the viewer in the default browser after startup")
+    .option(
+      "--public-origin <origin>",
+      "Origin a trusted reverse proxy serves the viewer at, e.g. https://wiki.example.com",
+    )
     .action(async (options: ViewCliOptions) => {
       try {
         const port = resolvePort(options.port);

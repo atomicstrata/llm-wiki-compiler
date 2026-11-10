@@ -40,6 +40,8 @@ interface ViewCommandOptions {
   open?: boolean;
   /** Browser client to serve; omitted serves the original client. */
   ui?: ViewerUi;
+  /** Origin a trusted reverse proxy serves the viewer at. */
+  publicOrigin?: string;
 }
 
 /**
@@ -51,7 +53,8 @@ interface ViewCommandOptions {
 export default async function viewCommand(options: ViewCommandOptions): Promise<void> {
   const { host, port } = resolveBindConfig(options);
   const root = process.cwd();
-  const handle = await startViewer({ root, host, port, workflowJourneys: false, ui: options.ui });
+  const publicOrigin = resolvePublicOrigin(options.publicOrigin);
+  const handle = await startViewer({ root, host, port, workflowJourneys: false, ui: options.ui, publicOrigin });
   const url = buildReadyUrl(handle.host, handle.port);
   process.stdout.write(`Viewer ready at ${url}\n`);
   if (options.open) openInBrowser(url);
@@ -85,6 +88,23 @@ export function resolveBindConfig(options: ViewCommandOptions): { host: string; 
   const host = hostFlag ? (options.host as string) : LOOPBACK_HOST;
   assertHostNotWildcard(host);
   return { host, port: parsePort(options.port) };
+}
+
+/**
+ * Validate `--public-origin`: an http or https origin with no path, query,
+ * fragment, or credentials. Returns the browser's serialization of it, which is
+ * what an `Origin` header carries, so the server can compare by equality.
+ */
+export function resolvePublicOrigin(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const url = URL.canParse(raw) ? new URL(raw) : null;
+  const isWebOrigin = url !== null && (url.protocol === "http:" || url.protocol === "https:");
+  if (!isWebOrigin || `${url.origin}/` !== url.href) {
+    throw new Error(
+      `Invalid --public-origin value: ${raw}. Use an origin such as https://wiki.example.com, with no path.`,
+    );
+  }
+  return url.origin;
 }
 
 /** Reject `--host` and `--allow-lan` being supplied independently. */
