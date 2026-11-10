@@ -8,7 +8,7 @@
  * ranks identically after confinement hardening (parity).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readEmbeddingStore, writeEmbeddingStore, type EmbeddingStore, type EmbeddingEntry, type ChunkEmbeddingEntry } from "../src/utils/embeddings-store.js";

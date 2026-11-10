@@ -10,7 +10,7 @@
  * ANY tracked core file (any extension) is caught.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { coreTreeFingerprint } from "./fixtures/core-tree-fingerprint.js";
 import { activeProfileDigest } from "../src/profile/load.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

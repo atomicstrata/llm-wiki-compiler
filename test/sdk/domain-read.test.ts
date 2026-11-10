@@ -3,7 +3,7 @@
  * witnesses exercise real profile state and filesystem boundaries through the
  * package entry point, without granting mutation authority.
  */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { mkdtemp, mkdir, writeFile, readdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

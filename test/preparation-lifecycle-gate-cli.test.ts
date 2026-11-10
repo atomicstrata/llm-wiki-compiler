@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import type { CLIResult } from "./fixtures/run-cli.js";
 import { listedStates, stageable } from "./preparation-cli-fixture.js";

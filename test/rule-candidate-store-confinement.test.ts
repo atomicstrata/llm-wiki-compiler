@@ -17,7 +17,7 @@
  * still round-trips a candidate identically.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, readdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {

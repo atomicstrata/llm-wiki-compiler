@@ -7,7 +7,7 @@
  */
 import { readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { verifyPublisherDistribution } from "../src/profile/templates/publish/verify.js";
 import { TAP_KEY } from "./fixtures/template-signing.js";
 import {

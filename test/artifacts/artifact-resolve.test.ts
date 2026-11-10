@@ -5,7 +5,7 @@
  * (manifest left stale) must be caught, and a corrupt manifest must fail closed
  * as `artifact-store-unavailable` rather than reading as clean or dangling.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { writeFile, mkdir, symlink, rm, readFile } from "fs/promises";
 import { makeResearchLikeRoot, seedArtifact } from "../fixtures/artifact-root.js";

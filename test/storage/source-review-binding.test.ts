@@ -28,7 +28,7 @@
  */
 
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as candidateRead from "../../src/compiler/candidate-read.js";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import * as confinedWikiRead from "../../src/compiler/confined-wiki-read.js";

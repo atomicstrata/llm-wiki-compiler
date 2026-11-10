@@ -29,7 +29,7 @@
 import { createHash } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { refreshAffectedEmbeddings, refreshEmbeddingsDrainingPending, refreshEmbeddingsFrom, type EmbeddingRefreshSources } from "../../src/utils/embeddings-refresh.js";
 import type { EmbeddingRefreshScope } from "../../src/utils/embeddings.js";
 import { LLMWIKI_DIR, MAX_PENDING_EMBEDDINGS_BYTES, PENDING_EMBEDDINGS_FILE } from "../../src/utils/constants.js";

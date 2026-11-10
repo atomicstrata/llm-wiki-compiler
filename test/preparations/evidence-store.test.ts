@@ -10,7 +10,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { readPreparationEvidence, writePreparationEvidenceCreateOnly } from "../../src/preparations/evidence-store.js";
 import { preparationPaths } from "../../src/preparations/paths.js";

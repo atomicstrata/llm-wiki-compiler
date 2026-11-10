@@ -40,7 +40,7 @@
 
 import { mkdir, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectExportPages } from "../../src/export/collect.js";
 import { buildOkfBundle, buildOkfBundleFrom, type OkfBundleSources } from "../../src/export/okf/bundle.js";
 import { safeRefName } from "../../src/export/okf/mapping.js";

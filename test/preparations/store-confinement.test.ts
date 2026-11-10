@@ -10,7 +10,7 @@
 import { execFileSync } from "node:child_process";
 import { link, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { preparationPaths } from "../../src/preparations/paths.js";
 import { readPreparationManifest } from "../../src/preparations/manifest-store.js";

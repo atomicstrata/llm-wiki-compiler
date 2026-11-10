@@ -6,7 +6,7 @@
 import os from "node:os";
 import path from "node:path";
 import { lstat, mkdir, mkdtemp, realpath, rename, symlink, writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";
 import { authorizedProviderRoots } from "./provider-roots.js";
 import {

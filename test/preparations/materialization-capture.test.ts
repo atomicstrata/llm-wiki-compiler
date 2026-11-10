@@ -6,7 +6,7 @@
  * the smuggled `actor` — synchronously, returning no pack-owned reference.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MaterializationCaptureError, captureMaterializationResult,
 } from "../../src/preparations/materialization.js";

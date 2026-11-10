@@ -8,7 +8,7 @@
  * pages are unaffected. Covered for direct save, reviewed staging, and approval
  * of a candidate whose stored manifest predates this check.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { usePublicationRoot, retained, propose, approvePage, candidateBytes, expectApprovedAndCleared } from "./fixtures/publication-review.js";

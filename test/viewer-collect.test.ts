@@ -7,7 +7,7 @@
  * and that `wiki/index.md` is intentionally excluded from the page list.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

@@ -30,7 +30,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { loadProfileFrom } from "../../src/profile/load.js";
 import { knowledgeProfileMemberPath } from "../../src/products/binding/manifest-authority.js";
 import { resolveActiveProductFrom, type ActiveProductSources } from "../../src/products/binding/resolve.js";

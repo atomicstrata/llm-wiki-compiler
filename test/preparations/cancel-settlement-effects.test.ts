@@ -13,7 +13,7 @@
  * lock released, exactly as production does. Nothing here is planted.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { mintExternalEffectReceipt, type ExternalEffectReceiptV1 } from "../../src/capability-providers/brokers/receipts.js";
 import { authorGateProof } from "../../src/preparations/gates.js";

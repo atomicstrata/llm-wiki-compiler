@@ -6,7 +6,7 @@
  * isDefaultProfile recognises it by profileId.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { DEFAULT_PROFILE, isDefaultProfile } from "../src/profile/default.js";
 import { validateProfileShape, validateProfile } from "../src/profile/validate.js";
 

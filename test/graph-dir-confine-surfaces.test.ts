@@ -10,7 +10,7 @@
  * profile summary surface a problem (no throw); a normal real graph dir works.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { collectStatus } from "../src/status/collect.js";
 import { lint } from "../src/linter/index.js";
 import { seedTestsRelation } from "./fixtures/profile-fixtures.js";

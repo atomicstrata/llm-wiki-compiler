@@ -7,7 +7,7 @@
  * listRuns filtering to slug-safe `.json` stems, and resolveRunId lookup.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {

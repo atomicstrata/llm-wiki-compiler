@@ -17,7 +17,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { writeRun, readRun } from "../../src/workflows/store.js";
 import { loadOrCreateRunKey, runIntegrity } from "../../src/workflows/integrity.js";
 import type { WorkflowRun } from "../../src/workflows/types.js";

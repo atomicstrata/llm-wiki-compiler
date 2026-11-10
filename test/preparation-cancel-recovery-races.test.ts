@@ -19,7 +19,7 @@
  * nothing about whether anything ever calls it.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { acquireMutationLockBlocking } from "../src/operation-bundles/lock-gate.js";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";
 import { recordDurableCancellingLocked } from "../src/preparations/attempts/cancel-settlement.js";

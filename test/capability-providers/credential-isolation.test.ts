@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { lstat, rm, symlink, writeFile } from "node:fs/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import {
   assertNoCredentialReflection, createCredentialRegistry, readCredentialRegistryState,
   resolveCredentialHandle, takeCredentialBytesForBroker, writeOperatorCredentialRegistry,

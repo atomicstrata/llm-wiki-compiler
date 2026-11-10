@@ -12,7 +12,7 @@
  * candidate-custody, staging, supersession and connector-run suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidateCustody from "../../src/compiler/candidate-custody.js";
 import type { CandidateCustodyReceipt, CandidateCustodyState, CandidateStoreMoveReads } from "../../src/compiler/candidate-custody.js";
 import { ConnectorCandidateBatchOverflowError } from "../../src/connectors/candidate-batch.js";

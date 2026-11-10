@@ -6,7 +6,7 @@
  * refused for exceeding the frame budget, while the provider-facing entrypoint
  * never carries those bytes. A credential-reflected response surfaces none.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   dispatchHostBrokerRequest, dispatchHostBrokerRequestForHost,
 } from "../../src/capability-providers/brokers/dispatch.js";

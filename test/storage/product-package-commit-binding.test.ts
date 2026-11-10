@@ -14,7 +14,7 @@
  * activation journeys stay covered by their existing suites, which run alongside.
  */
 
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { MAX_INSTALLED_PACKAGES_PER_PROJECT } from "../../src/products/constants.js";
 import { digestDirectoryName } from "../../src/products/ids.js";

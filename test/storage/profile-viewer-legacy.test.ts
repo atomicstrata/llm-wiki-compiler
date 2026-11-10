@@ -38,7 +38,7 @@
 
 import { link, mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { loadNonDefaultProfile } from "../../src/profile/block.js";
 import { loadProfile } from "../../src/profile/load.js";
 import { ActiveProductUnavailableError, ProductBindingError } from "../../src/products/binding/problems.js";

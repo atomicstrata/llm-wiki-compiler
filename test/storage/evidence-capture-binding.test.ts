@@ -27,7 +27,7 @@
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as artifactResolve from "../../src/artifacts/resolve.js";
 import * as artifactStore from "../../src/artifacts/store.js";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";

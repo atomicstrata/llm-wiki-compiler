@@ -25,7 +25,7 @@ import { gateDecision } from "./preparations/lifecycle-fixture.js";
 import { mkdir, mkdtemp, readdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
   acquireMutationLock, acquirePreparationMutationLock, PreparationLifecycleGateError,
 } from "../src/operation-bundles/lock-gate.js";

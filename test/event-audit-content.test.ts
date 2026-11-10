@@ -9,7 +9,7 @@
  * lifecycle events.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import type { ProfilePack } from "../src/profile/types.js";
 import { createWiki } from "../src/index.js";
 import { appendRelation, compactRelations } from "../src/relations/store.js";

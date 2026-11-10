@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import type { BundleId, OperationRunId } from "../../src/operation-bundles/ids.js";
 import { readOperationKey } from "../../src/operation-bundles/key-epoch.js";

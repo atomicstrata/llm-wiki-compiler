@@ -8,7 +8,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { preparationPaths } from "../../src/preparations/paths.js";
 import {
   preparationCancellationRequested, readPreparationCancel, writePreparationCancelLockFree,

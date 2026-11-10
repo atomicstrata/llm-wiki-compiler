@@ -6,7 +6,7 @@
  * head anchor are intact (the assertion both suites repeat).
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

@@ -12,7 +12,7 @@
  * (`rm-integration`, `visualize`, `schema`) show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { rmCommand, rmCommandWith, type RmSteps } from "../../src/commands/rm.js";
 import { schemaInitCommand, schemaInitCommandWith, type SchemaInitSteps } from "../../src/commands/schema.js";
 import visualizeCommand, { visualizeCommandWith, type VisualizeSteps } from "../../src/commands/visualize.js";

@@ -1,5 +1,5 @@
 /** Run the real gate in small projects; baseline edits must not turn regressions green. */
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";

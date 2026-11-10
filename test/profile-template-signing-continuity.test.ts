@@ -2,7 +2,7 @@
  * @file test/profile-template-signing-continuity.test.ts
  * @description Publisher pin, rotation, revocation, rollback, and immutable-coordinate tests.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { advancePublisherPins, assertPackageNotRevoked, emptyPublisherPinState } from "../src/profile/templates/signing/continuity.js";
 import { verifyTapIndex } from "../src/profile/templates/signing/verify.js";
 import type { ParsedTapIndex } from "../src/profile/templates/signing/protocol.js";

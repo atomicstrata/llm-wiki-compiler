@@ -17,16 +17,19 @@
  * replaces an existing destination, and failures arrive as raw errors.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { link, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** What the wrapped opener should sabotage on the handles it returns. */
-const fault = vi.hoisted(() => ({ close: false, read: false }));
+const fault = (() => ({ close: false, read: false }))();
 
-vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/utils/no-follow-open.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
+
+vi.mock("../../src/utils/no-follow-open.js", async () => {
+  const actual = realUtilsNoFollowOpen as typeof import("../../src/utils/no-follow-open.js");
   const openFileNoFollow: typeof actual.openFileNoFollow = async (...args) => {
     const handle = await actual.openFileNoFollow(...args);
     const close = handle.close.bind(handle);

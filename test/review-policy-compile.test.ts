@@ -7,7 +7,7 @@
  * source that feeds any held candidate is not marked compiled until approval.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";

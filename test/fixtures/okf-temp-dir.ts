@@ -11,7 +11,7 @@
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 
 /** Mutable holder for the current test's temp dir path. */
 export interface OkfTempDirCtx {

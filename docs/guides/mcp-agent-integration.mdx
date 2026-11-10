@@ -10,8 +10,8 @@ This guide walks you through starting the server, wiring it into Claude Desktop 
 
 ## Prerequisites
 
-- Node.js 24 or later on the MCP client's `PATH`
-- llmwiki installed globally: `npm install -g llm-wiki-compiler`
+- Bun 1.3 or later on the MCP client's `PATH`
+- llmwiki installed globally: `bun add --global llm-wiki-compiler`
 - A wiki project directory (or an empty directory where one will be created)
 - An LLM provider configured for tools that need one (see the provider configuration docs for `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
 
@@ -178,7 +178,7 @@ The npm package ships an [Agent Skills](https://agentskills.io/specification) sk
 
 ```bash
 mkdir -p ~/.claude/skills
-ln -s "$(npm root -g)/llm-wiki-compiler/skills/llmwiki" ~/.claude/skills/llmwiki
+ln -s "$HOME/.bun/install/global/node_modules/llm-wiki-compiler/skills/llmwiki" ~/.claude/skills/llmwiki
 ```
 
 The skill never changes agent configuration on its own and does not grant publication approval; review candidates still go through `llmwiki review`.

@@ -15,7 +15,7 @@
  * Linux-only CI that let #163 ship in the first place is exactly why this must
  * not depend on the platform the suite happens to run on.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "node:path";
 import { toPosixPath } from "../src/utils/path-confine.js";
 

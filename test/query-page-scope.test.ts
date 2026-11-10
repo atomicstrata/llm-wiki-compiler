@@ -7,13 +7,13 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writePage } from "./fixtures/write-page.js";
 import { chunkOf, mockQueryVector, offeringCallClaudeModule, tempRootRegistry, writeChunkStore } from "./fixtures/typed-grounding.js";
 import { generateAnswer } from "../src/commands/query.js";
 
-const state = vi.hoisted(() => ({ offered: [] as string[] }));
+const state = (() => ({ offered: [] as string[] }))();
 vi.mock("../src/utils/llm.js", () => offeringCallClaudeModule(state));
 
 const tempRoots = tempRootRegistry();

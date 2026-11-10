@@ -12,7 +12,7 @@
  * dropping its maxAggregatePreStateBytes argument, which would journal an
  * unbounded obsolete sweep and then unlink it all).
  */
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import path from "path";
 import { access, chmod, readFile, unlink, writeFile } from "fs/promises";
 import { openBatch, recordBinaryPreState, replayJournal, JournalPreStateUnreadableError } from "../../src/trust/journal.js";

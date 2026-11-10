@@ -20,16 +20,19 @@
  * share one queue, so a waiter under one spelling is released by another.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mkdir, mkdtemp, readFile, readlink, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** When set, the next opened handle really closes and then reports failure. */
-const closeFault = vi.hoisted(() => ({ armed: false }));
+const closeFault = (() => ({ armed: false }))();
 
-vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
+
+vi.mock("node:fs/promises", async () => {
+  const actual = realFsPromises as typeof import("node:fs/promises");
   const open: typeof actual.open = async (...args) => {
     const handle = await actual.open(...args);
     if (!closeFault.armed) return handle;

@@ -6,7 +6,7 @@
  * wikilink errors, and they should not lower eval health.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { lint } from "../src/linter/index.js";
 import { evaluateHealth } from "../src/eval/health.js";
 import { writeCandidate } from "../src/compiler/candidates.js";

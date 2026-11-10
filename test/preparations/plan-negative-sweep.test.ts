@@ -7,7 +7,7 @@
  * exercised on its own.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";
 import { planText, validPlan } from "./plan-fixture.js";
 

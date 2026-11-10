@@ -19,7 +19,7 @@
  * relocated the wedge would satisfy a state assertion and fail those.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { acquireMutationLockBlocking } from "../../src/operation-bundles/lock-gate.js";
 import { acquireLock, releaseLock } from "../../src/utils/lock.js";
 import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";

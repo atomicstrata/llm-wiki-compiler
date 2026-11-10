@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { catalogAdapter } from "../../src/operation-bundles/adapters/catalog.js";
 import { CATALOG_PAYLOAD as PAYLOAD, catalogMutation, makeBinding, makeContext, publishPayload, WORKSPACE_ID } from "./adapter-fixtures.js";
 import { readCatalogStore } from "../../src/operation-bundles/catalog-store.js";

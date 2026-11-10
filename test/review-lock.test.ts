@@ -14,7 +14,7 @@
  * artefacts (no wiki page, no archive file).
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "bun:test";
 import { readFile, realpath, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -118,13 +118,6 @@ let rootReal: string;
 beforeEach(async () => {
   rootReal = await realpath(root.dir);
   // useTempRoot already handles reset via afterEach
-});
-
-// vi.resetModules is needed here because we spy on the lock module via dynamic
-// import. Without it, the mock leaks across tests in this file.
-// useTempRoot's afterEach calls vi.restoreAllMocks; we add resetModules on top.
-afterEach(() => {
-  vi.resetModules();
 });
 
 describe("review approve — lock discipline", () => {

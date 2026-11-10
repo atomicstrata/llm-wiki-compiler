@@ -39,7 +39,8 @@
  * no links and confine nothing.
  */
 
-import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, afterAll, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 
@@ -119,14 +120,13 @@ let uncited: Minted<Run>;
 const onDisk = (root: string): Evaluate => (sampleSize, previousHashes) => evaluateCitationSupport(root, sampleSize, previousHashes);
 
 beforeAll(() => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(AT));
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-  vi.stubEnv("LLMWIKI_MODEL", "model-a");
-  vi.mocked(callClaude).mockImplementation(stub);
+  setSystemTime(new Date(AT));
+  stubEnv("LLMWIKI_PROVIDER", "anthropic");
+  stubEnv("LLMWIKI_MODEL", "model-a");
+  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(stub);
 });
-beforeEach(() => { vi.mocked(callClaude).mockReset().mockImplementation(stub); log.length = 0; plan.length = 0; });
-afterAll(() => { vi.unstubAllEnvs(); vi.useRealTimers(); });
+beforeEach(() => { (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(stub); log.length = 0; plan.length = 0; });
+afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   cited = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, CITED), (root) => fiveRuns(onDisk(root)));
   uncited = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, { "wiki/concepts/plain.md": page("No citation here.") }), (root) => ran(onDisk(root), []));

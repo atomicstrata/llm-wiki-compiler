@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { embedTextBatch, EmbeddingIntegrityError } from "../src/utils/embeddings-batch.js";
 import type { LLMProvider } from "../src/utils/provider.js";
 

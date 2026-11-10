@@ -11,7 +11,7 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readClaudeSettingsEnv } from "../../src/utils/claude-settings-reader.js";
 
 describe("the keyless gate's settings escape is real, and the script's env closes it", () => {

@@ -6,7 +6,7 @@
 
 import { access, chmod, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeCandidate } from "../src/compiler/candidates.js";
 import { CandidateCustodyUnavailableError } from "../src/compiler/candidate-custody.js";
 import { promoteStagedEntityPage, stageEntityPage } from "../src/trust/staging.js";
@@ -52,7 +52,7 @@ describe("Decision 20 approval namespace precondition", () => {
     expect(JSON.parse(await readFile(pending, "utf8")).id).toBe(candidate.id);
   }, 30_000);
 
-  it.runIf(CAN_TEST_POSIX_MODES)("real approval refuses read-only pending before live writes", async () => {
+  it.if(CAN_TEST_POSIX_MODES)("real approval refuses read-only pending before live writes", async () => {
     const candidate = await writeCandidate(root.dir, {
       title: "Read Only", slug: "read-only-approval", summary: "safe",
       sources: [], body: defaultBody(),
@@ -86,7 +86,7 @@ describe("Decision 20 approval namespace precondition", () => {
     expect(JSON.parse(await readFile(pending, "utf8")).id).toBe(staged.id);
   });
 
-  it.runIf(CAN_TEST_POSIX_MODES)("typed promotion refuses read-only pending before live writes", async () => {
+  it.if(CAN_TEST_POSIX_MODES)("typed promotion refuses read-only pending before live writes", async () => {
     await buildResearchLiteProject(root.dir);
     const staged = await stageEntityPage(root.dir, {
       entityType: "papers", slug: "typed-read-only", profile: validateProfile(RESEARCH_LITE_PROFILE).profile,

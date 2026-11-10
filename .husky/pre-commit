@@ -1,2 +1,2 @@
-npx fallow
-npx tsc --noEmit
+bunx fallow
+bunx tsc --noEmit

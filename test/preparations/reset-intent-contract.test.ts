@@ -15,7 +15,7 @@
 
 import { randomBytes } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";

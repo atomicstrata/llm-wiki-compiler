@@ -40,7 +40,7 @@
 
 import { readFile, readdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runExport, runExportFrom, type RunExportSources } from "../../src/commands/export.js";
 import { runOkfExport, runOkfExportFrom } from "../../src/export/okf/run.js";
 import { EXPORT_DIR, LLMWIKI_DIR } from "../../src/utils/constants.js";

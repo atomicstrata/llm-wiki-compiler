@@ -25,7 +25,7 @@
  *  - idempotent on a healthy v3 input.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { migrateEmbeddingStore } from "../src/utils/embeddings-migrate.js";
 import type { EligibleLivePage } from "../src/utils/embeddings-migrate.js";
 import { buildEmbeddingText } from "../src/utils/embeddings-pages.js";

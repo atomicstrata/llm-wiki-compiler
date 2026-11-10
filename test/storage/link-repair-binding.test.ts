@@ -37,7 +37,7 @@
 
 import { symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import type { CompilePageWrite } from "../../src/compiler/compile-write.js";
 import { repairLinks, repairLinksFrom, type LinkRepairSources } from "../../src/compiler/link-repair.js";

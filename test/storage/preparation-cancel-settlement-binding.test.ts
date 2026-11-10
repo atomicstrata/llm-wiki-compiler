@@ -23,7 +23,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   carryAdvisoryIntoCancellingLocked, carryAdvisoryIntoCancellingWith, recordDurableCancellingWith, settleAttemptCancellationLocked,

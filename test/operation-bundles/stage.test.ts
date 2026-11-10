@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readCandidate } from "../../src/compiler/candidates.js";
 import { CANDIDATES_DIR } from "../../src/utils/constants.js";
 import { listProjectFiles } from "../fixtures/project-files.js";

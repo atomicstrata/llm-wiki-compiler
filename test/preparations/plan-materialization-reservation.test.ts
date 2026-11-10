@@ -8,7 +8,7 @@
  * completing all work and stranding.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { computePreparationWorstCase } from "../../src/preparations/plan-bounds.js";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";
 import { PreparationBoundsError } from "../../src/preparations/problems.js";

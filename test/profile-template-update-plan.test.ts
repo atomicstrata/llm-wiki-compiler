@@ -4,7 +4,7 @@
  */
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ProfilePack } from "../src/profile/types.js";
 import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import { planTemplateUpdate } from "../src/profile/templates/update.js";

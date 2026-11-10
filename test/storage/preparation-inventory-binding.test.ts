@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   scanPreparationInventoryBorrowingFrom, scanPreparationInventoryFrom, type PreparationInventoryLifecycleReads, type PreparationInventoryReads,
 } from "../../src/preparations/capacity.js";

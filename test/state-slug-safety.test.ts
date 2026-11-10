@@ -11,7 +11,7 @@
  *     (corrupt), not read-through to outside content.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { symlink, writeFile, mkdir, readdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

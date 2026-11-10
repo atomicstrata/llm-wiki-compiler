@@ -19,7 +19,7 @@
  * see, and a change to it would silently move the boundary being measured.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   DEFAULT_SEED, budgetInputFor, controlAllowanceCeiling, expectStoreUnchanged,
   ordinaryTransitionCeiling, planFor, projectWith, refusalReason, rewritePlan, stage,

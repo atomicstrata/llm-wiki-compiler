@@ -26,7 +26,7 @@
  * so it reaches the comparison this file is about.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import {

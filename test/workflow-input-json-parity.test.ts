@@ -3,7 +3,7 @@
  * pre-await snapshot prevents caller mutation and hidden-field disclosure.
  * Assertions read the persisted run, not merely the returned in-memory copy.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { startWorkflow } from "../src/workflows/start.js";
 import { snapshotWorkflowInputs } from "../src/workflows/input-snapshot.js";
 import { WorkflowInputBoundsError } from "../src/workflows/input-bounds.js";

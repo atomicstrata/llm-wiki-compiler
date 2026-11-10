@@ -38,7 +38,7 @@
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, expect, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, expect, vi } from "bun:test";
 import type { WikiPageScanReads } from "../../src/compiler/indexgen.js";
 import type { SourceFreshnessSources } from "../../src/freshness/index.js";
 import type { EffectiveProfileSources } from "../../src/profile/load.js";
@@ -150,7 +150,9 @@ export async function writeFiles(root: string, files: Record<string, string>): P
 
 /** Copy the tree at `root` into memory: texts of regular files, and every directory's listing. */
 async function copyTree(root: string, rel = "", copy: Copy = { files: new Map(), listings: new Map() }): Promise<Copy> {
-  const entries = await readdir(path.join(root, rel), { withFileTypes: true });
+  // Name order, as the disk adapter lists (Node's libuv sorted; Bun's readdir does not).
+  const entries = (await readdir(path.join(root, rel), { withFileTypes: true }))
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const kindOf = (entry: (typeof entries)[number]): LocalEntry["kind"] =>
     entry.isDirectory() ? "directory" : entry.isFile() ? "file" : entry.isSymbolicLink() ? "link" : "other";
   copy.listings.set(rel, entries.map((entry) => ({ name: entry.name, kind: kindOf(entry) })));

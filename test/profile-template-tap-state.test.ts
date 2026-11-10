@@ -5,7 +5,7 @@
 import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { addTap, forgetTap, listTaps, removeTap } from "../src/profile/templates/taps/manage.js";
 import { resolveTapPaths, type TapPaths } from "../src/profile/templates/taps/paths.js";
 import { readTapState, writeTapState } from "../src/profile/templates/taps/state-store.js";
@@ -154,7 +154,8 @@ describe("template tap state hardening", () => {
     source.publisherPins.publishers.publisher = { keyId: "publisher:key.v1", publicKey: KEY.publicKey };
     source.publisherPins.keyHistory["publisher:key.v1"] = { publisher: "publisher", publicKey: KEY.publicKey };
     await writeTapState(store, state);
-    expect((await readTapState(store)).taps.community.publisherPins.keyHistory).toHaveProperty("publisher:key.v1");
+    // An array path names the literal key; Bun would split a dotted string path.
+    expect((await readTapState(store)).taps.community.publisherPins.keyHistory).toHaveProperty(["publisher:key.v1"]);
   });
 
   it("rejects active publisher pins missing from retained key history", async () => {

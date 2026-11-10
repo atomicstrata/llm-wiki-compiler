@@ -29,7 +29,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { EmbeddingAttemptRecorder } from "../../src/utils/embedding-attempts.js";
 import { updateEmbeddingsLockedCore, updateEmbeddingsLockedCoreFrom, type EmbeddingRefreshScope, type EmbeddingWriterSources } from "../../src/utils/embeddings.js";
 import type { EmbeddingPageReads } from "../../src/utils/embeddings-pages.js";

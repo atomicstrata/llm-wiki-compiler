@@ -20,7 +20,7 @@
  * evidence-store suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import { driveMapPhaseWith, driveRepeatPhase, driveRepeatPhaseWith, fanOutReadsOver, type FanOutReads } from "../../src/preparations/fan-out-driver.js";
 import { derivePhaseInstanceId, repeatExpansionIdentity, singleExpansionIdentity } from "../../src/preparations/ids.js";

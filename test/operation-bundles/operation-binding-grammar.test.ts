@@ -6,7 +6,7 @@
  * live minted id, this fails rather than silently drifting the mirror.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { isOperationBinding } from "../../src/utils/operation-binding.js";
 import { mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";
 

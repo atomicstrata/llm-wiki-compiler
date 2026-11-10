@@ -12,7 +12,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { beforeEach, afterEach } from "vitest";
+import { beforeEach, afterEach } from "bun:test";
 
 /**
  * Mutable context populated by {@link useConfinementRoots}. `root` is the

@@ -15,7 +15,7 @@
  * `emptyGeneration.errors` is propagated into the result.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { mkdir, writeFile, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

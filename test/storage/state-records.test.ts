@@ -16,7 +16,7 @@
  * touches no record, and the one flush is the single write of the final state.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { CompileStateDraft } from "../../src/compiler/compile-state-draft.js";
 import type { LegacyLocalRecords } from "../../src/storage/legacy-local-records.js";
 import {

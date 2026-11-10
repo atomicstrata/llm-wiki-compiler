@@ -8,7 +8,7 @@
  * the vetted dependency wrapper.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import canonicalize from "canonicalize";
 import { profileDigest } from "../src/profile/digest.js";
 import type { ProfilePack } from "../src/profile/types.js";

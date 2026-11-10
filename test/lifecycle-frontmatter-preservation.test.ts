@@ -11,7 +11,7 @@
  * tests pin that the date line stays byte-for-byte and the lifecycle flips.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, writeFile, readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

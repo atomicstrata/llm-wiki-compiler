@@ -19,7 +19,7 @@ import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { pageAdapter } from "../../src/operation-bundles/adapters/page.js";
 import type { OperationDigest, PageOperationMutation, PayloadRef } from "../../src/operation-bundles/types.js";
 import type { MutationId } from "../../src/operation-bundles/ids.js";

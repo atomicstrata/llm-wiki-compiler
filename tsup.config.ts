@@ -2,8 +2,9 @@
  * Build the standard distribution as a facade over one core and engine package.
  * Dependency builds finish first; both CLI and SDK externalize the same entries.
  */
+import { execFileSync } from "node:child_process";
 import { defineConfig, type Options } from "tsup";
-import { buildCompilerDependencies } from "./scripts/tsup-command.js";
+import { buildCompilerDependencies, isolateFromSourcePaths } from "./scripts/tsup-command.js";
 
 // Fields shared by both bundles. Extracted into one base object so the CLI and
 // library entries can't drift on format/target/output settings.
@@ -42,14 +43,21 @@ export default defineConfig(async (options) => {
     // entries in parallel) and could delete dist/index.* on watch/incremental
     // rebuilds.
     clean: ["dist/cli.js", "dist/cli.js.map"],
+    // `--no-env-file`: Bun would otherwise load the working directory's `.env`
+    // before any llmwiki code runs, defeating src/cli/environment.ts, which
+    // must keep project credentials out when codex-agent is selected.
     banner: {
-      js: "#!/usr/bin/env node",
+      js: "#!/usr/bin/env -S bun --no-env-file",
     },
     // Mirror the viewer's static assets (shell template, stylesheet, client
     // script) into dist/viewer/assets/ so they ship with the published
     // npm package. The Slice 3 viewer server reads the template at runtime
-    // and serves /assets/* from this directory.
-    onSuccess: "node scripts/copy-viewer-assets.mjs",
+    // and serves /assets/* from this directory. Then shield dist/ from the
+    // repository's tsconfig `paths` (see isolateFromSourcePaths).
+    onSuccess: async () => {
+      execFileSync(process.execPath, ["scripts/copy-viewer-assets.mjs"], { stdio: "inherit" });
+      isolateFromSourcePaths("dist");
+    },
   },
   {
     ...shared,

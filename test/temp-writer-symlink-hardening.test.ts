@@ -8,7 +8,7 @@
  * target round-trips correctly.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { writeState, readState } from "../src/utils/state.js";

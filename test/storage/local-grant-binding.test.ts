@@ -12,7 +12,7 @@
  */
 
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { SURFACE_HARD_CAP } from "../../src/local-workflow-host/authority.js";
 import { loadLocalGrant, loadLocalGrantFrom } from "../../src/local-workflow-host/local-config.js";
 import type { ActionSurface } from "../../src/profile/types.js";

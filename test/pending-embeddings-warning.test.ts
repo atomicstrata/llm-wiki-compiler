@@ -10,7 +10,7 @@
  * emits a single `warning` finding whose message is prefixed with the stable code.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { existsSync } from "fs";
 import { mkdir, writeFile, symlink } from "fs/promises";
 import path from "path";

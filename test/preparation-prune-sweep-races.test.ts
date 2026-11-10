@@ -30,7 +30,7 @@ import { gateDecision } from "./preparations/lifecycle-fixture.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { acquireMutationLock } from "../src/operation-bundles/lock-gate.js";
 import { MAX_ACTIVE_PREPARATIONS_PER_WORKSPACE } from "../src/preparations/constants.js";
 import { scanPreparationInventory } from "../src/preparations/capacity.js";

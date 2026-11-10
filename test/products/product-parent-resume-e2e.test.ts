@@ -10,7 +10,7 @@
  * suspends at a review gate with minimal setup.
  */
 
-import { onTestFinished, describe, expect, it } from "vitest";
+import { onTestFinished, describe, expect, it } from "bun:test";
 import { preparationGateCommand } from "../../src/commands/preparation/gate.js";
 import { writeRun } from "../../src/workflows/store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus } from "../../src/workflows/types.js";

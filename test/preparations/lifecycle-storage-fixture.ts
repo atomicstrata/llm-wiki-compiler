@@ -1,7 +1,7 @@
 /** Physical lifecycle-store faults and fresh-epoch witnesses shared across projection tests. */
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { readPreparationKey } from "../../src/preparations/key-epoch.js";
 import { stagePreparationLocked } from "../../src/preparations/stage.js";
 import { scanPreparationLifecycle } from "../../src/preparations/lifecycle-snapshot/scan.js";

@@ -7,7 +7,7 @@
  * is the one place slugify is applied, and only for error-message hints.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   isSlugSafe,
   assertSlugSafe,

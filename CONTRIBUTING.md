@@ -12,7 +12,7 @@ Thanks for your interest in contributing! This guide covers the fork-and-PR work
    ```
 3. **Install dependencies:**
    ```bash
-   npm install
+   bun install
    ```
 4. **Create a feature branch:**
    ```bash
@@ -28,9 +28,9 @@ Thanks for your interest in contributing! This guide covers the fork-and-PR work
 
 ### Working across packages
 
-Use Node 24 or later and run installation, build and test commands from the
-repository root. npm workspaces link the supporting packages automatically;
-`npm run build` builds core, local workflows and the public facade in order.
+Use Bun 1.3 or later and run installation, build and test commands from the
+repository root. Bun workspaces link the supporting packages automatically;
+`bun run build` builds core, local workflows and the public facade in order.
 You do not need to publish packages or open multiple PRs for one feature.
 
 Applications import `llm-wiki-compiler`. Its public scoped dependencies,
@@ -43,38 +43,38 @@ Put knowledge and authority changes in the relevant `src/` subsystem, local
 execution in `src/local-workflows/`, shared host contracts in
 `src/local-workflow-host/`, and public composition in `src/sdk/` or `src/index.ts`.
 See [package ownership](docs/guides/sdk-packages.mdx) for the boundaries.
-After building, use `npm run test:pack` for packaging or export changes; it
+After building, use `bun run test:pack` for packaging or export changes; it
 checks an installed consumer outside workspace aliases.
 
 ### Build and Test
 
 ```bash
-npm run build    # Compile TypeScript
-npm test         # Run all tests
-npm run dev      # Watch mode for development
+bun run build    # Compile TypeScript
+bun run test         # Run all tests
+bun run dev      # Watch mode for development
 ```
 
 **Automatic checks via git hooks:**
 
-After `npm install`, husky wires up hooks that run automatically:
+After `bun install`, husky wires up hooks that run automatically:
 
-- **pre-commit** — `fallow` (codebase health) and `npx tsc --noEmit` (type check)
-- **pre-push** — `npm run build` and `npm test`
+- **pre-commit** — `fallow` (codebase health) and `bunx tsc --noEmit` (type check)
+- **pre-push** — `bun run build` and `bun run test`
 
 If a hook fails, fix the underlying issue rather than bypassing with `--no-verify`. Use `fallow fix --yes` to auto-fix unused exports, then address remaining issues manually.
 
 You can also run the full suite manually:
 
 ```bash
-npx tsc --noEmit   # Type-check
-npm run typecheck:tests # Type-check tests against the per-file baseline
-npm run build       # Build
-npm test            # Tests
-npx fallow          # Codebase health (dead code, duplication, complexity)
-npm run fallow:ci   # Run fallow scoped to changes since origin/main (matches CI args)
+bunx tsc --noEmit   # Type-check
+bun run typecheck:tests # Type-check tests against the per-file baseline
+bun run build       # Build
+bun run test            # Tests
+bunx fallow          # Codebase health (dead code, duplication, complexity)
+bun run fallow:ci   # Run fallow scoped to changes since origin/main (matches CI args)
 ```
 
-**A note on `npm run fallow:ci`:** the `codebase-health` job in CI passes `--changed-since <PR-base-sha>` so it scopes analysis to the diff. `npm run fallow:ci` mirrors that locally by computing the merge-base between `HEAD` and the canonical main branch. The script prefers `upstream/main` when an `upstream` remote is configured (the fork workflow), and falls back to `origin/main` for direct clones. To make sure the comparison uses the canonical main from atomicmemory/llm-wiki-compiler:
+**A note on `bun run fallow:ci`:** the `codebase-health` job in CI passes `--changed-since <PR-base-sha>` so it scopes analysis to the diff. `bun run fallow:ci` mirrors that locally by computing the merge-base between `HEAD` and the canonical main branch. The script prefers `upstream/main` when an `upstream` remote is configured (the fork workflow), and falls back to `origin/main` for direct clones. To make sure the comparison uses the canonical main from atomicmemory/llm-wiki-compiler:
 
 ```bash
 # One-time setup on your fork
@@ -104,20 +104,20 @@ There is also one known parity gap that no flag closes: fallow's clone-detection
 ### Test Type-checking
 
 Vitest runs tests but does not check their TypeScript types. Run
-`npm run typecheck:tests` as well. It checks nested tests, fixtures, and imported
+`bun run typecheck:tests` as well. It checks nested tests, fixtures, and imported
 production code without emitting JavaScript or declarations. TypeScript is
 pinned so the recorded diagnostics are comparable across machines.
 
 The existing backlog is recorded per file in `test-typecheck-baseline.json`.
 New errors fail, including errors in previously clean files; reducing errors in
 another file does not provide an allowance. When you fix an existing error, run
-`npm run typecheck:tests:update` and include the reduced baseline in your PR.
+`bun run typecheck:tests:update` and include the reduced baseline in your PR.
 That command refuses increases. To see diagnostic locations and messages, run
-`npx tsc -p tsconfig.test.json`; this raw command also reports the known backlog.
+`bunx tsc -p tsconfig.test.json`; this raw command also reports the known backlog.
 
 The `test-typecheck` CI job compares the proposed baseline with the PR's base
 commit, so editing an allowance upward cannot hide a new failure. To reproduce
-that comparison locally, run `npm run typecheck:tests -- --base-ref origin/main`
+that comparison locally, run `bun run typecheck:tests -- --base-ref origin/main`
 (use `upstream/main` for a fork). Compiler-version or configuration changes need
 an explicit baseline migration and review; routine updates do not accept them.
 `--init` is only for initial baseline creation, not for clearing failures.

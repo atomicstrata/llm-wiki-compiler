@@ -14,15 +14,18 @@
  * without tripping either throwing helper.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { writeFile, rm } from "fs/promises";
 import path from "path";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
 import { readPersistedState } from "./fixtures/state-json.js";
 
-vi.mock("../src/utils/state.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/utils/state.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realUtilsState = { ...(await import("../src/utils/state.js")) };
+
+vi.mock("../src/utils/state.js", async () => {
+  const actual = realUtilsState as typeof import("../src/utils/state.js");
   return {
     ...actual,
     updateSourceState: vi.fn(() => {

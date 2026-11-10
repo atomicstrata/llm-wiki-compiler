@@ -12,7 +12,7 @@
  * agree by luck, which would let the regression back in unnoticed.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi, setSystemTime } from "bun:test";
 import { rm } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -71,7 +71,7 @@ const AFFECTED_FORMATS: ReadonlyArray<{
 
 let dir: string;
 afterEach(async () => {
-  vi.useRealTimers();
+  setSystemTime();
   if (dir) await rm(dir, { recursive: true, force: true });
 });
 
@@ -88,8 +88,7 @@ async function seedWiki(): Promise<string> {
 
 /** Collect the wiki with the system clock pinned to `at`. */
 async function collectAt(root: string, at: Date): Promise<ExportPage[]> {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(at);
+  setSystemTime(at);
   return collectExportPages(root);
 }
 
@@ -136,7 +135,7 @@ describe("export timestamps are read, never invented", () => {
     // Render both lists at ONE instant: llms.txt and marp deliberately stamp
     // "exported at" into their headers, so holding the render clock still leaves
     // the collected page data as the only variable under test.
-    vi.setSystemTime(SECOND_RUN);
+    setSystemTime(SECOND_RUN);
     for (const { name, render } of AFFECTED_FORMATS) {
       expect(render(first), name).toBe(render(second));
     }

@@ -11,7 +11,7 @@
  * builder consumes the same viewer snapshot path that production uses.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -31,7 +31,7 @@ import { CONCEPTS_DIR, QUERIES_DIR } from "../src/utils/constants.js";
 vi.mock("../src/context/retrieval.js", () => ({
   retrieveSemanticChunks: vi.fn(async () => ({ hits: [], warning: null })),
 }));
-const mockedRetrieve = vi.mocked(retrieveSemanticChunks);
+const mockedRetrieve = (retrieveSemanticChunks as unknown as Mock<typeof retrieveSemanticChunks>);
 
 beforeEach(() => {
   mockedRetrieve.mockReset();

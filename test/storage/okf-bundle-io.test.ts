@@ -21,17 +21,22 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, onTestFinished, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "bun:test";
 
 /** Every watched call, as `<function> <path relative to the test's base>`, and the names watched. */
-const calls = vi.hoisted(() => ({
+const calls = (() => ({
   log: [] as string[],
   base: "",
   watched: ["readdir", "stat", "readFile", "access", "lstat", "mkdir", "copyFile", "rm"],
-}));
+}))();
 
-vi.mock("fs/promises", async (load) => {
-  const disk = (await load()) as Record<string, (...args: unknown[]) => unknown>;
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+// Synchronous on purpose: Bun runs the factory eagerly, and an `await` inside it
+// never resumes, hanging the file at load.
+vi.mock("fs/promises", () => {
+  const disk = realFsPromises as unknown as Record<string, (...args: unknown[]) => unknown>;
   const watched = Object.fromEntries(calls.watched.map((name) => [name, (target: unknown, ...rest: unknown[]) => {
     calls.log.push(`${name} ${path.relative(calls.base, String(target)) || "."}`);
     return disk[name]!(target, ...rest);
@@ -70,7 +75,8 @@ describe("OKF import reader", () => {
   it("lists each directory once, and sizes a document before reading it", async () => {
     const base = arrange({ "b/index.md": BUNDLE_INDEX, "b/concepts/a.md": DOC, "b/deep/er/c.md": DOC });
     expect((await readOkfBundle(path.join(base, "b"))).map((doc) => doc.relPath)).toEqual(["concepts/a.md", "deep/er/c.md"]);
-    expect(made("readdir")).toEqual(["readdir b", "readdir b/concepts", "readdir b/deep", "readdir b/deep/er"]);
+    // Walk order follows the runtime's raw readdir order (unsorted under Bun); each directory is listed once.
+    expect(made("readdir").sort()).toEqual(["readdir b", "readdir b/concepts", "readdir b/deep", "readdir b/deep/er"]);
     expect(calls.log.indexOf("stat b/concepts/a.md")).toBeGreaterThanOrEqual(0);
     expect(calls.log.indexOf("stat b/concepts/a.md")).toBeLessThan(calls.log.indexOf("readFile b/concepts/a.md"));
   });

@@ -3,6 +3,7 @@
  * Verifies weight map, per-rule deductions, and clamping.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluateHealth } from "../src/eval/health.js";
 import { writeCandidate } from "../src/compiler/candidates.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";

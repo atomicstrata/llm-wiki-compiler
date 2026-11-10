@@ -3,7 +3,7 @@
  * supported concepts and an unusable provider response, including providers
  * that encode the concepts array as a JSON string.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseConceptExtraction, parseConcepts } from "../src/compiler/prompts.js";
 
 describe("concept extraction result", () => {

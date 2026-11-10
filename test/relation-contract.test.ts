@@ -10,7 +10,7 @@
  * an ENROLLED page is rejected while a never-enrolled create stays exempt.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   validateRelationAttributes,
   validateRelationAgainstProfile,

@@ -41,7 +41,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { exportJson, exportJsonFrom, type ExportJsonSources } from "../../src/commands/export.js";
 import { collectExportPages, collectExportPagesFrom } from "../../src/export/collect.js";
 import type { ExportJsonOptions, JsonExportDocument } from "../../src/export/json-export.js";

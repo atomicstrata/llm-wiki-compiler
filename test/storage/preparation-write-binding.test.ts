@@ -20,7 +20,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as advisoryFile from "../../src/utils/advisory-file.js";
 import * as atomicWriteModule from "../../src/utils/atomic-write.js";
 import * as runStoreIo from "../../src/utils/run-store-io.js";

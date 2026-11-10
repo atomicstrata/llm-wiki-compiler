@@ -32,7 +32,7 @@
 
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import {
   readPreparationEvidenceBytesFrom, readPreparationEvidenceFrom,
   type PreparationEvidenceLeafReads, type PreparationEvidenceLocation, type PreparationEvidenceOpenLeaf,

@@ -3,7 +3,7 @@
  * Covers constructor behavior, env alias resolution, and the embed() stub.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   AtlasCloudProvider,
   resolveAtlasCloudApiKeyFromEnv,

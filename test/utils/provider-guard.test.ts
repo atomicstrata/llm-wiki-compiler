@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { ensureProviderAvailable, ProviderUnavailableError, UnknownProviderError } from "../../src/utils/provider-guard.js";
 
 /** Call ensureProviderAvailable() and return the caught error, or throw if it does not throw. */

@@ -3,7 +3,7 @@
  * source declares, and the image route serves an image's exact bytes only
  * through a source in the snapshot that declares it, on a loopback binding.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { useTempRoot } from "./fixtures/temp-root.js";

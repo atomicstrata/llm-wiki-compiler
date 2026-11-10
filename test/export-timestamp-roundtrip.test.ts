@@ -12,7 +12,7 @@
  * src/import/run.ts) — the same bytes, without needing the project lock.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { rm, mkdir } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

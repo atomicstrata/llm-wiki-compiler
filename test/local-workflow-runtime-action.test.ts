@@ -3,7 +3,7 @@
  * @description Constructed action dispatch uses supplied authority and run
  * services while retaining the existing surface and interactive gate refusals.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";

@@ -15,7 +15,7 @@
 
 import { mkdir, writeFile, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { planLintFixes } from "../../src/linter/fix-plan.js";
 import { tempRootTracker } from "../temp-roots.js";
 

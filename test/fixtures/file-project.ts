@@ -1,7 +1,7 @@
 /** Tracked literal file layouts for subprocess tests; no profile or compiler initialization. */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 import { tempRootTracker } from "../temp-roots.js";
 
 /** Register cleanup and return a factory writing a declared relative-path layout. */

@@ -33,7 +33,7 @@
 
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
 import { collectStats, collectStatsFrom, type StatsSources } from "../../src/eval/stats.js";
 import type { StatsResult } from "../../src/eval/types.js";
 import type { LegacyLocalReads } from "../../src/storage/legacy-local-reads.js";
@@ -113,9 +113,9 @@ async function mintLinked(): Promise<void> {
   linkRoots.push(outside, escaping);
 }
 
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(AT)); });
-beforeEach(() => { vi.setSystemTime(new Date(AT)); });
-afterAll(() => { vi.useRealTimers(); });
+beforeAll(() => { setSystemTime(new Date(AT)); });
+beforeEach(() => { setSystemTime(new Date(AT)); });
+afterAll(() => { setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   for (const name of NAMES) minted.set(name, await mintCopied(tracker, PREFIX, (root) => seeded(root, PROJECTS[name]), collectStats));
   await mintLinked();
@@ -200,7 +200,7 @@ describe("the evaluation snapshot over copies and held bytes, with the directori
   it("T6 reads the clock once the reads are in, not when the snapshot was asked for", async () => {
     const sources = sourcesOver("healthy");
     const readText = sources.pages.readText;
-    sources.pages.readText = async (rel) => { vi.setSystemTime(new Date(LATER)); return readText(rel); };
+    sources.pages.readText = async (rel) => { setSystemTime(new Date(LATER)); return readText(rel); };
     expect(await collectStatsFrom(sources)).toStrictEqual({ ...EXPECTED.healthy, timestamp: LATER });
   });
 

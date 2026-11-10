@@ -2,7 +2,7 @@
  * Reviewed query saves stage fresh canonical candidates under the same profile
  * gate, without publishing pages or refreshing retrieval artifacts.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi, type Mock } from "bun:test";
 import { chmod, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { maybeSaveQueryPage } from "../src/commands/query-publication.js";
@@ -26,7 +26,7 @@ async function expectNoQueryPageNorRefresh(): Promise<void> {
 }
 
 it("returns a candidate ID and preserved answer through generation without extra provider work", async () => {
-  vi.mocked(callClaude).mockReset().mockImplementation(async options => options.tools
+  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async options => options.tools
     ? JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" }) : "[[beta]]");
   const result = await generateAnswer(root.dir, "Answer", { save: true, review: true });
   expect(result.answer).toBe("[[beta]]");

@@ -5,7 +5,7 @@
  */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, setSystemTime } from "bun:test";
 import { installRemoteTemplate } from "../src/profile/templates/install.js";
 import { collectTemplateStatus } from "../src/profile/templates/status.js";
 import { resolveRemotePackage } from "../src/profile/templates/taps/package.js";
@@ -73,7 +73,7 @@ describe("remote template status", () => {
   it("reports stale accepted evidence without losing clean-profile comparison", async () => {
     const fixture = await installed();
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2028-01-01T00:00:00Z"));
+    setSystemTime(new Date("2028-01-01T00:00:00Z"));
     await expect(collectTemplateStatus(fixture.project, fixture.paths)).resolves.toMatchObject({
       status: "installed-stale",
       stale: true,

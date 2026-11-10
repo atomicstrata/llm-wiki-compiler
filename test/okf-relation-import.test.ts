@@ -6,7 +6,7 @@
  * unknown-type + endpoint-scope refusal (skipped-invalid), untrusted / default /
  * dry-run inert paths (store untouched), and newsroom genericity.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

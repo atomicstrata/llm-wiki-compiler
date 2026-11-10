@@ -24,7 +24,7 @@
  * authentication. Nothing here selects a backend.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_PREPARATION_MANIFEST_BYTES, MAX_PREPARATION_RUN_BYTES,
 } from "../../src/preparations/constants.js";

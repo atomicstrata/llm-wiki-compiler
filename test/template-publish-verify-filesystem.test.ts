@@ -5,7 +5,7 @@
  */
 import { copyFile, mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { makeFifo } from "./fixtures/fifo.js";
 import { COORDINATE, signedPackage, signedTapRotation, signedRotation, TAP_KEY } from "./fixtures/template-signing.js";
 import {

@@ -5,7 +5,7 @@
 
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { PROFILE_FILE } from "../src/utils/constants.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";

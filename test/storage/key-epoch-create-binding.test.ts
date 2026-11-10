@@ -20,7 +20,7 @@
  */
 
 import { mkdir, stat } from "node:fs/promises";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as operationKey from "../../src/operation-bundles/key-epoch.js";
 import { operationKeyEpochId } from "../../src/operation-bundles/run-integrity.js";
 import * as preparationKey from "../../src/preparations/key-epoch.js";

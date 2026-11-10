@@ -7,7 +7,7 @@
  *   - End-to-end write to sources/ via ingestSessionFile
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import path from "path";
 import os from "os";
 import { mkdir, readdir } from "fs/promises";

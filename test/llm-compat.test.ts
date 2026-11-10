@@ -4,7 +4,7 @@
  * accepts the same options interface as before the provider abstraction.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { callClaude } from "../src/utils/llm.js";
 
 describe("callClaude backward compatibility", () => {

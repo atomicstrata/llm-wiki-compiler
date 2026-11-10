@@ -17,7 +17,7 @@
  * refusal; the review-batch and review-publication binding suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidates from "../../src/compiler/candidates.js";
 import { UnsafeCandidateIdError } from "../../src/compiler/candidates.js";
 import * as reviewApprove from "../../src/commands/review-approve.js";

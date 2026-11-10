@@ -7,7 +7,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { CodexAgentProvider } from "../src/providers/codex-agent.js";
 
 /** True when literal PATH lookup can launch the real installed CLI. */

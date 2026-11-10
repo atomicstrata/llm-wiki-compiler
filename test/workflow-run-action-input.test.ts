@@ -10,7 +10,7 @@
  * input can never reach a run-lifecycle op) and applies a default.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installRunActionProfile, runActionProfile } from "./fixtures/run-action-profile.js";
 import { validateActionInputs } from "../src/workflows/action-input.js";

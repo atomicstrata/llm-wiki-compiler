@@ -7,7 +7,7 @@
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, realpath } from "node:fs/promises";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 import { extractProviderArchive } from "../../src/capability-providers/packages/archive.js";
 import type { PlatformArtifactV1 } from "../../src/capability-providers/packages/protocol.js";
 import { providerDistribution, removeProviderFixtureRoot } from "../fixtures/capability-provider-package.js";

@@ -18,7 +18,7 @@
  * `c5c9e5e`).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   profileBootstrapResponse,
   jsonResponse,

@@ -17,7 +17,7 @@
  *  4. A normal-sized update (within cap) is allowed (unchanged behavior).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { rm, writeFile, readFile, mkdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";

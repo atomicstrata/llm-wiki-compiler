@@ -27,7 +27,7 @@
 import { createHash } from "node:crypto";
 import { link, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
   readPreparationEvidence, readPreparationEvidenceBytes, writePreparationEvidenceCreateOnly,
 } from "../../src/preparations/evidence-store.js";

@@ -32,7 +32,7 @@
 
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { encodeBinaryStore, MAX_BINARY_STORE_BYTES } from "../../src/utils/embeddings-binary.js";
 import { MAX_EMBEDDING_STORE_BYTES } from "../../src/utils/constants.js";
 import * as storage from "../../src/utils/embeddings-storage.js";

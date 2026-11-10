@@ -7,7 +7,7 @@
  * it, exactly that origin is accepted, and nothing else is loosened except
  * cross-site navigation to the data-free shell.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { viewerRequest } from "./fixtures/lan-request.js";
 import { startViewerServer } from "../src/viewer/server.js";

@@ -27,7 +27,7 @@
  * T3's malformed YAML is PLANTED in a copy, not minted.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { EvalFileReads } from "../../src/eval/file-reads.js";
 import { loadHistory, loadHistoryFrom, loadLastFullReport, loadLastFullReportFrom, loadPreviousReport, loadPreviousReportFrom } from "../../src/eval/stats.js";
 import { checkThresholds, checkThresholdsFrom } from "../../src/eval/thresholds.js";

@@ -11,7 +11,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "src");
 const FORBIDDEN = ["createCliOperationRuntime", "operations-authority-resolver"];

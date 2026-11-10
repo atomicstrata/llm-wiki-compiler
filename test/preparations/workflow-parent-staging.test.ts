@@ -9,7 +9,7 @@
  * directly against a real written parent run.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { writeRun } from "../../src/workflows/store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus } from "../../src/workflows/types.js";

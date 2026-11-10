@@ -1,5 +1,5 @@
 /** Exercise the shipped cockpit renderer and native selection controls without a live model. */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { createDemo } from "./fixtures/source-review-project.js";
 import { collectSourceReview } from "../src/viewer/source-review/report.js";

@@ -11,7 +11,7 @@
  * runs, idempotent re-approval, and lock contention.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { buildWorkflowProfile, installWorkflowProfile, startAndParkBuild as startAndPark } from "./fixtures/workflow-profile.js";
 import { startWorkflow } from "../src/workflows/start.js";

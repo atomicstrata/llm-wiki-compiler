@@ -8,7 +8,7 @@
  * suite keeps its own symlink-planting and fail-closed assertions local.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import type { ProfilePack } from "../../src/profile/types.js";
 import { appendRelation } from "../../src/relations/store.js";
 import { readRelations } from "../../src/relations/store-read.js";

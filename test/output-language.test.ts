@@ -8,7 +8,7 @@
  * pipelines emit.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   getOutputLanguage,
   languageDirective,

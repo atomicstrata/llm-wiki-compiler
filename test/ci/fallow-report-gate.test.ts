@@ -3,7 +3,7 @@
  * pinned GitHub action, even when the underlying analyzer exits successfully.
  */
 import { spawnSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 /** Execute the report boundary without running the analyzer or fetching Git. */
 function gate(report: unknown) {

@@ -14,7 +14,7 @@
  * the operator never saw.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compileIntents } from "../../src/operations-packs/handlers/intent-compile.js";
 import {
   CURRENT_BYTES_FIELD, CURRENT_DIGEST_FIELD,

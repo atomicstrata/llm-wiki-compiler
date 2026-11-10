@@ -3,7 +3,7 @@
  * @description Confirmation refuses automation and accepts only a bounded,
  * explicit interactive yes response.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { confirmTemplateMutation, type TemplateConfirmationIo } from "../src/profile/templates/confirm.js";
 
 function io(answer: string | null, tty = true): TemplateConfirmationIo & { output: string[] } {

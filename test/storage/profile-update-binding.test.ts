@@ -14,7 +14,7 @@
  * which run alongside this file.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { auditArtifactStoreFrom, type ArtifactAuditReads } from "../../src/profile/templates/artifact-audit.js";
 import { auditCandidateArchiveFrom, auditWorkflowHistoryFrom, type HistoryAuditReads } from "../../src/profile/templates/history-audit.js";
 import { planTemplateUpdateFrom, type TemplateUpdatePlan, type TemplateUpdateReads } from "../../src/profile/templates/update.js";

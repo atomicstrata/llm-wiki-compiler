@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { acquireKeyedFifo } from "../../src/utils/keyed-fifo.js";
 
 const timeoutError = (): Error => new Error("queue stalled");

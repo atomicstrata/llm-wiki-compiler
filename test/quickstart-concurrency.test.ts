@@ -7,14 +7,17 @@
  * real local-file ingest (no provider calls reach the network).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 
-const compileSpy = vi.hoisted(() => vi.fn());
-vi.mock("../src/compiler/index.js", async (importActual) => ({
-  ...(await importActual<typeof import("../src/compiler/index.js")>()),
+const compileSpy = (() => vi.fn())();
+// Snapshot real modules before mock.module replaces them for this file.
+const realCompilerIndex = { ...(await import("../src/compiler/index.js")) };
+
+vi.mock("../src/compiler/index.js", async () => ({
+  ...(realCompilerIndex as typeof import("../src/compiler/index.js")),
   compileAndReport: compileSpy,
 }));
 

@@ -9,7 +9,7 @@
  * nothing about it had changed. Runs the real compile, review and approve
  * paths with only the model stubbed.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";

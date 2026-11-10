@@ -23,7 +23,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as inventoryScan from "../../src/utils/inventory-scan.js";
 import type { CappedLeafReadBuffer } from "../../src/utils/confined-read.js";
 import * as capacity from "../../src/operation-bundles/capacity.js";

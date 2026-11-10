@@ -10,7 +10,7 @@
  * unrepresentable in a single run.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { RunPreparationResultV1 } from "../../src/preparations/runner.js";
 import {
   compileMultiSourcePaperAction, driveStagedRun, readPhaseOutput, resultReason,

@@ -3,7 +3,8 @@
  * tail, independent refusals, conflict handling, target routing, and body pins.
  * Provider calls are disabled except for the explicit shared-drain test.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
 import * as candidates from "../src/compiler/candidates.js";
@@ -158,7 +159,7 @@ it("requires relation-gated typed approvals to run individually", async () => {
 });
 
 it("refreshes enabled embeddings once without consuming unrelated prior pending IDs", async () => {
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+  stubEnv("LLMWIKI_EMBEDDINGS", "on");
   await writePendingEmbeddings(root.dir, [{ pageId: "concepts/prior", attempts: 0 }]);
   const a = await stageBatchCandidate(root.dir, "alpha");
   const b = await stageBatchCandidate(root.dir, "beta");

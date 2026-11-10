@@ -7,7 +7,7 @@
  * Task 2) when a workflow produces a required artifact same-or-later than the page
  * that needs it, or never produces it at all (out-of-band production).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../../src/profile/validate.js";
 import { researchArtifactPreconditionProfile, RESEARCH_ARTIFACT_TYPE } from "../fixtures/artifact-precondition-profiles.js";
 import type { WorkflowDef } from "../../src/profile/types.js";

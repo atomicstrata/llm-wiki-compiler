@@ -5,7 +5,7 @@
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { runConnector } from "../../src/connectors/run.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { plantConnectorCandidate, plantConnectorCandidateBatch } from "./final6-fixtures.js";

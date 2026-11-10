@@ -4,7 +4,7 @@
  * Exercise both the direct core and the CLI action's structured failure output.
  */
 
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { writeFile, symlink } from "node:fs/promises";
 import path from "node:path";

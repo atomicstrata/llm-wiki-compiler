@@ -23,18 +23,14 @@ jobs:
   # doing as its own change, and not free.
   build-and-test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [24]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
       - name: Install Linux isolation test dependency
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - name: Permit Bubblewrap namespaces on the disposable runner
@@ -44,13 +40,12 @@ jobs:
       - name: Verify Linux isolation launch
         run: >-
           bwrap --cap-drop ALL --unshare-net --ro-bind / /
-          --dev /dev --proc /proc -- "$(command -v node)" --version
-      - run: npm run release:check-docs
-      - run: npm run build
-      - run: npm test
+          --dev /dev --proc /proc -- "$(command -v bun)" --version
+      - run: bun run release:check-docs
+      - run: bun run test
       # Default tests exclude this fresh-install check. Exercise the shipped
       # facade, its exact workspace dependencies, and consumer declarations.
-      - run: npm run test:pack
+      - run: bun run test:pack
 
   codebase-health:
     runs-on: ubuntu-latest

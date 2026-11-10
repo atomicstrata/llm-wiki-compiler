@@ -22,7 +22,7 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
 import type { EntityId, ProfilePack, EntityPageView } from "../../src/profile/types.js";
 import { appendRelation, updateRelation, compactRelations } from "../../src/relations/store.js";

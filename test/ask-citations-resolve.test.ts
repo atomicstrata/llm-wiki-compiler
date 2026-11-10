@@ -15,7 +15,7 @@
  * the derived page directly, and the status index records that gap.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { buildCollidingProject, echoCallClaudeModule, mockQueryVector } from "./fixtures/typed-grounding.js";

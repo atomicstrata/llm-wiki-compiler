@@ -9,7 +9,7 @@
 
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { vi } from "vitest";
+import { vi, type Mock } from "bun:test";
 import { makeTempRoot } from "./temp-root.js";
 import { writePage } from "./write-page.js";
 import { writeProfileFile } from "./profile-fixtures.js";
@@ -18,7 +18,7 @@ import type { ProfilePack } from "../../src/profile/types.js";
 /** Stub callClaude (under selectPages) to echo the given pageId tokens. */
 export async function stubSelectPages(tokens: string[]): Promise<void> {
   const { callClaude } = await import("../../src/utils/llm.js");
-  vi.mocked(callClaude).mockResolvedValue(JSON.stringify({ pages: tokens, reasoning: "test" }));
+  (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue(JSON.stringify({ pages: tokens, reasoning: "test" }));
 }
 
 /** A profile whose single `papers` type opts INTO search. */

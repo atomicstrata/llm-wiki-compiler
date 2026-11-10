@@ -25,7 +25,7 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";
 import * as privateLeaves from "../../src/storage/disk-private-leaves.js";
 import { AtomicWriteCollisionError } from "../../src/utils/atomic-write-no-replace-durable.js";

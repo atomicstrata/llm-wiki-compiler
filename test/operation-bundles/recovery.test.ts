@@ -9,7 +9,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { resumeOperationRecoveryLocked } from "../../src/operation-bundles/recovery.js";
 import { approveRequest, buildRuntime, fixtureAuthority, outageAtApplyAuthority, stageSourceBundle } from "./executor-fixtures.js";

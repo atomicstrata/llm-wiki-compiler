@@ -5,7 +5,7 @@
  * rules. Every deviation must raise a typed protocol violation rather than
  * advancing an invocation on attacker-shaped frames.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseInvocationId, parseRequestId } from "../../src/capability-providers/ids.js";
 import {
   ProviderProtocolSessionV1, ProviderProtocolError,

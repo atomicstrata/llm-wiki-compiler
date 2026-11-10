@@ -8,16 +8,19 @@ import { createHash } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { parseTemplateCoordinate } from "../../src/profile/templates/signing/protocol.js";
 import type { SignedPackageEnvelope, SignedTapIndex } from "../../src/profile/templates/signing/types.js";
 import { signedIndex, signedPackage, TAP_KEY } from "./template-signing.js";
 
 const CLI = path.resolve("dist/cli.js");
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** Maximum time any compiled publisher-verifier CLI assertion may wait. */
-export const CLI_TIMEOUT_MS = 5_000;
+/**
+ * Maximum time any compiled publisher-verifier CLI assertion may wait. A hang
+ * guard, not a speed check: one run takes ~1.5s idle, but the full suite runs
+ * parallel workers that each spawn CLIs, and 5s was breached under that load.
+ */
+export const CLI_TIMEOUT_MS = 15_000;
 
 export interface PublishDistribution {
   root: string;
@@ -137,7 +140,8 @@ function currentIndex(envelope: SignedPackageEnvelope): SignedTapIndex {
 }
 
 function offlineEnvironment(root: string): NodeJS.ProcessEnv {
-  const guard = `--import=${pathToFileURL(path.join(root, "execution-guard.mjs")).href}`;
+  // Bun ignores NODE_OPTIONS; BUN_OPTIONS preloads the guard before the CLI.
+  const guard = `--preload=${path.join(root, "execution-guard.mjs")}`;
   const environmentRoot = path.join(root, "environment");
   return {
     ...process.env,
@@ -157,7 +161,9 @@ function offlineEnvironment(root: string): NodeJS.ProcessEnv {
     HTTPS_PROXY: "http://127.0.0.1:1",
     ALL_PROXY: "http://127.0.0.1:1",
     NO_PROXY: "",
-    NODE_OPTIONS: guard,
+    BUN_OPTIONS: guard,
+    // The runtime's own transpiler cache is not a CLI write; keep it out of the watched tree.
+    BUN_RUNTIME_TRANSPILER_CACHE_PATH: "0",
   };
 }
 

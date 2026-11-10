@@ -16,7 +16,7 @@
  * partial post-state where file 1 persisted and file 2 is missing.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFile, readFile } from "fs/promises";
 import path from "path";
 import {

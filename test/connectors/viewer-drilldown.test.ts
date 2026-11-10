@@ -3,7 +3,8 @@
  * The network is a fixture; connector mapping, durable provenance, approval,
  * profile validation and HTTP page serialization are production code.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { useTempRoot } from "../fixtures/temp-root.js";
@@ -21,7 +22,7 @@ const ctx = useTempRoot([".llmwiki", "sources"]);
 const servers: Array<{ close(): Promise<void> }> = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map(server => server.close()));
-  vi.unstubAllEnvs();
+  restoreEnv();
   process.exitCode = undefined;
 });
 
@@ -31,9 +32,9 @@ async function importPaper(): Promise<string> {
   await mkdir(path.dirname(path.join(ctx.dir, PROFILE_FILE)), { recursive: true });
   await writeFile(path.join(ctx.dir, PROFILE_FILE), JSON.stringify(profile));
   await writeFile(path.join(ctx.dir, ".llmwiki/config.json"), JSON.stringify({ connectors: { crossref: { contactEmail: "test@example.com", allowedHosts: ["api.crossref.org"] } } }));
-  vi.stubEnv("LLMWIKI_CONNECTORS", "crossref");
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-  vi.stubEnv("VOYAGE_API_KEY", "");
+  stubEnv("LLMWIKI_CONNECTORS", "crossref");
+  stubEnv("LLMWIKI_PROVIDER", "anthropic");
+  stubEnv("VOYAGE_API_KEY", "");
   const bytes = await readFile(fixturePath);
   const result = await runConnector(ctx.dir, "crossref", { doi: "10.123/example" }, {
     fetcher: async () => ({ kind: "ok", finalUrl: "https://api.crossref.org/works/10.123%2Fexample", bytes, contentHash: sha256Text(bytes.toString("utf8")) }),

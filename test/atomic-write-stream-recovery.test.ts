@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { link, lstat, mkdtemp, readFile, rm } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { FileHandle } from "node:fs/promises";
 import {
   atomicStreamCreateOnlyDurable, AtomicWriteCollisionError,

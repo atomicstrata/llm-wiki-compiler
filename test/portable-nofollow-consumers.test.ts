@@ -1,5 +1,5 @@
 /** Residual private-file readers must retain their refusal semantics without native no-follow flags. */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
 import { lstat, mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,8 +11,11 @@ import { loadBatch } from "../src/trust/journal.js";
 import { releaseLock } from "../src/utils/lock.js";
 import { openDirectoryNoFollow, resolveDistributionPaths } from "../src/profile/templates/publish/distribution-paths.js";
 
-vi.mock("node:fs", async (original) => {
-  const fs = await original<typeof import("node:fs")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFs = { ...(await import("node:fs")) };
+
+vi.mock("node:fs", async () => {
+  const fs = (realFs as typeof import("node:fs"));
   return { ...fs, constants: { ...fs.constants, O_NOFOLLOW: undefined, O_NONBLOCK: undefined, O_DIRECTORY: undefined } };
 });
 

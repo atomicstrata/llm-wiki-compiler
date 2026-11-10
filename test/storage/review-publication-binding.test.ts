@@ -19,7 +19,7 @@
  * review-batch suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as answerIndex from "../../src/citations/answer-index.js";
 import type { AnswerCitationIndex } from "../../src/citations/answer-types.js";
 import * as answerPublication from "../../src/citations/answer-publication.js";
@@ -40,7 +40,7 @@ import type { LoadedProfile } from "../../src/profile/types.js";
 import * as output from "../../src/utils/output.js";
 import type { ReviewCandidate } from "../../src/utils/types.js";
 
-afterEach(() => { vi.restoreAllMocks(); process.exitCode = undefined; });
+afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
 
 /** A candidate with only the fields a case names. */
 const candidate = (fields: Partial<ReviewCandidate>): ReviewCandidate => ({ id: "cand-1", slug: "deployment", body: "---\ntitle: T\n---\n\nBody.\n", ...fields } as ReviewCandidate);

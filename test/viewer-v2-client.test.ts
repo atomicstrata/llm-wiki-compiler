@@ -2,7 +2,7 @@
  * Hash routing of the v2 viewer client, which must agree with the links the
  * server renders.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { citationHref, pageHref, pageIdHref, parseRoute, searchHref, sourceHref } from "../viewer-v2/src/route.js";
 
 describe("v2 viewer routes", () => {

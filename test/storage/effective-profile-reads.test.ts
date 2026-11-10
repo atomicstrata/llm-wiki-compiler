@@ -16,13 +16,16 @@
 
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "bun:test";
 
 /** `calls` are "<operation> <leaf name>"; `fail` maps one such key to the error it should raise. */
-const io = vi.hoisted(() => ({ calls: [] as string[], fail: new Map<string, Error>() }));
+const io = (() => ({ calls: [] as string[], fail: new Map<string, Error>() }))();
 
-vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/utils/no-follow-open.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
+
+vi.mock("../../src/utils/no-follow-open.js", async () => {
+  const actual = realUtilsNoFollowOpen as typeof import("../../src/utils/no-follow-open.js");
   const WATCHED = ["stat", "readFile", "read", "close"];
   /** Record `key`, then raise its planted failure if there is one. */
   const note = (key: string): void => {

@@ -2,7 +2,7 @@
  * Frozen ordered findings captured before the tier refactor. Uses the existing
  * default corpus and artifact/lifecycle profile to guard flat object parity.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { mkdir, writeFile, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { lint } from "../src/linter/index.js";

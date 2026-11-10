@@ -21,17 +21,19 @@
  * counter cannot fail for both reasons distinguishably.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const openerProbe = vi.hoisted(() => ({ modes: [] as string[] }));
+const openerProbe = (() => ({ modes: [] as string[] }))();
 
 type NamespaceModule = typeof import("../../src/preparations/lifecycle-fs/namespace.js");
 
+
+// Snapshot real modules before mock.module replaces them for this file.
+const realNamespace = { ...(await import("../../src/preparations/lifecycle-fs/namespace.js")) };
+
 vi.mock("../../src/preparations/lifecycle-fs/namespace.js", async () => {
-  const actual = await vi.importActual<NamespaceModule>(
-    "../../src/preparations/lifecycle-fs/namespace.js",
-  );
+  const actual = realNamespace as NamespaceModule;
   return {
     ...actual,
     // The real opener still runs, so the returned namespace keeps its genuine

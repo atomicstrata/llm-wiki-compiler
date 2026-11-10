@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readProvenanceState } from "../src/export/collect.js";
 import { parseProvenanceMetadata } from "../src/utils/markdown.js";
 

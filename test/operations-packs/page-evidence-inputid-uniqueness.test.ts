@@ -10,7 +10,7 @@
  * the commit) by deleting its guard and watching only its own witness go red.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { parsePageEvidenceDescriptor } from "../../src/operations-packs/parse-page-evidence.js";
 import { lowerPhase } from "../../src/operations-packs/compiler-lowering.js";

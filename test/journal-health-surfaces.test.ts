@@ -28,7 +28,7 @@
  * full `search`/`listPages`/`okf`/`json` envelopes do.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, access } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
@@ -146,7 +146,7 @@ describe("journal health surfaces — threading stays read-only", () => {
     await buildViewerSnapshot(root);
     await exportJson(root);
     // The pending journal file is still present (no replay/prune side effect).
-    await expect(access(path.join(journalDir, "pending.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(journalDir, "pending.json"))).resolves.toBeNil();
   });
 });
 

@@ -12,7 +12,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { mkdtemp, realpath, writeFile } from "node:fs/promises";
 import { Readable } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { extractProviderArchive } from "../../src/capability-providers/packages/archive.js";
 import { encodeFrame } from "../../src/capability-providers/runtime/framing.js";
 import { PROVIDER_PROTOCOL_VERSION_V1 } from "../../src/capability-providers/runtime/types.js";

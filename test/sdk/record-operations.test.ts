@@ -1,6 +1,6 @@
 /** @file SDK effect authority is host-captured and preparation-only. These
  * witnesses exercise the public createWiki surface without CLI authority. */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { createWiki } from "../../src/sdk/wiki.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { SAMPLE_PROFILE, writeProfileFile } from "../fixtures/profile-fixtures.js";

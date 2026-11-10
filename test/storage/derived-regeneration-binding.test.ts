@@ -22,7 +22,8 @@
  * taken here.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as indexgen from "../../src/compiler/indexgen.js";
 import * as obsidian from "../../src/compiler/obsidian.js";
 import * as resolver from "../../src/compiler/resolver.js";
@@ -38,7 +39,7 @@ import type { PageId } from "../../src/utils/page-id.js";
 
 const ROOT = "/memory/project";
 const IDS = ["concepts/alpha", "queries/beta"] as PageId[];
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 /** The compile tail's steps, each call logged; `fail` names the one step that rejects. */
 function importSteps(log: string[], fail?: keyof ImportRefreshSteps): ImportRefreshSteps {
@@ -87,7 +88,7 @@ describe("source removal's regeneration over its steps", () => {
 
   it("R2 rethrows the embedding failure when strict, and an index failure stops the MOC and embeddings", async () => {
     vi.spyOn(output, "status").mockImplementation(() => {});
-    vi.stubEnv(ENV_EMBED_STRICT, "1");
+    stubEnv(ENV_EMBED_STRICT, "1");
     await expect(regenerateDerivedWith(removalSteps([], "updateEmbeddings"))).rejects.toThrow("updateEmbeddings failed");
     const log: string[] = [];
     await expect(regenerateDerivedWith(removalSteps(log, "generateIndex"))).rejects.toThrow("generateIndex failed");

@@ -12,7 +12,7 @@
  * without deep-validating a format this build does not understand.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readStateClassified } from "../src/utils/state.js";
 import { collectStatus } from "../src/status/collect.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";

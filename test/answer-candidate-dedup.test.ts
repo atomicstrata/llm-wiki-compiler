@@ -2,7 +2,7 @@
  * Both staging orders preserve answer proposal identity and exact file bytes.
  * Generic import canonicalization remains scoped to generic candidates.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readFile } from "fs/promises";
 import { writeCandidate, writeFreshCandidate, listCandidates } from "../src/compiler/candidates.js";
 import { useTempRoot } from "./fixtures/temp-root.js";

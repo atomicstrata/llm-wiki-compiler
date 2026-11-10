@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { addTap } from "../src/profile/templates/taps/manage.js";
 import { resolveRemotePackage } from "../src/profile/templates/taps/package.js";
 import { resolveTapPaths } from "../src/profile/templates/taps/paths.js";

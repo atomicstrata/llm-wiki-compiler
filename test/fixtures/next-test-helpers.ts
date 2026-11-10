@@ -9,7 +9,7 @@
 import { mkdtemp, mkdir, writeFile, rm } from "fs/promises";
 import os from "os";
 import path from "path";
-import { beforeEach, afterEach } from "vitest";
+import { beforeEach, afterEach } from "bun:test";
 import { runCLI, expectCLIExit } from "./run-cli.js";
 
 /** Mutable temp-dir state populated by {@link useNextTempDir}. */

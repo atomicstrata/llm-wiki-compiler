@@ -3,7 +3,8 @@
  * Only provider generation is mocked; advisory reporting, fresh authoritative
  * resolution, persistence, and activity logging exercise production code.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { generateAnswer } from "../src/commands/query.js";
@@ -17,13 +18,13 @@ vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 const ctx = useTempRoot();
 const ANSWER = "The answer cites [[Target]].";
 beforeEach(async () => {
-  vi.stubEnv("VOYAGE_API_KEY", "");
+  stubEnv("VOYAGE_API_KEY", "");
   await stageCitationWorkspace(ctx.dir);
-  vi.mocked(callClaude).mockReset().mockImplementation(async (options) => options.tools
+  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => options.tools
     ? JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" }) : ANSWER);
 });
 afterEach(() => {
-  vi.unstubAllEnvs();
+  restoreEnv();
   setQuerySaveTestHookForTest(undefined);
 });
 

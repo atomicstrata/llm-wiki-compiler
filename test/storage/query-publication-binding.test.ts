@@ -35,9 +35,8 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-// The hoisted `vi.mock` calls below run before this import is initialized, so each factory
-// refers to `passThrough` only inside its body, which runs when the mocked module is first imported.
+import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { passThrough } from "./pass-through-mock.js";
 import { collectAnswerCitationIndex } from "../../src/citations/answer-index.js";
 import type { CandidatePublicationStore } from "../../src/compiler/candidate-publication.js";
@@ -58,15 +57,22 @@ import {
   unasked, writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-vi.mock("../../src/compiler/indexgen.js", (original) => passThrough("generateIndex")(original));
-vi.mock("../../src/utils/embeddings.js", (original) => passThrough("updateEmbeddingsLockedCore")(original));
-vi.mock("../../src/compiler/candidates.js", (original) => passThrough("writeFreshCandidate")(original));
-vi.mock("../../src/citations/answer-index.js", (original) => passThrough("collectAnswerCitationIndex")(original));
-vi.mock("../../src/profile/block.js", (original) => passThrough("loadNonDefaultProfile")(original));
+// Snapshot real modules before mock.module replaces them for this file.
+const realIndexgen = { ...(await import("../../src/compiler/indexgen.js")) };
+const realEmbeddings = { ...(await import("../../src/utils/embeddings.js")) };
+const realCandidates = { ...(await import("../../src/compiler/candidates.js")) };
+const realAnswerIndex = { ...(await import("../../src/citations/answer-index.js")) };
+const realBlock = { ...(await import("../../src/profile/block.js")) };
+
+vi.mock("../../src/compiler/indexgen.js", () => passThrough(realIndexgen, "generateIndex"));
+vi.mock("../../src/utils/embeddings.js", () => passThrough(realEmbeddings, "updateEmbeddingsLockedCore"));
+vi.mock("../../src/compiler/candidates.js", () => passThrough(realCandidates, "writeFreshCandidate"));
+vi.mock("../../src/citations/answer-index.js", () => passThrough(realAnswerIndex, "collectAnswerCitationIndex"));
+vi.mock("../../src/profile/block.js", () => passThrough(realBlock, "loadNonDefaultProfile"));
 
 /** The five root-taking functions the root publication route calls. */
 const ROOT_STEPS = [generateIndex, updateEmbeddingsLockedCore, writeFreshCandidate, collectAnswerCitationIndex, loadNonDefaultProfile]
-  .map((step) => vi.mocked(step as (...args: never[]) => unknown));
+  .map((step) => step as unknown as Mock<(...args: never[]) => unknown>);
 
 const PREFIX = "query-publication-binding-";
 const QUESTION = "How does alpha relate?";
@@ -116,7 +122,7 @@ const tracker = tempRootTracker();
 const minted = {} as Record<Name, Minted<Outcome>>;
 let rootReached: boolean[];
 
-beforeAll(() => { vi.stubEnv("LLMWIKI_EMBEDDINGS", "false"); ROOT_STEPS.forEach((step) => step.mockClear()); });
+beforeAll(() => { stubEnv("LLMWIKI_EMBEDDINGS", "false"); ROOT_STEPS.forEach((step) => step.mockClear()); });
 mintOnceThenRemove(tracker, async () => {
   for (const name of Object.keys(SCENARIOS) as Name[]) {
     const scenario: Scenario = SCENARIOS[name];
@@ -127,7 +133,7 @@ mintOnceThenRemove(tracker, async () => {
   }
   rootReached = ROOT_STEPS.map((step) => step.mock.calls.length > 0);
 });
-afterAll(() => { vi.unstubAllEnvs(); });
+afterAll(() => { restoreEnv(); });
 
 /** Hold `text` at `rel` in the mutable copy, listing it (and any new directory) as the disk would. */
 function hold(project: Copy, rel: string, text: string): void {

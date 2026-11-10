@@ -18,7 +18,7 @@
  * it triggered instead of sleeping for it.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
 import path from "path";
 import { setImmediate as nextTick } from "timers/promises";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -33,12 +33,15 @@ import {
 } from "../src/viewer/snapshot-manager.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 
-vi.mock("../src/viewer/snapshot.js", async (importOriginal) => {
-  const original = await importOriginal<typeof import("../src/viewer/snapshot.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realViewerSnapshot = { ...(await import("../src/viewer/snapshot.js")) };
+
+vi.mock("../src/viewer/snapshot.js", async () => {
+  const original = realViewerSnapshot as typeof import("../src/viewer/snapshot.js");
   return { ...original, buildViewerSnapshot: vi.fn(original.buildViewerSnapshot) };
 });
 
-const builderSpy = vi.mocked(buildViewerSnapshot);
+const builderSpy = (buildViewerSnapshot as unknown as Mock<typeof buildViewerSnapshot>);
 
 /** Comfortably past the default interval, so a refreshing server would rebuild. */
 const PAST_DEFAULT_INTERVAL_MS = DEFAULT_REFRESH_INTERVAL_MS * 12;
@@ -54,7 +57,7 @@ function deferSnapshot(): { promise: Promise<ViewerSnapshot>; resolve: (snap: Vi
 
 /** Move the faked wall clock forward without waiting. */
 function advanceClock(ms: number): void {
-  vi.setSystemTime(Date.now() + ms);
+  setSystemTime(Date.now() + ms);
 }
 
 async function fetchConceptCount(baseUrl: string): Promise<number> {
@@ -301,10 +304,10 @@ describe("ViewerSnapshotManager unit behavior", () => {
       const disposing = mgr.dispose().then(() => {
         isDisposeSettled = true;
       });
-      await vi.advanceTimersByTimeAsync(REBUILD_SHUTDOWN_WAIT_MS - 1);
+      await vi.advanceTimersByTime(REBUILD_SHUTDOWN_WAIT_MS - 1);
       expect(isDisposeSettled).toBe(false);
 
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTime(1);
       await disposing;
       expect(isDisposeSettled).toBe(true);
     } finally {
@@ -332,13 +335,13 @@ describe("ViewerSnapshotManager unit behavior", () => {
 });
 
 describe("Viewer HTTP server dynamic refresh integration", () => {
+  // advanceClock moves only the clock (setSystemTime); real timers keep running.
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
     builderSpy.mockClear();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    setSystemTime();
   });
 
   it("keeps snapshot static by default in startViewerServer (opt-in)", async () => {

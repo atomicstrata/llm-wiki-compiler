@@ -19,7 +19,8 @@
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import type { ProjectControlRecord } from "../../src/portable/host/control.js";
 import { registerLocalProject } from "../fixtures/portable-local-control.js";
 import * as localRegistry from "../../src/portable/host/local-registry.js";
@@ -37,18 +38,18 @@ let registered = "";
 let record: ProjectControlRecord;
 beforeAll(async () => {
   base = await realpath(await mkdtemp(path.join(tmpdir(), "portable-pending-gate-")));
-  vi.stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
+  stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
   registered = path.join(base, "registered");
   await mkdir(registered);
   record = (await registerLocalProject(registered)).record;
-  vi.unstubAllEnvs();
+  restoreEnv();
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 afterAll(() => rm(base, { recursive: true, force: true }));
 
 /** The root form and the body over the local bindings, under the temporary host control root. */
 async function bothForms(root: string): Promise<unknown[]> {
-  vi.stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
+  stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
   return [await portableGateBlock(root), await portableGateBlockFrom(localPortableGateProjectReads(root), localPortableGateHostReads(root))];
 }
 
@@ -71,7 +72,7 @@ describe("the portable pending gate: one body, project and host collaborators", 
     await mkdir(bare);
     expect(await bothForms(bare)).toEqual([null, null]);
     expect(await bothForms(registered)).toEqual([null, null]);
-    vi.unstubAllEnvs();
+    restoreEnv();
     const file = projectRecordFile(path.join(base, "xdg", "llmwiki", "host-control"), record.projectId);
     const stored = await readFile(file, "utf8");
     await writeFile(file, JSON.stringify({ ...JSON.parse(stored), formatVersion: 2 }));
@@ -102,7 +103,7 @@ describe("the portable pending gate: one body, project and host collaborators", 
     const spies = [vi.spyOn(diskIntent, "unresolvedDiskIntents"), vi.spyOn(localRegistry, "registeredProjectId"), vi.spyOn(localRegistry, "readJsonFile")];
     await portableGateBlockFrom(...memory({}, []));
     expect(spies.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);
-    vi.stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
+    stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
     expect([await portableGateBlock(registered), localControlRoot()]).toEqual([null, path.join(base, "xdg", "llmwiki", "host-control")]);
     expect(spies.map((spy) => spy.mock.calls.length > 0)).toEqual([true, true, true]);
   });
@@ -126,7 +127,7 @@ describe("the registered-project gate through createWikiCore", () => {
   });
 
   it("G5 refuses ingest and source delete while an intent is unresolved, then allows them once it is closed", async () => {
-    vi.stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
+    stubEnv("XDG_CONFIG_HOME", path.join(base, "xdg"));
     const core = createWikiCore({ root: registered });
     const kept = await core.ingestText({ title: "Kept Note", text: "Kept.\n" });
     const plantRecord = async (kind: "intents" | "closed") => {

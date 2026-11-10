@@ -6,7 +6,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { CandidateCustodyReceipt } from "../../src/compiler/candidate-custody.js";
 import { ConnectorCandidateBatchOverflowError } from "../../src/connectors/candidate-batch.js";
 import { appendConnectorEvent } from "../../src/connectors/audit.js";

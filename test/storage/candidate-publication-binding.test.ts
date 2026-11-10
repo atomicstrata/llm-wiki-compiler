@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   CandidatePublicationUnavailableError, FreshCandidateIdExhaustedError, writeFreshCandidate, writeFreshCandidateFrom, type CandidateDraft,
 } from "../../src/compiler/candidates.js";

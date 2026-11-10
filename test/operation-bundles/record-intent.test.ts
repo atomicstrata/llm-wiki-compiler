@@ -1,6 +1,6 @@
 /** @file Closed record-intent admission. Requests carry exact bytes and
  * attribution, never operation authority, paths, clocks or reserved identities. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { captureRecordIntent, recordIntentDigest } from "../../src/operation-bundles/record-intent.js";
 
 const digest = `sha256:${"a".repeat(64)}`;

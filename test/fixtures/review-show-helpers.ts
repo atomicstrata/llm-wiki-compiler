@@ -6,7 +6,7 @@
  * flags the duplicate boilerplate as a clone group otherwise.
  */
 
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import reviewShowCommand from "../../src/commands/review-show.js";
 
 /**

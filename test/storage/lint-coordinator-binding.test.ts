@@ -33,7 +33,7 @@
 
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { lint, lintBothViews, lintBothViewsFrom, lintByTier } from "../../src/linter/index.js";
 import type { LintSources } from "../../src/linter/lint-sources.js";
 import type { TieredLintReportV1 } from "../../src/linter/tiers.js";

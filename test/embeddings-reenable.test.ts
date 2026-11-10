@@ -7,7 +7,8 @@
 import { existsSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
 import path from "path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { compileAndReport } from "../src/compiler/index.js";
@@ -51,7 +52,7 @@ afterEach(() => {
   delete process.env.LLMWIKI_EMBEDDING_PROVIDER;
   delete process.env.LLMWIKI_EMBEDDING_MODEL;
   delete process.env.OPENAI_API_KEY;
-  vi.unstubAllEnvs();
+  restoreEnv();
 });
 
 describe("embedding refresh re-enable", () => {
@@ -77,7 +78,7 @@ describe("embedding refresh re-enable", () => {
     await compileAndReport(ctx.dir);
     const calls = generation.complete.mock.calls.length;
     delete process.env[ENV_EMBEDDINGS];
-    vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+    stubEnv("LLMWIKI_EMBED_STRICT", "on");
     embedBatch.mockRejectedValue(new Error("backfill unavailable"));
 
     await expect(compileAndReport(ctx.dir)).rejects.toThrow("backfill unavailable");

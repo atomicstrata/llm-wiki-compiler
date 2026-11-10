@@ -6,7 +6,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, symlink } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_RETAINED_SOURCE_BYTES } from "../../src/operation-bundles/constants.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";
 import { writeRetainedSourceCreateOnly } from "../../src/operation-bundles/source-store.js";

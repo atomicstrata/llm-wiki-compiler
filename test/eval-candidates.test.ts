@@ -3,7 +3,8 @@
  * judge only. No network or credentials: exercise revision, evidence and sampling
  * boundaries while proving the pending/live filesystem remains untouched.
  */
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi, type Mock, describe, it, expect } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { evaluateCandidates, formatCandidateReport } from "../src/eval/candidates.js";
@@ -21,12 +22,12 @@ describe("pending candidate evaluation", () => {
   const source = "Evidence first line.\nEvidence second line.";
 
   beforeEach(() => {
-    vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-    vi.stubEnv("LLMWIKI_MODEL", "test-judge");
-    vi.stubEnv("OPENAI_API_KEY", "test-only-not-a-real-key");
-    vi.mocked(callClaude).mockReset().mockResolvedValue(JSON.stringify({ score: 2, reason: "Supported." }));
+    stubEnv("LLMWIKI_PROVIDER", "openai");
+    stubEnv("LLMWIKI_MODEL", "test-judge");
+    stubEnv("OPENAI_API_KEY", "test-only-not-a-real-key");
+    (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockResolvedValue(JSON.stringify({ score: 2, reason: "Supported." }));
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => restoreEnv());
 
   /** A real persisted candidate, with an optional original-source fingerprint. */
   async function stage(text = body, file = "ref.md", original: string | undefined = source) {
@@ -133,7 +134,7 @@ describe("pending candidate evaluation", () => {
     await env.writeSource("ref.md", source);
     await stage();
     await evaluateCandidates(env.dir, "full");
-    vi.stubEnv(name, name === "LLMWIKI_PROVIDER" ? "ollama" : "changed");
+    stubEnv(name, name === "LLMWIKI_PROVIDER" ? "ollama" : "changed");
     await evaluateCandidates(env.dir, "full");
     expect(callClaude).toHaveBeenCalledTimes(2);
   });
@@ -141,7 +142,7 @@ describe("pending candidate evaluation", () => {
   it.each(["not JSON", '{"score":9,"reason":"bad"}', '{"score":2}', 'null'])("rejects invalid judge responses: %s", async raw => {
     await env.writeSource("ref.md", source);
     await stage();
-    vi.mocked(callClaude).mockResolvedValue(raw);
+    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue(raw);
     const report = await evaluateCandidates(env.dir, "full");
     expect(report.coverage.judgeErrors).toBe(1);
     expect(report.meanScore).toBeNull();
@@ -169,7 +170,7 @@ describe("pending candidate evaluation", () => {
   it("reports missing chat credentials once without trying any sampled pairs", async () => {
     await env.writeSource("ref.md", source);
     await stage(`${body}\n\nAnother claim. ^[ref.md:1-1]`);
-    vi.stubEnv("OPENAI_API_KEY", "");
+    stubEnv("OPENAI_API_KEY", "");
     const report = await evaluateCandidates(env.dir, "full");
     expect(report.judgeUnavailable).toContain("OPENAI_API_KEY");
     expect(report.coverage).toMatchObject({ selectedPairs: 2, judgeErrors: 2, judgedPairs: 0 });
@@ -180,7 +181,7 @@ describe("pending candidate evaluation", () => {
   it("does not require an embedding provider to judge citations", async () => {
     await env.writeSource("ref.md", source);
     await stage();
-    vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
+    stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
     const report = await evaluateCandidates(env.dir, "full");
     expect(report.coverage.judgedPairs).toBe(1);
     expect(report.judgeUnavailable).toBeUndefined();
@@ -218,7 +219,7 @@ describe("pending candidate evaluation", () => {
   it("does not persist never-reusable agent verdicts", async () => {
     await env.writeSource("ref.md", source);
     await stage();
-    vi.stubEnv("LLMWIKI_PROVIDER", "codex-agent");
+    stubEnv("LLMWIKI_PROVIDER", "codex-agent");
     await evaluateCandidates(env.dir, "full");
     await evaluateCandidates(env.dir, "full");
     expect(callClaude).toHaveBeenCalledTimes(2);

@@ -7,7 +7,8 @@
 import { createHash } from "node:crypto";
 import { open, stat } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { readStoreForUpdate, writeEmbeddingStore, type EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";
 import { cosineSimilarity } from "../src/utils/embeddings-search.js";
@@ -17,7 +18,7 @@ const CHUNKS = 33_000;
 const DIMENSIONS = 1024;
 const TEXT_CHARS = 800;
 const ctx = useConfinementRoots("binary-scale");
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { restoreEnv(); restoreGlobals(); });
 
 /** Deterministic nonzero decimal vectors expose Float32 rounding and ordering. */
 function vector(seed: number): number[] {
@@ -54,8 +55,8 @@ async function metadataLength(file: string): Promise<number> {
 }
 
 it("automatically persists and reloads the reported corpus without losing records or vectors", async () => {
-  vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
-  vi.stubGlobal("fetch", () => { throw new Error("NETWORK FORBIDDEN in scale witness"); });
+  stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
+  stubGlobal("fetch", () => { throw new Error("NETWORK FORBIDDEN in scale witness"); });
   const started = performance.now();
   const source = scaleStore();
   await writeEmbeddingStore(ctx.root, source);

@@ -10,12 +10,19 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { access } from "fs/promises";
 import path from "path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 
 const exec = promisify(execFile);
 
 /** Absolute path to the compiled CLI entry point. */
 export const CLI = path.resolve("dist/cli.js");
+
+/**
+ * Runtime flags the CLI's shebang passes to Bun. Spawning `bun dist/cli.js`
+ * bypasses the shebang, so suites pass these explicitly to run the CLI the way
+ * an installed binary runs — in particular WITHOUT Bun loading `.env` itself.
+ */
+export const CLI_RUNTIME_FLAGS = ["--no-env-file"];
 
 /** Result shape returned by {@link runCLI}. */
 export interface CLIResult {
@@ -90,7 +97,7 @@ export function expectCLIFailure(result: CLIResult): void {
  * Run the llmwiki CLI with the given arguments and return its output +
  * rich diagnostics. Never throws — non-zero exits, spawn errors, and
  * missing-cwd errors are all captured into the returned CLIResult.
- * @param args - CLI arguments to pass after `node dist/cli.js`.
+ * @param args - CLI arguments to pass after `bun dist/cli.js`.
  * @param cwd - Working directory for the subprocess.
  * @param envOverrides - Optional environment variable overrides.
  */
@@ -105,7 +112,7 @@ export async function runCLI(
     // it via the normal CLIResult shape instead of as a raw throw.
     await access(cwd);
 
-    const { stdout, stderr } = await exec(process.execPath, [CLI, ...args], {
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
       cwd,
       env: { ...process.env, ...envOverrides },
     });

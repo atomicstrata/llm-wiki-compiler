@@ -14,7 +14,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { createCliOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";
 import { applyProductBundle } from "../../src/products/apply.js";
 import {

@@ -14,7 +14,7 @@
  *   - a normal append on a healthy chain still works.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

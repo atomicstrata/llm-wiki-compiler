@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";
@@ -15,7 +15,7 @@ async function runCompileWithoutSources(
   const cwd = path.join(tmpdir(), `llmwiki-test-${suffix}-${Date.now()}`);
   await mkdir(path.join(cwd, "sources"), { recursive: true });
   try {
-    const { stdout } = await exec("node", [CLI, "compile"], {
+    const { stdout } = await exec("bun", [CLI, "compile"], {
       cwd,
       env: { ...process.env, ...envOverrides },
     });
@@ -45,7 +45,7 @@ async function createCompileWorkspace(
 
 describe("CLI smoke tests", () => {
   it("prints help and exits 0", async () => {
-    const { stdout } = await exec("node", [CLI, "--help"]);
+    const { stdout } = await exec("bun", [CLI, "--help"]);
     expect(stdout).toContain("llmwiki");
     expect(stdout).toContain("ingest");
     expect(stdout).toContain("compile");
@@ -53,21 +53,21 @@ describe("CLI smoke tests", () => {
   }, 30_000);
 
   it("prints version", async () => {
-    const { stdout } = await exec("node", [CLI, "--version"]);
+    const { stdout } = await exec("bun", [CLI, "--version"]);
     const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
     expect(stdout.trim()).toBe(manifest.version);
   }, 30_000);
 
   it("advertises --concurrency on every command that drives a compile", async () => {
     for (const command of ["compile", "refresh", "watch", "quickstart"]) {
-      const { stdout } = await exec("node", [CLI, command, "--help"]);
+      const { stdout } = await exec("bun", [CLI, command, "--help"]);
       expect(stdout).toContain("--concurrency");
     }
   }, 30_000);
 
   it("compile fails without Anthropic credentials", async () => {
     try {
-      await exec("node", [CLI, "compile"], {
+      await exec("bun", [CLI, "compile"], {
         env: {
           ...process.env,
           ANTHROPIC_API_KEY: "",
@@ -75,7 +75,7 @@ describe("CLI smoke tests", () => {
           ANTHROPIC_BASE_URL: "http://localhost:11434",
         },
       });
-      expect.fail("should have thrown");
+      expect.unreachable("should have thrown");
     } catch (err: unknown) {
       const error = err as { stderr?: string; code?: number };
       // Should exit with non-zero or print an error
@@ -98,7 +98,7 @@ describe("CLI smoke tests", () => {
     );
 
     try {
-      const { stdout } = await exec("node", [CLI, "compile"], {
+      const { stdout } = await exec("bun", [CLI, "compile"], {
         cwd: workspace.cwd,
         env: {
           ...process.env,
@@ -120,7 +120,7 @@ describe("CLI smoke tests", () => {
     );
 
     try {
-      await exec("node", [CLI, "compile"], {
+      await exec("bun", [CLI, "compile"], {
         cwd: workspace.cwd,
         env: {
           ...process.env,
@@ -129,7 +129,7 @@ describe("CLI smoke tests", () => {
           LLMWIKI_CLAUDE_SETTINGS_PATH: workspace.settingsPath,
         },
       });
-      expect.fail("should have thrown");
+      expect.unreachable("should have thrown");
     } catch (err: unknown) {
       const error = err as { stderr?: string; code?: number };
       expect(error.code).not.toBe(0);
@@ -145,7 +145,7 @@ describe("CLI smoke tests", () => {
     await mkdir(cwd, { recursive: true });
     const fixture = path.resolve("test/fixtures/sample-source.md");
     try {
-      const { stdout } = await exec("node", [CLI, "ingest", fixture], { cwd });
+      const { stdout } = await exec("bun", [CLI, "ingest", fixture], { cwd });
       expect(stdout).toContain("Next: llmwiki compile");
     } finally {
       await cleanupDirectory(cwd);

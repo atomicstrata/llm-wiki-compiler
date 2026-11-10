@@ -17,7 +17,7 @@
  * so the first case here is the one that protects every pack authored before it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { selectSet } from "../../src/operations-packs/handlers/set-select.js";
 import type { PackEvidenceItemV1, PackSelectInputV1 } from "../../src/operations-packs/handlers/types.js";
 import type { SelectPhaseBodyV2 } from "../../src/operations-packs/recipe-types.js";

@@ -10,7 +10,7 @@
  * transiently-held lock until it frees, then throws `LockBusyError` after its bound.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdir, writeFile, readFile, rm } from "fs/promises";
 import path from "path";
 import { acquireLock, acquireLockBlocking, releaseLock, LockBusyError } from "../src/utils/lock.js";

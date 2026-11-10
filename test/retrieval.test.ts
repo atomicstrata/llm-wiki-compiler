@@ -8,7 +8,7 @@
  *   - BM25 reranking surfaces keyword-matching chunks above noise
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   splitIntoChunks,
   hashChunkText,

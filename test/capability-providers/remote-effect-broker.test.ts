@@ -4,7 +4,8 @@
  * crash-window outcome-unknown receipts, and no blind retry while post-state
  * remains unresolved.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { waitFor } from "../wait-for.js";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest,
 } from "../../src/capability-providers/brokers/dispatch.js";
@@ -27,7 +28,7 @@ describe("remote-effect broker", () => {
     const { dispatcher, request, createDispatcher } = await setup(execute);
     const competing = await createDispatcher();
     const first = dispatchHostBrokerRequest(dispatcher, request);
-    await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1));
     await expect(dispatchHostBrokerRequest(competing, request)).rejects.toThrow(/effect.*started/i);
     release();
     await expect(first).resolves.toMatchObject({ status: "ok" });

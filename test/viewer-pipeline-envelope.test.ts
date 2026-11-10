@@ -14,7 +14,7 @@
  * pre-chewed order that could disagree with the profile.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { startViewerServer } from "../src/viewer/server.js";

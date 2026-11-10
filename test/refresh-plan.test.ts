@@ -5,7 +5,7 @@
  * newSkipped/changeFilter/knownAffected helpers and corrupt-state short-circuit.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { existsSync } from "fs";
 import path from "path";
 import { resolveStaleRefresh } from "../src/compiler/refresh-plan.js";

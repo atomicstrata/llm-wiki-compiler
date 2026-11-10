@@ -21,7 +21,7 @@
  * agreeing with an equally empty recording.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { journeyEnvironment, observeJourney, T1_SCENARIOS, type JourneyObservation, type T1Scenario } from "./fixtures/t1-journey.js";

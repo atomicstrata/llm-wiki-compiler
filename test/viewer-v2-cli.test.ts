@@ -3,7 +3,7 @@
  * the v2 client, the client's bundle loads through `/assets/v2/`, and the same
  * server answers the JSON API and the source image route the client depends on.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

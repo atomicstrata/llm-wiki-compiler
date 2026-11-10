@@ -2,7 +2,8 @@
  * Tests for OllamaProvider native structured output and host resolution.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { stubGlobal } from "../stubs.js";
 import { CONCEPT_EXTRACTION_TOOL } from "../../src/compiler/prompts.js";
 import { OllamaProvider, resolveOllamaNativeHost } from "../../src/providers/ollama.js";
 
@@ -22,7 +23,7 @@ function makeOllamaProvider(baseURL = DEFAULT_OLLAMA_BASE_URL): OllamaProvider {
 }
 
 function stubNativeFetch(response: NativeFetchResponse): void {
-  vi.stubGlobal(
+  stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
       ok: response.ok,
@@ -85,7 +86,7 @@ describe("OllamaProvider.toolCall", () => {
         },
       }),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    stubGlobal("fetch", fetchMock);
 
     const provider = new OllamaProvider("llama3.1:latest", {
       baseURL: "http://localhost:11434/v1",
@@ -120,7 +121,7 @@ describe("OllamaProvider.toolCall", () => {
         },
       }),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    stubGlobal("fetch", fetchMock);
 
     const provider = new OllamaProvider("llama3.1", {
       baseURL: "http://chat-host:11434/v1",
@@ -142,7 +143,7 @@ describe("OllamaProvider.toolCall", () => {
         message: { content: JSON.stringify({ concepts: [] }) },
       }),
     });
-    vi.stubGlobal("fetch", fetchMock);
+    stubGlobal("fetch", fetchMock);
 
     const provider = new OllamaProvider("llama3.1", {
       baseURL: "https://proxy.example.com/ollama/v1",
@@ -190,7 +191,7 @@ describe("OllamaProvider.toolCall", () => {
         });
       });
     });
-    vi.stubGlobal("fetch", fetchMock);
+    stubGlobal("fetch", fetchMock);
 
     const provider = new OllamaProvider("llama3.1", {
       baseURL: "http://localhost:11434/v1",
@@ -203,8 +204,9 @@ describe("OllamaProvider.toolCall", () => {
       [CONCEPT_EXTRACTION_TOOL],
       1024,
     );
-    const rejection = expect(promise).rejects.toThrow();
-    await vi.advanceTimersByTimeAsync(1001);
-    await rejection;
+    // Bun's `rejects` drains the promise before returning, so the fake clock
+    // must fire the abort first; awaiting `rejects` beforehand would hang.
+    vi.advanceTimersByTime(1001);
+    await expect(promise).rejects.toThrow();
   });
 });

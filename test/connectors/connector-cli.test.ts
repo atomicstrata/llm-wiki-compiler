@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildNewsroomProject } from "../fixtures/newsroom-profile.js";
 
 const CLI = path.resolve("dist/cli.js");

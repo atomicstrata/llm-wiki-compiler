@@ -14,7 +14,7 @@
 
 import { createHash } from "node:crypto";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { writePreparationCancelLockFree } from "../../src/preparations/cancellation.js";
 import { deriveCompleteness } from "../../src/preparations/completeness.js";

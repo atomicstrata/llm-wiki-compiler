@@ -21,7 +21,7 @@
 
 import { access } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import type { OperationGrant } from "../../src/operation-bundles/principal.js";
 import { createCliOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";

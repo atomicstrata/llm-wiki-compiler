@@ -8,7 +8,7 @@
  * isolation with synthetic relations and stub facts resolvers.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   buildRelationEndpointIndex,
   checkRelationPreconditions,

@@ -4,7 +4,7 @@
  * bodies, exact-origin redirects, and request/response byte ceilings.
  */
 import { Readable } from "node:stream";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import {
   confinedFetchRequest, type ConfinedHttpRequest,
 } from "../../src/connectors/confined-fetch.js";

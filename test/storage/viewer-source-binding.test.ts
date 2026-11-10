@@ -18,14 +18,16 @@
  */
 
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { diskLocalCappedReads } from "../../src/storage/disk-local-reads.js";
 import type { CappedTextRead, LegacyLocalCappedReads } from "../../src/storage/legacy-local-reads.js";
 import * as confinedRead from "../../src/utils/confined-read.js";
 import { readViewerSourceFrom } from "../../src/viewer/source-access.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
 
-const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+const fs = realFsPromises as typeof import("node:fs/promises");
 const ONE_MIB = 1024 * 1024;
 const ID = "notes/a.md";
 const RELATIVE = path.join("sources", ID);

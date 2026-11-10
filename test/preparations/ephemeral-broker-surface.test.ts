@@ -10,7 +10,7 @@
  * leg report a "proven 0" token and cost for a model-capable invocation.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ProviderInvokeFn } from "../../src/preparations/attempts/provider.js";
 import type { ProviderInvocationRequestV1 } from "../../src/capability-providers/runtime/invoke.js";
 import type { AttemptAuthorityResolverV1 } from "../../src/preparations/attempts/types.js";

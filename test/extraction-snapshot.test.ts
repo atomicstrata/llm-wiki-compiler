@@ -3,7 +3,8 @@
  * invalidation, shape validation and published-ownership boundaries separately
  * from the pipeline tests so an unsafe cache hit cannot masquerade as savings.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { reusableExtraction, snapshotExtraction, extractionSourceHash, withExtractionSnapshot } from "../src/compiler/extraction-snapshot.js";
 import { withRunSystemPolicy } from "../src/compiler/prompt-modifiers.js";
 import { CONCEPT_EXTRACTION_TOOL } from "../src/compiler/prompts.js";
@@ -17,7 +18,7 @@ function entry(): SourceState {
   return { hash: extractionSourceHash(content), concepts: ["shared"], compiledAt: "now", extraction: snapshotExtraction(content, concepts) };
 }
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => restoreEnv());
 
 describe("extraction snapshot validity", () => {
   it("preserves the complete metadata on a valid hit", () => {
@@ -29,10 +30,10 @@ describe("extraction snapshot validity", () => {
   });
 
   it("rejects a model change", () => {
-    vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-    vi.stubEnv("LLMWIKI_MODEL", "model-before");
+    stubEnv("LLMWIKI_PROVIDER", "openai");
+    stubEnv("LLMWIKI_MODEL", "model-before");
     const prior = entry();
-    vi.stubEnv("LLMWIKI_MODEL", "model-after");
+    stubEnv("LLMWIKI_MODEL", "model-after");
     expect(reusableExtraction(prior, content)).toBeUndefined();
   });
 

@@ -16,7 +16,7 @@ import { writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "bun:test";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { finalizePreparationForHandoff } from "../../src/preparations/finalization.js";
 import { derivePhaseInstanceId, singleExpansionIdentity } from "../../src/preparations/ids.js";

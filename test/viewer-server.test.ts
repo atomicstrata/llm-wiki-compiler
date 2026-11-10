@@ -8,7 +8,7 @@
  * here so the test fixture proves the signal handlers actually fire.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, rm, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../src/linter/cache.js";
@@ -286,7 +286,7 @@ describe("llmwiki view — stateStatus in /api/pages", () => {
     const { status, body } = await fetchJson(handle, "/api/pages");
     expect(status).toBe(200);
     const stateStatus = (body as Record<string, unknown>).stateStatus;
-    expect(["ok", "missing", "corrupt"]).toContain(stateStatus);
+    expect(["ok", "missing", "corrupt"]).toContain(stateStatus as string);
   });
 
   it("/api/pages includes stateStatus: corrupt for a corrupt state.json", async () => {

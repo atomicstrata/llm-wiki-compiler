@@ -8,7 +8,7 @@
  * satisfied and skip straight past it.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { advanceWorkflow } from "../src/workflows/advance.js";
 import { workflowStatus } from "../src/workflows/status.js";
 import { researchArtifactProfile, startArtifactRun } from "./fixtures/artifact-seam-fixtures.js";

@@ -18,10 +18,10 @@
 
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 
 type Planted = Error | { thenFail: Error };
-const io = vi.hoisted(() => ({
+const io = (() => ({
   calls: [] as string[],
   writes: [] as Array<{ writer: string; leaf: string; opts: Record<string, unknown> }>,
   fail: new Map<string, Planted>(),
@@ -35,10 +35,14 @@ const io = vi.hoisted(() => ({
     if (/^[0-9a-f]{64}(\.json)?$/u.test(name)) return name.endsWith(".json") ? "<digest>.json" : "<digest>";
     return name.startsWith("llmwiki-product-") && name.length > "llmwiki-product-".length ? "llmwiki-product-*" : name;
   },
-}));
+}))();
 
-vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
+const realUtilsAtomicWrite = { ...(await import("../../src/utils/atomic-write.js")) };
+
+vi.mock("node:fs/promises", async () => {
+  const actual = realFsPromises as typeof import("node:fs/promises");
   const real = actual as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
   /** Record one call; a planted failure rejects, optionally AFTER the real call has been made. */
   const traced = (name: string) => async (...args: unknown[]): Promise<unknown> => {
@@ -64,8 +68,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...actual, ...wrapped, open, default: { ...actual, ...wrapped, open } };
 });
 
-vi.mock("../../src/utils/atomic-write.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/utils/atomic-write.js")>();
+vi.mock("../../src/utils/atomic-write.js", async () => {
+  const actual = realUtilsAtomicWrite as typeof import("../../src/utils/atomic-write.js");
   type Writer = (leaf: string, content: string | Uint8Array, opts?: object) => Promise<void>;
   const traced = (writer: "atomicWrite" | "atomicWriteNoReplaceDurable"): Writer => async (leaf, content, opts) => {
     const key = `${writer} ${io.label(leaf)}`;
@@ -88,7 +92,7 @@ import { useTempRoot } from "../fixtures/temp-root.js";
 import { FIXTURE_PRINCIPAL, buildActivatableProduct } from "../products/binding-fixture.js";
 import { writeSourcePackage } from "../products/product-package-fixture.js";
 
-const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+const fs = realFsPromises as typeof import("node:fs/promises");
 const PRODUCT = buildActivatableProduct();
 const HEX = digestDirectoryName(PRODUCT.manifest.packageDigest);
 const MEMBERS = PRODUCT.manifest.members.length;

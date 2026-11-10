@@ -7,7 +7,7 @@
  * a single place to update if the contract changes.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { existsSync } from "fs";
 import path from "path";
 import { readStateClassified } from "../../src/utils/state.js";

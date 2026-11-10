@@ -7,7 +7,7 @@
  * factory resolves the provider without requiring an API key.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 
 const query = vi.fn();
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({

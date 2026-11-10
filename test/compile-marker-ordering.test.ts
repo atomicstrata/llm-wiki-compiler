@@ -16,7 +16,7 @@
  * compile throw at resolution and the second proceed normally.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { existsSync } from "fs";
 import { readFile, mkdtemp, writeFile, mkdir, symlink, readdir } from "fs/promises";
 import os from "os";
@@ -30,8 +30,11 @@ import { readPersistedState } from "./fixtures/state-json.js";
 /** Flag the mocked resolution seam to decide whether to throw. */
 const resolve = { shouldThrow: false };
 
-vi.mock("../src/compiler/resolver.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/compiler/resolver.js")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realCompilerResolver = { ...(await import("../src/compiler/resolver.js")) };
+
+vi.mock("../src/compiler/resolver.js", async () => {
+  const actual = realCompilerResolver as typeof import("../src/compiler/resolver.js");
   return {
     ...actual,
     resolveAndApplyLinks: async (root: string, changed: string[], created: string[]) => {

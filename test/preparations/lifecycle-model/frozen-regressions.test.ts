@@ -15,7 +15,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   FROZEN_EVIDENCE_CLASSES, FROZEN_OPERATIONS, FROZEN_REGRESSIONS, OPERATION_DRIVERS,
   FROZEN_CLASSIFICATION_DIGEST, FROZEN_REGRESSION_BASELINE, FROZEN_REGRESSION_SCENARIO_COUNT,

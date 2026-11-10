@@ -8,7 +8,7 @@
  * reverse-order case), plus a light accessibility pass on the journey view.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { jsonResponse, mountViewerDom, profileBootstrapResponse, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 import { pagesResponse, deferred, mainPane } from "./fixtures/journey-fixtures.js";
 

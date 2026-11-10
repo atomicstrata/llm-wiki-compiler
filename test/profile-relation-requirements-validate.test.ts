@@ -16,7 +16,7 @@
  * `transitionRequirements`) is unaffected (omitted-for-default).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfileShape, ProfileValidationError } from "../src/profile/validate.js";
 import type { ProfilePack, RelationCountReq } from "../src/profile/types.js";
 

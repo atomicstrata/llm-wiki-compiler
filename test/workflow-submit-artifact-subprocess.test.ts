@@ -9,7 +9,7 @@
  * origin — proving the `--kind artifact` flag → `StageOutput` → artifact arm
  * path works end to end through the built CLI, not just in-process.
  */
-import { describe, it, afterEach, expect } from "vitest";
+import { describe, it, afterEach, expect } from "bun:test";
 import { rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";

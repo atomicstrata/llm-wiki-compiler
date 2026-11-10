@@ -2,7 +2,7 @@
  * Operator instruction-file boundary tests. Real filesystem reads pin the
  * bounded UTF-8 contract without adding untrusted-project confinement policy.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

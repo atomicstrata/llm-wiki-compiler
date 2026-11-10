@@ -35,7 +35,7 @@
 
 import { mkdir, realpath, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { evaluateCitationCoverage, evaluateCitationCoverageFrom, type CitationCoverageSources } from "../../src/eval/citation-coverage.js";
 import { evaluateSourceUtilization, evaluateSourceUtilizationFrom, type SourceUtilizationSources } from "../../src/eval/source-utilization.js";
 import type { CitationCoverageResult, SourceUtilizationResult } from "../../src/eval/types.js";

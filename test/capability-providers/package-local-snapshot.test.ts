@@ -8,7 +8,7 @@ import path from "node:path";
 import {
   appendFile, link, mkdir, mkdtemp, realpath, writeFile,
 } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { installLocalProvider } from "../../src/capability-providers/packages/local-install.js";
 import type { LocalProviderSnapshotOptions } from "../../src/capability-providers/packages/local-snapshot.js";
 import { authorizeProviderPathsForTest } from "../../src/capability-providers/packages/paths.js";

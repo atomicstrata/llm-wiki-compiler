@@ -9,7 +9,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { access, rm } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { installFakeCodex, type CapturedCodexCall, type FakeCodex } from "./fixtures/fake-codex.js";
 import { CLI } from "./fixtures/run-cli.js";

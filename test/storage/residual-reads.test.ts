@@ -19,7 +19,7 @@
  * specifiers are one module to the mock.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "bun:test";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -27,10 +27,13 @@ import path from "node:path";
 
 type FaultedCall = "readdir" | "realpath" | "stat";
 /** The next `remaining` calls of `call` on exactly `target` reject with `error`. */
-const fault = vi.hoisted(() => ({ call: "", target: "", error: null as Error | null, remaining: 0 }));
+const fault = (() => ({ call: "", target: "", error: null as Error | null, remaining: 0 }))();
 
-vi.mock("fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs/promises")>();
+// Snapshot real modules before mock.module replaces them for this file.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", async () => {
+  const actual = realFsPromises as typeof import("fs/promises");
   const guarded = (call: FaultedCall) => (target: unknown, ...rest: unknown[]) => {
     if (fault.remaining > 0 && fault.call === call && target === fault.target) {
       fault.remaining -= 1;
@@ -83,7 +86,7 @@ beforeEach(async () => {
   base = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), "llmwiki-residual-")));
   root = path.join(base, "project");
   fault.remaining = 0;
-  vi.mocked(fs.open).mockClear();
+  (fs.open as unknown as Mock<typeof fs.open>).mockClear();
   await put("wiki/concepts/alpha.md", PAGE("Alpha"));
   await put("wiki/queries/question.md", PAGE("Question"));
   await fs.writeFile(path.join(base, "outside.md"), PAGE("LEAK"));
@@ -192,7 +195,9 @@ describe("the citation index keeps its strict rule", () => {
 
   it("answers empty for a missing root and throws a genuine fault resolving it", async () => {
     expect(await collectAnswerCitationIndex(path.join(base, "missing"))).toEqual({ retained: [], pending: [] });
-    const denied = arm("realpath", root, "EACCES");
+    // EIO, not EACCES: portableRealpath treats EACCES as Bun's unreadable-leaf
+    // quirk and resolves it the way Node would, so it is no longer a fault here.
+    const denied = arm("realpath", root, "EIO");
     expect(await settled(collectAnswerCitationIndex(root))).toBe(denied);
   });
 
@@ -205,15 +210,16 @@ describe("the citation index keeps its strict rule", () => {
 
   it("reads frontmatter through the handle and never the whole page", async () => {
     await put("wiki/concepts/alpha.md", `${PAGE("Alpha")}${"x".repeat(200_000)}`);
-    const actual = await vi.importActual<typeof fs>("fs/promises");
+    const actual = realFsPromises as typeof fs;
     const wholeReads: unknown[] = [];
-    vi.mocked(fs.open).mockImplementation(async (...args) => {
+    (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(async (...args) => {
       const handle = await actual.open(...args);
-      vi.spyOn(handle, "readFile").mockImplementation(async (...read) => { wholeReads.push(read); return ""; });
+      (vi.spyOn(handle, "readFile") as unknown as Mock<(...read: unknown[]) => Promise<string>>)
+        .mockImplementation(async (...read) => { wholeReads.push(read); return ""; });
       return handle;
     });
     const index = await collectAnswerCitationIndex(root);
-    vi.mocked(fs.open).mockImplementation(actual.open);
+    (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(actual.open);
     expect(index.retained.map((target) => [target.id, target.aliases])).toEqual([["concepts/alpha", ["Alpha Alias"]], ["queries/question", ["Question Alias"]]]);
     expect(wholeReads).toEqual([]);
   });

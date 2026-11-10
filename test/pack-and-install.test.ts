@@ -21,7 +21,7 @@
  * it locally via `RUN_PACK_INSTALL_SMOKE=1 npm test`.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { mkdtemp, rm, writeFile } from "fs/promises";

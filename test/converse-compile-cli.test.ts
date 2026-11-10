@@ -7,7 +7,7 @@ import { createServer, type Server } from "node:http";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 import { closeLoopback, listenLoopback } from "./fixtures/loopback-http.js";
 

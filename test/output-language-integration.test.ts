@@ -6,7 +6,7 @@
  * that the configured language directive is present in the system prompt.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   mockClaudeEnv,
   useAimockLifecycle,

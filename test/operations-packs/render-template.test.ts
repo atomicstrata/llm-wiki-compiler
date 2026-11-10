@@ -8,7 +8,7 @@
  * iteration ceilings fail closed.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { renderTemplate } from "../../src/operations-packs/handlers/render-template.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { PackHostHandlerError } from "../../src/operations-packs/handlers/types.js";

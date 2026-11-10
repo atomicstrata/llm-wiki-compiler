@@ -19,7 +19,7 @@
  * and the project lock themselves; their suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as shared from "../../src/operation-bundles/adapters/shared.js";
 import * as capacity from "../../src/operation-bundles/capacity.js";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";

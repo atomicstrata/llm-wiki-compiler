@@ -4,7 +4,7 @@
  * deterministic mutation IDs, and backward-only dependency topology.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_RECIPE_ID_BYTES } from "../../src/operation-bundles/constants.js";
 import { catalogRecordId, mutationId, type BundleId } from "../../src/operation-bundles/ids.js";
 import { parseOperationManifest } from "../../src/operation-bundles/manifest-parse.js";

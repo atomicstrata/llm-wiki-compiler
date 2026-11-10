@@ -19,7 +19,7 @@
  * boolean (excluded / `invalid`), not a serialized shape.
  */
 
-import { describe, it, beforeAll, afterAll, expect } from "vitest";
+import { describe, it, beforeAll, afterAll, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink, realpath } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

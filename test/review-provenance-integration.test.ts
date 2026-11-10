@@ -12,7 +12,7 @@
  * approval.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readdir, readFile } from "fs/promises";
 import path from "path";
 import {

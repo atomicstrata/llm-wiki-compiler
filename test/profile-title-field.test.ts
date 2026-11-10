@@ -21,7 +21,7 @@
  * so every existing slug fallback downstream behaves exactly as before.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { rm } from "node:fs/promises";
 import { collectEntityPages } from "../src/profile/collect.js";
 import { validateProfileShape } from "../src/profile/validate.js";

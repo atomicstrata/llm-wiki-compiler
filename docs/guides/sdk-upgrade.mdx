@@ -15,7 +15,7 @@ candidate. Install it by exact version, together with its supporting packages,
 which it pins to the same version:
 
 ```bash
-npm install llm-wiki-compiler@1.5.0
+bun add llm-wiki-compiler@1.5.0
 ```
 
 **Storage separation.** Compilation, retrieval, review, artifacts and project
@@ -67,8 +67,8 @@ updates before approval.
 Continue importing `createWiki` from `llm-wiki-compiler` for the standard SDK.
 The standard CLI, workflow facade, builtin profile templates and legacy viewer
 experiment input remain available. Scoped supporting packages are implementation
-dependencies, not separately supported consumer entry points. Node 24 remains
-the minimum, not a new requirement.
+dependencies, not separately supported consumer entry points. The SDK now requires
+Bun 1.3 or later.
 
 The extraction does not require migrating local workflows to an external
 coordinator; the local engine retains run state between local invocations. See

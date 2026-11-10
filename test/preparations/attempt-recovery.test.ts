@@ -8,7 +8,7 @@
  * clears the execution owner so the run is left recovery-required.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { acquireLock, releaseLock } from "../../src/utils/lock.js";
 import { appendProjectedTransitionLocked, readPreparationRun } from "../../src/preparations/run-store.js";
 import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";

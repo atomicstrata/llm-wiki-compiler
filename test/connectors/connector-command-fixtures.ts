@@ -3,7 +3,7 @@
  * @description Shared command-result capture seam for connector terminal tests.
  */
 
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { connectorRunCommand } from "../../src/commands/connector.js";
 
 /** Run one injected connector result and capture complete physical log writes. */

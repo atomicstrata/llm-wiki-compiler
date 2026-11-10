@@ -36,7 +36,7 @@ import { existsSync } from "node:fs";
 import { mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { createCustodyDir, discardCustody } from "../../src/preparations/attempts/custody.js";
 import { removeAdvisoryBestEffort } from "../../src/utils/advisory-file.js";

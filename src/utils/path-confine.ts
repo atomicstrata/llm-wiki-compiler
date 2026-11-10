@@ -8,17 +8,22 @@
  * `confinedRegularFile` — the single definition of "a source file" used by
  * the scan, list, get, and delete paths to stay in agreement.
  */
-import { realpath, lstat } from "fs/promises";
+import { lstat } from "fs/promises";
 import path from "path";
 import { SOURCES_DIR } from "./constants.js";
+import { portableRealpath } from "./portable-realpath.js";
 
 /** Opt in to distinguishing genuine I/O faults from absent or unsafe paths. */
 export interface StrictIoOptions { strictIo?: boolean }
 
-/** `realpath` that returns null on missing/broken paths; legacy calls swallow faults. */
+/**
+ * `realpath` that returns null on missing/broken paths; legacy calls swallow faults.
+ * Portable, so a present-but-unreadable leaf still resolves and its read fault
+ * surfaces where it is opened, as under Node (see {@link portableRealpath}).
+ */
 export async function safeRealpath(p: string, opts: StrictIoOptions = {}): Promise<string | null> {
   try {
-    return await realpath(p);
+    return await portableRealpath(p);
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (opts.strictIo && !["ENOENT", "ENOTDIR", "ELOOP"].includes(code ?? "")) throw err;

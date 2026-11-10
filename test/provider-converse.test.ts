@@ -4,7 +4,9 @@
  * provider or its transport. No remote service or AWS identity is required.
  */
 import { createServer, type Server } from "node:http";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { waitFor } from "./wait-for.js";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";
 import { ensureCompileProviderAvailable } from "../src/utils/provider-guard.js";
 import { resolveConverseSettings } from "../src/providers/converse.js";
@@ -45,15 +47,15 @@ describe("Converse generation route", () => {
       response.end(JSON.stringify(responseBody));
     });
     const baseURL = await listenLoopback(server);
-    vi.stubEnv("LLMWIKI_PROVIDER", "converse");
-    vi.stubEnv("LLMWIKI_MODEL", "eu.example.model-v1:0");
-    vi.stubEnv("LLMWIKI_CONVERSE_BASE_URL", `${baseURL}/proxy/route`);
-    vi.stubEnv("LLMWIKI_CONVERSE_API_KEY", "route-secret");
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+    stubEnv("LLMWIKI_PROVIDER", "converse");
+    stubEnv("LLMWIKI_MODEL", "eu.example.model-v1:0");
+    stubEnv("LLMWIKI_CONVERSE_BASE_URL", `${baseURL}/proxy/route`);
+    stubEnv("LLMWIKI_CONVERSE_API_KEY", "route-secret");
+    stubEnv("LLMWIKI_EMBEDDINGS", "off");
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
+    restoreEnv();
     await closeLoopback(server);
   });
 
@@ -69,7 +71,7 @@ describe("Converse generation route", () => {
   });
 
   it.each(["any", "auto"])("extracts structured tool input with %s selection", async (choice) => {
-    vi.stubEnv("LLMWIKI_CONVERSE_TOOL_CHOICE", choice);
+    stubEnv("LLMWIKI_CONVERSE_TOOL_CHOICE", choice);
     responseBody = { output: { message: { role: "assistant", content: [{ toolUse: {
       toolUseId: "extract-1", name: "extract_concepts", input: { concepts: [] },
     } }] } }, stopReason: "tool_use" };
@@ -127,7 +129,7 @@ describe("Converse generation route", () => {
     statusCode = status;
     responseBody = { __type: "ThrottlingException" };
     const pending = callClaude({ system: "Write", messages: [], maxTokens: 128 });
-    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await waitFor(() => expect(requests).toHaveLength(1));
     statusCode = 200;
     responseBody = { output: { message: { content: [{ text: "Recovered" }] } }, stopReason: "end_turn" };
     await expect(pending).resolves.toBe("Recovered");
@@ -148,42 +150,42 @@ describe("Converse generation route", () => {
   });
 
   it("requires an explicit embedding provider before compilation when embeddings are enabled", () => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
-    vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", undefined);
+    stubEnv("LLMWIKI_EMBEDDINGS", "on");
+    stubEnv("LLMWIKI_EMBEDDING_PROVIDER", undefined);
     expect(() => ensureCompileProviderAvailable()).toThrow("LLMWIKI_EMBEDDING_PROVIDER");
     expect(requests).toHaveLength(0);
   });
 
   it("resolves provenance model identity without requiring inference credentials", () => {
-    vi.stubEnv("LLMWIKI_CONVERSE_API_KEY", undefined);
+    stubEnv("LLMWIKI_CONVERSE_API_KEY", undefined);
     expect(resolveActiveModelId()).toBe("eu.example.model-v1:0");
   });
 
   it.each(["not-a-url", "ftp://example.test", "https://user:secret@example.test", "https://example.test?key=secret"])("rejects invalid endpoint configuration before compilation: %s", (endpoint) => {
-    vi.stubEnv("LLMWIKI_CONVERSE_BASE_URL", endpoint);
+    stubEnv("LLMWIKI_CONVERSE_BASE_URL", endpoint);
     expect(() => ensureCompileProviderAvailable(false)).toThrow("LLMWIKI_CONVERSE_BASE_URL");
     expect(requests).toHaveLength(0);
   });
 
   it("honors the configured model request deadline", async () => {
-    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", "20");
+    stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", "20");
     delayMs = 150;
     await expect(getProvider().complete("Write", [{ role: "user", content: "Facts" }], 128)).rejects.toThrow("Converse request timed out");
   });
 
   it.each(["1.5", "0", "-1", "invalid", "Infinity", "NaN", "2147483648", "4294967296", "9007199254740992"])("rejects invalid request timeout before compilation: %s", (timeout) => {
-    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
     expect(() => ensureCompileProviderAvailable(false)).toThrow("LLMWIKI_REQUEST_TIMEOUT_MS");
     expect(requests).toHaveLength(0);
   });
 
   it.each([undefined, "", "   "])("defaults the request deadline only when unset or blank: %s", (timeout) => {
-    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
     expect(resolveConverseSettings().requestTimeoutMs).toBe(600_000);
   });
 
   it.each(["1", " 1500 ", "2147483647"])("accepts a supported integer request timeout: %s", (timeout) => {
-    vi.stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
+    stubEnv("LLMWIKI_REQUEST_TIMEOUT_MS", timeout);
     expect(resolveConverseSettings().requestTimeoutMs).toBe(Number(timeout));
   });
 

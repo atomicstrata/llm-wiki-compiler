@@ -5,7 +5,7 @@
  * source filename. The renderer must turn exactly those into the viewer's source
  * route, and must keep dropping every other relative link.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { renderPageHtml } from "../src/viewer/render.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 

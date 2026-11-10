@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile } from "../../src/profile/validate.js";
 import { profileDigest } from "../../src/profile/digest.js";
 import { DEFAULT_PROFILE } from "../../src/profile/default.js";

@@ -8,7 +8,7 @@
  * else fail-closed.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {

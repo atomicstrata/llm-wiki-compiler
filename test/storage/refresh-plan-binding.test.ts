@@ -26,7 +26,7 @@
  */
 
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as indexgen from "../../src/compiler/indexgen.js";
 import { resolveStaleRefresh, resolveStaleRefreshFrom, type RefreshResolution, type StaleRefreshReads } from "../../src/compiler/refresh-plan.js";
 import * as freshness from "../../src/freshness/index.js";

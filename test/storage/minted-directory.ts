@@ -20,7 +20,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 
 /**
  * Assert that `dir` is a directory the calling test named with its own

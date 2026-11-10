@@ -10,7 +10,7 @@
  * unlinks the temp (best-effort) on any failure after it is opened.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, readdir, readFile } from "fs/promises";
 import path from "path";
 import { atomicWrite } from "../src/utils/markdown.js";

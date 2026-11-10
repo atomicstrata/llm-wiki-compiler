@@ -28,7 +28,8 @@
  * `compile-*`, `seed-pages-*`, `review-batch-*` and the binding suites of each step.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, setSystemTime } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as finalize from "../../src/compiler/compile-finalize.js";
 import { finalizeUnchangedCompile, finalizeUnchangedCompileWith, seedThenFinalize, seedThenFinalizeWith, type CompileFinalizeSteps } from "../../src/compiler/compile-finalize.js";
 import { CompileStateDraft } from "../../src/compiler/compile-state-draft.js";
@@ -92,8 +93,7 @@ interface Side {
 async function runScenario(side: Side): Promise<string[]> {
   const statuses: string[] = [];
   const status = captureStatusLines(statuses);
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(NOW);
+  setSystemTime(NOW);
   const out: string[] = [];
   const settle = async (name: string, act: () => Promise<unknown>): Promise<void> => {
     const settled = await act().then((value) => value ?? "ok", (error: Error) => `${error.name}: ${error.message}`);
@@ -108,7 +108,7 @@ async function runScenario(side: Side): Promise<string[]> {
     }
     await settle("unchanged", async () => side.unchanged(await side.load()));
   } finally {
-    vi.useRealTimers();
+    setSystemTime();
     status.mockRestore();
   }
   return out;
@@ -223,10 +223,10 @@ describe("the bound tail reaches no root step and no disk primitive", () => {
     expect([spies.map((spy) => spy.mock.calls.length), provider.mock.calls.length]).toEqual([spies.map(() => 0), 0]);
     const root = await tracker.create(PREFIX);
     await writeFiles(root, SEED);
-    vi.stubEnv(ENV_EMBEDDINGS, "off");
+    stubEnv(ENV_EMBEDDINGS, "off");
     vi.spyOn(output, "status").mockImplementation(() => {});
     await finalize.seedThenFinalize(root, SCHEMA, generation(["beta"]), {}, await CompileStateDraft.load(root));
-    vi.unstubAllEnvs();
+    restoreEnv();
     expect([spies.map((spy) => spy.mock.calls.length > 0), provider.mock.calls.length > 0]).toEqual([spies.map(() => true), true]);
   });
 });

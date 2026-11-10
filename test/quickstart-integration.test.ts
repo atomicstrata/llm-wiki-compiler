@@ -17,7 +17,7 @@
  *   - `--lang` forwards through to the compile prompt.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readdir, access, mkdtemp, mkdir, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

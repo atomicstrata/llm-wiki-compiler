@@ -5,7 +5,7 @@
  */
 import { readFile, stat, symlink } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { createKeypairFile, publicKeyFingerprint, readPrivateKey } from "../src/profile/templates/publish/keystore.js";
 import { parsePublisherWorkspace } from "../src/profile/templates/publish/workspace-parse.js";
 import type { WorkspacePaths } from "../src/profile/templates/publish/workspace-paths.js";

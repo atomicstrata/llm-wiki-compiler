@@ -36,7 +36,8 @@
  * links and confine nothing; a linked cache file or directory is not exercised.
  */
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 
@@ -112,9 +113,9 @@ let seeded: Minted<Outcome>;
 let unpersisted: Minted<Outcome>;
 const onDiskMake = (root: string): Make => (options) => createCitationJudge(root, options);
 
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(AT)); vi.mocked(callClaude).mockImplementation(stub); });
-beforeEach(() => { vi.setSystemTime(new Date(AT)); vi.mocked(callClaude).mockReset().mockImplementation(stub); log.length = 0; });
-afterAll(() => { vi.useRealTimers(); });
+beforeAll(() => { setSystemTime(new Date(AT)); (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(stub); });
+beforeEach(() => { setSystemTime(new Date(AT)); (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(stub); log.length = 0; });
+afterAll(() => { setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   cold = await mintCopied(tracker, PREFIX, async () => {}, (root) => coldSequence(onDiskMake(root)));
   seeded = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, { [CACHE]: SEEDED_TEXT }), (root) => seededSequence(onDiskMake(root)));
@@ -212,19 +213,19 @@ describe("the citation judge over held cache text, with the directories gone", (
 
 describe("the judge's defaults, clock and failures, in memory", () => {
   it("D1 persists by default, and resolves the default model when the judge is made, not when it is asked", async () => {
-    vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-    vi.stubEnv("LLMWIKI_MODEL", "model-when-made");
+    stubEnv("LLMWIKI_PROVIDER", "anthropic");
+    stubEnv("LLMWIKI_MODEL", "model-when-made");
     const memory = memoryCache(null);
     const judge = await createCitationJudgeFrom(memory.files);
-    vi.stubEnv("LLMWIKI_MODEL", "model-when-asked");
+    stubEnv("LLMWIKI_MODEL", "model-when-asked");
     const { judgement } = await judge(P1);
-    vi.unstubAllEnvs();
+    restoreEnv();
     expect(judgement.model).toBe("model-when-made");
     expect(memory.text()).toBe(lineOf(judgement));
   });
 
   it("D2 stamps the verdict after the stub has answered", async () => {
-    vi.mocked(callClaude).mockImplementation(async () => { vi.setSystemTime(new Date(LATER)); return VERDICT; });
+    (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(async () => { setSystemTime(new Date(LATER)); return VERDICT; });
     const { judgement } = await (await createCitationJudgeFrom(NEVER_ASKED, { model: "model-a", persist: false }))(P1);
     expect(judgement).toStrictEqual({ ...fresh(P1, KEY_1), timestamp: LATER });
   });
@@ -258,7 +259,7 @@ describe("the judge's defaults, clock and failures, in memory", () => {
   });
 
   it("F4 a verdict with a score out of range is refused, and nothing is made or appended", async () => {
-    vi.mocked(callClaude).mockResolvedValue(JSON.stringify({ score: 5, reason: "too high" }));
+    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue(JSON.stringify({ score: 5, reason: "too high" }));
     const memory = memoryCache(null);
     await expect((await createCitationJudgeFrom(memory.files, { model: "model-a" }))(P1)).rejects.toThrow("Citation judge returned an invalid score or reason");
     expect([log, memory.text()]).toEqual([[`exists ${CACHE}`], undefined]);

@@ -13,7 +13,7 @@
  * this project ever have one", not "does it have one now".
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { flushMicrotasks, jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 /** Three declared entity types — the number the Pipeline entry counts. */

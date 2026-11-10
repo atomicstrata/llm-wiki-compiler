@@ -8,7 +8,7 @@
  * identifiers that collided two distinct decisions under one digest.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { CompletenessAuthorityError, deriveCompleteness } from "../../src/preparations/completeness.js";
 import { IntentCompilerError } from "../../src/preparations/intent-compiler.js";
 import {

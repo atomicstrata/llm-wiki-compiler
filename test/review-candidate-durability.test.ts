@@ -12,7 +12,7 @@
  * candidate files for that slug.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import {

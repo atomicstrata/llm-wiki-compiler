@@ -4,7 +4,7 @@
  * navigation, and code surfaces. Read the actual palette declarations here.
  */
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { contrast } from "./fixtures/color-contrast.js";
 
 /** Read an opaque token from the first (light) theme block. */

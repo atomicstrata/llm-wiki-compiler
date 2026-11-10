@@ -22,7 +22,7 @@
  * launching a sandboxed provider is the one thing a test cannot do offline.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { runPreparation } from "../../src/index.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { assembleRunnerInput } from "../../src/operations-packs/runtime/runner-input.js";

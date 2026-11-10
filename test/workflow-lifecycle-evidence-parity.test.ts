@@ -1,7 +1,7 @@
 /** Lifecycle intent/recovery binds the applied projection, not ignored caller data. */
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../src/profile/templates/signing/canonical.js";
 import { previewLifecycleLocked } from "../src/trust/lifecycle-apply.js";
 import { prepareLifecycleIntent } from "../src/workflows/lifecycle-output-recovery.js";

@@ -10,7 +10,7 @@
  * the namespace (a queries pick loads wiki/queries, not wiki/concepts).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import path from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -31,7 +31,6 @@ describe("pickSearchRefs — fallback namespace resolution (F3)", () => {
   let pickSearchRefs: typeof import("../src/search/retrieval.js").pickSearchRefs;
 
   beforeEach(async () => {
-    vi.resetModules();
     ({ pickSearchRefs } = await import("../src/search/retrieval.js"));
   });
   afterEach(() => vi.restoreAllMocks());
@@ -85,7 +84,6 @@ describe("loadSelectedRefs — fallback refs hydrate the correct page (F3)", () 
   let loadSelectedRefs: typeof import("../src/search/retrieval.js").loadSelectedRefs;
 
   beforeEach(async () => {
-    vi.resetModules();
     ({ pickSearchRefs, loadSelectedRefs } = await import("../src/search/retrieval.js"));
   });
   afterEach(() => vi.restoreAllMocks());

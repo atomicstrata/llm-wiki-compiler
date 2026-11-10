@@ -1,7 +1,7 @@
 /** Real crash-pending lifecycle operations and retained-object witnesses for destructive-gate tests. */
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { perRunQuarantineUnitId, quarantinePreparationRunLocked } from "../../src/preparations/quarantine.js";
 import { MISSING_KEY_CONFIRMATION, resetPreparationKeyEpochLocked } from "../../src/preparations/reset.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";

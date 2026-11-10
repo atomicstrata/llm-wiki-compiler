@@ -5,7 +5,7 @@
  * deliverable — INERTNESS (Invariant 7, D-7.6.8): a foreign bundle can never
  * modify `.llmwiki/profile.json` or `.llmwiki/config.json`.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdtemp, mkdir, readFile, writeFile, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

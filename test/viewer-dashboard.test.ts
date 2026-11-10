@@ -8,7 +8,7 @@
  * focal card blank on a fresh project.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 /** Build an envelope with the given dangling count and citation totals. */

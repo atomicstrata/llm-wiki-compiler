@@ -6,7 +6,7 @@
  * "cli"/"sdk" #9A writes — proving the origin model accepts the new values at the
  * executor/event layer BEFORE the workflow arm is wired.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { makeResearchLikeRoot } from "../fixtures/artifact-root.js";
 import { applyApprovedMutations } from "../../src/trust/executor.js";
 import { readEvents } from "../../src/events/store-read.js";

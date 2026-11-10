@@ -29,7 +29,7 @@
  * neighbouring end-to-end suite must keep driving the REAL family.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import type { ProductInvokeResultV1 } from "../../src/products/service.js";
 import {
@@ -38,11 +38,14 @@ import {
 
 type IntentModule = typeof import("../../src/operations-packs/handlers/intent-compile.js");
 
+// Snapshot real modules before mock.module replaces them for this file.
+const realHandlersIntentCompile = { ...(await import("../../src/operations-packs/handlers/intent-compile.js")) };
+
 // The reviewer's mutation, applied to the family the runtime dispatches to: the
 // result keeps every other field the phase publishes, so ONLY the draft set is
 // emptied and nothing else about the run changes.
-vi.mock("../../src/operations-packs/handlers/intent-compile.js", async (importOriginal) => {
-  const actual = await importOriginal<IntentModule>();
+vi.mock("../../src/operations-packs/handlers/intent-compile.js", async () => {
+  const actual = realHandlersIntentCompile as IntentModule;
   return {
     ...actual,
     compileIntents: (input: Parameters<IntentModule["compileIntents"]>[0]) => {

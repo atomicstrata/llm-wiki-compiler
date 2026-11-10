@@ -2,6 +2,7 @@
  * Tests for src/eval/delta.ts — regression detection between eval runs.
  */
 
+import { describe, it, expect } from "bun:test";
 import { computeDelta } from "../src/eval/delta.js";
 import type { EvalReport } from "../src/eval/types.js";
 

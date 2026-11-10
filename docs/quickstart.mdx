@@ -7,7 +7,7 @@ description: "Install llmwiki, set your API key, and run llmwiki quickstart to c
 This quickstart walks you through installing llmwiki, setting your API key, and running `llmwiki quickstart` against a real source - a URL or a local file - to produce a browsable, interlinked wiki in a single command. By the end you'll have a compiled wiki you can query with natural language and explore in a local browser UI.
 
 <Note>
-  llmwiki requires **Node.js >= 24**. Run `node --version` to check. If you're on an older version, update via [nodejs.org](https://nodejs.org) or a version manager such as `nvm` or `fnm` before continuing.
+  llmwiki requires **Bun >= 1.3**. Run `bun --version` to check. If you're on an older version, install or upgrade via [bun.sh](https://bun.sh) (`bun upgrade`) before continuing.
 </Note>
 
 <Steps>
@@ -16,7 +16,7 @@ This quickstart walks you through installing llmwiki, setting your API key, and 
     Install the `llm-wiki-compiler` package from npm. The package registers the `llmwiki` binary globally.
 
     ```bash
-    npm install -g llm-wiki-compiler
+    bun add --global llm-wiki-compiler
     ```
 
     Verify the installation completed successfully:

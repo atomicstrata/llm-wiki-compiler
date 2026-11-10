@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
 import { runConnector } from "../../src/connectors/run.js";
 import { readEvents } from "../../src/events/store-read.js";

@@ -1,5 +1,5 @@
 // test/okf-sdk.test.ts
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

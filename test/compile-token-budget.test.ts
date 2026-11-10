@@ -1,5 +1,5 @@
 /** Confirms the environment budget reaches both phases of the real compile CLI. */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { useAimockLifecycle, mockOpenAIEnv, stubCannedCompile } from "./fixtures/aimock-helper.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 
