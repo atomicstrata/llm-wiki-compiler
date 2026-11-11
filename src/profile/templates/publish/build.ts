@@ -9,7 +9,7 @@
  * not first verify as a consumer would verify it.
  */
 import packageJson from "../../../../package.json" with { type: "json" };
-import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { canonicalDigest } from "../signing/canonical.js";
 import { sha256DigestHex } from "../signing/protocol.js";
@@ -196,9 +196,9 @@ async function stageTree(out: string, indexJson: string, packages: WorkspacePack
     // Packages are written BEFORE the index, so an index is never visible while
     // referencing a package that is not yet there.
     for (const pkg of packages) {
-      await writeFile(path.join(digestDir, `${sha256DigestHex(pkg.payloadDigest)}.json`), pkg.envelopeJson, "utf8");
+      await Bun.write(path.join(digestDir, `${sha256DigestHex(pkg.payloadDigest)}.json`), pkg.envelopeJson, { createPath: false });
     }
-    await writeFile(path.join(staging, "index.json"), indexJson, "utf8");
+    await Bun.write(path.join(staging, "index.json"), indexJson, { createPath: false });
     return staging;
   } catch (error) {
     await rm(staging, { recursive: true, force: true });

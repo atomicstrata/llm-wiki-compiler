@@ -15,10 +15,9 @@
  * simpler single-conversation exports.
  */
 
-import { readFile } from "fs/promises";
 import path from "path";
 import type { SessionAdapter, NormalizedSession, SessionTurn } from "./types.js";
-import { resolveSessionTitle, parseJsonOrThrow } from "./utils.js";
+import { resolveSessionTitle, readSessionJson } from "./utils.js";
 
 const CURSOR_EXTENSION = ".json";
 
@@ -93,7 +92,7 @@ export const cursorAdapter: SessionAdapter = {
 
   async detect(filePath: string): Promise<boolean> {
     if (path.extname(filePath).toLowerCase() !== CURSOR_EXTENSION) return false;
-    const raw = await readFile(filePath, "utf-8").catch(() => "");
+    const raw = await Bun.file(filePath).text().catch(() => "");
     if (raw.trimStart()[0] !== "{") return false;
     try {
       const parsed: unknown = JSON.parse(raw);
@@ -104,8 +103,7 @@ export const cursorAdapter: SessionAdapter = {
   },
 
   async parse(filePath: string): Promise<NormalizedSession> {
-    const raw = await readFile(filePath, "utf-8");
-    const parsed = parseJsonOrThrow(raw, filePath);
+    const parsed = await readSessionJson(filePath);
 
     if (!isTabsExport(parsed) && !isFlatExport(parsed)) {
       throw new Error(

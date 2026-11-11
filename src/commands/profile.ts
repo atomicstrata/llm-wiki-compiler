@@ -18,7 +18,6 @@
  * not look clean — while still writing nothing.
  */
 
-import { readFile } from "node:fs/promises";
 import * as output from "../utils/output.js";
 import { loadProfile } from "../profile/load.js";
 import { validateProfile } from "../profile/validate.js";
@@ -107,8 +106,7 @@ export async function profileValidate(): Promise<number> {
 
 /** Read and validate a profile pack from an explicit file path (fail-closed). */
 async function loadProfileFile(filePath: string): Promise<ProfilePack> {
-  const raw = await readFile(filePath, "utf8");
-  return validateProfile(JSON.parse(raw)).profile;
+  return validateProfile(await Bun.file(filePath).json()).profile;
 }
 
 /** A resolved old → new profile pair to diff. */

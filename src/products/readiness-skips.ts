@@ -27,7 +27,7 @@
  * mkdir, `.tmp` write and rename when asked. Nothing selects a backend.
  */
 
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { rename } from "node:fs/promises";
 import path from "node:path";
 
 /** Where the decision lives, beside the project's other private state. */
@@ -57,7 +57,7 @@ export function diskReadinessSkipLeaves(root: string): ReadinessSkipLeaves {
   return {
     readText: async () => {
       try {
-        return { kind: "ok", text: await readFile(destination, "utf8") };
+        return { kind: "ok", text: await Bun.file(destination).text() };
       } catch (error) {
         // ABSENT is a definite answer — nothing has been declined yet. Any other
         // read failure leaves the review unable to say, which is not the same.
@@ -65,11 +65,11 @@ export function diskReadinessSkipLeaves(root: string): ReadinessSkipLeaves {
       }
     },
     writeText: async (render) => {
-      await mkdir(path.dirname(destination), { recursive: true });
       // Write-then-rename so a crash mid-write cannot leave a half-file that the
       // reader would then report as unreadable, stranding every prior decision.
+      // Bun.write creates the record's directory when it is missing.
       const staging = `${destination}.tmp`;
-      await writeFile(staging, render(), "utf8");
+      await Bun.write(staging, render());
       await rename(staging, destination);
     },
   };

@@ -15,7 +15,7 @@
  * constant keeps the two surfaces honest about pointing at one place.
  */
 
-import { readFile, realpath } from "fs/promises";
+import { realpath } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { ServerResponse } from "http";
@@ -73,7 +73,7 @@ export async function handleAsset(res: ServerResponse, pathname: string): Promis
     return;
   }
   try {
-    const body = await readFile(resolved);
+    const body = await Bun.file(resolved).bytes();
     res.statusCode = 200;
     res.setHeader("Content-Type", contentType);
     res.end(body);
