@@ -125,11 +125,11 @@ describe("artifact discovery and the workflow artifact manifest", () => {
   });
 });
 
-/** Process-source reads over one package whose declared member has `digest`, each call logged. */
-function processReads(log: string[], mode: "product" | "legacy", packaged: boolean, digest?: string): WorkflowProcessSourceReads {
+/** Process-source reads over one resolved package whose declared member has `digest`, each call logged. */
+function processReads(log: string[], mode: "product" | "legacy", digest?: string): WorkflowProcessSourceReads {
+  const manifest = { processDefinition: digest === undefined ? undefined : { digest } };
   return {
-    activeProduct: async () => { log.push("active"); return (mode === "product" ? { mode, binding: { packageDigest: SHA } } : { mode }) as never; },
-    installedPackage: async (packageDigest) => { log.push(`package ${packageDigest}`); return (packaged ? { status: "ok", manifest: { processDefinition: digest === undefined ? undefined : { digest } } } : { status: "absent" }) as never; },
+    activeProduct: async () => { log.push("active"); return (mode === "product" ? { mode, binding: { packageDigest: SHA }, manifest } : { mode }) as never; },
     memberText: async (packageDigest, member, maxBytes) => { log.push(`member ${packageDigest} ${member.digest} ${maxBytes}`); return "process text"; },
   };
 }
@@ -153,17 +153,16 @@ function productSourcesOf(product: BuiltProductPackage): { sources: ActiveProduc
 }
 
 describe("the workflow process source and the live target", () => {
-  it("P1 refuses before the package read, before the member read on a stale digest, and reads only the declared member", async () => {
-    const run = async (mode: "product" | "legacy", packaged: boolean, digest?: string) => {
+  it("P1 refuses outside product mode and on a stale digest before the member read, and reads only the declared member", async () => {
+    const run = async (mode: "product" | "legacy", digest?: string) => {
       const log: string[] = [];
-      return [await readLocalWorkflowProcessSourceFrom(processReads(log, mode, packaged, digest), "d1").then((value) => value, (error: Error) => error.message), log];
+      return [await readLocalWorkflowProcessSourceFrom(processReads(log, mode, digest), "d1").then((value) => value, (error: Error) => error.message), log];
     };
     const [unavailable, stale] = [new WorkflowProcessAuthorityError("unavailable").message, new WorkflowProcessAuthorityError("stale-or-invalid").message];
-    expect(await run("legacy", true, "d1")).toEqual([unavailable, ["active"]]);
-    expect(await run("product", false)).toEqual([unavailable, ["active", `package ${SHA}`]]);
-    expect(await run("product", true, "d2")).toEqual([stale, ["active", `package ${SHA}`]]);
-    expect(await run("product", true)).toEqual([stale, ["active", `package ${SHA}`]]);
-    expect(await run("product", true, "d1")).toEqual(["process text", ["active", `package ${SHA}`, `member ${SHA} d1 ${MAX_PROCESS_DEFINITION_BYTES}`]]);
+    expect(await run("legacy", "d1")).toEqual([unavailable, ["active"]]);
+    expect(await run("product", "d2")).toEqual([stale, ["active"]]);
+    expect(await run("product")).toEqual([stale, ["active"]]);
+    expect(await run("product", "d1")).toEqual(["process text", ["active", `member ${SHA} d1 ${MAX_PROCESS_DEFINITION_BYTES}`]]);
     const spy = vi.spyOn(productBinding, "resolveActiveProduct").mockResolvedValue({ mode: "legacy" } as never);
     expect([await rejection(readLocalWorkflowProcessSource("/project", "d1")), spy.mock.calls]).toEqual([`WorkflowProcessAuthorityError: ${unavailable}`, [["/project"]]]);
   });

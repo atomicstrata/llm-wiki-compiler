@@ -286,7 +286,8 @@ async function custodyDownload(
     await write.close();
   }
   try {
-    await assertAuthorizedProviderDirectory(paths, downloads);
+    // The post-write leaf binding just above re-proved `downloads` last; only
+    // the handle close separates it from this open.
     const read = await open(leaf, fsConstants.O_RDONLY | (process.platform === "win32" ? 0 : fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
     try {
       await assertBoundProviderLeaf(paths, downloads, leaf, read, DOWNLOAD_ESCAPED);

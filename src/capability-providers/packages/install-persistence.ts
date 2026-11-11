@@ -6,7 +6,7 @@
  */
 import { canonicalDigest } from "../../profile/templates/signing/canonical.js";
 import {
-  assertAuthorizedProviderDirectory, type AuthorizedProviderDirectory,
+  assertAuthorizedProviderDirectories, type AuthorizedProviderDirectory,
   type AuthorizedProviderPaths,
 } from "./paths.js";
 import { readProviderInstallState, writeProviderInstallState } from "./state-store.js";
@@ -27,8 +27,7 @@ export async function persistProviderInstall(
   record: ProviderInstallRecordV1,
   afterCommit?: (directory: string) => Promise<void>,
 ): Promise<InstalledProviderSnapshot> {
-  await assertAuthorizedProviderDirectory(paths, directory);
-  await assertAuthorizedProviderDirectory(paths, tree);
+  await assertAuthorizedProviderDirectories(paths, directory, tree);
   const state = await readProviderInstallState(paths);
   const existing = state.installs[record.packageDigest];
   const changed = !existing || canonicalDigest(existing) !== canonicalDigest(record);
@@ -40,8 +39,7 @@ export async function persistProviderInstall(
       });
       await afterCommit?.(directory.path);
     }
-    await assertAuthorizedProviderDirectory(paths, directory);
-    await assertAuthorizedProviderDirectory(paths, tree);
+    await assertAuthorizedProviderDirectories(paths, directory, tree);
     return Object.freeze({ ...record, treePath: tree.path });
   } catch (error) {
     if (changed) await restoreInstallState(paths, state, error);
