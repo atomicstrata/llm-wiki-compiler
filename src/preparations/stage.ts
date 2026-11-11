@@ -107,24 +107,30 @@ export interface StageLockedSteps {
  * when asked. The inventory scan and the key read are ONE PASS
  * (`pass-reads.ts`): both come before the first write, under one hold of the
  * lock, so the key the scan authenticated every run under is the key the
- * staging binds; nothing reads the pass after the writes begin.
+ * staging binds. The pass's KEY read also answers the two later asks of the
+ * key in the same hold: the mint's read of the current key, which precedes
+ * every write, and the genesis signing key, unless this staging published a
+ * minted key, in which case the genesis reads the disk. The evidence and the
+ * manifest written before the genesis are not the key.
  */
 function diskStageLockedSteps(root: string): StageLockedSteps {
   const pass = preparationPassReads(root);
+  let keyWritten = false;
   return {
     verifyParent: (ref) => verifyWorkflowParent(root, ref),
     scanInventory: (options) => scanPreparationInventory(root, options, pass),
     readKey: pass.readKey,
     mintEmptyEpochKey: async (epoch) => {
-      const minted = await prepareKeyForEmptyEpochLocked(root, epoch);
-      return { keyEpochId: minted.keyEpochId, publish: minted.publish };
+      const minted = await prepareKeyForEmptyEpochLocked(root, epoch, {}, pass.readKey);
+      return { keyEpochId: minted.keyEpochId, publish: () => { keyWritten = true; return minted.publish(); } };
     },
     readEvidence: (location, digest) => readPreparationEvidence(root, location, digest),
     readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
     readRun: (binding) => readPreparationRun(root, binding),
     materializeInputs: (location, set, missing) => materializePlannedInitialInputs(root, location, set, missing),
     writeManifest: (manifest) => writePreparationManifestCreateOnly(root, manifest),
-    createRun: (input, budgetInput) => createPreparationRunLocked(root, input, budgetInput),
+    createRun: (input, budgetInput) => createPreparationRunLocked(root, input, budgetInput,
+      keyWritten ? undefined : { readKey: pass.readKey, readRun: (binding) => readPreparationRun(root, binding) }),
   };
 }
 

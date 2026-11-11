@@ -420,9 +420,20 @@ export async function preparationLifecycleRootMatchesBinding(
   }
 }
 
+/**
+ * Whether a revalidation re-proves the key leaf binding itself. A caller that
+ * re-proves its captured key observation IMMEDIATELY after, against this same
+ * namespace (`assertLifecycleKeyObservationCurrent` on an `ok` observation), passes
+ * `"reproved-after"`: that re-open requires the leaf at the bound path, regular and
+ * not followed, under the bound private root, with every fact this check compares
+ * (dev, ino, size, mode, nlink, uid), and later than this check would have.
+ */
+type KeyBindingProof = "recheck" | "reproved-after";
+
 /** Re-open the namespace and require every captured identity to remain current. */
 export async function assertPreparationLifecycleNamespaceCurrent(
   namespace: PreparationLifecycleNamespaceV1,
+  keyBinding: KeyBindingProof = "recheck",
 ): Promise<void> {
   assertPreparationLifecycleNamespaceBrand(namespace);
   try {
@@ -436,6 +447,7 @@ export async function assertPreparationLifecycleNamespaceCurrent(
         !sameBinding(namespace.pruneRegistry, registries.pruneRegistry)) {
       throw new Error("registry changed");
     }
+    if (keyBinding === "reproved-after") return;
     const preparationKey = await capturePreparationKey(root, privateRoot, "recheck");
     if (!sameKeyBinding(namespace.preparationKey, preparationKey)) {
       throw new Error("preparation key changed");
