@@ -48,7 +48,7 @@ function companionLinksMatch(opened: LinkedLeaf, present: Stats[]): boolean {
  * The destination itself is not looked up again here. Each call directly
  * follows the confined open's or read's own post-checks, which just proved the
  * parent's realpath and that the canonical destination names the handle's
- * inode; `opened.nlink` is the handle's link count, and the post-read `fstat`
+ * inode; `opened.nlink` is the handle's link count, and the post-read `lstat`
  * requires it unchanged across the read. A held leaf is checked only after
  * {@link heldLeafIsCurrent} asked those same questions of it again, link count
  * included. A second `lstat` of the destination would re-ask exactly them.

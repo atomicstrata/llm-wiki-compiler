@@ -165,18 +165,21 @@ function classifyLeafOpenError(err: unknown): "absent" | "unavailable" {
  *  2. INODE BINDING: lstat the canonical in-root leaf and require {dev,ino} to match
  *     the opened handle's. Catches the swap-out→open→swap-back RACE, which the parent
  *     check alone misses (the parent looks canonical again by check time).
- * The leaf is never realpath'd (that would follow a symlink).
+ * The leaf is never realpath'd (that would follow a symlink). Returns the canonical
+ * leaf's `lstat` when both pass, else null: matching {dev,ino} make it the
+ * HANDLE'S OWN inode (held open, so never reused), so its size and link count are
+ * the handle's, as of this check.
  */
-async function passesPostOpenChecks(leaf: string, expectedReal: string, canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<boolean> {
+async function passesPostOpenChecks(leaf: string, expectedReal: string, canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<Stats | null> {
   const parentReal = await realpath(path.dirname(leaf)).catch(() => null);
-  if (parentReal !== expectedReal) return false;
-  return isCanonicalLeafOf(canonicalLeaf, opened);
+  if (parentReal !== expectedReal) return null;
+  return canonicalLeafOf(canonicalLeaf, opened);
 }
 
-/** The INODE BINDING half of {@link passesPostOpenChecks}: the canonical leaf, not followed, is the opened file. */
-async function isCanonicalLeafOf(canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<boolean> {
+/** The INODE BINDING half of {@link passesPostOpenChecks}: the canonical leaf, not followed, when it is the opened file; else null. */
+async function canonicalLeafOf(canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<Stats | null> {
   const canonical = await lstat(canonicalLeaf).catch(() => null);
-  return canonical !== null && canonical.dev === opened.dev && canonical.ino === opened.ino;
+  return canonical !== null && canonical.dev === opened.dev && canonical.ino === opened.ino ? canonical : null;
 }
 
 /**
@@ -240,7 +243,7 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
     const expectedReal = await expectedRealMatching(root, lexicalExpected, await realpath(path.dirname(leaf)).catch(() => null));
     if (expectedReal === null) return await closeReturning(handle, { kind: "unavailable" });
     const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
-    if (!(await isCanonicalLeafOf(canonicalLeaf, opened))) return await closeReturning(handle, { kind: "unavailable" });
+    if ((await canonicalLeafOf(canonicalLeaf, opened)) === null) return await closeReturning(handle, { kind: "unavailable" });
     return { kind: "confirmed", handle, size: opened.size, dev: opened.dev, ino: opened.ino,
       mode: opened.mode, uid: opened.uid, nlink: opened.nlink, mtimeMs: opened.mtimeMs, ctimeMs: opened.ctimeMs, leaf, expectedReal, canonicalLeaf,
       beforePostReadCheckForTest: opts.beforePostReadCheckForTest };
@@ -272,10 +275,13 @@ export async function readConfirmedBufferOrElse<T>(opened: Extract<ConfinedLeafO
     if (opened.size > maxBytes) return onOversize(opened.size);
     const bytes = await readBoundedBytes(opened.handle, maxBytes);
     await opened.beforePostReadCheckForTest?.();
-    const after = await opened.handle.stat();
-    if (!after.isFile() || after.dev !== opened.dev || after.ino !== opened.ino || after.nlink !== opened.nlink
-      || !(await passesPostOpenChecks(opened.leaf, opened.expectedReal, opened.canonicalLeaf, after))) return { kind: "unavailable" };
-    if (bytes.length > maxBytes) return onOversize((await opened.handle.stat()).size);
+    // No handle `fstat` here: the canonical leaf's `lstat`, taken after it, is of
+    // the handle's own inode, so it reports the same type, link count and size,
+    // only later. Any run the earlier `fstat` refused and this accepts returns
+    // the same bytes as a run whose writes land after the check, which both accept.
+    const after = await passesPostOpenChecks(opened.leaf, opened.expectedReal, opened.canonicalLeaf, opened);
+    if (after === null || after.nlink !== opened.nlink) return { kind: "unavailable" };
+    if (bytes.length > maxBytes) return onOversize(after.size);
     if (after.size !== opened.size || bytes.length !== opened.size) return { kind: "unavailable" };
     return { kind: "ok", body: bytes };
   } catch {
