@@ -261,6 +261,26 @@ async function targetAlreadyExists(probes: PageTargetProbes, root: string, targe
   }
 }
 
+/**
+ * `probes` for ONE plan: each distinct question goes to the filesystem once,
+ * and its answer, or its rejection, is shared by every asker. The path floor,
+ * the collision check and the create/update choice all confine the same target,
+ * and the last two probe the same leaf. Each is a plan-time snapshot that the
+ * executor re-proves at apply time (it confines the target again and re-asserts
+ * the floor), so asking again within the plan proved nothing the plan keeps.
+ */
+function onePlanProbes(probes: PageTargetProbes): PageTargetProbes {
+  const answers = new Map<string, Promise<unknown>>();
+  const once = <T>(key: string, ask: () => Promise<T>): Promise<T> => {
+    if (!answers.has(key)) answers.set(key, ask());
+    return answers.get(key) as Promise<T>;
+  };
+  return {
+    confineTarget: (targetPath, root) => once(`confine\0${root}\0${targetPath}`, () => probes.confineTarget(targetPath, root)),
+    leafPresent: (dir, name) => once(`present\0${dir}\0${name}`, () => probes.leafPresent(dir, name)),
+  };
+}
+
 /** The shared inputs to {@link planPageWith}, independent of target identity. */
 interface PageFloorInput {
   root: string;
@@ -296,12 +316,13 @@ async function planPageWith(
     // pages get the larger GENERATED_PAGE_MAX_CHARS, all others MAX_SOURCE_CHARS.
     maxBodyChars: resourceCapForOrigin(input.origin),
   };
-  const checks = [identityCheck, ...(await runMandatoryPageChecksFrom(probes, ctx))];
+  const planProbes = onePlanProbes(probes);
+  const checks = [identityCheck, ...(await runMandatoryPageChecksFrom(planProbes, ctx))];
   const decision = composeTrustDecision(checks, { reviewRouted: input.reviewRouted });
   if (!LIVE_WRITE_DECISIONS.has(decision)) {
     return { planned: [], decision, checks };
   }
-  const exists = await targetAlreadyExists(probes, input.root, input.targetPath);
+  const exists = await targetAlreadyExists(planProbes, input.root, input.targetPath);
   const mutation: PagePlannedMutation = {
     kind: "page",
     operation: input.deleting === true ? "delete" : exists ? "update" : "create",
