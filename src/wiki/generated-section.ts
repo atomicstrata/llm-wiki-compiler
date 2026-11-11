@@ -8,13 +8,13 @@
  * The marker is a markdown comment, `[//]: # (llmwiki-generated)`, which renders
  * as nothing (the viewer escapes raw HTML, so an HTML comment would show) and
  * cannot appear in what a model writes. The tail is found by the LAST marker.
- * Older markers are still recognised, so pages written with them are rewritten
- * once, without a model call, the next time their tail is refreshed.
+ * Two other timeline markers are also recognised as a tail's start, and a tail
+ * refresh writes the current marker in their place, with no model call.
  */
 
 /** Where the generated tail starts. A blank line must precede it for markdown to read it as a comment. */
 const GENERATED_MARKER = "[//]: # (llmwiki-generated)";
-/** Markers earlier timeline pages used. */
+/** Other markers a timeline page's tail may start with; a refresh replaces them. */
 const LEGACY_MARKERS = ["[//]: # (llmwiki-timeline-related)", "<!-- llmwiki:timeline-related -->"];
 
 /** A page's text without its generated tail. */

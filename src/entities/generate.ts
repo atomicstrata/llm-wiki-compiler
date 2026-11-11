@@ -26,11 +26,11 @@ import { dayBuckets, type DayBucket } from "../timeline/buckets.js";
 import { citationsOutside } from "../timeline/pages.js";
 import { sourcesExcerpt, splitAnswer } from "../timeline/prompts.js";
 import { refreshExtractions, type ExtractionCache, type ExtractSteps } from "./extract.js";
-import { displayName, possibleDuplicates, recordId, resolveRecords, type AliasRegistry, type Mention, type ResolvedRecord } from "./identity.js";
+import { displayName, hubId, possibleDuplicates, resolveRecords, type AliasRegistry, type Mention, type ResolvedRecord } from "./identity.js";
 import type { ExtractableType } from "./schema.js";
 import {
-  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordPage, recordPageRequest, recordSignature, recordTail, shownSources,
-  type HubEntry, type PageLink,
+  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources,
+  type HubEntry, type PageLink, type RecordPageMeta,
 } from "./pages.js";
 
 /** The reads, model calls and writes the entity step composes. */
@@ -98,7 +98,7 @@ export async function generateEntitiesWith(steps: EntitySteps, config: EntityCon
 /** Every mention of `type` across the cached sources. */
 export function mentionsOf(cache: ExtractionCache, type: string): Mention[] {
   return Object.entries(cache.sources).sort(([a], [b]) => a.localeCompare(b))
-    .flatMap(([file, entry]) => (entry.records[type] ?? []).map((record) => ({ file, ...record })));
+    .flatMap(([file, entry]) => entry.chunks.flatMap((chunk) => (chunk.records[type] ?? []).map((record) => ({ file, ...record }))));
 }
 
 /** Write one type's record pages and hub, and remove its pages for records that are gone. */
@@ -159,20 +159,35 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, page: Existi
   return { id: record.id, summary: page.summary, write: text === page.text ? null : entityWrite(ctx, record.id, text) };
 }
 
-/** A record page written by the model from its draft, or no write after recording why. */
+/**
+ * A record page written by the model from its draft, or no write after recording
+ * why. The frontmatter is checked against the type's field contract BEFORE the
+ * model call, so a page that cannot be written costs no call.
+ */
 async function regenerate(ctx: TypeContext, draft: RecordDraft, page: ExistingPage | undefined): Promise<PlannedWrite> {
-  const { record, title, fields } = draft;
-  const answer = await completeOrRecord(ctx, recordPageRequest(ctx.type.type, title, draft.excerpt.text, ctx.registry.owner?.names ?? []), record.id);
+  const { record } = draft;
+  const meta = recordMeta(ctx, draft, page);
+  const violations = validateEntityFields(recordFrontmatter(meta), ctx.type.def);
+  if (violations.length > 0) {
+    ctx.result.errors.push(`Page "${ctx.type.type}/${record.id}" not written: ${violations.join(" ")}`);
+    return { id: record.id, summary: page?.summary ?? "", write: null };
+  }
+  const answer = await completeOrRecord(ctx, recordPageRequest(ctx.type.type, draft.title, draft.excerpt.text, ctx.registry.owner?.names ?? []), record.id);
   if (answer === null) return { id: record.id, summary: page?.summary ?? "", write: null };
   const { summary, body } = splitAnswer(answer);
   reportStrayCitations(ctx, record.id, body, draft);
+  return { id: record.id, summary, write: entityWrite(ctx, record.id, recordPage({ ...meta, summary }, body, draft.tail)) };
+}
+
+/** A record page's frontmatter fields, with the summary still to come. */
+function recordMeta(ctx: TypeContext, draft: RecordDraft, page: ExistingPage | undefined): RecordPageMeta {
+  const { record, title, fields } = draft;
   const now = ctx.steps.now();
-  const text = recordPage({
-    title, summary, aliases: aliasesOf(record, title, fields), fields: withoutAliases(fields), signature: draft.signature,
-    sources: [...new Set(record.mentions.map((mention) => mention.file))].sort(),
+  return {
+    title, titleField: ctx.type.def.titleField, summary: "", aliases: aliasesOf(record, title, fields), fields: withoutAliases(fields),
+    signature: draft.signature, sources: [...new Set(record.mentions.map((mention) => mention.file))].sort(),
     createdAt: page?.createdAt || now, updatedAt: now, provenance: ctx.steps.provenance(),
-  }, body, draft.tail);
-  return { id: record.id, summary, write: validWrite(ctx, record.id, text) };
+  };
 }
 
 /** Record a page that cites lines it was not shown. The page is still written; the compile output names it. */
@@ -232,23 +247,24 @@ async function commit(ctx: TypeContext, planned: PlannedWrite[]): Promise<Set<st
 async function writeHub(ctx: TypeContext, planned: PlannedWrite[], titles: Map<string, string>, pages: Map<string, ExistingPage>, foreign: Set<string>): Promise<string | null> {
   const owner = hubOwner(ctx, foreign);
   if (!owner) return null;
-  const groupField = ctx.type.fields.find(([, def]) => def.type === "enum");
+  const groupField = Object.entries(ctx.type.def.fields ?? {}).find(([name, def]) => def.type === "enum" && name !== ctx.type.def.titleField);
   const entries = hubEntries(ctx, planned, titles, pages, groupField?.[0]);
   const body = hubBody(entries, groupField?.[1].enum ?? []);
   const existing = pages.get(owner.id);
   if (existing?.signature === hubSignature(body)) return owner.id;
   const now = ctx.steps.now();
-  const text = hubPage({ title: owner.names[0], aliases: owner.names.slice(1), count: entries.length, type: ctx.type.type, createdAt: existing?.createdAt || now, updatedAt: now }, body);
+  const text = hubPage({
+    title: owner.names[0], titleField: ctx.type.def.titleField, aliases: owner.names.slice(1), count: entries.length, type: ctx.type.type,
+    createdAt: existing?.createdAt || now, updatedAt: now,
+  }, body);
   await commit(ctx, [{ id: owner.id, summary: "", write: validWrite(ctx, owner.id, text) }]);
   return owner.id;
 }
 
 /** The owner's hub id and names, when the owner is of this type and the hub's page name is free. */
 function hubOwner(ctx: TypeContext, foreign: Set<string>): { id: string; names: string[] } | null {
-  const owner = ctx.registry.owner;
-  if (owner?.type !== ctx.type.type || !owner.names[0]) return null;
-  const id = recordId(owner.names[0]);
-  return isWritable(ctx, id, foreign) ? { id, names: owner.names } : null;
+  const id = hubId(ctx.registry, ctx.type.type);
+  return id && isWritable(ctx, id, foreign) ? { id, names: ctx.registry.owner!.names } : null;
 }
 
 /** The hub's entries: each record with a page, its summary, and its value of the grouping field. */

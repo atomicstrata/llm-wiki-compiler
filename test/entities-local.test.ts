@@ -32,11 +32,11 @@ async function project(cache: ExtractionCache | null, registry: string | null, p
 
 const CACHE: ExtractionCache = {
   digest: "d",
-  sources: { "chat.md": { hash: "h", records: { person: [
+  sources: { "chat.md": { hash: "h", chunks: [{ hash: "c", records: { person: [
     { name: "Alex", fields: {}, lines: [{ start: 2, end: 2 }] },
     { name: "Alex Kim", fields: {}, lines: [{ start: 5, end: 6 }] },
     { name: "Ana", fields: {}, lines: [{ start: 3, end: 3 }] },
-  ] } } },
+  ] } }] } },
 };
 
 describe("the people a timeline day can list", () => {
@@ -50,6 +50,11 @@ describe("the people a timeline day can list", () => {
 
   it("lists nobody before the first extraction", async () => {
     expect(await listRecordMentions(await project(null, null, ["ana"]), "person")).toEqual([]);
+  });
+
+  it("treats a cache of the wrong shape as no cache", async () => {
+    const root = await project({ digest: "d", sources: null } as unknown as ExtractionCache, null, ["ana"]);
+    expect(await listRecordMentions(root, "person")).toEqual([]);
   });
 
   it("names the registry file when it is not valid JSON", async () => {

@@ -51,7 +51,9 @@ async function readCache(root: string): Promise<ExtractionCache | null> {
   if (text === null) return null;
   try {
     const cache = JSON.parse(text) as ExtractionCache;
-    return typeof cache.digest === "string" && typeof cache.sources === "object" ? cache : null;
+    const isCache = typeof cache?.digest === "string" && cache.sources !== null && typeof cache.sources === "object"
+      && Object.values(cache.sources).every((entry) => typeof entry?.hash === "string" && Array.isArray(entry.chunks));
+    return isCache ? cache : null;
   } catch {
     return null;
   }
@@ -72,7 +74,8 @@ async function listPages(root: string, type: string): Promise<Map<string, string
   const directory = path.join("wiki", type);
   const slugs = (await reads.listNames(directory).catch(() => [])).filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length));
   const texts = await Promise.all(slugs.map((slug) => readWikiPageContentOrWarnFrom(reads, directory, slug, false)));
-  return new Map(slugs.map((slug, index) => [slug, texts[index]]).filter(([, text]) => text) as [string, string][]);
+  // An unreadable or empty page is kept (as ""), so it counts as hand-written and is never taken over.
+  return new Map(slugs.map((slug, index): [string, string] => [slug, texts[index] ?? ""]));
 }
 
 /** The entity steps over the local project at `root`. */

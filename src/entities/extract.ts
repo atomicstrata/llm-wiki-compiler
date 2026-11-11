@@ -1,25 +1,29 @@
 /**
  * @file src/entities/extract.ts
  * @description Read sources for records of the opted-in entity types, one model
- * call per source chunk, and keep the answers in a cache keyed by each source's
- * hash and the schema's structural digest.
- *
- * A compile whose sources and schema structure are unchanged makes no calls.
- * A changed source is re-read in full; a removed one drops out. A source whose
- * extraction fails is left OUT of the cache rather than kept with answers for
- * text it no longer has, so its records disappear until a later compile reads
- * it again, and the failure is reported.
+ * call per source chunk, and keep the answers in a cache.
  *
  * A source longer than one prompt is read in chunks, each shown with the file's
  * own line numbers, so a long chat month is read to its end rather than cut off.
+ * Each chunk's answer is keyed by a hash of the schema's structural digest and
+ * the chunk's numbered text, so a source that grows at its end (a chat month)
+ * re-reads only its changed last chunk, and a schema change re-reads everything.
+ *
+ * A compile whose sources and schema structure are unchanged makes no calls; a
+ * removed source drops out. A source whose extraction fails keeps its previous
+ * answers, marked for a retry, so one failed call never removes pages; the
+ * failure is reported.
  */
 
+import { createHash } from "node:crypto";
 import pLimit from "p-limit";
 import type { LineRange } from "../timeline/event-days.js";
 import { extractionTool, structuralDigest, type ExtractableType } from "./schema.js";
 
 /** Characters of numbered source text one extraction call carries. */
 const CHUNK_CHARS = 60_000;
+/** Output tokens one extraction answer may use: a busy chunk lists many records, each with line ranges. */
+const EXTRACTION_MAX_TOKENS = 16_000;
 
 /** One record as one source names it. */
 export interface ExtractedRecord {
@@ -28,10 +32,22 @@ export interface ExtractedRecord {
   lines: LineRange[];
 }
 
-/** The extraction cache: answers per source, valid for one structural digest. */
+/** One chunk's answer, keyed by the hash of the digest and the chunk's numbered text. */
+export interface ChunkExtraction {
+  hash: string;
+  records: Record<string, ExtractedRecord[]>;
+}
+
+/** One source's answers. An empty `hash` marks answers kept after a failed read, to be retried. */
+export interface SourceExtraction {
+  hash: string;
+  chunks: ChunkExtraction[];
+}
+
+/** The extraction cache: answers per source, for one structural digest. */
 export interface ExtractionCache {
   digest: string;
-  sources: Record<string, { hash: string; records: Record<string, ExtractedRecord[]> }>;
+  sources: Record<string, SourceExtraction>;
 }
 
 /** One extraction request. */
@@ -39,6 +55,7 @@ export interface ExtractRequest {
   system: string;
   messages: { role: "user"; content: string }[];
   tools: ReturnType<typeof extractionTool>[];
+  maxTokens?: number;
 }
 
 /** The reads and the model call extraction composes. */
@@ -56,40 +73,64 @@ export interface ExtractResult {
 
 /**
  * Bring the cache up to date with the sources: re-read every source whose hash
- * or the schema structure changed, drop removed ones, keep the rest.
+ * or the schema structure changed (only its changed chunks), drop removed ones,
+ * keep the rest.
  */
 export async function refreshExtractions(
   steps: ExtractSteps, types: ExtractableType[], sources: { file: string; hash: string }[],
   previous: ExtractionCache | null, ownerNames: string[], concurrency: number,
 ): Promise<ExtractResult> {
   const digest = structuralDigest(types);
-  const kept = previous?.digest === digest ? previous.sources : {};
   const cache: ExtractionCache = { digest, sources: {} };
   const result: ExtractResult = { cache, extracted: [], errors: [] };
   const limit = pLimit(Math.max(1, concurrency));
-  await Promise.all(sources.map((source) => limit(async () => {
-    if (kept[source.file]?.hash === source.hash) { cache.sources[source.file] = kept[source.file]; return; }
-    try {
-      const records = await extractSource(steps, types, source.file, ownerNames);
-      cache.sources[source.file] = { hash: source.hash, records };
-      result.extracted.push(source.file);
-    } catch (error) {
-      result.errors.push(`Records not read from ${source.file}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  })));
+  await Promise.all(sources.map((source) => limit(() => refreshSource(steps, { types, digest, file: source.file, ownerNames }, source.hash, previous, result))));
   return result;
 }
 
-/** Every record one source names, merged across its chunks. */
-async function extractSource(steps: ExtractSteps, types: ExtractableType[], file: string, ownerNames: string[]): Promise<Record<string, ExtractedRecord[]>> {
-  const lines = (await steps.readSource(file)).split("\n");
-  const records: Record<string, ExtractedRecord[]> = Object.fromEntries(types.map(({ type }) => [type, []]));
-  for (const chunk of numberedChunks(lines)) {
-    const answer = await steps.complete(extractionRequest(types, file, chunk, ownerNames));
-    const parsed = parseRecords(answer, types, lines.length);
-    for (const { type } of types) records[type].push(...parsed[type]);
+/** Bring one source's entry up to date in `result.cache`, keeping its previous answers when the read fails. */
+async function refreshSource(steps: ExtractSteps, job: SourceJob, hash: string, previous: ExtractionCache | null, result: ExtractResult): Promise<void> {
+  const prior = previous?.sources[job.file];
+  if (previous?.digest === job.digest && prior?.hash === hash) { result.cache.sources[job.file] = prior; return; }
+  try {
+    const { chunks, calls } = await extractSource(steps, job, prior?.chunks ?? []);
+    result.cache.sources[job.file] = { hash, chunks };
+    if (calls > 0) result.extracted.push(job.file);
+  } catch (error) {
+    keepAfterFailure(job.file, prior, error, result);
   }
-  return records;
+}
+
+/** Keep a source's previous answers after a failed read, marked for a retry, and report the failure. */
+function keepAfterFailure(file: string, prior: SourceExtraction | undefined, error: unknown, result: ExtractResult): void {
+  // An empty hash never matches, so the next compile retries the source; until then its records stand.
+  if (prior) result.cache.sources[file] = { hash: "", chunks: prior.chunks };
+  result.errors.push(`Records not read from ${file}: ${error instanceof Error ? error.message : String(error)}`);
+}
+
+/** What one source's extraction needs besides the steps. */
+interface SourceJob {
+  types: ExtractableType[];
+  digest: string;
+  file: string;
+  ownerNames: string[];
+}
+
+/** Every chunk's answer for one source, reusing `priorChunks` whose hash still matches; and how many calls it took. */
+async function extractSource(steps: ExtractSteps, job: SourceJob, priorChunks: ChunkExtraction[]): Promise<{ chunks: ChunkExtraction[]; calls: number }> {
+  const lines = (await steps.readSource(job.file)).split("\n");
+  const known = new Map(priorChunks.map((chunk) => [chunk.hash, chunk]));
+  const chunks: ChunkExtraction[] = [];
+  let calls = 0;
+  for (const chunk of numberedChunks(lines)) {
+    const hash = createHash("sha256").update(job.digest).update("\0").update(chunk).digest("hex").slice(0, 16);
+    const reused = known.get(hash);
+    if (reused) { chunks.push(reused); continue; }
+    const answer = await steps.complete(extractionRequest(job.types, job.file, chunk, job.ownerNames));
+    calls++;
+    chunks.push({ hash, records: parseRecords(answer, job.types, lines.length) });
+  }
+  return { chunks, calls };
 }
 
 /** The source as numbered lines, split into chunks of at most {@link CHUNK_CHARS}. */
@@ -116,7 +157,7 @@ export function extractionRequest(types: ExtractableType[], file: string, chunk:
   }).join("\n");
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
   const system = `List every record of each kind below that the source names.\n${kinds}\nGive each name exactly as written. Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
-  return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)] };
+  return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)], maxTokens: EXTRACTION_MAX_TOKENS };
 }
 
 /** The records in a model answer, keeping only named records with valid lines inside the file. */
