@@ -170,10 +170,18 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
   return groups;
 }
 
-/** The spellings a group's mentions used that are not among its names. */
+/** Words that refer to someone without naming them; a spelling made only of these is no name. */
+const PRONOUNS = new Set(["i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "hers", "it", "its", "we", "us", "our", "they", "them", "their", "the", "a", "an"]);
+
+/** Whether a spelling is only pronouns and articles ("they", "his"), which the model sometimes lists among how a source writes someone. */
+function isPronoun(form: string): boolean {
+  return normalizeName(form).split(" ").every((word) => PRONOUNS.has(word));
+}
+
+/** The spellings a group's mentions used that are not among its names, leaving out bare pronouns. */
 function spellingsOf(group: MentionGroup): string[] {
   const names = new Set(group.names.map(normalizeName));
-  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).filter((form) => !names.has(normalizeName(form)));
+  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).filter((form) => !names.has(normalizeName(form)) && !isPronoun(form));
   const first = new Map<string, string>();
   for (const form of forms) if (!first.has(normalizeName(form))) first.set(normalizeName(form), form);
   return [...first.values()];

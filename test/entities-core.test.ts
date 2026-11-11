@@ -60,6 +60,11 @@ describe("identity", () => {
     expect(possibleDuplicates(records).get("alex-chen")).toEqual(["tom-baker"]);
   });
 
+  it("leaves bare pronouns out of how the sources wrote someone", () => {
+    const [record] = resolveRecords("person", [{ ...mention("Sam's mother"), writtenAs: ["mama", "they", "Their", "his", "the parents"] }], { entities: {} });
+    expect(record.writtenAs).toEqual(["mama", "the parents"]);
+  });
+
   it("does not flag relation names by their first word", () => {
     const records = resolveRecords("person", [mention("Sam's mother"), mention("Sam's brother"), mention("Sam Lee")], { entities: {} });
     expect(possibleDuplicates(records).size).toBe(0);
