@@ -23,11 +23,13 @@ import { scanOperationInventory, type OperationInventory } from "./capacity.js";
 import { MAX_PAYLOAD_BYTES } from "./constants.js";
 import { reserveRecordEffectLocked, type EffectReservation } from "./effect-reservation.js";
 import type { BundleId } from "./ids.js";
-import { readOperationManifest, type OperationManifestRead } from "./manifest-store.js";
-import { observeOperationBundle, type OperationBundleObservationV1 } from "./observe.js";
+import type { OperationManifestRead } from "./manifest-store.js";
+import { diskOperationObservationReads, observeOperationBundleWith, type OperationBundleObservationV1 } from "./observe.js";
+import { operationPassReads } from "./pass-reads.js";
+import { once } from "../utils/pass-memo.js";
 import { diskRecordPreparationLock, type RecordPreparationLock } from "./record-authority.js";
 import type { RecordIntentV1 } from "./record-intent.js";
-import { appendOperationTransitionLocked, readOperationRun, type OperationRunRead } from "./run-store.js";
+import { appendOperationTransitionLocked, type OperationRunRead } from "./run-store.js";
 import type { AppendOperationTransitionInput, OperationRun, OperationRunBinding, OperationRunPredecessor } from "./run-types.js";
 import { stageOperationBundleLocked, type StageOperationBundleRequest, type StageOperationBundleResult } from "./stage.js";
 import type { PageOperationMutation } from "./types.js";
@@ -62,12 +64,33 @@ export interface RecordEffectSteps {
   appendTransition(binding: OperationRunBinding, expected: OperationRunPredecessor, input: AppendOperationTransitionInput): Promise<OperationRun>;
 }
 
-/** LOCAL DISK. The incumbent root forms for `root`, each called when asked with its old arguments. */
+/** The preparation lock, with `renew` called once it is taken: the hold's reads start a new pass. */
+function renewingLock(root: string, renew: () => void): RecordPreparationLock {
+  const lock = diskRecordPreparationLock(root);
+  return { acquire: async () => { const acquired = await lock.acquire(); renew(); return acquired; }, release: () => lock.release() };
+}
+
+/**
+ * LOCAL DISK. The incumbent root forms for `root`, each called when asked with
+ * its old arguments. The store reads (inventory, observation, manifest, run) are
+ * ONE PASS (`pass-reads.ts`) between writes, the inventory scanned at most once
+ * in it: a fresh pass is taken when the lock is taken and again after every
+ * reservation, staging or append, so a reuse check's inventory and the
+ * observation that follows share one walk and one key read, and no answer
+ * survives the write that could change it.
+ */
 export function diskRecordEffectSteps(root: string): RecordEffectSteps {
+  let pass = operationPassReads(root);
+  let scanInventory = once(() => scanOperationInventory(root, {}, pass));
+  const renew = () => {
+    pass = operationPassReads(root);
+    scanInventory = once(() => scanOperationInventory(root, {}, pass));
+  };
+  const afterWrite = async <T>(write: Promise<T>): Promise<T> => { try { return await write; } finally { renew(); } };
   return {
-    lock: diskRecordPreparationLock(root),
-    scanInventory: () => scanOperationInventory(root),
-    observe: (manifestDigest) => observeOperationBundle(root, manifestDigest),
+    lock: renewingLock(root, renew),
+    scanInventory: () => scanInventory(),
+    observe: (manifestDigest) => observeOperationBundleWith({ ...diskOperationObservationReads(root, pass), scanInventory }, manifestDigest),
     loadProfile: () => loadNonDefaultProfile(root),
     readPageDigest: (mutation) => readPageDigest(root, mutation),
     readEntityLeaf: (entityType, slug) => {
@@ -75,11 +98,11 @@ export function diskRecordEffectSteps(root: string): RecordEffectSteps {
       return readConfinedLeafBuffer(root, path.join(parent, `${slug}.md`), parent, MAX_PAYLOAD_BYTES, { requireSingleLink: true });
     },
     planPage: (input) => planPageMutation({ root, ...input }),
-    reserve: (preparerId, intent) => reserveRecordEffectLocked(root, preparerId, intent),
-    stage: (request) => stageOperationBundleLocked(root, request),
-    readManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
+    reserve: (preparerId, intent) => afterWrite(reserveRecordEffectLocked(root, preparerId, intent)),
+    stage: (request) => afterWrite(stageOperationBundleLocked(root, request)),
+    readManifest: (workspaceId, bundleId) => pass.readManifest(workspaceId, bundleId),
     readPayload: (workspaceId, bundleId, payloadRef) => readBundlePayload(root, workspaceId, bundleId, payloadRef),
-    readRun: (binding) => readOperationRun(root, binding),
-    appendTransition: (binding, expected, input) => appendOperationTransitionLocked(root, binding, expected, input),
+    readRun: (binding) => pass.readRun(binding),
+    appendTransition: (binding, expected, input) => afterWrite(appendOperationTransitionLocked(root, binding, expected, input)),
   };
 }

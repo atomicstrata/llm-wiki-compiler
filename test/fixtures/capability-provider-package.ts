@@ -227,13 +227,23 @@ function digestBytes(bytes: Buffer): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-async function thaw(leaf: string): Promise<void> {
-  const entry = await lstat(leaf).catch(() => null);
-  if (!entry || entry.isSymbolicLink()) return;
-  await chmod(leaf, entry.isDirectory() ? 0o700 : 0o600).catch(() => {});
-  if (!entry.isDirectory()) return;
-  const children = await readdir(leaf);
-  await Promise.all(children.map((child) => thaw(`${leaf}/${child}`)));
+/**
+ * Make every directory under `root` writable and searchable again so `rm` can
+ * empty it. Only directory modes gate removal: unlinking a read-only file needs
+ * write access to its parent, not to the file, so files are not chmodded, and
+ * the walk reads entry types from `readdir` instead of one `lstat` per entry.
+ * Symlinks are never followed, as before.
+ */
+async function thaw(root: string): Promise<void> {
+  const entry = await lstat(root).catch(() => null);
+  if (entry?.isDirectory()) await thawDirectory(root);
+}
+
+async function thawDirectory(directory: string): Promise<void> {
+  await chmod(directory, 0o700).catch(() => {});
+  const children = await readdir(directory, { withFileTypes: true });
+  await Promise.all(children.filter((child) => child.isDirectory())
+    .map((child) => thawDirectory(`${directory}/${child.name}`)));
 }
 
 function withoutSignature(overrides: Partial<SignedTapIndex>): Partial<Omit<SignedTapIndex, "signature">> {

@@ -83,6 +83,8 @@ export interface OperationInventory {
   runIds: ReadonlySet<OperationRunId>;
   completeBundleIds: ReadonlySet<BundleId>;
   payloadDigestsByBundle: ReadonlyMap<string, ReadonlySet<string>>;
+  /** What the walk listed (`OperationOrphanScan.listing`); absent from an inventory not built by a walk. */
+  listing?: OperationOrphanScan["listing"];
 }
 
 interface ManifestState {
@@ -425,5 +427,6 @@ export async function scanOperationInventoryFrom(
     completeBundleIds: new Set(classified.states.filter((item) => item.complete)
       .map((item) => item.manifest.bundleId)),
     payloadDigestsByBundle: payloadDigestsByBundle(scan.leaves),
+    listing: scan.listing,
   };
 }

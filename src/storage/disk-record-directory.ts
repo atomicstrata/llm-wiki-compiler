@@ -98,9 +98,39 @@ export async function captureCandidateDirectoryBinding(
   dir: string,
   requireLiteral = false,
 ): Promise<CandidateDirectoryBinding | null> {
+  return (await captureCandidateDirectoryUnderRoot(root, dir, requireLiteral)).binding;
+}
+
+/** A directory binding together with the real root it was judged under. */
+export interface RootedCandidateDirectoryBinding {
+  /** `realpath(root)`, which every component of the binding was confined under. */
+  readonly realRoot: string;
+  readonly binding: CandidateDirectoryBinding | null;
+}
+
+/**
+ * {@link captureCandidateDirectoryBinding}, also answering the real root it
+ * resolved, so a caller confining a leaf below the directory need not resolve
+ * the root a second time. Refusals are the same.
+ */
+export async function captureCandidateDirectoryUnderRoot(
+  root: string,
+  dir: string,
+  requireLiteral = false,
+): Promise<RootedCandidateDirectoryBinding> {
   const segments = ownedSegments(root, dir);
   const realRoot = await realpath(root).catch(() => null);
   if (realRoot === null) throw new UnsafeCandidateDirError();
+  return { realRoot, binding: await bindSegments(root, realRoot, segments, requireLiteral) };
+}
+
+/** Walk the owned segments under `realRoot`, binding the last one (see {@link captureCandidateDirectoryBinding}). */
+async function bindSegments(
+  root: string,
+  realRoot: string,
+  segments: readonly string[],
+  requireLiteral: boolean,
+): Promise<CandidateDirectoryBinding | null> {
   let lexical = path.resolve(root);
   let finalInfo: Stats | null = null;
   let realDir = realRoot;

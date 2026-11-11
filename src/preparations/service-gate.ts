@@ -54,6 +54,7 @@ import { preparationRunActor, principalHasGrant } from "./principals.js";
 import type { PreparationPrincipal } from "./principals.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import { appendPreparationTransitionWith, appendProjectedTransitionLocked } from "./run-store.js";
+import { preparationPassReads } from "./pass-reads.js";
 import type { PreparationRunContentProjector, PreparationRunWriteSteps } from "./run-store.js";
 import type {
   AppendPreparationTransitionInput, GateProofSummaryV1, PreparationRunBinding,
@@ -86,14 +87,23 @@ export interface GateOperationSteps {
   readonly appendProjected: ProjectedRunAppend;
 }
 
-/** LOCAL DISK. The incumbent readers, lock and writer for `root`, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent readers, lock and writer for `root`, each called when
+ * asked. The run lookup and the append's run and key reads are ONE PASS
+ * (`pass-reads.ts`) per hold of the lock: a new pass begins when the lock is
+ * acquired, and the append, the decision's one write, is its last use.
+ */
 function diskGateOperationSteps(root: string): GateOperationSteps {
+  let pass = preparationPassReads(root);
   return {
     hostReadiness: () => resolveHostReadiness(root),
-    lock: { acquire: () => acquireMutationLock(root, "review"), release: () => releaseLock(root) },
-    resolveRun: (runId) => resolvePreparationRun(root, runId),
+    lock: {
+      acquire: async () => { const held = await acquireMutationLock(root, "review"); pass = preparationPassReads(root); return held; },
+      release: () => releaseLock(root),
+    },
+    resolveRun: (runId) => resolvePreparationRun(root, runId, pass),
     gateAuthority: (binding, run, gateId) => resolveGateAuthority(root, binding, run, gateId),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
+    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project, pass),
   };
 }
 

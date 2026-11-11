@@ -103,9 +103,13 @@ mintOnceThenRemove(tracker, async () => {
 function memoryStoreOf(held: Map<string, string>, note: Note, faults: Partial<CandidatePublicationStore> = {}): CandidatePublicationStore {
   const relOf = (location: string): string => path.posix.relative(MEM_PROJECT, location);
   const holdsUnder = (relDir: string): boolean => [...held.keys()].some((rel) => rel.startsWith(`${relDir}/`));
+  const located = (relDir: string): string | null => holdsUnder(relDir) ? path.posix.join(MEM_PROJECT, relDir) : null;
   return {
-    assertNamespacesHealthy: async () => { note("health"); },
-    ownedDirectory: async (relDir) => { note(`dir ${relDir}`); return holdsUnder(relDir) ? path.posix.join(MEM_PROJECT, relDir) : null; },
+    assertNamespacesHealthy: async () => {
+      note("health");
+      return { pending: located(CANDIDATES_DIR), archive: located(CANDIDATES_ARCHIVE_DIR) };
+    },
+    ownedDirectory: async (relDir) => { note(`dir ${relDir}`); return located(relDir); },
     leafPresent: async (dir, leafName) => { note(`present ${relOf(dir)}/${leafName}`); return held.has(`${relOf(dir)}/${leafName}`); },
     createPending: async (id, text, hooks) => {
       note(`create ${id}`);
@@ -149,9 +153,9 @@ describe("the fresh candidate writer over a publication store, with every direct
     const { outcome, queue, log } = await inMemory("taken");
     expect({ outcome, queue }).toEqual(onDisk("taken"));
     expect(log).toEqual([
-      "health", `dir ${CANDIDATES_DIR}`, `present ${pending("fresh-a")}`,
-      "health", `dir ${CANDIDATES_DIR}`, `present ${pending("fresh-b")}`, `dir ${CANDIDATES_ARCHIVE_DIR}`, `present ${archived("fresh-b")}`,
-      "health", `dir ${CANDIDATES_DIR}`, `present ${pending("fresh-c")}`, `dir ${CANDIDATES_ARCHIVE_DIR}`, `present ${archived("fresh-c")}`,
+      "health", `present ${pending("fresh-a")}`,
+      "health", `present ${pending("fresh-b")}`, `present ${archived("fresh-b")}`,
+      "health", `present ${pending("fresh-c")}`, `present ${archived("fresh-c")}`,
       "create fresh-c", `dir ${CANDIDATES_ARCHIVE_DIR}`, `present ${archived("fresh-c")}`,
     ]);
   });
@@ -171,9 +175,11 @@ describe("the fresh candidate writer over a publication store, with every direct
   it("P6 turns a raw existence or create fault into the fixed publication refusal, and nothing is held", async () => {
     const reached: string[] = [];
     const raw = (member: string): never => { reached.push(member); throw Object.assign(new Error("EACCES: raw"), { code: "EACCES" }); };
-    /** An owned directory that exists and is empty, so the existence check is actually asked. */
-    const emptyOwned = async (relDir: string): Promise<string> => path.posix.join(MEM_PROJECT, relDir);
-    for (const faults of [{ ownedDirectory: emptyOwned, leafPresent: async () => raw("leafPresent") }, { createPending: async () => raw("createPending") }]) {
+    /** Owned directories that exist and are empty, so the existence check is actually asked. */
+    const emptyOwned = async () => ({
+      pending: path.posix.join(MEM_PROJECT, CANDIDATES_DIR), archive: path.posix.join(MEM_PROJECT, CANDIDATES_ARCHIVE_DIR),
+    });
+    for (const faults of [{ assertNamespacesHealthy: emptyOwned, leafPresent: async () => raw("leafPresent") }, { createPending: async () => raw("createPending") }]) {
       const held = new Map<string, string>();
       const write = writeFreshCandidateFrom(memoryStoreOf(held, () => {}, faults), DRAFT, { idForAttemptForTest: ids("fresh-a") });
       await expect(write).rejects.toBeInstanceOf(CandidatePublicationUnavailableError);
