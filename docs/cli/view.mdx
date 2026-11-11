@@ -42,7 +42,15 @@ On a profile project it also has the lifecycle status at `#/pipeline` (each type
 
 Every screen of `llmwiki view` is now in the v2 client.
 
-The v2 client is styled with Tailwind's default palette and scale, with no stylesheet of its own. Screens are built from a small set of shared components, such as cards, stats, row lists and badges, and the typography plugin styles the wiki content. The client follows the system's light or dark setting; there is no theme control.
+### Reading a page
+
+Point at a wikilink, or move keyboard focus to it, and a card shows the linked page's type, title and summary. A page without a summary shows its opening paragraph instead. Point at a citation chip and the card shows the cited lines of the source, numbered, up to eight lines; a longer span says how many more lines it covers. Press <kbd>Esc</kbd> to close a card. Cards appear after a short pause, so passing over a link opens nothing, and touch input never opens one: a tap follows the link. The links in a page's rail open cards too.
+
+A citation card needs the source's text, so it works where the source view does: when the viewer is bound to loopback and the source is a Markdown file. Otherwise the card says the source is not available. The client fetches each source and page at most once per visit.
+
+A page with two or more sections has an **On this page** outline above its rail. It highlights the section you are reading. Selecting an entry scrolls to that section without changing the address, because the address holds the page's route.
+
+The v2 client is styled with Tailwind's default palette and scale, with no stylesheet of its own. Screens are built from a small set of shared components, such as cards, stats, row lists and badges, and the typography plugin styles the wiki content. Text is set in Inter, which ships with the client, so the viewer loads no fonts from other sites. The client follows the system's light or dark setting; there is no theme control.
 
 ### Source images
 

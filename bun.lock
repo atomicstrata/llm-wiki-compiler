@@ -30,6 +30,8 @@
       "devDependencies": {
         "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
         "@copilotkit/aimock": "^1.15.1",
+        "@floating-ui/dom": "^1.8.0",
+        "@fontsource-variable/inter": "^5.3.0",
         "@fontsource/dm-sans": "5.2.6",
         "@fontsource/jetbrains-mono": "^5.3.0",
         "@fontsource/nunito": "5.2.7",
@@ -298,6 +300,14 @@
     "@fallow-cli/win32-arm64-msvc": ["@fallow-cli/win32-arm64-msvc@2.82.0", "", { "os": "win32", "cpu": "arm64" }, "sha512-rYQi69+yEvdHQE8BKRqmbfaOF9/nKPoEP121DxvMTSvljq7Flruomx0+AKQFbLbcHOd7OrmwedYlOJWkRED8TA=="],
 
     "@fallow-cli/win32-x64-msvc": ["@fallow-cli/win32-x64-msvc@2.82.0", "", { "os": "win32", "cpu": "x64" }, "sha512-zFTJIsu+XcJ82ZBdSR+uHc5/GDfEpYdU1nGmxAoys73tFELfDljKHSmcAgruBaVqerDbCvmksXzcO95YzMPbiA=="],
+
+    "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
+
+    "@floating-ui/dom": ["@floating-ui/dom@1.8.0", "", { "dependencies": { "@floating-ui/core": "^1.8.0", "@floating-ui/utils": "^0.2.12" } }, "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg=="],
+
+    "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@fontsource-variable/inter": ["@fontsource-variable/inter@5.3.0", "", {}, "sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA=="],
 
     "@fontsource/dm-sans": ["@fontsource/dm-sans@5.2.6", "", {}, "sha512-3AmJcX93hqmevsC2ixNwHj3iO3sNY/YHBqGhg0MjIyfhk6aZLNv1s2HqJ6xf8yf1rXXK3yR56rzyA3O21htKkg=="],
 

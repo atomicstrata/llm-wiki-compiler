@@ -1,7 +1,8 @@
 /**
  * The v2 viewer shell: header, navigation sidebar, and the view for the
  * current hash route. `/api/pages` and `/api/health` load once in parallel; a
- * failed health fetch only degrades the surfaces that need it.
+ * failed health fetch only degrades the surfaces that need it. Hover previews
+ * mount once here so every wikilink and citation chip in any view gets one.
  */
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
@@ -10,6 +11,7 @@ import { Dashboard } from "./dashboard";
 import { GraphView } from "./graph-view";
 import { Header } from "./header";
 import { HealthView } from "./health-view";
+import { HoverPreviews } from "./hover-preview";
 import { IndexView } from "./index-view";
 import { JourneyView } from "./journey-view";
 import { ConceptsList, QueriesList, SourcesList, TypeList } from "./lists";
@@ -107,6 +109,7 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
           <RouteView route={route} wiki={wiki} health={health} />
         </main>
       </div>
+      <HoverPreviews pages={wiki.pages} />
     </>
   );
 }

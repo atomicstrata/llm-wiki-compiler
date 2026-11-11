@@ -1,5 +1,19 @@
-/* Tailwind entry and the client's only stylesheet: it loads Tailwind, scanning only this client, and the typography plugin, whose defaults style the wiki content. */
+/*
+ * Tailwind entry and the client's only stylesheet: it loads Tailwind, scanning
+ * only this client, the typography plugin, whose defaults style the wiki
+ * content, and Inter. The font is bundled from @fontsource-variable rather than
+ * a font CDN because the viewer's content security policy allows same-origin
+ * fonts only; the browser downloads just the unicode ranges a page uses.
+ * Inter's cv11 (single-storey a) and ss01 (open digits) read better at small
+ * UI sizes.
+ */
 @import "tailwindcss" source(none);
+@import "@fontsource-variable/inter";
 @source "./";
 @source "../index.html";
 @plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans--font-feature-settings: "cv11", "ss01";
+}

@@ -14,7 +14,7 @@ import type { AsyncState } from "./use-async";
 import { formatUtcTimestamp, isWarnFreshness, typeLabel } from "./wiki-model";
 
 /** A rail section with the small uppercase heading. */
-function RailSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
+export function RailSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
     <section className="rounded-xl bg-white p-4 text-sm shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
       <h2 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">{title}</h2>
@@ -91,7 +91,7 @@ function PageLinks({ ids, wiki, whenEmpty }: { ids: string[]; wiki: PagesEnvelop
   if (ids.length === 0) return <p className="text-zinc-500">{whenEmpty}</p>;
   return (
     <ul role="list" className="space-y-1">
-      {ids.map((id) => <li key={id}><a href={pageIdHref(id)} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{wiki.pages.find((page) => page.id === id)?.title || id}</a></li>)}
+      {ids.map((id) => <li key={id}><a href={pageIdHref(id)} data-page-id={id} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{wiki.pages.find((page) => page.id === id)?.title || id}</a></li>)}
     </ul>
   );
 }
@@ -108,7 +108,7 @@ function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: Pa
           if (links.length === 0) return <p className="text-zinc-500">No backlinks.</p>;
           return (
             <ul role="list" className="space-y-1">
-              {links.map((link) => <li key={link.id}><a href={link.href} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{link.title}</a></li>)}
+              {links.map((link) => <li key={link.id}><a href={link.href} data-page-id={link.id} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{link.title}</a></li>)}
             </ul>
           );
         }}
@@ -123,7 +123,7 @@ function RelationItem({ relation }: { relation: EntityRelation }): ReactNode {
   return (
     <li title={`${relation.type} · ${relation.direction} · ${target.id}`}>
       {target.resolved
-        ? <a href={pageIdHref(target.id)}>{target.title || target.id}</a>
+        ? <a href={pageIdHref(target.id)} data-page-id={target.id}>{target.title || target.id}</a>
         : <>{target.id} <span>not found</span></>}
     </li>
   );
@@ -176,7 +176,7 @@ interface PageRailProps {
 /** The rail: metadata, citations, connections, and the entity context of a typed page. */
 export function PageRail({ page, wiki, graph }: PageRailProps): ReactNode {
   return (
-    <aside aria-label="Page details">
+    <aside aria-label="Page details" className="space-y-4">
       <MetadataSection page={page} />
       <CitationsSection page={page} wiki={wiki} />
       <ConnectionsSection page={page} wiki={wiki} graph={graph} />
