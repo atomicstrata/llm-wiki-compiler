@@ -4,6 +4,7 @@
  * confinement, parsing, and classification still run against real fixtures.
  */
 import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { fsMetadataThroughPromises } from "./fixtures/fs-metadata-through-promises.js";
 import { mocked } from "./mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
@@ -26,14 +27,8 @@ vi.mock("fs/promises", () => {
     open: vi.fn(actual.open), readdir: vi.fn(actual.readdir) };
 });
 
-// The path-safety primitives look up path metadata through `utils/fs-metadata.ts`,
-// synchronously. Route those lookups through the mocked fs/promises above so a
-// fault injected there still reaches them.
-vi.mock("../src/utils/fs-metadata.js", () => ({
-  lstat: async (...args: unknown[]) => ((await import("fs/promises")).lstat as (...a: unknown[]) => unknown)(...args),
-  stat: async (...args: unknown[]) => ((await import("fs/promises")).stat as (...a: unknown[]) => unknown)(...args),
-  realpath: async (...args: unknown[]) => ((await import("fs/promises")).realpath as (...a: unknown[]) => unknown)(...args),
-}));
+// Route the primitives' metadata lookups through the mocked fs/promises above.
+vi.mock("../src/utils/fs-metadata.js", fsMetadataThroughPromises);
 
 let root: string;
 beforeEach(async () => { root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "answer-index-"))); });

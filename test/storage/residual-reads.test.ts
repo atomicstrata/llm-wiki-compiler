@@ -20,6 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { fsMetadataThroughPromises } from "../fixtures/fs-metadata-through-promises.js";
 import { mocked } from "../mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
@@ -45,14 +46,8 @@ vi.mock("fs/promises", () => {
   return { ...actual, readdir: guarded("readdir"), realpath: guarded("realpath"), stat: guarded("stat"), open: vi.fn(actual.open) };
 });
 
-// The path-safety primitives look up path metadata through `utils/fs-metadata.ts`,
-// synchronously. Route those lookups through the mocked fs/promises above so a
-// fault injected there still reaches them.
-vi.mock("../../src/utils/fs-metadata.js", () => ({
-  lstat: async (...args: unknown[]) => ((await import("fs/promises")).lstat as (...a: unknown[]) => unknown)(...args),
-  stat: async (...args: unknown[]) => ((await import("fs/promises")).stat as (...a: unknown[]) => unknown)(...args),
-  realpath: async (...args: unknown[]) => ((await import("fs/promises")).realpath as (...a: unknown[]) => unknown)(...args),
-}));
+// Route the primitives' metadata lookups through the mocked fs/promises above.
+vi.mock("../../src/utils/fs-metadata.js", fsMetadataThroughPromises);
 
 import { locationIsRegularFile, locationRealPath, readLocationText } from "../../src/storage/disk-locations.js";
 import { readConfinedPageThrough } from "../../src/storage/disk-local-reads.js";
