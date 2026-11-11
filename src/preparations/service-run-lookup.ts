@@ -35,6 +35,7 @@
 
 import { scanPreparationInventory } from "./capacity.js";
 import type { PreparationInventory } from "./capacity.js";
+import type { CommandPreparationPass } from "./recovery.js";
 import { readPreparationEvidenceBytes } from "./evidence-store.js";
 import type { PreparationEvidenceBytesRead, PreparationEvidenceLocation } from "./evidence-store.js";
 import { readPreparationKeyEpoch } from "./key-epoch.js";
@@ -127,9 +128,12 @@ export function diskPreparationRunLookupReads(root: string): PreparationRunLooku
  * the leaf bytes the scan's walk read once it proves them current. A lookup
  * under the project lock may hand in the hold's own `pass` and append with it.
  */
-function lookupPassReads(root: string, pass: PreparationPassReads): PreparationRunLookupReads {
+function lookupPassReads(
+  root: string, pass: PreparationPassReads,
+  scanInventory: () => Promise<PreparationInventory> = () => scanPreparationInventory(root, {}, pass),
+): PreparationRunLookupReads {
   return {
-    scanInventory: () => scanPreparationInventory(root, {}, pass),
+    scanInventory,
     readKeyEpoch: pass.readKeyEpoch,
     readRun: pass.readRun,
     readEvidenceBytes: (location, digest, maxBytes) =>
@@ -268,6 +272,17 @@ export async function resolvePreparationRun(
   root: string, runId: string, pass: PreparationPassReads = preparationPassReads(root),
 ): Promise<PreparationRunLookupV1> {
   return resolvePreparationRunFrom(lookupPassReads(root, pass), runId);
+}
+
+/**
+ * {@link resolvePreparationRun} on the pass of a command holding the lock: the
+ * command's scan, which is the gate's own when the gate handed one over
+ * (`commandPreparationPass`), then the run read under the same reads.
+ */
+export async function resolvePreparationRunOnPass(
+  root: string, runId: string, command: CommandPreparationPass,
+): Promise<PreparationRunLookupV1> {
+  return resolvePreparationRunFrom(lookupPassReads(root, command.reads, () => command.scanInventory()), runId);
 }
 
 /** {@link resolvePreparationRun} over the lookup's reads: one scan, then the run read. */
