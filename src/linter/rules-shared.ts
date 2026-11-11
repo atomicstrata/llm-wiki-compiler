@@ -30,6 +30,7 @@
 
 import path from "path";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { parseFrontmatter } from "../utils/markdown.js";
 import { listDirectoryEntries } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
@@ -165,10 +166,64 @@ export async function collectAllPages(
   return collectAllPagesFrom(diskLintPageSources(root), scope);
 }
 
-/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes. */
+/** One wiki page as the lint rules read it. */
+type LintPage = { filePath: string; content: string };
+
+/** Per-run page collections, keyed by the run's {@link readOncePageSources} wrapper. */
+const runCollections = new WeakMap<LintPageSources, Map<PageScope, Promise<LintPage[]>>>();
+
+/**
+ * `sources` for ONE lint run: every rule collects the same pages, so each
+ * listing and page text is read once and every later ask gets the first answer
+ * (its promise, so a failure repeats too), and a page collection is built once
+ * per scope. Create it per run and drop it after: a reused wrapper would serve
+ * pages as they were when first read.
+ */
+export function readOncePageSources(sources: LintPageSources): LintPageSources {
+  const once = <T>(read: (relPath: string) => Promise<T>) => {
+    const answers = new Map<string, Promise<T>>();
+    return (relPath: string): Promise<T> => {
+      if (!answers.has(relPath)) answers.set(relPath, read(relPath));
+      return answers.get(relPath)!;
+    };
+  };
+  const run: LintPageSources = {
+    exists: once((relPath) => sources.exists(relPath)),
+    listNames: once((relPath) => sources.listNames(relPath)),
+    listEntries: once((relPath) => sources.listEntries(relPath)),
+    readText: once((relPath) => sources.readText(relPath)),
+    locate: (relPath) => sources.locate(relPath),
+  };
+  runCollections.set(run, new Map());
+  return run;
+}
+
+/** Parsed frontmatter per page object: within a run every rule shares the page objects. */
+const parsedPages = new WeakMap<LintPage, ReturnType<typeof parseFrontmatter>>();
+
+/** `parseFrontmatter(page.content)`, parsed once per page object. Treat the result as read-only. */
+export function frontmatterOf(page: LintPage): ReturnType<typeof parseFrontmatter> {
+  let parsed = parsedPages.get(page);
+  if (!parsed) {
+    parsed = parseFrontmatter(page.content);
+    parsedPages.set(page, parsed);
+  }
+  return parsed;
+}
+
+/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes; once per scope within a run. */
 export async function collectAllPagesFrom(
   sources: LintPageSources, scope: PageScope = "generic",
-): Promise<Array<{ filePath: string; content: string }>> {
+): Promise<LintPage[]> {
+  const collections = runCollections.get(sources);
+  if (!collections) return collectPagesFrom(sources, scope);
+  if (!collections.has(scope)) collections.set(scope, collectPagesFrom(sources, scope));
+  // A copy per caller, so no rule can reorder another's array; the pages are shared.
+  return [...await collections.get(scope)!];
+}
+
+/** Collect the pages under `scope`, reading through `sources`. */
+async function collectPagesFrom(sources: LintPageSources, scope: PageScope): Promise<LintPage[]> {
   if (scope === "generic") {
     const conceptPages = await readMarkdownFiles(sources, CONCEPTS_DIR);
     const queryPages = await readMarkdownFiles(sources, QUERIES_DIR);

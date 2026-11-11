@@ -15,6 +15,7 @@
  */
 
 import path from "path";
+import pLimit from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { listDirectoryNames, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
 import { readWikiPageInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
@@ -157,9 +158,17 @@ export async function scanWikiPages(dirPath: string): Promise<ScannedPage[]> {
 }
 
 /**
+ * Page reads in flight at once. Each confined read is several dependent
+ * syscalls (resolve, open, stat, re-check, read, close), so overlapping pages
+ * hides that latency; the bound keeps a large wiki from exhausting descriptors.
+ */
+const PAGE_READ_CONCURRENCY = 32;
+
+/**
  * {@link scanWikiPages} through `reads`: THE ONE BODY. One listing, then one
- * page read per `.md` name, one after another in listing order. A listing that
- * rejects is an empty scan; a dropped page is warned about here and skipped.
+ * page read per `.md` name, up to {@link PAGE_READ_CONCURRENCY} at a time. The
+ * result, and every dropped-page warning, stays in listing order. A listing
+ * that rejects is an empty scan; a dropped page is warned about and skipped.
  */
 export async function scanWikiPagesFrom(reads: WikiPageScanReads): Promise<ScannedPage[]> {
   let files: string[];
@@ -172,10 +181,12 @@ export async function scanWikiPagesFrom(reads: WikiPageScanReads): Promise<Scann
   // The scan directory is itself the confinement boundary: a symlinked entry
   // whose target escapes `dirPath` is dropped (warned, skipped) and never enters
   // the scan, keeping its bytes out of any index/summary derived from it.
+  const slugs = files.filter((f) => f.endsWith(".md")).map((file) => file.replace(/\.md$/, ""));
+  const limit = pLimit(PAGE_READ_CONCURRENCY);
+  const results = await Promise.all(slugs.map((slug) => limit(() => reads.readPage(slug))));
   const scanned: ScannedPage[] = [];
-  for (const file of files.filter((f) => f.endsWith(".md"))) {
-    const slug = file.replace(/\.md$/, "");
-    const result = await reads.readPage(slug);
+  for (const [index, slug] of slugs.entries()) {
+    const result = results[index];
     if (!("content" in result)) {
       warnDroppedWikiRead(`${slug}.md`, result.dropped); // dropped (symlink escape / fail-closed)
       continue;
@@ -205,7 +216,7 @@ export async function collectPageSummariesFrom(reads: WikiPageScanReads): Promis
 }
 
 /** The index rows for scanned pages: titled, non-orphaned pages with their summaries. */
-function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
+export function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
   return scanned
     .filter(({ meta }) => meta.title && typeof meta.title === "string" && !meta.orphaned)
     .map(({ slug, meta }) => ({

@@ -27,7 +27,7 @@
 
 import path from "path";
 import { listSelectedSourceFilesFrom } from "../sources/scan.js";
-import { collectPageSummariesFrom, diskWikiPageScanReads, scanWikiPagesFrom, type WikiPageScanReads } from "../compiler/indexgen.js";
+import { collectPageSummariesFrom, diskWikiPageScanReads, scanWikiPagesFrom, summariesOf, type WikiPageScanReads } from "../compiler/indexgen.js";
 import type { ScannedPage } from "../compiler/indexgen.js";
 import { countCandidatesFrom } from "../compiler/candidate-read.js";
 import { readStateClassifiedFrom, isPlainObject } from "../utils/state.js";
@@ -220,7 +220,7 @@ export interface StatusReads {
   conceptSummaries(): Promise<PageSummary[]>;
   /** The saved-query index rows. */
   querySummaries(): Promise<PageSummary[]>;
-  /** The concept pages with their frontmatter: a SECOND scan of the concept directory. */
+  /** The concept pages with their frontmatter. Over disk, the same scan the summaries came from. */
   scanConcepts(): Promise<ScannedPage[]>;
   /** How many candidates await review. */
   countCandidates(): Promise<number>;
@@ -246,7 +246,7 @@ export interface StatusSources {
   records: LegacyLocalRecords;
   /** The sources the state names, for the freshness snapshot. */
   freshness: SourceFreshnessSources;
-  /** The concept page directory: its summaries, and the second scan. */
+  /** The concept page directory: scanned once for its summaries and its pages. */
   concepts: WikiPageScanReads;
   /** The saved-query page directory. */
   queries: WikiPageScanReads;
@@ -265,18 +265,23 @@ export interface StatusSources {
 /**
  * The status reads over {@link StatusSources}: THE ONE COMPOSITION. Each
  * member runs its reader's one body over its seam when it is asked, never
- * earlier; building them does no I/O.
+ * earlier; building them does no I/O. The concept summaries and the concept
+ * scan share ONE walk of the concept directory (every page read and parsed
+ * once), so build these reads per status collection: a held set would answer
+ * from that first walk.
  *
  * @param sources - The raw seams of the status readers.
  * @returns The eleven reads {@link collectStatusFrom} makes.
  */
 export function statusReadsOver(sources: StatusSources): StatusReads {
+  let conceptScan: Promise<ScannedPage[]> | undefined;
+  const scanConceptsOnce = () => (conceptScan ??= scanWikiPagesFrom(sources.concepts));
   return {
     readState: () => readStateClassifiedFrom(sources.records),
     buildFreshness: (classified) => buildFreshnessSnapshotFrom(sources.freshness, classified),
-    conceptSummaries: () => collectPageSummariesFrom(sources.concepts),
+    conceptSummaries: async () => summariesOf(await scanConceptsOnce()),
     querySummaries: () => collectPageSummariesFrom(sources.queries),
-    scanConcepts: () => scanWikiPagesFrom(sources.concepts),
+    scanConcepts: scanConceptsOnce,
     countCandidates: () => countCandidatesFrom(sources.candidates),
     listSourceFiles: () => listSelectedSourceFilesFrom(sources.sourceFiles),
     profileSummary: () => collectProfileSummaryFrom(sources.profile),
