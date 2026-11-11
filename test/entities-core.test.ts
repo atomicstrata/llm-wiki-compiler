@@ -51,10 +51,18 @@ describe("identity", () => {
     expect(records.map((record) => [record.names, record.writtenAs])).toEqual([[["Alex Kim"], ["Alexx", "alex"]], [["Sam's mother"], ["mama", "Mom"]]]);
   });
 
-  it("joins a mention to a registered record by how it was written", () => {
-    const registry = parseRegistry(JSON.stringify({ entities: { person: { "alex-kim": ["Alex Kim", "AK"] } } }));
-    const [record] = resolveRecords("person", [{ ...mention("Alexander"), writtenAs: ["AK"] }], registry);
-    expect(record.id).toBe("alex-kim");
+  it("never merges or excludes by spelling: a registered or excluded spelling only flags a possible duplicate", () => {
+    const registry = parseRegistry(JSON.stringify({ entities: { person: { "tom-baker": ["Tom Baker", "Tom"] } }, exclude: { person: ["Tom Hanks"] } }));
+    const records = resolveRecords("person", [
+      { ...mention("Tom Hanks"), writtenAs: ["Tom"] }, { ...mention("Alex Chen"), writtenAs: ["Tom"] }, mention("Tom Baker"),
+    ], registry);
+    expect(records.map((record) => [record.id, record.names])).toEqual([["alex-chen", ["Alex Chen"]], ["tom-baker", ["Tom Baker"]]]);
+    expect(possibleDuplicates(records).get("alex-chen")).toEqual(["tom-baker"]);
+  });
+
+  it("does not flag relation names by their first word", () => {
+    const records = resolveRecords("person", [mention("Sam's mother"), mention("Sam's brother"), mention("Sam Lee")], { entities: {} });
+    expect(possibleDuplicates(records).size).toBe(0);
   });
 
   it("joins names that normalize the same, keeps other names apart, and drops the owner", () => {

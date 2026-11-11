@@ -10,6 +10,7 @@ import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { extractableTypes } from "../src/entities/schema.js";
 import { generateEntitiesWith, type EntityConfig } from "../src/entities/generate.js";
+import { withAliases } from "../src/entities/pages.js";
 import { memoryEntitySteps, personProfile, type FakePerson } from "./entity-steps.js";
 
 const CHAT = ["# Chat", "- 2026-05-04 09:00 Sam: Ana is coming", "- 2026-05-05 10:00 Ana: hi", "- 2026-05-05 10:01 Alex: hey"].join("\n");
@@ -40,6 +41,21 @@ describe("entity pages", () => {
     const memory = memoryEntitySteps({ "chat.md": CHAT }, { "chat.md": [{ name: "Ana Lee", writtenAs: ["Annna", "ana"], line: 2 }] }, OWNER);
     await generateEntitiesWith(memory.steps, config());
     expect(parseFrontmatter(memory.pages.get("person/ana-lee")!).meta.aliases).toEqual(["Annna", "ana"]);
+  });
+
+  it("refreshes a page's aliases without a model call when only the spellings change", async () => {
+    const people: Record<string, FakePerson[]> = { "chat.md": [{ name: "Ana Lee", writtenAs: ["Annna"], line: 2 }] };
+    const memory = memoryEntitySteps({ "chat.md": CHAT }, people, OWNER);
+    await generateEntitiesWith(memory.steps, config());
+    const before = memory.pages.get("person/ana-lee")!;
+    expect(withAliases(before, ["Annna"])).toBe(before);
+    people["chat.md"][0].writtenAs = ["Annna", "Ana L"];
+    memory.state.cache = null;
+    const requests = memory.pageRequests.length;
+    await generateEntitiesWith(memory.steps, config());
+    expect(memory.pageRequests.length).toBe(requests);
+    expect(parseFrontmatter(memory.pages.get("person/ana-lee")!).meta.aliases).toEqual(["Annna", "Ana L"]);
+    expect(parseFrontmatter(memory.pages.get("person/ana-lee")!).body).toBe(parseFrontmatter(before).body);
   });
 
   it("lists each record's days and flags possible duplicates without merging them", async () => {

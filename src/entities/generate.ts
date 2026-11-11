@@ -29,7 +29,7 @@ import { refreshExtractions, type ExtractionCache, type ExtractSteps } from "./e
 import { displayName, hubId, possibleDuplicates, resolveRecords, type AliasRegistry, type Mention, type ResolvedRecord } from "./identity.js";
 import type { ExtractableType } from "./schema.js";
 import {
-  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources,
+  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
   type HubEntry, type PageLink, type RecordPageMeta,
 } from "./pages.js";
 
@@ -163,7 +163,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, page: Existi
   const maybeSame: PageLink[] = sameIds.map((id) => ({ target: `${ctx.type.type}/${id}`, title: titles.get(id) ?? id }));
   const draft: RecordDraft = { record, title, fields, excerpt, signature: recordSignature(title, fields, excerpt.text), tail: recordTail(recordDays(record, ctx.days), maybeSame) };
   if (page?.signature !== draft.signature) return regenerate(ctx, draft, page);
-  const text = withGenerated(page.text, draft.tail);
+  const text = withGenerated(withAliases(page.text, aliasesOf(record, title, fields)), draft.tail);
   return { id: record.id, summary: page.summary, write: text === page.text ? null : entityWrite(ctx, record.id, text) };
 }
 

@@ -162,8 +162,8 @@ export function extractionRequest(types: ExtractableType[], file: string, chunk:
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
   const system = `List every record of each kind below that the source names.
 ${kinds}
-One record per person. name: who it is, correctly spelled. Use a fuller name only when the source itself makes clear it is the same person; if unsure, keep the name as written.
-List someone the source does not name only when a family relation identifies them (mama, my brother), named by that relation, e.g. "${ownerName}'s mother". Skip other unnamed people.
+One record per person. name: who it is. Use a fuller or corrected name only when the source itself makes clear who it is; if unsure, keep the name as written.
+List someone the source does not name only when a family relation identifies them (mama, my brother), named by that relation to the person it belongs to, e.g. "${ownerName}'s mother" or "Alex's brother". Skip other unnamed people.
 writtenAs: every way the source writes their name, exactly as written.
 Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
   return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)], maxTokens: EXTRACTION_MAX_TOKENS };

@@ -381,7 +381,9 @@ compile and are never replaced or removed.
 
 Records are grouped by `name`, so a misspelling, a nickname or a relation the
 source makes clear joins the right record, and every spelling becomes one of
-its `aliases`. A registered name also matches a mention written that way.
+its `aliases` (refreshed without a model call). The registry, `exclude` and the
+owner's names all match `name`, never a spelling, so a spelling can flag two
+records as possibly the same but never merges or removes one.
 Names that differ only in case, accents or spacing are one record. Any other
 two names are two records until you say otherwise; compile never guesses. Two
 names that make the same id (`Anne-Marie` and `Anne Marie`) stay two records,
@@ -400,10 +402,11 @@ the names that are one record under one id, and name the owner of the memory:
 The first name listed is the one the page shows. Names under `exclude` are not
 records of that type, so they get no page and no place in a day's People list:
 people only mentioned in passing, such as public figures, or names the model
-took for a person that are not one. A name is matched exactly, ignoring only
-case, accents, punctuation and spacing, in every source: excluding `Thomas`
-excludes everyone written just "Thomas", so prefer full names, and list each
-spelling (`Trump`, `Donald Trump`) you want gone. A name cannot be both
+took for a person that are not one. A name is matched against each record's
+`name`, exactly, ignoring only case, accents, punctuation and spacing, in every
+source: excluding `Thomas` excludes every record whose name is just "Thomas", so
+prefer full names, and list each name a record may get (`Trump`, `Donald
+Trump`). A name cannot be both
 excluded and registered under an id; compile refuses the registry and says
 which name. Excluding a name needs no model call; to
 keep such names out of future extractions too, say so in the type's
