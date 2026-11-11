@@ -7,34 +7,32 @@
 import type { ReactNode } from "react";
 import type { ConnectorProvenance, EntityContext, EntityRelation, GraphData, PagePayload, PagesEnvelope, SourceSpan } from "./api";
 import { AsyncView } from "./async-view";
-import { Badge, DefinitionRows } from "./components";
-import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageCitationCounts, pageKind, spanLabel } from "./page-model";
+import { Badge, DefinitionRows, RangeChip, SURFACE } from "./components";
+import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
 import { pageIdHref, sourceHref } from "./route";
 import type { AsyncState } from "./use-async";
-import { formatUtcTimestamp, isWarnFreshness, typeLabel } from "./wiki-model";
+import { formatUtcTimestamp, typeLabel } from "./wiki-model";
 
 /** A rail section with the small uppercase heading. */
 export function RailSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <section className="rounded-xl bg-white p-4 text-sm shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+    <section className={`p-4 text-sm ${SURFACE}`}>
       <h2 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">{title}</h2>
       {children}
     </section>
   );
 }
 
-/** The freshness status with the same dot the list rows use, plus the provenance flags. */
-function FreshnessValue({ page }: { page: PagePayload }): ReactNode {
-  const { freshnessStatus, contradicted, archived } = page.freshness;
-  const flags = [freshnessStatus, contradicted ? "contradicted" : "", archived ? "archived" : ""].filter((flag) => flag.length > 0);
-  return <>{flags.join(" · ")}</>;
+/** The freshness status followed by the provenance flags that apply, such as `stale · contradicted`. */
+function freshnessText({ freshnessStatus, contradicted, archived }: PagePayload["freshness"]): string {
+  return [freshnessStatus, contradicted && "contradicted", archived && "archived"].filter(Boolean).join(" · ");
 }
 
 function MetadataSection({ page }: { page: PagePayload }): ReactNode {
   const counts = pageCitationCounts(page);
   const rows: [string, ReactNode][] = [
     ["Kind", pageKind(page)],
-    ["Freshness", <FreshnessValue page={page} />],
+    ["Freshness", freshnessText(page.freshness)],
     ["Created", formatUtcTimestamp(page.createdAt)],
     ["Updated", formatUtcTimestamp(page.updatedAt)],
     ["Citations", counts.total],
@@ -56,14 +54,9 @@ function SpanLink({ span, resolved }: { span: SourceSpan; resolved: boolean }): 
 
 /** A cited range as a small chip under its file: a link when the file exists, struck through when it does not. */
 function LineChip({ span, resolved }: { span: SourceSpan; resolved: boolean }): ReactNode {
-  const lines = span.lines ? (span.lines.start === span.lines.end ? `L${span.lines.start}` : `L${span.lines.start}–${span.lines.end}`) : "whole file";
-  if (!resolved) return <span data-resolved="false" className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">{lines} · not found</span>;
-  return (
-    <a data-resolved="true" href={sourceHref(span.file, span.lines?.start, span.lines?.end)} title={spanLabel(span)}
-      className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600 hover:bg-indigo-50 hover:text-indigo-700 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300">
-      {lines}
-    </a>
-  );
+  const label = rangeLabel(span.lines);
+  if (!resolved) return <span data-resolved="false" className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">{label} · not found</span>;
+  return <RangeChip href={sourceHref(span.file, span.lines?.start, span.lines?.end)} label={label} title={spanLabel(span)} />;
 }
 
 function CitationsSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelope }): ReactNode {
@@ -86,33 +79,25 @@ function CitationsSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelo
   );
 }
 
-/** Page ids as links titled from the envelope, or an empty note. */
-function PageLinks({ ids, wiki, whenEmpty }: { ids: string[]; wiki: PagesEnvelope; whenEmpty: string }): ReactNode {
-  if (ids.length === 0) return <p className="text-zinc-500">{whenEmpty}</p>;
+/** Pages as links that preview on hover, or a note when there are none. */
+function LinkList({ links, whenEmpty }: { links: { id: string; title: string }[]; whenEmpty: string }): ReactNode {
+  if (links.length === 0) return <p className="text-zinc-500">{whenEmpty}</p>;
   return (
     <ul role="list" className="space-y-1">
-      {ids.map((id) => <li key={id}><a href={pageIdHref(id)} data-page-id={id} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{wiki.pages.find((page) => page.id === id)?.title || id}</a></li>)}
+      {links.map((link) => <li key={link.id}><a href={pageIdHref(link.id)} data-page-id={link.id} className={RAIL_LINK}>{link.title}</a></li>)}
     </ul>
   );
 }
 
 function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData> }): ReactNode {
+  const titles = new Map(wiki.pages.map((row) => [row.id, row.title]));
+  const linksOut = page.outgoingLinks.map((id) => ({ id, title: titles.get(id) || id }));
   return (
     <RailSection title="Connections">
-      <h3 className="mb-1 font-medium text-zinc-900 dark:text-zinc-100">Links out</h3>
-      <PageLinks ids={page.outgoingLinks} wiki={wiki} whenEmpty="No outgoing links." />
-      <h3 className="mt-4 mb-1 font-medium text-zinc-900 dark:text-zinc-100">Backlinks</h3>
-      <AsyncView state={graph}>
-        {(data) => {
-          const links = backlinksFrom(data, page.id);
-          if (links.length === 0) return <p className="text-zinc-500">No backlinks.</p>;
-          return (
-            <ul role="list" className="space-y-1">
-              {links.map((link) => <li key={link.id}><a href={link.href} data-page-id={link.id} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{link.title}</a></li>)}
-            </ul>
-          );
-        }}
-      </AsyncView>
+      <h3 className={RAIL_HEADING}>Links out</h3>
+      <LinkList links={linksOut} whenEmpty="No outgoing links." />
+      <h3 className={RAIL_HEADING}>Backlinks</h3>
+      <AsyncView state={graph}>{(data) => <LinkList links={backlinksFrom(data, page.id)} whenEmpty="No backlinks." />}</AsyncView>
     </RailSection>
   );
 }
@@ -189,11 +174,11 @@ interface PageRailProps {
 /** The rail: metadata, citations, connections, and the entity context of a typed page. */
 export function PageRail({ page, wiki, graph }: PageRailProps): ReactNode {
   return (
-    <aside aria-label="Page details" className="space-y-4">
+    <>
       <MetadataSection page={page} />
       <CitationsSection page={page} wiki={wiki} />
       <ConnectionsSection page={page} wiki={wiki} graph={graph} />
       {page.entityContext && <EntityContextSection context={page.entityContext} />}
-    </aside>
+    </>
   );
 }

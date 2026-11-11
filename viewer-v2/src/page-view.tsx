@@ -7,9 +7,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchGraph, fetchPage, type GraphData, type PagePayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
-import { Badge } from "./components";
+import { Badge, Notice } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { rememberPage } from "./palette-model";
+import { safeLocalStorage } from "./storage";
 import { pageTitle, stripLeadingHeading } from "./page-model";
 import { tagHref } from "./route";
 import { useMediaQuery } from "./media";
@@ -20,9 +21,9 @@ import { SourceImages } from "./source-images-view";
 import { useAsync, type AsyncState } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
-/** Keep only the string entries of a frontmatter value that should be a list. */
+/** Keep only the non-blank string entries of a frontmatter value that should be a list, as `/api/pages` does for tags. */
 function stringList(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
 }
 
 /** A locale date for an ISO timestamp, or an empty string when there is none. */
@@ -37,12 +38,11 @@ export function PageHeader({ page }: { page: PagePayload }): ReactNode {
     <>
       <h1 className="text-3xl font-semibold tracking-tight text-balance text-zinc-950 dark:text-white">{title}</h1>
       {page.pageDirectory === "queries" && <p className="mt-2 text-zinc-500 italic dark:text-zinc-400">Question: {title}</p>}
-      {page.warnings.map((warning, index) => (
-        <div key={index} role="alert" data-code={warning.code}
-          className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
-          {warning.message || warning.code}
+      {page.warnings.length > 0 && (
+        <div className="mt-4 space-y-2">
+          {page.warnings.map((warning, index) => <Notice key={index} alert code={warning.code}>{warning.message || warning.code}</Notice>)}
         </div>
-      ))}
+      )}
     </>
   );
 }
@@ -54,7 +54,7 @@ function PageMeta({ page }: { page: PagePayload }): ReactNode {
   if (tags.length === 0 && !updated) return null;
   return (
     <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-      {tags.map((tag) => <a key={tag} href={tagHref(tag)} className="rounded-md hover:ring-2 hover:ring-indigo-600/20"><Badge>{tag}</Badge></a>)}{" "}
+      {tags.map((tag) => <a key={tag} href={tagHref(tag)} className="rounded-md hover:ring-2 hover:ring-indigo-600/20"><Badge>{tag}</Badge></a>)}
       {updated && <span className="ml-1">Updated {updated}</span>}
     </p>
   );
@@ -89,9 +89,13 @@ function Rail({ page, wiki, graph, outline }: { page: PagePayload; wiki: PagesEn
 /** Load and show the page at `directory/slug` with its support rail. */
 export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const state = useAsync(() => fetchPage(directory, slug), `${directory}/${slug}`);
-  const graph = useAsync(fetchGraph, "graph");
+  // Keyed on the snapshot, so backlinks and the neighbourhood follow a compile like the rest of the screen.
+  const graph = useAsync(fetchGraph, wiki.updatedAt);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
-  useEffect(() => rememberPage(`${directory}/${slug}`), [directory, slug]);
+  // Only a page that loaded is worth a recent slot; a broken link is not.
+  useEffect(() => {
+    if (state.status === "ready") rememberPage(`${directory}/${slug}`, safeLocalStorage());
+  }, [state.status, directory, slug]);
   const onRender = (container: HTMLElement): void => setOutline(assignHeadingIds(container));
   const wide = useMediaQuery(WIDE_LAYOUT);
   return (
@@ -107,7 +111,7 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
             <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
           </article>
           {wide
-            ? <div className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto"><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></div>
+            ? <aside aria-label="Page details" className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto"><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></aside>
             : <RailSheet><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></RailSheet>}
         </div>
       )}

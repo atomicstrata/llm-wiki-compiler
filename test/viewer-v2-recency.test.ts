@@ -3,7 +3,7 @@
  * Wednesday 2026-11-11 15:00 local time is "now" throughout.
  */
 import { describe, expect, it } from "bun:test";
-import { groupByRecency, recencyBucket, relativeAge, UNDATED } from "../viewer-v2/src/recency.js";
+import { addDays, groupByRecency, recencyBucket, relativeAge, UNDATED } from "../viewer-v2/src/recency.js";
 
 const NOW = new Date(2026, 10, 11, 15, 0);
 
@@ -53,5 +53,28 @@ describe("groupByRecency", () => {
     expect(groups.map((group) => group.label)).toEqual(["Today", "Yesterday", "October 2026", UNDATED]);
     expect(groups[0].items.map((page) => page.id)).toEqual(["today-late", "today"]);
     expect(groups[3].items.map((page) => page.id)).toEqual(["none"]);
+  });
+});
+
+describe("calendar days across a daylight-saving change", () => {
+  it("still calls the day before yesterday's change 'Yesterday', and steps whole days", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "Europe/London";
+    try {
+      // Sunday 25 October 2026 is 25 hours long in London: clocks go back at 02:00.
+      const monday = new Date(2026, 9, 26, 10);
+      expect(recencyBucket(new Date(2026, 9, 25, 9).toISOString(), monday)).toBe("Yesterday");
+      expect(recencyBucket(new Date(2026, 9, 19, 9).toISOString(), monday)).toBe("Last week");
+      const back = addDays(monday, -1);
+      expect([back.getDate(), back.getHours()]).toEqual([25, 0]);
+    } finally {
+      process.env.TZ = zone;
+    }
+  });
+
+  it("orders mixed time zones by instant, not by string", () => {
+    const now = new Date("2026-11-10T12:00:00Z");
+    const items = ["2026-11-10T09:30:00+02:00", "2026-11-10T08:00:00Z"];
+    expect(groupByRecency(items, (item) => item, now)[0].items).toEqual(["2026-11-10T08:00:00Z", "2026-11-10T09:30:00+02:00"]);
   });
 });

@@ -1,7 +1,8 @@
 /**
- * The graph drawing both the explorer and the dashboard panel show. React
+ * The graph drawing the explorer and a page rail's neighbourhood show. React
  * renders the SVG once from `/api/graph`: an arrowhead, one `<line>` per
- * edge, and one group per node holding a halo and the node circle. The
+ * edge, and one group per node holding its circle, a centre ring, and its
+ * label. The
  * positions come from `graph-layout`, which writes them to those elements
  * directly, so React only re-renders for hover, which dims everything outside
  * the hovered node's neighbourhood and labels that neighbourhood. A
@@ -11,15 +12,17 @@
  * which is how a page's rail marks the page itself. Other
  * labels appear only once the reader zooms in, because at a hundred nodes
  * they overlap into noise; they keep one on-screen size at every zoom.
+ * Keyboard focus on a node gives the same emphasis and tooltip as hovering.
  * Nodes colour by kind, or by link community in the explorer. `compact` picks
- * the panel's smaller radii, size-derived forces, and no drag.
+ * the rail's smaller radii, size-derived forces, and no drag.
  */
-import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { fetchGraph, type GraphData, type GraphEdge, type GraphNode, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { mountGraph, type GraphControls } from "./graph-layout";
 import { EDGE_LEGEND, KIND_COLOR, maxDegree, NODE_LEGEND, nodeHref, nodeKind, nodeMeta, nodeRadius, nodeStrokeWidth, staleIds } from "./graph-model";
-import { communities, communityColor, neighbourIds } from "./graph-neighbourhood";
+import { EmptyState } from "./components";
+import { adjacency, communities, communityColor } from "./graph-neighbourhood";
 import { useAsync } from "./use-async";
 
 /** Hand back `fit` once the layout settled, and null when the drawing leaves. */
@@ -57,12 +60,12 @@ const EDGE_OPACITY: Record<Emphasis, number> = { normal: 0.3, strong: 0.7, dim: 
 const TOOLTIP_OFFSET = { x: 14, y: -50 };
 const TOOLTIP_EDGE_GAP = 8;
 
-/** The legend: node colours, then in the explorer edge kinds and the size rule. */
+/** The explorer's legend: node colours, edge kinds, and the size rule. */
 export function GraphLegend({ colorBy = "kind" }: { colorBy?: ColorBy }): ReactNode {
   const nodeRows = colorBy === "community"
     ? [<span key="community" className="block max-w-44">Each colour marks a cluster of pages that link to each other; colours repeat for distant clusters. Grey pages stand alone.</span>]
     : NODE_LEGEND.map((row) => (
-      <span key={row.kind} className="inline-flex items-center gap-1"><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{" "}{row.label}{" "}</span>
+      <span key={row.kind} className="inline-flex items-center gap-1"><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{row.label}</span>
     ));
   return (
     <div className="absolute top-3 right-3 space-y-1 rounded-lg bg-white/90 p-3 text-xs text-zinc-600 shadow-sm ring-1 ring-zinc-950/5 backdrop-blur dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-white/10">
@@ -81,7 +84,7 @@ export function GraphLegend({ colorBy = "kind" }: { colorBy?: ColorBy }): ReactN
 function EdgeLine({ edge, markerId, emphasis }: { edge: GraphEdge; markerId: string; emphasis: Emphasis }): ReactNode {
   const relation = edge.edgeKind === "relation";
   return (
-    <line stroke="currentColor" strokeOpacity={EDGE_OPACITY[emphasis]} strokeDasharray={relation ? "5 3" : undefined}
+    <line stroke="currentColor" opacity={EDGE_OPACITY[emphasis]} strokeDasharray={relation ? "5 3" : undefined}
       markerEnd={edge.direction === "symmetric" ? undefined : `url(#${markerId})`}>
       {relation && edge.relationType && <title>{edge.relationType}</title>}
     </line>
@@ -96,7 +99,7 @@ interface NodeProps {
   labelled: boolean;
   label: string;
   ringed: boolean;
-  onHover: (node: GraphNode | null, event?: MouseEvent) => void;
+  onHover: (node: GraphNode | null, point?: ViewportPoint) => void;
   onMove: (event: MouseEvent) => void;
 }
 
@@ -119,7 +122,8 @@ function NodeGroup({ node, colorClass, radius, dimmed, labelled, label, ringed, 
   );
   return (
     <g data-node="" className={dimmed ? `${colorClass} transition-opacity opacity-15` : `${colorClass} transition-opacity`}
-      onMouseEnter={(event) => onHover(node, event)} onMouseMove={onMove} onMouseLeave={() => onHover(null)}>
+      onMouseEnter={(event) => onHover(node, event)} onMouseMove={onMove} onMouseLeave={() => onHover(null)}
+      onFocus={(event) => onHover(node, rightOf(event.currentTarget))} onBlur={() => onHover(null)}>
       {ringed && <circle r={radius + 3.5} fill="none" stroke="currentColor" strokeWidth={1.5} />}
       {href === null ? circles : <a href={href} aria-label={node.title}>{circles}</a>}
       <text y={radius + 2} dy="1em" textAnchor="middle" className={`${LABEL_CLASS} ${labelClass(labelled, dimmed)}`}>{label}</text>
@@ -127,9 +131,10 @@ function NodeGroup({ node, colorClass, radius, dimmed, labelled, label, ringed, 
   );
 }
 
-/** The emphasis around one node: it and its neighbours, or nothing when no node is active. */
+/** The emphasis around one node: it and its neighbours, or nothing when no node is active. The neighbour map is built once per graph. */
 function useEmphasis(data: GraphData, activeId: string | null): Set<string> | null {
-  return useMemo(() => (activeId === null ? null : new Set([activeId, ...neighbourIds(data, activeId)])), [data, activeId]);
+  const neighbours = useMemo(() => adjacency(data), [data]);
+  return useMemo(() => (activeId === null ? null : new Set([activeId, ...(neighbours.get(activeId) ?? [])])), [neighbours, activeId]);
 }
 
 /** Every node's colour class for the current colour mode. */
@@ -146,13 +151,19 @@ function edgeEmphasis(edge: GraphEdge, activeId: string | null): Emphasis {
   return edge.source === activeId || edge.target === activeId ? "strong" : "dim";
 }
 
-/** Place the tooltip beside the pointer, kept inside the SVG. */
-function placeTooltip(tooltip: HTMLDivElement, svg: SVGSVGElement, event: MouseEvent): void {
+/** Where a focused node's tooltip anchors: just right of the node, as a pointer would be. */
+function rightOf(element: Element): ViewportPoint {
+  const box = element.getBoundingClientRect();
+  return { clientX: box.right, clientY: box.top + box.height / 2 - TOOLTIP_OFFSET.y };
+}
+
+/** Place the tooltip beside a point in the viewport, kept inside the SVG. */
+function placeTooltip(tooltip: HTMLDivElement, svg: SVGSVGElement, point: ViewportPoint): void {
   const bounds = svg.getBoundingClientRect();
   const width = tooltip.offsetWidth;
   const height = tooltip.offsetHeight;
-  let left = event.clientX - bounds.left + TOOLTIP_OFFSET.x;
-  let top = event.clientY - bounds.top + TOOLTIP_OFFSET.y;
+  let left = point.clientX - bounds.left + TOOLTIP_OFFSET.x;
+  let top = point.clientY - bounds.top + TOOLTIP_OFFSET.y;
   if (left + width > bounds.width) left = bounds.width - width - TOOLTIP_EDGE_GAP;
   if (top < 0) top = TOOLTIP_EDGE_GAP / 2;
   if (top + height > bounds.height) top = bounds.height - height - TOOLTIP_EDGE_GAP;
@@ -165,6 +176,8 @@ function useGraphLayout(data: GraphData, compact: boolean, onSettled: OnSettled 
   const svgRef = useRef<SVGSVGElement>(null);
   const viewportRef = useRef<SVGGElement>(null);
   const [settled, setSettled] = useState(false);
+  // An effect event, so a caller passing a fresh callback each render does not restart the layout.
+  const report = useEffectEvent((controls: GraphControls | null) => onSettled?.(controls));
   useEffect(() => {
     const svg = svgRef.current;
     const viewport = viewportRef.current;
@@ -175,22 +188,22 @@ function useGraphLayout(data: GraphData, compact: boolean, onSettled: OnSettled 
       if (!isSettled) return;
       graph.fit(false);
       setSettled(true);
-      onSettled?.({ fit: () => graph.fit(true), focus: (id) => graph.focus(id) });
+      report({ fit: () => graph.fit(true), focus: (id) => graph.focus(id) });
     });
     return () => {
       graph.dispose();
-      onSettled?.(null);
+      report(null);
     };
-  }, [data, compact, onSettled]);
+  }, [data, compact]);
   return { svgRef, viewportRef, settled };
 }
 
-/** The arrowhead every directed edge ends in; its fill comes from the stylesheet. */
+/** The arrowhead every directed edge ends in; it takes its line's colour and opacity. */
 function Arrowhead({ id }: { id: string }): ReactNode {
   return (
     <defs>
       <marker id={id} viewBox="0 -4 8 8" refX={8} refY={0} markerWidth={6} markerHeight={6} orient="auto">
-        <path d="M0,-4L8,0L0,4" fill="currentColor" fillOpacity={0.3} />
+        <path d="M0,-4L8,0L0,4" fill="currentColor" />
       </marker>
     </defs>
   );
@@ -211,23 +224,45 @@ function Tooltip({ node, tooltipRef }: { node: GraphNode | null; tooltipRef: Ref
   );
 }
 
+/** A point in the viewport. */
+type ViewportPoint = { clientX: number; clientY: number };
+
+/**
+ * The hovered (or focused) node and its tooltip. The tooltip follows the
+ * pointer, and is placed after it renders, when it has a size to keep inside
+ * the SVG.
+ */
+function useHoverTooltip(svgRef: RefObject<SVGSVGElement | null>) {
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [hovered, setHovered] = useState<GraphNode | null>(null);
+  const pointer = useRef<ViewportPoint>({ clientX: 0, clientY: 0 });
+  const place = (): void => {
+    if (tooltipRef.current && svgRef.current) placeTooltip(tooltipRef.current, svgRef.current, pointer.current);
+  };
+  const onMove = (event: MouseEvent): void => {
+    pointer.current = { clientX: event.clientX, clientY: event.clientY };
+    if (hovered) place();
+  };
+  const onHover = (node: GraphNode | null, point?: ViewportPoint): void => {
+    if (point) pointer.current = { clientX: point.clientX, clientY: point.clientY };
+    setHovered(node);
+  };
+  useLayoutEffect(() => {
+    if (hovered) place();
+    // `place` reads refs only; the hovered node is what calls for a new placement.
+  }, [hovered]);
+  return { tooltipRef, hovered, onMove, onHover };
+}
+
 /** The SVG for a graph with at least one node. */
 function Drawing({ data, stale, compact, onSettled, colorBy = "kind", highlightId = null, centreId }: SurfaceProps): ReactNode {
   const { svgRef, viewportRef, settled } = useGraphLayout(data, compact, onSettled);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState<GraphNode | null>(null);
+  const { tooltipRef, hovered, onMove, onHover } = useHoverTooltip(svgRef);
   const markerId = useId();
   const largest = maxDegree(data.nodes);
   const activeId = hovered?.id ?? highlightId;
   const emphasis = useEmphasis(data, activeId);
   const colors = useNodeColors(data, stale, colorBy);
-  const onMove = (event: MouseEvent): void => {
-    if (tooltipRef.current && svgRef.current) placeTooltip(tooltipRef.current, svgRef.current, event);
-  };
-  const onHover = (node: GraphNode | null, event?: MouseEvent): void => {
-    setHovered(node);
-    if (event) onMove(event);
-  };
   return (
     <div className="relative">
       {!settled && <p role="status" className="absolute inset-0 grid place-items-center text-sm text-zinc-500">Arranging graph…</p>}
@@ -253,33 +288,27 @@ function Drawing({ data, stale, compact, onSettled, colorBy = "kind", highlightI
 
 /** The drawing, or the empty state when the wiki has nothing to link yet. */
 export function GraphSurface(props: SurfaceProps): ReactNode {
-  if (props.data.nodes.length === 0) {
-    return (
-      <div>
-        <strong>Nothing to graph yet</strong>
-        <p>The graph draws links between compiled pages. Compile at least two pages that reference each other to see structure here.</p>
-        <code>$ llmwiki compile</code>
-      </div>
-    );
-  }
-  return <Drawing {...props} />;
+  if (props.data.nodes.length > 0) return <Drawing {...props} />;
+  return (
+    <EmptyState title="Nothing to graph yet" command="$ llmwiki compile"
+      body="The graph draws links between compiled pages. Compile at least two pages that reference each other to see structure here." />
+  );
 }
 
 interface CanvasProps {
   wiki: PagesEnvelope;
-  compact: boolean;
   onSettled?: OnSettled;
   colorBy?: ColorBy;
   highlightId?: string | null;
 }
 
-/** Load `/api/graph` and draw it; stale colouring comes from the envelope's page rows. */
-export function GraphCanvas({ wiki, compact, onSettled, colorBy, highlightId }: CanvasProps): ReactNode {
+/** Load `/api/graph` and draw the explorer's full-size graph; stale colouring comes from the envelope's page rows. */
+export function GraphCanvas({ wiki, onSettled, colorBy, highlightId }: CanvasProps): ReactNode {
   const state = useAsync(fetchGraph, wiki.updatedAt);
   const stale = useMemo(() => staleIds(wiki), [wiki]);
   return (
     <AsyncView state={state}>
-      {(data) => <GraphSurface data={data} stale={stale} compact={compact} onSettled={onSettled} colorBy={colorBy} highlightId={highlightId} />}
+      {(data) => <GraphSurface data={data} stale={stale} compact={false} onSettled={onSettled} colorBy={colorBy} highlightId={highlightId} />}
     </AsyncView>
   );
 }

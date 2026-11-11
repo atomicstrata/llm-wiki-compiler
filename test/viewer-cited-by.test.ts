@@ -38,8 +38,7 @@ describe("citedBy", () => {
     expect(payload.pages.map((page) => page.title)).toEqual(["Alpha", "Paper", "Zeta"]);
     expect(payload.pages[0].spans).toEqual([null, { start: 9, end: 9 }]);
     expect(payload.pages[2].spans).toEqual([{ start: 3, end: 5 }]);
-    expect(payload.pages[1]).toMatchObject({ entityType: "papers", slug: "p1" });
-    expect("entityType" in payload.pages[0]).toBe(false);
+    expect(payload.pages[1]).toEqual({ id: "papers/p1", title: "Paper", spans: [{ start: 1, end: 2 }] });
   });
 
   it("returns no pages for a source nothing cites", () => {

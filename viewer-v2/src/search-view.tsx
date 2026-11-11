@@ -6,7 +6,7 @@
 import type { ReactNode } from "react";
 import { fetchSearch } from "./api";
 import { AsyncView } from "./async-view";
-import { Badge, Card, RowList, Screen } from "./components";
+import { Badge, Card, ROW_LINK, RowList, Screen } from "./components";
 import { pageIdHref } from "./route";
 import { plainSnippet, resultKind } from "./search";
 import { useAsync } from "./use-async";
@@ -25,7 +25,7 @@ export function SearchView({ query }: { query: string }): ReactNode {
               {results.map((result) => (
                 <li key={result.id}>
                   <a href={pageIdHref(result.id)} data-row="" data-page-id={result.id}
-                    className="block px-4 py-2.5 text-sm outline-none hover:bg-zinc-50 focus-visible:bg-indigo-50 dark:hover:bg-white/5 dark:focus-visible:bg-indigo-500/10">
+                    className={`block ${ROW_LINK}`}>
                     <span className="flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{result.title || result.id}</span>
                       <Badge>{typeLabel(resultKind(result))}</Badge>

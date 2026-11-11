@@ -75,7 +75,7 @@ describe("graph markup", () => {
   it("lists every node kind, both edge kinds, and the size rule in the full legend", () => {
     const html = renderToStaticMarkup(createElement(GraphLegend, {}));
     for (const kind of ["concept", "entity", "stale", "dangling"] as const) {
-      expect(html).toContain(`<span class="${KIND_COLOR[kind]}" aria-hidden="true">●</span> ${kind}`);
+      expect(html).toContain(`<span class="${KIND_COLOR[kind]}" aria-hidden="true">●</span>${kind}`);
     }
     expect(html).toContain("─ wikilink");
     expect(html).toContain("╌ relation");
@@ -99,8 +99,8 @@ describe("graph markup", () => {
     expect(html).toContain(`<g data-node="" class="${KIND_COLOR.stale} transition-opacity">`);
     expect(html).toContain(`<g data-node="" class="${KIND_COLOR.entity} transition-opacity">`);
     expect(html).toContain('r="8" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-dasharray="3,2"');
-    expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" marker-end="url(#');
-    expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="5 3"><title>mentions</title>');
+    expect(html).toContain('<line stroke="currentColor" opacity="0.3" marker-end="url(#');
+    expect(html).toContain('<line stroke="currentColor" opacity="0.3" stroke-dasharray="5 3"><title>mentions</title>');
   });
 
   it("keeps the explorer's Fit disabled until a layout reports back", () => {

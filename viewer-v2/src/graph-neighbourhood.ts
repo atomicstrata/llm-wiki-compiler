@@ -31,8 +31,8 @@ export const COMMUNITY_COLORS = [
 ] as const;
 export const UNCLUSTERED_COLOR = "text-zinc-400";
 
-/** Each node's neighbours, ignoring direction and self-loops. */
-function adjacency(data: GraphData): Map<string, Set<string>> {
+/** Each node's neighbours, ignoring direction and self-loops; build it once per graph and look nodes up. */
+export function adjacency(data: GraphData): Map<string, Set<string>> {
   const neighbours = new Map(data.nodes.map((node) => [node.id, new Set<string>()]));
   for (const { source, target } of data.edges) {
     if (source === target) continue;
@@ -40,11 +40,6 @@ function adjacency(data: GraphData): Map<string, Set<string>> {
     neighbours.get(target)?.add(source);
   }
   return neighbours;
-}
-
-/** The nodes directly linked to `id`, in either direction. */
-export function neighbourIds(data: GraphData, id: string): Set<string> {
-  return adjacency(data).get(id) ?? new Set();
 }
 
 /** Which nodes the local graph keeps: the centre, its neighbours, then second-hop nodes by degree, up to the limit. */

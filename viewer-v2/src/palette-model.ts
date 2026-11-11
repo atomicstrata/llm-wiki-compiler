@@ -9,13 +9,12 @@
  * each letter continues the previous match or starts a word: without that, a
  * long title or summary holds nearly any word as scattered letters. The server's full-text search stays a
  * separate group, because it reads page bodies the client does not have.
- * Recent pages live in `localStorage` for this origin only; storage that is
- * blocked or full just means no recents, never an error.
+ * Recent pages live in `localStorage` for this origin only (see `storage.ts`).
  */
 import type { PageRow, SearchResult } from "./api";
 import { pageIdHref, searchHref } from "./route";
 import { plainSnippet } from "./search";
-import { safeLocalStorage } from "./storage";
+import { readStored, writeStored, type KeyValueStore } from "./storage";
 
 /** Score for a query word found at the very start of the text. */
 const START_SCORE = 120;
@@ -36,46 +35,47 @@ const RECENT_KEY = "llmwiki.v2.recentPages";
 const DESTINATION_LIMIT = 4;
 const TEXT_RESULT_LIMIT = 5;
 
-/** How well one query word matches `text`, or 0 for no match; `loose` allows a close subsequence. */
-export function wordScore(word: string, text: string, loose = false): number {
-  const haystack = text.toLowerCase();
-  const index = haystack.indexOf(word);
-  if (index === 0) return START_SCORE;
-  if (index > 0) return /[\p{L}\p{N}]/u.test(haystack[index - 1]) ? INSIDE_SCORE : WORD_START_SCORE;
-  return loose && isWordwiseSubsequence(word, haystack) ? SUBSEQUENCE_SCORE : 0;
-}
-
 /** Whether `index` starts a word in `text`. */
 function startsWord(text: string, index: number): boolean {
   return index === 0 || !/[\p{L}\p{N}]/u.test(text[index - 1]);
 }
 
-/** The next index of `character` from `from` that starts a word, or -1. */
-function nextWordStart(text: string, character: string, from: number): number {
-  for (let index = text.indexOf(character, from); index >= 0; index = text.indexOf(character, index + 1)) {
+/** The first index at or after `from` where `needle` starts a word in `text`, or -1. */
+function wordStartIndex(text: string, needle: string, from = 0): number {
+  for (let index = text.indexOf(needle, from); index >= 0; index = text.indexOf(needle, index + 1)) {
     if (startsWord(text, index)) return index;
   }
   return -1;
+}
+
+/** How well one query word matches `text`, or 0 for no match; `loose` allows a word-wise subsequence. */
+export function wordScore(word: string, text: string, loose = false): number {
+  const haystack = text.toLowerCase();
+  const start = wordStartIndex(haystack, word);
+  if (start === 0) return START_SCORE;
+  if (start > 0) return WORD_START_SCORE;
+  if (haystack.includes(word)) return INSIDE_SCORE;
+  return loose && isWordwiseSubsequence(word, haystack) ? SUBSEQUENCE_SCORE : 0;
 }
 
 /** Whether `needle` matches `haystack` letter by letter, each letter continuing the last match or starting a word. */
 function isWordwiseSubsequence(needle: string, haystack: string): boolean {
   let next = 0;
   for (const character of needle) {
-    const index = next > 0 && haystack[next] === character ? next : nextWordStart(haystack, character, next);
+    const index = next > 0 && haystack[next] === character ? next : wordStartIndex(haystack, character, next);
     if (index < 0) return false;
     next = index + 1;
   }
   return true;
 }
 
-/** A page's score for `query`, or 0 when some word matches neither its title nor its summary. */
-export function pageScore(query: string, row: Pick<PageRow, "title" | "summary">): number {
+/** A page's score for `query`, or null when some word matches neither its title nor its summary. */
+export function pageScore(query: string, row: Pick<PageRow, "title" | "summary">): number | null {
   const words = query.toLowerCase().split(/\s+/).filter((word) => word.length > 0);
   let total = 0;
   for (const word of words) {
     const best = Math.max(wordScore(word, row.title, true), wordScore(word, row.summary) * SUMMARY_WEIGHT);
-    if (best === 0) return 0;
+    if (best === 0) return null;
     total += best;
   }
   return total - row.title.length * LENGTH_PENALTY;
@@ -84,8 +84,10 @@ export function pageScore(query: string, row: Pick<PageRow, "title" | "summary">
 /** The best-matching pages for `query`, highest score first. */
 export function rankPages(query: string, rows: PageRow[], limit = PAGE_RESULT_LIMIT): PageRow[] {
   return rows
-    .map((row) => ({ row, score: pageScore(query, row) }))
-    .filter((entry) => entry.score > 0)
+    .flatMap((row) => {
+      const score = pageScore(query, row);
+      return score === null ? [] : [{ row, score }];
+    })
     .sort((a, b) => b.score - a.score || a.row.title.localeCompare(b.row.title))
     .slice(0, limit)
     .map((entry) => entry.row);
@@ -136,7 +138,7 @@ export function paletteItems<D extends { href: string; label: string }>(query: s
   const pages = rankPages(trimmed, sources.rows).map((row) => pageItem<D>(row, "Pages"));
   const shown = new Set(pages.map((item) => item.href));
   const destinations = sources.destinations
-    .filter((destination) => pageScore(trimmed, { title: destination.label, summary: "" }) > 0)
+    .filter((destination) => pageScore(trimmed, { title: destination.label, summary: "" }) !== null)
     .slice(0, DESTINATION_LIMIT)
     .map(destinationItem);
   const text = sources.textResults
@@ -147,24 +149,13 @@ export function paletteItems<D extends { href: string; label: string }>(query: s
   return [...pages, ...destinations, ...text, search];
 }
 
-/** The storage the recents use; a parameter so tests can pass their own. */
-type RecentStore = Pick<Storage, "getItem" | "setItem">;
-
-/** The recently opened page ids, newest first; empty when storage is unavailable or holds junk. */
-export function readRecent(store: RecentStore | undefined = safeLocalStorage()): string[] {
-  try {
-    const parsed: unknown = JSON.parse(store?.getItem(RECENT_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(0, RECENT_LIMIT) : [];
-  } catch {
-    return [];
-  }
+/** The recently opened page ids, newest first; empty when nothing usable is stored. */
+export function readRecent(store: KeyValueStore | undefined): string[] {
+  const stored = readStored(store, RECENT_KEY);
+  return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === "string").slice(0, RECENT_LIMIT) : [];
 }
 
 /** Put `id` at the front of the recents. */
-export function rememberPage(id: string, store: RecentStore | undefined = safeLocalStorage()): void {
-  try {
-    store?.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent(store).filter((seen) => seen !== id)].slice(0, RECENT_LIMIT)));
-  } catch {
-    // Blocked or full storage only costs the recents list.
-  }
+export function rememberPage(id: string, store: KeyValueStore | undefined): void {
+  writeStored(store, RECENT_KEY, [id, ...readRecent(store).filter((seen) => seen !== id)].slice(0, RECENT_LIMIT));
 }

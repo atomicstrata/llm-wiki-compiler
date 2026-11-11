@@ -32,6 +32,8 @@ interface NavItem {
 
 interface NavSection {
   label: string;
+  /** A quiet note beside the label: the profile on a profile project's category list. */
+  detail?: string;
   zero: ZeroDisplay;
   items: NavItem[];
 }
@@ -57,10 +59,13 @@ function browseItems(wiki: PagesEnvelope): NavItem[] {
 function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection[] {
   const lint = lintTotal(health);
   const typeCount = entityTypes(wiki).length;
+  const browse: NavSection = typeCount > 0
+    ? { label: "Categories", detail: typeCount > MANY_TYPES ? `${wiki.profileId} · ${typeCount}` : wiki.profileId, zero: "dash", items: browseItems(wiki) }
+    : { label: "Browse", zero: "dash", items: browseItems(wiki) };
   return [
-    { label: typeCount > 0 ? "CATEGORIES" : "BROWSE", zero: "dash", items: browseItems(wiki) },
+    browse,
     {
-      label: "EXPLORE",
+      label: "Explore",
       zero: "dash",
       items: [
         { route: "recent", href: "#/recent", label: "Recent", icon: Clock },
@@ -69,7 +74,7 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
       ],
     },
     {
-      label: "MAINTAIN",
+      label: "Maintain",
       zero: "digit",
       items: [
         { route: "health", href: "#/health", label: "Health & lint", icon: Activity, count: lint ?? undefined },
@@ -86,8 +91,9 @@ const DASHBOARD: NavItem = { route: "home", href: "#/", label: "Dashboard", icon
 /** The rows a project shows: profile-only rows on profile projects, with collision labels resolved. */
 function visibleSections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection[] {
   const profile = isProfileProject(wiki);
-  const typeLabels = new Set(browseItems(wiki).map((item) => item.label));
-  return sections(wiki, health).map((section) => ({
+  const all = sections(wiki, health);
+  const typeLabels = new Set(all[0].items.map((item) => item.label));
+  return all.map((section) => ({
     ...section,
     items: section.items
       .filter((item) => !item.profileOnly || profile)
@@ -111,8 +117,10 @@ export function navDestinations(wiki: PagesEnvelope, health: HealthPayload | nul
 export function activeNavRoute(route: Route): string | null {
   if (route.view === "home" || route.view === "index") return "home";
   if (route.view === "list") return route.kind;
-  if (route.view === "typeList" || route.view === "page") return route.view === "typeList" ? route.type : route.directory;
-  if (route.view === "sourceChanges") return "source-changes";
+  if (route.view === "typeList") return route.type;
+  if (route.view === "page") return route.directory;
+  // The source review cockpit is reached from Reviews and has no row of its own.
+  if (route.view === "sourceChanges") return "reviews";
   if (route.view === "journey") return "workflows";
   if (route.view === "search" || route.view === "source" || route.view === "tag") return null;
   return route.view;
@@ -125,14 +133,14 @@ function countText(item: NavItem, zero: ZeroDisplay): string | null {
   return zero === "dash" ? "—" : "0";
 }
 
-function NavRow({ item, zero, active, label }: { item: NavItem; zero: ZeroDisplay; active: boolean; label: string }): ReactNode {
+function NavRow({ item, zero, active }: { item: NavItem; zero: ZeroDisplay; active: boolean }): ReactNode {
   const count = countText(item, zero);
   return (
     <li>
-      <a href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}
+      <a href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={item.label}
         className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 aria-[current=page]:bg-zinc-950/5 aria-[current=page]:font-medium aria-[current=page]:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/5 dark:aria-[current=page]:text-white">
         <item.icon className="size-4 shrink-0 text-zinc-400 group-hover:text-zinc-600 group-aria-[current=page]:text-indigo-600 dark:text-zinc-500 dark:group-hover:text-zinc-300 dark:group-aria-[current=page]:text-indigo-400" strokeWidth={1.75} />
-        <span className="min-w-0 flex-1 truncate">{label}</span>{" "}
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
         {count !== null && <span className="text-xs text-zinc-400 tabular-nums dark:text-zinc-500">{count}</span>}
       </a>
     </li>
@@ -151,19 +159,17 @@ export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   return (
     <nav aria-label="Wiki navigation" className="space-y-6 px-3 py-5">
       <ul role="list" className="space-y-0.5">
-        <NavRow item={DASHBOARD} zero="dash" active={active === "home"} label={DASHBOARD.label} />
+        <NavRow item={DASHBOARD} zero="dash" active={active === "home"} />
       </ul>
       {visibleSections(wiki, health).map((section) => (
         <section key={section.label}>
           <h2 className="mb-1 flex justify-between px-2 text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500">
-            {section.label}
-            {section.label === "CATEGORIES" && (
-              <span className="font-normal normal-case">{entityTypes(wiki).length > MANY_TYPES ? `${wiki.profileId} · ${entityTypes(wiki).length}` : wiki.profileId}</span>
-            )}
+            <span className="uppercase">{section.label}</span>
+            {section.detail && <span className="font-normal">{section.detail}</span>}
           </h2>
           <ul role="list" className="space-y-0.5">
             {section.items.map((item) => (
-              <NavRow key={item.route} item={item} zero={section.zero} active={active === item.route} label={item.label} />
+              <NavRow key={item.route} item={item} zero={section.zero} active={active === item.route} />
             ))}
           </ul>
         </section>

@@ -42,7 +42,7 @@ export function targetDirectoryOf(review: ReviewCandidate): string {
 
 /** The chip reads as human wording; the structured detail explains the hold on hover. */
 function ReasonChip({ reason }: { reason: HeldReason }): ReactNode {
-  return <span title={reason.detail || undefined}><Badge tone="amber">{HELD_REASON_LABELS[reason.code] ?? reason.code}</Badge></span>;
+  return <Badge tone="amber" title={reason.detail || undefined}>{HELD_REASON_LABELS[reason.code] ?? reason.code}</Badge>;
 }
 
 /** The title is plain text, not a link: the page does not exist in `wiki/` yet. */
@@ -52,7 +52,7 @@ function ReviewRow({ review, now }: { review: ReviewCandidate; now: Date }): Rea
   return (
     <li className="space-y-1.5 px-4 py-3 text-sm">
       <div className="flex items-baseline gap-3">
-        <strong className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{review.title || review.slug}</strong>{" "}
+        <strong className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{review.title || review.slug}</strong>
         <span className="shrink-0 text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{relativeAge(review.generatedAt, now)}</span>
       </div>
       <p className="text-zinc-600 dark:text-zinc-300">{summary.length > 0 ? summary : "No summary recorded."}</p>

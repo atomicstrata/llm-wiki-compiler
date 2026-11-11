@@ -5,14 +5,14 @@
  * the rules are tested without a fetch or a DOM.
  */
 import type { ClaimCitation, EntityRelation, GraphData, PagePayload, SourceSpan } from "./api";
-import { pageIdHref } from "./route";
 
 /** The warning code the server attaches to each citation whose file is missing. */
 const UNRESOLVED_CITATION_CODE = "unresolved_citation";
 
 const LEADING_H1 = /^\s*<h1(?:\s[^>]*)?>([\s\S]*?)<\/h1>\s*/i;
 const TAG = /<[^>]+>/g;
-const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" };
+/** The entities the server's sanitizer writes; any other entity is left as written. */
+const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&nbsp;": " " };
 
 /** The heading of a page: its title, or its slug when the frontmatter has none. */
 export function pageTitle(page: PagePayload): string {
@@ -28,15 +28,15 @@ export function pageKind(page: PagePayload): string {
 }
 
 /** The text of a sanitized HTML fragment, with the entities the sanitizer writes decoded. */
-function textOf(html: string): string {
-  return html.replace(TAG, "").replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => ENTITIES[entity]).trim();
+export function htmlText(html: string): string {
+  return html.replace(TAG, "").replace(/&[#\w]+;/g, (entity) => ENTITIES[entity] ?? entity).trim();
 }
 
 /** The body without a leading `<h1>` that repeats the heading the view already shows. */
 export function stripLeadingHeading(html: string, title: string): string {
   const match = LEADING_H1.exec(html);
   if (match === null || title.trim().length === 0) return html;
-  return textOf(match[1]) === title.trim() ? html.slice(match[0].length) : html;
+  return htmlText(match[1]) === title.trim() ? html.slice(match[0].length) : html;
 }
 
 /** How many citations the page makes and how many the server could not resolve; the figures of its list row. */
@@ -45,6 +45,12 @@ export function pageCitationCounts(page: PagePayload): { total: number; unresolv
     total: page.citations.length,
     unresolved: page.warnings.filter((warning) => warning.code === UNRESOLVED_CITATION_CODE).length,
   };
+}
+
+/** A cited range as a chip reads it: `L12–15`, `L12`, or "whole file" when the citation names no lines. */
+export function rangeLabel(lines: { start: number; end: number } | null | undefined): string {
+  if (!lines) return "whole file";
+  return lines.end !== lines.start ? `L${lines.start}–${lines.end}` : `L${lines.start}`;
 }
 
 /** `notes.md`, `notes.md:12`, `notes.md:12-15`: the label the server gives a citation chip. */
@@ -99,7 +105,6 @@ function uniqueSpans(spans: SourceSpan[]): SourceSpan[] {
 export interface Backlink {
   id: string;
   title: string;
-  href: string;
 }
 
 /** Pages the graph shows linking to `pageId`, by title; a page linking twice is listed once. */
@@ -107,7 +112,7 @@ export function backlinksFrom(graph: GraphData, pageId: string): Backlink[] {
   const titles = new Map(graph.nodes.map((node) => [node.id, node.title]));
   const sources = new Set(graph.edges.filter((edge) => edge.target === pageId && edge.source !== pageId).map((edge) => edge.source));
   return [...sources]
-    .map((id) => ({ id, title: titles.get(id) || id, href: pageIdHref(id) }))
+    .map((id) => ({ id, title: titles.get(id) || id }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 

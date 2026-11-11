@@ -8,12 +8,13 @@
  *
  * A reload replaces the data only when its signature moved: page count, the
  * newest page timestamp, the counts, the state, and the lint and review
- * figures. An unchanged wiki therefore never re-renders the screen, and a
- * failed poll keeps what is shown.
+ * figures. An unchanged wiki therefore keeps the same state object and never
+ * re-renders the screen. A failed reload keeps what is shown; a failed first
+ * load shows the error until a later reload succeeds.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
-import { useAsync, type AsyncState } from "./use-async";
+import type { AsyncState } from "./use-async";
 
 /** How often a visible tab checks for a new compile. */
 const REFRESH_MS = 30_000;
@@ -36,22 +37,32 @@ export function bootstrapSignature({ wiki, health }: Bootstrap): string {
   return JSON.stringify([wiki.pages.length, newest, wiki.counts, wiki.stateStatus, health?.lint ?? null, health?.pendingReviews ?? null]);
 }
 
+/** The state after a successful load: the previous one, untouched, when nothing shown would change. */
+export function nextBootstrapState(previous: AsyncState<Bootstrap>, next: Bootstrap): AsyncState<Bootstrap> {
+  const unchanged = previous.status === "ready" && bootstrapSignature(previous.data) === bootstrapSignature(next);
+  return unchanged ? previous : { status: "ready", data: next };
+}
+
+/** The state after a failed load: whatever is shown stays; only a first load reports the failure. */
+function failedBootstrapState(previous: AsyncState<Bootstrap>, error: unknown): AsyncState<Bootstrap> {
+  if (previous.status === "ready") return previous;
+  return { status: "error", message: error instanceof Error ? error.message : String(error) };
+}
+
 /** The bootstrap state, refreshed while the tab is visible. */
 export function useLiveBootstrap(): AsyncState<Bootstrap> {
-  const initial = useAsync(loadBootstrap, "bootstrap");
-  const [latest, setLatest] = useState<Bootstrap | null>(null);
-  const signature = useRef<string | null>(null);
-  if (initial.status === "ready" && signature.current === null) signature.current = bootstrapSignature(initial.data);
+  const [state, setState] = useState<AsyncState<Bootstrap>>({ status: "loading" });
   useEffect(() => {
-    const refresh = (): void => {
-      if (document.visibilityState !== "visible") return;
-      loadBootstrap().then((next) => {
-        const nextSignature = bootstrapSignature(next);
-        if (nextSignature === signature.current) return;
-        signature.current = nextSignature;
-        setLatest(next);
-      }, () => undefined);
+    const load = (): void => {
+      loadBootstrap().then(
+        (next) => setState((previous) => nextBootstrapState(previous, next)),
+        (error: unknown) => setState((previous) => failedBootstrapState(previous, error)),
+      );
     };
+    const refresh = (): void => {
+      if (document.visibilityState === "visible") load();
+    };
+    load();
     const timer = window.setInterval(refresh, REFRESH_MS);
     document.addEventListener("visibilitychange", refresh);
     return () => {
@@ -59,6 +70,5 @@ export function useLiveBootstrap(): AsyncState<Bootstrap> {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
-  if (initial.status !== "ready") return initial;
-  return { status: "ready", data: latest ?? initial.data };
+  return state;
 }

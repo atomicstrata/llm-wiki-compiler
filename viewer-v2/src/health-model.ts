@@ -1,6 +1,6 @@
 /**
  * Facts the health screen shows, derived from the health payload and the
- * bootstrap envelope: the lint caption, the CONTENTS strip, the lint rule
+ * bootstrap envelope: the lint caption, the contents strip, the lint rule
  * rows, the freshness and traceability panels, and the record problems of a
  * profile project. Pure functions so the screen stays declarative and each
  * rule is tested once. Health counts come from `/api/health`; per-page
@@ -10,12 +10,12 @@
 import type { HealthPayload, LintRule, PageRow, PagesEnvelope } from "./api";
 import { relativeAge } from "./recency";
 import { pageHref } from "./route";
-import { citationTotals, formatUtcTimestamp, plural } from "./wiki-model";
+import { citationTotals, formatUtcTimestamp, plural, typeLabel } from "./wiki-model";
 
 /** Rendered in place of a bold 0: an empty count is an absence, not news. */
 const EMPTY_COUNT = "—";
 
-/** How many rules keep a colour of their own; the rest fold into one "other" row. */
+/** How many rules keep a row of their own; the rest fold into one "other" row. */
 const NAMED_RULE_LIMIT = 4;
 
 /** Rules whose findings are facts about the wikilink graph, which the explorer draws. */
@@ -27,15 +27,16 @@ const PAGE_FILE_PATTERN = /^wiki\/(concepts|queries)\/([^/]+)\.md$/;
 /** Freshness statuses the compiler actually resolved; anything else is unverified. */
 const RESOLVED_FRESHNESS = new Set(["fresh", "stale", "orphaned"]);
 
-/** "lint has never run", or when it last ran and how long ago. */
+/** "Lint has never run", or when it last ran and how long ago. */
 export function lintRunCaption(lint: HealthPayload["lint"], now: Date): string {
-  if (lint === null) return "lint has never run";
-  const stamp = `lint last run ${formatUtcTimestamp(lint.at)}Z`;
+  if (lint === null) return "Lint has never run";
+  const at = formatUtcTimestamp(lint.at);
+  const stamp = at === "unknown" ? "Lint last run at an unknown time" : `Lint last run ${at}Z`;
   const since = relativeAge(lint.at, now);
   return since ? `${stamp} · ${since} ago` : stamp;
 }
 
-/** One column of the CONTENTS strip. */
+/** One column of the contents strip. */
 export interface ContentsColumn {
   key: string;
   label: string;
@@ -43,7 +44,7 @@ export interface ContentsColumn {
   suffix: string;
 }
 
-/** The five CONTENTS columns; a missing health payload reads as zeros. */
+/** The five contents columns; a missing health payload reads as zeros. */
 export function contentsColumns(health: HealthPayload | null, wiki: PagesEnvelope): ContentsColumn[] {
   const citations = citationTotals(wiki.pages);
   const queries = health?.queries ?? 0;
@@ -62,10 +63,9 @@ export function countFigure(value: number): string {
   return value > 0 ? String(value) : EMPTY_COUNT;
 }
 
-/** One drawn row of the lint table; `rank` is its palette index, null for the folded aggregate. */
+/** One drawn row of the lint table; the folded aggregate is the row named "other". */
 export interface LintRow {
   rule: string;
-  rank: number | null;
   count: number;
   affected: string;
   href: string | null;
@@ -93,18 +93,18 @@ function affectedFilesText(rule: LintRule): string {
 }
 
 /**
- * The rows the lint table draws: the four highest-count rules keep a colour
- * each (the cache arrives sorted by count), and the rest fold into one
- * neutral "other" row that reports how many rules it stands for.
+ * The rows the lint table draws: the four highest-count rules get a row each
+ * (the cache arrives sorted by count), and the rest fold into one "other" row
+ * that reports how many rules it stands for.
  */
 export function lintRuleRows(rules: LintRule[], pageIndex: Set<string>): LintRow[] {
-  const named = rules.slice(0, NAMED_RULE_LIMIT).map((rule, rank) => ({
-    rule: rule.rule, rank, count: rule.count, affected: affectedFilesText(rule), href: pageRouteFor(rule.topFile, pageIndex),
+  const named = rules.slice(0, NAMED_RULE_LIMIT).map((rule) => ({
+    rule: rule.rule, count: rule.count, affected: affectedFilesText(rule), href: pageRouteFor(rule.topFile, pageIndex),
   }));
   const folded = rules.slice(NAMED_RULE_LIMIT);
   if (folded.length === 0) return named;
   const count = folded.reduce((sum, rule) => sum + rule.count, 0);
-  return [...named, { rule: "other", rank: null, count, affected: plural(folded.length, "rule"), href: null }];
+  return [...named, { rule: "other", count, affected: plural(folded.length, "rule"), href: null }];
 }
 
 /** The footer's sentence about the dominant rule, and where its button goes. */
@@ -198,9 +198,7 @@ export interface ProblemsSummary {
 
 /** `slug-mismatch` reads as `Slug mismatch`; a field violation gets the plainer wording the old screen used. */
 function problemLabel(kind: string): string {
-  if (kind === "field-violation") return "Missing or invalid information";
-  const spaced = kind.replace(/[-_]+/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+  return kind === "field-violation" ? "Missing or invalid information" : typeLabel(kind);
 }
 
 /** The capped list with its true total, so a truncated list never presents itself as the whole set. */

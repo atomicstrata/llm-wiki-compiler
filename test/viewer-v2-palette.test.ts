@@ -8,23 +8,17 @@ import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SearchResult } from "../viewer-v2/src/api.js";
-import { CommandPalette, stepIndex } from "../viewer-v2/src/command-palette.js";
+import { CommandPalette, groupRuns, stepIndex } from "../viewer-v2/src/command-palette.js";
 import { navDestinations } from "../viewer-v2/src/nav.js";
 import { pageScore, paletteItems, rankPages, readRecent, rememberPage, RECENT_LIMIT, wordScore } from "../viewer-v2/src/palette-model.js";
 import { isPaletteChord, isPlainKey, isTypingContext, resolveKey, ShortcutList } from "../viewer-v2/src/shortcuts.js";
-import { envelope, page, text } from "./fixtures/viewer-v2-fixtures.js";
+import { envelope, memoryStore, page, text } from "./fixtures/viewer-v2-fixtures.js";
 
 const ROWS = [
   page({ id: "concepts/founder-separation", title: "Founder Separation Negotiations", summary: "Terms of leaving." }),
   page({ id: "concepts/kiln", title: "Kiln Firing Log", summary: "Cone 6 notes from the founder's studio." }),
   page({ id: "concepts/retirement", title: "Retirement Assets Offset Against Joint Cash", summary: "" }),
 ];
-
-/** An in-memory stand-in for localStorage. */
-function memoryStore(): { getItem: (key: string) => string | null; setItem: (key: string, value: string) => void } {
-  const values = new Map<string, string>();
-  return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } };
-}
 
 describe("page ranking", () => {
   it("prefers a title start, then a word start, then inside a word, then a close subsequence", () => {
@@ -33,10 +27,11 @@ describe("page ranking", () => {
     expect(wordScore("fsep", "Founder Separation", true)).toBeGreaterThan(0);
     expect(wordScore("fsep", "Founder Separation")).toBe(0);
     expect(wordScore("josh", "Retirement Assets Offset Against Joint Cash", true)).toBe(0);
+    expect(wordScore("art", "Smart Art")).toBe(wordScore("art", "Pop Art"));
   });
 
   it("needs every word, ranks title hits above summary hits, and drops non-matches", () => {
-    expect(pageScore("founder kiln", ROWS[0])).toBe(0);
+    expect(pageScore("founder kiln", ROWS[0])).toBeNull();
     expect(rankPages("founder", ROWS).map((row) => row.id)).toEqual(["concepts/founder-separation", "concepts/kiln"]);
     expect(rankPages("zzz", ROWS)).toEqual([]);
   });
@@ -67,6 +62,11 @@ describe("palette items", () => {
     expect(items[1].detail).toBe("…cone 6 kiln…");
     expect(items[2].href).toBe("#/_search?q=kiln");
     expect(paletteItems("graph", { rows: ROWS, recentIds: [], destinations, textResults: [] })[0]).toMatchObject({ group: "Go to", href: "#/graph" });
+  });
+
+  it("splits rows into runs of one group, keeping each row's place in the whole list", () => {
+    const items = paletteItems("kiln", { rows: ROWS, recentIds: [], destinations, textResults });
+    expect(groupRuns(items).map((run) => [run.group, run.rows.map((row) => row.index)])).toEqual([["Pages", [0]], ["In page text", [1]], ["Search", [2]]]);
   });
 
   it("wraps the active row at either end", () => {

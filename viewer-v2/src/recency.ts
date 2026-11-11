@@ -5,7 +5,9 @@
  * document tools use: Today, Yesterday, Earlier this week, Last week,
  * Earlier this month, then one bucket per older month, and Undated last.
  * Weeks start on Monday. Everything takes `now` as an argument so a test can
- * freeze the clock.
+ * freeze the clock. Day arithmetic goes through the `Date` constructor, never
+ * by adding 24 hours: a day around a daylight-saving change is 23 or 25 hours
+ * long, and millisecond maths would put yesterday's pages in last week.
  */
 
 const MINUTE_MS = 60_000;
@@ -21,12 +23,14 @@ function startOfDay(moment: Date): Date {
   return new Date(moment.getFullYear(), moment.getMonth(), moment.getDate());
 }
 
+/** Local midnight `days` calendar days after `moment`'s day; negative goes back. */
+export function addDays(moment: Date, days: number): Date {
+  return new Date(moment.getFullYear(), moment.getMonth(), moment.getDate() + days);
+}
+
 /** Local midnight of the Monday that starts `moment`'s week. */
 function startOfWeek(moment: Date): Date {
-  const day = startOfDay(moment);
-  const sinceMonday = (day.getDay() + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK;
-  day.setDate(day.getDate() - sinceMonday);
-  return day;
+  return addDays(moment, -((moment.getDay() + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK));
 }
 
 /** The timestamp as a Date, or null when missing or unparseable. */
@@ -43,10 +47,10 @@ export function recencyBucket(iso: string, now: Date): string {
   const today = startOfDay(now);
   const day = startOfDay(then);
   if (day >= today) return "Today";
-  if (day.getTime() === today.getTime() - DAY_MS) return "Yesterday";
+  if (day.getTime() === addDays(today, -1).getTime()) return "Yesterday";
   const thisWeek = startOfWeek(now);
   if (day >= thisWeek) return "Earlier this week";
-  if (day.getTime() >= thisWeek.getTime() - DAYS_PER_WEEK * DAY_MS) return "Last week";
+  if (day >= addDays(thisWeek, -DAYS_PER_WEEK)) return "Last week";
   if (then.getFullYear() === now.getFullYear() && then.getMonth() === now.getMonth()) return "Earlier this month";
   return MONTH_LABEL.format(then);
 }
@@ -68,12 +72,19 @@ export interface RecencyGroup<T> {
   items: T[];
 }
 
+/** A timestamp's sort key: its instant, or minus infinity when undated so it sorts last. */
+function sortKey(iso: string): number {
+  return parseTimestamp(iso)?.getTime() ?? Number.NEGATIVE_INFINITY;
+}
+
 /**
  * Sort items newest first and split them into buckets, in the order the
  * buckets first appear; items without a timestamp sort last, under Undated.
+ * Sorting compares instants, not strings, so `+02:00` and `Z` timestamps
+ * interleave correctly.
  */
 export function groupByRecency<T>(items: T[], timestampOf: (item: T) => string, now: Date): RecencyGroup<T>[] {
-  const sorted = [...items].sort((a, b) => timestampOf(b).localeCompare(timestampOf(a)));
+  const sorted = [...items].sort((a, b) => sortKey(timestampOf(b)) - sortKey(timestampOf(a)));
   const groups: RecencyGroup<T>[] = [];
   for (const item of sorted) {
     const label = recencyBucket(timestampOf(item), now);

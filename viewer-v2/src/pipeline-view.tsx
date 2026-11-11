@@ -10,15 +10,16 @@
  */
 import type { ReactNode } from "react";
 import type { ArtifactTypeDef, EntityTypeRow, PagesEnvelope, PipelineLifecycle, RelationTypeRow } from "./api";
-import { Badge, Card, Code, EmptyState, Screen, Table, Td, TextLink, type Tone } from "./components";
+import { Badge, Card, Code, EmptyState, Notice, Screen, Table, Td, TextLink, type Tone } from "./components";
+import { problemsSummary } from "./health-model";
+import { ProblemsPanel } from "./health-view";
 import {
   calloutText, chipLabel, classifyStates, declaredText, displayLabel, displayedStates, footerText, gapText,
   hasDeclaredOrder, reachableOrder, rowVerdict, totalRejected, type StateRole, type StateTally,
 } from "./pipeline-model";
 import { plural, typeLabel } from "./wiki-model";
 
-const COLUMN_HEADS = ["CATEGORY · DECLARED LIFECYCLE", "RECORDS BY CURRENT STATE", "STATE CHECK"];
-const LINT_HREF = "#/health";
+const HEALTH_HREF = "#/health";
 const SCREEN_TITLE = "Lifecycle status";
 
 /** A chip's colour follows its role; the role is also spelled out in the label. */
@@ -30,22 +31,13 @@ function TypeCell({ row }: { row: EntityTypeRow }): ReactNode {
   return (
     <div className="min-w-0 space-y-1 lg:col-span-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-zinc-950 dark:text-white">{typeLabel(row.type)}</span>{" "}
+        <span className="text-sm font-semibold text-zinc-950 dark:text-white">{typeLabel(row.type)}</span>
         <Badge>{row.pageCount}</Badge>
       </div>
       <div className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.directory}</div>
       {hasDeclaredOrder(row.lifecycle) && chain.length > 1 && <div className="text-sm text-zinc-700 dark:text-zinc-300">{chain.join(" → ")}</div>}
       <div className="text-xs text-zinc-500 dark:text-zinc-400">{declaredText(row.lifecycle)}</div>
     </div>
-  );
-}
-
-/** One state chip: count, name, and the role when it matters. */
-function Chip({ state }: { state: StateTally }): ReactNode {
-  return (
-    <span data-state={state.state}>
-      <Badge tone={ROLE_TONE[state.role]}>{chipLabel(state)}</Badge>
-    </span>
   );
 }
 
@@ -56,13 +48,9 @@ function TallyCell({ row, states }: { row: EntityTypeRow; states: StateTally[] }
     <div className="min-w-0 space-y-2 lg:col-span-6">
       {states.length === 0 && <div className="text-sm text-zinc-500 dark:text-zinc-400">{row.pageCount > 0 ? "No records have a recorded state" : "No records"}</div>}
       <div className="flex flex-wrap gap-1.5">
-        {displayedStates(row.lifecycle, states).map((state) => <Chip key={state.state} state={state} />)}
+        {displayedStates(row.lifecycle, states).map((state) => <Badge key={state.state} tone={ROLE_TONE[state.role]}>{chipLabel(state)}</Badge>)}
       </div>
-      {unreachable.map((state) => (
-        <div key={state.state} className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
-          {calloutText(state, row.lifecycle as PipelineLifecycle)}
-        </div>
-      ))}
+      {unreachable.map((state) => <Notice key={state.state}>{calloutText(state, row.lifecycle as PipelineLifecycle)}</Notice>)}
     </div>
   );
 }
@@ -81,15 +69,13 @@ function VerdictCell({ row }: { row: EntityTypeRow }): ReactNode {
 function TypeRow({ row }: { row: EntityTypeRow }): ReactNode {
   const states = classifyStates(row.lifecycle, row.stateCounts);
   return (
-    <div data-entity-type={row.type}>
-      <Card>
-        <div className="grid gap-4 lg:grid-cols-12">
-          <TypeCell row={row} />
-          <TallyCell row={row} states={states} />
-          <VerdictCell row={row} />
-        </div>
-      </Card>
-    </div>
+    <Card>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <TypeCell row={row} />
+        <TallyCell row={row} states={states} />
+        <VerdictCell row={row} />
+      </div>
+    </Card>
   );
 }
 
@@ -116,7 +102,7 @@ function Connections({ relations }: { relations: RelationTypeRow[] }): ReactNode
             <tr key={relation.type} title={relation.type}>
               <Td>{displayLabel(relation.type)}</Td>
               <Td>{relation.from.map(displayLabel).join(" or ")}<span className="text-zinc-400">{relation.direction === "symmetric" ? " ↔ " : " → "}</span>{relation.to.map(displayLabel).join(" or ")}</Td>
-              <Td>{relation.count > 0 ? `${relation.count} recorded ${relation.count === 1 ? "link" : "links"}` : "No links yet"}</Td>
+              <Td>{relation.count > 0 ? plural(relation.count, "recorded link") : "No links yet"}</Td>
             </tr>
           ))}
         </Table>
@@ -144,37 +130,17 @@ function ArtifactTypes({ types }: { types: ArtifactTypeDef[] }): ReactNode {
   );
 }
 
-/** The validation problems the server reported, as far as the envelope carries them. */
-function ProfileProblems({ wiki }: { wiki: PagesEnvelope }): ReactNode {
-  const problems = wiki.profileProblems ?? [];
-  if (problems.length === 0) return null;
-  return (
-    <section aria-label="Validation warnings">
-      <Card title="Validation warnings">
-        <ul role="list" className="space-y-2 text-sm">
-          {problems.map((problem, index) => (
-            <li key={index} className="flex flex-wrap items-baseline gap-2">
-              <Code>{problem.kind}</Code>{" "}
-              {problem.entityType && <Badge>{problem.entityType}</Badge>}
-              {problem.path && <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{problem.path}</span>}{" "}
-              <span className="text-zinc-700 dark:text-zinc-300">{problem.message}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-    </section>
-  );
-}
-
-/** The footer band, present only when there are rejected pages or problems to report. */
+/** The footer band, present only when there are rejected pages or problems to report; it links to problems only when there are some. */
 function Footer({ wiki, rejected }: { wiki: PagesEnvelope; rejected: number }): ReactNode {
-  const problems = wiki.profileProblemTotal ?? 0;
-  if (rejected + problems === 0) return null;
+  const { total } = problemsSummary(wiki);
+  if (rejected + total === 0) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">
-      <span>{footerText(rejected)}</span>{" "}
-      <TextLink href={LINT_HREF}>See all {plural(problems, "problem")} in Lint →</TextLink>
-    </div>
+    <Notice>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span>{footerText(rejected)}</span>
+        {total > 0 && <TextLink href={HEALTH_HREF}>See all {plural(total, "problem")} in Health →</TextLink>}
+      </div>
+    </Notice>
   );
 }
 
@@ -189,16 +155,19 @@ export function PipelineView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
     );
   }
   return (
-    <Screen wide title={SCREEN_TITLE} actions={<Badge tone="indigo">{wiki.profileId.toUpperCase()}</Badge>}>
-      <p className="mb-6 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">Current record counts, not completion percentages or workflow execution. Terminal means an ending state, not necessarily success. Records missing a state are not included in these counts; see Health &amp; lint for validation problems.</p>
+    <Screen wide title={SCREEN_TITLE} actions={<Badge tone="indigo">{wiki.profileId.toUpperCase()}</Badge>}
+      description="Current record counts, not completion percentages or workflow execution. Terminal means an ending state, not necessarily success. Records missing a state are not included in these counts; see Health & lint for validation problems.">
       <div className="space-y-4">
-        <div className="hidden px-4 text-xs font-medium tracking-wide text-zinc-500 lg:grid lg:grid-cols-12 lg:gap-4 dark:text-zinc-400">
-          <span className="lg:col-span-4">{COLUMN_HEADS[0]}</span>{" "}<span className="lg:col-span-6">{COLUMN_HEADS[1]}</span>{" "}<span className="lg:col-span-2 lg:text-right">{COLUMN_HEADS[2]}</span>
+        {/* A visual guide to the three columns of each card below; the cards carry their own labels. */}
+        <div aria-hidden="true" className="hidden px-4 text-xs font-medium text-zinc-500 lg:grid lg:grid-cols-12 lg:gap-4 dark:text-zinc-400">
+          <span className="lg:col-span-4">Category · declared lifecycle</span>
+          <span className="lg:col-span-6">Records by current state</span>
+          <span className="lg:col-span-2 lg:text-right">State check</span>
         </div>
         {pipeline.entityTypes.map((row) => <TypeRow key={row.type} row={row} />)}
         <Connections relations={pipeline.relationTypes ?? []} />
         <ArtifactTypes types={pipeline.artifactTypes ?? []} />
-        <ProfileProblems wiki={wiki} />
+        <ProblemsPanel wiki={wiki} />
         <Footer wiki={wiki} rejected={totalRejected(pipeline.entityTypes)} />
       </div>
     </Screen>

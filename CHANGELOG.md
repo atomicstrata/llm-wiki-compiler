@@ -29,6 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Links from a page to its sources.** A Markdown link to a source file, as in each page's `## Sources` list, now opens that source in the viewer. It was previously rendered without a destination.
 - **Source images.** A source can keep original images in `sources/images/` and name them in frontmatter `images:`. Source metadata lists them, `GET /api/source-image/<source>/<file>` serves an image only through a source that declares it, on a loopback binding, and the v2 client shows them on the source and on every page that cites it.
 
+### Fixed
+
+- **`llmwiki view-v2` review pass.** A citation range on the source you are reading now scrolls to its lines instead of the top. Hover cards show above the mobile **Page details** sheet. The outline in that sheet moves focus to the section. The live refresh recovers when the first load fails. Citation chips no longer flash their long form or show two tooltips, and a chip whose source is missing is no longer presented as a link. One missing cited source no longer hides a page's other images. Recency groups and the activity calendar count calendar days across daylight-saving changes, and recency sorts mixed time zones by instant. The palette ranks word starts correctly, keeps its highlighted row when full-text results arrive, and ignores the Enter that confirms an input-method composition. Graph arrowheads are visible and dim with their edge, the rail's small graph no longer captures page scrolling, and its backlinks follow a compile. The health lint badge reads `1 PROBLEM`, its caption no longer prints `unknownZ`, and the lifecycle footer no longer offers "See all 0 problems". "Since your last visit" now ends a visit after half an hour of inactivity, as documented.
+- **`GET /api/source/<file>/cited-by` rows are trimmed to `id`, `title` and `spans`.** A page's id is its route, so the directory, slug and entity type were redundant.
+
 ## [1.5.0] - 2026-10-19
 
 Separate what a wiki does from how it is stored on disk, connect to

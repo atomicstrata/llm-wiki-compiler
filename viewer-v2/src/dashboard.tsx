@@ -7,13 +7,12 @@
  * reader nothing the counts did not.
  */
 import { Download, Link2Off, ListChecks, RefreshCw, type LucideIcon } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
-import type { HealthPayload, PagesEnvelope, RecentPage } from "./api";
-import { Badge, ButtonLink, Card, DefinitionRows, Row, RowList, Stat, TextLink, type Tone } from "./components";
+import type { ReactNode } from "react";
+import type { HealthPayload, PagesEnvelope } from "./api";
+import { Badge, ButtonLink, Card, DefinitionRows, RowList, Stat, SURFACE, TextLink, type Tone } from "./components";
 import { ActivityCard, SinceLastVisit, TopicsCard, usePreviousVisit } from "./dashboard-panels";
-import { relativeAge } from "./recency";
-import { pageHref } from "./route";
-import { citationTotals, isWarnFreshness, lintTotal, plural, profileVocabulary } from "./wiki-model";
+import { PageRowItem } from "./lists";
+import { citationTotals, lintTotal, plural, profileVocabulary } from "./wiki-model";
 
 interface StatCard {
   key: string;
@@ -21,10 +20,9 @@ interface StatCard {
   badge: string;
   value: number;
   sub: string;
-  tone?: "warn" | "calm";
+  /** Present only when the card needs a badge: amber to act on, green for an all-clear. */
+  tone?: Tone;
 }
-
-const CARD_TONE: Record<"warn" | "calm", Tone> = { warn: "amber", calm: "green" };
 
 /** The four cards: the inventory card changes with the profile, the rest are fixed. */
 function statCards(wiki: PagesEnvelope, dangling: number, unresolved: number): StatCard[] {
@@ -38,8 +36,8 @@ function statCards(wiki: PagesEnvelope, dangling: number, unresolved: number): S
   return [
     inventory,
     { key: "sources", label: "Sources", badge: "INPUT", value: wiki.counts.sourceFiles, sub: `${wiki.counts.compiledSources} compiled · ${wiki.counts.sourceFiles} on disk` },
-    { key: "attention", label: "Needs attention", badge: "LINT", value: attention, sub: `${dangling} broken page links · ${plural(unresolved, "unresolved citation")}`, tone: attention > 0 ? "warn" : undefined },
-    { key: "reviews", label: "Awaiting review", badge: pending === 0 ? "CLEAR" : "QUEUE", value: pending, sub: pending === 0 ? "queue is empty" : plural(pending, "candidate"), tone: pending > 0 ? "warn" : "calm" },
+    { key: "attention", label: "Needs attention", badge: "LINT", value: attention, sub: `${dangling} broken page links · ${plural(unresolved, "unresolved citation")}`, tone: attention > 0 ? "amber" : undefined },
+    { key: "reviews", label: "Awaiting review", badge: pending === 0 ? "CLEAR" : "QUEUE", value: pending, sub: pending === 0 ? "queue is empty" : plural(pending, "candidate"), tone: pending > 0 ? "amber" : "green" },
   ];
 }
 
@@ -48,40 +46,31 @@ function Hero({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const pages = vocabulary ? vocabulary.pageCount : wiki.counts.concepts;
   const citations = vocabulary ? vocabulary.citationCount : citationTotals(wiki.pages).total;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+    <div className={`flex flex-wrap items-center justify-between gap-4 px-5 py-4 ${SURFACE}`}>
       <div>
         <p className="font-semibold text-zinc-950 dark:text-white">Your knowledge base is ready.</p>
         <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{plural(pages, "page")}, {plural(citations, "citation")} traced to source spans.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {wiki.index.available && <ButtonLink href="#/index" primary>Browse compiled index →</ButtonLink>}{" "}
+        {wiki.index.available && <ButtonLink href="#/index" primary>Browse compiled index →</ButtonLink>}
         <ButtonLink href="#/graph">Explore graph</ButtonLink>
       </div>
     </div>
   );
 }
 
-/** One recently compiled row, joined with the matching page row for freshness and citations. */
-function RecentRow({ recent, wiki, now }: { recent: RecentPage; wiki: PagesEnvelope; now: Date }): ReactNode {
-  const page = wiki.pages.find((row) => row.id === recent.id);
-  const status = page?.freshness.freshnessStatus ?? "unverified";
-  return (
-    <Row href={pageHref(recent.pageDirectory, recent.slug)} title={recent.title || recent.slug}
-      trailing={<>{isWarnFreshness(status) && <Badge tone="amber">{status}</Badge>}<Badge>{page?.citationCount ?? 0}</Badge></>}
-      meta={relativeAge(recent.updatedAt, now)} />
-  );
-}
-
 function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
-  const now = useMemo(() => new Date(), [wiki]);
+  const now = new Date();
   const profile = profileVocabulary(wiki) !== null;
+  const rows = new Map(wiki.pages.map((page) => [page.id, page]));
+  const recent = wiki.recentPages.flatMap((entry) => rows.get(entry.id) ?? []);
   return (
     <Card flush title={profile ? "Recently updated" : "Recently compiled"} action={<TextLink href="#/recent">View all</TextLink>}
-      footer={<><span>cited pages, most recent first</span>{" "}<TextLink href="#/recent">All {plural(wiki.pages.length, "page")} →</TextLink></>}>
-      {wiki.recentPages.length === 0 ? (
+      footer={<><span>Cited pages, most recent first</span><TextLink href="#/recent">All {plural(wiki.pages.length, "page")} →</TextLink></>}>
+      {recent.length === 0 ? (
         <p className="p-4 text-sm text-zinc-500">{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
       ) : (
-        <RowList>{wiki.recentPages.map((recent) => <RecentRow key={recent.id} recent={recent} wiki={wiki} now={now} />)}</RowList>
+        <RowList>{recent.map((page) => <PageRowItem key={page.id} page={page} now={now} />)}</RowList>
       )}
     </Card>
   );
@@ -103,7 +92,7 @@ function Receipt({ wiki, health, totals }: { wiki: PagesEnvelope; health: Health
     <Card title="Compile receipt">
       <DefinitionRows rows={rows} />
       <div className="mt-4 border-t border-zinc-950/5 pt-4 dark:border-white/10">
-        <div className="flex justify-between text-sm"><span className="text-zinc-500 dark:text-zinc-400">Citations resolved</span>{" "}<span className="font-medium tabular-nums">{percent}%</span></div>
+        <div className="flex justify-between text-sm"><span className="text-zinc-500 dark:text-zinc-400">Citations resolved</span><span className="font-medium tabular-nums">{percent}%</span></div>
         <meter min={0} max={100} value={percent} className="mt-2 h-2 w-full" />
         <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{resolved} of {totals.total} citations resolve to a source file</p>
       </div>
@@ -128,16 +117,13 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
   const previousVisit = usePreviousVisit();
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {statCards(wiki, dangling, totals.unresolved).map((card) => {
-          const tone = card.tone ? CARD_TONE[card.tone] : "neutral";
-          return (
-            <div key={card.key} data-stat={card.key}>
-              <Stat label={card.label} value={card.value} detail={card.sub} tone={tone} badge={card.tone && <Badge tone={tone}>{card.badge}</Badge>} />
-            </div>
-          );
-        })}
-      </dl>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {statCards(wiki, dangling, totals.unresolved).map((card) => (
+          <div key={card.key} data-stat={card.key}>
+            <Stat label={card.label} value={card.value} detail={card.sub} tone={card.tone ?? "neutral"} badge={card.tone && <Badge tone={card.tone}>{card.badge}</Badge>} />
+          </div>
+        ))}
+      </div>
       <Hero wiki={wiki} />
       <SinceLastVisit pages={wiki.pages} since={previousVisit} />
       <div className="grid gap-6 lg:grid-cols-2">
@@ -152,8 +138,8 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
           <ul role="list" className="space-y-3">
             {nextActions(wiki, health, dangling).map((row) => (
               <li key={row.title} className="flex gap-3 text-sm">
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-950/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400" aria-hidden="true"><row.icon className="size-4" strokeWidth={1.75} /></span>{" "}
-                <span className="min-w-0"><strong className="block font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong>{" "}<span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.hint}</span></span>
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-950/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400" aria-hidden="true"><row.icon className="size-4" strokeWidth={1.75} /></span>
+                <span className="min-w-0"><strong className="block font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong><span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.hint}</span></span>
               </li>
             ))}
           </ul>

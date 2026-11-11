@@ -7,15 +7,14 @@ import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { closesSheet, RailSheet } from "../viewer-v2/src/rail-sheet.js";
-import { shouldAnimateRoutes } from "../viewer-v2/src/use-route.js";
+import { supportsViewTransitions } from "../viewer-v2/src/use-route.js";
 
 describe("route transitions", () => {
-  it("animate only where the API exists and the reader has not asked for less motion", () => {
+  it("animate only where the API exists; the stylesheet handles reduced motion", () => {
     const supported = { startViewTransition: () => undefined } as unknown as Pick<Document, "startViewTransition">;
-    expect(shouldAnimateRoutes(supported, false)).toBe(true);
-    expect(shouldAnimateRoutes(supported, true)).toBe(false);
-    expect(shouldAnimateRoutes({} as Pick<Document, "startViewTransition">, false)).toBe(false);
-    expect(shouldAnimateRoutes(undefined, false)).toBe(false);
+    expect(supportsViewTransitions(supported)).toBe(true);
+    expect(supportsViewTransitions({})).toBe(false);
+    expect(supportsViewTransitions(undefined)).toBe(false);
   });
 });
 
@@ -32,7 +31,7 @@ describe("page details sheet", () => {
   it("renders its button and an empty closed sheet until opened", () => {
     const html = renderToStaticMarkup(createElement(RailSheet, null, createElement("p", null, "rail content")));
     expect(html).toContain(">Page details</button>");
-    expect(html).toMatch(/<dialog[^>]*aria-label="Page details"/);
+    expect(html).toMatch(/<dialog[^>]*aria-labelledby="([^"]+)"[\s\S]*<h2 id="\1"[^>]*>Page details<\/h2>/);
     expect(html).not.toContain("rail content");
   });
 });

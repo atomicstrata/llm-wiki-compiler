@@ -6,8 +6,7 @@
  */
 import type { ReactNode } from "react";
 import { artifactDownloadUrl, artifactRef, fetchArtifact, type ArtifactMetadata, type ArtifactPin } from "./api-workflows";
-import { AsyncView } from "./async-view";
-import { Code, DefinitionRows, TextLink } from "./components";
+import { Code, DefinitionRows, Disclosure, TextLink } from "./components";
 import { displayLabel } from "./pipeline-model";
 import { useAsync } from "./use-async";
 
@@ -51,18 +50,21 @@ export function ArtifactDetail({ metadata }: { metadata: ArtifactMetadata }): Re
       {metadata.metadata && <FileMetadata metadata={metadata.metadata} />}
       {isOk && metadata.contentAccess === "available" && <p className="mt-3"><TextLink href={artifactDownloadUrl(metadata.ref)}>Download</TextLink></p>}
       {isOk && metadata.contentAccess === "loopback-only" && <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{LOOPBACK_NOTE}</p>}
-      <details className="mt-3 text-xs">
-        <summary className="cursor-pointer font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">File reference</summary>
-        <div className="mt-1 break-all"><Code>{metadata.ref}</Code></div>
-      </details>
+      <div className="mt-3">
+        <Disclosure quiet summary="File reference"><p className="break-all"><Code>{metadata.ref}</Code></p></Disclosure>
+      </div>
     </div>
   );
 }
 
-/** Resolve one pin and show what the store says about it. */
+/** Resolve one pin and show what the store says about it; loading and failure are a quiet line inside the stage card. */
 export function ArtifactRef({ pin }: { pin: ArtifactPin }): ReactNode {
   const ref = artifactRef(pin);
   const state = useAsync(() => fetchArtifact(ref), ref);
-  if (state.status === "error") return <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">File could not be checked. Try reopening this record.</p>;
-  return <AsyncView state={state}>{(metadata) => <ArtifactDetail metadata={metadata} />}</AsyncView>;
+  if (state.status === "ready") return <ArtifactDetail metadata={state.data} />;
+  return (
+    <p role={state.status === "loading" ? "status" : undefined} className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+      {state.status === "loading" ? "Checking the attached file…" : "File could not be checked. Try reopening this record."}
+    </p>
+  );
 }

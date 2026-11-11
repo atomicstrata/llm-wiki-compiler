@@ -14,12 +14,9 @@ import { Badge, Card, Code, EmptyState, RowList, Screen, type Tone } from "./com
 import { journeyHref } from "./route";
 import { useAsync } from "./use-async";
 
-/**
- * `current` is deliberately absent: it is the unremarkable default, and a
- * chip on every healthy row would bury the two that mean a run cannot be
- * acted on.
- */
-const CLASSIFICATION_LABELS: Partial<Record<WorkflowRunRow["classification"], string>> = {
+/** How each run classification reads; the journey screen uses the same words. */
+export const RUN_CLASSIFICATION_LABELS: Record<WorkflowRunRow["classification"], string> = {
+  current: "Current",
   historical: "History",
   "needs-adaptation": "Project setup has changed",
   "blocked-by-config": "Project configuration needs attention",
@@ -84,7 +81,8 @@ export function nextCommands(run: WorkflowRunRow): string[] {
 
 /** The chips a run earns: what it is parked on, then its classification when worth stating. */
 function RunFlags({ run }: { run: WorkflowRunRow }): ReactNode {
-  const classification = CLASSIFICATION_LABELS[run.classification];
+  // `current` is the unremarkable default; a chip on every healthy row would bury the two that mean a run cannot be acted on.
+  const classification = run.classification === "current" ? undefined : RUN_CLASSIFICATION_LABELS[run.classification];
   const parked = parkLabels(run);
   if (parked.length === 0 && classification === undefined) return null;
   return (
@@ -104,7 +102,7 @@ function RunRow({ run }: { run: WorkflowRunRow }): ReactNode {
       <div className="flex flex-wrap items-baseline gap-x-2">
         {workflow
           ? <a href={journeyHref(workflow, run.runId)} className="font-medium text-zinc-900 hover:text-indigo-600 dark:text-zinc-100 dark:hover:text-indigo-400">{workflow}</a>
-          : <span className="font-medium text-zinc-500 dark:text-zinc-400">Unknown workflow</span>}{" "}
+          : <span className="font-medium text-zinc-500 dark:text-zinc-400">Unknown workflow</span>}
         <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{run.runId}</span>
       </div>
       <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">{run.status || "unknown"} · {stage || NO_STAGE}</p>
@@ -120,7 +118,7 @@ function ProblemRow({ run }: { run: WorkflowRunRow }): ReactNode {
   return (
     <li className="px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{run.runId || "Unknown run"}</span>{" "}
+        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{run.runId || "Unknown run"}</span>
         <Badge tone="red">Problem</Badge>
       </div>
       <p className="mt-1 text-red-700 dark:text-red-400">{run.problem}</p>

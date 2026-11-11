@@ -37,7 +37,7 @@ describe("PipelineView", () => {
 
   it("lays out each type's chain, chips, callout and verdict", () => {
     const html = renderToStaticMarkup(createElement(PipelineView, { wiki: PROFILE }));
-    expect(text(html)).toContain("Lifecycle status AUTOSCI");
+    expect(text(html)).toMatch(/^Lifecycle status Current record counts.* AUTOSCI /);
     expect(html).toContain("draft → review → published");
     expect(html).toContain("wiki/papers");
     expect(html).toContain("2 published · terminal");
@@ -56,7 +56,8 @@ describe("PipelineView", () => {
     expect(html).toContain("status is not a declared value");
     expect(html).toContain("1 rejected page still declares a lifecycle state and is counted");
     expect(html).toContain('href="#/health"');
-    expect(text(html)).toContain("See all 2 problems in Lint →");
+    expect(text(html)).toContain("See all 2 problems in Health →");
+    expect(text(html)).toContain("Record problems 2 PROBLEMS");
   });
 });
 

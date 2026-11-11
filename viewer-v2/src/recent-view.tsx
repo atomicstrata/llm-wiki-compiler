@@ -4,7 +4,7 @@
  * A page whose created and updated times match was created in that compile,
  * and says so with a visible "new" word rather than colour alone.
  */
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
 import { groupByRecency } from "./recency";
 import { Badge, Card, EmptyState, RowList, Screen } from "./components";
@@ -18,11 +18,11 @@ export function isNewPage(page: PageRow): boolean {
 
 /** The grouped recency screen. */
 export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
-  const now = useMemo(() => new Date(), [wiki]);
-  const groups = useMemo(() => groupByRecency(wiki.pages, (page) => page.updatedAt, now), [wiki, now]);
+  const now = new Date();
+  const groups = groupByRecency(wiki.pages, (page) => page.updatedAt, now);
   return (
     <Screen title="Recent" description={`${plural(wiki.pages.length, "page")}, newest first`}>
-      {groups.length === 0 && <EmptyState title="Nothing compiled yet" body="Compiled pages appear here, newest first." command="$ llmwiki compile" />}
+      {groups.length === 0 ? <EmptyState title="Nothing compiled yet" body="Compiled pages appear here, newest first." command="$ llmwiki compile" /> : (
       <div className="space-y-8">
         {groups.map((group) => (
           <section key={group.label}>
@@ -39,6 +39,7 @@ export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
           </section>
         ))}
       </div>
+      )}
     </Screen>
   );
 }

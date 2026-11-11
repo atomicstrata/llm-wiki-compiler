@@ -4,12 +4,12 @@
  * derived from the page list the shell already holds, which refreshes while
  * the tab is visible, so they move when a compile lands.
  */
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { PageRow } from "./api";
 import { changedSince, dailyActivity, heatLevel, stampVisit, tagCounts, tagWeight, ACTIVITY_WEEKS } from "./activity-model";
-import { Card, Row, RowList, TextLink } from "./components";
-import { relativeAge } from "./recency";
-import { pageHref, tagHref } from "./route";
+import { Card, RowList, TextLink } from "./components";
+import { PageRowItem } from "./lists";
+import { tagHref } from "./route";
 import { safeLocalStorage } from "./storage";
 import { plural } from "./wiki-model";
 
@@ -17,15 +17,15 @@ import { plural } from "./wiki-model";
 const CHANGED_ROWS = 6;
 const TOPIC_LIMIT = 32;
 
-/** When the reader's previous visit started, read and stamped once per mount. */
+/** What counts as new on this visit, read once when the dashboard mounts. */
 export function usePreviousVisit(): string | null {
-  return useMemo(() => stampVisit(safeLocalStorage(), new Date()), []);
+  return useState(() => stampVisit(safeLocalStorage(), new Date()))[0];
 }
 
 /** Pages changed since the last visit; null when there is no last visit or nothing changed. */
 export function SinceLastVisit({ pages, since }: { pages: PageRow[]; since: string | null }): ReactNode {
   const changed = useMemo(() => (since === null ? [] : changedSince(pages, since)), [pages, since]);
-  const now = useMemo(() => new Date(), [pages]);
+  const now = new Date();
   if (since === null || changed.length === 0) return null;
   const when = new Date(since).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
   return (
@@ -33,7 +33,7 @@ export function SinceLastVisit({ pages, since }: { pages: PageRow[]; since: stri
       action={<TextLink href="#/recent">See all in Recent</TextLink>}>
       <RowList>
         {changed.slice(0, CHANGED_ROWS).map((page) => (
-          <Row key={page.id} href={pageHref(page.pageDirectory, page.slug)} title={page.title || page.slug} meta={relativeAge(page.updatedAt, now)} />
+          <PageRowItem key={page.id} page={page} now={now} />
         ))}
       </RowList>
     </Card>
