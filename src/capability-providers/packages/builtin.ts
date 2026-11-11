@@ -21,7 +21,7 @@ import {
 } from "./install-persistence.js";
 import { assertBoundProviderLeaf } from "./leaf-binding.js";
 import {
-  assertAuthorizedProviderDirectory, assertAuthorizedProviderPaths,
+  assertAuthorizedProviderDirectory,
   authorizedProviderDirectoryRealPath, bindAuthorizedProviderChildDirectory,
   ensureAuthorizedProviderDirectory, providerClockNow, setAuthorizedProviderDirectoryMode,
   type AuthorizedProviderDirectory,
@@ -117,15 +117,15 @@ async function publishPreparedProviderCore(
   request: AuthorizedPreparedPublicationRequest,
   prepareTree: (tree: string, expectedParentReal: string) => Promise<void>,
 ): Promise<InstalledProviderSnapshot> {
-  await assertAuthorizedProviderPaths(paths);
   assertPayloadDigest(request.payload, request.packageDigest);
+  // readProviderInstallState revalidates the roots before its first read.
   const existing = (await readProviderInstallState(paths)).installs[request.packageDigest];
   const proposed = installRecord(request);
   const record = preferredEvidence(existing, proposed);
   const destination = packageDirectory(paths, request.packageDigest);
   const packages = await ensureAuthorizedProviderDirectory(paths, paths.packagesRoot);
   await request.afterPackageParentCheckForTest?.(paths.packagesRoot);
-  await assertAuthorizedProviderDirectory(paths, packages);
+  // reuseInstalled -> bindOrRepairCacheDirectory rechecks `packages` before its first look.
   const reused = await reuseInstalled(
     paths, packages, destination, request.artifact, request.packageEvidenceText, record,
     request.afterInstallStateCommitForTest,
@@ -155,7 +155,7 @@ async function publishNewSnapshot(
     await assertAuthorizedProviderDirectory(paths, stagingDirectory);
     await assertAuthorizedProviderDirectory(paths, packages);
     await publishStaging(staging, destination);
-    await assertAuthorizedProviderDirectory(paths, packages);
+    // bindAuthorizedProviderChildDirectory rechecks `packages` before it binds.
     const published = await bindAuthorizedProviderChildDirectory(paths, packages, destination);
     await setAuthorizedProviderDirectoryMode(paths, published, 0o500);
     await request.afterPublicationForTest?.(path.join(published.path, "tree"));
