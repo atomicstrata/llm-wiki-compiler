@@ -5,6 +5,7 @@
  * shell environment before dotenv can open a project file containing API keys.
  */
 
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const CODEX_AGENT = "codex-agent";
@@ -39,5 +40,16 @@ export function loadCliEnvironment(
 ): void {
   const selectedProvider = providerFlag(argv) ?? env.LLMWIKI_PROVIDER?.trim();
   if (selectedProvider === CODEX_AGENT) return;
-  require("dotenv/config");
+  if (hasDotenvInput(argv, env)) require("dotenv/config");
+}
+
+/**
+ * True when dotenv would have something to read: a `.env` in the working
+ * directory, or a `DOTENV_*` variable or `dotenv_config_*` argument pointing it
+ * elsewhere. Most runs have none, and loading dotenv costs every command.
+ */
+function hasDotenvInput(argv: string[], env: NodeJS.ProcessEnv): boolean {
+  return existsSync(".env")
+    || Object.keys(env).some((name) => name.startsWith("DOTENV_"))
+    || argv.some((argument) => argument.startsWith("dotenv_config_"));
 }
