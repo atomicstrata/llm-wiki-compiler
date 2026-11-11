@@ -30,7 +30,8 @@
 
 import path from "path";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
-import { parseFrontmatter } from "../utils/markdown.js";
+import { parseFrontmatter, slugify } from "../utils/markdown.js";
+import { parseQualifiedTarget } from "../wiki/wikilink-target.js";
 import { listDirectoryEntries } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
@@ -114,6 +115,36 @@ export interface LintLinkSources {
 /** LOCAL DISK. The link sources for the project at `root`, built per call. Building them does no I/O. */
 export function diskLintLinkSources(root: string): LintLinkSources {
   return { pages: diskLintPageSources(root), candidates: diskLocalRecordDirs(root) };
+}
+
+/** What lint concludes about one link target: a page is there, one awaits review, or nothing is. */
+export type LinkTargetStatus = "exists" | "pending" | "broken";
+
+/** The page slugs a link may name: those on disk, and those of pending candidates. */
+export interface KnownLinkSlugs {
+  existing: ReadonlySet<string>;
+  pending: ReadonlySet<string>;
+}
+
+/**
+ * Classify one wikilink target, for the broken-wikilink rule and the fix plan
+ * alike so the two never disagree. A bare target is slugified and looked up in
+ * `known`. A folder-qualified `dir/slug` names exactly `wiki/<dir>/<slug>.md`,
+ * which is asked of `sources` only for such a link, so a wiki of bare links
+ * reads nothing more. (A profile entity type whose directory is not
+ * `wiki/<type>` is not found this way.)
+ */
+export async function classifyLinkTarget(
+  target: string, known: KnownLinkSlugs, sources: LintPageSources,
+): Promise<LinkTargetStatus> {
+  const qualified = parseQualifiedTarget(target);
+  if (qualified) {
+    const found = await sources.exists(path.join("wiki", qualified.directory, `${qualified.slug}.md`));
+    return found ? "exists" : "broken";
+  }
+  const slug = slugify(target);
+  if (known.existing.has(slug)) return "exists";
+  return known.pending.has(slug) ? "pending" : "broken";
 }
 
 /**

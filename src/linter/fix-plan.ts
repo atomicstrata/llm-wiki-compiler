@@ -26,10 +26,11 @@
  */
 
 import path from "node:path";
-import { collectAllPagesFrom, diskLintLinkSources, type LintLinkSources, type PageScope } from "./rules-shared.js";
+import { classifyLinkTarget, collectAllPagesFrom, diskLintLinkSources, type LintLinkSources, type PageScope } from "./rules-shared.js";
 import { listLinkResolvablePendingSlugsFrom } from "../compiler/candidate-read.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { findWikilinks } from "../wiki/wikilinks.js";
+import { parseQualifiedTarget } from "../wiki/wikilink-target.js";
 
 /** The wikilink form the linter scans for; shared so the two cannot diverge. */
 
@@ -94,9 +95,10 @@ export async function planLintFixesFrom(sources: LintLinkSources, scope: PageSco
   const plans: LintFixPlanV1[] = [];
   for (const page of pages) {
     for (const { inner: captured, target, line } of findWikilinks(page.content)) {
-      const slug = slugify(target);
-      if (existing.has(slug) || pending.has(slug)) continue;
-      plans.push(planForBrokenLink(page.filePath, line, captured, target, byTitle.get(slug) ?? []));
+      if (await classifyLinkTarget(target, { existing, pending }, sources.pages) !== "broken") continue;
+      // A qualified link names its page exactly; retargeting it by title would be a guess.
+      const candidates = parseQualifiedTarget(target) ? [] : byTitle.get(slugify(target)) ?? [];
+      plans.push(planForBrokenLink(page.filePath, line, captured, target, candidates));
     }
   }
   return plans;

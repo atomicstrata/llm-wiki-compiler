@@ -35,6 +35,7 @@ import { findSharedConcepts } from "../compiler/deps.js";
 import { slugify } from "../utils/markdown.js";
 import type { WikiState, ReviewCandidate } from "../utils/types.js";
 import { findWikilinks } from "../wiki/wikilinks.js";
+import { parseQualifiedTarget } from "../wiki/wikilink-target.js";
 
 /**
  * Matches `[[Target]]` and `[[Target|Display]]`, capturing the inner text.
@@ -194,7 +195,8 @@ export function computeRemovalPlan(input: RemovalPlanInput): RemovalPlan {
  * Pages being deleted are excluded first — a doomed page linking to another
  * doomed page is not a problem anyone needs to hear about. Targets are slugified
  * with the same {@link slugify} the linter's `broken-wikilink` rule uses, so this
- * warning and `llmwiki lint` agree on what counts as a match.
+ * warning and `llmwiki lint` agree on what counts as a match; a qualified
+ * `[[concepts/<slug>]]` names its concept exactly (see {@link linkedConceptSlug}).
  */
 function findBrokenLinks(
   pages: Array<{ filePath: string; content: string }>,
@@ -205,9 +207,20 @@ function findBrokenLinks(
   for (const page of pages) {
     if (doomed.has(path.basename(page.filePath, ".md"))) continue;
     for (const link of findWikilinks(page.content)) {
-      const target = slugify(link.target);
-      if (doomed.has(target)) refs.push({ file: page.filePath, target });
+      const target = linkedConceptSlug(link.target);
+      if (target !== null && doomed.has(target)) refs.push({ file: page.filePath, target });
     }
   }
   return refs;
+}
+
+/**
+ * The concept slug a link target could name: a bare target slugified, the slug
+ * of a qualified `concepts/<slug>`, or null for a qualified link into any other
+ * directory (a person or a timeline day is never a concept being deleted).
+ */
+function linkedConceptSlug(target: string): string | null {
+  const qualified = parseQualifiedTarget(target);
+  if (!qualified) return slugify(target);
+  return qualified.directory === "concepts" ? qualified.slug : null;
 }

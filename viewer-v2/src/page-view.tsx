@@ -1,8 +1,7 @@
 /**
  * One wiki page: the heading rules of the original client, its rendered body,
  * the images its cited sources keep, and the support rail beside it. The
- * graph loads alongside the page so the rail can list backlinks, which the
- * page payload does not carry.
+ * graph loads alongside the page for the rail's neighbourhood section.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { fetchGraph, fetchPage, type GraphData, type PagePayload, type PagesEnvelope } from "./api";
@@ -88,7 +87,7 @@ function Rail({ page, wiki, graph, outline }: { page: PagePayload; wiki: PagesEn
     <>
       <Outline items={outline} />
       {!isTimelinePage(page) && <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />}
-      <PageRail page={page} wiki={wiki} graph={graph} />
+      <PageRail page={page} wiki={wiki} />
     </>
   );
 }
@@ -120,7 +119,7 @@ function LoadedPage({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvel
 /** Load and show the page at `directory/slug` with its support rail. */
 export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const state = useAsync(() => fetchPage(directory, slug), `${directory}/${slug}`);
-  // Keyed on the snapshot, so backlinks and the neighbourhood follow a compile like the rest of the screen.
+  // Keyed on the snapshot, so the neighbourhood follows a compile like the rest of the screen.
   const graph = useAsync(fetchGraph, wiki.updatedAt);
   // Only a page that loaded is worth a recent slot; a broken link is not.
   useEffect(() => {

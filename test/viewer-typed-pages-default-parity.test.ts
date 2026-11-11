@@ -102,6 +102,9 @@ const GOLDEN_PAGE = {
   slug: "alpha",
   citations: [{ raw: "s.md:1-2", spans: [{ file: "s.md", lines: { start: 1, end: 2 } }] }],
   outgoingLinks: ["queries/beta"],
+  // Added after the capture for every project, default included: the pages that
+  // link here, which the rail used to derive from the graph. Not a typed leak.
+  backlinks: [],
   frontmatter: {
     title: "Alpha",
     kind: "concept",

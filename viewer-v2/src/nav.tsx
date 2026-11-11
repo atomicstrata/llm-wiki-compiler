@@ -2,11 +2,13 @@
  * The sidebar: navigation with counts.
  *
  * Reading comes first: the dashboard, the compiled overview when the wiki
- * has one, and the timeline of what happened when. Browse holds the default project's
- * Concepts and Queries, or a profile's declared types in their place.
+ * has one, and the timeline of what happened when. Browse holds Concepts and
+ * Queries, followed on a profile project by its declared types (there a default
+ * row shows only when it has pages, so a people profile reads Concepts, Person).
  * Explore and Maintain are fixed. A zero count reads as an em dash under
  * Browse and Explore (nothing to browse) and as a literal 0 under Maintain (a
- * reassuring fact). Profile-only rows appear only on profile projects. When
+ * reassuring fact). Profile-only rows appear only on profile projects, and only
+ * when the profile declares what they show: workflows, or a lifecycle. When
  * a profile type shares a fixed row's name, the fixed row takes its longer
  * collision label so the two stay distinct. The same rows, flattened, are the
  * palette's "Go to" destinations.
@@ -41,18 +43,32 @@ interface NavSection {
 /** The many-types threshold past which the Browse header also shows the count. */
 const MANY_TYPES = 11;
 
-/** Browse rows: the profile's types sorted by page count, else Concepts and Queries. */
+/**
+ * Browse rows: Concepts and Queries, then a profile's types sorted by page
+ * count. Beside a profile's types a default row appears only when it has
+ * pages, so a profile that compiles no concepts shows no empty Concepts row.
+ */
 function browseItems(wiki: PagesEnvelope): NavItem[] {
+  const defaults: NavItem[] = [
+    { route: "concepts", href: "#/concepts", label: "Concepts", icon: Lightbulb, count: wiki.counts.concepts },
+    { route: "queries", href: "#/queries", label: "Queries", icon: MessageCircleQuestion, count: wiki.counts.queries },
+  ];
   const types = entityTypes(wiki);
-  if (types.length === 0) {
-    return [
-      { route: "concepts", href: "#/concepts", label: "Concepts", icon: Lightbulb, count: wiki.counts.concepts },
-      { route: "queries", href: "#/queries", label: "Queries", icon: MessageCircleQuestion, count: wiki.counts.queries },
-    ];
-  }
-  return [...types]
+  if (types.length === 0) return defaults;
+  const typeRows = [...types]
     .sort((a, b) => b.pageCount - a.pageCount)
     .map((row) => ({ route: row.type, href: typeListHref(row.type), label: humanLabel(row.type), icon: Folder, count: row.pageCount }));
+  return [...defaults.filter((item) => (item.count ?? 0) > 0), ...typeRows];
+}
+
+/** The profile-only Maintain rows, each only when the profile declares what its screen shows. */
+function profileItems(wiki: PagesEnvelope, typeCount: number): NavItem[] {
+  const declaresWorkflows = (wiki.profilePipeline?.workflows?.length ?? 0) > 0;
+  const declaresLifecycle = entityTypes(wiki).some((row) => row.lifecycle !== undefined);
+  return [
+    ...(declaresWorkflows ? [{ route: "workflows", href: "#/workflows", label: "Workflows", icon: Workflow, profileOnly: true }] : []),
+    ...(declaresLifecycle ? [{ route: "pipeline", href: "#/pipeline", label: "Lifecycle status", icon: ListChecks, count: typeCount, profileOnly: true }] : []),
+  ];
 }
 
 /** Every section with its rows, counts filled in from the payloads. */
@@ -79,8 +95,7 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
       items: [
         { route: "health", href: "#/health", label: "Health & lint", icon: Activity, count: lint ?? undefined },
         { route: "reviews", href: "#/reviews", label: "Reviews", icon: Inbox, collisionLabel: "Review queue", count: wiki.counts.pendingReviews },
-        { route: "workflows", href: "#/workflows", label: "Workflows", icon: Workflow, profileOnly: true },
-        { route: "pipeline", href: "#/pipeline", label: "Lifecycle status", icon: ListChecks, count: typeCount, profileOnly: true },
+        ...profileItems(wiki, typeCount),
       ],
     },
   ];

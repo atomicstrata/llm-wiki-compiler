@@ -1,16 +1,14 @@
 /**
- * The support rail beside a page: metadata, every citation grouped by source
- * file, the page's outgoing links and backlinks, and a typed page's entity
- * context. The page payload carries no backlinks, so they come from the graph,
- * which the page view loads once and hands down as it settles.
+ * The support rail beside a page: metadata (with a typed page's declared
+ * fields), every citation grouped by source file, the page's outgoing links and
+ * backlinks, and a typed page's entity context. Backlinks come with the page
+ * payload, so a timeline day or a typed page linking here is listed too.
  */
 import type { ReactNode } from "react";
-import type { ConnectorProvenance, EntityContext, EntityRelation, GraphData, PagePayload, PagesEnvelope, SourceSpan } from "./api";
-import { AsyncView } from "./async-view";
+import type { ConnectorProvenance, EntityContext, EntityRelation, PagePayload, PagesEnvelope, SourceSpan } from "./api";
 import { Badge, DefinitionRows, RangeChip, SURFACE } from "./components";
-import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, isTimelinePage, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
+import { backlinksFrom, connectorHref, declaredFields, groupCitationsByFile, groupRelations, isTimelinePage, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
 import { pageIdHref, sourceHref } from "./route";
-import type { AsyncState } from "./use-async";
 import { formatUtcTimestamp, humanLabel } from "./wiki-model";
 
 /** A rail section with the small uppercase heading. */
@@ -28,12 +26,21 @@ function freshnessText({ freshnessStatus, contradicted, archived }: PagePayload[
   return [freshnessStatus, contradicted && "contradicted", archived && "archived"].filter(Boolean).join(" · ");
 }
 
-function MetadataSection({ page }: { page: PagePayload }): ReactNode {
+/**
+ * Whether freshness means anything for the page. A timeline page is regenerated
+ * from its sources on every compile, and a typed page has no source ownership
+ * to compare, so it always reads "unverified".
+ */
+function hasFreshness(page: PagePayload): boolean {
+  return !isTimelinePage(page) && page.entityType === undefined;
+}
+
+function MetadataSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelope }): ReactNode {
   const counts = pageCitationCounts(page);
-  // A timeline page is regenerated from its sources on every compile, so "fresh" or "stale" says nothing about it.
   const rows: [string, ReactNode][] = [
     ["Kind", pageKind(page)],
-    ...(isTimelinePage(page) ? [] : [["Freshness", freshnessText(page.freshness)] as [string, ReactNode]]),
+    ...declaredFields(page, wiki).map((field): [string, ReactNode] => [field.label, <span title={field.name}>{field.value}</span>]),
+    ...(hasFreshness(page) ? [["Freshness", freshnessText(page.freshness)] as [string, ReactNode]] : []),
     ["Created", formatUtcTimestamp(page.createdAt)],
     ["Updated", formatUtcTimestamp(page.updatedAt)],
     ["Citations", counts.total],
@@ -90,7 +97,7 @@ function LinkList({ links, whenEmpty }: { links: { id: string; title: string }[]
   );
 }
 
-function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData> }): ReactNode {
+function ConnectionsSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelope }): ReactNode {
   const titles = new Map(wiki.pages.map((row) => [row.id, row.title]));
   const linksOut = page.outgoingLinks.map((id) => ({ id, title: titles.get(id) || id }));
   return (
@@ -98,7 +105,7 @@ function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: Pa
       <h3 className={RAIL_HEADING}>Links out</h3>
       <LinkList links={linksOut} whenEmpty="No outgoing links." />
       <h3 className={RAIL_HEADING}>Backlinks</h3>
-      <AsyncView state={graph}>{(data) => <LinkList links={backlinksFrom(data, page.id)} whenEmpty="No backlinks." />}</AsyncView>
+      <LinkList links={backlinksFrom(page, wiki)} whenEmpty="No backlinks." />
     </RailSection>
   );
 }
@@ -169,16 +176,15 @@ function EntityContextSection({ context }: { context: EntityContext }): ReactNod
 interface PageRailProps {
   page: PagePayload;
   wiki: PagesEnvelope;
-  graph: AsyncState<GraphData>;
 }
 
 /** The rail: metadata, citations, connections, and the entity context of a typed page. */
-export function PageRail({ page, wiki, graph }: PageRailProps): ReactNode {
+export function PageRail({ page, wiki }: PageRailProps): ReactNode {
   return (
     <>
-      <MetadataSection page={page} />
+      <MetadataSection page={page} wiki={wiki} />
       <CitationsSection page={page} wiki={wiki} />
-      <ConnectionsSection page={page} wiki={wiki} graph={graph} />
+      <ConnectionsSection page={page} wiki={wiki} />
       {page.entityContext && <EntityContextSection context={page.entityContext} />}
     </>
   );

@@ -16,7 +16,8 @@
  * Only an unambiguous prefix match is repaired. A slug that prefixes two pages
  * is left alone rather than guessed at, and so is one that prefixes none: a link
  * to a concept the wiki genuinely lacks is a signal about what is missing, not
- * noise to be hidden.
+ * noise to be hidden. A folder-qualified link (`[[person/karl-marrett|Karl]]`,
+ * `[[timeline/2026-11-05]]`) names its page exactly and is never rewritten.
  *
  * `repairLinksFrom` is THE ONE BODY of the read-and-plan pass and holds no
  * project root: it reaches the project only through {@link LinkRepairSources}.
@@ -41,6 +42,7 @@ import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { warnDroppedReadIfPresentFrom } from "./confined-wiki-read.js";
 import { rewriteWikilinks } from "../wiki/wikilinks.js";
+import { parseQualifiedTarget } from "../wiki/wikilink-target.js";
 import { listLinkResolvablePendingSlugsFrom } from "./candidate-read.js";
 import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
 import type { PageId } from "../utils/page-id.js";
@@ -102,6 +104,8 @@ function repairBody(
   let repaired = 0;
   const next = rewriteWikilinks(body, ({ inner }) => {
     const { target, alias } = splitWikilink(inner);
+    // Slugifying `person/karl-marrett` would read as a concept prefix; leave it be.
+    if (parseQualifiedTarget(target)) return undefined;
     const resolved = resolve(slugify(target));
     if (!resolved) return undefined;
     repaired += 1;
