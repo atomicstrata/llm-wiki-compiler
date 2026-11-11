@@ -34,6 +34,7 @@ import { readOperationManifest, type OperationManifestRead } from "./manifest-st
 import type { OperationPrincipal } from "./principal.js";
 import type { OperationProblem, OperationProblemCode } from "./problems.js";
 import { appendOperationTransitionLocked, readOperationRun, type OperationRunRead } from "./run-store.js";
+import { once } from "../utils/pass-memo.js";
 import type {
   AppendOperationTransitionInput, OperationRun, OperationRunBinding, OperationRunCounters, OperationRunPredecessor, OperationRunState,
 } from "./run-types.js";
@@ -85,14 +86,22 @@ export interface OperationRunStores {
   writePendingMarker(entries: PendingEmbedding[]): Promise<void>;
 }
 
-/** LOCAL DISK. The incumbent root forms for `root`, each called when asked with its old arguments. */
+/**
+ * LOCAL DISK. The incumbent root forms for `root`, each called when asked with
+ * its old arguments. ONE KEY READ PER LOCKED ACTION: the stores serve one
+ * `…Locked` action, whose caller holds the project lock throughout, and nothing
+ * the run domain does writes the key. So the key is read once, and that read
+ * authenticates every run read and signs every append of the action; the run
+ * record itself is still read afresh for each read and each append's fence.
+ */
 export function diskOperationRunStores(root: string): OperationRunStores {
+  const readKey = once(() => readOperationKey(root));
   return {
     capabilityRoot: root,
     readManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
-    readKey: () => readOperationKey(root),
-    readRun: (binding) => readOperationRun(root, binding),
-    appendTransition: (binding, expected, input) => appendOperationTransitionLocked(root, binding, expected, input),
+    readKey,
+    readRun: (binding) => readOperationRun(root, binding, readKey),
+    appendTransition: (binding, expected, input) => appendOperationTransitionLocked(root, binding, expected, input, readKey),
     writeEvidence: (location, bytes) => writeRunEvidenceCreateOnly(root, location, bytes),
     readCancel: (workspaceId, runId) => readCancelRequest(root, workspaceId, runId),
     removeCancel: (workspaceId, runId) => removeCancelRequestLocked(root, workspaceId, runId),

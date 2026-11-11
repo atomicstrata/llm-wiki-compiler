@@ -86,6 +86,34 @@ export interface OperationOrphanScan {
   workspaces: readonly string[];
   bundleDirectories: readonly { workspaceId: string; bundleId: string }[];
   problems: readonly OperationInventoryProblem[];
+  /**
+   * What the walk saw, workspaces-relative: every directory it listed in full
+   * (`""` is the store root) and every entry it found in one. A problem-free scan
+   * thereby proves a path ABSENT below a listed, confined directory
+   * ({@link walkProvesAbsent}).
+   */
+  listing: { directories: ReadonlySet<string>; entries: ReadonlySet<string> };
+}
+
+/**
+ * Whether a problem-free walk proves every one of `relativePaths` (siblings in
+ * one directory, workspaces-relative) absent: descending from the store root,
+ * each directory on the way was listed in full (so its realpath was proved its
+ * canonical in-root path, as the confined absence check proves of the nearest
+ * existing ancestor), and the first segment not found in its listed parent is
+ * absent with all below it. A segment the walk found but did not list, or the
+ * store root itself unlisted, proves nothing.
+ */
+export function walkProvesAbsent(listing: OperationOrphanScan["listing"], relativePaths: readonly string[]): boolean {
+  const parts = relativePaths[0]!.split(path.sep);
+  for (let depth = 0, dir = ""; depth < parts.length; depth++) {
+    if (!listing.directories.has(dir)) return false;
+    if (depth === parts.length - 1) return relativePaths.every((item) => !listing.entries.has(item));
+    const child = path.join(dir, parts[depth]!);
+    if (!listing.entries.has(child)) return true;
+    dir = child;
+  }
+  return false;
 }
 
 /** Test-only lower bound for deterministic directory-exhaustion coverage. */
@@ -123,6 +151,7 @@ export interface OperationStoreWalkReads {
 
 interface ScanState {
   reads: OperationStoreWalkReads;
+  listed: { directories: Set<string>; entries: Set<string> };
   maxEntries: number;
   entries: number;
   exhausted: boolean;
@@ -370,6 +399,7 @@ async function inspectEntry(
   depth: number,
 ): Promise<void> {
   const child = path.join(dir, entry.name), relative = child;
+  state.listed.entries.add(child);
   if (entry.isDirectory()) {
     if (isForeignStoreDirectory(relative)) return; // preparation store owns this; not operation inventory
     if (!directoryAllowed(relative)) {
@@ -416,18 +446,32 @@ export async function scanOperationOrphans(
   return scanOperationOrphansFrom(diskOperationStoreWalkReads(root, scanned), options);
 }
 
+/** The walk reads, noting each directory whose listing completed. */
+function listingReads(reads: OperationStoreWalkReads, directories: Set<string>): OperationStoreWalkReads {
+  return {
+    observeLeaf: reads.observeLeaf,
+    visitDirectory: async (directory, visitor) => {
+      const visit = await reads.visitDirectory(directory, visitor);
+      if (visit === "visited") directories.add(directory);
+      return visit;
+    },
+  };
+}
+
 /** {@link scanOperationOrphans} over the scanner's own reads: the one walk body. */
 export async function scanOperationOrphansFrom(
   reads: OperationStoreWalkReads,
   options: OperationScanOptions = {},
 ): Promise<OperationOrphanScan> {
   const requested = positiveScanEntryLimit(options.maxDirectoryEntriesForTest ?? DEFAULT_MAX_ENTRIES, "operation");
+  const listed = { directories: new Set<string>(), entries: new Set<string>() };
   const state: ScanState = {
-    reads, maxEntries: requested, entries: 0, exhausted: false, leaves: [],
+    reads: listingReads(reads, listed.directories), listed, maxEntries: requested, entries: 0, exhausted: false, leaves: [],
     workspaces: new Set(), bundleDirectories: new Map(), problems: [],
   };
   await walk(state, "", 0);
   return {
+    listing: listed,
     leaves: state.leaves,
     workspaces: [...state.workspaces].sort(),
     bundleDirectories: [...state.bundleDirectories.values()]

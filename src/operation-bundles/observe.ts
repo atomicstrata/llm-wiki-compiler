@@ -24,8 +24,9 @@
 
 import { scanOperationInventory, type OperationInventory } from "./capacity.js";
 import { resolveTarget } from "./bundle-target.js";
-import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
-import { readOperationRun, type OperationRunRead } from "./run-store.js";
+import type { OperationKeyRead } from "./key-epoch.js";
+import { operationPassReads, type OperationPassReads } from "./pass-reads.js";
+import type { OperationRunRead } from "./run-store.js";
 import { operationRunPredecessor } from "./run-integrity.js";
 import { operationNeverStarted } from "./never-started.js";
 import { readPageDigest, type LeafDigest } from "./adapters/shared.js";
@@ -111,12 +112,19 @@ export interface OperationObservationReads {
   readPageDigest(mutation: PageOperationMutation): Promise<LeafDigest>;
 }
 
-/** LOCAL DISK. The incumbent inventory scan, key, run and page readers for `root`, each called when asked. */
-function diskOperationObservationReads(root: string): OperationObservationReads {
+/**
+ * LOCAL DISK. The incumbent inventory scan, key, run and page readers for `root`,
+ * each called when asked. One observation is ONE PASS (`pass-reads.ts`): it
+ * writes nothing, so the key the inventory authenticated every run under is the
+ * key the observation binds, read once, and the run it reads is the record the
+ * inventory's walk read and authenticated, consumed once proved current. A
+ * caller already in a pass hands it in. In no package index.
+ */
+export function diskOperationObservationReads(root: string, pass: OperationPassReads = operationPassReads(root)): OperationObservationReads {
   return {
-    scanInventory: () => scanOperationInventory(root),
-    readKey: () => readOperationKey(root),
-    readRun: (binding) => readOperationRun(root, binding),
+    scanInventory: () => scanOperationInventory(root, {}, pass),
+    readKey: pass.readKey,
+    readRun: pass.readRun,
     readPageDigest: (mutation) => readPageDigest(root, mutation),
   };
 }
