@@ -287,7 +287,8 @@ const published = (rel: string, n: number): string[] => {
   const scratch = `${rel}.${n.toString(16).padStart(16, "0")}.publishing`;
   return [`serialize ${MEM_SELF}`, "entropy 8", `create ${scratch}`, `link ${scratch} -> ${rel}`, `remove ${scratch}`];
 };
-const RESOLVED = ["confine .llmwiki", "mkdir .llmwiki", "safe-realpath .", "safe-realpath .llmwiki"];
+// The re-check compares against the root the confinement judged under (the confined dir's parent), so the root is not resolved again.
+const RESOLVED = ["confine .llmwiki", "mkdir .llmwiki", "safe-realpath .llmwiki"];
 
 describe("the project lock over a copied project, with the minting directory gone", () => {
   it("L1 runs after the minting directory was removed, on a copy holding exactly the seed and no private directory", () => {
