@@ -26,13 +26,20 @@ export function verified<T>(read: () => T): T | null {
   try { return read(); } catch { return null; }
 }
 
-/** Distinguish a missing directory from one whose confinement cannot be proved. */
+/**
+ * Distinguish a missing directory from one whose confinement cannot be proved.
+ * The realpath must be the canonical in-root path, which no symlink at `dir` can
+ * produce; a non-directory there is refused when it is opened for listing. Only
+ * a failed realpath is lstat'd, to tell nothing there (absent) from a dangling
+ * link or a fault (unavailable).
+ */
 async function directoryIsConfined(state: { root: string }, dir: string): Promise<boolean | "absent"> {
-  const metadata = await lstat(dir).catch((error: NodeJS.ErrnoException) =>
-    error.code === "ENOENT" ? null : error);
-  if (metadata === null) return "absent";
-  if (metadata instanceof Error || !metadata.isDirectory() || metadata.isSymbolicLink()) return false;
-  return await expectedRealMatching(state.root, path.resolve(dir), await realpath(dir).catch(() => null)) !== null;
+  const observed = await realpath(dir).catch((error: NodeJS.ErrnoException) => error);
+  if (observed instanceof Error) {
+    if (observed.code !== "ENOENT") return false;
+    return lstat(dir).then(() => false, (error: NodeJS.ErrnoException) => error.code === "ENOENT" ? "absent" as const : false);
+  }
+  return await expectedRealMatching(state.root, path.resolve(dir), observed) !== null;
 }
 
 /** Why a confined directory was not opened. Each is decided BEFORE any entry is seen. */
@@ -43,7 +50,8 @@ async function openConfinedDirectory(state: { root: string }, dir: string) {
   const confined = await directoryIsConfined(state, dir);
   if (confined === "absent") return "absent" as const;
   if (!confined) return "unavailable" as const;
-  return opendir(dir).catch(() => "unlistable" as const);
+  // A confined path that is not a directory is unavailable, as before; any other failure to list is unlistable.
+  return opendir(dir).catch((error: NodeJS.ErrnoException) => error.code === "ENOTDIR" ? "unavailable" as const : "unlistable" as const);
 }
 
 /**
