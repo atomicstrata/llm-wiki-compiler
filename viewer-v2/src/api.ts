@@ -2,8 +2,28 @@
  * Typed client for the viewer's read-only JSON API.
  *
  * Every function maps to one route of the local viewer server. The shapes
- * list only the fields this client reads; the server sends more.
+ * list the fields this client reads; the server may send more. Fields that
+ * exist only on profile projects are optional and absent, never null, on a
+ * default project.
  */
+
+/** Whether `.llmwiki/state.json` could be read. */
+export type StateStatus = "ok" | "missing" | "corrupt" | "too-new";
+
+export type FreshnessStatus = "fresh" | "stale" | "orphaned" | "unverified";
+
+/** A page's freshness relative to its sources. */
+export interface PageFreshness {
+  freshnessStatus: FreshnessStatus;
+  contradicted: boolean;
+  archived: boolean;
+}
+
+/** A per-page problem the server noticed while reading it. */
+export interface PageWarning {
+  code: string;
+  message: string;
+}
 
 /** One row of the page list. */
 export interface PageRow {
@@ -11,32 +31,112 @@ export interface PageRow {
   pageDirectory: string;
   slug: string;
   title: string;
+  kind: string;
   summary: string;
   updatedAt: string;
+  createdAt: string;
+  warnings: PageWarning[];
+  freshness: PageFreshness;
+  citationCount: number;
+  unresolvedCitationCount: number;
+  entityType?: string;
+}
+
+/** One of the eight most recently updated pages. */
+export interface RecentPage {
+  id: string;
+  pageDirectory: string;
+  slug: string;
+  title: string;
+  updatedAt: string;
+  entityType?: string;
+}
+
+/** One entity type a profile declares, with its page count. */
+export interface EntityTypeRow {
+  type: string;
+  directory: string;
+  pageCount: number;
+}
+
+/** A problem with a profile project's records. */
+export interface ProfileProblem {
+  kind: string;
+  entityType?: string;
+  path?: string;
+  message: string;
 }
 
 /** The bootstrap envelope: project identity, counts, and every page. */
 export interface PagesEnvelope {
-  project: { title: string };
-  counts: { concepts: number; queries: number; sourceFiles: number; pendingReviews: number };
+  project: { title: string; rootName: string };
+  stateStatus: StateStatus;
+  profileId: string;
+  counts: {
+    concepts: number;
+    queries: number;
+    sourceFiles: number;
+    pendingReviews: number;
+    compiledSources: number;
+    stale: number;
+    orphaned: number;
+  };
+  graph: { nodeCount: number; edgeCount: number; danglingCount: number };
+  sourceFilenames: string[];
   index: { available: boolean };
+  recentPages: RecentPage[];
   pages: PageRow[];
+  updatedAt: string;
+  profileProblems?: ProfileProblem[];
+  profileProblemTotal?: number;
+  profilePipeline?: { entityTypes: EntityTypeRow[] };
+}
+
+/** The last lint run, from `.llmwiki/last-lint.json`. */
+export interface LintSummary {
+  warnings: number;
+  errors: number;
+  at: string;
+  rules?: { rule: string; severity: "error" | "warning"; count: number; fileCount: number; topFile: string }[];
+}
+
+/** Wiki health counts and the last lint run; `lint` is null when lint has never run. */
+export interface HealthPayload {
+  pendingReviews: number;
+  sources: number;
+  sourceFiles: number;
+  concepts: number;
+  queries: number;
+  stale: number;
+  orphaned: number;
+  stateStatus: StateStatus;
+  lint: LintSummary | null;
 }
 
 /** One rendered page. `html` is sanitized by the server. */
 export interface PagePayload {
   id: string;
   title: string;
+  pageDirectory: string;
+  slug: string;
   html: string;
   updatedAt: string;
+  createdAt: string;
+  warnings: PageWarning[];
+  freshness: PageFreshness;
+  outgoingLinks: string[];
   frontmatter: { tags?: unknown; sources?: unknown };
+  entityType?: string;
 }
 
 /** One search hit. */
 export interface SearchResult {
   id: string;
+  pageDirectory: string;
   title: string;
   snippet: string;
+  matchedIn: "title" | "body";
+  entityType?: string;
 }
 
 /** Metadata of an ingested source. */
@@ -59,6 +159,11 @@ async function getJson<T>(path: string): Promise<T> {
 /** The page list and project summary. */
 export function fetchPages(): Promise<PagesEnvelope> {
   return getJson("/api/pages");
+}
+
+/** Health counts and the last lint run. */
+export function fetchHealth(): Promise<HealthPayload> {
+  return getJson("/api/health");
 }
 
 /** One page by directory and slug. */

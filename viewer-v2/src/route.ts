@@ -4,21 +4,55 @@
  * The server renders wikilinks as `#/<directory>/<slug>` and source links as
  * `#/_source/<file>`, the same forms the original client uses, so both clients
  * follow the same links. A source route may carry a cited line range as
- * `?start=12&end=15`. `#/_search?q=` is the one route only this client has.
- * Both reserved segments start with an underscore, which no page directory can.
+ * `?start=12&end=15`. The screens of the original client keep their hashes
+ * too: `#/index`, `#/recent`, `#/concepts`, `#/queries`, `#/sources`,
+ * `#/graph`, `#/health`, `#/reviews`, `#/source-changes`, `#/workflows` and
+ * `#/pipeline`. A profile's typed list lives at `#/_type/<entity-type>`, so a
+ * type sharing a name with one of those screens still opens its own pages.
+ * `#/_search?q=` is the one route only this client has. Reserved segments
+ * start with an underscore, which no page directory can.
  */
+
+/** The three lists of a default project. */
+export type ListKind = "concepts" | "queries" | "sources";
 
 /** A parsed location inside the viewer. */
 export type Route =
   | { view: "home" }
+  | { view: "index" }
+  | { view: "recent" }
+  | { view: "list"; kind: ListKind }
+  | { view: "typeList"; type: string }
+  | { view: "graph" }
+  | { view: "health" }
+  | { view: "reviews" }
+  | { view: "sourceChanges" }
+  | { view: "workflows" }
+  | { view: "pipeline" }
   | { view: "page"; directory: string; slug: string }
   | { view: "source"; id: string; lineStart?: number; lineEnd?: number }
   | { view: "search"; query: string };
 
 const HOME: Route = { view: "home" };
 const SOURCE_SEGMENT = "_source";
-const WHOLE_NUMBER = /^\d+$/;
+const TYPE_SEGMENT = "_type";
 const SEARCH_SEGMENT = "_search";
+const WHOLE_NUMBER = /^\d+$/;
+
+/** Single-segment hashes that name a screen outright. */
+const STATIC_ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
+  ["index", { view: "index" }],
+  ["recent", { view: "recent" }],
+  ["concepts", { view: "list", kind: "concepts" }],
+  ["queries", { view: "list", kind: "queries" }],
+  ["sources", { view: "list", kind: "sources" }],
+  ["graph", { view: "graph" }],
+  ["health", { view: "health" }],
+  ["reviews", { view: "reviews" }],
+  ["source-changes", { view: "sourceChanges" }],
+  ["workflows", { view: "workflows" }],
+  ["pipeline", { view: "pipeline" }],
+]);
 
 /** Parse `location.hash` into a route; anything malformed is the home route. */
 export function parseRoute(hash: string): Route {
@@ -27,7 +61,9 @@ export function parseRoute(hash: string): Route {
   if (segments === null || segments.length === 0) return HOME;
   const params = new URLSearchParams(rawQuery);
   if (segments[0] === SEARCH_SEGMENT) return { view: "search", query: params.get("q") ?? "" };
+  if (segments.length === 1) return STATIC_ROUTES.get(segments[0]) ?? HOME;
   if (segments.length !== 2) return HOME;
+  if (segments[0] === TYPE_SEGMENT) return { view: "typeList", type: segments[1] };
   if (segments[0] === SOURCE_SEGMENT) {
     return { view: "source", id: segments[1], ...lineRange(params.get("start"), params.get("end")) };
   }
@@ -43,6 +79,11 @@ export function pageHref(directory: string, slug: string): string {
 export function pageIdHref(id: string): string {
   const [directory, slug = ""] = id.split("/");
   return pageHref(directory, slug);
+}
+
+/** Hash for a profile entity type's list. */
+export function typeListHref(type: string): string {
+  return `#/${TYPE_SEGMENT}/${encodeURIComponent(type)}`;
 }
 
 /** Hash for a source, optionally pointing at a cited line range. */

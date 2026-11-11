@@ -3,7 +3,7 @@
  * server renders.
  */
 import { describe, expect, it } from "bun:test";
-import { citationHref, pageHref, pageIdHref, parseRoute, searchHref, sourceHref } from "../viewer-v2/src/route.js";
+import { citationHref, pageHref, pageIdHref, parseRoute, searchHref, sourceHref, typeListHref } from "../viewer-v2/src/route.js";
 
 describe("v2 viewer routes", () => {
   it("round-trips a page whose slug needs encoding", () => {
@@ -38,7 +38,15 @@ describe("v2 viewer routes", () => {
     expect(citationHref(undefined, "12")).toBeNull();
   });
 
-  it.each(["", "#", "#/", "#/concepts", "#/a/b/c", "#/concepts/%E0%A4%A"])("treats %j as home", (hash) => {
+  it("names the original client's screens by the same hashes", () => {
+    expect(parseRoute("#/concepts")).toEqual({ view: "list", kind: "concepts" });
+    expect(parseRoute("#/source-changes")).toEqual({ view: "sourceChanges" });
+    expect(parseRoute("#/recent")).toEqual({ view: "recent" });
+    expect(parseRoute(typeListHref("papers"))).toEqual({ view: "typeList", type: "papers" });
+    expect(parseRoute("#/papers")).toEqual({ view: "home" });
+  });
+
+  it.each(["", "#", "#/", "#/nonsense", "#/a/b/c", "#/concepts/%E0%A4%A"])("treats %j as home", (hash) => {
     expect(parseRoute(hash)).toEqual({ view: "home" });
   });
 });

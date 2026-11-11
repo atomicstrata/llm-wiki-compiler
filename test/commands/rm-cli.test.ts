@@ -64,6 +64,12 @@ async function oneSourceProject(): Promise<string> {
   return root;
 }
 
+/** Run `rm bad.md --dry-run` in `root` and return its combined, colour-stripped output. */
+async function dryRunOutput(root: string): Promise<string> {
+  const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+  return stripAnsi(stdout + stderr);
+}
+
 describe("llmwiki rm CLI", () => {
   it("--dry-run reports the full delete/keep lines and changes nothing", async () => {
     const root = await twoSourceRmProject();
@@ -101,18 +107,11 @@ describe("llmwiki rm CLI", () => {
   });
 
   it("does not warn about a profile on a default project", async () => {
-    const root = await twoSourceRmProject();
-
-    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
-
-    expect(stripAnsi(stdout + stderr)).not.toContain("This project uses the");
+    expect(await dryRunOutput(await twoSourceRmProject())).not.toContain("This project uses the");
   });
 
   it("warns that typed entity pages are untracked and untouched on a profile project's --dry-run", async () => {
-    const root = await twoSourceRmProjectWithProfile();
-
-    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
-    const lines = stripAnsi(stdout + stderr);
+    const lines = await dryRunOutput(await twoSourceRmProjectWithProfile());
 
     expect(lines).toContain("This project uses the `sample` profile.");
     expect(lines).toContain("Typed entity pages are not tracked to the source they came from");
@@ -143,10 +142,8 @@ describe("llmwiki rm CLI", () => {
   });
 
   it("warns that kept pages may still cite the removed source", async () => {
-    const root = await twoSourceRmProject(); // shared.md survives, still citing bad.md
-
-    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
-    const lines = stripAnsi(stdout + stderr);
+    // shared.md survives, still citing bad.md
+    const lines = await dryRunOutput(await twoSourceRmProject());
 
     expect(lines).toContain("Kept page(s) may still cite this source.");
     expect(lines).toContain("Run `llmwiki lint`");
