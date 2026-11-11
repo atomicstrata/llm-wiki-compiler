@@ -123,6 +123,9 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
     kind: viewerPageKind(page),
     summary: typeof page.frontmatter.summary === "string" ? page.frontmatter.summary : "",
     updatedAt: pageTimestamp(page.frontmatter),
+    // The raw field, never the updatedAt fallback: a client compares the two
+    // to tell a page created by the last compile from one it merely updated.
+    createdAt: typeof page.frontmatter.createdAt === "string" ? page.frontmatter.createdAt : "",
     warnings: page.warnings,
     freshness: page.freshness,
     citationCount: page.citations.length,

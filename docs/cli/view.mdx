@@ -32,7 +32,11 @@ Press `Ctrl+C` to stop the server.
 llmwiki view-v2 --open
 ```
 
-The v2 client shows the page list with a title filter, each page with its citation chips, search, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. It does not yet have the dashboard, graph, health, review, or workflow screens; use `llmwiki view` for those.
+The v2 client has the dashboard, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, a theme control, the concepts, queries, sources and profile-type lists with title and freshness filters, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines.
+
+It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
+
+The graph explorer, health, reviews, source changes, workflows, and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
 
 ### Source images
 

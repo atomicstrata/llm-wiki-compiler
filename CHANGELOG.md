@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`llmwiki view-v2` gains the dashboard, navigation and lists, and a Recent screen.** The v2 client now has the sidebar with counts, the verdict pill, live search, a theme control, the concepts, queries, sources and profile-type lists with filters, and the dashboard. `#/recent` groups every page by when it was compiled and marks pages the last compile created. `/api/pages` rows now carry `createdAt`.
 - **`llmwiki view-v2`: a React client for the viewer.** It serves the same local read-only server and JSON API as `llmwiki view`, with a page list, pages, search, and sources with numbered lines. Selecting a citation chip opens the source at the cited lines.
 - **`--public-origin` for a viewer behind a reverse proxy.** `llmwiki view --public-origin https://wiki.example.com` accepts that origin in `Host` and `Origin`, so a viewer reached through a proxy or tunnel can load its scripts and styles. Other origins are still refused.
 - **Links from a page to its sources.** A Markdown link to a source file, as in each page's `## Sources` list, now opens that source in the viewer. It was previously rendered without a destination.
