@@ -68,12 +68,32 @@ const PREVIEW_REQUEST_SURFACE = [
   "PreviewRequestV1.documents.seed().text: string",
 ];
 
+/**
+ * A compiler host that asks the disk each existence question once. Module
+ * resolution probes the same candidate paths from every importing directory;
+ * the answers cannot change while one program is built, so the program, and
+ * therefore the type it checks, is the one the default host would build.
+ */
+function probeOnceHost(options: ts.CompilerOptions): ts.CompilerHost {
+  const host = ts.createCompilerHost(options);
+  const files = new Map<string, boolean>();
+  const directories = new Map<string, boolean>();
+  const fileExists = host.fileExists.bind(host);
+  const directoryExists = host.directoryExists?.bind(host);
+  host.fileExists = (file) => files.get(file) ?? files.set(file, fileExists(file)).get(file)!;
+  if (directoryExists) {
+    host.directoryExists = (dir) => directories.get(dir) ?? directories.set(dir, directoryExists(dir)).get(dir)!;
+  }
+  return host;
+}
+
 /** The checker and the declared type of the request, from a real program. */
 function requestType(): { checker: ts.TypeChecker; type: ts.Type; source: ts.SourceFile } {
-  const program = ts.createProgram([SERVICE_STAGE], {
+  const options: ts.CompilerOptions = {
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler, strict: true, skipLibCheck: true,
-  });
+  };
+  const program = ts.createProgram([SERVICE_STAGE], options, probeOnceHost(options));
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(SERVICE_STAGE);
   if (source === undefined) throw new Error("service-stage.ts is not in the program");

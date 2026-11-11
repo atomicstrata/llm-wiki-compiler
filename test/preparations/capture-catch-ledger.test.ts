@@ -156,8 +156,20 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return out;
 }
 
-/** Every `file::symbol` whose bare catch wraps a capture primitive. */
+let capturedSites: Promise<string[]> | undefined;
+
+/**
+ * Every `file::symbol` whose bare catch wraps a capture primitive. The scan is
+ * over committed `src/` that no test writes, so the three tests share one scan
+ * rather than each re-reading and re-parsing the whole tree.
+ */
 async function bareCatchesAroundCaptures(): Promise<string[]> {
+  capturedSites ??= scanBareCatchesAroundCaptures();
+  return [...await capturedSites];
+}
+
+/** The uncached scan behind {@link bareCatchesAroundCaptures}. */
+async function scanBareCatchesAroundCaptures(): Promise<string[]> {
   const files = await sourceFiles(path.join(REPO_ROOT, "src"));
   const sites: string[] = [];
   for (const relative of files.sort()) {

@@ -3,6 +3,7 @@
  * @description Regression tests for the template loader boundary and domain-data isolation.
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readCommittedSource } from "./fixtures/committed-source.js";
 import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import { DEFAULT_PROFILE } from "../src/profile/default.js";
@@ -68,7 +69,7 @@ describe("profile template genericity", () => {
     for (const file of await srcTsFiles()) {
       const templateRel = file.replace(/^profile\/templates\//, "").split("/").join(path.sep);
       if (TEMPLATE_DATA_FILES.includes(templateRel)) continue;
-      const text = await readFile(path.join("src", file), "utf8");
+      const text = await readCommittedSource(path.join("src", file));
       if (/(profileId|templateId)\s*={2,3}\s*["'](research|newsroom|autosci)["']/.test(text)) offenders.push(file);
       if (/\b(isResearch|isNewsroom)\b/.test(text)) offenders.push(file);
     }
@@ -82,7 +83,7 @@ describe("profile template genericity", () => {
 
     for (const file of await srcTsFiles()) {
       if (file.startsWith("profile/templates/builtin/")) continue;
-      const text = await readFile(path.join("src", file), "utf8");
+      const text = await readCommittedSource(path.join("src", file));
       if (/from\s+["'][^"']*profile\/templates\/builtin\//.test(text) && !allowed.has(file)) offenders.push(file);
       if (/from\s+["']\.\/builtin\//.test(text) && !allowed.has(file)) offenders.push(file);
     }
