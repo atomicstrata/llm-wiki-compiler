@@ -67,7 +67,6 @@ import {
 } from "./orphan-scan.js";
 import {
   assertPreparationLifecycleRead,
-  withPreparationLifecycleRead,
   type PreparationLifecycleReadV1,
 } from "./lifecycle-snapshot/read.js";
 import type {
@@ -223,14 +222,15 @@ function diskPreparationInventoryReads(root: string, pass: PreparationPassReads)
 
 /**
  * The local-disk reads that can also borrow, for one project root. Private, and
- * built per call. The borrow is the imported lifecycle capture for this root,
- * called when it is asked and never earlier, so the read it lends is the one the
- * proof beside it accepts. ROOT-BOUND LOCAL-DISK AUTHORITY: named, not neutral.
+ * built per call. The borrow is the pass's lifecycle capture for this root —
+ * a fresh one per borrow unless the pass shares one — taken when it is asked and
+ * never earlier, so the read it lends is the one the proof beside it accepts.
+ * ROOT-BOUND LOCAL-DISK AUTHORITY: named, not neutral.
  */
 function diskPreparationInventoryLifecycleReads(root: string, pass: PreparationPassReads): PreparationInventoryLifecycleReads {
   return {
     ...diskPreparationInventoryReads(root, pass),
-    borrowLifecycleRead: (maxRegistryEntries, use) => withPreparationLifecycleRead(root, use, { maxRegistryEntries }),
+    borrowLifecycleRead: (maxRegistryEntries, use) => pass.lifecycle.borrow(use, { maxRegistryEntries }),
   };
 }
 
