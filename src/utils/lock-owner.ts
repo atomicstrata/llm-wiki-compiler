@@ -275,6 +275,7 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  */
 export function readProcessStartTime(pid: number): string | null {
   const kernelSeconds = readKernelStartSeconds(pid);
+  if (kernelSeconds === null) return null;
   if (kernelSeconds !== undefined) return `${IDENTITY_PREFIX}${kernelSeconds}`;
   const rendered = psLstart(pid, { ...process.env, ...PINNED_TIME_ENV });
   return rendered === null ? null : identityFromUtcRendering(rendered);

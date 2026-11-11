@@ -21,18 +21,25 @@ function psStartSeconds(pid: number): number {
   return Math.floor(Date.parse(`${rendered} UTC`) / 1000);
 }
 
+/** Platforms where the start second is read in-process instead of from `ps`. */
+const isNativePlatform = process.platform === "darwin" || process.platform === "linux";
+
 describe("readKernelStartSeconds", () => {
-  it.skipIf(process.platform !== "darwin")("equals the ps rendering for own, parent and foreign pids", () => {
+  it.skipIf(!isNativePlatform)("equals the ps rendering for own, parent and foreign pids", () => {
     for (const pid of [process.pid, process.ppid, 1]) {
       expect(readKernelStartSeconds(pid)).toBe(psStartSeconds(pid));
     }
   });
 
-  it("defers to ps for a pid the kernel does not report", () => {
+  it.skipIf(process.platform !== "darwin")("defers to ps for a pid the kernel does not report", () => {
     expect(readKernelStartSeconds(999999)).toBeUndefined();
   });
 
-  it.skipIf(process.platform === "darwin")("defers to ps on every other platform", () => {
+  it.skipIf(process.platform !== "linux")("reports no start time for a pid /proc does not list", () => {
+    expect(readKernelStartSeconds(999999)).toBeNull();
+  });
+
+  it.skipIf(isNativePlatform)("defers to ps on every other platform", () => {
     expect(readKernelStartSeconds(process.pid)).toBeUndefined();
   });
 });

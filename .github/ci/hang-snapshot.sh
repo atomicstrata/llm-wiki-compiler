@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Print what a hung test shard is doing, while it is still alive: the process
 # tree, then each bun process's kernel wait channel, threads and open files.
-ps -eo pid,ppid,etimes,stat,wchan:32,args --forest | grep -v '\[' | cut -c1-260
+# Drop kernel threads (children of kthreadd, pid 2) but keep zombies, which
+# print as `[name] <defunct>`: an unreaped child is what a stuck spawn leaves.
+ps -eo pid,ppid,etimes,stat,wchan:32,args --forest | awk '$1 != 2 && $2 != 2' | cut -c1-260
 for pid in $(pgrep -x bun); do
   echo "== bun $pid: $(tr '\0' ' ' < /proc/$pid/cmdline | cut -c1-200)"
   sudo cat /proc/$pid/stack 2>/dev/null | head -8
