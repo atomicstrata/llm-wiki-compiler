@@ -6,7 +6,7 @@
  */
 import type { AnswerCitation, AnswerCitationIndex, AnswerCitationReport } from "./answer-types.js";
 import { recognizedWikilinkTargets } from "../wiki/wikilink-tokens.js";
-import { resolveBareSlug } from "../viewer/collect.js";
+import { resolveWikilinkTarget } from "../viewer/collect.js";
 import { collectAnswerCitationIndex } from "./answer-index.js";
 
 /** Build a fresh snapshot and classify the caller's canonical answer body. */
@@ -17,7 +17,7 @@ export async function reportAnswerCitations(root: string, body: string): Promise
 /** Classify unique answer wikilinks in first-occurrence order. */
 export function classifyAnswerCitations(body: string, index: AnswerCitationIndex): AnswerCitationReport {
   const citations = [...new Set(recognizedWikilinkTargets(body))].map((target): AnswerCitation => {
-    const pageId = resolveBareSlug(target, index.retained);
+    const pageId = resolveWikilinkTarget(target, index.retained);
     if (pageId) return { target, status: "resolved", pageId };
     const candidateIds = [...new Set(index.pending
       .filter((entry) => entry.target === target)

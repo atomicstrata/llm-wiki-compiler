@@ -65,6 +65,7 @@ export function pagePayload(overrides: Partial<PagePayload> = {}): PagePayload {
     warnings: [],
     freshness: { freshnessStatus: "fresh", contradicted: false, archived: false },
     outgoingLinks: [],
+    backlinks: [],
     frontmatter: {},
     ...overrides,
   };

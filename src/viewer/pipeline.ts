@@ -129,6 +129,8 @@ export interface PipelineDefinitions {
   relationTypes: PipelineRelationTypeDef[];
   /** Declared artifact types; absent entirely for a profile declaring none. */
   artifactTypes?: PipelineArtifactTypeDef[];
+  /** Declared workflow ids, so the client offers its workflows screen only when there are some; absent for none. */
+  workflows?: string[];
 }
 
 /** One entity type row on the wire: its declaration plus its two counts. */
@@ -156,6 +158,8 @@ export interface PipelineEnvelope {
    * profile that declares none.
    */
   artifactTypes?: PipelineArtifactTypeDef[];
+  /** Declared workflow ids, carried through from the definitions; omitted for a profile that declares none. */
+  workflows?: string[];
 }
 
 /**
@@ -170,6 +174,7 @@ export function buildPipelineDefinitions(profile: ProfilePack): PipelineDefiniti
   const artifactTypes = Object.entries(profile.artifacts ?? {}).map(([type, def]) =>
     artifactTypeDefinition(type, def as ArtifactTypeDef),
   );
+  const workflows = Object.keys(profile.workflows ?? {});
   return {
     entityTypes: Object.entries(profile.entities).map(([type, def]) =>
       entityTypeDefinition(type, def as EntityTypeDef),
@@ -178,6 +183,7 @@ export function buildPipelineDefinitions(profile: ProfilePack): PipelineDefiniti
       relationTypeDefinition(type, def as RelationTypeDef),
     ),
     ...(artifactTypes.length > 0 ? { artifactTypes } : {}),
+    ...(workflows.length > 0 ? { workflows } : {}),
   };
 }
 
@@ -312,6 +318,7 @@ export function buildPipelineEnvelope(
     entityTypes: definitions.entityTypes.map((def) => entityTypeRow(def, summary)),
     ...(relationTypes.length > 0 ? { relationTypes } : {}),
     ...(definitions.artifactTypes ? { artifactTypes: definitions.artifactTypes } : {}),
+    ...(definitions.workflows ? { workflows: definitions.workflows } : {}),
   };
 }
 

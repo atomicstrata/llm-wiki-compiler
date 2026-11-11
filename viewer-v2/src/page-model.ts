@@ -1,13 +1,13 @@
 /**
- * Facts derived from a page payload and the wiki graph that the page view and
- * its support rail show: the heading rules of the original client, citations
- * grouped by source file, the source-file count under the title, backlinks,
- * and relation groups. Pure functions, so the rules are tested without a
- * fetch or a DOM.
+ * Facts derived from a page payload and the bootstrap envelope that the page
+ * view and its support rail show: the heading rules of the original client,
+ * citations grouped by source file, the source-file count under the title,
+ * backlinks, a typed page's declared fields, and relation groups. Pure
+ * functions, so the rules are tested without a fetch or a DOM.
  */
-import type { ClaimCitation, EntityRelation, GraphData, PagePayload, SourceSpan } from "./api";
+import type { ClaimCitation, EntityRelation, PagePayload, PagesEnvelope, SourceSpan } from "./api";
 import { TIMELINE_DIRECTORY, timelinePeriod } from "./timeline-model";
-import { plural } from "./wiki-model";
+import { humanLabel, plural } from "./wiki-model";
 
 /** The warning code the server attaches to each citation whose file is missing. */
 const UNRESOLVED_CITATION_CODE = "unresolved_citation";
@@ -137,13 +137,50 @@ export interface Backlink {
   title: string;
 }
 
-/** Pages the graph shows linking to `pageId`, by title; a page linking twice is listed once. */
-export function backlinksFrom(graph: GraphData, pageId: string): Backlink[] {
-  const titles = new Map(graph.nodes.map((node) => [node.id, node.title]));
-  const sources = new Set(graph.edges.filter((edge) => edge.target === pageId && edge.source !== pageId).map((edge) => edge.source));
-  return [...sources]
+/**
+ * The pages whose wikilinks name this one, by title. The server lists them from
+ * every page's own links, so a timeline day or a typed page counts too, though
+ * neither is a wikilink node in the graph.
+ */
+export function backlinksFrom(page: PagePayload, wiki: PagesEnvelope): Backlink[] {
+  const titles = new Map(wiki.pages.map((row) => [row.id, row.title]));
+  return [...new Set(page.backlinks)]
     .map((id) => ({ id, title: titles.get(id) || id }))
     .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** One field a typed page's profile declares, as the rail shows it. */
+export interface DeclaredField {
+  name: string;
+  label: string;
+  value: string;
+}
+
+/**
+ * A typed page's declared field values in the profile's declaration order,
+ * read from its frontmatter. The title field is left out, since it is the
+ * heading, and so is any field the page does not fill in.
+ */
+export function declaredFields(page: PagePayload, wiki: PagesEnvelope): DeclaredField[] {
+  const type = wiki.profilePipeline?.entityTypes.find((row) => row.type === page.entityType);
+  if (page.entityType === undefined || type === undefined) return [];
+  return (type.fields ?? [])
+    .filter((field) => field.name !== type.titleField)
+    .map((field) => ({ name: field.name, label: humanLabel(field.name), value: fieldText(ownValue(page.frontmatter, field.name)) }))
+    .filter((field) => field.value.length > 0);
+}
+
+/** A frontmatter value by its own key only, so a field named `constructor` is not `Object`. */
+function ownValue(frontmatter: Record<string, unknown>, name: string): unknown {
+  return Object.hasOwn(frontmatter, name) ? frontmatter[name] : undefined;
+}
+
+/** A field value as one line: a list joined by commas, a boolean as Yes or No; empty when there is nothing. */
+function fieldText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(fieldText).filter((item) => item.length > 0).join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  return value === null || value === undefined ? "" : JSON.stringify(value);
 }
 
 /** The relations of one type in one direction. */
