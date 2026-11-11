@@ -98,8 +98,8 @@ describe("graph markup", () => {
     expect(html).toContain('href="#/concepts/alpha"');
     expect(html).toContain('href="#/articles/deal"');
     expect(html).not.toContain('href="#/concepts/missing"');
-    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.stale}">`);
-    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.entity}">`);
+    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.stale} transition-opacity">`);
+    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.entity} transition-opacity">`);
     expect(html).toContain('r="8" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-dasharray="3,2"');
     expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" marker-end="url(#');
     expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="5 3"><title>mentions</title>');

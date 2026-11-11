@@ -48,6 +48,14 @@ Point at a wikilink, or move keyboard focus to it, and a card shows the linked p
 
 A citation card needs the source's text, so it works where the source view does: when the viewer is bound to loopback and the source is a Markdown file. Otherwise the card says the source is not available. The client fetches each source and page at most once per visit.
 
+### The graph
+
+The graph explorer at `#/graph` colours pages by cluster by default: pages that link to each other more than to the rest share a colour. A wiki of a few hundred pages has many small clusters, so a colour can repeat for clusters far apart. Pages with no links are grey. Choose **Colour: kind** to colour by concept, entity, stale and dangling instead.
+
+Point at a page to dim everything except it and the pages it links to or from, and to label them. Zoom in and every page is labelled. Type a title into **Find a page** to centre that page and keep its neighbourhood highlighted; the box suggests titles as you type. Clear the box to release it.
+
+Each page's rail has a **Neighbourhood** graph: the page, the pages it links to and from, and their best-connected neighbours, up to 24 pages. The page itself is ringed and labelled. Select any node to open its page.
+
 ### Search and keyboard
 
 Press <kbd>⌘K</kbd> on macOS, <kbd>Ctrl+K</kbd> on Windows and Linux, or <kbd>/</kbd> to open the command palette. You can also select **Search or jump to** in the header. With nothing typed, it lists the pages you opened recently in this browser, then every screen in the sidebar. As you type, it lists:
