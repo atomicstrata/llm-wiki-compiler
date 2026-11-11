@@ -16,8 +16,11 @@
  */
 
 import path from "node:path";
-import { durableAlias, verified, positiveScanEntryLimit, captureInventoryLeaf, walkInventoryTree } from "../utils/inventory-scan.js";
+import {
+  durableAlias, verified, positiveScanEntryLimit, captureInventoryLeaf, walkInventoryTree, type InventoryLeafObserver,
+} from "../utils/inventory-scan.js";
 import { diskInventoryWalkReads } from "../utils/inventory-disk-walk.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { assertBundleId, assertOperationRunId } from "./ids.js";
 import {
   MAX_CATALOG_FILE_BYTES, MAX_MANIFEST_BYTES, MAX_PAYLOAD_BYTES,
@@ -114,10 +117,8 @@ export interface OperationStoreWalkReads {
     directory: string,
     visitor: { take(): boolean; inspect(entry: OperationStoreEntry): Promise<void> },
   ): Promise<"visited" | "absent" | "unavailable" | "unlistable">;
-  /** One leaf's size and identity from the opened leaf; nothing stays open afterwards. */
-  observeLeaf(file: string, parent: string): Promise<
-    { kind: "confirmed"; size: number; dev: number; ino: number } | { kind: "absent" } | { kind: "unavailable" }
-  >;
+  /** One leaf's size and identity from the opened leaf ({@link InventoryLeafObserver}); nothing stays open afterwards. */
+  observeLeaf: InventoryLeafObserver;
 }
 
 interface ScanState {
@@ -300,7 +301,7 @@ function projectionDirectoryAllowed(parts: readonly string[]): boolean {
 
 /** Capture one observed regular file and its protocol-aware classification. */
 async function captureLeaf(state: ScanState, file: string, parent: string): Promise<void> {
-  await captureInventoryLeaf((leaf, dir) => state.reads.observeLeaf(leaf, dir), file, parent, {
+  await captureInventoryLeaf((leaf, dir, retainUpToBytes) => state.reads.observeLeaf(leaf, dir, retainUpToBytes), file, parent, {
     label: "operation",
     problem: (dimension, detail, relative) => problem(state, dimension, detail, relative),
     classify: classifyLeaf,
@@ -308,7 +309,19 @@ async function captureLeaf(state: ScanState, file: string, parent: string): Prom
     beforeCap: (leaf) => noteQuarantineDotEntry(state, leaf),
     noteCap: (kind, bytes, leaf) => noteLeafCap(state, kind, bytes, leaf),
     record: (observation) => { state.leaves.push(observation); },
+    retainUpTo: retainedLeafCap,
   });
+}
+
+/** Final leaves the inventory goes on to read: its manifests, and every leaf the authority pass re-reads. */
+const RETAINED_KINDS: ReadonlySet<OperationLeafKind> = new Set<OperationLeafKind>([
+  "manifest", "run", "source", "payload", "evidence", "projection", "projection-marker",
+]);
+
+/** The cap under which a final leaf the inventory goes on to read may be kept; no other leaf is. */
+function retainedLeafCap(classified: ClassifiedLeaf): number | undefined {
+  if (classified.protocolAlias !== undefined || !RETAINED_KINDS.has(classified.kind)) return undefined;
+  return leafCap(classified.kind);
 }
 
 /** Mark hidden quarantine state while retaining its visible capacity bytes. */
@@ -386,16 +399,21 @@ async function walk(state: ScanState, dir: string, depth: number): Promise<void>
  * workspaces-relative path back under the resolved store root and calls the
  * shared confined primitive with the resolved project root. In no package index.
  */
-export function diskOperationStoreWalkReads(root: string): OperationStoreWalkReads {
-  return diskInventoryWalkReads(root, path.join(".llmwiki", "workspaces"));
+export function diskOperationStoreWalkReads(root: string, scanned?: ScannedLeafBytes): OperationStoreWalkReads {
+  return diskInventoryWalkReads(root, path.join(".llmwiki", "workspaces"), scanned);
 }
 
-/** Inventory every operation-store leaf without creating any path. */
+/**
+ * Inventory every operation-store leaf without creating any path. A pass that
+ * goes on to read the leaves hands in its `scanned` holder, so the walk's reads
+ * of them are the ones its readers consume.
+ */
 export async function scanOperationOrphans(
   root: string,
   options: OperationScanOptions = {},
+  scanned?: ScannedLeafBytes,
 ): Promise<OperationOrphanScan> {
-  return scanOperationOrphansFrom(diskOperationStoreWalkReads(root), options);
+  return scanOperationOrphansFrom(diskOperationStoreWalkReads(root, scanned), options);
 }
 
 /** {@link scanOperationOrphans} over the scanner's own reads: the one walk body. */

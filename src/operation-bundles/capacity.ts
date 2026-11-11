@@ -146,7 +146,7 @@ function payloadReadKey(workspaceId: string, bundleId: string, digest: string, m
  * kept, never the bytes.
  */
 function payloadNotingAuthorityReads(root: string, pass: OperationPassReads, verified: Map<string, number>): InventoryAuthorityReads {
-  const disk = diskInventoryAuthorityReads(root, pass.readKey);
+  const disk = diskInventoryAuthorityReads(root, pass.readKey, pass.scannedLeaves);
   return {
     ...disk,
     readLeaf: async (leaf, maxBytes) => {
@@ -170,7 +170,8 @@ function payloadNotingAuthorityReads(root: string, pass: OperationPassReads, ver
 export function diskOperationInventoryReads(root: string, pass: OperationPassReads = operationPassReads(root)): OperationInventoryReads {
   const verifiedPayloads = new Map<string, number>();
   return {
-    scanStore: (options) => scanOperationOrphans(root, options),
+    // The walk leaves the bytes of the leaves it reads with the pass, whose readers below consume them.
+    scanStore: (options) => scanOperationOrphans(root, options, pass.scannedLeaves),
     verifyAuthorities: async (leaves) => {
       const problems: OperationInventoryProblem[] = [];
       await verifyInventoryAuthoritiesFrom(payloadNotingAuthorityReads(root, pass, verifiedPayloads), leaves, problems);

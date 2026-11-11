@@ -24,6 +24,7 @@ import {
 } from "./constants.js";
 import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
 import { readDurableOperationLeafBuffer } from "./durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { assertBundleId, assertOperationRunId, type BundleId, type OperationRunId } from "./ids.js";
 import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
 import type {
@@ -74,13 +75,16 @@ function authorityLeafPaths(root: string, leaf: InventoryAuthorityLeaf): { file:
 
 /**
  * The local-disk authority reads for one root, built per call. A pass that has
- * already read the key hands in its `readKey`. In no package index.
+ * already read the key hands in its `readKey`, and its `scanned` holder, whose
+ * walk-read bytes a leaf still of that version is answered from. In no package index.
  */
-export function diskInventoryAuthorityReads(root: string, readKey: () => Promise<OperationKeyRead> = () => readOperationKey(root)): InventoryAuthorityReads {
+export function diskInventoryAuthorityReads(
+  root: string, readKey: () => Promise<OperationKeyRead> = () => readOperationKey(root), scanned?: ScannedLeafBytes,
+): InventoryAuthorityReads {
   return {
     readLeaf: (leaf, maxBytes) => {
       const { file, parent } = authorityLeafPaths(root, leaf);
-      return readDurableOperationLeafBuffer(root, file, parent, maxBytes);
+      return readDurableOperationLeafBuffer(root, file, parent, maxBytes, scanned);
     },
     readKey,
   };

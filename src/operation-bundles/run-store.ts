@@ -29,6 +29,7 @@ import { readConfinedLeafBuffer, type CappedLeafRead, type CappedLeafReadBuffer 
 import { MAX_MUTATIONS_PER_BUNDLE, MAX_RUN_BYTES, MAX_RUN_EVIDENCE_BLOB_BYTES } from "./constants.js";
 import { mutationId, type MutationId } from "./ids.js";
 import { readDurableOperationLeaf } from "./durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
 import { operationPaths } from "./paths.js";
 import type { OperationProblemCode } from "./problems.js";
@@ -89,10 +90,10 @@ export interface AbandonedControlTransition {
 }
 
 /** Read one exact workspace leaf before consulting any project key. */
-async function readRunLeaf(root: string, binding: OperationRunBinding, maxBytes: number) {
+async function readRunLeaf(root: string, binding: OperationRunBinding, maxBytes: number, scanned?: ScannedLeafBytes) {
   const paths = operationPaths(root, binding.workspaceId);
   return readDurableOperationLeaf(
-    root, paths.runFile(binding.runId), paths.runsRoot, maxBytes,
+    root, paths.runFile(binding.runId), paths.runsRoot, maxBytes, scanned,
   );
 }
 
@@ -108,9 +109,9 @@ export interface OperationRunLeafReads {
 }
 
 /** The local-disk run leaves for one project root, built per call: each closure calls the incumbent function when asked. In no package index. */
-export function diskOperationRunLeafReads(root: string): OperationRunLeafReads {
+export function diskOperationRunLeafReads(root: string, scanned?: ScannedLeafBytes): OperationRunLeafReads {
   return {
-    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes),
+    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned),
     readKey: () => readOperationKey(root),
   };
 }
