@@ -49,8 +49,10 @@ function count(op: string): void {
   ops.set(op, (ops.get(op) ?? 0) + 1);
   if (!recordSites) return;
   // `utils/fs-metadata.ts` only forwards to `fs`; the call site is its caller.
-  const frames = (new Error().stack ?? "").split("\n").filter((line) => line.includes("/src/") && !line.includes("/src/utils/fs-metadata."))
-    .map((line) => line.replace(/^.*\/src\//u, "").replace(/\)$/u, "").replace(/:\d+$/u, ""));
+  // A spawned CLI runs the built bundle, so its frames are in `dist/`, not `src/`.
+  const frames = (new Error().stack ?? "").split("\n")
+    .filter((line) => /\/(src|dist)\//u.test(line) && !line.includes("/node_modules/") && !line.includes("/utils/fs-metadata."))
+    .map((line) => line.replace(/^.*\/(src|dist)\//u, "").replace(/\)$/u, "").replace(/:\d+$/u, ""));
   const callers = frames.slice(1).filter((frame) => !PRIMITIVE_DIRECTORIES.some((dir) => frame.startsWith(dir)));
   const site = `${op} <- ${[frames[0], ...callers.slice(0, SITE_FRAMES - 1)].filter(Boolean).join(" < ") || "(test code)"}`;
   sites.set(site, (sites.get(site) ?? 0) + 1);
