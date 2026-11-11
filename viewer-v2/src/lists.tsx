@@ -36,7 +36,7 @@ export function matchesTitle(pages: PageRow[], filter: string): PageRow[] {
 }
 
 /** A short explanation shown when a list is empty. */
-function EmptyState({ title, body, command }: { title: string; body: string; command?: string }): ReactNode {
+export function EmptyState({ title, body, command }: { title: string; body: string; command?: string }): ReactNode {
   return (
     <div className="empty-state">
       <strong>{title}</strong>

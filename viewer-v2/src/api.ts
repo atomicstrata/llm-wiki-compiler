@@ -92,12 +92,22 @@ export interface PagesEnvelope {
   profilePipeline?: { entityTypes: EntityTypeRow[] };
 }
 
-/** The last lint run, from `.llmwiki/last-lint.json`. */
+/** One rule's findings in the last lint run; `topFile` is root-relative. */
+export interface LintRule {
+  rule: string;
+  severity: "error" | "warning";
+  count: number;
+  fileCount: number;
+  topFile: string;
+  topFileCount: number;
+}
+
+/** The last lint run, from `.llmwiki/last-lint.json`; `rules` is absent on a clean run or an old cache. */
 export interface LintSummary {
   warnings: number;
   errors: number;
   at: string;
-  rules?: { rule: string; severity: "error" | "warning"; count: number; fileCount: number; topFile: string }[];
+  rules?: LintRule[];
 }
 
 /** Wiki health counts and the last lint run; `lint` is null when lint has never run. */
@@ -215,6 +225,82 @@ export interface SourceMeta {
   images?: string[];
 }
 
+/** Why a review candidate was held back instead of written live. */
+export interface HeldReason {
+  code: string;
+  detail?: string;
+}
+
+/** One candidate in the review queue; no body is served. */
+export interface ReviewCandidate {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string;
+  sources: string[];
+  generatedAt: string;
+  reviewMode: string;
+  heldReasons: HeldReason[];
+  targetDirectory?: string;
+  targetEntityType?: string;
+}
+
+/** The review queue: at most 200 rows with the true depth; `sourceChanges` only when that screen is enabled. */
+export interface ReviewsEnvelope {
+  reviews: ReviewCandidate[];
+  total: number;
+  sourceChanges?: true;
+}
+
+/** A source that state.json records as owning a page, and whether it still matches. */
+export interface SourceChangeOwner {
+  file: string;
+  status: "unavailable" | "unchanged" | "changed";
+}
+
+/** A pending proposal for a page, with the checks the server ran against its recorded expectations. */
+export interface SourceChangeCandidate {
+  id: string;
+  generatedAt: string;
+  body: string;
+  truncated: boolean;
+  checks: { target: string; sources: string };
+  reasons: HeldReason[];
+}
+
+/** A numbered excerpt of one owning source; `text` is absent when the source could not be read. */
+export interface SourceExcerpt {
+  file: string;
+  status: string;
+  text?: string;
+  truncated?: boolean;
+}
+
+/** One page the source comparison reports on. */
+export interface SourceChangePage {
+  slug: string;
+  title: string;
+  owners: SourceChangeOwner[];
+  candidates: SourceChangeCandidate[];
+  excerpts: SourceExcerpt[];
+  current: string | null;
+  truncated: boolean;
+  readStatus: string;
+  reconciliationPending: boolean;
+  impact: string;
+}
+
+/** One bounded comparison of changed sources with their pages and proposals. */
+export interface SourceChangesReport {
+  projectRoot: string;
+  stateStatus: StateStatus;
+  pages: SourceChangePage[];
+  totalPages: number;
+  candidateTotal: number;
+  candidateShown: number;
+  observedAt: string;
+}
+
 /** Read a JSON route, failing on any non-2xx status. */
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
@@ -263,6 +349,26 @@ export async function fetchSourceText(id: string): Promise<string> {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`Request failed (${response.status}): ${path}`);
   return response.text();
+}
+
+/** The review queue, read from disk on every request. */
+export function fetchReviews(): Promise<ReviewsEnvelope> {
+  return getJson("/api/reviews");
+}
+
+const NOT_FOUND = 404;
+const SOURCE_CHANGES_TIMEOUT_MS = 10_000;
+
+/**
+ * The source comparison, or null when the server has it switched off. It
+ * reads every owning source on request, so the call is bounded and never cached.
+ */
+export async function fetchSourceChanges(): Promise<SourceChangesReport | null> {
+  const path = "/api/source-changes";
+  const response = await fetch(path, { cache: "no-store", signal: AbortSignal.timeout(SOURCE_CHANGES_TIMEOUT_MS) });
+  if (response.status === NOT_FOUND) return null;
+  if (!response.ok) throw new Error(`Request failed (${response.status}): ${path}`);
+  return (await response.json()) as SourceChangesReport;
 }
 
 /** URL of an image a source declares; the server serves it only through that source. */

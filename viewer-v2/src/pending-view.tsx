@@ -8,9 +8,6 @@ import type { Route } from "./route";
 
 const TITLES: Partial<Record<Route["view"], string>> = {
   graph: "Graph explorer",
-  health: "Health & lint",
-  reviews: "Reviews",
-  sourceChanges: "Source changes",
   workflows: "Workflows",
   pipeline: "Lifecycle status",
 };
