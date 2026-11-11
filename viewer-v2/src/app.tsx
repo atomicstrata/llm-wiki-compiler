@@ -7,6 +7,7 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
+import { CommandPalette } from "./command-palette";
 import { Dashboard } from "./dashboard";
 import { GraphView } from "./graph-view";
 import { Header } from "./header";
@@ -22,6 +23,7 @@ import { RecentView } from "./recent-view";
 import { ReviewsView } from "./reviews-view";
 import { parseRoute, type Route } from "./route";
 import { SearchView } from "./search-view";
+import { KeyboardShortcuts } from "./shortcuts";
 import { Sidebar } from "./nav";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
@@ -95,7 +97,7 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
   return (
     <>
       {warning && <p role="alert" className="bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{warning}</p>}
-      <Header wiki={wiki} health={health} initialQuery={route.view === "search" ? route.query : ""} />
+      <Header wiki={wiki} health={health} />
       {/* Narrow screens open the navigation from a disclosure; it resets on every route so it closes after a choice. */}
       <details key={JSON.stringify(route)} className="border-b border-zinc-950/5 bg-white md:hidden dark:border-white/10 dark:bg-zinc-900">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Menu</summary>
@@ -110,6 +112,8 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
         </main>
       </div>
       <HoverPreviews pages={wiki.pages} />
+      <CommandPalette wiki={wiki} health={health} />
+      <KeyboardShortcuts />
     </>
   );
 }

@@ -4,11 +4,12 @@
  * graph loads alongside the page so the rail can list backlinks, which the
  * page payload does not carry.
  */
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { fetchGraph, fetchPage, type PagePayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Badge } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
+import { rememberPage } from "./palette-model";
 import { pageTitle, stripLeadingHeading } from "./page-model";
 import { PageRail } from "./page-rail";
 import { SourceImages } from "./source-images-view";
@@ -72,6 +73,7 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const state = useAsync(() => fetchPage(directory, slug), `${directory}/${slug}`);
   const graph = useAsync(fetchGraph, "graph");
   const [outline, setOutline] = useState<OutlineItem[]>([]);
+  useEffect(() => rememberPage(`${directory}/${slug}`), [directory, slug]);
   const onRender = (container: HTMLElement): void => setOutline(assignHeadingIds(container));
   return (
     <AsyncView state={state}>

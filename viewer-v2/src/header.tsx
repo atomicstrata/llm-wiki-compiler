@@ -1,11 +1,13 @@
 /**
- * The top bar: project title with the whole-wiki verdict pill and the search box. The pill and meta line need both bootstrap payloads;
+ * The top bar: project title with the whole-wiki verdict pill and the button
+ * that opens the command palette. The pill and meta line need both bootstrap payloads;
  * a failed health fetch leaves lint "never run", which the verdict reports
  * rather than hiding.
  */
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
-import { SearchBox } from "./search";
+import { Search } from "lucide-react";
+import { openPalette } from "./command-palette";
 import { Badge, type Tone } from "./components";
 import { formatUtcTimestamp, wikiVerdict, type Verdict } from "./wiki-model";
 
@@ -23,11 +25,22 @@ function metaLine(wiki: PagesEnvelope): string {
 interface HeaderProps {
   wiki: PagesEnvelope;
   health: HealthPayload | null;
-  initialQuery: string;
+}
+
+/** Looks like a search field; opens the palette, which does the searching. */
+function SearchButton(): ReactNode {
+  return (
+    <button type="button" onClick={openPalette} aria-keyshortcuts="Meta+K Control+K /"
+      className="ml-auto flex w-full max-w-sm min-w-0 items-center gap-2 rounded-md bg-zinc-950/5 py-1.5 pr-2 pl-3 text-left text-sm text-zinc-500 hover:bg-zinc-950/10 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-white/10">
+      <Search className="size-4 shrink-0" strokeWidth={1.75} />
+      <span className="min-w-0 flex-1 truncate">Search or jump to…</span>
+      <kbd aria-hidden="true" className="hidden rounded border border-zinc-950/10 px-1 font-sans text-xs text-zinc-400 sm:block dark:border-white/10">⌘K</kbd>
+    </button>
+  );
 }
 
 /** The persistent header. */
-export function Header({ wiki, health, initialQuery }: HeaderProps): ReactNode {
+export function Header({ wiki, health }: HeaderProps): ReactNode {
   const verdict = wikiVerdict(wiki, health);
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-zinc-950/5 bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
@@ -41,7 +54,7 @@ export function Header({ wiki, health, initialQuery }: HeaderProps): ReactNode {
         </span>
       </a>
       <span title={metaLine(wiki)} className="hidden sm:inline-flex"><Badge tone={VERDICT_TONE[verdict.tone]}>{verdict.text}</Badge></span>
-      <SearchBox key={initialQuery} initialQuery={initialQuery} />
+      <SearchButton />
     </header>
   );
 }

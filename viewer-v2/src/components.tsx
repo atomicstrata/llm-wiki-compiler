@@ -114,7 +114,7 @@ export function Row({ href, title, leading, trailing, meta }: {
 }): ReactNode {
   return (
     <li>
-      <a href={href} className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-white/5">
+      <a href={href} data-row="" className="flex items-center gap-3 px-4 py-2.5 text-sm outline-none hover:bg-zinc-50 focus-visible:bg-indigo-50 focus-visible:shadow-[inset_2px_0] focus-visible:shadow-indigo-600 dark:hover:bg-white/5 dark:focus-visible:bg-indigo-500/10 dark:focus-visible:shadow-indigo-400">
         {leading}
         <span className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
         {trailing}

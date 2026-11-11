@@ -6,8 +6,10 @@
  * reads as an em dash under Browse and Explore (nothing to browse) and as a
  * literal 0 under Maintain (a reassuring fact). Profile-only rows appear only
  * on profile projects. When a profile type shares a fixed row's name, the
- * fixed row takes its longer collision label so the two stay distinct.
+ * fixed row takes its longer collision label so the two stay distinct. The
+ * same rows, flattened, are the palette's "Go to" destinations.
  */
+import { Activity, Clock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
 import type { Route } from "./route";
@@ -22,6 +24,7 @@ interface NavItem {
   route: string;
   href: string;
   label: string;
+  icon: LucideIcon;
   count?: number;
   collisionLabel?: string;
   profileOnly?: boolean;
@@ -41,13 +44,13 @@ function browseItems(wiki: PagesEnvelope): NavItem[] {
   const types = entityTypes(wiki);
   if (types.length === 0) {
     return [
-      { route: "concepts", href: "#/concepts", label: "Concepts", count: wiki.counts.concepts },
-      { route: "queries", href: "#/queries", label: "Queries", count: wiki.counts.queries },
+      { route: "concepts", href: "#/concepts", label: "Concepts", icon: Lightbulb, count: wiki.counts.concepts },
+      { route: "queries", href: "#/queries", label: "Queries", icon: MessageCircleQuestion, count: wiki.counts.queries },
     ];
   }
   return [...types]
     .sort((a, b) => b.pageCount - a.pageCount)
-    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: typeLabel(row.type), count: row.pageCount }));
+    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: typeLabel(row.type), icon: Folder, count: row.pageCount }));
 }
 
 /** Every section with its rows, counts filled in from the payloads. */
@@ -60,22 +63,48 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
       label: "EXPLORE",
       zero: "dash",
       items: [
-        { route: "recent", href: "#/recent", label: "Recent" },
-        { route: "sources", href: "#/sources", label: "Sources", collisionLabel: "Source files", count: wiki.counts.sourceFiles },
-        { route: "graph", href: "#/graph", label: "Graph explorer" },
+        { route: "recent", href: "#/recent", label: "Recent", icon: Clock },
+        { route: "sources", href: "#/sources", label: "Sources", icon: FileText, collisionLabel: "Source files", count: wiki.counts.sourceFiles },
+        { route: "graph", href: "#/graph", label: "Graph explorer", icon: Network },
       ],
     },
     {
       label: "MAINTAIN",
       zero: "digit",
       items: [
-        { route: "health", href: "#/health", label: "Health & lint", count: lint ?? undefined },
-        { route: "reviews", href: "#/reviews", label: "Reviews", collisionLabel: "Review queue", count: wiki.counts.pendingReviews },
-        { route: "workflows", href: "#/workflows", label: "Workflows", profileOnly: true },
-        { route: "pipeline", href: "#/pipeline", label: "Lifecycle status", count: typeCount, profileOnly: true },
+        { route: "health", href: "#/health", label: "Health & lint", icon: Activity, count: lint ?? undefined },
+        { route: "reviews", href: "#/reviews", label: "Reviews", icon: Inbox, collisionLabel: "Review queue", count: wiki.counts.pendingReviews },
+        { route: "workflows", href: "#/workflows", label: "Workflows", icon: Workflow, profileOnly: true },
+        { route: "pipeline", href: "#/pipeline", label: "Lifecycle status", icon: ListChecks, count: typeCount, profileOnly: true },
       ],
     },
   ];
+}
+
+const DASHBOARD: NavItem = { route: "home", href: "#/", label: "Dashboard", icon: LayoutDashboard };
+
+/** The rows a project shows: profile-only rows on profile projects, with collision labels resolved. */
+function visibleSections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection[] {
+  const profile = isProfileProject(wiki);
+  const typeLabels = new Set(browseItems(wiki).map((item) => item.label));
+  return sections(wiki, health).map((section) => ({
+    ...section,
+    items: section.items
+      .filter((item) => !item.profileOnly || profile)
+      .map((item) => (item.collisionLabel !== undefined && typeLabels.has(item.label) ? { ...item, label: item.collisionLabel } : item)),
+  }));
+}
+
+/** One place the palette can go. */
+export interface Destination {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+}
+
+/** Every sidebar row as a palette destination, the dashboard first. */
+export function navDestinations(wiki: PagesEnvelope, health: HealthPayload | null): Destination[] {
+  return [DASHBOARD, ...visibleSections(wiki, health).flatMap((section) => section.items)].map(({ href, label, icon }) => ({ href, label, icon }));
 }
 
 /** The nav route name the current route lights up, or null. */
@@ -101,7 +130,8 @@ function NavRow({ item, zero, active, label }: { item: NavItem; zero: ZeroDispla
   return (
     <li>
       <a href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 aria-[current=page]:bg-zinc-950/5 aria-[current=page]:font-medium aria-[current=page]:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/5 dark:aria-[current=page]:text-white">
+        className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 aria-[current=page]:bg-zinc-950/5 aria-[current=page]:font-medium aria-[current=page]:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/5 dark:aria-[current=page]:text-white">
+        <item.icon className="size-4 shrink-0 text-zinc-400 group-hover:text-zinc-600 group-aria-[current=page]:text-indigo-600 dark:text-zinc-500 dark:group-hover:text-zinc-300 dark:group-aria-[current=page]:text-indigo-400" strokeWidth={1.75} />
         <span className="min-w-0 flex-1 truncate">{label}</span>{" "}
         {count !== null && <span className="text-xs text-zinc-400 tabular-nums dark:text-zinc-500">{count}</span>}
       </a>
@@ -118,14 +148,12 @@ interface SidebarProps {
 /** Project identity and the three navigation sections. */
 export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   const active = activeNavRoute(route);
-  const profile = isProfileProject(wiki);
-  const typeLabels = new Set(browseItems(wiki).map((item) => item.label));
   return (
     <nav aria-label="Wiki navigation" className="space-y-6 px-3 py-5">
       <ul role="list" className="space-y-0.5">
-        <NavRow item={{ route: "home", href: "#/", label: "Dashboard" }} zero="dash" active={active === "home"} label="Dashboard" />
+        <NavRow item={DASHBOARD} zero="dash" active={active === "home"} label={DASHBOARD.label} />
       </ul>
-      {sections(wiki, health).map((section) => (
+      {visibleSections(wiki, health).map((section) => (
         <section key={section.label}>
           <h2 className="mb-1 flex justify-between px-2 text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500">
             {section.label}
@@ -134,17 +162,9 @@ export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
             )}
           </h2>
           <ul role="list" className="space-y-0.5">
-            {section.items
-              .filter((item) => !item.profileOnly || profile)
-              .map((item) => (
-                <NavRow
-                  key={item.route}
-                  item={item}
-                  zero={section.zero}
-                  active={active === item.route}
-                  label={item.collisionLabel !== undefined && typeLabels.has(item.label) ? item.collisionLabel : item.label}
-                />
-              ))}
+            {section.items.map((item) => (
+              <NavRow key={item.route} item={item} zero={section.zero} active={active === item.route} label={item.label} />
+            ))}
           </ul>
         </section>
       ))}
