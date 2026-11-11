@@ -10,7 +10,12 @@ import { lstat } from "./fs-metadata.js";
 import { constants as fsConstants, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
-import { assertCurrentParent, fsyncDirectoryChain, type ParentBinding } from "./atomic-write-durability.js";
+import {
+  assertCurrentParent,
+  fsyncDirectoryChain,
+  fsyncDirectoryChainBeforeParentCheck,
+  type ParentBinding,
+} from "./atomic-write-durability.js";
 
 /** One target-specific durable temp makes every crash state directly addressable. */
 const DURABLE_TEMP_SUFFIX = ".tmp";
@@ -188,6 +193,27 @@ export async function removeCommittedTemp(
   }
 }
 
+/**
+ * {@link removeCommittedTemp} straight after {@link assertPublishedDestination}.
+ * When that check passed it verified the parent, and only an fstat and an
+ * lstat have run since, so the removal checks the temp path alone. When it
+ * failed, the removal checks the parent again before it unlinks anything.
+ */
+export async function removeCommittedTempAfterPublish(
+  tmpPath: string,
+  binding: ParentBinding | undefined,
+  expected: Stats,
+  published: boolean,
+): Promise<void> {
+  if (!published) return removeCommittedTemp(tmpPath, binding, expected);
+  try {
+    await assertPathNamesInode(tmpPath, expected);
+    await unlink(tmpPath);
+  } catch (error) {
+    throw new AtomicWriteCommittedCleanupError(error);
+  }
+}
+
 /** Verify the temp path still refers to the expected in-parent inode. */
 export async function assertTempPathBound(
   tmpPath: string,
@@ -336,11 +362,11 @@ async function promoteDurableTemp(
   let published = false;
   try {
     await linkPromotedTemp(tmpPath, filePath, binding, verified.stat);
-    await fsyncDirectoryChain(path.dirname(filePath), binding, options?.beforeDirectorySync);
+    await fsyncDirectoryChainBeforeParentCheck(path.dirname(filePath), binding, options?.beforeDirectorySync);
     let hookError: unknown, destinationError: unknown;
     try { await options?.afterCommit?.(); } catch (error) { hookError = error; }
     try { await assertPublishedDestination(filePath, verified.handle, binding); } catch (error) { destinationError = error; }
-    await removeCommittedTemp(tmpPath, binding, verified.stat);
+    await removeCommittedTempAfterPublish(tmpPath, binding, verified.stat, destinationError === undefined);
     if (destinationError !== undefined) throw destinationError;
     if (hookError !== undefined) throw hookError;
     published = true;
@@ -439,8 +465,16 @@ async function lstatBoundIfPresent(
 
 /**
  * Lstat a destination and its durable temp after the caller verified the
- * parent, rechecking the parent once if either is present. Only lstats run
- * between the two checks, so one check on each side covers both paths.
+ * parent, rechecking the parent once if the destination is present. Only
+ * lstats run between the two checks, so one check on each side covers both
+ * paths.
+ *
+ * A present destination decides a collision, so it must have been read from
+ * the bound parent. A temp alone needs no recheck: every path that acts on it
+ * (promotion, streamed discard) verifies the parent and the temp's inode
+ * before its first namespace change, and reads nothing but the temp before
+ * that, exactly as an absent result leads straight to a create that checks
+ * the parent itself.
  */
 async function lstatDestinationAndTemp(
   filePath: string,
@@ -449,8 +483,7 @@ async function lstatDestinationAndTemp(
 ): Promise<[Stats | undefined, Stats | undefined]> {
   const destination = await lstatIfPresent(filePath);
   const temporary = await lstatIfPresent(tmpPath);
-  const anyPresent = destination !== undefined || temporary !== undefined;
-  if (binding !== undefined && anyPresent) await assertCurrentParent(binding);
+  if (binding !== undefined && destination !== undefined) await assertCurrentParent(binding);
   return [destination, temporary];
 }
 
