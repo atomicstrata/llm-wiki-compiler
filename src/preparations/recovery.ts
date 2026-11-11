@@ -33,7 +33,7 @@
 
 import {
   appendHandoffTransitionLocked, appendPreparationTransitionLocked, appendProjectedTransitionLocked,
-  handoffStartBinding, readPreparationRun, type PreparationRunContentProjector, type PreparationRunRead,
+  handoffStartBinding, type PreparationRunContentProjector, type PreparationRunRead,
 } from "./run-store.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import { LEGAL_EDGES, OWNER_ACTIVE_STATES } from "./run-validation.js";
@@ -50,7 +50,6 @@ import { upsertPhaseSummary } from "./attempts/start.js";
 import { ownerFencesAttempt } from "./attempts/lease.js";
 import { scanPreparationInventory } from "./capacity.js";
 import { withPreparationLifecycleRead } from "./lifecycle-snapshot/read.js";
-import { readPreparationKey } from "./key-epoch.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
 import type { PreparationInventory } from "./capacity.js";
 import { assertBundleId, assertOperationRunId } from "../operation-bundles/ids.js";
@@ -69,6 +68,7 @@ import type {
   AppendPreparationTransitionInput, PhaseSummaryV1, PreparationPrincipalV1,
   PreparationRunBinding, PreparationRunV1,
 } from "./run-types.js";
+import { preparationPassReads } from "./pass-reads.js";
 
 /** The eight closed attempt recovery classes (design section 16.4). */
 export type AttemptRecoveryClassification =
@@ -618,13 +618,13 @@ export async function settlePreparationHandoffsWith(steps: HandoffSettlementStep
  * {@link localRunSettlementSteps}. Internal; in no package index.
  */
 export function localHandoffSettlementSteps(root: string): HandoffSettlementSteps {
+  // One pass: the inventory, the key and every run are read before anything is
+  // settled, so the scan and the settlement share one set of reads.
+  const pass = preparationPassReads(root);
   return {
-    scanInventory: () => scanPreparationInventory(root),
-    readKeyEpoch: async () => {
-      const key = await readPreparationKey(root);
-      return key.status === "ok" ? { status: "ok", keyEpochId: key.keyEpochId } : key;
-    },
-    readRun: (binding) => readPreparationRun(root, binding),
+    scanInventory: () => scanPreparationInventory(root, {}, pass),
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
     settleRun: (binding, run, at) => settleRunRecoveryWith(localRunSettlementSteps(root), binding, run, at),
   };
 }

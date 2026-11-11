@@ -57,10 +57,8 @@ import {
 } from "./constants.js";
 import type { PreparationId, PreparationRunId } from "./ids.js";
 import type { PreparationEpochInventory, PreparationEpochInventoryEntry } from "./key-epoch.js";
-import { readPreparationKeyEpoch } from "./key-epoch.js";
 import { validatePreparationSupersessionSet } from "./manifest-graph.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
-import { readPreparationManifest } from "./manifest-store.js";
 import type { PreparationManifestRead } from "./manifest-store.js";
 import {
   preparationScanEntryLimit, scanActivePreparationStore,
@@ -75,9 +73,9 @@ import {
 import type {
   PreparationLifecycleStorageEntryV1,
 } from "./lifecycle-snapshot/types.js";
-import { readPreparationRun } from "./run-store.js";
 import type { PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding, PreparationRunState } from "./run-types.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
 
 const TERMINAL_STATES = new Set<PreparationRunState>([
   "handed-off", "succeeded", "succeeded-with-warnings", "failed", "cancelled",
@@ -212,13 +210,13 @@ export interface PreparationInventoryLifecycleReads extends PreparationInventory
  * closure calls the imported store function when it is asked, never earlier. The
  * lifecycle proof here is the real one, against this root.
  */
-function diskPreparationInventoryReads(root: string): PreparationInventoryReads {
+function diskPreparationInventoryReads(root: string, pass: PreparationPassReads): PreparationInventoryReads {
   return {
     assertLifecycleRead: (read) => assertPreparationLifecycleRead(root, read),
     scanActiveStore: (options) => scanActivePreparationStore(root, options),
-    readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
-    readKeyEpoch: () => readPreparationKeyEpoch(root),
-    readRun: (binding) => readPreparationRun(root, binding),
+    readManifest: pass.readManifest,
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
   };
 }
 
@@ -228,9 +226,9 @@ function diskPreparationInventoryReads(root: string): PreparationInventoryReads 
  * called when it is asked and never earlier, so the read it lends is the one the
  * proof beside it accepts. ROOT-BOUND LOCAL-DISK AUTHORITY: named, not neutral.
  */
-function diskPreparationInventoryLifecycleReads(root: string): PreparationInventoryLifecycleReads {
+function diskPreparationInventoryLifecycleReads(root: string, pass: PreparationPassReads): PreparationInventoryLifecycleReads {
   return {
-    ...diskPreparationInventoryReads(root),
+    ...diskPreparationInventoryReads(root, pass),
     borrowLifecycleRead: (maxRegistryEntries, use) => withPreparationLifecycleRead(root, use, { maxRegistryEntries }),
   };
 }
@@ -431,7 +429,7 @@ export async function scanPreparationInventoryFromLifecycle(
   read: PreparationLifecycleReadV1,
   options: PreparationScanOptions = {},
 ): Promise<PreparationInventory> {
-  return scanPreparationInventoryFrom(diskPreparationInventoryReads(root), read, options);
+  return scanPreparationInventoryFrom(diskPreparationInventoryReads(root, preparationPassReads(root)), read, options);
 }
 
 /**
@@ -470,12 +468,17 @@ export async function scanPreparationInventoryFrom(
   };
 }
 
-/** Inventory one project inside exactly one callback-scoped lifecycle read. */
+/**
+ * Inventory one project inside exactly one callback-scoped lifecycle read. A
+ * caller whose pass goes on to read the same store hands in its `pass`, so the
+ * scan's key, manifest and run reads are the ones the rest of the pass reuses.
+ */
 export async function scanPreparationInventory(
   root: string,
   options: PreparationScanOptions = {},
+  pass: PreparationPassReads = preparationPassReads(root),
 ): Promise<PreparationInventory> {
-  return scanPreparationInventoryBorrowingFrom(diskPreparationInventoryLifecycleReads(root), options);
+  return scanPreparationInventoryBorrowingFrom(diskPreparationInventoryLifecycleReads(root, pass), options);
 }
 
 /**
