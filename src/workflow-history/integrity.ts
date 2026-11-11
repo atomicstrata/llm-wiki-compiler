@@ -1,12 +1,16 @@
 /**
  * @file src/workflow-history/integrity.ts
  * @description Passive key reads and canonical run authentication. Key creation belongs to execution.
+ * Inside one lock-held section (`utils/lock-held-reads.ts`) the key is read once:
+ * the section's lock holder is its only possible writer, and it writes the key
+ * only when no valid one could be read.
  */
 import { createHmac, timingSafeEqual } from "node:crypto";
 import path from "node:path";
 import canonicalize from "canonicalize";
 import { readCappedNoFollow } from "../utils/confined-read.js";
 import { resolveExistingConfinedPrivateDir } from "../utils/private-dir.js";
+import { readOncePerLockHold } from "../utils/lock-held-reads.js";
 import type { WorkflowRun } from "./types.js";
 /** Bytes of secret-key entropy for the per-project run HMAC key. */
 export const RUN_KEY_BYTES = 32;
@@ -48,6 +52,21 @@ export function decodeKey(body: string): Buffer | null {
  * @returns The 32-byte key, or `null` when absent/untrusted.
  */
 export async function loadRunKey(root: string): Promise<Buffer | null> {
+  const key = await lockHeldRunKey(root, () => readRunKey(root), (read) => read !== null);
+  return key === null ? null : Buffer.from(key);
+}
+
+/**
+ * The run key through the lock-held section's one read, under the name every
+ * run-key reader shares. Only a valid key (`keep`) serves later calls.
+ */
+export function lockHeldRunKey<T extends Buffer | null>(root: string, read: () => Promise<T>,
+  keep: (key: T) => boolean = () => true): Promise<T> {
+  return readOncePerLockHold("run-key", root, read, keep);
+}
+
+/** {@link loadRunKey}'s read: the confined, no-follow, capped key leaf, or `null`. */
+async function readRunKey(root: string): Promise<Buffer | null> {
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDir(root);

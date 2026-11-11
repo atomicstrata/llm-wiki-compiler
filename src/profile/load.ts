@@ -35,7 +35,10 @@
  * {@link EffectiveProfileSources}. Mode precedence, "missing is the default",
  * "present but broken is an error", every error class and message and the
  * logical `loadedFrom` are decided in this file; the sources only look. Nothing
- * is remembered between calls: every call reads again.
+ * is remembered between calls: every call reads again — EXCEPT inside one
+ * lock-held section (`utils/lock-held-reads.ts`), where the project lock keeps
+ * every writer out, so the first load serves the rest of that section and each
+ * caller still receives its own copy of the profile.
  *
  * ACYCLIC RULE: this module imports `products/binding`, never the reverse. The
  * binding resolver loads the knowledge-profile member and validates it directly
@@ -54,6 +57,8 @@ import {
   diskActiveProductSources, resolveActiveProductFrom, type ActiveProductSources,
 } from "../products/binding/resolve.js";
 import { ActiveProductUnavailableError, ProductAuthorityConflictError } from "../products/binding/problems.js";
+import type { ActiveProductResolution } from "../products/binding/resolve.js";
+import { inLockHeldSection, readOncePerLockHold } from "../utils/lock-held-reads.js";
 
 /** Error raised when a present profile file cannot be loaded or validated. */
 export class ProfileLoadError extends Error {
@@ -195,7 +200,29 @@ async function assertPrivateDirNotConfinementFault(sources: EffectiveProfileSour
  */
 export async function loadProfile(root: string): Promise<LoadedProfile> {
   // `async` so that a throw while the disk sources are built REJECTS, as this function always did.
-  return loadProfileFrom(diskEffectiveProfileSources(root));
+  const sources = diskEffectiveProfileSources(root);
+  if (!inLockHeldSection()) return loadProfileFrom(sources);
+  const shared = await readOncePerLockHold("effective-profile", root,
+    async () => loadProfileFor(sources, await activeProductForLockHold(root)));
+  return privateCopy(shared);
+}
+
+/**
+ * The project's active-product resolution, read once per lock-held section and
+ * shared with the profile load of that section; outside one, read every call.
+ * Callers only read it.
+ */
+export function activeProductForLockHold(root: string): Promise<ActiveProductResolution> {
+  return readOncePerLockHold("active-product", root,
+    () => resolveActiveProductFrom(diskActiveProductSources(root)));
+}
+
+/**
+ * A shared load as a caller may own it: a fresh profile object, as a fresh read
+ * would give. The built-in default was always one shared object.
+ */
+function privateCopy(loaded: LoadedProfile): LoadedProfile {
+  return loaded.loadedFrom === null ? { ...loaded } : { ...loaded, profile: structuredClone(loaded.profile) };
 }
 
 /**
@@ -205,7 +232,11 @@ export async function loadProfile(root: string): Promise<LoadedProfile> {
  * throws, so a confinement fault there outranks it. It NEVER falls back.
  */
 export async function loadProfileFrom(sources: EffectiveProfileSources): Promise<LoadedProfile> {
-  const resolution = await resolveActiveProductFrom(sources.activeProduct);
+  return loadProfileFor(sources, await resolveActiveProductFrom(sources.activeProduct));
+}
+
+/** {@link loadProfileFrom} once the product is resolved: the four modes. */
+async function loadProfileFor(sources: EffectiveProfileSources, resolution: ActiveProductResolution): Promise<LoadedProfile> {
   if (resolution.mode === "legacy") return loadLegacyProfile(sources);
   if (resolution.mode === "product") return resolution.loaded;
   if (resolution.mode === "conflict") throw new ProductAuthorityConflictError();

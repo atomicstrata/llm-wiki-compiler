@@ -6,14 +6,17 @@
  * reused, anything else mints 32 fresh random bytes" over {@link RunKeyStore}. The
  * root form passes {@link diskRunKeyStore}: ONE confined private-dir resolution,
  * then the no-follow capped read and the confined durable 0600 write of that one
- * key path, exactly as before.
+ * key path, exactly as before. Inside one lock-held section the key is read or
+ * minted once and shared with that section's passive `loadRunKey` (workflow-history/integrity).
  */
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { atomicWrite } from "../utils/markdown.js";
 import { readCappedNoFollow, type CappedLeafRead } from "../utils/confined-read.js";
 import { resolveConfinedPrivateDir } from "../utils/private-dir.js";
-import { RUN_KEY_BYTES, MAX_RUN_KEY_BYTES, runKeyPathFor, decodeKey } from "../workflow-history/integrity.js";
+import {
+  RUN_KEY_BYTES, MAX_RUN_KEY_BYTES, runKeyPathFor, decodeKey, lockHeldRunKey,
+} from "../workflow-history/integrity.js";
 /** The realpath'd project root `atomicWrite`'s `confineRoot` must use. */
 function realRootOf(privateDir: string): string {
   return path.dirname(privateDir);
@@ -59,7 +62,7 @@ function diskRunKeyStore(root: string): RunKeyStore {
  * @returns The 32-byte secret key buffer.
  */
 export async function loadOrCreateRunKey(root: string): Promise<Buffer> {
-  return loadOrCreateRunKeyWith(diskRunKeyStore(root));
+  return Buffer.from(await lockHeldRunKey(root, () => loadOrCreateRunKeyWith(diskRunKeyStore(root))));
 }
 
 /** {@link loadOrCreateRunKey} over {@link RunKeyStore}: THE ONE BODY. An existing key that does not decode is replaced, as before. */
