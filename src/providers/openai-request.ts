@@ -48,7 +48,7 @@ const LUNA_MODEL = /^gpt-6-luna(?:$|-)/i;
  * an unchecked env value would surface as an opaque 400 from the API.
  */
 const REASONING_EFFORTS = {
-  none: true, minimal: true, low: true, medium: true, high: true, xhigh: true,
+  none: true, minimal: true, low: true, medium: true, high: true, xhigh: true, max: true,
 } satisfies Record<Exclude<OpenAI.ReasoningEffort, null>, true>;
 
 /** Raised when an env override carries a value the API would reject. */

@@ -476,7 +476,7 @@ Contributions are welcome. If llmwiki is missing something you need, open an iss
 Before committing code changes, run:
 
 ```bash
-bunx tsc --noEmit
+bun check
 bun run build
 bun run test
 bun run fallow:ci

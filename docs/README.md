@@ -43,7 +43,7 @@ For every user-facing feature PR:
 9. Run the normal repo gates before the PR is considered done:
 
    ```bash
-   bunx tsc --noEmit
+   bun check
    bun run typecheck:tests
    bun run build
    bun run test

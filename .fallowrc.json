@@ -39,8 +39,7 @@
     "@fontsource/dm-sans",
     "@fontsource/nunito",
     "@fontsource/space-grotesk",
-    "@fontsource/jetbrains-mono",
-    "typescript7"
+    "@fontsource/jetbrains-mono"
   ],
   "ignoreExports": [
     { "file": "src/workflows/projection.ts", "exports": ["ProjectionResult", "confineProjectionPath"] },
