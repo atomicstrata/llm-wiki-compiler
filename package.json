@@ -18,7 +18,9 @@
     "llmwiki": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "bun run typecheck:viewer-v2 && tsup",
+    "typecheck:viewer-v2": "tsc --noEmit -p viewer-v2",
+    "dev:view-v2": "vite --config viewer-v2/vite.config.ts",
     "dev": "tsup --watch src --watch scripts --watch tsconfig.json --watch \"packages/*/package.json\" --watch \"packages/*/tsup.config.ts\"",
     "benchmark:review": "bun scripts/benchmark-review-batch.mjs",
     "dev:view": "bun scripts/dev-viewer.mjs",
@@ -107,14 +109,20 @@
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^21.1.0",
     "@types/markdown-it": "^14.1.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "@types/sanitize-html": "^2.16.1",
     "@types/turndown": "^5.0.0",
+    "@vitejs/plugin-react": "5.2.0",
     "esbuild": "0.28.1",
     "fallow": "2.82.0",
     "husky": "^9.1.7",
     "madge": "^8.0.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "tsup": "^8.0.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1149.0",

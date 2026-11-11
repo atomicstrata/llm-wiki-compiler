@@ -55,6 +55,11 @@ export async function startViewerCLI(
   return spawnAwaitingReadiness(["view", ...args], cwd, timeoutMs, "viewer", { env: { ...process.env, ...envOverrides } });
 }
 
+/** Spawn `bun dist/cli.js view-v2 <args>` in `cwd` and wait for its readiness line. */
+export async function startViewerV2CLI(args: string[], cwd: string): Promise<ViewerProcessHandle> {
+  return spawnAwaitingReadiness(["view-v2", ...args], cwd, DEFAULT_READY_TIMEOUT_MS, "viewer-v2", { env: process.env });
+}
+
 /**
  * Spawn `bun dist/cli.js quickstart <args>` in `cwd`, wait for the
  * readiness line emitted by quickstart's viewer handoff, and resolve

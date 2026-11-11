@@ -28,6 +28,7 @@ import type { IOptions } from "sanitize-html";
 import { requireOnUse } from "../utils/require-on-use.js";
 import { registerWikilink } from "./wikilink-rule.js";
 import { registerCitation } from "./citation-rule.js";
+import { registerSourceLink } from "./source-link-rule.js";
 import type { ViewerSnapshot } from "./types.js";
 
 /** Per-render configuration the server passes in. */
@@ -69,11 +70,13 @@ function buildMarkdownIt(snapshot: ViewerSnapshot, options: RenderOptions): Mark
     breaks: false,
   });
   registerWikilink(md, { pages: snapshot.pages });
+  const sourceFiles = new Set(snapshot.sourceFilenames);
   registerCitation(md, {
     root: snapshot.root,
-    sourceFiles: new Set(snapshot.sourceFilenames),
+    sourceFiles,
     isLoopback: options.isLoopback,
   });
+  registerSourceLink(md, { sourceFiles });
   return md;
 }
 

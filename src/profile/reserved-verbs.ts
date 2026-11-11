@@ -17,5 +17,5 @@ export const PROFILE_V1_RESERVED_VERBS: ReadonlySet<string> = new Set([
 
 /** Live CLI inventory, independent of persisted profile-v1 validation. */
 export const RESERVED_CORE_VERBS: ReadonlySet<string> = new Set([
-  ...PROFILE_V1_RESERVED_VERBS, "operation", "preparation", "product", "project", "visualize",
+  ...PROFILE_V1_RESERVED_VERBS, "operation", "preparation", "product", "project", "view-v2", "visualize",
 ]);

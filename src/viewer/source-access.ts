@@ -8,6 +8,7 @@ import { assertSafeSourceId, toRecord } from "../sources/source-record.js";
 import { diskLocalCappedReads } from "../storage/disk-local-reads.js";
 import type { LegacyLocalCappedReads } from "../storage/legacy-local-reads.js";
 import { PathSafetyError } from "./path-safety.js";
+import { declaredSourceImages } from "./source-image-names.js";
 
 /** A preview is deliberately bounded, not a streaming arbitrary-file interface. */
 const SOURCE_PREVIEW_BYTES = 1024 * 1024;
@@ -29,7 +30,14 @@ export async function readViewerSourceFrom(reads: LegacyLocalCappedReads, filena
   if (read.kind !== "ok") return { ...base, health: read.kind === "absent" ? "missing" : "unavailable" };
   const { source, ...record } = toRecord(id, read.body, false);
   const locator = webLocator(source);
-  return { ...base, ...record, health: "ok", ...(locator ? { locator } : {}), ...(isLoopback ? { body: read.body } : {}) };
+  const images = declaredSourceImages(read.body);
+  return {
+    ...base, ...record, health: "ok",
+    ...(locator ? { locator } : {}),
+    // Omitted when a source declares none, so sources without images are unchanged.
+    ...(images.length > 0 ? { images } : {}),
+    ...(isLoopback ? { body: read.body } : {}),
+  };
 }
 
 /** A recorded URL is a locator, not proof that the original publication is stored. */

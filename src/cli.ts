@@ -28,6 +28,8 @@ const COMMANDS: [usage: string, description: string, load: () => Promise<Configu
     () => import("./cli/ingest-session-command.js").then((m) => m.registerIngestSessionCommand)],
   ["view [options]", "Start a local read-only web viewer for the current wiki project",
     () => import("./cli/view-command.js").then((m) => m.registerViewCommand)],
+  ["view-v2 [options]", "Start the local read-only web viewer with the v2 client (pages, sources, images)",
+    () => import("./cli/view-command.js").then((m) => m.registerViewV2Command)],
   ["compile [options]", "Compile sources/ into an interlinked wiki",
     () => import("./cli/compile-command.js").then((m) => m.registerCompileCommand)],
   ["rm [options] <source>", "Delete a source and the concept pages derived exclusively from it",
