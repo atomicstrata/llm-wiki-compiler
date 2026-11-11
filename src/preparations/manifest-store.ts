@@ -28,6 +28,7 @@ import { TextDecoder } from "node:util";
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import { AtomicWriteCollisionError, atomicWriteNoReplaceDurable } from "../utils/atomic-write.js";
 import { readDurableOperationLeafBuffer } from "../operation-bundles/durable-leaf.js";
+import { verifiedBytesMemo } from "../utils/verified-bytes-memo.js";
 import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
 import { MAX_PREPARATION_MANIFEST_BYTES } from "./constants.js";
@@ -47,8 +48,18 @@ export type PreparationManifestRead =
 /** Stable outcome for a new immutable manifest and an exact replay. */
 export type ManifestCreateResult = "created" | "same";
 
-/** Parse strict UTF-8 and require the exact RFC 8785 byte representation. */
-function parseCanonicalManifest(bytes: Buffer): PreparationManifestV1 {
+/**
+ * Parse strict UTF-8 and require the exact RFC 8785 byte representation.
+ *
+ * A manifest is immutable, so every inventory scan re-read and re-verified
+ * bytes it had already proven; a store of N preparations re-ran the closed
+ * loader N times per stage. The leaf is still read on every call — only the
+ * verdict on identical bytes is reused (see `utils/verified-bytes-memo.ts`).
+ */
+const parseCanonicalManifest = verifiedBytesMemo(verifyCanonicalManifest);
+
+/** The closed parse, then the canonical-bytes rule: the verification {@link parseCanonicalManifest} remembers. */
+function verifyCanonicalManifest(bytes: Buffer): PreparationManifestV1 {
   const text = STRICT_UTF8.decode(bytes);
   const manifest = parsePreparationManifest(text);
   if (!canonicalBytes(manifest).equals(bytes)) {
