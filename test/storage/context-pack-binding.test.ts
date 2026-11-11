@@ -55,7 +55,7 @@ import {
   sourceFreshnessOf, unasked, writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realSnapshot = { ...(await import("../../src/viewer/snapshot.js")) };
 const realBlock = { ...(await import("../../src/profile/block.js")) };
 const realState = { ...(await import("../../src/project/state.js")) };

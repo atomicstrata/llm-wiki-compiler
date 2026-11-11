@@ -35,7 +35,8 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { mocked } from "../mocked.js";
 import { restoreEnv, stubEnv } from "../stubs.js";
 import { NO_ENTITIES, lintSourcesOver } from "./lint-sources-doubles.js";
 
@@ -152,9 +153,9 @@ const tracker = tempRootTracker();
 let project: Minted<OnDisk>;
 const offline = (): void => { stubEnv("LLMWIKI_PROVIDER", "offline"); stubEnv("LLMWIKI_EMBEDDING_PROVIDER", ""); };
 
-beforeAll(() => { setSystemTime(new Date(AT)); offline(); (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(modelStub); });
-beforeEach(() => { stubHost(); offline(); (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(modelStub); printed.length = 0; process.exitCode = 0; });
-afterAll(() => { restoreEnv(); setSystemTime(); process.exitCode = 0; });
+beforeAll(() => { setSystemTime(new Date(AT)); offline(); mocked(callClaude).mockImplementation(modelStub); });
+beforeEach(() => { stubHost(); offline(); mocked(callClaude).mockReset().mockImplementation(modelStub); printed.length = 0; });
+afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   stubHost();
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), async (root) => {

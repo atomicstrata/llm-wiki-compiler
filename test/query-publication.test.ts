@@ -2,7 +2,8 @@
  * Direct publication witnesses pin no-write refusals, exact canonical bytes,
  * mandatory fresh resolution and failures outside the citation recovery scope.
  */
-import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv } from "./stubs.js";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -12,18 +13,18 @@ import { buildQueryDocument } from "../src/commands/query-document.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { stageCitationWorkspace } from "./fixtures/query-answer-citations.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsEmbeddings = { ...(await import("../src/utils/embeddings.js")) };
 
-vi.mock("../src/utils/embeddings.js", async () => ({
-  ...(realUtilsEmbeddings as typeof import("../src/utils/embeddings.js")),
+vi.mock("../src/utils/embeddings.js", () => ({
+  ...realUtilsEmbeddings,
   updateEmbeddingsLockedCore: vi.fn().mockResolvedValue(undefined),
 }));
 const ctx = useTempRoot();
 beforeEach(async () => {
   await stageCitationWorkspace(ctx.dir);
   await writeFile(path.join(ctx.dir, ".llmwiki/embeddings.json"), "sentinel embeddings");
-  (updateEmbeddingsLockedCore as unknown as Mock<typeof updateEmbeddingsLockedCore>).mockClear();
+  mocked(updateEmbeddingsLockedCore).mockClear();
 });
 afterEach(() => restoreEnv());
 

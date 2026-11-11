@@ -18,6 +18,7 @@ import { promisify } from "util";
 import path from "path";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const execFileAsync = promisify(execFile);
 const BUILT_CLI = path.resolve("dist/cli.js");
@@ -61,7 +62,7 @@ async function createWikiFixture(suffix: string, pageContent: string): Promise<s
 /** Run `llmwiki lint` in the given project root, always resolving (never rejecting). */
 async function runLint(root: string): Promise<{ stdout: string; code: number }> {
   try {
-    const { stdout } = await execFileAsync("bun", [BUILT_CLI, "lint"], { cwd: root });
+    const { stdout } = await execFileAsync(process.execPath, [...CLI_RUNTIME_FLAGS, BUILT_CLI, "lint"], { cwd: root });
     return { stdout, code: 0 };
   } catch (err: unknown) {
     const e = err as { stdout?: string; code?: number };

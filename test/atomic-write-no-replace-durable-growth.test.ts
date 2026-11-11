@@ -20,12 +20,12 @@ let readRequests: number[] = [];
 let unboundedReadCalls = 0;
 let positionalReadLimit: number | undefined;
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 /** Instrument each opened handle without changing the filesystem implementation. */
 vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+  const actual = realFsPromises;
   return Object.assign({}, actual, {
     open: async (...args: Parameters<typeof actual.open>) => {
       const handle = await actual.open(...args);

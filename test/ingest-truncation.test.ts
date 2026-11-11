@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from "bun:test";
+import { afterEach, describe, it, expect } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { enforceCharLimit, buildDocument } from "../src/commands/ingest.js";

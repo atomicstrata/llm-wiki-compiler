@@ -20,7 +20,8 @@
 
 import { lstat, mkdir, readdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { mocked } from "../mocked.js";
 import {
   executeReset, executeResetFrom, planReset, planResetFrom, RESET_SCOPES,
   type ResetDeleteLeaves, type ResetPlanReads, type ResetPlanV1,
@@ -225,7 +226,7 @@ describe("the state reset as root-free bodies", () => {
     const escaping = await realProject([]);
     await symlink(await realProject([STATE_FILE]), path.join(escaping, ".llmwiki"));
     expect(await commandIn(escaping, true)).toEqual(await bodyOver({ dir: "escape" }));
-    (lockGate.acquireMutationLock as unknown as Mock<typeof lockGate.acquireMutationLock>).mockImplementation(async () => { events.push("lock"); return false; });
+    mocked(lockGate.acquireMutationLock).mockImplementation(async () => { events.push("lock"); return false; });
     expect(await commandIn(await realProject([STATE_FILE]), true)).toEqual(await bodyOver({ locked: true }));
   });
 
@@ -296,7 +297,7 @@ describe("the reset family's root delegation", () => {
     previewStateResetWith(memorySteps([]));
     await resetStateFileWith(memorySteps([], { bak: "file" }));
     expect(Object.values(spies).map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0, 0, 0, 0, 0]);
-    expect([events, (output.status as unknown as Mock<typeof output.status>).mock.calls]).toEqual([[], []]);
+    expect([events, mocked(output.status).mock.calls]).toEqual([[], []]);
   });
 
   it("Z2 reaches each incumbent mechanism from the root facades with exact arguments", async () => {
@@ -315,6 +316,6 @@ describe("the reset family's root delegation", () => {
     expect(spies.confine).toHaveBeenCalledWith(state, root, { mustExist: false });
     expect(spies.look).toHaveBeenCalledWith(`${state}.bak`);
     expect(spies.rename).toHaveBeenCalledWith(state, `${state}.bak`);
-    expect([(lockGate.acquireMutationLock as unknown as Mock<typeof lockGate.acquireMutationLock>).mock.calls, (lock.releaseLock as unknown as Mock<typeof lock.releaseLock>).mock.calls]).toEqual([[[root, "ordinary"]], [[root]]]);
+    expect([mocked(lockGate.acquireMutationLock).mock.calls, mocked(lock.releaseLock).mock.calls]).toEqual([[[root, "ordinary"]], [[root]]]);
   });
 });

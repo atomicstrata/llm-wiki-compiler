@@ -29,13 +29,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "bun:test";
 
-const spies = (() => ({ mkdir: vi.fn(), writeFile: vi.fn() }))();
+const spies = { mkdir: vi.fn(), writeFile: vi.fn() };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const disk = (realFsPromises as typeof import("fs/promises"));
+vi.mock("fs/promises", () => {
+  const disk = realFsPromises;
   spies.mkdir.mockImplementation(disk.mkdir as never);
   spies.writeFile.mockImplementation(disk.writeFile as never);
   return { ...disk, mkdir: spies.mkdir, writeFile: spies.writeFile };

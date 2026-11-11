@@ -5,7 +5,8 @@
  * Tests extraction, deterministic sampling, cache loading, and score aggregation.
  */
 
-import { vi, type Mock, describe, it, expect } from "bun:test";
+import { vi, describe, it, expect } from "bun:test";
+import { mocked } from "./mocked.js";
 import {
   extractCitationPairs,
   selectDeterministicSample,
@@ -158,7 +159,7 @@ describe("evaluateCitationSupport", () => {
 
   it("records judgeErrors when some but not all judge calls fail", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    const spy = (callClaude as unknown as Mock<typeof callClaude>);
+    const spy = mocked(callClaude);
     spy.mockClear();
     spy.mockRejectedValueOnce(new Error("temporary timeout"));
 
@@ -176,7 +177,7 @@ describe("evaluateCitationSupport", () => {
 
   it("throws when every judge call fails and nothing is cached", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    const spy = (callClaude as unknown as Mock<typeof callClaude>);
+    const spy = mocked(callClaude);
     spy.mockClear();
     spy.mockRejectedValueOnce(new Error("ANTHROPIC_API_KEY not set"));
 
@@ -191,7 +192,7 @@ describe("evaluateCitationSupport", () => {
 
   it("throws when every new judge call fails even if the cache has entries", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    const spy = (callClaude as unknown as Mock<typeof callClaude>);
+    const spy = mocked(callClaude);
 
     await env.writeSource("src.md", "Line 1\nLine 2\n");
     await env.writeConcept(
@@ -230,7 +231,7 @@ describe("evaluateCitationSupport", () => {
 
   it("does not reuse cached judgement when the model changes", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    const spy = (callClaude as unknown as Mock<typeof callClaude>);
+    const spy = mocked(callClaude);
     spy.mockClear();
 
     await env.writeSource("model-change.md", "Source content.\n");
@@ -254,7 +255,7 @@ describe("evaluateCitationSupport", () => {
 
   it("skips already-cached pairs and does not call judge again", async () => {
     const { callClaude } = await import("../src/utils/llm.js");
-    const spy = (callClaude as unknown as Mock<typeof callClaude>);
+    const spy = mocked(callClaude);
     spy.mockClear();
 
     await env.writeSource("src2.md", "Content here.\n");

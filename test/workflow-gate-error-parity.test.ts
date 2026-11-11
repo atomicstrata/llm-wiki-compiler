@@ -1,5 +1,5 @@
 /** Legacy gate actions preserve inactive-run and non-interactive error precedence. */
-import { describe, expect, it, vi, afterEach } from "bun:test";
+import { describe, expect, it, afterEach } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { startWorkflow } from "../src/workflows/start.js";

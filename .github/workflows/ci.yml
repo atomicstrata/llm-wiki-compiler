@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - name: Install Linux isolation test dependency
         run: sudo apt-get update && sudo apt-get install -y bubblewrap

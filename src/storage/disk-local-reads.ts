@@ -36,6 +36,7 @@ import {
   readConfinedLeaf, readConfinedPage, readConfinedPageWith, type ConfinedPageRead, type ReadConfinedPageOptions,
 } from "../utils/confined-read.js";
 import { isInsideDir, resolveRealDir, safeRealpath } from "../utils/path-confine.js";
+import { listDirectoryNames } from "./disk-guarded-leaves.js";
 import { readLocationPrefix, readLocationText } from "./disk-locations.js";
 import type {
   ConfinedReadResult,
@@ -54,14 +55,6 @@ function entryKind(entry: Dirent | Stats): LocalEntryKind {
   if (entry.isDirectory()) return "directory";
   if (entry.isSymbolicLink()) return "link";
   return "other";
-}
-
-/**
- * `readdir(dir)` in code-unit order. Node's libuv sorted every listing; Bun
- * returns raw directory order, so the sort keeps listing-derived output stable.
- */
-async function listNamesSorted(dir: string): Promise<string[]> {
-  return (await readdir(dir)).sort();
 }
 
 /**
@@ -155,9 +148,10 @@ function diskDirectory(canonicalDir: string): LocalDirectory {
   return {
     listEntries: async (relative) => {
       const entries = await readdir(path.join(canonicalDir, relative), { withFileTypes: true });
-      // Name order, as Node's libuv listed them (Bun returns raw directory order).
+      // Name order, as Node's libuv listed them (Bun returns raw directory
+      // order). Names in one directory are unique, so no tie case.
       return entries.map((entry) => ({ name: entry.name, kind: entryKind(entry) }))
-        .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+        .sort((a, b) => (a.name < b.name ? -1 : 1));
     },
   };
 }
@@ -174,7 +168,7 @@ export function diskLocalReads(root: string): LegacyLocalReads {
     readText: (relPath) => readFile(locate(relPath), "utf-8"),
     exists: async (relPath) => existsSync(locate(relPath)),
     statNoFollow: async (relPath) => entryKind(await lstat(locate(relPath))),
-    listNames: (relDir) => listNamesSorted(locate(relDir)),
+    listNames: (relDir) => listDirectoryNames(locate(relDir)),
     realDirectory: async (relDir) => {
       const canonicalDir = await resolveRealDir(root, relDir);
       return canonicalDir === null ? null : diskDirectory(canonicalDir);
@@ -207,13 +201,13 @@ export function diskLocalCappedReads(root: string): LegacyLocalCappedReads {
 
 /**
  * The entity directory already verified at `expectedDir`, an absolute resolved
- * path. The listing is `readdir`. An entry resolves to its real path, and only
- * when that is inside `expectedDir`. The two reads follow links at the locator
+ * path. The listing is `readdir` in name order ({@link listDirectoryNames}).
+ * An entry resolves to its real path, and only when that is inside `expectedDir`. The two reads follow links at the locator
  * they are given and check nothing again.
  */
 function diskEntityDirectory(expectedDir: string): LocalEntityDirectory {
   return {
-    listNames: () => listNamesSorted(expectedDir),
+    listNames: () => listDirectoryNames(expectedDir),
     resolveEntry: async (name) => {
       const resolved = await safeRealpath(path.join(expectedDir, name));
       if (!resolved || !isInsideDir(resolved, expectedDir)) return null;

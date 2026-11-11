@@ -26,13 +26,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** The next `lstat` of exactly `target` rejects with `error`. */
-const fault = (() => ({ target: "", error: null as Error | null }))();
+const fault = { target: "", error: null as Error | null };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const actual = realFsPromises as typeof import("fs/promises");
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   const lstat = ((target: unknown, ...rest: unknown[]) => {
     if (fault.error !== null && target === fault.target) {
       const error = fault.error;

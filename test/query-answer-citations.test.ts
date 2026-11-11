@@ -2,7 +2,8 @@
  * Public SDK and query-pipeline tests keep provider traffic stubbed at the LLM
  * boundary while exercising real selection, admission, reports, and saving.
  */
-import { beforeEach, afterEach, expect, it, vi, type Mock } from "bun:test";
+import { beforeEach, afterEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -14,12 +15,12 @@ import { parseFrontmatter } from "../src/utils/markdown.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { CITED_ANSWER, EXPECTED_REPORT, stageCitationWorkspace, citationWorkspaceBytes } from "./fixtures/query-answer-citations.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsEmbeddings = { ...(await import("../src/utils/embeddings.js")) };
 
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
-vi.mock("../src/utils/embeddings.js", async () => ({
-  ...(realUtilsEmbeddings as typeof import("../src/utils/embeddings.js")),
+vi.mock("../src/utils/embeddings.js", () => ({
+  ...realUtilsEmbeddings,
   updateEmbeddingsLockedCore: vi.fn().mockResolvedValue(undefined),
 }));
 const ctx = useTempRoot();
@@ -32,7 +33,7 @@ afterEach(() => restoreEnv());
 
 /** Stub only external LLM calls, preserving the streaming callback contract. */
 function answerWith(answer: string, pages = ["concepts/alpha"]): void {
-  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => {
+  mocked(callClaude).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages, reasoning: "Selected alpha" });
     options.onToken?.(answer);
     return answer;

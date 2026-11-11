@@ -24,16 +24,16 @@ import path from "node:path";
 
 interface ReadCall { requested: number; position: unknown; bytesRead: number }
 /** What the mock saw and what it should do to the next opened handle. */
-const tape = (() => ({
+const tape = {
   reads: {} as Record<string, ReadCall[]>, wholeReads: [] as string[],
   shortReadOf: null as number | null, closeError: null as Error | null,
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
 vi.mock("fs/promises", async () => {
-  const actual = realFsPromises as typeof import("fs/promises");
+  const actual = realFsPromises;
   const open = (async (target: unknown, ...rest: unknown[]) => {
     const handle = await (actual.open as (...args: unknown[]) => Promise<fs.FileHandle>)(target, ...rest);
     const realRead = handle.read.bind(handle) as (...args: unknown[]) => Promise<{ bytesRead: number }>;

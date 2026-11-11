@@ -2,17 +2,18 @@
  * Binary callers retain exact bytes and the existing atomic replacement boundary.
  * Fault injection targets rename only; real temp-file creation and writes run.
  */
-import { afterEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import * as fs from "fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../src/utils/atomic-write.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const actual = realFsPromises as typeof import("fs/promises");
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   return { ...actual, rename: vi.fn(actual.rename) };
 });
 
@@ -30,7 +31,7 @@ describe("atomic byte writes", () => {
   it("keeps the prior binary and cleans the temp if rename fails", async () => {
     const target = path.join(ctx.root, "index.bin");
     await atomicWrite(target, Buffer.from([0, 255]), { confineRoot: ctx.root });
-    (fs.rename as unknown as Mock<typeof fs.rename>).mockRejectedValueOnce(new Error("rename failed"));
+    mocked(fs.rename).mockRejectedValueOnce(new Error("rename failed"));
     await expect(atomicWrite(target, Buffer.from([128, 10]), { confineRoot: ctx.root })).rejects.toThrow("rename failed");
     expect(await fs.readFile(target)).toEqual(Buffer.from([0, 255]));
     expect(await fs.readdir(ctx.root)).toEqual(["index.bin"]);

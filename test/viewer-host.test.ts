@@ -26,6 +26,7 @@ import {
   startViewerCLI,
   useViewerProcessLifecycle,
 } from "./fixtures/run-cli-server.js";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const exec = promisify(execCb);
 const CLI = path.resolve("dist/cli.js");
@@ -85,7 +86,7 @@ describe("CLI — wildcard host rejection", () => {
     const root = await makeTempRoot(`viewer-host-wildcard-${host.replace(/[:.*]/g, "-")}`);
     let stderr = "";
     try {
-      await exec(`bun "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
+      await exec(`"${process.execPath}" ${CLI_RUNTIME_FLAGS.join(" ")} "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
         cwd: root,
         timeout: CLI_REJECTION_TIMEOUT_MS,
       });

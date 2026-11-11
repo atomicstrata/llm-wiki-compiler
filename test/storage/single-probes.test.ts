@@ -24,30 +24,29 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** `calls` are [function name, ...arguments], noted only while `on` is true. */
-const io = (() => ({ on: false, calls: [] as unknown[][] }))();
+const io = { on: false, calls: [] as unknown[][] };
 /** What the stand-ins saw: watchers created, and compiles requested. */
-const seen = (() => ({ watchers: [] as unknown[][], compiles: [] as unknown[][] }))();
+const seen = { watchers: [] as unknown[][], compiles: [] as unknown[][] };
 
 /** A copy of one `fs` module object whose `name` function notes its calls, as a named export and on `default`. */
-const noting = (() => <T extends object>(actual: T, name: "existsSync" | "lstat"): T => {
+const noting = <T extends object>(actual: T, name: "existsSync" | "lstat"): T => {
   const real = (actual as unknown as Record<string, (...args: unknown[]) => unknown>)[name]!;
   const noted = (...args: unknown[]): unknown => {
     if (io.on) io.calls.push([name, ...args]);
     return real(...args);
   };
   return { ...actual, [name]: noted, default: { ...actual, [name]: noted } };
-})();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
-
-// Both spellings of each module: the two functions under test use the bare names before the move and storage uses `node:` after it.
 const realFs = { ...(await import("fs")) };
 
-vi.mock("fs", async () => noting((realFs as typeof import("fs")), "existsSync"));
-vi.mock("node:fs", async () => noting((realFs as typeof import("node:fs")), "existsSync"));
-vi.mock("fs/promises", async () => noting((realFsPromises as typeof import("fs/promises")), "lstat"));
-vi.mock("node:fs/promises", async () => noting((realFsPromises as typeof import("node:fs/promises")), "lstat"));
+// Both spellings of each module: the two functions under test use the bare names before the move and storage uses `node:` after it.
+vi.mock("fs", () => noting(realFs, "existsSync"));
+vi.mock("node:fs", () => noting(realFs, "existsSync"));
+vi.mock("fs/promises", () => noting(realFsPromises, "lstat"));
+vi.mock("node:fs/promises", () => noting(realFsPromises, "lstat"));
 
 vi.mock("chokidar", () => {
   const watcher = { on: (): unknown => watcher };
@@ -64,7 +63,7 @@ import * as output from "../../src/utils/output.js";
 import { deleteWikiPagesLocked } from "../../src/wiki/delete-page.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = realFsPromises as typeof import("node:fs/promises");
+const fs = realFsPromises;
 const WATCH_OPTIONS = { ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: 200 } };
 const STILL_THERE = 'failed to delete wiki page "alpha": file still exists after unlink';
 useTempRoot();

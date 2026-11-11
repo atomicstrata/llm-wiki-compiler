@@ -1,5 +1,5 @@
 /** The access UI preserves physical source lines and never treats artifact text as HTML. */
-import { beforeEach, describe, it, expect, vi } from "bun:test";
+import { beforeEach, describe, it, expect } from "bun:test";
 import { stubGlobal } from "./stubs.js";
 import { useViewerDocument } from "./fixtures/viewer-document.js";
 import { renderSourceDetail, decorateArtifactRefs } from "../src/viewer/assets/viewer-access-detail.js";

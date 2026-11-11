@@ -113,12 +113,12 @@ describe("the projection EMITS an incompleteness that names no registry", () => 
  * scanner's own brand check ("lifecycle read was not scanner-minted"), and a
  * probe refusing for THAT reason looks exactly like a working fix.
  */
-const observation = (() => ({ value: null as unknown }))();
-// Snapshot real modules before mock.module replaces them for this file.
+const observation = { value: null as unknown };
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realPreparationsRecovery = { ...(await import("../src/preparations/recovery.js")) };
 
-vi.mock("../src/preparations/recovery.js", async () => ({
-  ...(realPreparationsRecovery as typeof import("../src/preparations/recovery.js")),
+vi.mock("../src/preparations/recovery.js", () => ({
+  ...realPreparationsRecovery,
   resolvePreparationLifecyclePending: async () => observation.value,
 }));
 

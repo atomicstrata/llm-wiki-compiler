@@ -88,7 +88,6 @@ interface Side { displayRoot: string; approve(id: string): Promise<void>; tree()
 async function runScenario(side: Side, ids: { bad: string; good: string }): Promise<string[]> {
   const statuses: string[] = [];
   const status = captureStatusLines(statuses, (text) => text.split(side.displayRoot).join("<root>"));
-  // Only the clock is pinned; Bun's setSystemTime needs no fake timers.
   setSystemTime(NOW);
   const out: string[] = [];
   try {

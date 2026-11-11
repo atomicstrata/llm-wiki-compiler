@@ -68,6 +68,7 @@
     "LICENSE",
     "README.md"
   ],
+  "packageManager": "bun@1.4.2",
   "engines": {
     "bun": ">=1.3"
   },

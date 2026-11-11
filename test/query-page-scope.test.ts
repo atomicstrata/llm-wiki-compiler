@@ -13,7 +13,7 @@ import { writePage } from "./fixtures/write-page.js";
 import { chunkOf, mockQueryVector, offeringCallClaudeModule, tempRootRegistry, writeChunkStore } from "./fixtures/typed-grounding.js";
 import { generateAnswer } from "../src/commands/query.js";
 
-const state = (() => ({ offered: [] as string[] }))();
+const state = { offered: [] as string[] };
 vi.mock("../src/utils/llm.js", () => offeringCallClaudeModule(state));
 
 const tempRoots = tempRootRegistry();

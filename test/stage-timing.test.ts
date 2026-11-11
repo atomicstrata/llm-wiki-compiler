@@ -4,7 +4,7 @@
  * failed stage without masking its error, and never lets a broken log path fail
  * the measured work.
  */
-import { afterEach, expect, it, vi } from "bun:test";
+import { afterEach, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";

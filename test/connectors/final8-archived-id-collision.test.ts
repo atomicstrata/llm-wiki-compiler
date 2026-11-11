@@ -15,11 +15,11 @@ import { activateFixtureConnector } from "./run-test-fixtures.js";
 
 const suffixes = ((): Buffer[] => [])();
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realCrypto = { ...(await import("crypto")) };
 
-vi.mock("crypto", async () => {
-  const actual = realCrypto as typeof import("crypto");
+vi.mock("crypto", () => {
+  const actual = realCrypto;
   return {
     ...actual,
     randomBytes: (size: number) => size === 4 && suffixes.length > 0

@@ -2,7 +2,7 @@
  * Real filesystem witnesses for binary selection, sticky authority and refusal.
  * A valid old JSON store must never conceal an unavailable newer binary store.
  */
-import { afterEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, open, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";

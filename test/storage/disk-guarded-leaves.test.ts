@@ -19,25 +19,26 @@
  * check and the removal are single unguarded system calls with raw errors.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { mocked } from "../mocked.js";
 import { mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** Events the wrapped primitives record: each close of a leaf handle the confined opener returned. */
-const handleLog = (() => [] as string[])();
+const handleLog = [] as string[];
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 const realUtilsConfinedRead = { ...(await import("../../src/utils/confined-read.js")) };
 
-vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+vi.mock("node:fs/promises", () => {
+  const actual = realFsPromises;
   return { ...actual, access: vi.fn(actual.access), opendir: vi.fn(actual.opendir), rename: vi.fn(actual.rename) };
 });
 
 vi.mock("../../src/utils/confined-read.js", async () => {
-  const actual = realUtilsConfinedRead as typeof import("../../src/utils/confined-read.js");
+  const actual = realUtilsConfinedRead;
   const openConfinedLeaf: typeof actual.openConfinedLeaf = async (...args) => {
     const opened = await actual.openConfinedLeaf(...args);
     if (opened.kind !== "confirmed") return opened;
@@ -83,9 +84,9 @@ beforeEach(async () => {
   await mkdir(queue, { recursive: true });
   await writeFile(path.join(queue, "a.json"), "leaf bytes", "utf-8");
   binding = (await captureCandidateDirectoryBinding(root, QUEUE))!;
-  (access as unknown as Mock<typeof access>).mockClear();
-  (opendir as unknown as Mock<typeof opendir>).mockClear();
-  (rename as unknown as Mock<typeof rename>).mockClear();
+  mocked(access).mockClear();
+  mocked(opendir).mockClear();
+  mocked(rename).mockClear();
   handleLog.length = 0;
 });
 
@@ -121,17 +122,17 @@ describe("directoryStillBound and probeDirectory", () => {
 
   it("probes for write with one access call for write and search, and never opens the directory", async () => {
     expect(await probeDirectory(root, binding, "write")).toBe(true);
-    expect((access as unknown as Mock<typeof access>).mock.calls).toEqual([[binding.realDir, 2 | 1]]);
-    expect((opendir as unknown as Mock<typeof opendir>)).not.toHaveBeenCalled();
+    expect(mocked(access).mock.calls).toEqual([[binding.realDir, 2 | 1]]);
+    expect(mocked(opendir)).not.toHaveBeenCalled();
   });
 
   it("probes for list as access, re-bind, open, close, re-bind again", async () => {
     expect(await probeDirectory(root, binding, "list")).toBe(true);
-    expect((access as unknown as Mock<typeof access>).mock.calls).toEqual([[binding.realDir, 4 | 1]]);
-    expect((opendir as unknown as Mock<typeof opendir>).mock.calls).toEqual([[binding.realDir]]);
+    expect(mocked(access).mock.calls).toEqual([[binding.realDir, 4 | 1]]);
+    expect(mocked(opendir).mock.calls).toEqual([[binding.realDir]]);
     // The SECOND re-bind: the directory is replaced while it is open, after the first re-bind passed.
-    (opendir as unknown as Mock<typeof opendir>).mockImplementationOnce(async (dir) => {
-      const actual = realFsPromises as typeof import("node:fs/promises");
+    mocked(opendir).mockImplementationOnce(async (dir) => {
+      const actual = realFsPromises;
       const opened = await actual.opendir(dir);
       await replaceQueue();
       return opened;
@@ -143,7 +144,7 @@ describe("directoryStillBound and probeDirectory", () => {
     await replaceQueue();
     expect(await probeDirectory(root, binding, "write")).toBe(false);
     expect(await probeDirectory(root, binding, "list")).toBe(false);
-    expect((opendir as unknown as Mock<typeof opendir>)).not.toHaveBeenCalled();
+    expect(mocked(opendir)).not.toHaveBeenCalled();
   });
 });
 
@@ -179,9 +180,9 @@ describe("readGuardedLeaf", () => {
 describe("enumerateSuffixedNames", () => {
   it("runs hook, re-check, open, hook, re-check, stream, re-check, close, in that order", async () => {
     const log: string[] = [];
-    (opendir as unknown as Mock<typeof opendir>).mockImplementationOnce(async (dir) => {
+    mocked(opendir).mockImplementationOnce(async (dir) => {
       log.push("open");
-      const opened = await (realFsPromises as typeof import("node:fs/promises")).opendir(dir);
+      const opened = await realFsPromises.opendir(dir);
       const close = opened.close.bind(opened);
       // Iterate with read(): Bun's own Dir iterator calls the PUBLIC close() when the stream
       // ends, which would log a runtime close in place of the one under test.
@@ -212,8 +213,8 @@ describe("enumerateSuffixedNames", () => {
   it("refuses at the entry past each cap, before keeping it, and still closes the directory", async () => {
     for (const name of ["b.json", "c.json", "d.txt"]) await writeFile(path.join(queue, name), "x", "utf-8");
     const closed: string[] = [];
-    (opendir as unknown as Mock<typeof opendir>).mockImplementation(async (dir) => {
-      const opened = await (realFsPromises as typeof import("node:fs/promises")).opendir(dir);
+    mocked(opendir).mockImplementation(async (dir) => {
+      const opened = await realFsPromises.opendir(dir);
       const close = opened.close.bind(opened);
       opened.close = (async () => { closed.push("close"); return close(); }) as typeof opened.close;
       return opened;
@@ -222,7 +223,7 @@ describe("enumerateSuffixedNames", () => {
     await expect(enumerateSuffixedNames(binding, loggedEnumeration([], { maxNames: 2 }))).rejects.toThrow("overflow");
     expect(await enumerateSuffixedNames(binding, loggedEnumeration([], { maxDirectEntries: 4, maxNames: 3 }))).toHaveLength(3);
     expect(closed.length).toBeGreaterThanOrEqual(3);
-    (opendir as unknown as Mock<typeof opendir>).mockReset();
+    mocked(opendir).mockReset();
   });
 
   it("propagates a failed re-check or hook untouched and stops before the next step", async () => {
@@ -240,7 +241,7 @@ describe("enumerateSuffixedNames", () => {
     const log: string[] = [];
     await expect(enumerateSuffixedNames(binding, loggedEnumeration(log, { suffix: "" }))).rejects.toBeInstanceOf(RangeError);
     expect(log).toEqual([]);
-    expect((opendir as unknown as Mock<typeof opendir>)).not.toHaveBeenCalled();
+    expect(mocked(opendir)).not.toHaveBeenCalled();
   });
 });
 
@@ -324,15 +325,15 @@ describe("moveGuardedLeaf", () => {
     expect(await moveGuardedLeaf(await request({ maxBytes: 9 }))).toBe(false);
     expect(await moveGuardedLeaf(await request({ parents: { source: binding, destination: stale } }))).toBe(false);
     expect(await untouched()).toBe(true);
-    expect((rename as unknown as Mock<typeof rename>)).not.toHaveBeenCalled();
+    expect(mocked(rename)).not.toHaveBeenCalled();
     await writeFile(destination, "already archived", "utf-8");
     expect(await moveGuardedLeaf(await request())).toBe(false);
     expect([await readFile(source, "utf-8"), await readFile(destination, "utf-8")]).toEqual(["leaf bytes", "already archived"]);
-    expect((rename as unknown as Mock<typeof rename>)).not.toHaveBeenCalled();
+    expect(mocked(rename)).not.toHaveBeenCalled();
   });
 
   it("returns false and closes the handle when the rename fails, without copying", async () => {
-    (rename as unknown as Mock<typeof rename>).mockRejectedValueOnce(Object.assign(new Error("EXDEV"), { code: "EXDEV" }));
+    mocked(rename).mockRejectedValueOnce(Object.assign(new Error("EXDEV"), { code: "EXDEV" }));
     const afterRename = vi.fn(async () => true);
     expect(await moveGuardedLeaf(await request({ afterRename }))).toBe(false);
     expect(afterRename).not.toHaveBeenCalled();

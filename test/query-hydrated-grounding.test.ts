@@ -22,10 +22,10 @@ import { generateAnswer } from "../src/commands/query.js";
 // exact selected-but-unreadable state the fix must surface. The answer call
 // (no tools) echoes its grounding prompt back so assertions see what the
 // model was shown.
-const state = (() => ({
+const state = {
   selection: [] as string[],
   onSelect: undefined as (() => Promise<void>) | undefined,
-}))();
+};
 vi.mock("../src/utils/llm.js", () => ({
   callClaude: vi.fn(async (opts: { tools?: unknown[]; messages: Array<{ content: string }> }) => {
     if (opts.tools) {

@@ -2,7 +2,8 @@
  * @file Generic CLI composition regression: invoking and resuming forward the
  * operator-selected provider adapter; read-only preview never loads it.
  */
-import { afterEach, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, expect, it, vi } from "bun:test";
+import { mocked } from "../mocked.js";
 import { productInvokeCommand, productPreviewCommand, productResumeCommand } from "../../src/commands/product/action.js";
 import { cliProductService, cliProviderInvocation } from "../../src/commands/product/host.js";
 
@@ -17,8 +18,8 @@ it("passes the selected adapter to invoke and resume, but not preview", async ()
   const invoke = vi.fn().mockResolvedValue(refused);
   const resume = vi.fn().mockResolvedValue(refused);
   const preview = vi.fn().mockResolvedValue(refused);
-  (cliProductService as unknown as Mock<typeof cliProductService>).mockReturnValue({ invoke, resume, preview } as never);
-  (cliProviderInvocation as unknown as Mock<typeof cliProviderInvocation>).mockResolvedValue(adapter as never);
+  mocked(cliProductService).mockReturnValue({ invoke, resume, preview } as never);
+  mocked(cliProviderInvocation).mockResolvedValue(adapter as never);
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   await productInvokeCommand("/fixture", "generic.action", { json: true });
   await productResumeCommand("/fixture", "run-fixture", "generic.action", { json: true });

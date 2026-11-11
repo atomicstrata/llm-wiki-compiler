@@ -21,11 +21,11 @@ import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
 import { readPersistedState } from "./fixtures/state-json.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsState = { ...(await import("../src/utils/state.js")) };
 
-vi.mock("../src/utils/state.js", async () => {
-  const actual = realUtilsState as typeof import("../src/utils/state.js");
+vi.mock("../src/utils/state.js", () => {
+  const actual = realUtilsState;
   return {
     ...actual,
     updateSourceState: vi.fn(() => {

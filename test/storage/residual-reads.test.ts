@@ -20,6 +20,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { mocked } from "../mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -27,13 +28,13 @@ import path from "node:path";
 
 type FaultedCall = "readdir" | "realpath" | "stat";
 /** The next `remaining` calls of `call` on exactly `target` reject with `error`. */
-const fault = (() => ({ call: "", target: "", error: null as Error | null, remaining: 0 }))();
+const fault = { call: "", target: "", error: null as Error | null, remaining: 0 };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const actual = realFsPromises as typeof import("fs/promises");
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   const guarded = (call: FaultedCall) => (target: unknown, ...rest: unknown[]) => {
     if (fault.remaining > 0 && fault.call === call && target === fault.target) {
       fault.remaining -= 1;
@@ -86,7 +87,7 @@ beforeEach(async () => {
   base = await fs.realpath(await fs.mkdtemp(path.join(tmpdir(), "llmwiki-residual-")));
   root = path.join(base, "project");
   fault.remaining = 0;
-  (fs.open as unknown as Mock<typeof fs.open>).mockClear();
+  mocked(fs.open).mockClear();
   await put("wiki/concepts/alpha.md", PAGE("Alpha"));
   await put("wiki/queries/question.md", PAGE("Question"));
   await fs.writeFile(path.join(base, "outside.md"), PAGE("LEAK"));
@@ -210,16 +211,16 @@ describe("the citation index keeps its strict rule", () => {
 
   it("reads frontmatter through the handle and never the whole page", async () => {
     await put("wiki/concepts/alpha.md", `${PAGE("Alpha")}${"x".repeat(200_000)}`);
-    const actual = realFsPromises as typeof fs;
+    const actual = realFsPromises;
     const wholeReads: unknown[] = [];
-    (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(async (...args) => {
+    mocked(fs.open).mockImplementation(async (...args) => {
       const handle = await actual.open(...args);
       (vi.spyOn(handle, "readFile") as unknown as Mock<(...read: unknown[]) => Promise<string>>)
         .mockImplementation(async (...read) => { wholeReads.push(read); return ""; });
       return handle;
     });
     const index = await collectAnswerCitationIndex(root);
-    (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(actual.open);
+    mocked(fs.open).mockImplementation(actual.open);
     expect(index.retained.map((target) => [target.id, target.aliases])).toEqual([["concepts/alpha", ["Alpha Alias"]], ["queries/question", ["Question Alias"]]]);
     expect(wholeReads).toEqual([]);
   });

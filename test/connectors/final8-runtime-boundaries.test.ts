@@ -31,7 +31,7 @@ function revokedArray(): unknown {
 }
 
 describe("Final8 connector runtime boundaries", () => {
-  afterEach(() => { process.exitCode = 0; vi.restoreAllMocks(); });
+  afterEach(() => { vi.restoreAllMocks(); });
 
   it("rejects over-limit connector text before Unicode scanning", () => {
     const overLimit = `${"x".repeat(513)}\ud800`;

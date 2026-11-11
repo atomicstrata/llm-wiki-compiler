@@ -26,18 +26,13 @@ import { appendEvent } from "../src/events/store.js";
 import { readEvents } from "../src/events/store-read.js";
 import { EventStoreFullError } from "../src/events/types.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsConstants = { ...(await import("../src/utils/constants.js")) };
 
-// Use a tiny store cap so the store-size tests stay fast (no 64 MB writes).
-// NOTE: the literal 1024 is inlined in the mock factory because vi.mock is hoisted
-// before variable declarations and cannot reference module-level const bindings.
-vi.mock("../src/utils/constants.js", async () => {
-  const actual = realUtilsConstants as typeof import("../src/utils/constants.js");
-  return { ...actual, MAX_EVENT_STORE_BYTES: 1024 };
-});
-
+// Use a tiny store cap so the store-size tests stay fast (no 64 MB writes). Declared
+// before vi.mock: Bun runs the factory where it is written.
 const SMALL_STORE_CAP = 1024;
+vi.mock("../src/utils/constants.js", () => ({ ...realUtilsConstants, MAX_EVENT_STORE_BYTES: SMALL_STORE_CAP }));
 
 let root = "";
 beforeEach(async () => { root = await mkdtemp(path.join(os.tmpdir(), "evt-cap-")); });

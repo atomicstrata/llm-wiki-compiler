@@ -81,7 +81,7 @@ describe("template publish verify R8 remediation", () => {
       await rename(tree.keyFile, secret);
       await chmod(secret, 0o000);
 
-      const result = runPublishVerify(tree, [...args], TAP_KEY.keyId, secret);
+      const result = runPublishVerify(tree, args, TAP_KEY.keyId, secret);
       assertPrivateTapKeyFailure(result, secret);
     },
   );

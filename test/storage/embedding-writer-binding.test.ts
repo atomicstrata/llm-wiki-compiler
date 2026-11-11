@@ -38,7 +38,7 @@ import { resolveEmbeddingFingerprint, resolveEmbeddingModel } from "../../src/ut
 import { EMBEDDINGS_FILE, LLMWIKI_DIR } from "../../src/utils/constants.js";
 import { effectiveProfileOf, entityScansOf, mintCopiedBeforeAsk, writeFiles, type Copy } from "./copied-project.js";
 import {
-  copiedPageReadsOf, freezeDateDuringSuite, privateDirLeaves, privateLeafStoreOf, recordingInto, withEmbeddingEnvironment, type EmbeddingEnvironment, type Leaves,
+  copiedPageReadsOf, restoreClockAfterSuite, privateDirLeaves, privateLeafStoreOf, recordingInto, withEmbeddingEnvironment, type EmbeddingEnvironment, type Leaves,
 } from "./embedding-binding-doubles.js";
 import { expectMintsRemovedThenSeeded, failureText, mintEachScenario } from "./scenario-mint.js";
 
@@ -97,7 +97,7 @@ async function runSteps(steps: Step[], core: Core, leaves: () => Promise<Leaves>
 /** What the real private directory holds: each regular leaf's digest, or another entry's kind. */
 const diskLeaves = (root: string): Promise<Leaves> => privateDirLeaves(root, (_name, bytes) => sha(bytes));
 
-freezeDateDuringSuite();
+restoreClockAfterSuite();
 const minted = mintEachScenario(Object.keys(SCENARIOS) as Name[], (tracker, name) =>
   mintCopiedBeforeAsk(tracker, PREFIX, (root) => seedOf(root, SCENARIOS[name].seed), (root) => runSteps(SCENARIOS[name].steps,
     (step, prepare, recorder) => updateEmbeddingsLockedCore(root, step.changed, prepare, step.scope, recorder), () => diskLeaves(root))));

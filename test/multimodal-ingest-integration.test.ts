@@ -152,7 +152,7 @@ async function assertExtensionRoutesTo(
 }
 
 describe("multimodal ingest CLI integration", () => {
-  // dist/cli.js is built once via the `bun run test` prebuild
+  // dist/cli.js is built once by `bun run test` before the suite starts.
 
   it("ingest --help shows help and exits 0", async () => {
     const result = await runCLI(["ingest", "--help"], process.cwd());

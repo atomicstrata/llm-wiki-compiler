@@ -19,13 +19,13 @@ import path from "node:path";
 import { describe, expect, it, vi, beforeEach } from "bun:test";
 
 /** `calls` are "<operation> <leaf name>"; `fail` maps one such key to the error it should raise. */
-const io = (() => ({ calls: [] as string[], fail: new Map<string, Error>() }))();
+const io = { calls: [] as string[], fail: new Map<string, Error>() };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
 
 vi.mock("../../src/utils/no-follow-open.js", async () => {
-  const actual = realUtilsNoFollowOpen as typeof import("../../src/utils/no-follow-open.js");
+  const actual = realUtilsNoFollowOpen;
   const WATCHED = ["stat", "readFile", "read", "close"];
   /** Record `key`, then raise its planted failure if there is one. */
   const note = (key: string): void => {

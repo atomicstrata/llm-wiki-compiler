@@ -39,7 +39,6 @@ import { readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi, type Mock } from "bun:test";
 import { passThrough } from "./pass-through-mock.js";
-// First, so the llm mock factory below can use it whichever module first imports the llm.
 import { offeringCallClaudeModule } from "../fixtures/typed-grounding.js";
 import { generateAnswer, generateAnswerFrom } from "../../src/commands/query.js";
 import { reportQueryAnswerCitations } from "../../src/commands/query-citation-report.js";
@@ -59,8 +58,8 @@ import {
   writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-const offered = (() => ({ offered: [] as string[] }))();
-// Snapshot real modules before mock.module replaces them for this file.
+const offered = { offered: [] as string[] };
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realQuerySelection = { ...(await import("../../src/commands/query-selection.js")) };
 const realRetrieval = { ...(await import("../../src/search/retrieval.js")) };
 const realQueryCitationReport = { ...(await import("../../src/commands/query-citation-report.js")) };

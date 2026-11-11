@@ -186,7 +186,6 @@ async function yearlessCrossrefFixture(): Promise<string> {
 describe("Crossref connector offline e2e", () => {
   afterEach(() => {
     delete process.env.LLMWIKI_CONNECTORS;
-    process.exitCode = 0;
     vi.restoreAllMocks();
   });
 

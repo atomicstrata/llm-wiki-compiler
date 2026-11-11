@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - run: bun run typecheck:tests --base-ref "$TEST_TYPECHECK_BASE_REF"
         env:

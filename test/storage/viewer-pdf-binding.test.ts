@@ -17,7 +17,8 @@
  * suite), confinement and the live response headers (the viewer PDF suite).
  */
 
-import { afterEach, describe, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { mocked } from "../mocked.js";
 import * as resolve from "../../src/artifacts/resolve.js";
 import { hashMemberBytes } from "../../src/artifacts/members.js";
 import { artifactPaths, hashArtifactBody, memberLeafPath } from "../../src/artifacts/store.js";
@@ -124,7 +125,7 @@ describe("the bound composition and the root route", () => {
     await handleApiWorkflowPdf(res as never, "/api/workflows/build/runs/r/pdf", "/project", { provider, timeoutMs: 9, io });
     const paths = artifactPaths("/project", "bundle", "m1", "bundle.json");
     expect([built.mock.calls, loaded.mock.calls]).toEqual([[["/project", "build", "r", provider, 9]], [["/project"]]]);
-    expect([(io.resolve as unknown as Mock<typeof io.resolve>).mock.calls, (io.readManifestBody as unknown as Mock<typeof io.readManifestBody>).mock.calls, (io.readMember as unknown as Mock<typeof io.readMember>).mock.calls]).toEqual([
+    expect([mocked(io.resolve).mock.calls, mocked(io.readManifestBody).mock.calls, mocked(io.readMember).mock.calls]).toEqual([
       [["/project", LOADED.profile, REF]], [["/project", paths, 65536]], [["/project", memberLeafPath(paths.expectedDir, "main.pdf"), paths.expectedDir, 4096]],
     ]);
     expect([res.statusCode, res.end.mock.calls]).toEqual([200, [[PDF]]]);

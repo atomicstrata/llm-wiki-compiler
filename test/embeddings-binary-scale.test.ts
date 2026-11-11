@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { open, stat } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, expect, it, vi } from "bun:test";
+import { afterEach, expect, it } from "bun:test";
 import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { readStoreForUpdate, writeEmbeddingStore, type EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";

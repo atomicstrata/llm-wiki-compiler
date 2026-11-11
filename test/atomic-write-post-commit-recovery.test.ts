@@ -20,12 +20,12 @@ import { preflightApplyRecord } from "../src/workflows/stage-output-internals.js
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 
-const fault = (() => ({ target: "" }))();
-// Snapshot real modules before mock.module replaces them for this file.
+const fault = { target: "" };
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
 vi.mock("fs/promises", async () => {
-  const fs = (realFsPromises as typeof import("fs/promises"));
+  const fs = realFsPromises;
   return { ...fs, rename: async (...args: Parameters<typeof fs.rename>) => {
     await fs.rename(...args);
     if (String(args[1]) !== fault.target) return;

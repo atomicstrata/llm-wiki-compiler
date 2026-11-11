@@ -3,7 +3,8 @@
  * Only the LLM provider is mocked: strict collection, retrieval, persistence,
  * activity logging, and SDK quiet scopes all exercise production code.
  */
-import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -24,7 +25,7 @@ beforeEach(async () => {
   stubEnv("ANTHROPIC_API_KEY", "offline-test-key");
   stubEnv("VOYAGE_API_KEY", "");
   await stageCitationWorkspace(ctx.dir);
-  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => {
+  mocked(callClaude).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" });
     options.onToken?.(ANSWER);
     return ANSWER;
@@ -105,7 +106,7 @@ it("returns unavailable quietly without saving or changing page/candidate bytes"
 });
 
 it("distinguishes successful no-link collection from unavailable no-link collection", async () => {
-  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(async (options) => options.tools
+  mocked(callClaude).mockImplementation(async (options) => options.tools
     ? JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" }) : "Plain answer.");
   const wiki = createWiki({ root: ctx.dir });
   expect((await wiki.query("Explain alpha")).answerCitations).toEqual({ version: 1, citations: [] });
@@ -130,7 +131,7 @@ it("propagates real save failures even after recovering a citation failure", asy
 it("propagates generation failure before collection, saving, or logging", async () => {
   await unreadablePage();
   const failure = new Error("provider generation failed");
-  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(async (options) => {
+  mocked(callClaude).mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" });
     throw failure;
   });

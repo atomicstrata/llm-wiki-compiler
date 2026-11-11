@@ -3,7 +3,8 @@
  * provider boundary is stubbed; admission, profile, output scopes, and writes are
  * production code. The MCP schema remains save-only with no review option.
  */
-import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -34,7 +35,7 @@ afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 /** Stub the two provider requests without replacing retrieval or publication. */
 function answerWith(answer: string): void {
-  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => {
+  mocked(callClaude).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Alpha" });
     options.onToken?.(answer);
     return answer;

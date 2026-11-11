@@ -5,7 +5,7 @@
  */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
 import { installRemoteTemplate } from "../src/profile/templates/install.js";
 import { collectTemplateStatus } from "../src/profile/templates/status.js";
 import { resolveRemotePackage } from "../src/profile/templates/taps/package.js";
@@ -29,7 +29,7 @@ async function installed() {
 }
 
 afterEach(async () => {
-  vi.useRealTimers();
+  setSystemTime();
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -72,7 +72,8 @@ describe("remote template status", () => {
 
   it("reports stale accepted evidence without losing clean-profile comparison", async () => {
     const fixture = await installed();
-    vi.useFakeTimers();
+    // Clock only: Bun's useFakeTimers would also freeze any timer the status
+    // read waits on (a busy lock's retry), hanging the test under load.
     setSystemTime(new Date("2028-01-01T00:00:00Z"));
     await expect(collectTemplateStatus(fixture.project, fixture.paths)).resolves.toMatchObject({
       status: "installed-stale",

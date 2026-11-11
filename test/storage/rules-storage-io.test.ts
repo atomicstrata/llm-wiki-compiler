@@ -24,13 +24,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { restoreEnv, stubEnv } from "../stubs.js";
 
 /** Every call of the atomic writer, as its raw argument list. */
-const writer = (() => ({ calls: [] as unknown[][] }))();
+const writer = { calls: [] as unknown[][] };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsAtomicWrite = { ...(await import("../../src/utils/atomic-write.js")) };
 
-vi.mock("../../src/utils/atomic-write.js", async () => {
-  const actual = (realUtilsAtomicWrite as typeof import("../../src/utils/atomic-write.js"));
+vi.mock("../../src/utils/atomic-write.js", () => {
+  const actual = realUtilsAtomicWrite;
   const atomicWrite = (...args: unknown[]): Promise<void> => {
     writer.calls.push(args);
     return (actual.atomicWrite as (...rest: unknown[]) => Promise<void>)(...args);

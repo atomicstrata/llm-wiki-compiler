@@ -23,7 +23,8 @@
  * level: its cache key carries the provider endpoint.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { mocked } from "../mocked.js";
 import { restoreEnv, stubEnv } from "../stubs.js";
 import { createHash } from "node:crypto";
 import * as nodeFs from "fs/promises";
@@ -31,14 +32,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** The calls the mocks saw, and at most one call they were told to fail. */
-const record = (() => ({ calls: [] as string[], planted: null as { prefix: string; error: Error } | null }))();
+const record = { calls: [] as string[], planted: null as { prefix: string; error: Error } | null };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFs = { ...(await import("fs")) };
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs", async () => {
-  const actual = (realFs as typeof import("fs"));
+vi.mock("fs", () => {
+  const actual = realFs;
   const existsSync = (location: unknown): boolean => {
     record.calls.push(`existsSync ${String(location)}`);
     return actual.existsSync(location as string);
@@ -46,8 +47,8 @@ vi.mock("fs", async () => {
   return { ...actual, existsSync, default: { ...actual, existsSync } };
 });
 
-vi.mock("fs/promises", async () => {
-  const actual = (realFsPromises as typeof import("fs/promises"));
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   const forward = (name: "mkdir" | "appendFile" | "readFile" | "unlink" | "open" | "rename") =>
     function recorded(...args: unknown[]): unknown {
       const call = `${name} ${String(args[0])}`;
@@ -96,7 +97,7 @@ beforeEach(async () => {
   project = await nodeFs.realpath(await nodeFs.mkdtemp(path.join(tmpdir(), "judged-eval-")));
   record.calls = []; record.planted = null;
   stubEnv("LLMWIKI_PROVIDER", "openai"); stubEnv("LLMWIKI_MODEL", "stub-judge"); stubEnv("OPENAI_API_KEY", "test-only-not-a-real-key");
-  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockResolvedValue(VERDICT);
+  mocked(callClaude).mockReset().mockResolvedValue(VERDICT);
 });
 
 afterEach(async () => {
@@ -153,7 +154,7 @@ describe("the judge's cache: cold writes one line per verdict, warm writes and a
   it("warm: one read after the existence test, then no model call, no directory call and no append", async () => {
     const cold = await (await createCitationJudge(project))(pairOf("h1"));
     const stored = await bytesOf(CACHE);
-    record.calls = []; (callClaude as unknown as Mock<typeof callClaude>).mockClear();
+    record.calls = []; mocked(callClaude).mockClear();
     const warm = await (await createCitationJudge(project))({ ...pairOf("h1"), pageSlug: "another-page" });
     expect(warm).toMatchObject({ cached: true, judgement: { timestamp: cold.judgement.timestamp, claimHash: cold.judgement.claimHash, pageSlug: "another-page" } });
     expect(seen("existsSync", "readFile", "mkdir", "appendFile")).toEqual([`existsSync ${CACHE}`, `readFile ${CACHE} | "utf-8"`]);
@@ -249,7 +250,7 @@ describe("the candidate report: exact bytes, written atomically, and nothing els
     const judgement = report.assessments[0]?.judgement;
     expect(judgement).toMatchObject({ score: 2, spanText: "Zoë's café — naïve ✓ line one.", pageSlug: `candidate:${candidate.id}@${report.candidates[0]?.revision}` });
     expect(await bytesOf(CACHE)).toBe(`${JSON.stringify(judgement)}\n`);
-    (callClaude as unknown as Mock<typeof callClaude>).mockClear();
+    mocked(callClaude).mockClear();
     expect((await evaluateCandidates(project, "full")).assessments[0]?.judgement?.claimHash).toBe(judgement?.claimHash);
     expect(callClaude).not.toHaveBeenCalled();
   });

@@ -3,7 +3,7 @@
  * invalidation, shape validation and published-ownership boundaries separately
  * from the pipeline tests so an unsafe cache hit cannot masquerade as savings.
  */
-import { afterEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { reusableExtraction, snapshotExtraction, extractionSourceHash, withExtractionSnapshot } from "../src/compiler/extraction-snapshot.js";
 import { withRunSystemPolicy } from "../src/compiler/prompt-modifiers.js";

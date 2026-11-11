@@ -27,13 +27,13 @@ import path from "node:path";
 
 type Faulted = "readFile" | "unlink" | "lstat";
 /** The one call made to fail, and every unlink the store issued. */
-const watch = (() => ({ fail: null as null | { call: string; target: string; error: Error }, unlinked: [] as string[] }))();
+const watch = { fail: null as null | { call: string; target: string; error: Error }, unlinked: [] as string[] };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const disk = (realFsPromises as typeof import("fs/promises"));
+vi.mock("fs/promises", () => {
+  const disk = realFsPromises;
   const forward = (call: Faulted) => (target: unknown, ...rest: unknown[]): unknown => {
     if (call === "unlink") watch.unlinked.push(String(target));
     if (watch.fail?.call === call && watch.fail.target === target) return Promise.reject(watch.fail.error);

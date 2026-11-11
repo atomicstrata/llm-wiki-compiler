@@ -14,6 +14,7 @@ import path from "path";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { exec, CLI, stripAnsi } from "./fixtures/cli-runner.js";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 /** Set up a minimal llmwiki project root with wiki/concepts, wiki/queries, sources. */
 async function createWikiRoot(suffix: string): Promise<string> {
@@ -37,7 +38,7 @@ async function writeSource(root: string, name: string, content: string): Promise
 /** Run `llmwiki lint` in a given directory. Returns stdout and exit code. */
 async function runLint(cwd: string): Promise<{ stdout: string; exitCode: number }> {
   try {
-    const { stdout } = await exec("bun", [CLI, "lint"], { cwd });
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "lint"], { cwd });
     return { stdout: stripAnsi(stdout), exitCode: 0 };
   } catch (err: unknown) {
     const error = err as { stdout?: string; code?: number };

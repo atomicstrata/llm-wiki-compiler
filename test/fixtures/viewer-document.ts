@@ -1,5 +1,5 @@
 /** A small isolated browser document for direct renderer tests, cleaned after every case. */
-import { afterEach, beforeEach, vi } from "bun:test";
+import { afterEach, beforeEach } from "bun:test";
 import { restoreGlobals, stubGlobal } from "../stubs.js";
 import { JSDOM } from "jsdom";
 

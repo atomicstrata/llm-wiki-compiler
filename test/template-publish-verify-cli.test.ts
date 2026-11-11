@@ -26,6 +26,7 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const CLI = path.resolve("dist/cli.js");
 const fixtures: PublishDistribution[] = [];
@@ -212,10 +213,10 @@ describe("template publish verify CLI", () => {
   });
 
   it("distinguishes consumer verification from publisher distribution verification in help", () => {
-    const templateHelp = spawnSync(process.execPath, [CLI, "template", "--help"], {
+    const templateHelp = spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "--help"], {
       encoding: "utf8", timeout: CLI_TIMEOUT_MS,
     });
-    const publishHelp = spawnSync(process.execPath, [CLI, "template", "publish", "--help"], {
+    const publishHelp = spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "publish", "--help"], {
       encoding: "utf8", timeout: CLI_TIMEOUT_MS,
     });
     expect(templateHelp.error).toBeUndefined();

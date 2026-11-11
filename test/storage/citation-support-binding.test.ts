@@ -39,7 +39,8 @@
  * no links and confine nothing.
  */
 
-import { beforeAll, beforeEach, afterAll, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { beforeAll, beforeEach, afterAll, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { mocked } from "../mocked.js";
 import { restoreEnv, stubEnv } from "../stubs.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
@@ -123,9 +124,9 @@ beforeAll(() => {
   setSystemTime(new Date(AT));
   stubEnv("LLMWIKI_PROVIDER", "anthropic");
   stubEnv("LLMWIKI_MODEL", "model-a");
-  (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(stub);
+  mocked(callClaude).mockImplementation(stub);
 });
-beforeEach(() => { (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(stub); log.length = 0; plan.length = 0; });
+beforeEach(() => { mocked(callClaude).mockReset().mockImplementation(stub); log.length = 0; plan.length = 0; });
 afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   cited = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, CITED), (root) => fiveRuns(onDisk(root)));

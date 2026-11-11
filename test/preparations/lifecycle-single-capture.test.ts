@@ -23,15 +23,15 @@
 import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const listingProbe = (() => ({
+const listingProbe = {
   calls: [] as string[],
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
-vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+vi.mock("node:fs/promises", () => {
+  const actual = realFsPromises;
   return {
     ...actual,
     opendir: async (directory: Parameters<typeof actual.opendir>[0]) => {

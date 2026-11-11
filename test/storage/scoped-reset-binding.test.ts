@@ -24,9 +24,7 @@ import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import * as lock from "../../src/utils/lock.js";
 import { captureStatusLines } from "./project-tree.js";
 
-// Bun ignores `process.exitCode = undefined`, so "no failure recorded" is the
-// explicit success code 0, reset before every run and after every test.
-afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
+afterEach(() => { vi.restoreAllMocks(); });
 
 const PLAN: ResetPlanV1 = { status: "planned", scope: "wiki", files: ["wiki/a.md", "wiki/b.md"] };
 
@@ -50,6 +48,7 @@ async function reset(scope: string, apply: boolean, world: ResetWorld = {}) {
   const lines: string[] = [], log: string[] = [];
   captureStatusLines(lines);
   const steps = stepsOf(log, world);
+  // Each run starts from success; Bun ignores `process.exitCode = undefined`.
   process.exitCode = 0;
   await runScopedResetWith(steps, scope, apply);
   return { lines, log, exit: process.exitCode, executed: steps.executed };

@@ -35,7 +35,7 @@ import type { EmbeddingRefreshScope } from "../../src/utils/embeddings.js";
 import { LLMWIKI_DIR, MAX_PENDING_EMBEDDINGS_BYTES, PENDING_EMBEDDINGS_FILE } from "../../src/utils/constants.js";
 import { effectiveProfileOf, enoent, entityScansOf, writeFiles, type Copy } from "./copied-project.js";
 import {
-  copiedPageReadsOf, freezeDateDuringSuite, privateDirLeaves, privateLeafStoreOf, recordingInto, withEmbeddingEnvironment, type Leaves,
+  copiedPageReadsOf, restoreClockAfterSuite, privateDirLeaves, privateLeafStoreOf, recordingInto, withEmbeddingEnvironment, type Leaves,
 } from "./embedding-binding-doubles.js";
 import { expectMintsRemovedThenSeeded, failureText, mintSeededScenarios } from "./scenario-mint.js";
 
@@ -89,7 +89,7 @@ const diskLeaves = (root: string): Promise<Leaves> => privateDirLeaves(root, sho
 const diskRefresh = (root: string): Refresh => (step) => (step.scope === "drain"
   ? refreshEmbeddingsDrainingPending(root, step.changed) : refreshAffectedEmbeddings(root, step.changed));
 
-freezeDateDuringSuite();
+restoreClockAfterSuite();
 const minted = mintSeededScenarios(PREFIX, SCENARIOS, (root, name) => runSteps(SCENARIOS[name].steps, diskRefresh(root), () => diskLeaves(root)), true);
 
 /** `name`'s copy, after requiring LITERALLY that its private directory holds the seed: nothing, the prior marker, or a directory in its place. */

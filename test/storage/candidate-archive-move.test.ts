@@ -30,11 +30,11 @@ import { beforeEach, describe, expect, it, vi } from "bun:test";
 type Op = "mkdir" | "rename" | "readFile" | "writeFile" | "unlink";
 
 /** `calls` are [operation, ...arguments]; `faults` reject one operation on one path. */
-const io = (() => ({
+const io = {
   on: false,
   calls: [] as unknown[][],
   faults: {} as Partial<Record<string, { at: string; error: Error }>>,
-}))();
+};
 
 const recorder = (() => {
   type Fn = (...args: unknown[]) => unknown;
@@ -59,16 +59,15 @@ const recorder = (() => {
   };
 })();
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
-
-// All four specifiers: the function under test uses the bare names before the move and storage uses the `node:` names after it.
 const realFs = { ...(await import("fs")) };
 
-vi.mock("fs", async () => recorder.ofFs((realFs as typeof import("fs"))));
-vi.mock("node:fs", async () => recorder.ofFs((realFs as typeof import("node:fs"))));
-vi.mock("fs/promises", async () => recorder.ofFsPromises((realFsPromises as typeof import("fs/promises"))));
-vi.mock("node:fs/promises", async () => recorder.ofFsPromises((realFsPromises as typeof import("node:fs/promises"))));
+// All four specifiers: the function under test uses the bare names before the move and storage uses the `node:` names after it.
+vi.mock("fs", () => recorder.ofFs(realFs));
+vi.mock("node:fs", () => recorder.ofFs(realFs));
+vi.mock("fs/promises", () => recorder.ofFsPromises(realFsPromises));
+vi.mock("node:fs/promises", () => recorder.ofFsPromises(realFsPromises));
 
 import { resolveConfinedCandidatesDir } from "../../src/compiler/candidate-store-paths.js";
 import {
@@ -78,7 +77,7 @@ import { candidateFileId, moveCandidateToArchive } from "../../src/utils/candida
 import { RULE_CANDIDATES_ARCHIVE_DIR } from "../../src/utils/constants.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = realFsPromises as typeof import("node:fs/promises");
+const fs = realFsPromises;
 const TEXT = '{"id":"a","note":"zażółć 規則"}';
 const NOW = "2026-05-31T00:00:00.000Z";
 useTempRoot();

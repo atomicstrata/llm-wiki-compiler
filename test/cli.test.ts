@@ -3,6 +3,7 @@ import path from "path";
 import { mkdir, rm, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import { exec, CLI } from "./fixtures/cli-runner.js";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 async function cleanupDirectory(directory: string): Promise<void> {
   await rm(directory, { recursive: true, force: true });
@@ -15,7 +16,7 @@ async function runCompileWithoutSources(
   const cwd = path.join(tmpdir(), `llmwiki-test-${suffix}-${Date.now()}`);
   await mkdir(path.join(cwd, "sources"), { recursive: true });
   try {
-    const { stdout } = await exec("bun", [CLI, "compile"], {
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], {
       cwd,
       env: { ...process.env, ...envOverrides },
     });
@@ -45,7 +46,7 @@ async function createCompileWorkspace(
 
 describe("CLI smoke tests", () => {
   it("prints help and exits 0", async () => {
-    const { stdout } = await exec("bun", [CLI, "--help"]);
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "--help"]);
     expect(stdout).toContain("llmwiki");
     expect(stdout).toContain("ingest");
     expect(stdout).toContain("compile");
@@ -53,21 +54,21 @@ describe("CLI smoke tests", () => {
   }, 30_000);
 
   it("prints version", async () => {
-    const { stdout } = await exec("bun", [CLI, "--version"]);
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "--version"]);
     const manifest = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
     expect(stdout.trim()).toBe(manifest.version);
   }, 30_000);
 
   it("advertises --concurrency on every command that drives a compile", async () => {
     for (const command of ["compile", "refresh", "watch", "quickstart"]) {
-      const { stdout } = await exec("bun", [CLI, command, "--help"]);
+      const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, command, "--help"]);
       expect(stdout).toContain("--concurrency");
     }
   }, 30_000);
 
   it("compile fails without Anthropic credentials", async () => {
     try {
-      await exec("bun", [CLI, "compile"], {
+      await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], {
         env: {
           ...process.env,
           ANTHROPIC_API_KEY: "",
@@ -98,7 +99,7 @@ describe("CLI smoke tests", () => {
     );
 
     try {
-      const { stdout } = await exec("bun", [CLI, "compile"], {
+      const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], {
         cwd: workspace.cwd,
         env: {
           ...process.env,
@@ -120,7 +121,7 @@ describe("CLI smoke tests", () => {
     );
 
     try {
-      await exec("bun", [CLI, "compile"], {
+      await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], {
         cwd: workspace.cwd,
         env: {
           ...process.env,
@@ -145,7 +146,7 @@ describe("CLI smoke tests", () => {
     await mkdir(cwd, { recursive: true });
     const fixture = path.resolve("test/fixtures/sample-source.md");
     try {
-      const { stdout } = await exec("bun", [CLI, "ingest", fixture], { cwd });
+      const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "ingest", fixture], { cwd });
       expect(stdout).toContain("Next: llmwiki compile");
     } finally {
       await cleanupDirectory(cwd);

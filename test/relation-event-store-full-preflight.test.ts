@@ -30,13 +30,13 @@ import { readEvents } from "../src/events/store-read.js";
 import { EventStoreFullError } from "../src/events/types.js";
 import { EXPERIMENT_A as EXP_A, IDEA_B, experimentsIdeasProfile } from "./fixtures/profile-fixtures.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsConstants = { ...(await import("../src/utils/constants.js")) };
 
 // A tiny whole-file event cap so a handful of relation events drive the store to
-// the brink without writing 64 MB. Inlined literal: vi.mock is hoisted above consts.
-vi.mock("../src/utils/constants.js", async () => {
-  const actual = realUtilsConstants as typeof import("../src/utils/constants.js");
+// the brink without writing 64 MB.
+vi.mock("../src/utils/constants.js", () => {
+  const actual = realUtilsConstants;
   return { ...actual, MAX_EVENT_STORE_BYTES: 900 };
 });
 

@@ -35,7 +35,7 @@ describe("codex-agent environment-file isolation", () => {
     // The sentinel lets the tracker see a `.env` the runtime loaded on its own.
     const projectEnv = "OPENAI_API_KEY=sk-project-secret\nLLMWIKI_TEST_DOTENV_SENTINEL=1\n";
     await writeFile(path.join(cwd, ".env"), projectEnv, "utf8");
-    const result = await runCLI([...args], cwd, {
+    const result = await runCLI(args, cwd, {
       ...trackedEnv(logPath),
       LLMWIKI_PROVIDER: provider,
       PATH: path.join(cwd, "missing-bin"),

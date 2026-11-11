@@ -26,13 +26,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** When set, the next opened handle really closes and then reports failure. */
-const closeFault = (() => ({ armed: false }))();
+const closeFault = { armed: false };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+  const actual = realFsPromises;
   const open: typeof actual.open = async (...args) => {
     const handle = await actual.open(...args);
     if (!closeFault.armed) return handle;

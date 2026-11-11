@@ -3,7 +3,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { stubGlobal } from "../stubs.js";
+import { stubGlobal, restoreGlobals } from "../stubs.js";
 import { CONCEPT_EXTRACTION_TOOL } from "../../src/compiler/prompts.js";
 import { OllamaProvider, resolveOllamaNativeHost } from "../../src/providers/ollama.js";
 
@@ -44,6 +44,7 @@ async function expectDefaultToolCallToReject(message: RegExp): Promise<void> {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+  restoreGlobals();
 });
 
 describe("resolveOllamaNativeHost", () => {

@@ -1,5 +1,5 @@
 /** Reader-facing labels preserve exact identifiers without making them the primary UI. */
-import { beforeEach, expect, it, vi } from "bun:test";
+import { beforeEach, expect, it } from "bun:test";
 import { waitFor } from "./wait-for.js";
 import { stubGlobal } from "./stubs.js";
 import { useViewerDocument } from "./fixtures/viewer-document.js";

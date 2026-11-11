@@ -30,11 +30,11 @@ import { readPersistedState } from "./fixtures/state-json.js";
 /** Flag the mocked resolution seam to decide whether to throw. */
 const resolve = { shouldThrow: false };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realCompilerResolver = { ...(await import("../src/compiler/resolver.js")) };
 
-vi.mock("../src/compiler/resolver.js", async () => {
-  const actual = realCompilerResolver as typeof import("../src/compiler/resolver.js");
+vi.mock("../src/compiler/resolver.js", () => {
+  const actual = realCompilerResolver;
   return {
     ...actual,
     resolveAndApplyLinks: async (root: string, changed: string[], created: string[]) => {
