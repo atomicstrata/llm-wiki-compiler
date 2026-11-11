@@ -46,7 +46,7 @@
  * subprocess and facade suites, and a green run here is not evidence about it.
  */
 
-import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "./fixtures/committed-source.js";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -80,7 +80,7 @@ async function adapterModules(): Promise<string[]> {
 
 /** One module's source, comments included — the parser ignores them anyway. */
 async function sourceOf(module: string): Promise<string> {
-  return readFile(path.join(REPO_ROOT, module), "utf8");
+  return readCommittedSource(path.join(REPO_ROOT, module));
 }
 
 /** The source file a package alias names, including core's per-module paths. */
