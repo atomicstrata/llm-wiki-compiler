@@ -15,7 +15,15 @@ export function canonicalBytes(value: unknown): Buffer {
 
 /** Hash canonical JSON using the protocol's prefixed digest representation. */
 export function canonicalDigest(value: unknown): string {
-  return `sha256:${createHash("sha256").update(canonicalBytes(value)).digest("hex")}`;
+  return canonicalBytesDigest(canonicalBytes(value));
+}
+
+/**
+ * {@link canonicalDigest} for a value whose canonical bytes the caller already
+ * holds, so the value is not canonicalized a second time.
+ */
+export function canonicalBytesDigest(bytes: Buffer): string {
+  return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
 /**
