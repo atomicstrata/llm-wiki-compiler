@@ -10,6 +10,10 @@
   --accent: #3b5bdb;
   --mark: #fff3bf;
   --chip: #eef1fb;
+  --graph-concept: #3b5bdb;
+  --graph-entity: #2b8a3e;
+  --graph-stale: #e67700;
+  --graph-dangling: #c92a2a;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   line-height: 1.6;
 }
@@ -24,6 +28,10 @@
     --accent: #91a7ff;
     --mark: #4a3f10;
     --chip: #262b40;
+    --graph-concept: #91a7ff;
+    --graph-entity: #69db7c;
+    --graph-stale: #ffa94d;
+    --graph-dangling: #ff8787;
   }
 }
 
@@ -133,8 +141,8 @@ h2 { font-size: 1.25rem; margin: 2rem 0 0.6rem; }
 }
 
 /* ---- shell: header identity, verdict, theme, navigation ---- */
-:root[data-theme="light"] { color-scheme: light; --bg: #fbfaf8; --surface: #ffffff; --text: #1c1b19; --muted: #6b6861; --border: #e4e1da; --accent: #3b5bdb; --mark: #fff3bf; --chip: #eef1fb; }
-:root[data-theme="dark"] { color-scheme: dark; --bg: #161514; --surface: #1e1d1b; --text: #ebe8e1; --muted: #a09c93; --border: #33312d; --accent: #91a7ff; --mark: #4a3f10; --chip: #262b40; }
+:root[data-theme="light"] { color-scheme: light; --bg: #fbfaf8; --surface: #ffffff; --text: #1c1b19; --muted: #6b6861; --border: #e4e1da; --accent: #3b5bdb; --mark: #fff3bf; --chip: #eef1fb; --graph-concept: #3b5bdb; --graph-entity: #2b8a3e; --graph-stale: #e67700; --graph-dangling: #c92a2a; }
+:root[data-theme="dark"] { color-scheme: dark; --bg: #161514; --surface: #1e1d1b; --text: #ebe8e1; --muted: #a09c93; --border: #33312d; --accent: #91a7ff; --mark: #4a3f10; --chip: #262b40; --graph-concept: #91a7ff; --graph-entity: #69db7c; --graph-stale: #ffa94d; --graph-dangling: #ff8787; }
 :root { --ok: #2b8a3e; --warn: #e67700; --unknown: #868e96; }
 
 .state-banner { grid-column: 1 / -1; margin: 0; padding: 0.6rem 1rem; background: var(--mark); border-bottom: 1px solid var(--border); font-size: 0.9rem; }
@@ -256,6 +264,54 @@ main > .page-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem
 .rail-empty { color: var(--muted); }
 .rail details { margin-top: 0.4rem; font-size: 0.78rem; color: var(--muted); }
 .rail pre { margin: 0.3rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* ---- graph: colour lives here, not in SVG presentation attributes, so the drawing follows the theme ---- */
+main > .graph-screen { max-width: none; }
+.graph-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+.graph-head h1 { margin-bottom: 0.2rem; }
+.graph-head .list-caption { margin: 0; }
+.graph-pane { position: relative; height: 70vh; min-height: 24rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.6rem; overflow: hidden; }
+.graph-panel-surface { position: relative; height: 18rem; margin-top: 0.5rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; }
+.graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
+.graph-svg[data-settled="false"] { visibility: hidden; }
+.graph-pane > .status, .graph-panel-surface > .status { position: absolute; inset: 0; margin: 0; display: flex; align-items: center; justify-content: center; }
+.graph-pane > .empty-state, .graph-panel-surface > .empty-state { margin: 1rem; border: 0; }
+.graph-svg a { cursor: pointer; outline: none; }
+.graph-node { transition: opacity 120ms ease; }
+.graph-node--concept { fill: var(--graph-concept); stroke: var(--graph-concept); }
+.graph-node--entity { fill: var(--graph-entity); stroke: var(--graph-entity); }
+.graph-node--stale { fill: var(--graph-stale); stroke: var(--graph-stale); }
+.graph-node--dangling { fill: none; stroke: var(--graph-dangling); }
+.graph-node.is-dimmed { opacity: 0.25; }
+.graph-node.is-hot { opacity: 1; fill: var(--accent); stroke: var(--accent); }
+.graph-halo { fill: none; stroke: var(--accent); stroke-width: 1.2; stroke-opacity: 0; transition: stroke-opacity 120ms ease; }
+.graph-halo.is-hot { stroke-opacity: 0.35; }
+.graph-edge { stroke: var(--border); stroke-width: 1.2; stroke-opacity: 0.9; }
+.graph-edge--relation { stroke-dasharray: 5 3; stroke-width: 1.5; }
+.graph-edge.is-dimmed { stroke-opacity: 0.25; }
+.graph-edge.is-hot { stroke: var(--accent); stroke-opacity: 1; stroke-width: 2; }
+.graph-arrowhead { fill: var(--border); }
+.graph-legend { position: absolute; top: 0.75rem; right: 0.75rem; display: flex; flex-direction: column; gap: 0.1rem; padding: 0.5rem 0.7rem; font-size: 0.72rem; line-height: 1.7; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; }
+.graph-legend-compact { position: static; flex-direction: row; flex-wrap: wrap; gap: 0.2rem 0.8rem; padding: 0.3rem 0; border: 0; background: none; }
+.graph-legend-heading { margin-top: 0.4rem; font-size: 0.62rem; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
+.graph-legend-heading:first-child { margin-top: 0; }
+.graph-legend-item { display: inline-flex; align-items: center; gap: 0.4rem; }
+.graph-legend-note { margin-left: auto; }
+.graph-legend-dot { width: 8px; height: 8px; border-radius: 50%; border: 1px solid transparent; }
+.graph-legend-dot--concept { background: var(--graph-concept); }
+.graph-legend-dot--entity { background: var(--graph-entity); }
+.graph-legend-dot--stale { background: var(--graph-stale); }
+.graph-legend-dot--dangling { border-style: dashed; border-color: var(--graph-dangling); }
+.graph-legend-edge { width: 16px; border-top: 2px solid var(--muted); }
+.graph-legend-edge--relation { border-top-style: dashed; }
+.graph-tooltip { position: absolute; z-index: 5; max-width: 15rem; padding: 0.5rem 0.65rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); pointer-events: none; }
+.tip-title { font-size: 0.85rem; font-weight: 600; }
+.tip-meta { margin-top: 0.15rem; font-size: 0.72rem; font-family: ui-monospace, monospace; color: var(--muted); }
+.tip-hint { margin-top: 0.3rem; font-size: 0.68rem; color: var(--muted); }
+.panel-controls { display: flex; align-items: center; gap: 0.5rem; }
+.panel-chip { padding: 0.1rem 0.55rem; font: inherit; font-size: 0.78rem; color: var(--accent); background: var(--chip); border: 1px solid transparent; border-radius: 1rem; cursor: pointer; }
+.panel-chip:hover { border-color: var(--accent); }
+.panel-chip:disabled { color: var(--muted); cursor: default; border-color: transparent; }
+@media (prefers-reduced-motion: reduce) { .graph-node, .graph-halo { transition: none; } }
 
 @media (max-width: 800px) {
   .nav-toggle { display: block; }

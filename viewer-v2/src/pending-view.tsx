@@ -7,7 +7,6 @@ import type { ReactNode } from "react";
 import type { Route } from "./route";
 
 const TITLES: Partial<Record<Route["view"], string>> = {
-  graph: "Graph explorer",
   workflows: "Workflows",
   pipeline: "Lifecycle status",
 };

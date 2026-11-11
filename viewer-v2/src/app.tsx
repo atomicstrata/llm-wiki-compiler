@@ -7,6 +7,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react
 import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Dashboard } from "./dashboard";
+import { GraphView } from "./graph-view";
 import { Header } from "./header";
 import { HealthView } from "./health-view";
 import { IndexView } from "./index-view";
@@ -69,6 +70,7 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "search": return <SearchView query={route.query} />;
     case "index": return <IndexView hasIndex={wiki.index.available} />;
     case "recent": return <RecentView wiki={wiki} />;
+    case "graph": return <GraphView wiki={wiki} />;
     case "list": { const List = LISTS[route.kind]; return <List wiki={wiki} />; }
     case "typeList": return <TypeList wiki={wiki} type={route.type} />;
     case "home": return <Dashboard wiki={wiki} health={health} />;
