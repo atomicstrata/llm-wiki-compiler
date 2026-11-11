@@ -21,9 +21,10 @@ import { readPreparationRun } from "../../src/preparations/run-store.js";
 import type { RunPreparationResultV1 } from "../../src/preparations/runner.js";
 import { mixedTerminalPaperRequest } from "./compile-fixture.js";
 import {
-  compileBothSourcesAction, compileTwoPhasePaperAction, driveStagedRun, phaseStates, readPhaseOutput,
+  driveStagedRun, phaseStates, readPhaseOutput,
   resultReason, stageCompiledAction, stagedRunTracker, type StagedPackRunV1,
 } from "./runtime-fixture.js";
+import { compileBothSourcesAction, compileTwoPhasePaperAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

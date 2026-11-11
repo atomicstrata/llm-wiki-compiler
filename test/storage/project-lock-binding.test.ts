@@ -244,6 +244,7 @@ function memoryHost(log: string[], statuses: string[]): LockHost {
     },
     park: (key, release) => { log.push(`park ${key}`); parked.set(key, release); },
     releaseParked: (key) => { log.push(`release-parked ${key}`); parked.get(key)?.(); parked.delete(key); },
+    hasParked: () => parked.size > 0,
     status: (icon, message) => { statuses.push(`${icon} ${plain(message)}`); },
   };
 }
@@ -325,7 +326,8 @@ describe("the project lock over a copied project, with the minting directory gon
     expect(acquired).toEqual([...RESOLVED, ...published(".llmwiki/lock", 1)]);
     const released: string[] = [];
     await memorySide(released).release();
-    expect(released).toEqual(["realpath .", "confine .llmwiki", "probe .llmwiki", `release-parked ${MEM_ROOT}`]);
+    // Nothing is parked, so release neither resolves a queue key nor releases a permit.
+    expect(released).toEqual(["confine .llmwiki", "probe .llmwiki"]);
   });
 
   it("L6 cleans a stale reclaim lock WITHOUT re-acquiring it, then converges on the second attempt under reclaim ownership (memory only)", async () => {
