@@ -6,7 +6,7 @@
  * their dependency graph.
  */
 
-import yaml from "js-yaml";
+import { dumpYaml } from "../utils/yaml-dump.js";
 import type { PageKind, SchemaConfig } from "./types.js";
 import { PAGE_KINDS } from "./types.js";
 import { findWikilinks } from "../wiki/wikilinks.js";
@@ -50,5 +50,5 @@ export function serializeSchemaToYaml(schema: SchemaConfig): string {
     kinds: schema.kinds,
     seedPages: schema.seedPages,
   };
-  return yaml.dump(serializable, { lineWidth: -1, quotingType: '"' });
+  return dumpYaml(serializable);
 }

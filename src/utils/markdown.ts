@@ -4,12 +4,12 @@
  * compatibility exports for wiki page utilities.
  *
  * Frontmatter is READ with Bun's native YAML 1.2 parser (fast: it runs for
- * every page of every command) and WRITTEN with js-yaml, whose output bytes
- * every compiled page already carries. Bun's parser keeps unquoted dates as
+ * every page of every command) and WRITTEN with js-yaml ({@link dumpYaml}),
+ * whose output bytes every compiled page already carries. Bun's parser keeps unquoted dates as
  * strings and accepts duplicate keys (last wins) and unknown tags.
  */
 
-import yaml from "js-yaml";
+import { dumpYaml } from "./yaml-dump.js";
 import { readLocationText } from "../storage/disk-locations.js";
 import type {
   ClaimCitation,
@@ -98,7 +98,7 @@ export function splitProseParagraphs(body: string): string[] {
 
 /** Build YAML frontmatter string from key-value pairs. */
 export function buildFrontmatter(fields: Record<string, unknown>): string {
-  const dumped = yaml.dump(fields, { lineWidth: -1, quotingType: '"' }).trimEnd();
+  const dumped = dumpYaml(fields).trimEnd();
   return `---\n${dumped}\n---`;
 }
 
