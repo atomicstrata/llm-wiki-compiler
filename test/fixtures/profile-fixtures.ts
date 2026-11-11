@@ -14,9 +14,9 @@
  * `src/` profile internals, so it exercises the same authoring path a real
  * user would.
  *
- * Re-exports: `appendRelation` and `readRelations` are re-exported so the
- * relation-contract test files can import shared helpers + store functions from
- * one import line, keeping their import blocks structurally distinct.
+ * Helpers that write through the relation store live in
+ * `relation-fixtures.ts` (or import it on call), so the many tests that only
+ * need a profile on disk do not load the store.
  */
 
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
@@ -25,11 +25,6 @@ import path from "node:path";
 import { expect } from "bun:test";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
 import type { EntityId, ProfilePack, EntityPageView } from "../../src/profile/types.js";
-import { appendRelation, updateRelation, compactRelations } from "../../src/relations/store.js";
-import { readRelations } from "../../src/relations/store-read.js";
-
-export { appendRelation, updateRelation, compactRelations } from "../../src/relations/store.js";
-export { readRelations } from "../../src/relations/store-read.js";
 
 /**
  * A minimal NON-DEFAULT profile: a single `notes` entity type at `wiki/notes`
@@ -395,6 +390,10 @@ export async function buildResearchLiteRelationsProject(root: string): Promise<v
  * relation-lint/surfacing tests to seed both HEALTHY (both endpoints have seed
  * pages) and DANGLING (a missing endpoint slug) relations.
  *
+ * The relation store is imported on call, not at the top of this file: most
+ * importers of these fixtures never write a relation, and a static import would
+ * load the store into each of them.
+ *
  * @param root - Absolute project root (must already be a research-lite project).
  * @param fromSlug - The `experiments` endpoint slug.
  * @param toSlug - The `ideas` endpoint slug.
@@ -405,62 +404,11 @@ export async function seedTestsRelation(
   fromSlug: string,
   toSlug: string,
 ): Promise<{ id: string; type: string }> {
+  const { appendRelation } = await import("../../src/relations/store.js");
   return appendRelation(root, RESEARCH_LITE_RELATIONS_PROFILE as ProfilePack, {
     type: "tests",
     from: `experiments/${fromSlug}` as EntityId,
     to: `ideas/${toSlug}` as EntityId,
     attributes: { metric: "f1" },
   });
-}
-
-/**
- * Factory that returns a `write` helper bound to the caller's mutable `root`
- * and profile. Shared by the relation-attribute-contract and
- * relation-required-undefined test files so they don't each define the same
- * `write = (attributes) => appendRelation(root, profile(), {...})` closure.
- *
- * @param getRoot - Returns the current test `root` (closure over mutable variable).
- * @param getProfile - Returns the profile under test.
- */
-export function makeRelationWriter(
-  getRoot: () => string,
-  getProfile: () => ProfilePack,
-): (attributes: Record<string, unknown>) => Promise<{ id: string; type: string }> {
-  return (attributes) =>
-    appendRelation(getRoot(), getProfile(), { type: "tests", from: EXPERIMENT_A, to: IDEA_B, attributes });
-}
-
-/**
- * Seed a 3-version compaction scenario: append `{a:"1"}`, update to `{a:"2"}`,
- * update to `{a:"3"}`. Returns the relation id for callers that call
- * `compactRelations` themselves. Shared by the compaction-confine and
- * store-audit tests to avoid repeating the 3-step append+update sequence.
- *
- * @param root - Project root.
- * @param profile - Profile declaring the `tests` relation.
- * @returns The relation id of the seeded record.
- */
-export async function seedThreeVersionRelation(root: string, profile: ProfilePack): Promise<string> {
-  const ref = await appendRelation(root, profile, { type: "tests", from: EXPERIMENT_A, to: IDEA_B, attributes: { a: "1" } });
-  await updateRelation(root, profile, ref.id, { attributes: { a: "2" } });
-  await updateRelation(root, profile, ref.id, { attributes: { a: "3" } });
-  return ref.id;
-}
-
-/**
- * Assert that a just-compacted store shrank and the sole surviving record has
- * `{a:"3"}`. Shared by the compaction-confine and store-audit tests so they
- * don't each repeat the same readRelations + expect block.
- *
- * @param root - Project root.
- * @param result - The `{before, after}` result from `compactRelations`.
- */
-export async function assertCompactionShrankTo3(
-  root: string,
-  result: { before: number; after: number },
-): Promise<void> {
-  expect(result.after).toBeLessThan(result.before);
-  const { relations } = await readRelations(root);
-  expect(relations).toHaveLength(1);
-  expect(relations[0].attributes).toEqual({ a: "3" });
 }

@@ -23,9 +23,9 @@ import { expect } from "bun:test";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";
 import { runCLI, expectCLIExit, expectCLIFailure, type CLIResult } from "../fixtures/run-cli.js";
 import { writeSourcePackage, type BuiltProductPackage } from "./product-package-fixture.js";
-import { buildVerticalProduct, verticalPack, VERTICAL_ACTION_ID } from "./product-vertical-fixture.js";
+import { buildVerticalProduct, verticalPack, VERTICAL_ACTION_ID } from "./product-vertical-package.js";
 
-export { VERTICAL_ACTION_ID } from "./product-vertical-fixture.js";
+export { VERTICAL_ACTION_ID } from "./product-vertical-package.js";
 
 /** The alias token that reaches {@link VERTICAL_ACTION_ID} on the CLI surface. */
 export const CLI_ALIAS_TOKEN = "draft";

@@ -18,7 +18,7 @@ import { installResearchProfile } from "./fixtures/research-profile.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { ActionDeniedError } from "../src/workflows/errors.js";
 import { registerWorkflowActionTools } from "../src/mcp/workflow-action-tools.js";
-import { callTool as call } from "./fixtures/mcp-test-env.js";
+import { callTool as call } from "./fixtures/mcp-test-server.js";
 
 let root = "";
 beforeEach(async () => {

@@ -27,8 +27,8 @@ import type {
 } from "../../src/products/service.js";
 import {
   activatedProject, verticalService,
-  VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID,
 } from "./product-vertical-fixture.js";
+import { VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 /** The caller input both invocation forms declare, so only the NAME differs. */
 const INPUT = { topic: "superconductivity" } as const;
