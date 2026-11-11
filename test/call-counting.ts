@@ -39,6 +39,8 @@ const recordSites = process.env.LLMWIKI_CALL_SITES === "1";
 // A site looks past the primitives' own frames, so it needs a deeper stack.
 if (recordSites) Error.stackTraceLimit = 40;
 const appendFileSync = fs.appendFileSync;
+/** True while a counted call is running its original; see {@link counted}. */
+let nested = false;
 
 /**
  * Count one call to `op`, and its call site when sites are recorded. A site is
@@ -79,8 +81,17 @@ function spawnName(args: unknown[]): string {
 /** `original`, counting each call as `op`; what callers read off the function itself is kept. */
 function counted(original: (...args: unknown[]) => unknown, op: OpName, customForm = true): (...args: unknown[]) => unknown {
   const wrapper = function (this: unknown, ...args: unknown[]) {
-    count(typeof op === "string" ? op : op(args));
-    return original.apply(this, args);
+    // One call from the caller is one op. Bun's own fs functions call other fs
+    // functions (`fs.promises.opendir` calls `fs.opendir`); those nested calls
+    // happen synchronously inside this one and are not counted again.
+    if (nested) return original.apply(this, args);
+    nested = true;
+    try {
+      count(typeof op === "string" ? op : op(args));
+      return original.apply(this, args);
+    } finally {
+      nested = false;
+    }
   };
   for (const key of Reflect.ownKeys(original)) {
     if (!(key in wrapper)) Object.defineProperty(wrapper, key, Object.getOwnPropertyDescriptor(original, key)!);
