@@ -1,2 +1,2 @@
-bunx fallow
+bunx fallow --fail-on-issues
 node_modules/typescript7/bin/tsc --noEmit
