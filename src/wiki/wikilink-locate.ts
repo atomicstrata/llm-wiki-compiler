@@ -97,9 +97,11 @@ export function locateWikilinks(body: string): LocatedWikilink[] {
     // and continue along their row.
     if (token.map && (token.type === "inline" || token.type === "tr_open")) cursor = lineStarts[token.map[0]];
     if (token.type !== "inline") continue;
-    const positions = alignContent(body, token.content, cursor);
+    const links = contentLinks(token.children ?? [], env.bases);
+    // A block without links still advances the cursor, but needs no offsets.
+    const positions = alignContent(body, token.content, cursor, links.length > 0);
     cursor = positions.next;
-    for (const link of contentLinks(token.children ?? [], env.bases)) {
+    for (const link of links) {
       const start = positions.at[link.start];
       const end = positions.at[link.end - 1] + 1;
       if (isBracketed(body, start, end)) located.push({ start, end, inner: link.inner });
@@ -132,22 +134,33 @@ function contentLinks(children: Token[], bases: Map<Token[], number>): LocatedWi
 /**
  * Page offset of each non-whitespace content character (-1 for whitespace),
  * matched leftmost-first from `from`, and the offset after the last match.
+ * With `recordOffsets` false only `next` is computed and `at` stays empty.
  */
-function alignContent(body: string, content: string, from: number): { at: number[]; next: number } {
+function alignContent(body: string, content: string, from: number, recordOffsets: boolean): { at: number[]; next: number } {
   const at: number[] = [];
   let next = from;
   // By UTF-16 unit, the unit markdown-it's offsets count in.
   for (let index = 0; index < content.length; index++) {
     const char = content[index];
-    if (/\s/.test(char)) {
-      at.push(-1);
+    if (isWhitespace(char)) {
+      if (recordOffsets) at.push(-1);
       continue;
     }
     const found = char === REPLACEMENT_CHARACTER ? firstOf(body, [char, NUL], next) : body.indexOf(char, next);
-    at.push(found);
+    if (recordOffsets) at.push(found);
     if (found >= 0) next = found + 1;
   }
   return { at, next };
+}
+
+/** JavaScript's whitespace class, for the characters outside ASCII. */
+const WHITESPACE = /\s/;
+
+/** Exactly `/\s/.test(char)`; ASCII (by far the common case) is decided by code: tab through carriage return, and space. */
+function isWhitespace(char: string): boolean {
+  const code = char.charCodeAt(0);
+  if (code < 128) return code === 32 || (code >= 9 && code <= 13);
+  return WHITESPACE.test(char);
 }
 
 /** The earliest offset at or after `from` holding any of `chars`, or -1. */
