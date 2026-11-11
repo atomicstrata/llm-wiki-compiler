@@ -15,6 +15,12 @@ const DAY_SLUG = /^\d{4}-\d{2}-\d{2}$/;
 const WEEK_SLUG = /^\d{4}-W\d{2}$/;
 const DAY_MS = 86_400_000;
 
+/** Whether a timeline slug names a day or a week; null for any other file in the directory. */
+export function timelinePeriod(slug: string): "day" | "week" | null {
+  if (DAY_SLUG.test(slug)) return "day";
+  return WEEK_SLUG.test(slug) ? "week" : null;
+}
+
 /** The pages compile learned from sources, leaving out the generated day and week pages. */
 export function withoutTimeline(pages: PageRow[]): PageRow[] {
   return pages.filter((page) => page.pageDirectory !== TIMELINE_DIRECTORY);

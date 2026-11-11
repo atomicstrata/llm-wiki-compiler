@@ -51,9 +51,9 @@ export function TimelineView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   );
 }
 
-/** A link to a timeline page, with `children` as its text. */
-function PageLink({ page, children }: { page: PageRow; children: ReactNode }): ReactNode {
-  return <TextLink href={pageHref(page.pageDirectory, page.slug)}>{children}</TextLink>;
+/** A link to a timeline page, with `children` as its text and an optional `rel` (`prev`, `next`). */
+function PageLink({ page, rel, children }: { page: PageRow; rel?: string; children: ReactNode }): ReactNode {
+  return <TextLink href={pageHref(page.pageDirectory, page.slug)} rel={rel}>{children}</TextLink>;
 }
 
 /** A day's title without its year, `Thursday, November 5`, for the step links. */
@@ -67,15 +67,17 @@ export function TimelineNav({ slug, wiki }: { slug: string; wiki: PagesEnvelope 
   return (
     <nav aria-label="Timeline" className="mt-4 space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-        <span className="min-w-0">{links.previous && <PageLink page={links.previous}>← {shortTitle(links.previous)}</PageLink>}</span>
+        <span className="min-w-0">{links.previous && <PageLink page={links.previous} rel="prev"><span aria-hidden="true">← </span>{shortTitle(links.previous)}</PageLink>}</span>
         {links.week ? <PageLink page={links.week}>{links.week.title}</PageLink> : <TextLink href="#/timeline">Timeline</TextLink>}
-        <span className="min-w-0 text-right">{links.next && <PageLink page={links.next}>{shortTitle(links.next)} →</PageLink>}</span>
+        <span className="min-w-0 text-right">{links.next && <PageLink page={links.next} rel="next">{shortTitle(links.next)}<span aria-hidden="true"> →</span></PageLink>}</span>
       </div>
       {links.days.length > 0 && (
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-          <span className="text-zinc-500 dark:text-zinc-400">Days</span>
-          {links.days.map((day) => <PageLink key={day.id} page={day}>{shortTitle(day).split(",")[0]}</PageLink>)}
-        </p>
+        <div className="flex flex-wrap items-baseline gap-x-3 text-sm">
+          <span id="timeline-days" className="text-zinc-500 dark:text-zinc-400">Days</span>
+          <ul aria-labelledby="timeline-days" className="flex flex-wrap gap-x-3 gap-y-1">
+            {links.days.map((day) => <li key={day.id}><PageLink page={day}>{shortTitle(day).split(",")[0]}</PageLink></li>)}
+          </ul>
+        </div>
       )}
     </nav>
   );

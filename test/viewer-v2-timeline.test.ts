@@ -81,6 +81,10 @@ describe("stepping through time", () => {
     expect(rail("2026-05-04")).toMatch(/Kind day/);
     expect(rail("2026-W20")).toMatch(/Kind week/);
     expect(rail("2026-05-04")).not.toContain("Freshness");
+    // Controls: a concept page keeps freshness, and a stray file in the directory is not a day.
+    const concept = text(renderToStaticMarkup(createElement(PageRail, { page: pagePayload(), wiki: envelope({ pages: DAYS }), graph: { status: "loading" } })));
+    expect(concept).toMatch(/Kind concept Freshness fresh/);
+    expect(rail("notes")).toContain("Freshness");
   });
 
   it("counts only knowledge pages on the dashboard", () => {
