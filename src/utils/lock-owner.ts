@@ -92,7 +92,11 @@ export interface LockOwner {
 /** This process's start time, populated only when lock behavior first needs it. */
 let cachedSelfStartTime: string | null | undefined;
 
-function selfStartTime(): string | null {
+/**
+ * This process's start-time identity. A running process's start time never
+ * changes, so one `ps` answers every caller in the process.
+ */
+export function selfStartTime(): string | null {
   if (cachedSelfStartTime === undefined) {
     cachedSelfStartTime = readProcessStartTime(process.pid);
   }

@@ -21,15 +21,16 @@ import { ephemeralRequest, HOST, runFixtureRead, withEphemeralSandbox } from "./
 const succeeded = completedProviderInvoke([], { brokerRequestCount: 0, tokenCount: 4, costMicros: 2 });
 
 /**
- * A resolver that arms the caller's broker mutation as a TIMER task. Every step
- * between the resolver and the leg's classification is a microtask, so the timer
- * lands strictly AFTER classification — inside the custody-creation window that
- * separates the checks from invoke.
+ * A resolver that arms the caller's broker mutation as an IMMEDIATE task. Every
+ * step between the resolver and the leg's classification is a microtask, so the
+ * task lands strictly AFTER classification — inside the custody-creation window
+ * that separates the checks from invoke. An immediate rather than a zero timer:
+ * a timer is not due for a millisecond, and custody creation can finish sooner.
  */
 function armingResolver(brokers: Record<string, unknown>, adapterKey: string): AttemptAuthorityResolverV1 {
   return {
     resolve: async () => {
-      setTimeout(() => { brokers[adapterKey] = {}; }, 0);
+      setImmediate(() => { brokers[adapterKey] = {}; });
       return { status: "ok", extras: providerAuthority() };
     },
   };
