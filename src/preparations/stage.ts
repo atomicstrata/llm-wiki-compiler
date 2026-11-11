@@ -39,9 +39,10 @@ import {
   type PreparationInventory, type PreparationInventoryLifecycleReads, type StageCapacityProjection,
 } from "./capacity.js";
 import type { PreparationScanOptions } from "./orphan-scan.js";
+import { preparationPassReads } from "./pass-reads.js";
 import { mintPreparationId, mintPreparationRunId, type PreparationId, type PreparationRunId } from "./ids.js";
 import {
-  prepareKeyForEmptyEpochLocked, readPreparationKey, readPreparationKeyFrom,
+  prepareKeyForEmptyEpochLocked, readPreparationKeyFrom,
   type PreparationKeyLeafReads, type PreparationKeyRead,
 } from "./key-epoch.js";
 import {
@@ -97,12 +98,19 @@ export interface StageLockedSteps {
   createRun(input: InitialPreparationRunInput, budgetInput: RunBudgetInput): Promise<unknown>;
 }
 
-/** LOCAL DISK. The incumbent readers, mint and writers for `root`, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent readers, mint and writers for `root`, each called
+ * when asked. The inventory scan and the key read are ONE PASS
+ * (`pass-reads.ts`): both come before the first write, under one hold of the
+ * lock, so the key the scan authenticated every run under is the key the
+ * staging binds; nothing reads the pass after the writes begin.
+ */
 function diskStageLockedSteps(root: string): StageLockedSteps {
+  const pass = preparationPassReads(root);
   return {
     verifyParent: (ref) => verifyWorkflowParent(root, ref),
-    scanInventory: (options) => scanPreparationInventory(root, options),
-    readKey: () => readPreparationKey(root),
+    scanInventory: (options) => scanPreparationInventory(root, options, pass),
+    readKey: pass.readKey,
     mintEmptyEpochKey: async (epoch) => {
       const minted = await prepareKeyForEmptyEpochLocked(root, epoch);
       return { keyEpochId: minted.keyEpochId, publish: minted.publish };
