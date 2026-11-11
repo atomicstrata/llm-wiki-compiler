@@ -146,6 +146,7 @@ function productSourcesOf(product: BuiltProductPackage): { sources: ActiveProduc
   } as unknown as ActiveBindingReads;
   const packages = {
     readManifestLeaf: async () => ok(Buffer.from(product.manifestText)), checkMemberLeaf: async () => "matches", directoryKind: async () => "directory",
+    readCheckedMemberLeaf: async (_hex: string, memberHex: string) => ({ kind: "matches", bytes: product.bytesByHex.get(memberHex)! }),
     listDirectory: async (_hex: string, directory: string) => (directory === "package" ? [entry("manifest.json", true), entry("members", false)] : members),
     readMemberLeaf: async (_hex: string, memberHex: string) => { log.push(`member ${memberHex}`); return ok(product.bytesByHex.get(memberHex)!); },
   } as unknown as ProductPackageReads;
