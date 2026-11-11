@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 import { artifactDownloadUrl, artifactRef, fetchArtifact, type ArtifactMetadata, type ArtifactPin } from "./api-workflows";
 import { Code, DefinitionRows, Disclosure, TextLink } from "./components";
-import { displayLabel } from "./pipeline-model";
+import { humanLabel } from "./wiki-model";
 import { useAsync } from "./use-async";
 
 /** What each file check means, without equating an unknown status with a verified file. */
@@ -27,7 +27,7 @@ const LOOPBACK_NOTE = "To preview files, run the viewer bound to localhost on th
 function FileMetadata({ metadata }: { metadata: Record<string, unknown> }): ReactNode {
   const entries = Object.entries(metadata);
   if (entries.length === 0) return null;
-  const rows = entries.map(([key, value]): [string, ReactNode] => [displayLabel(key), typeof value === "object" ? JSON.stringify(value) : String(value)]);
+  const rows = entries.map(([key, value]): [string, ReactNode] => [humanLabel(key), typeof value === "object" ? JSON.stringify(value) : String(value)]);
   return <div className="mt-2 border-t border-zinc-950/5 pt-2 dark:border-white/10"><DefinitionRows rows={rows} /></div>;
 }
 

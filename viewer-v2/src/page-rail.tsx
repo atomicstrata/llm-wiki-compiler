@@ -11,7 +11,7 @@ import { Badge, DefinitionRows, RangeChip, SURFACE } from "./components";
 import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
 import { pageIdHref, sourceHref } from "./route";
 import type { AsyncState } from "./use-async";
-import { formatUtcTimestamp, typeLabel } from "./wiki-model";
+import { formatUtcTimestamp, humanLabel } from "./wiki-model";
 
 /** A rail section with the small uppercase heading. */
 export function RailSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
@@ -124,7 +124,7 @@ function ConnectorBlock({ connector }: { connector: ConnectorProvenance }): Reac
   return (
     <div data-connector={connector.connectorId} className="mt-4 border-t border-zinc-950/5 pt-3 dark:border-white/10">
       <h3 className={RAIL_HEADING}>Where these details came from</h3>
-      <p className="text-zinc-600 dark:text-zinc-300">Imported from {typeLabel(connector.connectorId)} on {formatUtcTimestamp(connector.fetchedAt)}.</p>
+      <p className="text-zinc-600 dark:text-zinc-300">Imported from {humanLabel(connector.connectorId)} on {formatUtcTimestamp(connector.fetchedAt)}.</p>
       {href && <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">View imported metadata</a>}
       <details className={`mt-2 ${RAIL_NOTE}`}>
         <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-200">Technical details</summary>
@@ -142,7 +142,7 @@ function RelationGroups({ context }: { context: EntityContext }): ReactNode {
     <>
       {groups.map((group) => (
         <div key={`${group.type}:${group.direction}`}>
-          <h3 className={RAIL_HEADING}>{typeLabel(group.type)} <Badge>{group.direction}</Badge></h3>
+          <h3 className={RAIL_HEADING}>{humanLabel(group.type)} <Badge>{group.direction}</Badge></h3>
           <ul role="list" className="space-y-1">{group.relations.map((relation) => <RelationItem key={relation.target.id} relation={relation} />)}</ul>
         </div>
       ))}

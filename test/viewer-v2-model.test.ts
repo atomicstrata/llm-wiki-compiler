@@ -1,7 +1,7 @@
 /** Derived facts of the v2 viewer: verdict, vocabulary, labels and totals. */
 import { describe, expect, it } from "bun:test";
 import type { HealthPayload, PagesEnvelope } from "../viewer-v2/src/api.js";
-import { lintTotal, pagesIn, plural, profileVocabulary, typeLabel, wikiVerdict } from "../viewer-v2/src/wiki-model.js";
+import { lintTotal, pagesIn, plural, profileVocabulary, humanLabel, wikiVerdict } from "../viewer-v2/src/wiki-model.js";
 import { envelope, healthWith, page } from "./fixtures/viewer-v2-fixtures.js";
 
 const CLEAN: HealthPayload = healthWith({ warnings: 0, errors: 0, at: "2026-11-11T00:00:00.000Z" });
@@ -32,8 +32,10 @@ describe("profileVocabulary and labels", () => {
     expect(profileVocabulary(profile)).toEqual({ typeCount: 1, pageCount: 2, citationCount: 3 });
   });
 
-  it("spells type ids and plurals the way the sidebar does", () => {
-    expect(typeLabel("instrument_calibrations")).toBe("Instrument calibrations");
+  it("spells identifiers and plurals for reading", () => {
+    expect(humanLabel("instrument_calibrations")).toBe("Instrument calibrations");
+    expect(humanLabel("citedBy")).toBe("Cited by");
+    expect(humanLabel("doi")).toBe("DOI");
     expect(plural(1, "page")).toBe("1 page");
     expect(plural(0, "citation")).toBe("0 citations");
     expect(lintTotal(null)).toBeNull();

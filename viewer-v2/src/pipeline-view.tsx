@@ -14,10 +14,10 @@ import { Badge, Card, Code, EmptyState, Notice, Screen, Table, Td, TextLink, typ
 import { problemsSummary } from "./health-model";
 import { ProblemsPanel } from "./health-view";
 import {
-  calloutText, chipLabel, classifyStates, declaredText, displayLabel, displayedStates, footerText, gapText,
+  calloutText, chipLabel, classifyStates, declaredText, displayedStates, footerText, gapText,
   hasDeclaredOrder, reachableOrder, rowVerdict, totalRejected, type StateRole, type StateTally,
 } from "./pipeline-model";
-import { plural, typeLabel } from "./wiki-model";
+import { humanLabel, plural } from "./wiki-model";
 
 const HEALTH_HREF = "#/health";
 const SCREEN_TITLE = "Lifecycle status";
@@ -31,7 +31,7 @@ function TypeCell({ row }: { row: EntityTypeRow }): ReactNode {
   return (
     <div className="min-w-0 space-y-1 lg:col-span-4">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-zinc-950 dark:text-white">{typeLabel(row.type)}</span>
+        <span className="text-sm font-semibold text-zinc-950 dark:text-white">{humanLabel(row.type)}</span>
         <Badge>{row.pageCount}</Badge>
       </div>
       <div className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.directory}</div>
@@ -100,8 +100,8 @@ function Connections({ relations }: { relations: RelationTypeRow[] }): ReactNode
         <Table head={["Relationship", "Connects", "Recorded links"]}>
           {relations.map((relation) => (
             <tr key={relation.type} title={relation.type}>
-              <Td>{displayLabel(relation.type)}</Td>
-              <Td>{relation.from.map(displayLabel).join(" or ")}<span className="text-zinc-400">{relation.direction === "symmetric" ? " ↔ " : " → "}</span>{relation.to.map(displayLabel).join(" or ")}</Td>
+              <Td>{humanLabel(relation.type)}</Td>
+              <Td>{relation.from.map(humanLabel).join(" or ")}<span className="text-zinc-400">{relation.direction === "symmetric" ? " ↔ " : " → "}</span>{relation.to.map(humanLabel).join(" or ")}</Td>
               <Td>{relation.count > 0 ? plural(relation.count, "recorded link") : "No links yet"}</Td>
             </tr>
           ))}
@@ -119,7 +119,7 @@ function ArtifactTypes({ types }: { types: ArtifactTypeDef[] }): ReactNode {
       <Table head={["File type", "File name", "Content", "Metadata fields"]}>
         {types.map((type) => (
           <tr key={type.type} title={type.type}>
-            <Td>{displayLabel(type.type)}</Td>
+            <Td>{humanLabel(type.type)}</Td>
             <Td><Code>{type.fileName}</Code></Td>
             <Td>{type.contentKind}</Td>
             <Td>{(type.metadata ?? []).map((field) => field.name).join(", ") || "—"}</Td>

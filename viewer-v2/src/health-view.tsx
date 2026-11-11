@@ -163,10 +163,9 @@ export function HealthView({ wiki, health }: { wiki: PagesEnvelope; health: Heal
   const fresh = useAsync(fetchHealth, "health");
   const current = fresh.status === "ready" ? fresh.data : health;
   const lint = current?.lint ?? null;
-  const now = useMemo(() => new Date(), [current]);
-  const pageIndex = useMemo(() => new Set(wiki.pages.map((page) => page.id)), [wiki]);
+  const pageIndex = useMemo(() => new Set(wiki.pages.map((page) => page.id)), [wiki.pages]);
   return (
-    <Screen wide title="Health" description={lintRunCaption(lint, now)}>
+    <Screen wide title="Health" description={lintRunCaption(lint, new Date())}>
       <div className="space-y-6">
         <ContentsStrip health={current} wiki={wiki} />
         <div className="grid items-start gap-6 lg:grid-cols-3">

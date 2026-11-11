@@ -154,10 +154,3 @@ export function footerText(rejected: number): string {
   const clause = rejected === 1 ? "declares a lifecycle state and is" : "declare a lifecycle state and are";
   return `${plural(rejected, "rejected page")} still ${clause} counted in the tallies above. A rejected page that omits the field entirely appears in no tally at all.`;
 }
-
-/** `peer_review` and `peerReview` both read as `Peer review`; short acronyms stay upper-case. */
-export function displayLabel(value: string): string {
-  const text = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
-  if (/^(doi|url|id|api)$/i.test(text)) return text.toUpperCase();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}

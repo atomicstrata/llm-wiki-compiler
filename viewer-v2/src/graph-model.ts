@@ -86,7 +86,7 @@ export function nodeHref(node: GraphNode): string | null {
 /** The tooltip's second line: what the node is and how connected it is. */
 export function nodeMeta(node: GraphNode): string {
   if (node.isDangling === true) return `missing page · ${plural(node.degree, "reference")}`;
-  const kind = node.nodeKind === "entity" ? `entity · ${node.entityType ?? ""}` : node.kind;
+  const kind = node.nodeKind === "entity" && node.entityType ? `entity · ${node.entityType}` : node.kind;
   return `${kind} · ${plural(node.degree, "connection")}`;
 }
 

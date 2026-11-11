@@ -23,7 +23,7 @@ const GO_KEYS: Record<string, { href: string; label: string }> = {
   d: { href: "#/", label: "Dashboard" },
   c: { href: "#/concepts", label: "Concepts" },
   q: { href: "#/queries", label: "Queries" },
-  r: { href: "#/recent", label: "Recent" },
+  r: { href: "#/recent", label: "Timeline" },
   s: { href: "#/sources", label: "Sources" },
   g: { href: "#/graph", label: "Graph explorer" },
   h: { href: "#/health", label: "Health & lint" },

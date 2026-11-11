@@ -6,9 +6,9 @@
  */
 import type { ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
-import { groupByRecency } from "./recency";
 import { Badge, Card, EmptyState, RowList, Screen } from "./components";
 import { PageRowItem } from "./lists";
+import { groupByRecency } from "./recency";
 import { plural } from "./wiki-model";
 
 /** Whether the page's last write created it. */
@@ -21,7 +21,7 @@ export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = new Date();
   const groups = groupByRecency(wiki.pages, (page) => page.updatedAt, now);
   return (
-    <Screen title="Recent" description={`${plural(wiki.pages.length, "page")}, newest first`}>
+    <Screen title="Timeline" description={`${plural(wiki.pages.length, "page")}, newest first`}>
       {groups.length === 0 ? <EmptyState title="Nothing compiled yet" body="Compiled pages appear here, newest first." command="$ llmwiki compile" /> : (
       <div className="space-y-8">
         {groups.map((group) => (

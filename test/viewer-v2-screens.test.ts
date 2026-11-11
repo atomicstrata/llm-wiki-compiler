@@ -1,13 +1,14 @@
 /**
  * The v2 viewer's screens, rendered to static markup against fixture
- * payloads: the sidebar's counts and active row, the dashboard's cards and
- * hints, the recency screen's groups and badge, and the search helpers.
+ * payloads: the sidebar's counts and active row, the dashboard's order,
+ * cards and hints, page rows with their summaries, the recency screen's
+ * groups and badge, and the search helpers.
  */
 import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Dashboard } from "../viewer-v2/src/dashboard.js";
-import { matchesTitle } from "../viewer-v2/src/lists.js";
+import { matchesTitle, PageRowItem } from "../viewer-v2/src/lists.js";
 import { activeNavRoute, Sidebar } from "../viewer-v2/src/nav.js";
 import { isNewPage, RecentView } from "../viewer-v2/src/recent-view.js";
 import { parseRoute } from "../viewer-v2/src/route.js";
@@ -35,8 +36,18 @@ describe("Sidebar", () => {
     expect(html).not.toContain("Workflows");
   });
 
+  it("leads with the reading rows, and offers the overview only when the wiki has an index", () => {
+    const firstRows = (available: boolean) => {
+      const html = renderToStaticMarkup(createElement(Sidebar, { wiki: { ...WIKI, index: { available } }, health: null, route: parseRoute("#/") }));
+      return [...html.matchAll(/data-route="(\w+)"/g)].slice(0, 3).map((match) => match[1]);
+    };
+    expect(firstRows(true)).toEqual(["home", "index", "recent"]);
+    expect(firstRows(false)).toEqual(["home", "recent", "concepts"]);
+  });
+
   it("maps every route to the row it lights", () => {
-    expect(activeNavRoute(parseRoute("#/index"))).toBe("home");
+    expect(activeNavRoute(parseRoute("#/index"))).toBe("index");
+    expect(activeNavRoute(parseRoute("#/recent"))).toBe("recent");
     expect(activeNavRoute(parseRoute("#/_type/papers"))).toBe("papers");
     expect(activeNavRoute(parseRoute("#/source-changes"))).toBe("reviews");
     expect(activeNavRoute(parseRoute("#/_search?q=x"))).toBeNull();
@@ -53,6 +64,24 @@ describe("Dashboard", () => {
     expect(html).toContain("Run lint");
     expect(html).toMatch(/href="#\/recent"[^>]*>View all/);
     expect(html).toContain("67%");
+  });
+
+  it("leads with the pages and puts the numbers after them", () => {
+    const html = renderToStaticMarkup(createElement(Dashboard, { wiki: WIKI, health: null }));
+    expect(html.indexOf("Recently compiled")).toBeGreaterThan(-1);
+    expect(html.indexOf("Recently compiled")).toBeLessThan(html.indexOf("data-stat="));
+  });
+});
+
+describe("PageRowItem", () => {
+  const now = new Date("2026-11-10T13:00:00.000Z");
+  const row = (summary: string) => renderToStaticMarkup(createElement("ul", null, createElement(PageRowItem, { page: page({ summary }), now })));
+
+  it("shows the summary under the title, and no empty line when there is none", () => {
+    expect(text(row("Cone 6 firing schedule."))).toStartWith("Alpha Cone 6 firing schedule. ");
+    expect(row("Cone 6 firing schedule.")).toContain('title="Cone 6 firing schedule."');
+    // A blank summary leaves the title alone in its column: no empty second line.
+    expect(row("  ")).toContain(">Alpha</span></span>");
   });
 });
 

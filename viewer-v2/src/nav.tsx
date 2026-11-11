@@ -1,21 +1,21 @@
 /**
- * The sidebar: project identity and navigation with counts.
+ * The sidebar: navigation with counts.
  *
- * Browse holds the default project's Concepts and Queries, or a profile's
- * declared types in their place. Explore and Maintain are fixed. A zero count
- * reads as an em dash under Browse and Explore (nothing to browse) and as a
- * literal 0 under Maintain (a reassuring fact). Profile-only rows appear only
- * on profile projects. When a profile type shares a fixed row's name, the
- * fixed row takes its longer collision label so the two stay distinct. The
- * same rows, flattened, are the palette's "Go to" destinations.
+ * Reading comes first: the dashboard, the compiled overview when the wiki
+ * has one, and the timeline of compiles. Browse holds the default project's
+ * Concepts and Queries, or a profile's declared types in their place.
+ * Explore and Maintain are fixed. A zero count reads as an em dash under
+ * Browse and Explore (nothing to browse) and as a literal 0 under Maintain (a
+ * reassuring fact). Profile-only rows appear only on profile projects. When
+ * a profile type shares a fixed row's name, the fixed row takes its longer
+ * collision label so the two stay distinct. The same rows, flattened, are the
+ * palette's "Go to" destinations.
  */
-import { Activity, Clock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BookOpen, CalendarClock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
-import type { Route } from "./route";
-import { typeListHref } from "./route";
-import { entityTypes, isProfileProject, lintTotal, typeLabel } from "./wiki-model";
-
+import { typeListHref, type Route } from "./route";
+import { entityTypes, humanLabel, isProfileProject, lintTotal } from "./wiki-model";
 
 /** How a zero count is written in a section. */
 type ZeroDisplay = "dash" | "digit";
@@ -52,7 +52,7 @@ function browseItems(wiki: PagesEnvelope): NavItem[] {
   }
   return [...types]
     .sort((a, b) => b.pageCount - a.pageCount)
-    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: typeLabel(row.type), icon: Folder, count: row.pageCount }));
+    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: humanLabel(row.type), icon: Folder, count: row.pageCount }));
 }
 
 /** Every section with its rows, counts filled in from the payloads. */
@@ -68,7 +68,6 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
       label: "Explore",
       zero: "dash",
       items: [
-        { route: "recent", href: "#/recent", label: "Recent", icon: Clock },
         { route: "sources", href: "#/sources", label: "Sources", icon: FileText, collisionLabel: "Source files", count: wiki.counts.sourceFiles },
         { route: "graph", href: "#/graph", label: "Graph explorer", icon: Network },
       ],
@@ -86,7 +85,14 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
   ];
 }
 
-const DASHBOARD: NavItem = { route: "home", href: "#/", label: "Dashboard", icon: LayoutDashboard };
+/** The rows above the sections: where a reader starts, then the overview and the timeline. */
+function readingItems(wiki: PagesEnvelope): NavItem[] {
+  return [
+    { route: "home", href: "#/", label: "Dashboard", icon: LayoutDashboard },
+    ...(wiki.index.available ? [{ route: "index", href: "#/index", label: "Overview", icon: BookOpen }] : []),
+    { route: "recent", href: "#/recent", label: "Timeline", icon: CalendarClock },
+  ];
+}
 
 /** The rows a project shows: profile-only rows on profile projects, with collision labels resolved. */
 function visibleSections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection[] {
@@ -108,14 +114,13 @@ export interface Destination {
   icon: LucideIcon;
 }
 
-/** Every sidebar row as a palette destination, the dashboard first. */
+/** Every sidebar row as a palette destination, the reading rows first. */
 export function navDestinations(wiki: PagesEnvelope, health: HealthPayload | null): Destination[] {
-  return [DASHBOARD, ...visibleSections(wiki, health).flatMap((section) => section.items)].map(({ href, label, icon }) => ({ href, label, icon }));
+  return [...readingItems(wiki), ...visibleSections(wiki, health).flatMap((section) => section.items)].map(({ href, label, icon }) => ({ href, label, icon }));
 }
 
 /** The nav route name the current route lights up, or null. */
 export function activeNavRoute(route: Route): string | null {
-  if (route.view === "home" || route.view === "index") return "home";
   if (route.view === "list") return route.kind;
   if (route.view === "typeList") return route.type;
   if (route.view === "page") return route.directory;
@@ -153,13 +158,13 @@ interface SidebarProps {
   route: Route;
 }
 
-/** Project identity and the three navigation sections. */
+/** The reading rows and the three navigation sections. */
 export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   const active = activeNavRoute(route);
   return (
     <nav aria-label="Wiki navigation" className="space-y-6 px-3 py-5">
       <ul role="list" className="space-y-0.5">
-        <NavRow item={DASHBOARD} zero="dash" active={active === "home"} />
+        {readingItems(wiki).map((item) => <NavRow key={item.route} item={item} zero="dash" active={active === item.route} />)}
       </ul>
       {visibleSections(wiki, health).map((section) => (
         <section key={section.label}>

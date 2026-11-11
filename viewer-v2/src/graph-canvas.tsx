@@ -2,16 +2,15 @@
  * The graph drawing the explorer and a page rail's neighbourhood show. React
  * renders the SVG once from `/api/graph`: an arrowhead, one `<line>` per
  * edge, and one group per node holding its circle, a centre ring, and its
- * label. The
- * positions come from `graph-layout`, which writes them to those elements
- * directly, so React only re-renders for hover, which dims everything outside
- * the hovered node's neighbourhood and labels that neighbourhood. A
- * `highlightId` holds the same emphasis without a pointer: the page a local
- * graph is centred on, or the node the explorer's find box chose. A
- * `centreId` instead rings and labels one node without dimming the rest,
- * which is how a page's rail marks the page itself. Other
- * labels appear only once the reader zooms in, because at a hundred nodes
- * they overlap into noise; they keep one on-screen size at every zoom.
+ * label. The positions come from `graph-layout`, which writes them to those
+ * elements directly, so React only re-renders for hover, which dims
+ * everything outside the hovered node's neighbourhood and labels that
+ * neighbourhood. A `highlightId` holds the same emphasis without a pointer:
+ * the node the explorer's find box chose. A `centreId` instead rings and
+ * labels one node without dimming the rest, which is how a page's rail marks
+ * the page itself. Other labels appear only once the reader zooms in, because
+ * at a hundred nodes they overlap into noise; they keep one on-screen size at
+ * every zoom.
  * Keyboard focus on a node gives the same emphasis and tooltip as hovering.
  * Nodes colour by kind, or by link community in the explorer. `compact` picks
  * the rail's smaller radii, size-derived forces, and no drag.
@@ -73,7 +72,7 @@ export function GraphLegend({ colorBy = "kind" }: { colorBy?: ColorBy }): ReactN
       <div className="flex flex-col gap-0.5">{nodeRows}</div>
       <div className="pt-1 font-medium text-zinc-900 dark:text-zinc-100">Edge kind</div>
       {EDGE_LEGEND.map((row) => (
-        <span key={row.kind} className="block">{row.kind === "relation" ? "╌ " : "─ "}{row.label} </span>
+        <span key={row.kind} className="block">{row.kind === "relation" ? "╌ " : "─ "}{row.label}</span>
       ))}
       <div className="pt-1 font-medium text-zinc-900 dark:text-zinc-100">Node size</div>
       <span className="block">larger = more connections</span>
@@ -81,6 +80,7 @@ export function GraphLegend({ colorBy = "kind" }: { colorBy?: ColorBy }): ReactN
   );
 }
 
+/** One edge: dashed for a typed relation, with an arrowhead unless the link runs both ways. */
 function EdgeLine({ edge, markerId, emphasis }: { edge: GraphEdge; markerId: string; emphasis: Emphasis }): ReactNode {
   const relation = edge.edgeKind === "relation";
   return (
@@ -116,7 +116,7 @@ function labelClass(labelled: boolean, dimmed: boolean): string {
 /** The node, a link when it has a page, a ring on the centre node, and its label, shown when emphasised or zoomed in. */
 function NodeGroup({ node, colorClass, radius, dimmed, labelled, label, ringed, onHover, onMove }: NodeProps): ReactNode {
   const href = nodeHref(node);
-  const circles = (
+  const dot = (
     <circle r={radius} fill="currentColor" stroke="currentColor"
       strokeWidth={nodeStrokeWidth(node.degree)} strokeDasharray={node.isDangling ? "3,2" : undefined} />
   );
@@ -125,7 +125,7 @@ function NodeGroup({ node, colorClass, radius, dimmed, labelled, label, ringed, 
       onMouseEnter={(event) => onHover(node, event)} onMouseMove={onMove} onMouseLeave={() => onHover(null)}
       onFocus={(event) => onHover(node, rightOf(event.currentTarget))} onBlur={() => onHover(null)}>
       {ringed && <circle r={radius + 3.5} fill="none" stroke="currentColor" strokeWidth={1.5} />}
-      {href === null ? circles : <a href={href} aria-label={node.title}>{circles}</a>}
+      {href === null ? dot : <a href={href} aria-label={node.title}>{dot}</a>}
       <text y={radius + 2} dy="1em" textAnchor="middle" className={`${LABEL_CLASS} ${labelClass(labelled, dimmed)}`}>{label}</text>
     </g>
   );

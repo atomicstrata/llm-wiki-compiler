@@ -13,7 +13,7 @@ import { tagHref } from "./route";
 import { safeLocalStorage } from "./storage";
 import { plural } from "./wiki-model";
 
-/** How many changed pages the panel lists before pointing at Recent. */
+/** How many changed pages the panel lists before pointing at the timeline. */
 const CHANGED_ROWS = 6;
 const TOPIC_LIMIT = 32;
 
@@ -30,7 +30,7 @@ export function SinceLastVisit({ pages, since }: { pages: PageRow[]; since: stri
   const when = new Date(since).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
   return (
     <Card flush title={`${plural(changed.length, "page")} changed since your last visit on ${when}`}
-      action={<TextLink href="#/recent">See all in Recent</TextLink>}>
+      action={<TextLink href="#/recent">See all in Timeline</TextLink>}>
       <RowList>
         {changed.slice(0, CHANGED_ROWS).map((page) => (
           <PageRowItem key={page.id} page={page} now={now} />

@@ -1,10 +1,12 @@
 /**
  * Facts derived from a page payload and the wiki graph that the page view and
  * its support rail show: the heading rules of the original client, citations
- * grouped by source file, backlinks, and relation groups. Pure functions, so
- * the rules are tested without a fetch or a DOM.
+ * grouped by source file, the source-file count under the title, backlinks,
+ * and relation groups. Pure functions, so the rules are tested without a
+ * fetch or a DOM.
  */
 import type { ClaimCitation, EntityRelation, GraphData, PagePayload, SourceSpan } from "./api";
+import { plural } from "./wiki-model";
 
 /** The warning code the server attaches to each citation whose file is missing. */
 const UNRESOLVED_CITATION_CODE = "unresolved_citation";
@@ -45,6 +47,27 @@ export function pageCitationCounts(page: PagePayload): { total: number; unresolv
     total: page.citations.length,
     unresolved: page.warnings.filter((warning) => warning.code === UNRESOLVED_CITATION_CODE).length,
   };
+}
+
+/**
+ * The distinct source files a page draws on, from its citations and a typed
+ * page's entity sources, with how many are missing on disk. `partial` says the
+ * server listed only some of the entity's sources, so there may be more files.
+ */
+export function sourceFileTally(page: PagePayload, sourceFilenames: string[]): { total: number; missing: number; partial: boolean } {
+  const known = new Set(sourceFilenames);
+  const found = new Map(page.citations.flatMap((citation) => citation.spans).map((span) => [span.file, known.has(span.file)]));
+  const context = page.entityContext;
+  for (const source of context?.sources ?? []) found.set(source.file, source.resolved);
+  const missing = [...found.values()].filter((resolved) => !resolved).length;
+  return { total: found.size, missing, partial: context !== undefined && context.sourceTotal > context.sources.length };
+}
+
+/** The meta line's source phrase, e.g. "From 3 source files (1 missing)"; empty when the page draws on none. */
+export function sourceFilesLabel({ total, missing, partial }: { total: number; missing: number; partial: boolean }): string {
+  if (total === 0) return "";
+  const count = partial ? `${total}+ source files` : plural(total, "source file");
+  return `From ${count}${missing > 0 ? ` (${missing} missing)` : ""}`;
 }
 
 /** A cited range as a chip reads it: `L12–15`, `L12`, or "whole file" when the citation names no lines. */

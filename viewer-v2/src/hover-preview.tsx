@@ -15,7 +15,7 @@
  */
 import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
-import type { PageRow } from "./api";
+import type { PageRow, PagesEnvelope } from "./api";
 import { citedSourceText, findTrigger, isTracked, pageBlurb, pageKindLabel, previewTarget, sliceExcerpt, type CitationTarget, type Excerpt, type PreviewTarget } from "./preview-data";
 import { useAsync, type AsyncState } from "./use-async";
 
@@ -39,6 +39,9 @@ function usePreviewTrigger(): OpenPreview | null {
     let pending: HTMLElement | null = null;
     let current: HTMLElement | null = null;
     const show = (trigger: HTMLElement): void => {
+      // Whatever opens a card, keyboard focus or a delay running out, cancels any other card still waiting.
+      window.clearTimeout(timer);
+      pending = null;
       const target = previewTarget(trigger);
       current = target ? trigger : null;
       setOpen(target ? { trigger, target } : null);
@@ -127,8 +130,8 @@ function Blurb({ state }: { state: AsyncState<string> }): ReactNode {
 }
 
 /** A page's title, where it lives, and its summary, or its opening when it has none. */
-function PageCard({ id, row }: { id: string; row: PageRow | undefined }): ReactNode {
-  const blurb = useAsync(() => pageBlurb(id, row), id);
+function PageCard({ id, row, snapshot }: { id: string; row: PageRow | undefined; snapshot: string }): ReactNode {
+  const blurb = useAsync(() => pageBlurb(id, row, snapshot), id);
   return (
     <>
       <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{pageKindLabel(id, row)}</p>
@@ -159,12 +162,14 @@ function ExcerptLines({ excerpt }: { excerpt: Excerpt }): ReactNode {
 function CitationBody({ state, target }: { state: AsyncState<string>; target: CitationTarget }): ReactNode {
   if (state.status === "loading") return <p className="mt-1.5 text-zinc-500">Loading…</p>;
   if (state.status === "error") return <p className="mt-1.5 text-amber-700 dark:text-amber-400">The cited source is not available.</p>;
-  return <ExcerptLines excerpt={sliceExcerpt(state.data, target.lineStart, target.lineEnd)} />;
+  const excerpt = sliceExcerpt(state.data, target.lineStart, target.lineEnd);
+  if (excerpt.lines.length === 0) return <p className="mt-1.5 text-amber-700 dark:text-amber-400">The cited lines are past the end of the source.</p>;
+  return <ExcerptLines excerpt={excerpt} />;
 }
 
 /** The cited source's name, then its cited lines. */
-function CitationCard({ target }: { target: CitationTarget }): ReactNode {
-  const source = useAsync(() => citedSourceText(target), target.file);
+function CitationCard({ target, snapshot }: { target: CitationTarget; snapshot: string }): ReactNode {
+  const source = useAsync(() => citedSourceText(target, snapshot), target.file);
   return (
     <>
       <p className="truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">{target.file}</p>
@@ -173,8 +178,8 @@ function CitationCard({ target }: { target: CitationTarget }): ReactNode {
   );
 }
 
-/** The card for one open preview. */
-function PreviewCard({ open, rows }: { open: OpenPreview; rows: Map<string, PageRow> }): ReactNode {
+/** The card for one open preview; `snapshot` identifies the wiki the texts are cached for. */
+function PreviewCard({ open, rows, snapshot }: { open: OpenPreview; rows: Map<string, PageRow>; snapshot: string }): ReactNode {
   const [card, setCard] = useState<HTMLDivElement | null>(null);
   const id = useId();
   usePlacement(card, open.trigger, id);
@@ -182,17 +187,17 @@ function PreviewCard({ open, rows }: { open: OpenPreview; rows: Map<string, Page
   return (
     <div ref={setCard} id={id} role="tooltip" popover="manual"
       className={`pointer-events-none invisible fixed inset-auto z-50 m-0 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border-0 ${target.kind === "page" ? "w-96" : "w-[34rem]"} bg-white p-4 text-sm text-zinc-900 shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-white/10`}>
-      {target.kind === "page" ? <PageCard id={target.id} row={rows.get(target.id)} /> : <CitationCard target={target} />}
+      {target.kind === "page" ? <PageCard id={target.id} row={rows.get(target.id)} snapshot={snapshot} /> : <CitationCard target={target} snapshot={snapshot} />}
     </div>
   );
 }
 
 /** Mount once in the shell; shows a card for whichever trigger holds the reader's interest. */
-export function HoverPreviews({ pages }: { pages: PageRow[] }): ReactNode {
+export function HoverPreviews({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const open = usePreviewTrigger();
-  const rows = useMemo(() => new Map(pages.map((row) => [row.id, row])), [pages]);
+  const rows = useMemo(() => new Map(wiki.pages.map((row) => [row.id, row])), [wiki.pages]);
   if (open === null) return null;
-  return <PreviewCard key={previewKey(open.target)} open={open} rows={rows} />;
+  return <PreviewCard key={previewKey(open.target)} open={open} rows={rows} snapshot={wiki.updatedAt} />;
 }
 
 /** A key that remounts the card when the previewed thing changes. */

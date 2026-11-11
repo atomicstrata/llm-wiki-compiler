@@ -100,3 +100,10 @@ it("keeps manual zoom and Fit usable after the initial framing", async () => {
   expect(win.eval("d3.zoomTransform(document.querySelector('svg')).k")).not.toBe(0.5);
   expect(win.document.querySelector("svg > g")?.getAttribute("transform")).not.toMatch(/NaN|Infinity/);
 });
+
+it("shows the legend in the explorer and leaves it out of the compact dashboard panel", async () => {
+  const explorer = await graph(24, false);
+  const panel = await graph(24, true);
+  expect(explorer.container.querySelector(".graph-legend")?.textContent).toContain("Node kind");
+  expect(panel.container.querySelector(".graph-legend")).toBeNull();
+});

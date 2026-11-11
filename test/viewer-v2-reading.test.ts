@@ -12,7 +12,7 @@ import { activeHeading, assignHeadingIds, Outline, slugify } from "../viewer-v2/
 import { HoverPreviews } from "../viewer-v2/src/hover-preview.js";
 import { decorateChip } from "../viewer-v2/src/wiki-html.js";
 import { citedSourceText, findTrigger, isTracked, MAX_EXCERPT_LINES, pageBlurb, pageKindLabel, plainOpening, previewTarget, sliceExcerpt } from "../viewer-v2/src/preview-data.js";
-import { page, text } from "./fixtures/viewer-v2-fixtures.js";
+import { envelope, page, text } from "./fixtures/viewer-v2-fixtures.js";
 
 /** A detached document holding `html`. */
 function documentWith(html: string): Document {
@@ -41,8 +41,21 @@ describe("preview cards", () => {
     const row = page({ id: "concepts/alpha", summary: "Alpha in brief." });
     expect(pageKindLabel("concepts/alpha", row)).toBe("Concepts");
     expect(pageKindLabel("papers/p1", undefined)).toBe("Papers");
-    expect(await pageBlurb("concepts/alpha", row)).toBe("Alpha in brief.");
-    await expect(citedSourceText({ kind: "citation", file: "gone.md", resolved: false })).rejects.toThrow("gone.md");
+    expect(await pageBlurb("concepts/alpha", row, "s1")).toBe("Alpha in brief.");
+    await expect(citedSourceText({ kind: "citation", file: "gone.md", resolved: false }, "s1")).rejects.toThrow("gone.md");
+  });
+
+  it("fetches a cited source once per wiki snapshot, and again after a compile", async () => {
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => new Response(`v${++calls}`)) as unknown as typeof fetch;
+    try {
+      const target = { kind: "citation", file: "cache.md", resolved: true } as const;
+      expect([await citedSourceText(target, "s1"), await citedSourceText(target, "s1")]).toEqual(["v1", "v1"]);
+      expect(await citedSourceText(target, "s2")).toBe("v2");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
   it("treats moving within the open or pending trigger as no change", () => {
@@ -55,7 +68,7 @@ describe("preview cards", () => {
   });
 
   it("renders nothing until a trigger holds interest", () => {
-    expect(renderToStaticMarkup(createElement(HoverPreviews, { pages: [page({ id: "concepts/alpha" })] }))).toBe("");
+    expect(renderToStaticMarkup(createElement(HoverPreviews, { wiki: envelope({ pages: [page({ id: "concepts/alpha" })] }) }))).toBe("");
   });
 });
 
@@ -86,6 +99,7 @@ describe("cited excerpts", () => {
     expect(sliceExcerpt(SOURCE, 7, 7).lines).toEqual([{ number: 7, text: "line 7" }]);
     expect(sliceExcerpt(SOURCE).lines.map((line) => line.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(sliceExcerpt(SOURCE, 29, 40)).toEqual({ lines: [{ number: 29, text: "line 29" }, { number: 30, text: "line 30" }], hiddenCount: 0 });
+    expect(sliceExcerpt(SOURCE, 40, 42).lines).toEqual([]);
   });
 });
 

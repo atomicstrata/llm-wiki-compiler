@@ -16,7 +16,7 @@ function LoadedIndex(): ReactNode {
 export function IndexView({ hasIndex }: { hasIndex: boolean }): ReactNode {
   if (hasIndex) return <LoadedIndex />;
   return (
-    <Screen title="Index">
+    <Screen title="Overview">
       <EmptyState title="No compiled index" body="wiki/index.md is not available yet." command="$ llmwiki compile" />
     </Screen>
   );

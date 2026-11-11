@@ -6,9 +6,10 @@
  * every query word must match, a title beats a summary, a word start beats the
  * middle of a word, and a scattered subsequence ("fsep" for "Founder
  * Separation") still counts, below both, but only in a title and only when
- * each letter continues the previous match or starts a word: without that, a
- * long title or summary holds nearly any word as scattered letters. The server's full-text search stays a
- * separate group, because it reads page bodies the client does not have.
+ * each letter continues the previous match or starts a word; without that, a
+ * long title holds nearly any word as scattered letters. The server's
+ * full-text search stays a separate group, because it reads page bodies the
+ * client does not have.
  * Recent pages live in `localStorage` for this origin only (see `storage.ts`).
  */
 import type { PageRow, SearchResult } from "./api";
