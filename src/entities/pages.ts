@@ -20,9 +20,10 @@
 import { createHash } from "node:crypto";
 import { buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
-import { withGenerated } from "../wiki/generated-section.js";
+import { linkList, withGenerated, type PageLink } from "../wiki/generated-section.js";
 import { CITED_BULLETS, mergeRanges, overlaps, SUMMARY_PREFIX, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
 import type { DayBucket } from "../timeline/buckets.js";
+import { formatDay } from "../timeline/pages.js";
 import type { ExtractableType } from "./schema.js";
 import type { ResolvedRecord } from "./identity.js";
 
@@ -35,12 +36,6 @@ const CONTEXT_LINES = 2;
 export interface ShownSource {
   file: string;
   ranges: LineRange[];
-}
-
-/** A link to another page, as a generated list shows it. */
-export interface PageLink {
-  target: string;
-  title: string;
 }
 
 /** What a record page records about itself in frontmatter. */
@@ -94,6 +89,11 @@ function mostFrequent(values: unknown[]): unknown {
     counts.set(key, { value, count: (counts.get(key)?.count ?? 0) + 1 });
   }
   return [...counts.values()].reduce((best, entry) => (entry.count > best.count ? entry : best)).value;
+}
+
+/** Whether a page's frontmatter says this step wrote it (a record page or the hub). */
+export function isRecordPage(meta: Record<string, unknown>): boolean {
+  return typeof meta.entitySignature === "string";
 }
 
 /** The signature of what a record page is generated from; equal signatures mean the page is current. */
@@ -156,21 +156,15 @@ export function withAliases(text: string, aliases: string[]): string {
 export function recordDays(record: ResolvedRecord, days: DayBucket[]): PageLink[] {
   return days.filter((day) => day.sources.some((source) => record.mentions.some((mention) =>
     mention.file === source.file && mention.lines.some((lines) => source.ranges.some((range) => overlaps(range, lines))))))
-    .map((day) => ({ target: `timeline/${day.day}`, title: dayLabel(day.day) }));
-}
-
-/** `May 4, 2026` for a day. */
-function dayLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" });
+    .map((day) => ({ target: `timeline/${day.day}`, title: formatDay(day.day, false) }));
 }
 
 /** A record page's generated tail: the days it appears on, then the records it might be the same as. */
 export function recordTail(days: PageLink[], maybeSame: PageLink[]): string {
-  const list = (links: PageLink[]): string => links.map((link) => `- [[${link.target}|${link.title}]]`).join("\n");
   return [
-    days.length > 0 ? `## Days\n\n${list(days)}` : "",
+    days.length > 0 ? `## Days\n\n${linkList(days)}` : "",
     maybeSame.length > 0
-      ? `## Might be the same as\n\n${list(maybeSame)}\n\nNot merged. If they are one, list their names under one id in \`.llmwiki/aliases.json\`.`
+      ? `## Might be the same as\n\n${linkList(maybeSame)}\n\nNot merged. If they are one, list their names under one id in \`.llmwiki/aliases.json\`.`
       : "",
   ].filter(Boolean).join("\n\n");
 }

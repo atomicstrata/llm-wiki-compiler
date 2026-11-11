@@ -11,28 +11,22 @@
  */
 
 import { callClaude } from "../utils/llm.js";
-import { TIMELINE_DIR } from "../utils/constants.js";
-import { diskLocalEntityScans, diskLocalReads } from "../storage/disk-local-reads.js";
+import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import { collectRawWikiPagesFrom } from "../wiki/collect.js";
-import { readWikiPageContentOrWarnFrom } from "../compiler/confined-wiki-read.js";
-import { localDerivedSteps } from "../compiler/derived-steps.js";
+import { localDerivedSteps, type DerivedResult } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import * as output from "../utils/output.js";
 import { listRecordMentions } from "../entities/local.js";
 import type { TimelineSchema } from "../schema/types.js";
-import { generateTimelineWith, type TimelineResult, type TimelineSteps } from "./generate.js";
+import { generateTimelineWith, type TimelineSteps } from "./generate.js";
 
 /** The entity type whose records a day lists under "People this day". */
 const PEOPLE_TYPE = "person";
 
 /** The timeline steps over the local project at `root`. */
 function localTimelineSteps(root: string): TimelineSteps {
-  const reads = diskLocalReads(root);
   return {
     ...localDerivedSteps(root),
-    listTimelineSlugs: async () => (await reads.listNames(TIMELINE_DIR).catch(() => []))
-      .filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length)),
-    readTimelinePage: (slug) => readWikiPageContentOrWarnFrom(reads, TIMELINE_DIR, slug, false),
     listConceptPages: async () => (await collectRawWikiPagesFrom(diskLocalEntityScans(root)))
       .filter((page) => page.pageDirectory === "concepts")
       .map((page) => ({ slug: page.slug, title: page.title ?? page.slug, body: page.body })),
@@ -48,10 +42,10 @@ function localTimelineSteps(root: string): TimelineSteps {
  * @param timeline - The schema's timeline settings; disabled does nothing.
  * @param concurrency - The compile's `--concurrency`, if given; otherwise the env var or the default.
  */
-export async function generateTimeline(root: string, timeline: TimelineSchema, concurrency?: number): Promise<TimelineResult> {
+export async function generateTimeline(root: string, timeline: TimelineSchema, concurrency?: number): Promise<DerivedResult> {
   if (!timeline.enabled) return { written: [], deleted: [], errors: [] };
   output.status("🗓", output.info("Updating the timeline..."));
-  const result = await generateTimelineWith(localTimelineSteps(root), timeline, resolveCompileConcurrency(concurrency));
+  const result = await generateTimelineWith(localTimelineSteps(root), { ...timeline, concurrency: resolveCompileConcurrency(concurrency) });
   for (const error of result.errors) output.status("!", output.warn(error));
   if (result.written.length + result.deleted.length > 0) {
     output.status("✓", output.success(`Timeline: ${result.written.length} written, ${result.deleted.length} removed.`));

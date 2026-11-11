@@ -21,7 +21,6 @@
  */
 
 import type { ViewerPage, ViewerPageDirectory, ViewerPageId, ViewerSnapshot } from "./types.js";
-import { TIMELINE_NAMESPACE } from "../timeline/pages.js";
 import { withoutGenerated } from "../wiki/generated-section.js";
 
 const MAX_QUERY_LENGTH = 200;
@@ -104,12 +103,12 @@ function matchPage(page: ViewerPage, tokens: string[]): SearchResult | null {
 }
 
 /**
- * The text a page is searched by. A timeline day's generated "Pages from this
- * day" list names other pages, not what happened, so it is left out: a day
- * should match on its own events, not on every concept it links to.
+ * The text a page is searched by. A generated tail (a day's "Pages from this
+ * day", a person's "Days") lists other pages, not what the page says, so it is
+ * left out: a page should match on its own content, not on every page it links to.
  */
 function searchableBody(page: ViewerPage): string {
-  return page.pageDirectory === TIMELINE_NAMESPACE ? withoutGenerated(page.body) : page.body;
+  return withoutGenerated(page.body);
 }
 
 /** Assemble a SearchResult from a page + computed snippet. */

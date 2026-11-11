@@ -19,29 +19,22 @@
  * is the host's, the reads and the compile page write are domain steps.
  */
 
-import pLimit from "p-limit";
+import pLimit, { type LimitFunction } from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
+import type { TimelineSchema } from "../schema/types.js";
+import { splitAnswer, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
+import {
+  claimable, completePage, deleteAndReport, ownPages, readSources, reportStrayCitations, stringField, writeAndReport,
+  type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
+} from "../compiler/derived-steps.js";
+import { withoutGenerated } from "../wiki/generated-section.js";
 import { dayBuckets, weekBuckets, type DayBucket, type WeekBucket } from "./buckets.js";
 import { dailyRequest, weeklyRequest } from "./prompts.js";
-import { citationsOutside, splitAnswer, type PageRequest } from "../compiler/source-excerpt.js";
-import { pagesCitingDay, peopleInDay, timelinePage, TIMELINE_NAMESPACE, withDaySections, type CitingPage, type DayPerson, type PersonMentions } from "./pages.js";
-import { withoutGenerated } from "../wiki/generated-section.js";
-import { applyWrites, type DerivedSteps } from "../compiler/derived-steps.js";
-
-/** How the timeline is configured for a project. */
-export interface TimelineConfig {
-  enabled: boolean;
-  /** IANA zone that decides which day an offset timestamp falls on. */
-  timeZone: string;
-}
+import { pagesCitingDay, peopleInDay, timelinePage, TIMELINE_NAMESPACE, withDaySections, type CitingPage, type DaySections, type PersonMentions } from "./pages.js";
 
 /** The reads, model call and write a timeline pass composes. */
 export interface TimelineSteps extends DerivedSteps {
-  /** Slugs of the pages already in `wiki/timeline/`. */
-  listTimelineSlugs(): Promise<string[]>;
-  /** A timeline page's text, or `""` when absent. */
-  readTimelinePage(slug: string): Promise<string>;
   /** The concept pages, for each day's "Pages from this day" section. */
   listConceptPages(): Promise<CitingPage[]>;
   /** The people with the lines they are mentioned on, for each day's "People this day" section. */
@@ -50,77 +43,70 @@ export interface TimelineSteps extends DerivedSteps {
   complete(request: PageRequest): Promise<string>;
 }
 
-/** What a timeline pass did. */
-export interface TimelineResult {
-  written: string[];
-  deleted: string[];
-  errors: string[];
+/** How a timeline pass runs: the project's timeline settings and how many model calls may run at once. */
+export interface TimelineRun extends TimelineSchema {
+  concurrency: number;
 }
 
-/** The pages already on disk, by slug: their text and the signature they were built from. */
-type ExistingPages = Map<string, { text: string; signature: string; createdAt: string }>;
-
-/**
- * Bring `wiki/timeline/` up to date with the sources.
- * @param steps - Reads, model call and write.
- * @param config - The project's timeline settings; a disabled timeline does nothing.
- * @param concurrency - How many model calls may run at once.
- */
-export async function generateTimelineWith(steps: TimelineSteps, config: TimelineConfig, concurrency: number): Promise<TimelineResult> {
-  const result: TimelineResult = { written: [], deleted: [], errors: [] };
-  if (!config.enabled) return result;
-  const { days: allDays, texts } = await readDays(steps, config.timeZone);
-  const { pages: existing, foreign } = await readExisting(steps);
-  const days = allDays.filter((day) => isWritable(day.day, foreign, result));
-  const weeks = weekBuckets(allDays).filter((week) => isWritable(week.week, foreign, result) && hasNoForeignDay(week, foreign, result));
-  const limit = pLimit(Math.max(1, concurrency));
-  const dailyWrites = await writeDays(steps, days, texts, existing, limit, result);
-  await writeWeeks(steps, weeks, existing, dailyWrites, limit, result);
-  await deleteOrphans(steps, days, weeks, existing, result);
-  return result;
+/** What one pass works over: its steps, the pages it wrote before, its concurrency, and where it reports. */
+interface TimelinePass {
+  steps: TimelineSteps;
+  existing: Map<string, OwnPage>;
+  limit: LimitFunction;
+  report: PageReport;
 }
 
-/** Read every compiled source and bucket its dated lines by day. */
-async function readDays(steps: TimelineSteps, timeZone: string): Promise<{ days: DayBucket[]; texts: Map<string, string> }> {
-  const sources = await steps.listSources();
-  const read = await Promise.all(sources.map(async (source) => ({ ...source, text: await steps.readSource(source.file) })));
+/** A day or week page to write, with the body the weekly pass reads (a refreshed tail carries none). */
+interface PeriodWrite {
+  write: CompilePageWrite;
+  body?: string;
+}
+
+/** What a regenerated period page is built from, besides the model's answer. */
+interface PeriodPage {
+  kind: "daily" | "weekly";
+  period: string;
+  sources: string[];
+  signature: string;
+  /** The source lines the model was shown, for the stray-citation check. */
+  shown: { file: string; ranges: LineRange[] }[];
+}
+
+/** Bring `wiki/timeline/` up to date with the sources; a disabled timeline does nothing. */
+export async function generateTimelineWith(steps: TimelineSteps, run: TimelineRun): Promise<DerivedResult> {
+  const report = timelineReport();
+  if (!run.enabled) return report.result;
+  const read = await readSources(steps);
   const texts = new Map(read.map((source) => [source.file, source.text]));
-  return { days: dayBuckets(read, timeZone), texts };
+  const allDays = dayBuckets(read, run.timeZone);
+  const { own: existing, foreign } = ownPages(await steps.listPages(TIMELINE_NAMESPACE), (meta) => meta.timeline === "daily" || meta.timeline === "weekly");
+  const pass: TimelinePass = { steps, existing, limit: pLimit(Math.max(1, run.concurrency)), report };
+  const days = allDays.filter((day) => claimable(report, day.day, foreign));
+  const weeks = weekBuckets(allDays).filter((week) => claimable(report, week.week, foreign) && hasNoForeignDay(report, week, foreign));
+  const dailyBodies = await writeDays(pass, days, texts);
+  await writeWeeks(pass, weeks, dailyBodies);
+  await deleteAndReport(report, steps, orphanDeletes(pass, days, weeks));
+  return report.result;
 }
 
-/**
- * The pages this step generated, with the signature each was built from, and the
- * slugs of the other files in `wiki/timeline/`. A file without `timeline`
- * frontmatter was not written here, so it is never replaced or deleted.
- */
-async function readExisting(steps: TimelineSteps): Promise<{ pages: ExistingPages; foreign: Set<string> }> {
-  const pages: ExistingPages = new Map();
-  const foreign = new Set<string>();
-  for (const slug of await steps.listTimelineSlugs()) {
-    const text = await steps.readTimelinePage(slug);
-    if (!text) continue;
-    const { meta } = parseFrontmatter(text);
-    if (meta.timeline !== "daily" && meta.timeline !== "weekly") { foreign.add(slug); continue; }
-    pages.set(slug, {
-      text,
-      signature: typeof meta.timelineSignature === "string" ? meta.timelineSignature : "",
-      createdAt: typeof meta.createdAt === "string" ? meta.createdAt : "",
-    });
-  }
-  return { pages, foreign };
+/** How the timeline names its pages in what it reports. */
+function timelineReport(): PageReport {
+  return {
+    directory: TIMELINE_NAMESPACE, writer: "the timeline",
+    label: (slug) => `Timeline page "${slug}"`, id: (slug) => slug,
+    result: { written: [], deleted: [], errors: [] },
+  };
+}
+
+/** The signature a timeline page was built from. */
+function signatureOf(page: OwnPage | undefined): string {
+  return page ? stringField(page.meta, "timelineSignature") : "";
 }
 
 /** Whether every day of a week can have a generated page; a hand-written day holds the week back, and says so. */
-function hasNoForeignDay(week: WeekBucket, foreign: ReadonlySet<string>, result: TimelineResult): boolean {
+function hasNoForeignDay(report: PageReport, week: WeekBucket, foreign: ReadonlySet<string>): boolean {
   if (week.days.every((day) => !foreign.has(day.day))) return true;
-  result.errors.push(`Timeline week "${week.week}" not written: one of its days is a hand-written page`);
-  return false;
-}
-
-/** Whether a period's page may be written: not when a file this step did not write already holds its name. */
-function isWritable(period: string, foreign: ReadonlySet<string>, result: TimelineResult): boolean {
-  if (!foreign.has(period)) return true;
-  result.errors.push(`wiki/timeline/${period}.md was not written by the timeline; left as it is`);
+  report.result.errors.push(`Timeline week "${week.week}" not written: one of its days is a hand-written page`);
   return false;
 }
 
@@ -130,101 +116,76 @@ function isWritable(period: string, foreign: ReadonlySet<string>, result: Timeli
  * pages moved, without a model call.
  * @returns Day → page body of the days written, for the weekly pass.
  */
-async function writeDays(
-  steps: TimelineSteps, days: DayBucket[], texts: Map<string, string>, existing: ExistingPages,
-  limit: ReturnType<typeof pLimit>, result: TimelineResult,
-): Promise<Map<string, string>> {
+async function writeDays(pass: TimelinePass, days: DayBucket[], texts: Map<string, string>): Promise<Map<string, string>> {
   if (days.length === 0) return new Map();
-  const [conceptPages, people] = await Promise.all([steps.listConceptPages(), steps.listPeople()]);
+  const [conceptPages, people] = await Promise.all([pass.steps.listConceptPages(), pass.steps.listPeople()]);
   const singleDayFiles = singleDaySources(days);
-  const writes = await Promise.all(days.map((day) => limit(async () => {
-    const related = pagesCitingDay(day, conceptPages, singleDayFiles);
-    const dayPeople = peopleInDay(day, people);
-    const page = existing.get(day.day);
-    if (page && page.signature === day.signature) return refreshedSections(page.text, day.day, related, dayPeople);
-    const { request, shown } = dailyRequest(day, texts);
-    const answer = await completeOrRecord(steps, request, day.day, result);
-    if (answer === null) return null;
-    reportStrayCitations(answer, day.day, [shown], result);
-    return pageWrite(steps, existing, { kind: "daily", period: day.day, sources: day.sources.map((s) => s.file), signature: day.signature }, answer, related, dayPeople);
-  })));
-  return commit(steps, writes, result);
+  const planned = await Promise.all(days.map((day) => pass.limit(() => planDay(pass, day, texts, {
+    related: pagesCitingDay(day, conceptPages, singleDayFiles), people: peopleInDay(day, people),
+  }))));
+  return commit(pass, planned);
 }
 
-/** A rewrite of a current day page whose generated tail is out of date, or null when it is up to date. */
-function refreshedSections(text: string, day: string, related: CitingPage[], people: DayPerson[]): (CompilePageWrite & { pageBody: string }) | null {
-  const updated = withDaySections(text, related, people);
-  if (updated === text) return null;
-  return { namespace: TIMELINE_NAMESPACE, slug: day, body: updated, pageBody: "" };
+/** A day's write: its page regenerated when its lines changed, else its tail refreshed, else nothing. */
+async function planDay(pass: TimelinePass, day: DayBucket, texts: Map<string, string>, sections: DaySections): Promise<PeriodWrite | null> {
+  const page = pass.existing.get(day.day);
+  if (page && signatureOf(page) === day.signature) {
+    const updated = withDaySections(page.text, sections);
+    return updated === page.text ? null : { write: timelineWrite(day.day, updated) };
+  }
+  const { request, shown } = dailyRequest(day, texts);
+  const answer = await completePage(pass.report, (req) => pass.steps.complete(req), request, day.day);
+  if (answer === null) return null;
+  const sources = day.sources.map((source) => source.file);
+  return periodWrite(pass, { kind: "daily", period: day.day, sources, signature: day.signature, shown: shown.sources }, answer, sections);
 }
 
 /** Write every week whose days changed and whose days all have pages. */
-async function writeWeeks(
-  steps: TimelineSteps, weeks: WeekBucket[], existing: ExistingPages, freshDays: Map<string, string>,
-  limit: ReturnType<typeof pLimit>, result: TimelineResult,
-): Promise<void> {
-  const stale = weeks.filter((week) => existing.get(week.week)?.signature !== week.signature);
-  const writes = await Promise.all(stale.map((week) => limit(async () => {
-    const bodies = week.days.map((day) => ({ day: day.day, body: freshDays.get(day.day) ?? currentBody(existing, day) }));
-    if (bodies.some((entry) => !entry.body)) return null;
-    const answer = await completeOrRecord(steps, weeklyRequest(week.week, bodies), week.week, result);
-    if (answer === null) return null;
-    reportStrayCitations(answer, week.week, week.days, result);
-    const sources = [...new Set(week.days.flatMap((day) => day.sources.map((s) => s.file)))].sort();
-    return pageWrite(steps, existing, { kind: "weekly", period: week.week, sources, signature: week.signature }, answer);
-  })));
-  await commit(steps, writes, result);
+async function writeWeeks(pass: TimelinePass, weeks: WeekBucket[], freshDays: Map<string, string>): Promise<void> {
+  const stale = weeks.filter((week) => signatureOf(pass.existing.get(week.week)) !== week.signature);
+  const planned = await Promise.all(stale.map((week) => pass.limit(() => planWeek(pass, week, freshDays))));
+  await commit(pass, planned);
 }
 
-/** Remove timeline pages for days and weeks no source covers any more. */
-async function deleteOrphans(steps: TimelineSteps, days: DayBucket[], weeks: WeekBucket[], existing: ExistingPages, result: TimelineResult): Promise<void> {
+/** A week's regenerated page, or null when one of its days has no current page or the model call fails. */
+async function planWeek(pass: TimelinePass, week: WeekBucket, freshDays: Map<string, string>): Promise<PeriodWrite | null> {
+  const bodies = week.days.map((day) => ({ day: day.day, body: freshDays.get(day.day) ?? currentBody(pass, day) }));
+  if (bodies.some((entry) => !entry.body)) return null;
+  const answer = await completePage(pass.report, (req) => pass.steps.complete(req), weeklyRequest(week.week, bodies), week.week);
+  if (answer === null) return null;
+  const sources = [...new Set(week.days.flatMap((day) => day.sources.map((source) => source.file)))].sort();
+  const shown = week.days.flatMap((day) => day.sources);
+  return periodWrite(pass, { kind: "weekly", period: week.week, sources, signature: week.signature, shown }, answer);
+}
+
+/** The deletes for timeline pages of days and weeks no source covers any more. */
+function orphanDeletes(pass: TimelinePass, days: DayBucket[], weeks: WeekBucket[]): CompilePageWrite[] {
   const live = new Set([...days.map((day) => day.day), ...weeks.map((week) => week.week)]);
-  const writes = [...existing].filter(([slug]) => !live.has(slug))
-    .map(([slug, page]): CompilePageWrite => ({ namespace: TIMELINE_NAMESPACE, slug, body: page.text, deleting: true }));
-  const { landed, blocked } = await applyWrites(steps, writes);
-  for (const write of blocked) result.errors.push(`Timeline page "${write.slug}" not removed`);
-  result.deleted.push(...landed.map((write) => write.slug));
+  return [...pass.existing].filter(([slug]) => !live.has(slug))
+    .map(([slug, page]) => ({ ...timelineWrite(slug, page.text), deleting: true }));
 }
 
-/** A day or week page write, keeping the page's original creation time. */
-function pageWrite(
-  steps: TimelineSteps, existing: ExistingPages,
-  page: { kind: "daily" | "weekly"; period: string; sources: string[]; signature: string },
-  answer: string, related: CitingPage[] = [], people: DayPerson[] = [],
-): CompilePageWrite & { pageBody: string } {
+/** A regenerated day or week page from the model's answer, keeping the page's original creation time. */
+function periodWrite(pass: TimelinePass, page: PeriodPage, answer: string, sections?: DaySections): PeriodWrite {
   const { summary, body } = splitAnswer(answer);
-  const now = steps.now();
-  const createdAt = existing.get(page.period)?.createdAt || now;
-  const text = timelinePage({ ...page, summary, createdAt, updatedAt: now, provenance: steps.provenance() }, body, related, people);
-  return { namespace: TIMELINE_NAMESPACE, slug: page.period, body: text, pageBody: body };
+  reportStrayCitations(pass.report, page.period, body, page.shown);
+  const now = pass.steps.now();
+  const createdAt = stringField(pass.existing.get(page.period)?.meta ?? {}, "createdAt") || now;
+  const { shown: _shown, ...meta } = page;
+  const text = timelinePage({ ...meta, summary, createdAt, updatedAt: now, provenance: pass.steps.provenance() }, body, sections);
+  return { write: timelineWrite(page.period, text), body };
 }
 
-/** Record a page that cites lines it was not written from. The page is still written; the compile output names it. */
-function reportStrayCitations(answer: string, period: string, days: DayBucket[], result: TimelineResult): void {
-  const stray = citationsOutside(splitAnswer(answer).body, days);
-  if (stray > 0) result.errors.push(`Timeline page "${period}" cites ${stray} span${stray === 1 ? "" : "s"} outside the lines it was written from`);
+/** A write of `text` to `wiki/timeline/<slug>.md`. */
+function timelineWrite(slug: string, text: string): CompilePageWrite {
+  return { namespace: TIMELINE_NAMESPACE, slug, body: text };
 }
 
-/** The model's answer, or null after recording why there is none. */
-async function completeOrRecord(steps: TimelineSteps, request: PageRequest, period: string, result: TimelineResult): Promise<string | null> {
-  try {
-    const answer = await steps.complete(request);
-    if (splitAnswer(answer).body) return answer;
-    result.errors.push(`Timeline page "${period}" came back empty`);
-  } catch (error) {
-    result.errors.push(`Timeline page "${period}" failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  return null;
-}
-
-/** Apply the successful writes; returns slug → body of the regenerated pages that landed (a refreshed related section carries none). */
-async function commit(steps: TimelineSteps, writes: ((CompilePageWrite & { pageBody: string }) | null)[], result: TimelineResult): Promise<Map<string, string>> {
-  const ready = writes.filter((write): write is CompilePageWrite & { pageBody: string } => write !== null);
-  const bodies = new Map(ready.map((write) => [write.slug, write.pageBody]));
-  const { landed, blocked } = await applyWrites(steps, ready.map(({ pageBody: _body, ...write }) => write));
-  for (const write of blocked) result.errors.push(`Timeline page "${write.slug}" skipped by the write floor`);
-  result.written.push(...landed.map((write) => write.slug));
-  return new Map(landed.flatMap((write): [string, string][] => (bodies.get(write.slug) ? [[write.slug, bodies.get(write.slug)!]] : [])));
+/** Apply the planned writes; returns slug → body of the regenerated pages that landed, for the weekly pass. */
+async function commit(pass: TimelinePass, planned: (PeriodWrite | null)[]): Promise<Map<string, string>> {
+  const ready = planned.filter((plan): plan is PeriodWrite => plan !== null);
+  const landed = new Set(await writeAndReport(pass.report, pass.steps, ready.map((plan) => plan.write)));
+  return new Map(ready.filter((plan) => plan.body && landed.has(plan.write)).map((plan) => [plan.write.slug, plan.body!]));
 }
 
 /** Files whose dated content falls on exactly one day, so a whole-file citation of them belongs to that day. */
@@ -238,8 +199,8 @@ function singleDaySources(days: DayBucket[]): Set<string> {
  * A day page's body as the week should read it, or `""` when the page on disk was
  * built from other inputs (its regeneration failed this run) and must not be used.
  */
-function currentBody(existing: ExistingPages, day: DayBucket): string {
-  const page = existing.get(day.day);
-  if (!page || page.signature !== day.signature) return "";
+function currentBody(pass: TimelinePass, day: DayBucket): string {
+  const page = pass.existing.get(day.day);
+  if (!page || signatureOf(page) !== day.signature) return "";
   return withoutGenerated(parseFrontmatter(page.text).body).trim();
 }

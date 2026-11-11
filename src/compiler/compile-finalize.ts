@@ -131,7 +131,8 @@ export async function seedThenFinalize(
  * THE ONE BODY of {@link seedThenFinalize}: seed pages unless reviewing or told
  * to skip them, then finalize, then the entity pages, then the timeline. Both read
  * the state this compile flushed; the timeline runs last because it links days to
- * the concept and entity pages just written; a review run holds pages back, so it leaves the timeline alone.
+ * the concept and entity pages just written. A review run holds pages back, so it
+ * leaves the entity pages and the timeline alone.
  */
 export async function seedThenFinalizeWith(
   steps: CompileFinalizeSteps,

@@ -17,6 +17,18 @@ const GENERATED_MARKER = "[//]: # (llmwiki-generated)";
 /** Other markers a timeline page's tail may start with; a refresh replaces them. */
 const LEGACY_MARKERS = ["[//]: # (llmwiki-timeline-related)", "<!-- llmwiki:timeline-related -->"];
 
+/** A link to another page, as a generated list shows it. */
+export interface PageLink {
+  /** The page's path under wiki/: `trip-plan`, `person/alex-kim`, `timeline/2026-05-04`. */
+  target: string;
+  title: string;
+}
+
+/** Links as a markdown bullet list of wikilinks. */
+export function linkList(links: PageLink[]): string {
+  return links.map((link) => `- [[${link.target}|${link.title}]]`).join("\n");
+}
+
 /** A page's text without its generated tail. */
 export function withoutGenerated(text: string): string {
   const at = Math.max(...[GENERATED_MARKER, ...LEGACY_MARKERS].map((marker) => text.lastIndexOf(marker)));

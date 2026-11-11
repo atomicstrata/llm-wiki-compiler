@@ -16,7 +16,7 @@
  */
 
 import { createHash } from "node:crypto";
-import type { EntityTypeDef, FieldDef, ProfilePack } from "../profile/types.js";
+import type { EntityExtractDef, EntityTypeDef, FieldDef, ProfilePack } from "../profile/types.js";
 
 /** Field types extraction can fill from text; references and artifacts are not read from sources. */
 const EXTRACTABLE_FIELD_TYPES = new Set(["string", "slug", "date", "enum", "string[]", "number", "integer", "boolean"]);
@@ -27,7 +27,7 @@ const RECORD_SHAPE_VERSION = 2;
 /** An entity type opted into extraction, with the fields extraction fills. */
 export interface ExtractableType {
   type: string;
-  def: EntityTypeDef;
+  def: EntityTypeDef & { extract: EntityExtractDef };
   /** Declared fields extraction fills, in name order. */
   fields: [string, FieldDef][];
 }
@@ -35,7 +35,7 @@ export interface ExtractableType {
 /** The entity types a profile opts into extraction, in name order. */
 export function extractableTypes(profile: ProfilePack): ExtractableType[] {
   return Object.entries(profile.entities)
-    .filter(([, def]) => def.extract !== undefined)
+    .filter((entry): entry is [string, EntityTypeDef & { extract: EntityExtractDef }] => entry[1].extract !== undefined)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([type, def]) => ({
       type,

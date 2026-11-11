@@ -28,7 +28,7 @@
  */
 
 import { slugify } from "../utils/markdown.js";
-import type { LineRange } from "../compiler/source-excerpt.js";
+import type { ExtractedRecord } from "./extract.js";
 
 /** The owner's alias registry. */
 export interface AliasRegistry {
@@ -39,15 +39,9 @@ export interface AliasRegistry {
   exclude?: Record<string, string[]>;
 }
 
-/** One record as one source names it. */
-export interface Mention {
+/** One record as one source names it: an extracted record and the file it came from. */
+export interface Mention extends ExtractedRecord {
   file: string;
-  /** Who it is. */
-  name: string;
-  /** How the source writes it, as written. */
-  writtenAs?: string[];
-  fields: Record<string, unknown>;
-  lines: LineRange[];
 }
 
 /** One record after identity: its id, every name it went by, how the sources wrote it, and every mention. */
@@ -65,36 +59,50 @@ const MAX_ID_LENGTH = 80;
 
 /**
  * Read the registry text, or an empty registry when there is none. Malformed
- * JSON, an `exclude` that is not a map of type → list of names, or a name both
- * excluded and registered throws, so a mistake is never silently ignored.
+ * JSON, any part of the wrong shape (an owner without a type and a list of
+ * names, a record id that is not a slug, a map that is not of lists), or a name
+ * both excluded and registered throws, so a mistake is never silently ignored.
  */
 export function parseRegistry(text: string | null): AliasRegistry {
   if (text === null) return { entities: {} };
-  const raw = JSON.parse(text) as Partial<Record<keyof AliasRegistry, unknown>> & { owner?: { type?: unknown; names?: unknown } };
-  const owner = raw.owner && typeof raw.owner.type === "string" && Array.isArray(raw.owner.names)
-    ? { type: raw.owner.type, names: strings(raw.owner.names) } : undefined;
-  const entities: AliasRegistry["entities"] = {};
-  for (const [type, records] of Object.entries((raw.entities ?? {}) as Record<string, Record<string, unknown>>)) {
-    entities[type] = Object.fromEntries(Object.entries(records ?? {})
-      .filter(([id, names]) => SLUG.test(id) && Array.isArray(names))
-      .map(([id, names]) => [id, strings(names)]));
+  const raw = JSON.parse(text) as Record<string, unknown>;
+  const owner = parseOwner(raw.owner);
+  const entities = Object.fromEntries(Object.entries(mapOf(raw.entities, '"entities" must map each entity type to its records'))
+    .map(([type, records]) => [type, listsByKey(records, `"entities.${type}" must map each record id to a list of names`)]));
+  for (const [type, records] of Object.entries(entities)) {
+    const bad = Object.keys(records).find((id) => !SLUG.test(id));
+    if (bad !== undefined) throw new Error(`"entities.${type}" record id "${bad}" is not a slug (lowercase letters, digits and hyphens)`);
   }
-  const exclude = parseExclude(raw.exclude);
+  const exclude = listsByKey(raw.exclude, '"exclude" must map each entity type to a list of names');
   assertNotBoth(entities, exclude);
   return { ...(owner ? { owner } : {}), entities, ...(Object.keys(exclude).length > 0 ? { exclude } : {}) };
 }
 
-/** The strings in a list, ignoring anything else. */
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+/** The owner, or undefined when there is none; an owner without a type and a list of names throws. */
+function parseOwner(value: unknown): AliasRegistry["owner"] {
+  if (value === undefined) return undefined;
+  const owner = mapOf(value, '"owner" must be { "type": …, "names": [ … ] }');
+  if (typeof owner.type !== "string" || !Array.isArray(owner.names)) throw new Error('"owner" must be { "type": …, "names": [ … ] }');
+  return { type: owner.type, names: strings(owner.names) };
 }
 
-/** `exclude` as type → names; anything but a map of lists throws. */
-function parseExclude(value: unknown): Record<string, string[]> {
+/** `value` as an object (`{}` when absent); anything else throws `message`. */
+function mapOf(value: unknown, message: string): Record<string, unknown> {
   if (value === undefined) return {};
-  const isMap = typeof value === "object" && value !== null && !Array.isArray(value);
-  if (!isMap || !Object.values(value).every(Array.isArray)) throw new Error('"exclude" must map each entity type to a list of names');
-  return Object.fromEntries(Object.entries(value).map(([type, names]) => [type, strings(names)]));
+  if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(message);
+  return value as Record<string, unknown>;
+}
+
+/** `value` as key → list of strings (`{}` when absent); a value that is not a list throws `message`. */
+function listsByKey(value: unknown, message: string): Record<string, string[]> {
+  const map = mapOf(value, message);
+  if (!Object.values(map).every(Array.isArray)) throw new Error(message);
+  return Object.fromEntries(Object.entries(map).map(([key, names]) => [key, strings(names)]));
+}
+
+/** The strings in a list, ignoring anything else. */
+function strings(value: unknown): string[] {
+  return (value as unknown[]).filter((item): item is string => typeof item === "string");
 }
 
 /** Throw when a name is both excluded and registered under a record id of the same type. */
@@ -141,7 +149,9 @@ export function hubId(registry: AliasRegistry, type: string): string | null {
  * its name's slug, with a numbered suffix when another record or the hub has it.
  */
 export function resolveRecords(type: string, mentions: Mention[], registry: AliasRegistry): ResolvedRecord[] {
-  const taken = new Set([...Object.keys(registry.entities[type] ?? {}), ...[hubId(registry, type) ?? []].flat()]);
+  const taken = new Set(Object.keys(registry.entities[type] ?? {}));
+  const hub = hubId(registry, type);
+  if (hub) taken.add(hub);
   // Excluded names still take their ids here, so excluding one never renames another record.
   return [...groupMentions(type, mentions, registry)].sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => ({ group, id: group.registered ?? uniqueId(recordId(group.names[0]), taken) }))
@@ -226,12 +236,11 @@ export function displayName(record: ResolvedRecord, registered: string[] | undef
  * mother") is not indexed by its first word, which names someone else.
  */
 export function possibleDuplicates(records: ResolvedRecord[]): Map<string, string[]> {
-  const flags = new Map<string, string[]>();
+  const others = new Map<string, Set<string>>();
   for (const ids of firstNameIndex(records).values()) {
-    if (ids.size < 2) continue;
-    for (const id of ids) flags.set(id, [...new Set([...(flags.get(id) ?? []), ...[...ids].filter((other) => other !== id)])].sort());
+    for (const id of ids) for (const other of ids) if (other !== id) others.set(id, (others.get(id) ?? new Set()).add(other));
   }
-  return flags;
+  return new Map([...others].map(([id, ids]) => [id, [...ids].sort()]));
 }
 
 /** First word → ids of the records with a name or spelling starting with it; relation names are left out. */
