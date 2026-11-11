@@ -164,7 +164,7 @@ describe("the compositions and the root forms", () => {
     const { order } = stubs;
     expect((await blockAtGate("/project", BINDING, GATE, ACTOR, "2026-10-14T00:00:00.000Z")).status).toBe("moved");
     expect([order, acquire.mock.calls, read.mock.calls, release.mock.calls]).toEqual([
-      ["acquire", "read", "append", "release"], [["/project", "ordinary"]], [["/project", BINDING]], [["/project"]],
+      ["acquire", "read", "append", "release"], [["/project", "ordinary"]], [["/project", BINDING, expect.anything()]], [["/project"]],
     ]);
     expect(append.mock.calls[0]?.slice(0, 3)).toEqual(["/project", BINDING, { stateVersion: 2, chainTip: "tip" }]);
   });

@@ -33,9 +33,7 @@
 import { createHash } from "node:crypto";
 import { recomputeGrantDigest } from "../operation-bundles/operations-authority-resolver.js";
 import type { OperationPrincipal } from "../operation-bundles/principal.js";
-import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import type { Sha256Digest } from "../capability-providers/types.js";
-import { releaseLock } from "../utils/lock.js";
 import { assertCompletenessPermitsSuccess, toRunCompletenessRecord, type PreparationCompletenessV1 } from "./completeness.js";
 import {
   preparationCancellationRequested, preparationCancellationRequestedFrom,
@@ -46,6 +44,7 @@ import {
   type EvidenceWriteResult, type PreparationEvidenceLocation, type PreparationEvidenceWriteSteps,
 } from "./evidence-store.js";
 import { ownerProcessIsLive } from "./attempts/lease.js";
+import { diskGateDriverSteps } from "./gate-driver.js";
 import {
   MATERIALIZATION_MANIFEST_KIND, serializeMaterializationManifest,
   type MaterializationResultV1, type PreparationHandoffMaterializationV1,
@@ -55,7 +54,7 @@ import {
 } from "./manifest-store.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import {
-  appendPreparationTransitionWith, appendProjectedTransitionLocked, readPreparationRun, readPreparationRunFrom,
+  appendPreparationTransitionWith, readPreparationRunFrom,
   type PreparationRunContentProjector, type PreparationRunLeafReads, type PreparationRunRead, type PreparationRunWriteSteps,
 } from "./run-store.js";
 import type { EvidenceRefV1 } from "./types.js";
@@ -109,15 +108,18 @@ export interface FinalizationSteps {
   ): Promise<PreparationRunV1>;
 }
 
-/** LOCAL DISK. The incumbent lock, readers and writers for `root`, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent lock, readers and writers for `root`, each called when
+ * asked. The lock, the run read and the append are the gate driver's
+ * (`diskGateDriverSteps`): ONE HOLD's run and key reads, ended by the append. The
+ * evidence written between the read and the append is not the run or the key.
+ */
 function diskFinalizationSteps(root: string): FinalizationSteps {
   return {
-    lock: { acquire: () => acquireMutationLockBlocking(root, "ordinary"), release: () => releaseLock(root) },
-    readRun: (binding) => readPreparationRun(root, binding),
+    ...diskGateDriverSteps(root),
     cancellationRequested: (workspaceId, runId) => preparationCancellationRequested(root, workspaceId, runId),
     readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
     writeEvidence: (location, bytes) => writePreparationEvidenceCreateOnly(root, location, bytes),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
   };
 }
 
