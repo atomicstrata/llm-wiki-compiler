@@ -39,6 +39,8 @@ const recordSites = process.env.LLMWIKI_CALL_SITES === "1";
 // A site looks past the primitives' own frames, so it needs a deeper stack.
 if (recordSites) Error.stackTraceLimit = 40;
 const appendFileSync = fs.appendFileSync;
+/** True while a counted call is running its original; see {@link counted}. */
+let nested = false;
 
 /**
  * Count one call to `op`, and its call site when sites are recorded. A site is
@@ -58,11 +60,38 @@ function count(op: string): void {
   sites.set(site, (sites.get(site) ?? 0) + 1);
 }
 
+/** An op's name, fixed or derived from the call's arguments. */
+type OpName = string | ((args: unknown[]) => string);
+
+/**
+ * A spawn's op names what it starts: `spawn:git`, or for a runtime the script
+ * it runs, `spawn:bun cli.js`. Commands come as a string, an argv array, or
+ * Bun's `{ cmd }` options; the shell form is named by its first word.
+ */
+function spawnName(args: unknown[]): string {
+  const [first, second] = args;
+  const argv = Array.isArray(first) ? first : (first as { cmd?: unknown[] } | null)?.cmd
+    ?? [String(first).split(" ")[0], ...(Array.isArray(second) ? second : [])];
+  const [command, ...rest] = (argv as unknown[]).map(String);
+  const name = path.basename(command ?? "unknown");
+  const script = /^(bun|node)$/u.test(name) ? rest.find((arg) => !arg.startsWith("-")) : undefined;
+  return `spawn:${script === undefined ? name : `${name} ${path.basename(script)}`}`;
+}
+
 /** `original`, counting each call as `op`; what callers read off the function itself is kept. */
-function counted(original: (...args: unknown[]) => unknown, op: string, customForm = true): (...args: unknown[]) => unknown {
+function counted(original: (...args: unknown[]) => unknown, op: OpName, customForm = true): (...args: unknown[]) => unknown {
   const wrapper = function (this: unknown, ...args: unknown[]) {
-    count(op);
-    return original.apply(this, args);
+    // One call from the caller is one op. Bun's own fs functions call other fs
+    // functions (`fs.promises.opendir` calls `fs.opendir`); those nested calls
+    // happen synchronously inside this one and are not counted again.
+    if (nested) return original.apply(this, args);
+    nested = true;
+    try {
+      count(typeof op === "string" ? op : op(args));
+      return original.apply(this, args);
+    } finally {
+      nested = false;
+    }
   };
   for (const key of Reflect.ownKeys(original)) {
     if (!(key in wrapper)) Object.defineProperty(wrapper, key, Object.getOwnPropertyDescriptor(original, key)!);
@@ -77,7 +106,7 @@ function counted(original: (...args: unknown[]) => unknown, op: string, customFo
 }
 
 /** Replace each named function on `owner` with its counted form. */
-function wrap(owner: Record<string, unknown>, names: readonly string[], label: (name: string) => string): void {
+function wrap(owner: Record<string, unknown>, names: readonly string[], label: (name: string) => OpName): void {
   for (const name of names) {
     const original = owner[name];
     if (typeof original === "function") owner[name] = counted(original as (...args: unknown[]) => unknown, label(name));
@@ -98,8 +127,8 @@ export async function installCallCounting(prefix: string): Promise<void> {
   wrap(fs as unknown as Record<string, unknown>, apiFunctions(fs).filter((name) => name !== "promises"), (name) => `${prefix}${name.replace(/Sync$/u, "")}`);
   wrap(fs.promises as unknown as Record<string, unknown>, apiFunctions(fs.promises), (name) => `${prefix}${name}`);
   wrap(handlePrototype, Object.getOwnPropertyNames(handlePrototype).filter((name) => name !== "constructor"), (name) => `${prefix}handle.${name}`);
-  wrap(childProcess as unknown as Record<string, unknown>, SPAWN_FUNCTIONS, () => "spawn");
-  wrap(Bun as unknown as Record<string, unknown>, ["spawn", "spawnSync"], () => "spawn");
+  wrap(childProcess as unknown as Record<string, unknown>, SPAWN_FUNCTIONS, () => spawnName);
+  wrap(Bun as unknown as Record<string, unknown>, ["spawn", "spawnSync"], () => spawnName);
 }
 
 /** Append this process's counts so far, attributed to the test `file`. */

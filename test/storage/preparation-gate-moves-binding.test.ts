@@ -172,8 +172,8 @@ describe("the compositions and the root forms", () => {
   it("B3 the gate operation's root form reaches every incumbent with exact arguments", async () => {
     vi.spyOn(gates, "authorGateProof").mockReturnValue({ summary: PROOF } as never);
     const ready = vi.spyOn(readiness, "resolveHostReadiness").mockResolvedValue({ ready: true, reason: null });
-    const acquire = vi.spyOn(lockGate, "acquireMutationLock").mockResolvedValue(true);
-    const resolve = vi.spyOn(lookup, "resolvePreparationRun").mockResolvedValue({ ok: true, binding: BINDING, run: runIn("awaiting-gate") } as never);
+    const acquire = vi.spyOn(lockGate, "acquireMutationLockHandingOver").mockResolvedValue({ acquired: true, preparationPass: null });
+    const resolve = vi.spyOn(lookup, "resolvePreparationRunOnPass").mockResolvedValue({ ok: true, binding: BINDING, run: runIn("awaiting-gate") } as never);
     const authority = vi.spyOn(gateAuthority, "resolveGateAuthority").mockResolvedValue({ ok: true, authoritative: {} } as never);
     const append = vi.spyOn(runStore, "appendProjectedTransitionLocked").mockImplementation(async (_r, _b, _e, _i, project) => project(runIn("awaiting-gate")) as never);
     const release = vi.spyOn(lock, "releaseLock").mockResolvedValue(undefined);

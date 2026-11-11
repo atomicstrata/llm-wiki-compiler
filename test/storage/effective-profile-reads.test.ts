@@ -134,14 +134,14 @@ describe("legacy profile read", () => {
 });
 
 describe("product-mode reads", () => {
-  it("opens the binding, the manifest, each member in manifest order, then the knowledge profile", async () => {
+  it("opens the binding, the manifest, each member in manifest order, and the knowledge profile no second time", async () => {
     const { product, memberHexes } = await activateProduct();
-    const knowledgeHex = digestDirectoryName(product.manifest.knowledgeProfile.digest);
     const loaded = await loadProfile(root.dir);
     expect(loaded.loadedFrom).toBe(
       knowledgeProfileMemberPath(root.dir, product.manifest.packageDigest, product.manifest.knowledgeProfile.digest));
     const opens = io.calls.filter((call) => call.startsWith("open ")).map((call) => call.slice("open ".length));
-    expect(opens).toEqual(["active-product.json", "manifest.json", ...memberHexes, knowledgeHex]);
+    // The knowledge profile is loaded from the bytes its member check hashed and kept, so its leaf is opened once.
+    expect(opens).toEqual(["active-product.json", "manifest.json", ...memberHexes]);
     expect(count("close")).toBe(count("open"));
   });
 

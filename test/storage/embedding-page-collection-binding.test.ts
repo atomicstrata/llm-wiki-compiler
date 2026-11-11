@@ -133,6 +133,12 @@ function memoryPageReadsOf(copy: Copy, log: string[], faults: Faults = {}): Embe
       if (copy.listings.has(relPath)) return false;
       throw failure("ENOENT");
     },
+    listRelativeNames: async (relDir) => {
+      log.push(`list ${relDir}`);
+      const listing = copy.listings.get(relDir);
+      if (listing === undefined) throw failure("ENOENT");
+      return listing.map((entry) => entry.name);
+    },
   };
 }
 

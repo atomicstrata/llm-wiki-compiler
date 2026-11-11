@@ -26,14 +26,17 @@ export interface ParentBinding {
   ino: number;
 }
 
-/** Directory pathname and inode captured before its strict metadata sync. */
+/**
+ * Directory pathname and inode captured before its strict metadata sync.
+ * `parentBound` marks the write parent itself, taken from its
+ * {@link ParentBinding} rather than captured again (see {@link chainStart}).
+ */
 interface DirectoryBinding {
   dir: string;
   realDir: string;
   dev: number;
   ino: number;
-  /** One directory object for its whole life: device, inode and birth time. */
-  identity: string;
+  parentBound: boolean;
 }
 
 /**
@@ -79,30 +82,85 @@ export async function fsyncDirectory(dir: string): Promise<void> {
 
 /**
  * Persist the leaf parent's directory entry, then every ancestor entry up to
- * the project root that is not already durable (see {@link durableEntries}).
+ * the project root that is not already durable (see {@link durableEntries}),
+ * and confirm the write parent is still the bound directory.
  */
 export async function fsyncDirectoryChain(
   dir: string,
   parent?: ParentBinding,
   beforeSync?: BeforeDirectorySync,
 ): Promise<void> {
+  await syncChain(dir, parent, beforeSync, true);
+}
+
+/**
+ * {@link fsyncDirectoryChain} for a caller whose very next step checks the
+ * write parent itself (`assertCurrentParent`, directly or as the first step of
+ * `assertPublishedDestination`, `assertSettledDestination` or
+ * `removeCommittedTemp`), so the chain leaves out its own check after the last
+ * sync. The chain makes no namespace change, so that one check covers every
+ * swap the chain's own last check would have caught; a second one right
+ * before it would only repeat it.
+ */
+export async function fsyncDirectoryChainBeforeParentCheck(
+  dir: string,
+  parent: ParentBinding | undefined,
+  beforeSync?: BeforeDirectorySync,
+): Promise<void> {
+  await syncChain(dir, parent, beforeSync, false);
+}
+
+/** Walk and sync the chain; `checkLast` keeps the parent check after the last sync. */
+async function syncChain(
+  dir: string,
+  parent: ParentBinding | undefined,
+  beforeSync: BeforeDirectorySync | undefined,
+  checkLast: boolean,
+): Promise<void> {
   const boundary = path.resolve(parent?.lexicalRoot ?? dir);
   let current = path.resolve(dir);
+  let binding = await chainStart(current, parent);
   let below: string | undefined;
-  let stat: Stats | undefined;
   for (;;) {
-    const binding = await captureDirectoryBinding(canonicalSyncPath(current, parent), stat);
-    await fsyncDirectoryChainEntry(binding, current, parent, beforeSync);
-    if (below !== undefined) durableEntries.add(`${binding.identity}>${below}`);
-    if (current === boundary) return;
-    const ancestor = nextDirectoryInChain(current, boundary);
-    if (ancestor === null) return;
-    const next = await ancestorNeedingSync(canonicalSyncPath(ancestor, parent), binding.identity);
+    await beforeSync?.(current);
+    const identity = await fsyncBoundDirectory(binding);
+    if (below !== undefined) durableEntries.add(`${identity}>${below}`);
+    const next = await nextChainEntry(current, boundary, parent, identity);
+    if (next !== null || checkLast) await recheckWriteParent(parent);
     if (next === null) return;
-    below = binding.identity;
-    stat = next;
-    current = ancestor;
+    binding = await captureDirectoryBinding(canonicalSyncPath(next.dir, parent), next.stat);
+    below = identity;
+    current = next.dir;
   }
+}
+
+/** The next ancestor the chain must sync, with its stat, or `null` where the walk stops. */
+async function nextChainEntry(
+  current: string,
+  boundary: string,
+  parent: ParentBinding | undefined,
+  identity: string,
+): Promise<{ dir: string; stat: Stats } | null> {
+  const ancestor = current === boundary ? null : nextDirectoryInChain(current, boundary);
+  if (ancestor === null) return null;
+  const stat = await ancestorNeedingSync(canonicalSyncPath(ancestor, parent), identity);
+  return stat === null ? null : { dir: ancestor, stat };
+}
+
+/**
+ * The first directory the chain syncs. When it is the bound write parent at
+ * its canonical path, the parent binding already names its inode, so it is
+ * not captured again: the sync handle is pinned to the parent's inode, and the
+ * parent check after the sync (the chain's own, or the caller's) proves the
+ * canonical path still names it, since `realpath(parent) === realDir` and
+ * `realDir` is that canonical path.
+ */
+async function chainStart(current: string, parent: ParentBinding | undefined): Promise<DirectoryBinding> {
+  const canonical = canonicalSyncPath(current, parent);
+  if (parent === undefined || path.resolve(parent.dir) !== current || canonical !== parent.realDir) {
+    return captureDirectoryBinding(canonical);
+  }
+  return { dir: canonical, realDir: parent.realDir, dev: parent.dev, ino: parent.ino, parentBound: true };
 }
 
 /** Verify the current parent directory is still the captured confined directory. */
@@ -116,27 +174,6 @@ export async function assertCurrentParent(binding: ParentBinding): Promise<void>
   if (stat.dev !== binding.dev || stat.ino !== binding.ino) {
     throw new Error(`write directory changed while writing: ${binding.dir}`);
   }
-}
-
-/**
- * Sync one captured chain entry, then confirm the write parent is still the
- * bound directory.
- *
- * The chain makes no namespace change: every step is lstat, realpath, open,
- * fstat or an fsync through a handle pinned to its inode. A swap of the parent
- * therefore cannot redirect anything the chain does, only make its durability
- * claim false, and the check after each sync catches any swap still in place.
- * Checks before the sync would only repeat that check earlier.
- */
-async function fsyncDirectoryChainEntry(
-  binding: DirectoryBinding,
-  displayPath: string,
-  parent?: ParentBinding,
-  beforeSync?: BeforeDirectorySync,
-): Promise<void> {
-  await beforeSync?.(displayPath);
-  await fsyncBoundDirectory(binding);
-  await recheckWriteParent(parent);
 }
 
 /** Map a lexical project directory onto the already-bound canonical root. */
@@ -166,19 +203,21 @@ async function captureDirectoryBinding(dir: string, known?: Stats): Promise<Dire
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`refusing to sync a redirected directory: ${resolved}`);
   }
-  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino, identity: directoryIdentity(stat) };
+  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino, parentBound: false };
 }
 
 /**
- * Sync only the exact directory inode captured for this pathname.
+ * Sync only the exact directory inode captured for this pathname, and return
+ * that directory object's identity.
  *
  * The no-follow open plus the fstat comparison pins the handle to the captured
  * inode, so no later swap can redirect the fsync itself. The one pathname
  * check after the sync then proves the path still named that inode
  * throughout: everything between it and the capture is read-only, so a
- * pathname check before the sync would only repeat it.
+ * pathname check before the sync would only repeat it. A parent-bound entry
+ * leaves that check to the write-parent check that follows it.
  */
-async function fsyncBoundDirectory(binding: DirectoryBinding): Promise<void> {
+async function fsyncBoundDirectory(binding: DirectoryBinding): Promise<string> {
   const handle = await open(binding.dir, DIRECTORY_OPEN_FLAGS);
   try {
     const opened = await handle.stat();
@@ -186,7 +225,8 @@ async function fsyncBoundDirectory(binding: DirectoryBinding): Promise<void> {
       throw new Error(`directory changed before sync: ${binding.dir}`);
     }
     await handle.sync();
-    await assertDirectoryBinding(binding);
+    if (!binding.parentBound) await assertDirectoryBinding(binding);
+    return directoryIdentity(opened);
   } finally {
     await handle.close();
   }

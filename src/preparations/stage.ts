@@ -35,11 +35,11 @@
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import { inventoryHasRetainedState } from "../utils/inventory-arithmetic.js";
 import {
-  assertStageCapacity, scanPreparationInventory, scanPreparationInventoryBorrowingFrom,
+  assertStageCapacity, scanPreparationInventoryBorrowingFrom,
   type PreparationInventory, type PreparationInventoryLifecycleReads, type StageCapacityProjection,
 } from "./capacity.js";
 import type { PreparationScanOptions } from "./orphan-scan.js";
-import { preparationPassReads } from "./pass-reads.js";
+import { commandPreparationPass, type WriteFreePreparationPass } from "./recovery.js";
 import { mintPreparationId, mintPreparationRunId, type PreparationId, type PreparationRunId } from "./ids.js";
 import {
   prepareKeyForEmptyEpochLocked, readPreparationKeyFrom,
@@ -112,13 +112,20 @@ export interface StageLockedSteps {
  * every write, and the genesis signing key, unless this staging published a
  * minted key, in which case the genesis reads the disk. The evidence and the
  * manifest written before the genesis are not the key.
+ *
+ * THE GATE'S PASS, WHEN IT WROTE NOTHING. `gated` is the recovery gate's
+ * settlement pass under this same hold, handed over only when nothing has
+ * written since its scan (`acquireMutationLockHandingOver`). Its reads are this
+ * staging's pass, and its inventory the staging's scan at the default options
+ * (`commandPreparationPass`); a scan at other options reads the disk.
  */
-function diskStageLockedSteps(root: string): StageLockedSteps {
-  const pass = preparationPassReads(root);
+function diskStageLockedSteps(root: string, gated: WriteFreePreparationPass | null): StageLockedSteps {
+  const command = commandPreparationPass(root, gated);
+  const pass = command.reads;
   let keyWritten = false;
   return {
     verifyParent: (ref) => verifyWorkflowParent(root, ref),
-    scanInventory: (options) => scanPreparationInventory(root, options, pass),
+    scanInventory: command.scanInventory,
     readKey: pass.readKey,
     mintEmptyEpochKey: async (epoch) => {
       const minted = await prepareKeyForEmptyEpochLocked(root, epoch, {}, pass.readKey);
@@ -507,9 +514,14 @@ async function resolveKeyEpoch(steps: StageLockedSteps, inventory: PreparationIn
  * calls this WITHOUT the lock on purpose — taking it would run the recovery gate,
  * which settles handoffs, from a verb that must write nothing. A change that moves
  * a write above the dry-run return breaks that caller silently.
+ *
+ * `gated` is the gate's write-free preparation pass from the acquisition this
+ * staging runs under, when it has one (`acquireMutationLockHandingOver`).
  */
-export async function stagePreparationLocked(root: string, request: StagePreparationRequest): Promise<StagePreparationResult> {
-  return stagePreparationLockedWith(diskStageLockedSteps(root), request);
+export async function stagePreparationLocked(
+  root: string, request: StagePreparationRequest, gated: WriteFreePreparationPass | null = null,
+): Promise<StagePreparationResult> {
+  return stagePreparationLockedWith(diskStageLockedSteps(root, gated), request);
 }
 
 /** {@link stagePreparationLocked} over {@link StageLockedSteps}: THE ONE BODY. */

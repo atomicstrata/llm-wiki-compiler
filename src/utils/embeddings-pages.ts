@@ -60,12 +60,19 @@ export interface EmbeddingPageReads {
    * root natively.
    */
   isRegularFile(relPath: string): Promise<boolean>;
+  /**
+   * MECHANISM. The entry names of `relDir`, POSIX project-relative like
+   * {@link isRegularFile}, links followed and NOT confined: it answers only
+   * which names are missing, never what any entry holds. Rejects raw.
+   */
+  listRelativeNames(relDir: string): Promise<string[]>;
 }
 
 /**
  * LOCAL DISK. The incumbent mechanisms for `root`: `safeRealpath`, the
  * resolved-and-contained directory check, `listDirectoryNames`,
- * `readConfinedExactFile` and `locationIsRegularFile`, with their exact
+ * `readConfinedExactFile`, `locationIsRegularFile` and `listDirectoryNames`
+ * again for a project-relative directory, with their exact
  * arguments. Building it does no I/O. In no package index.
  */
 export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
@@ -78,6 +85,7 @@ export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
     listNames: (directory) => listDirectoryNames(directory),
     readConfinedEntry: (directory, name) => sharedPageRead(directory, name, () => readConfinedExactFile(directory, path.join(directory, name))),
     isRegularFile: (relPath) => locationIsRegularFile(path.join(root, relPath)),
+    listRelativeNames: (relDir) => listDirectoryNames(path.join(root, relDir)),
   };
 }
 

@@ -52,6 +52,7 @@ import { scanPreparationInventory } from "./capacity.js";
 import { perBorrowLifecycleReads, type PreparationLifecycleReads } from "./lifecycle-snapshot/read.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
 import type { PreparationInventory } from "./capacity.js";
+import type { PreparationScanOptions } from "./orphan-scan.js";
 import { assertBundleId, assertOperationRunId } from "../operation-bundles/ids.js";
 import { readOperationKey } from "../operation-bundles/key-epoch.js";
 import { readOperationManifest, type OperationManifestRead } from "../operation-bundles/manifest-store.js";
@@ -68,7 +69,7 @@ import type {
   AppendPreparationTransitionInput, PhaseSummaryV1, PreparationPrincipalV1,
   PreparationRunBinding, PreparationRunV1,
 } from "./run-types.js";
-import { preparationPassReads } from "./pass-reads.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
 
 /** The eight closed attempt recovery classes (design section 16.4). */
 export type AttemptRecoveryClassification =
@@ -612,32 +613,104 @@ export async function settlePreparationHandoffsWith(steps: HandoffSettlementStep
 }
 
 /**
+ * What a settlement pass that WROTE NOTHING hands the command holding the same
+ * hold of the lock: the inventory it scanned and the reads it made. No write
+ * came between the scan and the hand-over, so both still describe the store.
+ * The command consumes them before its own first write and never after a
+ * release; the lifecycle capture behind the inventory is already closed.
+ */
+export interface WriteFreePreparationPass {
+  readonly inventory: PreparationInventory;
+  readonly reads: PreparationPassReads;
+}
+
+/** The pass one command runs on under its hold of the lock, and that pass's inventory scan. */
+export interface CommandPreparationPass {
+  readonly reads: PreparationPassReads;
+  /** The store's inventory under `reads`: the gate's own, once, when it was handed over and `options` are the default. */
+  scanInventory(options?: PreparationScanOptions): Promise<PreparationInventory>;
+}
+
+/**
+ * The pass a command runs on after a gated acquisition: `gated`'s reads, and
+ * `gated`'s inventory for the command's first default-options scan, which is
+ * the scan the command would take itself, under the same hold with nothing
+ * written since. It is LENT ONCE, so a second scan, which may follow the
+ * command's own write, reads the disk. Without `gated`, a fresh pass.
+ */
+export function commandPreparationPass(root: string, gated: WriteFreePreparationPass | null): CommandPreparationPass {
+  const reads = gated?.reads ?? preparationPassReads(root);
+  let lent = gated?.inventory;
+  return {
+    reads,
+    scanInventory: async (options) => {
+      const inventory = options?.maxDirectoryEntriesForTest === undefined ? lent : undefined;
+      lent = undefined;
+      return inventory ?? scanPreparationInventory(root, options, reads);
+    },
+  };
+}
+
+/**
+ * `steps`, with every member that MAY write calling `mark` before it runs.
+ * Every member is listed by name, so a member added to the interface has to be
+ * classed here as a read or a write before this compiles.
+ */
+function markingWrites(steps: PreparationRunSettlementSteps, mark: () => void): PreparationRunSettlementSteps {
+  const writing = <A extends unknown[], R>(write: (...args: A) => Promise<R>) =>
+    (...args: A): Promise<R> => { mark(); return write(...args); };
+  return {
+    readBundleManifest: steps.readBundleManifest, readOperationKeyEpoch: steps.readOperationKeyEpoch,
+    readOperationRun: steps.readOperationRun, cancellationRequested: steps.cancellationRequested,
+    appendTransition: writing(steps.appendTransition), appendHandoff: writing(steps.appendHandoff),
+    removeCancel: writing(steps.removeCancel), settleCancelledRun: writing(steps.settleCancelledRun),
+    carryAdvisoryIntoCancelling: writing(steps.carryAdvisoryIntoCancelling),
+  };
+}
+
+/** One local settlement pass: its steps, and its reads once it has settled having written nothing. */
+interface LocalSettlementPass {
+  readonly steps: HandoffSettlementSteps;
+  /** The pass's scan and reads, or null when it never scanned or any step that may write ran. */
+  writeFree(): WriteFreePreparationPass | null;
+}
+
+/**
  * The LOCAL-DISK settlement collaborators for one project root, built per call:
  * each closure calls the incumbent root-taking function when it is asked, never
  * earlier. `settleRun` is the per-run settlement body over this root's
- * {@link localRunSettlementSteps}. Internal; in no package index.
+ * {@link localRunSettlementSteps}.
  */
-export function localHandoffSettlementSteps(
-  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
-): HandoffSettlementSteps {
+function localSettlementPass(root: string, lifecycle: PreparationLifecycleReads): LocalSettlementPass {
   // One pass: the inventory, the key and every run are read before anything is
   // settled, so the scan and the settlement share one set of reads.
   const pass = preparationPassReads(root, lifecycle);
-  return {
+  let inventory: PreparationInventory | undefined;
+  let mayHaveWritten = false;
+  const runSteps = markingWrites(localRunSettlementSteps(root), () => { mayHaveWritten = true; });
+  const steps: HandoffSettlementSteps = {
     // The lifecycle read is the scan's alone, so the pass's lifecycle sharing
     // ends with the scan: nothing is written while it is open, and no later step
     // can be lent a read taken before this settlement writes.
     scanInventory: async () => {
       try {
-        return await scanPreparationInventory(root, {}, pass);
+        return inventory = await scanPreparationInventory(root, {}, pass);
       } finally {
         lifecycle.close();
       }
     },
     readKeyEpoch: pass.readKeyEpoch,
     readRun: pass.readRun,
-    settleRun: (binding, run, at) => settleRunRecoveryWith(localRunSettlementSteps(root), binding, run, at),
+    settleRun: (binding, run, at) => settleRunRecoveryWith(runSteps, binding, run, at),
   };
+  return { steps, writeFree: () => (inventory === undefined || mayHaveWritten ? null : { inventory, reads: pass }) };
+}
+
+/** {@link localSettlementPass}'s steps alone. Internal; in no package index. */
+export function localHandoffSettlementSteps(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): HandoffSettlementSteps {
+  return localSettlementPass(root, lifecycle).steps;
 }
 
 /**
@@ -662,11 +735,18 @@ export function localHandoffSettlementSteps(
  * {@link localHandoffSettlementSteps}. The gate hands in its pass's `lifecycle`,
  * so the inventory scan is lent the capture the lifecycle leg already took. Its production caller is the mutation
  * recovery gate (`lock-gate.ts`, `settleHandoffs`), which still owns when it runs.
+ *
+ * A pass that wrote nothing is given to `handOver`, so the command that runs
+ * next under the same hold can take the store from it instead of scanning again.
  */
 export async function settlePreparationHandoffsLocked(
   root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+  handOver?: (pass: WriteFreePreparationPass) => void,
 ): Promise<void> {
-  return settlePreparationHandoffsWith(localHandoffSettlementSteps(root, lifecycle));
+  const settlement = localSettlementPass(root, lifecycle);
+  await settlePreparationHandoffsWith(settlement.steps);
+  const unwritten = settlement.writeFree();
+  if (unwritten !== null) handOver?.(unwritten);
 }
 
 // Reported inside the state below, so a consumer must be able to name what it

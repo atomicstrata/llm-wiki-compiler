@@ -80,9 +80,19 @@ function printDetail(counts: readonly FileCallCounts[]): void {
   }
 }
 
+/** Every file's ops added up: which operations, and which spawned programs, dominate. */
+function printOps(counts: readonly FileCallCounts[]): void {
+  const ops: Record<string, number> = {};
+  for (const item of counts) for (const [op, count] of Object.entries(item.ops)) ops[op] = (ops[op] ?? 0) + count;
+  const spawns = Object.fromEntries(Object.entries(ops).filter(([op]) => op.startsWith("spawn:")));
+  console.log(`Operations: ${opsLine(ops, 8)}`);
+  console.log(`Spawns: ${opsLine(spawns, 8)}`);
+}
+
 /** Print totals, the heaviest files, and per-file detail for a small selection. */
 function printReport(counts: readonly FileCallCounts[], totals: Record<string, FileTotals>, baseline: Baseline | null): void {
   printTotals(totals, baseline);
+  printOps(counts);
   console.log("Most filesystem calls:");
   for (const item of [...counts].sort((a, b) => totals[b.file]!.fs - totals[a.file]!.fs).slice(0, TOP_FILES)) {
     console.log(`  ${n(totals[item.file]!.fs).padStart(9)}  ${item.file}  (${opsLine(item.ops, 4)})`);

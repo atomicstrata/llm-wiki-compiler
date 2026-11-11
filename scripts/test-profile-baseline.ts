@@ -53,11 +53,11 @@ export function readBaseline(text: string): Baseline {
   return value;
 }
 
-/** Each file's totals, its own and its child processes': every op is a filesystem call except `spawn`. */
+/** Each file's totals, its own and its child processes': every op is a filesystem call except `spawn:…`. */
 export function summarize(counts: readonly FileCallCounts[]): Record<string, FileTotals> {
   const totals: Record<string, FileTotals> = {};
   for (const { file, ops } of counts) {
-    const spawn = ops.spawn ?? 0;
+    const spawn = Object.entries(ops).reduce((sum, [op, count]) => sum + (op.startsWith("spawn:") ? count : 0), 0);
     const fs = Object.values(ops).reduce((sum, count) => sum + count, 0) - spawn;
     const total = (totals[file] ??= { fs: 0, spawn: 0 });
     total.fs += fs;
