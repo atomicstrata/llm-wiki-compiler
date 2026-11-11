@@ -274,11 +274,11 @@ async function assertDirectoryReadableFrom(
  * probe or a shared identity is `CandidateCustodyUnavailableError`.
  */
 export async function assertCandidateNamespacesHealthyFrom(reads: CandidateStoreWriteReads): Promise<void> {
-  await healthyNamespacesFrom(reads);
+  await candidateNamespacesHealthyFrom(reads);
 }
 
 /** {@link assertCandidateNamespacesHealthyFrom}, handing back the two bindings it proved (`null` = absent). */
-async function healthyNamespacesFrom(
+export async function candidateNamespacesHealthyFrom(
   reads: CandidateStoreWriteReads,
 ): Promise<{ pending: DirectoryBinding | null; archive: DirectoryBinding | null }> {
   const pending = await reads.captureDirectory(CANDIDATES_DIR);
@@ -325,7 +325,7 @@ export async function assertCandidateMutationAccessFrom(
   reads: CandidateStoreWriteReads,
   requiresArchiveInsert: boolean,
 ): Promise<void> {
-  const namespaces = await healthyNamespacesFrom(reads);
+  const namespaces = await candidateNamespacesHealthyFrom(reads);
   await assertMutationTargetWritableFrom(reads, CANDIDATES_DIR, namespaces.pending);
   if (requiresArchiveInsert) {
     await assertMutationTargetWritableFrom(reads, CANDIDATES_ARCHIVE_DIR, namespaces.archive);
