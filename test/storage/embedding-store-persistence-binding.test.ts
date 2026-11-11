@@ -173,12 +173,12 @@ describe("the embedding store writer over copied projects, with every minting di
     expect([only!.settled.startsWith("TypeError: "), only!.settled.includes("BigInt"), only!.notes, only!.leaves]).toEqual([true, true, [], null]);
   });
 
-  it("P7 looks, encodes, creates and replaces in that order, and stops at the first refusal (memory only)", async () => {
+  it("P7 looks, encodes, creates a missing directory and replaces in that order, and stops at the first refusal (memory only)", async () => {
     const logs = { requested: [] as string[], authority: [] as string[], nonregular: [] as string[] };
     for (const name of Object.keys(logs) as (keyof typeof logs)[]) await expectDiskParity(name, logs[name]);
     expect(logs).toEqual({
       requested: ["dir", "dir", "create", "replace .llmwiki/embeddings.bin"],
-      authority: ["dir", "kind embeddings.bin", "create", "replace .llmwiki/embeddings.bin"],
+      authority: ["dir", "kind embeddings.bin", "replace .llmwiki/embeddings.bin"],
       nonregular: ["dir", "kind embeddings.bin"],
     });
   });

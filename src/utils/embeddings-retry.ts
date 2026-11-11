@@ -35,6 +35,7 @@ import {
   type EmbeddingMarkerReads,
   type EmbeddingMarkerWrites,
   type PendingEmbedding,
+  type PendingMarkerRead,
 } from "./pending-embeddings.js";
 import { decideRetry, dropShadowedPending, fitAdmissions, settleRetry } from "./retry-exclusions.js";
 
@@ -68,16 +69,20 @@ class EmbeddingRetry {
   readonly recorder = new EmbeddingAttemptRecorder();
   private admitted = new Set<PageId>();
   private settled = false;
+  private pending: PendingEmbedding[];
+  /** What the load found in the pending marker; the lock held since keeps it current until {@link recordPending}. */
+  private readonly loadedStatus: PendingMarkerRead["status"];
 
   /** Keep mutable state private to a single locked refresh. */
   constructor(
     private readonly storage: EmbeddingMarkerStorage,
-    private pending: PendingEmbedding[],
+    loaded: PendingMarkerRead,
     private quarantined: PendingEmbedding[],
     private readonly changedIds: PageId[],
     private readonly scope?: ReadonlySet<PageId>,
   ) {
-    this.pending = dropShadowedPending(pending, quarantined, id => this.includes(id));
+    this.loadedStatus = loaded.status;
+    this.pending = dropShadowedPending(loaded.entries, quarantined, id => this.includes(id));
   }
 
   /** Ids for the core: explicit changes plus in-scope pending work, including exclusions to re-check. */
@@ -85,13 +90,20 @@ class EmbeddingRetry {
     return [...new Set([...this.changedIds, ...this.pending.map(e => e.pageId).filter(id => this.includes(id))])];
   }
 
-  /** Record explicit work before even store discovery can fail; never release an exclusion here. */
+  /**
+   * Record explicit work before even store discovery can fail; never release an
+   * exclusion here. The prior marker is the one the load read under the lock
+   * still held, so it is not read again. With nothing to record over a marker
+   * that held no entries nothing is written, and the pending set stays the
+   * empty one already loaded.
+   */
   async recordPending(): Promise<void> {
-    const prior = await readPendingMarkerFrom(this.storage);
     const merged = withFreshWork(this.pending, this.quarantined, this.changedIds, this.scope !== undefined);
-    if (merged.length > 0 || prior.status === "ok") await writePendingEmbeddingsFrom(this.storage, merged);
-    // The writer applies both resource caps. Never attempt work it dropped.
-    this.pending = await loadMarkerFrom(this.storage);
+    if (merged.length > 0 || this.loadedStatus === "ok") {
+      await writePendingEmbeddingsFrom(this.storage, merged);
+      // The writer applies both resource caps. Never attempt work it dropped.
+      this.pending = await loadMarkerFrom(this.storage);
+    }
     if (this.scope) this.deferred = unrecorded([...this.scope], this.pending, this.quarantined);
   }
 
@@ -229,8 +241,8 @@ export async function loadScopedEmbeddingRetry(root: string, affectedIds: PageId
 
 /** {@link loadScopedEmbeddingRetry} over `storage`: THE ONE BODY. */
 export async function loadScopedEmbeddingRetryFrom(storage: EmbeddingMarkerStorage, affectedIds: PageId[]): Promise<EmbeddingRetry> {
-  const { pending, quarantined } = await readScopedRetryState(storage);
-  return new EmbeddingRetry(storage, pending, quarantined, affectedIds, new Set(affectedIds));
+  const { pendingRead, quarantined } = await readScopedRetryState(storage);
+  return new EmbeddingRetry(storage, pendingRead, quarantined, affectedIds, new Set(affectedIds));
 }
 
 /**
@@ -246,20 +258,20 @@ export async function unrecordableScopedIds(root: string, affectedIds: PageId[])
 
 /** {@link unrecordableScopedIds} over `storage`: THE ONE BODY. It writes nothing. */
 export async function unrecordableScopedIdsFrom(storage: EmbeddingMarkerStorage, affectedIds: PageId[]): Promise<PageId[]> {
-  const { pending, quarantined } = await readScopedRetryState(storage);
-  const recorded = normalizeMarker(withFreshWork(pending, quarantined, affectedIds, true));
+  const { pendingRead, quarantined } = await readScopedRetryState(storage);
+  const recorded = normalizeMarker(withFreshWork(pendingRead.entries, quarantined, affectedIds, true));
   return unrecorded(affectedIds, recorded, quarantined);
 }
 
 /** Both markers, refusing to guess when either cannot be read. */
-async function readScopedRetryState(reads: EmbeddingMarkerReads): Promise<{ pending: PendingEmbedding[]; quarantined: PendingEmbedding[] }> {
+async function readScopedRetryState(reads: EmbeddingMarkerReads): Promise<{ pendingRead: PendingMarkerRead; quarantined: PendingEmbedding[] }> {
   const [pendingRead, quarantineRead] = await Promise.all([
     readPendingMarkerFrom(reads), readPendingMarkerFrom(reads, QUARANTINED_EMBEDDINGS_FILE),
   ]);
   if (pendingRead.status === "unavailable" || quarantineRead.status === "unavailable") {
     throw new Error("Embedding retry state unavailable; scoped refresh cannot preserve unrelated entries.");
   }
-  return { pending: pendingRead.entries, quarantined: quarantineRead.entries };
+  return { pendingRead, quarantined: quarantineRead.entries };
 }
 
 /**
@@ -288,8 +300,8 @@ export async function loadEmbeddingRetry(root: string, changedPageIds: PageId[])
 
 /** {@link loadEmbeddingRetry} over `storage`: THE ONE BODY. */
 export async function loadEmbeddingRetryFrom(storage: EmbeddingMarkerStorage, changedPageIds: PageId[]): Promise<EmbeddingRetry> {
-  const [pending, quarantined] = await Promise.all([
-    loadMarkerFrom(storage), loadMarkerFrom(storage, QUARANTINED_EMBEDDINGS_FILE),
+  const [pendingRead, quarantined] = await Promise.all([
+    readPendingMarkerFrom(storage), loadMarkerFrom(storage, QUARANTINED_EMBEDDINGS_FILE),
   ]);
-  return new EmbeddingRetry(storage, pending, quarantined, changedPageIds);
+  return new EmbeddingRetry(storage, pendingRead, quarantined, changedPageIds);
 }
