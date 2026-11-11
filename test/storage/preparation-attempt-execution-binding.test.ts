@@ -27,6 +27,7 @@ import {
 } from "../../src/preparations/attempts/execute.js";
 import * as cancellation from "../../src/preparations/cancellation.js";
 import * as manifestStore from "../../src/preparations/manifest-store.js";
+import * as passReads from "../../src/preparations/pass-reads.js";
 import * as runStore from "../../src/preparations/run-store.js";
 import type { PreparationRunV1 } from "../../src/preparations/run-types.js";
 import { LockBusyError } from "../../src/utils/lock.js";
@@ -125,9 +126,12 @@ describe("the composition and the root form", () => {
 
   it("B2 the root form locks and reads with the captured root, and a non-string root parks before any lock", async () => {
     const lock = vi.spyOn(withMutationLock, "withAttemptMutationLock").mockImplementation(async (_root, work) => work());
-    const read = vi.spyOn(runStore, "readPreparationRun").mockResolvedValue({ status: "absent" } as never);
+    const passes = vi.spyOn(passReads, "preparationPassReads");
+    const read = vi.spyOn(runStore, "readPreparationRunFrom").mockResolvedValue({ status: "absent" } as never);
     expect(await executePhaseAttempt(attemptRequest(STAGED, { root: "/project" }))).toEqual({ status: "parked", reason: "run-absent" });
-    expect([lock.mock.calls.map((call) => call[0]), read.mock.calls]).toEqual([["/project"], [["/project", STAGED.binding]]]);
+    // The run is read through the lock hold's pass, and every pass is over the captured root.
+    expect([lock.mock.calls.map((call) => call[0]), [...new Set(passes.mock.calls.map((call) => call[0]))], read.mock.calls.map((call) => call[1])])
+      .toEqual([["/project"], ["/project"], [STAGED.binding]]);
     expect(await executePhaseAttempt(attemptRequest(STAGED, { root: 7 as never }))).toEqual({ status: "parked", reason: "request-not-capturable" });
     expect(lock.mock.calls).toHaveLength(1);
   });

@@ -33,12 +33,11 @@ import {
   preparationCancellationRequested, preparationCancellationRequestedFrom,
   type PreparationCancelLeaves, type PreparationCancellationProbe,
 } from "../cancellation.js";
-import {
-  readPreparationManifest, readPreparationManifestFrom, type PreparationManifestLeafReads, type PreparationManifestRead,
-} from "../manifest-store.js";
+import { readPreparationManifestFrom, type PreparationManifestLeafReads, type PreparationManifestRead } from "../manifest-store.js";
+import { preparationPassReads } from "../pass-reads.js";
 import { preparationRunPredecessor } from "../run-integrity.js";
 import {
-  appendPreparationTransitionWith, appendProjectedTransitionLocked, readPreparationRun, readPreparationRunFrom,
+  appendPreparationTransitionWith, preparationRunWriteStepsOn, readPreparationRun, readPreparationRunFrom,
   type PreparationRunLeafReads, type PreparationRunRead, type PreparationRunWriteSteps,
 } from "../run-store.js";
 import { settleAttemptCancellationLocked, settleAttemptCancellationWith, type CancelSettlementSources } from "./cancel-settlement.js";
@@ -95,14 +94,33 @@ export interface AttemptExecutionSteps {
   settleCancellation(delivered: boolean): Promise<void>;
 }
 
-/** LOCAL DISK. The incumbent lock, readers and writers for the captured request's root, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent lock, readers and writers for the captured request's
+ * root, each called when asked.
+ *
+ * ONE PASS PER HOLD OF THE LOCK, ENDED BY EVERY RUN WRITE. Each leg reads the
+ * run, its key and its manifest and then appends, and the append reads the run
+ * and the key again. Within one hold nothing else may write them, so the
+ * append's reads are answered from the leg's (`pass-reads.ts`). A fresh pass is
+ * taken when the lock is acquired, and again after every append, so no answer
+ * outlives the hold or survives the write that changed it. Publishing custody
+ * writes evidence only, which no pass read answers for.
+ */
 function diskAttemptExecutionSteps(request: AttemptExecutionRequestV1): AttemptExecutionSteps {
   const root = request.root;
+  let pass = preparationPassReads(root);
+  const renew = () => { pass = preparationPassReads(root); };
   return {
-    lock: (work) => underLock(root, work),
-    readRun: (binding) => readPreparationRun(root, binding),
-    readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
+    lock: (work) => underLock(root, () => { renew(); return work(); }),
+    readRun: (binding) => pass.readRun(binding),
+    readManifest: (workspaceId, preparationId) => pass.readManifest(workspaceId, preparationId),
+    appendProjected: async (binding, expected, input, project) => {
+      try {
+        return await appendPreparationTransitionWith(preparationRunWriteStepsOn(root, pass), binding, expected, input, project);
+      } finally {
+        renew();
+      }
+    },
     publishCustody: (location, pending, cap) => publishCustodyLocked(root, location, pending, cap),
     cancellationRequested: (workspaceId, runId) => preparationCancellationRequested(root, workspaceId, runId),
     settleCancellation: (delivered) => settleAttemptCancellationLocked(request, delivered),
