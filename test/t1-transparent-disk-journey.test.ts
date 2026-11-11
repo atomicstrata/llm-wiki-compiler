@@ -24,13 +24,14 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { CLI, SDK } from "./fixtures/built-dist.js";
 import { journeyEnvironment, observeJourney, T1_SCENARIOS, type JourneyObservation, type T1Scenario } from "./fixtures/t1-journey.js";
 
 const INCUMBENT = JSON.parse(
   readFileSync(path.resolve("test/fixtures/t1-journey-incumbent.json"), "utf-8"),
 ) as Record<T1Scenario, JourneyObservation>;
 
-const CANDIDATE = { cli: path.resolve("dist/cli.js"), sdk: path.resolve("dist/index.js") };
+const CANDIDATE = { cli: CLI, sdk: SDK };
 
 /** The output of the one command a single-step scenario ran. */
 function onlyOutput(scenario: T1Scenario): string {

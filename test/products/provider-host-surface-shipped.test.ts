@@ -31,9 +31,9 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { SDK as DIST } from "../fixtures/built-dist.js";
 import { describe, expect, it } from "bun:test";
 
-const DIST = path.resolve("dist/index.js");
 
 /**
  * Every value `llmwiki` exports, with the `typeof` an operator gets, sorted.

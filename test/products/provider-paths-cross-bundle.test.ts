@@ -25,9 +25,9 @@ import { mkdtemp, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { SDK as DIST } from "../fixtures/built-dist.js";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
-const DIST = path.resolve("dist/index.js");
 const SAVED = { XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME, XDG_CACHE_HOME: process.env.XDG_CACHE_HOME };
 
 beforeEach(async () => {

@@ -10,6 +10,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { expect, it } from "bun:test";
+import { CLI, SDK } from "./fixtures/built-dist.js";
 
 const exec = promisify(execFile);
 const packages = ["@aws-sdk/client-bedrock-runtime", "@smithy/node-http-handler"];
@@ -33,14 +34,14 @@ function denyLoading(denied: string[]): string {
 
 it("starts the built CLI and SDKs without loading optional Converse packages", async () => {
   const script = `${denyLoading(packages)}
-    await import("./dist/index.js");
+    await import(${JSON.stringify(SDK)});
     await import("@atomicstrata/llmwiki-core");
     // The CLI loads a command's code only when it runs, so load every command.
     for (const chunk of require("node:fs").readdirSync("dist/cli-chunks")) {
       if (chunk.endsWith(".js")) await import("./dist/cli-chunks/" + chunk);
     }
-    process.argv = [process.execPath, "dist/cli.js", "--help"];
-    await import("./dist/cli.js");
+    process.argv = [process.execPath, ${JSON.stringify(CLI)}, "--help"];
+    await import(${JSON.stringify(CLI)});
     if (globalThis.deniedLoads.length) throw new Error("Unexpected Converse dependency load");
   `;
   const result = await exec(process.execPath, ["--eval", script], {

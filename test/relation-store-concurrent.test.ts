@@ -25,12 +25,13 @@ import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { RELATIONS_FILE } from "../src/utils/constants.js";
+import { SDK } from "./fixtures/built-dist.js";
 import { readRelations } from "../src/relations/store-read.js";
 
 const exec = promisify(execFile);
 
 /** File URL lets ESM import the built SDK on Windows as well as POSIX. */
-const DIST_INDEX = pathToFileURL(path.resolve("dist/index.js")).href;
+const DIST_INDEX = pathToFileURL(SDK).href;
 
 /** The two-entity, one-`tests`-relation profile each subprocess writes against. */
 const PROFILE = {

@@ -9,13 +9,12 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { access } from "fs/promises";
-import path from "path";
 import { expect } from "bun:test";
+import { CLI } from "./built-dist.js";
+
+export { CLI };
 
 const exec = promisify(execFile);
-
-/** Absolute path to the compiled CLI entry point. */
-export const CLI = path.resolve("dist/cli.js");
 
 /**
  * Runtime flags the CLI's shebang passes to Bun. Spawning `bun dist/cli.js`
