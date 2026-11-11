@@ -8,8 +8,9 @@
  * remains the caller's responsibility. Portable-branch tests are not proof of
  * native Windows filesystem behavior.
  */
-import { constants, type BigIntStats } from "node:fs";
-import { lstat, open } from "fs/promises";
+import { constants, type BigIntStats, type Stats } from "node:fs";
+import { open } from "fs/promises";
+import { lstat } from "./fs-metadata.js";
 import type { FileHandle } from "node:fs/promises";
 
 /** Human-readable refusal reasons; callers surface these messages directly. */
@@ -92,17 +93,41 @@ async function openPortable(file: string, flags: number, mode: number | undefine
  * write modes are refused before opening so verification cannot follow damage.
  */
 export async function openFileNoFollow(file: string, flags: number, mode?: number): Promise<FileHandle> {
-  // O_NOFOLLOW does not stop a FIFO: a plain open blocks until a peer appears,
-  // hanging the caller (often while it holds the project lock). O_NONBLOCK makes
-  // a read open return at once and a write open fail fast (ENXIO); the handle is
-  // then refused unless it is a regular file, so no caller ever reads a FIFO.
-  const nonBlocking = flags | (constants.O_NONBLOCK ?? 0);
+  const nonBlocking = nonBlockingFlags(flags);
+  if (constants.O_NOFOLLOW) return (await requireRegularHandle(await open(file, nonBlocking, mode))).handle;
+  return openPortable(file, portableFlags(flags, nonBlocking), mode, true);
+}
+
+/**
+ * {@link openFileNoFollow}, also returning the handle's `fstat` that proved it a
+ * regular file. A caller that needs the handle's identity or size uses this
+ * instead of a second `handle.stat()`: nothing runs between the two snapshots of
+ * the same open handle, so the second one adds no check.
+ */
+export async function openRegularNoFollow(file: string, flags: number, mode?: number): Promise<{ handle: FileHandle; stat: Stats }> {
+  const nonBlocking = nonBlockingFlags(flags);
   if (constants.O_NOFOLLOW) return requireRegularHandle(await open(file, nonBlocking, mode));
+  return requireRegularHandle(await openPortable(file, portableFlags(flags, nonBlocking), mode, true));
+}
+
+/**
+ * The caller's flags plus O_NONBLOCK. O_NOFOLLOW does not stop a FIFO: a plain
+ * open blocks until a peer appears, hanging the caller (often while it holds the
+ * project lock). O_NONBLOCK makes a read open return at once and a write open
+ * fail fast (ENXIO); the handle is then refused unless it is a regular file, so
+ * no caller ever reads a FIFO.
+ */
+function nonBlockingFlags(flags: number): number {
+  return flags | (constants.O_NONBLOCK ?? 0);
+}
+
+/** Refuse, before opening, any write mode the portable identity checks cannot keep safe. */
+function portableFlags(flags: number, nonBlocking: number): number {
   const writes = flags & (constants.O_WRONLY | constants.O_RDWR | constants.O_CREAT);
   if ((flags & constants.O_TRUNC) || (flags & constants.O_RDWR) || (writes && !(flags & constants.O_APPEND))) {
     throw new Error("Portable no-follow opening supports only reads and append-only writes");
   }
-  return openPortable(file, nonBlocking, mode, true);
+  return nonBlocking;
 }
 
 /** What a capped text read of an already-open leaf found: over the cap (its size, never read), or its text. */
@@ -132,9 +157,10 @@ export async function readOpenedTextWithinCap(handle: FileHandle, maxBytes: numb
 }
 
 /** Close and refuse a handle to anything but a regular file (a FIFO, device, directory or socket). */
-async function requireRegularHandle(handle: FileHandle): Promise<FileHandle> {
+async function requireRegularHandle(handle: FileHandle): Promise<{ handle: FileHandle; stat: Stats }> {
   try {
-    if ((await handle.stat()).isFile()) return handle;
+    const stat = await handle.stat();
+    if (stat.isFile()) return { handle, stat };
   } catch (err) {
     await handle.close().catch(() => {});
     throw err;

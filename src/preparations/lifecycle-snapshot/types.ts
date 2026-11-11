@@ -5,9 +5,14 @@
  * deliberately absent from this surface.
  */
 
-/** Public state of the project preparation-key epoch. */
+/**
+ * Public state of the project preparation-key epoch. `unobserved` is a snapshot
+ * that read no key because neither registry existed to hold a unit it could
+ * authenticate; only the recovery gate's own pass takes one.
+ */
 export type PreparationLifecycleKeyStateV1 =
   | { readonly status: "absent" }
+  | { readonly status: "unobserved" }
   | { readonly status: "unavailable" }
   | { readonly status: "ok"; readonly keyEpochId: string };
 

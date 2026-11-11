@@ -18,7 +18,8 @@ import path from "path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { writePage } from "./fixtures/write-page.js";
-import { buildServer, useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { buildServer } from "./fixtures/mcp-test-server.js";
 
 /** Body planted in every file a traversal must not be able to read. */
 const SECRET_BODY = "SECRET-BYTES";

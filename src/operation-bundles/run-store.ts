@@ -29,6 +29,8 @@ import { readConfinedLeafBuffer, type CappedLeafRead, type CappedLeafReadBuffer 
 import { MAX_MUTATIONS_PER_BUNDLE, MAX_RUN_BYTES, MAX_RUN_EVIDENCE_BLOB_BYTES } from "./constants.js";
 import { mutationId, type MutationId } from "./ids.js";
 import { readDurableOperationLeaf } from "./durable-leaf.js";
+import { once } from "../utils/pass-memo.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
 import { operationPaths } from "./paths.js";
 import type { OperationProblemCode } from "./problems.js";
@@ -89,10 +91,10 @@ export interface AbandonedControlTransition {
 }
 
 /** Read one exact workspace leaf before consulting any project key. */
-async function readRunLeaf(root: string, binding: OperationRunBinding, maxBytes: number) {
+async function readRunLeaf(root: string, binding: OperationRunBinding, maxBytes: number, scanned?: ScannedLeafBytes) {
   const paths = operationPaths(root, binding.workspaceId);
   return readDurableOperationLeaf(
-    root, paths.runFile(binding.runId), paths.runsRoot, maxBytes,
+    root, paths.runFile(binding.runId), paths.runsRoot, maxBytes, scanned,
   );
 }
 
@@ -108,16 +110,21 @@ export interface OperationRunLeafReads {
 }
 
 /** The local-disk run leaves for one project root, built per call: each closure calls the incumbent function when asked. In no package index. */
-export function diskOperationRunLeafReads(root: string): OperationRunLeafReads {
+export function diskOperationRunLeafReads(root: string, scanned?: ScannedLeafBytes): OperationRunLeafReads {
   return {
-    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes),
+    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned),
     readKey: () => readOperationKey(root),
   };
 }
 
-/** Read, parse, and authenticate only against all caller-requested identities. */
-export async function readOperationRun(root: string, binding: OperationRunBinding): Promise<OperationRunRead> {
-  return readOperationRunFrom(diskOperationRunLeafReads(root), binding);
+/**
+ * Read, parse, and authenticate only against all caller-requested identities. A
+ * caller that already read the key under the same lock hold may hand in its
+ * `readKey`; otherwise the key is read here.
+ */
+export async function readOperationRun(root: string, binding: OperationRunBinding, readKey?: () => Promise<OperationKeyRead>): Promise<OperationRunRead> {
+  const leaves = diskOperationRunLeafReads(root);
+  return readOperationRunFrom(readKey === undefined ? leaves : { ...leaves, readKey }, binding);
 }
 
 /**
@@ -141,7 +148,10 @@ export async function readOperationRunFrom(leaves: OperationRunLeafReads, bindin
 export interface OperationRunWriteSteps {
   /** The authenticated exact-binding run read. Local: `readOperationRun(root, binding)`. */
   readRun(binding: OperationRunBinding): Promise<OperationRunRead>;
-  /** The operation key WITH ITS BYTES, fresh on each call. Local: `readOperationKey(root)`. */
+  /**
+   * The operation key WITH ITS BYTES. Local: `readOperationKey(root)`, read once per
+   * write and shared with that write's run reads (see {@link diskOperationRunWriteSteps}).
+   */
   readKey(): Promise<OperationKeyRead>;
   /** One content-addressed run-evidence leaf, single-link and capped; a path it cannot derive rejects. */
   readEvidenceLeaf(binding: OperationRunBinding, digestHex: string, maxBytes: number): Promise<CappedLeafReadBuffer>;
@@ -151,11 +161,19 @@ export interface OperationRunWriteSteps {
   replaceRun(binding: OperationRunBinding, serialized: string): Promise<void>;
 }
 
-/** The local-disk run write steps for one root, built per call; each closure calls the incumbent when asked. In no package index. */
-function diskOperationRunWriteSteps(root: string): OperationRunWriteSteps {
+/**
+ * The local-disk run write steps for one root, built per call; each closure calls
+ * the incumbent when asked. In no package index. ONE KEY READ PER WRITE: the
+ * steps live for one writer call, under the caller's lock, and no writer writes
+ * the key, so the key that authenticates the predecessor (and a recovery run) is
+ * the key read once here and the key that signs the next record. A second read
+ * would only re-ask the first (the body's epoch checks still compare it). A
+ * caller whose whole lock hold shares one key read hands its `readKey` in.
+ */
+function diskOperationRunWriteSteps(root: string, readKey = once(() => readOperationKey(root))): OperationRunWriteSteps {
   return {
-    readRun: (binding) => readOperationRun(root, binding),
-    readKey: () => readOperationKey(root),
+    readRun: (binding) => readOperationRun(root, binding, readKey),
+    readKey,
     readEvidenceLeaf: (binding, digestHex, maxBytes) => {
       const paths = operationPaths(root, binding.workspaceId);
       return readConfinedLeafBuffer(root, paths.evidenceFile(binding.runId, digestHex), paths.evidenceRoot(binding.runId), maxBytes, { requireSingleLink: true });
@@ -225,15 +243,18 @@ function assertExpectedPredecessor(run: OperationRun, expected: OperationRunPred
 
 /**
  * Authenticate the exact predecessor, append exactly one next state version,
- * and durably replace the record. The caller must hold the project lock.
+ * and durably replace the record. The caller must hold the project lock; a
+ * caller that already read the key under that same hold may hand in its
+ * `readKey`, since nothing it holds the lock for writes the key.
  */
 export async function appendOperationTransitionLocked(
   root: string,
   binding: OperationRunBinding,
   expected: OperationRunPredecessor,
   input: AppendOperationTransitionInput,
+  readKey?: () => Promise<OperationKeyRead>,
 ): Promise<OperationRun> {
-  return appendOperationTransitionWith(diskOperationRunWriteSteps(root), binding, expected, input);
+  return appendOperationTransitionWith(diskOperationRunWriteSteps(root, readKey), binding, expected, input);
 }
 
 /** {@link appendOperationTransitionLocked} over the writers' own steps: the one append body. */

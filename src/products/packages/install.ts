@@ -139,14 +139,19 @@ async function tryWriteReceipt(steps: ProductInstallCommitSteps, manifest: Produ
 
 /**
  * The install's PROJECT commit leg: THE ONE BODY. Commit, then require an offline
- * read to resolve the package, then the advisory receipt, whose failure leaves the
+ * read to resolve the package (a convergence already is one), then the advisory receipt, whose failure leaves the
  * package inert with provenance unavailable. Never activates. The caller holds the lock.
  */
 export async function commitInstalledPackageWith(
   steps: ProductInstallCommitSteps, staged: { manifest: ProductPackageManifestV1; bytesByHex: ReadonlyMap<string, Buffer> },
 ): Promise<ProductInstallResultV1> {
   const commit = await steps.commit(staged.manifest, staged.bytesByHex);
-  if ((await steps.readInstalled(staged.manifest.packageDigest)).status !== "ok") {
+  // A commit converges ONLY onto a package its own offline read has just
+  // resolved as `ok` (and renames nothing after it), so that read is this
+  // proof; a fresh rename is proven by a new read at its final place.
+  const resolves = commit.status === "converged"
+    || (await steps.readInstalled(staged.manifest.packageDigest)).status === "ok";
+  if (!resolves) {
     throw new ProductPackageError("installed package did not resolve on an offline read");
   }
   return buildResult(staged.manifest, commit, await tryWriteReceipt(steps, staged.manifest));

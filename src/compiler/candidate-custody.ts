@@ -274,6 +274,13 @@ async function assertDirectoryReadableFrom(
  * probe or a shared identity is `CandidateCustodyUnavailableError`.
  */
 export async function assertCandidateNamespacesHealthyFrom(reads: CandidateStoreWriteReads): Promise<void> {
+  await candidateNamespacesHealthyFrom(reads);
+}
+
+/** {@link assertCandidateNamespacesHealthyFrom}, handing back the two bindings it proved (`null` = absent). */
+export async function candidateNamespacesHealthyFrom(
+  reads: CandidateStoreWriteReads,
+): Promise<{ pending: DirectoryBinding | null; archive: DirectoryBinding | null }> {
   const pending = await reads.captureDirectory(CANDIDATES_DIR);
   if (pending) await assertDirectoryReadableFrom(reads, pending);
   const archive = await reads.captureDirectory(CANDIDATES_ARCHIVE_DIR);
@@ -281,11 +288,20 @@ export async function assertCandidateNamespacesHealthyFrom(reads: CandidateStore
     throw new CandidateCustodyUnavailableError();
   }
   if (archive) await assertDirectoryReadableFrom(reads, archive);
+  return { pending, archive };
 }
 
-/** Prove one existing namespace (`relTarget`) or its literal creation parent can be mutated. */
-async function assertMutationTargetWritableFrom(reads: CandidateStoreWriteReads, relTarget: string): Promise<void> {
-  const existing = await reads.captureDirectory(relTarget);
+/**
+ * Prove one existing namespace (`relTarget`) or its literal creation parent can
+ * be mutated. `proven` is the namespace's binding from the health check just
+ * made: the write probe re-proves a binding is still current right after its
+ * access check, so an existing one is probed as-is instead of captured again.
+ * An absent one is looked up afresh (it may exist by now), then its parent.
+ */
+async function assertMutationTargetWritableFrom(
+  reads: CandidateStoreWriteReads, relTarget: string, proven: DirectoryBinding | null,
+): Promise<void> {
+  const existing = proven ?? await reads.captureDirectory(relTarget);
   const binding = existing ?? await reads.captureDirectory(path.dirname(relTarget));
   if (binding === null) throw new CandidateCustodyUnavailableError();
   await assertDirectoryAccessFrom(reads, binding);
@@ -309,10 +325,10 @@ export async function assertCandidateMutationAccessFrom(
   reads: CandidateStoreWriteReads,
   requiresArchiveInsert: boolean,
 ): Promise<void> {
-  await assertCandidateNamespacesHealthyFrom(reads);
-  await assertMutationTargetWritableFrom(reads, CANDIDATES_DIR);
+  const namespaces = await candidateNamespacesHealthyFrom(reads);
+  await assertMutationTargetWritableFrom(reads, CANDIDATES_DIR, namespaces.pending);
   if (requiresArchiveInsert) {
-    await assertMutationTargetWritableFrom(reads, CANDIDATES_ARCHIVE_DIR);
+    await assertMutationTargetWritableFrom(reads, CANDIDATES_ARCHIVE_DIR, namespaces.archive);
   }
 }
 
@@ -354,9 +370,27 @@ async function readCustodyLeafFrom(
 ): Promise<CustodyLeafRead> {
   const store = await captureStoreFrom(reads, expectedStore);
   if (store === null) return { kind: "unavailable" };
+  const resolveLeaf = () => reads.leafPath(fileId, location).catch(() => null);
+  return readBoundCustodyLeafFrom(reads, location, store, resolveLeaf, policy);
+}
+
+/**
+ * Read one leaf under a store binding the caller JUST captured. The guarded
+ * read itself confines `leaf` to the bound location's real directory and
+ * re-proves both directory bindings after reading, so a leaf path resolved
+ * just before the store capture is as safe as one resolved just after it.
+ * `resolveLeaf` runs only once the location is bound.
+ */
+async function readBoundCustodyLeafFrom(
+  reads: CandidateCustodyReads,
+  location: CandidateLocation,
+  store: DirectoryBinding,
+  resolveLeaf: () => Promise<string | null>,
+  policy: CandidateCustodyPolicy,
+): Promise<CustodyLeafRead> {
   const locationBinding = await captureLocationBindingFrom(reads, location, store);
   if (locationBinding.kind !== "ok") return locationBinding;
-  const leaf = await reads.leafPath(fileId, location).catch(() => null);
+  const leaf = await resolveLeaf();
   if (leaf === null) return { kind: "unavailable" };
   return reads.readLeaf({
     leaf, store, location: locationBinding.binding, maxBytes: candidateByteLimit(policy),
@@ -384,7 +418,7 @@ export async function captureCandidateCustodyFrom(
   assertCandidateId(fileId);
   // Preserve the store's public typed confinement refusal before custody can
   // classify an ordinary direct read as unavailable.
-  await reads.leafPath(fileId, "pending");
+  const leaf = await reads.leafPath(fileId, "pending");
   const store = await captureStoreFrom(reads, expectedStore?.identity);
   if (store === null) {
     if (expectedStore === undefined) return null;
@@ -393,7 +427,9 @@ export async function captureCandidateCustodyFrom(
   if (expectedStore && (store.dir !== expectedStore.dir || store.realDir !== expectedStore.realDir)) {
     throw new CandidateCustodyUnavailableError();
   }
-  const read = await readCustodyLeafFrom(reads, fileId, "pending", store.identity, policy);
+  // The store was captured just above: read under THAT binding with the leaf
+  // already resolved, rather than capturing and resolving both again.
+  const read = await readBoundCustodyLeafFrom(reads, "pending", store, async () => leaf, policy);
   if (read.kind === "absent") return null;
   if (read.kind !== "ok") {
     await assertCandidateStoreBindingFrom(reads, store);

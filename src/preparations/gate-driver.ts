@@ -29,7 +29,7 @@ import { upsertPhaseSummary } from "./attempts/start.js";
 import { findApprovedGateProof } from "./gates.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import {
-  appendPreparationTransitionWith, appendProjectedTransitionLocked, readPreparationRun, readPreparationRunFrom,
+  appendPreparationTransitionWith, appendProjectedTransitionLocked, preparationRunHolds, readPreparationRun, readPreparationRunFrom,
   type PreparationRunContentProjector, type PreparationRunLeafReads, type PreparationRunRead, type PreparationRunWriteSteps,
 } from "./run-store.js";
 import type { PhaseInstanceId } from "./ids.js";
@@ -54,12 +54,23 @@ export interface GateDriverSteps {
   readonly appendProjected: ProjectedRunAppend;
 }
 
-/** LOCAL DISK. The incumbent lock, reader and writer for `root`, each called when asked. */
-function diskGateDriverSteps(root: string): GateDriverSteps {
+/**
+ * LOCAL DISK. The incumbent ordinary blocking lock, run reader and projected
+ * writer for `root`, each called when asked. The run read and the append's reads
+ * are ONE HOLD's (`preparationRunHolds`): a new hold begins when the lock is
+ * acquired, and the append, the one run write, ends it. Shared with
+ * finalization, which reads and appends under the same lock the same way.
+ */
+export function diskGateDriverSteps(root: string): GateDriverSteps {
+  const holds = preparationRunHolds(root);
   return {
-    lock: { acquire: () => acquireMutationLockBlocking(root, "ordinary"), release: () => releaseLock(root) },
-    readRun: (binding) => readPreparationRun(root, binding),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
+    lock: {
+      acquire: async () => { await acquireMutationLockBlocking(root, "ordinary"); holds.renew(); },
+      release: () => releaseLock(root),
+    },
+    readRun: (binding) => readPreparationRun(root, binding, holds.current()),
+    appendProjected: (binding, expected, input, project) =>
+      holds.writing((hold) => appendProjectedTransitionLocked(root, binding, expected, input, project, hold)),
   };
 }
 

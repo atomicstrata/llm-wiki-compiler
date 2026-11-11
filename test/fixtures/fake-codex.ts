@@ -16,6 +16,21 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+/** Pause between reads of a child-owned journal while waiting for it to change. */
+const JOURNAL_POLL_INTERVAL_MS = 2;
+const pauseCell = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+
+/**
+ * Pause this thread without a timer. Suites drive the provider's own timeouts
+ * with `vi.useFakeTimers()` while waiting on the journal, and Bun fakes every
+ * timer (`setTimeout`, `Bun.sleep`, `node:timers/promises`), so a timer-based
+ * pause would never elapse. The journal's writer is another process, so
+ * blocking here does not hold it back.
+ */
+function pauseBetweenReads(): void {
+  Atomics.wait(pauseCell, 0, 0, JOURNAL_POLL_INTERVAL_MS);
+}
+
 /** Behavior configured into one fake Codex executable. */
 export interface FakeCodexOptions {
   toolOutput?: unknown;
@@ -62,10 +77,16 @@ async function fileContains(filePath: string, expected: string): Promise<boolean
   }
 }
 
-/** Resolve once a child-owned journal records expected state, without clock assumptions. */
+/**
+ * Resolve once a child-owned journal records expected state, without clock
+ * assumptions: there is no deadline, only a pause between reads. Re-reading
+ * back to back read the journal tens of thousands of times per suite while the
+ * child was still starting up; the pause leaves the wait unbounded and the
+ * observed state unchanged.
+ */
 async function waitForFileContent(filePath: string, expected: string): Promise<void> {
   while (!(await fileContains(filePath, expected))) {
-    // Each asynchronous read yields to the child process that owns the journal.
+    pauseBetweenReads();
   }
 }
 

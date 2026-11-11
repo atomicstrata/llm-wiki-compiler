@@ -23,11 +23,14 @@
  */
 
 import { MAX_KNOWLEDGE_PROFILE_BYTES } from "../constants.js";
-import { diskProductPackageReads, readInstalledProductPackageFrom, type ProductPackageReads } from "../packages/store.js";
+import {
+  diskProductPackageReads, readInstalledProductPackageFrom, type ProductPackageReads, type VerifiedMemberBytes,
+} from "../packages/store.js";
 import type { LoadedProfile } from "../../profile/types.js";
 import type { ProductPackageManifestV1 } from "../types.js";
 import {
   bindingComponentMismatch, knowledgeProfileMemberPath, loadKnowledgeProfileMember, readStoredMemberTextFrom,
+  verifiedMemberText,
 } from "./manifest-authority.js";
 import {
   diskActiveBindingReads, profileJsonPresentFrom, readActiveProductBindingFrom, type ActiveBindingReads,
@@ -37,12 +40,19 @@ import type { ActiveProductBindingV1 } from "./types.js";
 /**
  * The classified runtime mode (design section 8.2). `legacy` means run the
  * existing profile loader unchanged; `product` carries the resolved binding and
- * effective profile; `conflict` means a binding and a legacy `profile.json`
- * coexist; `unavailable` carries a fail-closed reason and never degrades to legacy.
+ * effective profile, and the installed package's manifest exactly as this
+ * resolution read and verified it, so a caller needing the manifest does not
+ * read and re-verify the same content-addressed package a second time, with the
+ * member bytes that read verified (`verifiedMembers`) for the same reason; `conflict`
+ * means a binding and a legacy `profile.json` coexist; `unavailable` carries a
+ * fail-closed reason and never degrades to legacy.
  */
 export type ActiveProductResolution =
   | { mode: "legacy" }
-  | { mode: "product"; binding: ActiveProductBindingV1; loaded: LoadedProfile }
+  | {
+    mode: "product"; binding: ActiveProductBindingV1; loaded: LoadedProfile;
+    manifest: ProductPackageManifestV1; verifiedMembers: VerifiedMemberBytes;
+  }
   | { mode: "conflict" }
   | { mode: "unavailable"; detail: string };
 
@@ -70,12 +80,16 @@ export function diskActiveProductSources(root: string): ActiveProductSources {
   return { root, binding: diskActiveBindingReads(root), packages: diskProductPackageReads(root) };
 }
 
-/** Load the product-mode effective profile from the knowledge-profile member. */
+/**
+ * Load the product-mode effective profile from the knowledge-profile member:
+ * the bytes the package read verified when it kept them, else the capped read.
+ */
 async function loadProductProfile(
-  sources: ActiveProductSources, binding: ActiveProductBindingV1, manifest: ProductPackageManifestV1,
+  sources: ActiveProductSources, binding: ActiveProductBindingV1,
+  manifest: ProductPackageManifestV1, verifiedMembers: VerifiedMemberBytes,
 ): Promise<LoadedProfile> {
-  const text = await readStoredMemberTextFrom(
-    sources.packages, binding.packageDigest, manifest.knowledgeProfile, MAX_KNOWLEDGE_PROFILE_BYTES);
+  const text = verifiedMemberText(verifiedMembers, manifest.knowledgeProfile, MAX_KNOWLEDGE_PROFILE_BYTES)
+    ?? await readStoredMemberTextFrom(sources.packages, binding.packageDigest, manifest.knowledgeProfile, MAX_KNOWLEDGE_PROFILE_BYTES);
   const memberPath = knowledgeProfileMemberPath(sources.root, binding.packageDigest, manifest.knowledgeProfile.digest);
   return loadKnowledgeProfileMember(text, memberPath);
 }
@@ -94,8 +108,8 @@ async function resolveProductMode(
   const mismatch = bindingComponentMismatch(binding, pkg.manifest);
   if (mismatch !== null) return { mode: "unavailable", detail: `component-mismatch:${mismatch}` };
   try {
-    const loaded = await loadProductProfile(sources, binding, pkg.manifest);
-    return { mode: "product", binding, loaded };
+    const loaded = await loadProductProfile(sources, binding, pkg.manifest, pkg.verifiedMembers);
+    return { mode: "product", binding, loaded, manifest: pkg.manifest, verifiedMembers: pkg.verifiedMembers };
   } catch (error) {
     return { mode: "unavailable", detail: error instanceof Error ? error.message : "knowledge-profile" };
   }

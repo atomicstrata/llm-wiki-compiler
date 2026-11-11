@@ -23,7 +23,7 @@
  * evidence about them.
  */
 
-import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "../../fixtures/committed-source.js";
 import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import { scenarioTitleIndex } from "./scenario-index.js";
@@ -94,6 +94,11 @@ const NON_PROTOCOL_NAMES: readonly string[] = [
   // binding. The durable read it depends on is `readPreparationManifest`,
   // mapped by PLA-MAP-SWP02.
   "preparationManifestDigest",
+  // A reads FACTORY, not a step. It builds the key, manifest and run reads one
+  // pass shares, doing no I/O itself; each read it hands out is the mapped
+  // incumbent (`readPreparationKey`, `readPreparationManifest`,
+  // `readPreparationRun`) asked at most once per pass.
+  "preparationPassReads",
 ];
 
 /** The destructive operation modules whose cross-module reach the map must cover. */
@@ -184,7 +189,7 @@ function localImportNames(source: string): string[] {
 async function unreadableLocalImports(): Promise<string[]> {
   const offenders: string[] = [];
   for (const module of MAPPED_OPERATION_MODULES) {
-    const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+    const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
     if (/import\s+\*\s+as\s+\w+\s+from\s*["']\./u.test(source)) offenders.push(`${module}: namespace import`);
     if (/\bimport\s*\(\s*["']\./u.test(source)) offenders.push(`${module}: dynamic import`);
   }
@@ -204,7 +209,7 @@ async function unmappedOperationReach(): Promise<string[]> {
   // Comment-stripped, like `unreadableLocalImports` just above it. Reading raw
   // source made a COMMENTED-OUT import count as a live reach.
   const sources = await Promise.all(MAPPED_OPERATION_MODULES.map(async (module) =>
-    withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"))));
+    withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)))));
   const reached = new Set(sources.flatMap(localImportNames));
   return [...reached].filter((name) => !mapped.has(name) && !excluded.has(name)).sort();
 }
@@ -314,7 +319,7 @@ describe("Task 9D protocol-preservation map", () => {
     const unresolved: string[] = [];
     for (const row of RESET_QUARANTINE_PROTOCOL_MAP_ALL) {
       for (const { symbol, file } of row.seam) {
-        const source = await readFile(path.join(REPO_ROOT, file), "utf8")
+        const source = await readCommittedSource(path.join(REPO_ROOT, file))
           .catch(() => "");
         if (!declaresSymbol(source, symbol)) unresolved.push(`${row.id}: ${symbol} not declared in ${file}`);
       }

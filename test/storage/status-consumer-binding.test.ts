@@ -169,12 +169,12 @@ describe("the reads one status snapshot makes over a copy", () => {
     expect(log.slice(0, 3)).toEqual([`state:exists ${STATE_FILE}`, `state:read ${STATE_FILE}`, "freshness:open"]);
   });
 
-  it("S6 scans the concept directory twice and the query directory once, reading each page once per scan", async () => {
+  it("S6 scans the concept and query directories once each, reading each page once", async () => {
     const log: string[] = [];
     await collectStatusFrom(statusReadsOf(compiled.copy, log));
-    expect([countOf(log, `content:list ${CONCEPTS_DIR}`), countOf(log, `content:list ${QUERIES_DIR}`)]).toEqual([2, 1]);
+    expect([countOf(log, `content:list ${CONCEPTS_DIR}`), countOf(log, `content:list ${QUERIES_DIR}`)]).toEqual([1, 1]);
     const conceptPages = ["alpha", "beta", "flagged", "gamma", "untitled"];
-    expect(conceptPages.map((slug) => countOf(log, `content:page ${CONCEPTS_DIR}/${slug}`))).toEqual([2, 2, 2, 2, 2]);
+    expect(conceptPages.map((slug) => countOf(log, `content:page ${CONCEPTS_DIR}/${slug}`))).toEqual([1, 1, 1, 1, 1]);
     expect([countOf(log, `content:page ${QUERIES_DIR}/saved`), countOf(log, `content:page ${CONCEPTS_DIR}/README.txt`)]).toEqual([1, 0]);
   });
 

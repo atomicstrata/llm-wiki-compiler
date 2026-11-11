@@ -52,8 +52,12 @@ import type {
 
 /** The confined reads one scan makes, each bound to one namespace. No member takes a project root. */
 export interface LifecycleScanReads {
-  /** Re-prove the namespace's root, private root, registries and key binding; THROWS on drift. */
-  assertNamespaceCurrent(): Promise<void>;
+  /**
+   * Re-prove the namespace's root, private root, registries and key binding; THROWS
+   * on drift. `"reproved-after"` leaves the key binding to the key observation's
+   * re-proof that immediately follows.
+   */
+  assertNamespaceCurrent(keyBinding?: "recheck" | "reproved-after"): Promise<void>;
   /** Capture the bound key observation once. */
   captureKey(): Promise<CapturedLifecycleKey>;
   /** Enumerate both registries once within `bounds`. */
@@ -71,7 +75,7 @@ export interface LifecycleScanReads {
 /** LOCAL DISK. The confined incumbents for `namespace`, each called when asked. Exported for the scan witness only; in no package index. */
 export function diskLifecycleScanReads(namespace: PreparationLifecycleNamespaceV1): LifecycleScanReads {
   return {
-    assertNamespaceCurrent: () => assertPreparationLifecycleNamespaceCurrent(namespace),
+    assertNamespaceCurrent: (keyBinding) => assertPreparationLifecycleNamespaceCurrent(namespace, keyBinding),
     captureKey: () => captureLifecycleKey(namespace),
     observeRegistries: (bounds, onEnumerated) => observeLifecycleRegistries(namespace, bounds, onEnumerated),
     unitStillCurrent: (observation) => lifecycleUnitStillCurrent(observation),
@@ -249,17 +253,93 @@ export async function scanPreparationLifecycle(
 }
 
 /**
+ * {@link scanPreparationLifecycle} for a namespace its caller opened IMMEDIATELY
+ * before, with no await in between. The opener's own final revalidation is then
+ * the scan's start proof, so the body does not repeat it; the end proof, the key
+ * identity checks and the registries' own identity checks are all unchanged.
+ * Used only by `read.ts`, which opens and scans back to back. In no package index.
+ */
+export async function scanJustOpenedPreparationLifecycle(
+  namespace: PreparationLifecycleNamespaceV1,
+  options: PreparationLifecycleScanOptionsV1 = {},
+  keyObservation: LifecycleKeyObservation = "always",
+): Promise<PreparationLifecycleSnapshotV1> {
+  assertPreparationLifecycleNamespaceBrand(namespace);
+  return scanPreparationLifecycleFrom(
+    diskLifecycleScanReads(namespace), namespace, options, "proven-by-open", keyObservation,
+  );
+}
+
+/**
+ * When a scan reads the key. `"always"` is every caller's default: the snapshot
+ * carries the key state. `"for-units"` reads it only when a registry is bound
+ * present, because a unit's receipts are the only thing in a scan the key
+ * authenticates; with both registries proved absent there is nothing for it to
+ * authenticate, and the snapshot reports the key `unobserved`. Only the
+ * recovery gate's pass asks for it (`read.ts`), and that pass's consumers read
+ * pending units and quarantine storage, never the key state; a consumer that
+ * does need the key refuses any state but `ok`.
+ */
+export type LifecycleKeyObservation = "always" | "for-units";
+
+/** Whether the namespace bound both registries ABSENT, so the scan has no unit to observe. */
+function registriesProvedAbsent(namespace: PreparationLifecycleNamespaceV1): boolean {
+  return namespace.quarantineRegistry.status === "absent" && namespace.pruneRegistry.status === "absent";
+}
+
+/** The key observation one scan makes: none when nothing it could authenticate exists. */
+async function observeKey(
+  reads: LifecycleScanReads, namespace: PreparationLifecycleNamespaceV1, keyObservation: LifecycleKeyObservation,
+): Promise<CapturedLifecycleKey> {
+  if (keyObservation === "for-units" && registriesProvedAbsent(namespace)) return { status: "unobserved" };
+  return reads.captureKey();
+}
+
+/**
+ * The scan's END PROOF: the namespace and the key re-proven after everything
+ * the scan read.
+ *
+ * NOTHING TO BRACKET, NOTHING RE-PROVEN. When the start proof bound both
+ * registries absent and the key was not read (absent at the start proof, or
+ * not observed), the scan read nothing after its start proof: no registry was
+ * enumerated, no unit classified, no key leaf opened. The snapshot is then
+ * exactly the facts the start proof established at one instant, and a second
+ * revalidation could only re-establish them at a later one. A registry or key
+ * appearing after the start proof is outside the snapshot either way, as it is
+ * when it appears after the end proof.
+ */
+async function proveScanEnd(
+  reads: LifecycleScanReads, namespace: PreparationLifecycleNamespaceV1, key: CapturedLifecycleKey,
+): Promise<void> {
+  const keyRead = key.status === "ok" || key.status === "unavailable";
+  if (!keyRead && registriesProvedAbsent(namespace)) return;
+  // An ok key observation is re-proven next against the namespace's own key
+  // binding, which proves every fact the namespace's key check would; an absent
+  // or unavailable one opens nothing there, so the namespace checks the leaf.
+  await reads.assertNamespaceCurrent(key.status === "ok" ? "reproved-after" : "recheck");
+  if (key.status !== "unobserved") await reads.assertKeyCurrent(key);
+}
+
+/**
  * {@link scanPreparationLifecycle} over {@link LifecycleScanReads}: THE ONE BODY.
  * Exported for its witness only; in no package index, and its snapshots are never
  * recorded lifecycle reads.
+ *
+ * THE START PROOF is the namespace revalidation before the key capture. It is
+ * skipped only for `proven-by-open`, where the opener revalidated the same
+ * namespace with nothing in between. Registry observation does NOT repeat it:
+ * the key capture between them is identity-checked against the namespace, and
+ * each registry enumeration proves its own registry's dev/ino.
  */
 export async function scanPreparationLifecycleFrom(
   reads: LifecycleScanReads,
   namespace: PreparationLifecycleNamespaceV1,
   options: PreparationLifecycleScanOptionsV1 = {},
+  startProof: "revalidate" | "proven-by-open" = "revalidate",
+  keyObservation: LifecycleKeyObservation = "always",
 ): Promise<PreparationLifecycleSnapshotV1> {
-  await reads.assertNamespaceCurrent();
-  const key = await reads.captureKey();
+  if (startProof === "revalidate") await reads.assertNamespaceCurrent();
+  const key = await observeKey(reads, namespace, keyObservation);
   try {
     await options.afterKeyCapturedForTest?.();
     const bounds = lifecycleScanBounds(options);
@@ -268,8 +348,7 @@ export async function scanPreparationLifecycleFrom(
       reads, namespace, observed.units, key, bounds, options.afterClassificationForTest,
     );
     const currentStorage = await reads.revalidateStorage(observed.storage);
-    await reads.assertNamespaceCurrent();
-    await reads.assertKeyCurrent(key);
+    await proveScanEnd(reads, namespace, key);
     const projected = passTwoUnits(passOne);
     const registryProblems = observed.problems.filter((problem) => problem.unitId === undefined);
     const problems = [...registryProblems, ...projected.problems]

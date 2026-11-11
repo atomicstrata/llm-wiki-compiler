@@ -17,12 +17,14 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
+import pLimit from "p-limit";
 import {
   MAX_PAYLOAD_BYTES, MAX_PROJECTION_BYTES, MAX_RETAINED_SOURCE_BYTES,
   MAX_RUN_BYTES, MAX_RUN_EVIDENCE_BLOB_BYTES,
 } from "./constants.js";
 import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
 import { readDurableOperationLeafBuffer } from "./durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { assertBundleId, assertOperationRunId, type BundleId, type OperationRunId } from "./ids.js";
 import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
 import type {
@@ -71,14 +73,20 @@ function authorityLeafPaths(root: string, leaf: InventoryAuthorityLeaf): { file:
   }
 }
 
-/** The local-disk authority reads for one root, built per call. In no package index. */
-function diskInventoryAuthorityReads(root: string): InventoryAuthorityReads {
+/**
+ * The local-disk authority reads for one root, built per call. A pass that has
+ * already read the key hands in its `readKey`, and its `scanned` holder, whose
+ * walk-read bytes a leaf still of that version is answered from. In no package index.
+ */
+export function diskInventoryAuthorityReads(
+  root: string, readKey: () => Promise<OperationKeyRead> = () => readOperationKey(root), scanned?: ScannedLeafBytes,
+): InventoryAuthorityReads {
   return {
     readLeaf: (leaf, maxBytes) => {
       const { file, parent } = authorityLeafPaths(root, leaf);
-      return readDurableOperationLeafBuffer(root, file, parent, maxBytes);
+      return readDurableOperationLeafBuffer(root, file, parent, maxBytes, scanned);
     },
-    readKey: () => readOperationKey(root),
+    readKey,
   };
 }
 
@@ -87,20 +95,37 @@ function digest(bytes: Buffer): `sha256:${string}` {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
+/**
+ * How many leaf reads one verification pass keeps in flight. Each leaf is read
+ * and rehashed independently, so a store of many leaves is verified in a
+ * fraction of the time a one-at-a-time walk takes.
+ */
+const VERIFY_READ_CONCURRENCY = 16;
+
+/**
+ * Check every leaf and report each failure's detail under `dimension`, in leaf
+ * order. `check` resolves to the detail of what is wrong, or undefined.
+ */
+async function reportInvalid<T>(
+  items: readonly T[], dimension: OperationInventoryProblem["dimension"], problems: OperationInventoryProblem[],
+  check: (item: T) => Promise<string | undefined>,
+): Promise<void> {
+  const limit = pLimit(VERIFY_READ_CONCURRENCY);
+  const details = await Promise.all(items.map((item) => limit(() => check(item))));
+  for (const detail of details) if (detail !== undefined) problems.push({ dimension, detail });
+}
+
 /** Rehash every final retained source against its content-address filename. */
 async function verifySources(
   reads: InventoryAuthorityReads,
   leaves: readonly OperationLeafObservation[],
   problems: OperationInventoryProblem[],
 ): Promise<void> {
-  for (const leaf of leaves) {
-    if (leaf.kind !== "source" || leaf.protocolAlias !== undefined || leaf.workspaceId === undefined) continue;
+  await reportInvalid(finalLeaves(leaves, "source"), "source-state", problems, async (leaf) => {
     const expected = path.basename(leaf.logicalRelativePath);
-    const read = await reads.readLeaf({ kind: "source", workspaceId: leaf.workspaceId, digest: expected }, MAX_RETAINED_SOURCE_BYTES);
-    if (read.kind !== "ok" || digest(read.body) !== `sha256:${expected}`) {
-      problems.push({ dimension: "source-state", detail: "retained source is unavailable or invalid" });
-    }
-  }
+    const read = await reads.readLeaf({ kind: "source", workspaceId: leaf.workspaceId!, digest: expected }, MAX_RETAINED_SOURCE_BYTES);
+    return read.kind === "ok" && digest(read.body) === `sha256:${expected}` ? undefined : "retained source is unavailable or invalid";
+  });
 }
 
 /** Return the logical pair key for one projection output or sidecar. */
@@ -156,13 +181,12 @@ async function verifyProjections(
     (leaf.kind === "projection" || leaf.kind === "projection-marker") && leaf.protocolAlias === undefined);
   const grouped = new Map<string, OperationLeafObservation[]>();
   for (const leaf of owned) grouped.set(projectionKey(leaf), [...(grouped.get(projectionKey(leaf)) ?? []), leaf]);
-  for (const values of grouped.values()) {
+  await reportInvalid([...grouped.values()], "projection-state", problems, async (values) => {
     const output = values.find((leaf) => leaf.kind === "projection");
     const marker = values.find((leaf) => leaf.kind === "projection-marker");
-    if (output === undefined || marker === undefined || !(await verifyProjectionPair(reads, output, marker))) {
-      problems.push({ dimension: "projection-state", detail: "projection output or marker is unavailable or invalid" });
-    }
-  }
+    return output !== undefined && marker !== undefined && await verifyProjectionPair(reads, output, marker)
+      ? undefined : "projection output or marker is unavailable or invalid";
+  });
 }
 
 /** Select final (non-alias) leaves of one kind with complete identities. */
@@ -180,18 +204,13 @@ async function verifyPayloadLeaves(
   leaves: readonly OperationLeafObservation[],
   problems: OperationInventoryProblem[],
 ): Promise<void> {
-  for (const leaf of finalLeaves(leaves, "payload")) {
-    if (leaf.bundleId === undefined) {
-      problems.push({ dimension: "payload-state", detail: "bundle payload leaf is missing its identity" });
-      continue;
-    }
+  await reportInvalid(finalLeaves(leaves, "payload"), "payload-state", problems, async (leaf) => {
+    if (leaf.bundleId === undefined) return "bundle payload leaf is missing its identity";
     const expected = path.basename(leaf.logicalRelativePath);
     const workspaceId = assertWorkspaceId(leaf.workspaceId!), bundleId = assertBundleId(leaf.bundleId);
     const read = await reads.readLeaf({ kind: "payload", workspaceId, bundleId, digest: expected }, MAX_PAYLOAD_BYTES);
-    if (read.kind !== "ok" || digest(read.body) !== `sha256:${expected}`) {
-      problems.push({ dimension: "payload-state", detail: "bundle payload is unavailable or invalid" });
-    }
-  }
+    return read.kind === "ok" && digest(read.body) === `sha256:${expected}` ? undefined : "bundle payload is unavailable or invalid";
+  });
 }
 
 /** Rehash every final run-evidence blob against its content-address filename. */
@@ -200,18 +219,13 @@ async function verifyEvidenceLeaves(
   leaves: readonly OperationLeafObservation[],
   problems: OperationInventoryProblem[],
 ): Promise<void> {
-  for (const leaf of finalLeaves(leaves, "evidence")) {
-    if (leaf.runId === undefined) {
-      problems.push({ dimension: "evidence-state", detail: "run evidence leaf is missing its identity" });
-      continue;
-    }
+  await reportInvalid(finalLeaves(leaves, "evidence"), "evidence-state", problems, async (leaf) => {
+    if (leaf.runId === undefined) return "run evidence leaf is missing its identity";
     const expected = path.basename(leaf.logicalRelativePath);
     const workspaceId = assertWorkspaceId(leaf.workspaceId!), runId = assertOperationRunId(leaf.runId);
     const read = await reads.readLeaf({ kind: "evidence", workspaceId, runId, digest: expected }, MAX_RUN_EVIDENCE_BLOB_BYTES);
-    if (read.kind !== "ok" || digest(read.body) !== `sha256:${expected}`) {
-      problems.push({ dimension: "evidence-state", detail: "run evidence is unavailable or invalid" });
-    }
-  }
+    return read.kind === "ok" && digest(read.body) === `sha256:${expected}` ? undefined : "run evidence is unavailable or invalid";
+  });
 }
 
 /**
@@ -229,18 +243,13 @@ async function verifyRunLeaves(
   const runLeaves = finalLeaves(leaves, "run");
   if (runLeaves.length === 0) return;
   const key = await reads.readKey();
-  for (const leaf of runLeaves) {
-    if (leaf.runId === undefined) {
-      problems.push({ dimension: "run-state", detail: "operation run leaf is missing its identity" });
-      continue;
-    }
+  await reportInvalid(runLeaves, "run-state", problems, async (leaf) => {
+    if (leaf.runId === undefined) return "operation run leaf is missing its identity";
     const workspaceId = assertWorkspaceId(leaf.workspaceId!), runId = assertOperationRunId(leaf.runId);
     const read = await reads.readLeaf({ kind: "run", workspaceId, runId }, MAX_RUN_BYTES);
-    if (read.kind !== "ok" || key.status !== "ok"
-      || !runRecordAuthentic(read.body, key.key, leaf.runId, leaf.workspaceId!)) {
-      problems.push({ dimension: "run-state", detail: "operation run record is unavailable or invalid" });
-    }
-  }
+    return read.kind === "ok" && key.status === "ok" && runRecordAuthentic(read.body, key.key, leaf.runId, leaf.workspaceId!)
+      ? undefined : "operation run record is unavailable or invalid";
+  });
 }
 
 /** Prove one run record verifies under its path-derived storage identity. */
@@ -258,16 +267,11 @@ function runRecordAuthentic(
   }
 }
 
-/** Verify founding-store leaves before their bytes contribute healthy capacity. */
-export async function verifyInventoryAuthorities(
-  root: string,
-  leaves: readonly OperationLeafObservation[],
-  problems: OperationInventoryProblem[],
-): Promise<void> {
-  await verifyInventoryAuthoritiesFrom(diskInventoryAuthorityReads(root), leaves, problems);
-}
-
-/** {@link verifyInventoryAuthorities} over the authority reads: the one body, in the incumbent store order. */
+/**
+ * Verify founding-store leaves before their bytes contribute healthy capacity,
+ * over the authority reads ({@link diskInventoryAuthorityReads} on disk): the
+ * one body, in the incumbent store order.
+ */
 export async function verifyInventoryAuthoritiesFrom(
   reads: InventoryAuthorityReads,
   leaves: readonly OperationLeafObservation[],

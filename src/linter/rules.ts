@@ -42,6 +42,7 @@ import {
   type LintLinkSources,
   type LintPageSources,
   type PageScope,
+  frontmatterOf,
 } from "./rules-shared.js";
 import { findWikilinks } from "../wiki/wikilinks.js";
 
@@ -131,7 +132,7 @@ export async function checkOrphanedPagesFrom(sources: LintPageSources): Promise<
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     if (meta.orphaned === true) {
       results.push({
         rule: "orphaned-page",
@@ -164,7 +165,7 @@ export async function checkStalePagesFrom(sources: LintPageSources, snapshot: Fr
   const pages = await collectAllPagesFrom(sources);
   const results: LintResult[] = [];
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     if (meta.orphaned === true) continue;
     const slug = path.basename(page.filePath, ".md");
     const pageDirectory = path.basename(path.dirname(page.filePath)) === "queries" ? "queries" : "concepts";
@@ -199,7 +200,7 @@ export async function checkMissingSummariesFrom(sources: LintPageSources): Promi
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     const summary = meta.summary;
     const isMissing = !summary || (typeof summary === "string" && summary.trim() === "");
 
@@ -227,7 +228,7 @@ export async function checkDuplicateConceptsFrom(sources: LintPageSources): Prom
   const titleMap = new Map<string, string[]>();
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     const title = typeof meta.title === "string" ? meta.title : "";
     if (!title) continue;
 
@@ -264,7 +265,7 @@ export async function checkEmptyPagesFrom(sources: LintPageSources): Promise<Lin
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { meta, body } = parseFrontmatter(page.content);
+    const { meta, body } = frontmatterOf(page);
     const title = typeof meta.title === "string" ? meta.title : undefined;
     results.push(...checkPageEmpty({ title, body, filePath: page.filePath }));
   }
@@ -315,7 +316,7 @@ export async function checkLowConfidencePagesFrom(sources: LintPageSources): Pro
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     const { confidence } = parseProvenanceMetadata(meta);
     if (confidence === undefined || confidence >= LOW_CONFIDENCE_THRESHOLD) continue;
     results.push({
@@ -340,7 +341,7 @@ export async function checkContradictedPagesFrom(sources: LintPageSources): Prom
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     const { contradictedBy } = parseProvenanceMetadata(meta);
     if (!contradictedBy || contradictedBy.length === 0) continue;
     const slugs = contradictedBy.map((r) => r.slug).join(", ");
@@ -375,7 +376,7 @@ export async function checkInferredWithoutCitationsFrom(sources: LintPageSources
   const results: LintResult[] = [];
 
   for (const page of pages) {
-    const { body } = parseFrontmatter(page.content);
+    const { body } = frontmatterOf(page);
     const inferred = countUncitedProseParagraphs(body);
     if (inferred <= MAX_INFERRED_PARAGRAPHS_WITHOUT_CITATIONS) continue;
     results.push({

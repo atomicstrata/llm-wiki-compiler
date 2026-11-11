@@ -16,7 +16,7 @@ import {
 import {
   checkBrokenCitations,
   checkMalformedClaimCitations,
-} from "../src/linter/rules.js";
+} from "../src/linter/rules-citations.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 
 describe("extractClaimCitations parser", () => {

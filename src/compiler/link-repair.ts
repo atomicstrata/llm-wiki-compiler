@@ -37,6 +37,7 @@ import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
 import type { LegacyLocalRecordDirs } from "../storage/legacy-local-record-dirs.js";
 import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
+import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { warnDroppedReadIfPresentFrom } from "./confined-wiki-read.js";
 import { rewriteWikilinks } from "../wiki/wikilinks.js";
@@ -138,7 +139,8 @@ function diskLinkRepairSources(root: string): LinkRepairSources {
  * A dropped page is left out, and is warned about ONLY when something is
  * physically at its path: the shared helper makes the no-follow look, treats
  * any failure of that look as "not there", and names the directory-qualified
- * path. The warning is emitted before the next page is read.
+ * path. A directory's pages are read in parallel first; pages and warnings
+ * are then taken in listing order.
  */
 async function collectRepairPages(reads: LegacyLocalReads): Promise<Array<{ filePath: string; content: string }>> {
   const pages: Array<{ filePath: string; content: string }> = [];
@@ -147,9 +149,12 @@ async function collectRepairPages(reads: LegacyLocalReads): Promise<Array<{ file
       if (error.code === "ENOENT") return [];
       throw error;
     });
-    for (const file of files.filter(file => file.endsWith(".md"))) {
+    const pageFiles = files.filter(file => file.endsWith(".md"));
+    // Read the directory's pages in parallel; the loop below consumes them in order.
+    const pending = prefetchInOrder(pageFiles, (file) => reads.readConfinedPage(dir, file.slice(0, -3)));
+    for (const [index, file] of pageFiles.entries()) {
       const filePath = path.join(dir, file);
-      const result = await reads.readConfinedPage(dir, file.slice(0, -3));
+      const result = await pending[index];
       if ("dropped" in result) {
         await warnDroppedReadIfPresentFrom(reads, filePath, filePath, result.dropped);
         continue;

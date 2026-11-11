@@ -35,13 +35,14 @@
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import { inventoryHasRetainedState } from "../utils/inventory-arithmetic.js";
 import {
-  assertStageCapacity, scanPreparationInventory, scanPreparationInventoryBorrowingFrom,
+  assertStageCapacity, scanPreparationInventoryBorrowingFrom,
   type PreparationInventory, type PreparationInventoryLifecycleReads, type StageCapacityProjection,
 } from "./capacity.js";
 import type { PreparationScanOptions } from "./orphan-scan.js";
+import { commandPreparationPass, type WriteFreePreparationPass } from "./recovery.js";
 import { mintPreparationId, mintPreparationRunId, type PreparationId, type PreparationRunId } from "./ids.js";
 import {
-  prepareKeyForEmptyEpochLocked, readPreparationKey, readPreparationKeyFrom,
+  prepareKeyForEmptyEpochLocked, readPreparationKeyFrom,
   type PreparationKeyLeafReads, type PreparationKeyRead,
 } from "./key-epoch.js";
 import {
@@ -77,7 +78,11 @@ interface Clock { now(): Date }
 export interface StageLockedSteps {
   /** The workflow parent's verification, raw: the park ladder over it is the body's. */
   verifyParent(ref: WorkflowParentRefV1): Promise<WorkflowParentVerification>;
-  /** The preparation inventory under the scan options. */
+  /**
+   * The preparation inventory under the scan options. It must describe the same
+   * store the reads below answer for: the body takes every leg's absence from it
+   * when it saw neither the preparation nor its run.
+   */
   scanInventory(options?: PreparationScanOptions): Promise<PreparationInventory>;
   /** The current integrity key. */
   readKey(): Promise<PreparationKeyRead>;
@@ -97,22 +102,42 @@ export interface StageLockedSteps {
   createRun(input: InitialPreparationRunInput, budgetInput: RunBudgetInput): Promise<unknown>;
 }
 
-/** LOCAL DISK. The incumbent readers, mint and writers for `root`, each called when asked. */
-function diskStageLockedSteps(root: string): StageLockedSteps {
+/**
+ * LOCAL DISK. The incumbent readers, mint and writers for `root`, each called
+ * when asked. The inventory scan and the key read are ONE PASS
+ * (`pass-reads.ts`): both come before the first write, under one hold of the
+ * lock, so the key the scan authenticated every run under is the key the
+ * staging binds. The pass's KEY read also answers the two later asks of the
+ * key in the same hold: the mint's read of the current key, which precedes
+ * every write, and the genesis signing key, unless this staging published a
+ * minted key, in which case the genesis reads the disk. The evidence and the
+ * manifest written before the genesis are not the key.
+ *
+ * THE GATE'S PASS, WHEN IT WROTE NOTHING. `gated` is the recovery gate's
+ * settlement pass under this same hold, handed over only when nothing has
+ * written since its scan (`acquireMutationLockHandingOver`). Its reads are this
+ * staging's pass, and its inventory the staging's scan at the default options
+ * (`commandPreparationPass`); a scan at other options reads the disk.
+ */
+function diskStageLockedSteps(root: string, gated: WriteFreePreparationPass | null): StageLockedSteps {
+  const command = commandPreparationPass(root, gated);
+  const pass = command.reads;
+  let keyWritten = false;
   return {
     verifyParent: (ref) => verifyWorkflowParent(root, ref),
-    scanInventory: (options) => scanPreparationInventory(root, options),
-    readKey: () => readPreparationKey(root),
+    scanInventory: command.scanInventory,
+    readKey: pass.readKey,
     mintEmptyEpochKey: async (epoch) => {
-      const minted = await prepareKeyForEmptyEpochLocked(root, epoch);
-      return { keyEpochId: minted.keyEpochId, publish: minted.publish };
+      const minted = await prepareKeyForEmptyEpochLocked(root, epoch, {}, pass.readKey);
+      return { keyEpochId: minted.keyEpochId, publish: () => { keyWritten = true; return minted.publish(); } };
     },
     readEvidence: (location, digest) => readPreparationEvidence(root, location, digest),
     readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
     readRun: (binding) => readPreparationRun(root, binding),
     materializeInputs: (location, set, missing) => materializePlannedInitialInputs(root, location, set, missing),
     writeManifest: (manifest) => writePreparationManifestCreateOnly(root, manifest),
-    createRun: (input, budgetInput) => createPreparationRunLocked(root, input, budgetInput),
+    createRun: (input, budgetInput) => createPreparationRunLocked(root, input, budgetInput,
+      keyWritten ? undefined : { readKey: pass.readKey, readRun: (binding) => readPreparationRun(root, binding) }),
   };
 }
 
@@ -253,8 +278,27 @@ function prepareStage(
 
 interface Materialization { missingEvidence: Set<string>; missingManifest: boolean; missingRun: boolean; complete: boolean }
 
+/**
+ * Whether the healthy inventory this staging just scanned, under the same hold
+ * of the lock and before any write, already proves every leg absent: no
+ * directory for the preparation (so no manifest and no evidence beneath it) and
+ * no run leaf for the run. Each read below would then answer `absent` too. The
+ * reads stay for a reused or fixed identity the scan saw, which a crash may have
+ * left partly written; the create-only writes still refuse anything that appears
+ * after the scan.
+ */
+function scanProvesAbsent(prepared: PreparedStage, inventory: PreparationInventory): boolean {
+  return !inventory.preparationIds.has(prepared.manifest.preparationId) && !inventory.runIds.has(prepared.manifest.runId);
+}
+
 /** Inspect what a fixed-id replay still needs, distinguishing an exact replay. */
-async function inspectMaterialization(steps: StageLockedSteps, prepared: PreparedStage, keyEpochId: Sha256Digest): Promise<Materialization> {
+async function inspectMaterialization(
+  steps: StageLockedSteps, prepared: PreparedStage, keyEpochId: Sha256Digest, inventory: PreparationInventory,
+): Promise<Materialization> {
+  if (scanProvesAbsent(prepared, inventory)) {
+    const missingEvidence = new Set(prepared.inputs.objects.map((object) => object.digest));
+    return { missingEvidence, missingManifest: true, missingRun: true, complete: false };
+  }
   const location = { workspaceId: prepared.manifest.workspaceId, preparationId: prepared.manifest.preparationId };
   const missingEvidence = new Set<string>();
   for (const object of prepared.inputs.objects) {
@@ -470,9 +514,14 @@ async function resolveKeyEpoch(steps: StageLockedSteps, inventory: PreparationIn
  * calls this WITHOUT the lock on purpose — taking it would run the recovery gate,
  * which settles handoffs, from a verb that must write nothing. A change that moves
  * a write above the dry-run return breaks that caller silently.
+ *
+ * `gated` is the gate's write-free preparation pass from the acquisition this
+ * staging runs under, when it has one (`acquireMutationLockHandingOver`).
  */
-export async function stagePreparationLocked(root: string, request: StagePreparationRequest): Promise<StagePreparationResult> {
-  return stagePreparationLockedWith(diskStageLockedSteps(root), request);
+export async function stagePreparationLocked(
+  root: string, request: StagePreparationRequest, gated: WriteFreePreparationPass | null = null,
+): Promise<StagePreparationResult> {
+  return stagePreparationLockedWith(diskStageLockedSteps(root, gated), request);
 }
 
 /** {@link stagePreparationLocked} over {@link StageLockedSteps}: THE ONE BODY. */
@@ -502,7 +551,7 @@ export async function stagePreparationLockedWith(steps: StageLockedSteps, reques
   const stage = planStage(request, planned.set);
   const keyEpoch = await resolveKeyEpoch(steps, inventory, currentKey);
   const prepared = prepareStage(request, stage, keyEpoch.keyEpochId, reuse);
-  const materialization = await inspectMaterialization(steps, prepared, keyEpoch.keyEpochId);
+  const materialization = await inspectMaterialization(steps, prepared, keyEpoch.keyEpochId, inventory);
   assertSupersession(prepared, inventory);
   assertStageCapacity(projectCapacity(prepared, inventory, materialization));
   const result = { manifest: prepared.manifest, manifestDigest: prepared.manifestDigest, projectedRunBudget: prepared.projectedRunBudget };

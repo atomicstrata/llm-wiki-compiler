@@ -24,6 +24,10 @@ export default defineConfig(async (options) => {
   {
     ...shared,
     entry: ["src/cli.ts"],
+    // The CLI imports a command's module when that command runs. Without
+    // splitting, esbuild inlines every command and its imports into cli.js.
+    splitting: true,
+    esbuildOptions(options) { options.chunkNames = "cli-chunks/[name]-[hash]"; },
     // External packages are outside esbuild's import graph. Watch their source
     // explicitly and rebuild them before announcing a successful facade build.
     ...(options.watch ? {

@@ -8,12 +8,15 @@
  * ONE BODY EACH, over {@link ActiveProductSources}: {@link resolveWorkflowProcessAuthorityFrom}
  * (a new run's authority) and {@link assertCurrentWorkflowProcessAuthorityFrom} (a
  * sealed run's revalidation). Each root form keeps its signature and passes the
- * local disk sources; each body resolves the product once per call.
+ * local disk sources; each body resolves the product once per call. The root
+ * forms resolve through {@link activeProductForLockHold}, so inside one lock-held
+ * section they share the one resolution the profile load of that section makes.
  */
 
 import { canonicalDigest } from "../profile/templates/signing/canonical.js";
 import { assertWorkspaceId } from "../preparations/paths.js";
-import { diskActiveProductSources, resolveActiveProductFrom, type ActiveProductSources } from "../products/binding/resolve.js";
+import { resolveActiveProductFrom, type ActiveProductResolution, type ActiveProductSources } from "../products/binding/resolve.js";
+import { activeProductForLockHold } from "../profile/load.js";
 import type { ActiveProductBindingV1 } from "../products/binding/types.js";
 import type { Sha256Digest } from "../products/ids.js";
 import type { WorkflowProcessAuthorityV1, WorkflowRun } from "./types.js";
@@ -59,14 +62,20 @@ function fromBinding(
 export async function resolveWorkflowProcessAuthority(
   root: string, workspaceId?: string, required = false,
 ): Promise<WorkflowProcessAuthorityV1 | undefined> {
-  return resolveWorkflowProcessAuthorityFrom(diskActiveProductSources(root), workspaceId, required);
+  return processAuthorityOf(await activeProductForLockHold(root), workspaceId, required);
 }
 
-/** {@link resolveWorkflowProcessAuthority} over {@link ActiveProductSources}: THE ONE BODY. */
+/** {@link resolveWorkflowProcessAuthority} over {@link ActiveProductSources}. */
 export async function resolveWorkflowProcessAuthorityFrom(
   sources: ActiveProductSources, workspaceId?: string, required = false,
 ): Promise<WorkflowProcessAuthorityV1 | undefined> {
-  const active = await resolveActiveProductFrom(sources);
+  return processAuthorityOf(await resolveActiveProductFrom(sources), workspaceId, required);
+}
+
+/** THE ONE BODY of a new run's authority, over the resolved product. */
+function processAuthorityOf(
+  active: ActiveProductResolution, workspaceId: string | undefined, required: boolean,
+): WorkflowProcessAuthorityV1 | undefined {
   if (active.mode !== "product" || active.binding.processDefinitionDigest === undefined) {
     if (required) throw new WorkflowProcessAuthorityError("not-declared");
     return undefined;
@@ -79,14 +88,18 @@ export async function resolveWorkflowProcessAuthorityFrom(
 export async function assertCurrentWorkflowProcessAuthority(
   root: string, run: WorkflowRun,
 ): Promise<void> {
-  return assertCurrentWorkflowProcessAuthorityFrom(diskActiveProductSources(root), run);
+  assertProcessAuthorityCurrent(await activeProductForLockHold(root), run);
 }
 
-/** {@link assertCurrentWorkflowProcessAuthority} over {@link ActiveProductSources}: THE ONE BODY. It resolves the product once per call and remembers nothing. */
+/** {@link assertCurrentWorkflowProcessAuthority} over {@link ActiveProductSources}. It resolves the product once per call and remembers nothing. */
 export async function assertCurrentWorkflowProcessAuthorityFrom(
   sources: ActiveProductSources, run: WorkflowRun,
 ): Promise<void> {
-  const active = await resolveActiveProductFrom(sources);
+  assertProcessAuthorityCurrent(await resolveActiveProductFrom(sources), run);
+}
+
+/** THE ONE BODY of a sealed run's revalidation, over the resolved product. */
+function assertProcessAuthorityCurrent(active: ActiveProductResolution, run: WorkflowRun): void {
   if (run.processAuthority === undefined) {
     if (active.mode === "product" && active.binding.processDefinitionDigest !== undefined) {
       throw new WorkflowProcessAuthorityError("missing-run-binding");

@@ -62,6 +62,17 @@ fsync costs about 10 ms per call on the system disk. Set
 unaffected. Arguments pass through to `bun test`:
 `bun run test test/viewer-server.test.ts`.
 
+**Test cost in calls:** `bun run test:profile` runs the suite and counts each
+test file's filesystem calls and subprocess spawns, including those of the CLI
+processes it starts. Counts do not move with machine load the way wall time
+does, so `test-call-counts.json` holds every file to its count: a file that
+makes more calls than its baseline fails the run. After making code cheaper,
+run `bun run test:profile --update` and commit the lower baseline; raising a
+file's count is a deliberate edit to the JSON. The report also shows CPU per
+test file, split between the file's own process and the CLI processes it
+spawns. To see where one file's calls come from, run
+`bun run test:profile --sites test/preparations/pack-journeys.test.ts`.
+
 **Automatic checks via git hooks:**
 
 After `bun install`, husky wires up hooks that run automatically:

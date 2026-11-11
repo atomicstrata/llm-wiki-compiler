@@ -134,15 +134,68 @@ export async function requestedPagesExistenceFrom(
   profile: LoadedProfile,
   requested: PageId[],
 ): Promise<Map<PageId, PageExistence>> {
+  const located = requested.map((pageId) => ({ pageId, file: pageFileFor(pageId, profile) }));
+  const listed = await listingsOfCrowdedDirectories(reads, located.flatMap(({ file }) => (file ? [file.directory] : [])));
   const out = new Map<PageId, PageExistence>();
-  for (const pageId of requested) {
-    const parsed = parseQualifiedPageId(pageId);
-    const directory = parsed === null ? null : pageDirectoryFor(parsed.namespace, profile);
-    if (parsed === null || directory === null) { out.set(pageId, "absent"); continue; }
+  for (const { pageId, file } of located) {
+    if (file === null || listed.get(file.directory)?.(file.name)) { out.set(pageId, "absent"); continue; }
     // The locator is POSIX project-relative, matching the declared-directory convention (see `isRegularFile`).
-    out.set(pageId, await fileExistence(reads, path.posix.join(directory, `${parsed.pagePart}.md`)));
+    out.set(pageId, await fileExistence(reads, path.posix.join(file.directory, file.name)));
   }
   return out;
+}
+
+/** Where a requested page's file would be, or null when no directory owns its namespace (so it cannot exist). */
+function pageFileFor(pageId: PageId, profile: LoadedProfile): { directory: string; name: string } | null {
+  const parsed = parseQualifiedPageId(pageId);
+  const directory = parsed === null ? null : pageDirectoryFor(parsed.namespace, profile);
+  return parsed === null || directory === null ? null : { directory, name: `${parsed.pagePart}.md` };
+}
+
+/** Requests at or above this many in one directory list it once instead of stat-ing each name the listing proves missing. */
+const LISTING_MIN_REQUESTS = 8;
+
+/** A test of whether a listing PROVES a name absent; `false` means "stat it". */
+type ProvesAbsent = (name: string) => boolean;
+
+/**
+ * One listing per directory that holds at least {@link LISTING_MIN_REQUESTS}
+ * requested pages. A listing only ever PROVES absence; a name it shows is
+ * still stat-ed, so "present" and every "unknown" keep their single source.
+ */
+async function listingsOfCrowdedDirectories(reads: EmbeddingPageReads, directories: string[]): Promise<Map<string, ProvesAbsent>> {
+  const counts = new Map<string, number>();
+  for (const directory of directories) counts.set(directory, (counts.get(directory) ?? 0) + 1);
+  const out = new Map<string, ProvesAbsent>();
+  for (const [directory, count] of counts) {
+    if (count < LISTING_MIN_REQUESTS) continue;
+    const provesAbsent = await absenceFromListing(reads, directory);
+    if (provesAbsent) out.set(directory, provesAbsent);
+  }
+  return out;
+}
+
+/** Plain ASCII without `~`: the only names whose absence a listing can prove on every filesystem. */
+const LISTING_COMPARABLE_NAME = /^[\x20-\x7d]*$/;
+
+/**
+ * What one listing of `directory` proves. A missing directory (ENOENT/ENOTDIR)
+ * proves every name absent, exactly as each stat would have; any other failure
+ * proves nothing. Names are compared ASCII-case-folded and only when both sides
+ * are plain ASCII without `~`, because a stat may resolve a name the listing
+ * spells differently: case-insensitive volumes, Unicode normalization, and
+ * Windows 8.3 short names (`PAGE~1.md`).
+ */
+async function absenceFromListing(reads: EmbeddingPageReads, directory: string): Promise<ProvesAbsent | null> {
+  let names: string[];
+  try {
+    names = await reads.listRelativeNames(directory);
+  } catch (error) {
+    return ABSENT_CODES.has(String((error as NodeJS.ErrnoException).code)) ? () => true : null;
+  }
+  if (!names.every((name) => LISTING_COMPARABLE_NAME.test(name))) return null;
+  const folded = new Set(names.map((name) => name.toLowerCase()));
+  return (name) => LISTING_COMPARABLE_NAME.test(name) && !folded.has(name.toLowerCase());
 }
 
 /** One page file's existence: a regular file is present; only a missing path or parent proves absence. */

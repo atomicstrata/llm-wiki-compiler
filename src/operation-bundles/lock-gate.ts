@@ -73,7 +73,10 @@
 import { acquireLock, acquireLockBlocking, releaseLock, type AcquireLockOptions, type BlockingLockOptions } from "../utils/lock.js";
 import { JournalUnsafeError, recoverJournalBeforeCompile } from "../trust/journal-recovery.js";
 import { resolvePreparationLifecyclePending, settlePreparationHandoffsLocked } from "../preparations/recovery.js";
-import type { LifecyclePendingUnitV1, PreparationLifecyclePendingState } from "../preparations/recovery.js";
+import type { LifecyclePendingUnitV1, PreparationLifecyclePendingState, WriteFreePreparationPass } from "../preparations/recovery.js";
+import {
+  perBorrowLifecycleReads, preparationLifecycleReadPass, type PreparationLifecycleReads,
+} from "../preparations/lifecycle-snapshot/read.js";
 import { selectSweepTargetUnit } from "../preparations/lifecycle-snapshot/sweep-target.js";
 import type { PreparationLifecycleOperationV1 } from "../preparations/lifecycle-snapshot/types.js";
 import { scanOperationInventory, type OperationInventory } from "./capacity.js";
@@ -86,16 +89,20 @@ import { readOperationRun, type OperationRunRead } from "./run-store.js";
 import type { OperationRunBinding } from "./run-types.js";
 import { UNSETTLED_RUN_STATES } from "./run-validation.js";
 import type { OperationBundleManifest } from "./types.js";
+import { operationPassReads } from "./pass-reads.js";
 import { portableGateBlock, PortableRecoveryBlockingError } from "../portable/host/pending-gate.js";
 
 /**
  * The class of mutation acquiring the lock. `recovery` bypasses the whole gate
  * (it owns the re-drive); `handoff` runs the page-journal and Milestone A legs but
  * DEFERS the preparation-recovery leg to the handoff command, which resolves its
- * own run's `handoff-started` state rather than being blocked by it.
+ * own run's `handoff-started` state rather than being blocked by it. `attempt`
+ * is one transition of an attempt already running: it defers the same leg,
+ * because that leg is maintenance for commands arriving at the store, and a
+ * running attempt takes the lock twice per attempt.
  */
 export type RecoveryGateIntent =
-  | "ordinary" | "review" | "recovery" | "quarantine" | "sweep" | "prune" | "handoff"
+  | "ordinary" | "review" | "recovery" | "quarantine" | "sweep" | "prune" | "handoff" | "attempt"
   | "reset"
   // A portable publication or its recovery. It takes the same lock and runs the
   // same legacy legs, and is the one intent the pending-portable-intent leg lets
@@ -584,19 +591,18 @@ export interface LifecycleGateReads {
   readLifecyclePending(): Promise<PreparationLifecyclePendingState>;
 }
 
-/** LOCAL-DISK reads for one root, built per call; each calls the incumbent when asked. In no package index. */
-export function diskLifecycleGateReads(root: string): LifecycleGateReads {
+/**
+ * LOCAL-DISK reads for one root, built per call; each calls the incumbent when
+ * asked. The capture is borrowed from `lifecycle`: the gate's pass, or a fresh
+ * capture per borrow. In no package index.
+ */
+export function diskLifecycleGateReads(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): LifecycleGateReads {
   return {
     privateAliasHasNoEntries: (names) => legacyPrivateAliasHasNoEntries(root, names),
-    readLifecyclePending: () => resolvePreparationLifecyclePending(root),
+    readLifecyclePending: () => resolvePreparationLifecyclePending(root, lifecycle),
   };
-}
-
-/** The lifecycle leg over the local-disk reads: {@link gatePreparationLifecycleFrom}. */
-async function gatePreparationLifecycle(
-  root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined,
-): Promise<LifecycleGateTicketV1 | null> {
-  return gatePreparationLifecycleFrom(diskLifecycleGateReads(root), intent, targetUnitId);
 }
 
 /**
@@ -617,7 +623,7 @@ async function gatePreparationLifecycle(
  * against a registry it read twice.
  *
  * THE ONE DECISION BODY, root-free: every root form and
- * {@link localRecoveryGateSteps} reach it through `gatePreparationLifecycle`.
+ * {@link localRecoveryGateSteps} reach it over {@link diskLifecycleGateReads}.
  * Reset returns before any read; only a non-destructive intent asks the alias;
  * {@link evaluateDestructiveAuthorization} stays the sole destructive predicate.
  */
@@ -698,10 +704,12 @@ export interface OperationRecoveryReads {
 
 /** LOCAL-DISK ADAPTER. The incumbent reads for the project at `root`, each called at call time; building it does no I/O. In no package index. */
 export function diskOperationRecoveryReads(root: string): OperationRecoveryReads {
+  // One read-only pass: the inventory, the key and the runs it classifies.
+  const pass = operationPassReads(root);
   return {
-    scanInventory: () => scanOperationInventory(root),
-    readKey: () => readOperationKey(root),
-    readRun: (binding) => readOperationRun(root, binding),
+    scanInventory: () => scanOperationInventory(root, {}, pass),
+    readKey: pass.readKey,
+    readRun: pass.readRun,
   };
 }
 
@@ -768,17 +776,45 @@ export interface RecoveryGateSteps {
   settleHandoffs(root: string): Promise<unknown>;
 }
 
-/** LOCAL. The incumbent lock, recovery and legs, called at call time with their old arguments; frozen. In no package index. */
-const localRecoveryGateSteps: RecoveryGateSteps = Object.freeze({
-  acquireLock: (root: string, options: AcquireLockOptions) => acquireLock(root, options),
-  acquireLockBlocking: (root: string, options: BlockingLockOptions) => acquireLockBlocking(root, options),
-  releaseLock: (root: string) => releaseLock(root),
-  recoverJournal: (root: string) => recoverJournalBeforeCompile(root),
-  detectBundleRecovery: (root: string) => detectBundleRecovery(root),
-  portableBlock: (root: string) => portableGateBlock(root),
-  gateLifecycle: (root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined) => gatePreparationLifecycle(root, intent, targetUnitId),
-  settleHandoffs: (root: string) => settlePreparationHandoffsLocked(root),
-});
+/**
+ * LOCAL. The incumbent lock, recovery and legs, called at call time with their
+ * old arguments; frozen. Built per gate pass: the lifecycle leg and the
+ * settlement's inventory scan borrow the pass's ONE lifecycle capture. Nothing
+ * writes between those two reads, and the settlement closes the pass before its
+ * first write. A settlement that wrote nothing gives its pass to `handOver`. In
+ * no package index.
+ */
+function localRecoveryGateSteps(
+  lifecycle: PreparationLifecycleReads, handOver?: (pass: WriteFreePreparationPass) => void,
+): RecoveryGateSteps {
+  return Object.freeze({
+    acquireLock: (root: string, options: AcquireLockOptions) => acquireLock(root, options),
+    acquireLockBlocking: (root: string, options: BlockingLockOptions) => acquireLockBlocking(root, options),
+    releaseLock: (root: string) => releaseLock(root),
+    recoverJournal: (root: string) => recoverJournalBeforeCompile(root),
+    detectBundleRecovery: (root: string) => detectBundleRecovery(root),
+    portableBlock: (root: string) => portableGateBlock(root),
+    gateLifecycle: (root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined) =>
+      gatePreparationLifecycleFrom(diskLifecycleGateReads(root, lifecycle), intent, targetUnitId),
+    settleHandoffs: (root: string) => settlePreparationHandoffsLocked(root, lifecycle, handOver),
+  });
+}
+
+/**
+ * Run `gate` over the local steps of ONE gate pass for `root`, closing the
+ * pass's lifecycle sharing when it settles — whether the gate refused, skipped
+ * settlement, or settled — so no read outlives the pass or the lock it ran under.
+ */
+async function withLocalGatePass<T>(
+  root: string, gate: (steps: RecoveryGateSteps) => Promise<T>, handOver?: (pass: WriteFreePreparationPass) => void,
+): Promise<T> {
+  const lifecycle = preparationLifecycleReadPass(root);
+  try {
+    return await gate(localRecoveryGateSteps(lifecycle, handOver));
+  } finally {
+    lifecycle.close();
+  }
+}
 
 /**
  * Run the journal + bundle recovery gate, throwing a typed refusal when it blocks.
@@ -821,8 +857,10 @@ async function runRecoveryGateWith(
   // `handed-off` transition, but never blocks: a parked or bundle-absent in-flight
   // handoff belongs to its own command's resume and cannot conflict with this
   // mutation, so blocking here would wrongly stall concurrent preparation work. The
-  // handoff intent resolves its own run and skips this leg.
-  if (intent === "handoff") return ticket;
+  // handoff intent resolves its own run and skips this leg. So does an attempt's
+  // own transition: the leg settles nothing an attempt depends on, it scans the
+  // whole store, and the next command to arrive still runs it.
+  if (intent === "handoff" || intent === "attempt") return ticket;
   await steps.settleHandoffs(root);
   return ticket;
 }
@@ -831,7 +869,7 @@ async function runRecoveryGateWith(
 async function gateOrRelease(
   root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined,
 ): Promise<LifecycleGateTicketV1 | null> {
-  return gateOrReleaseWith(localRecoveryGateSteps, root, intent, targetUnitId);
+  return withLocalGatePass(root, (steps) => gateOrReleaseWith(steps, root, intent, targetUnitId));
 }
 
 /** THE ONE BODY of {@link gateOrRelease}: a failing release propagates in place of the gate's error, as before. */
@@ -915,7 +953,32 @@ export async function acquireMutationLock(
   root: string, intent: NonDestructiveGateIntent | ProjectScopedGateIntent,
   options: AcquireLockOptions = {},
 ): Promise<boolean> {
-  return acquireMutationLockWith(localRecoveryGateSteps, root, intent, options);
+  return withLocalGatePass(root, (steps) => acquireMutationLockWith(steps, root, intent, options));
+}
+
+/** A gated acquisition, and the gate's preparation pass when its settlement wrote nothing. */
+export type GatedAcquisitionV1 =
+  | { readonly acquired: false }
+  | { readonly acquired: true; readonly preparationPass: WriteFreePreparationPass | null };
+
+/**
+ * {@link acquireMutationLock}, also handing the caller the gate's preparation
+ * pass: the inventory its settlement leg scanned, and that pass's reads.
+ *
+ * ONLY A PASS NOTHING WROTE AFTER. The settlement leg runs last in the gate, so
+ * the pass is handed over only when none of its steps that may write ran;
+ * otherwise `preparationPass` is null and the caller reads the store
+ * itself. The caller holds the lock from here, so the pass still describes the
+ * store until the caller's own first write, and it must not be kept past that
+ * write or the release.
+ */
+export async function acquireMutationLockHandingOver(
+  root: string, intent: NonDestructiveGateIntent, options: AcquireLockOptions = {},
+): Promise<GatedAcquisitionV1> {
+  let preparationPass: WriteFreePreparationPass | null = null;
+  const acquired = await withLocalGatePass(root, (steps) => acquireMutationLockWith(steps, root, intent, options),
+    (pass) => { preparationPass = pass; });
+  return acquired ? { acquired, preparationPass } : { acquired };
 }
 
 /** THE ONE BODY of {@link acquireMutationLock}: busy returns false before any leg; `options` reach the lock untouched. */
@@ -935,7 +998,7 @@ export async function acquireMutationLockWith(
  * LockBusyError); a gate block throws {@link RecoveryGateError} after releasing.
  */
 export async function acquireMutationLockBlocking(root: string, intent: NonDestructiveGateIntent, options: BlockingLockOptions = {}): Promise<void> {
-  return acquireMutationLockBlockingWith(localRecoveryGateSteps, root, intent, options);
+  return withLocalGatePass(root, (steps) => acquireMutationLockBlockingWith(steps, root, intent, options));
 }
 
 /** THE ONE BODY of {@link acquireMutationLockBlocking}: a busy timeout throws before any leg. */

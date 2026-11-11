@@ -33,13 +33,14 @@ import { verifyCompositionLock } from "../../operations-packs/composition-lock.j
 import {
   MAX_COMPOSITION_LOCK_BYTES, MAX_KNOWLEDGE_PROFILE_BYTES, MAX_ROOT_OPERATIONS_PACK_BYTES,
 } from "../constants.js";
-import { readInstalledProductPackage } from "../packages/store.js";
+import { readInstalledProductPackage, type VerifiedMemberBytes } from "../packages/store.js";
 import type { PackageMemberRefV1, ProductPackageManifestV1, Sha256Digest } from "../types.js";
 import type { LoadedProfile } from "../../profile/types.js";
 import { assessStructuralCompatibility } from "../compatibility.js";
 import type { StructuralCompatibilityInputsV1 } from "../compatibility.js";
 import {
   deriveBindingComponents, knowledgeProfileMemberPath, loadKnowledgeProfileMember, readStoredMemberText,
+  verifiedMemberText,
 } from "./manifest-authority.js";
 import { ProductActivationError } from "./problems.js";
 import { resolveActiveProduct } from "./resolve.js";
@@ -140,13 +141,30 @@ export interface ActivateResultV1 {
   profileDigest: string;
 }
 
+/** The exact installed package as its offline read verified it: the manifest and the member bytes it kept. */
+interface InstalledPackageV1 {
+  readonly manifest: ProductPackageManifestV1;
+  readonly verifiedMembers: VerifiedMemberBytes;
+}
+
 /** Resolve the exact installed package offline, or refuse structurally. */
-async function resolveInstalledManifest(
+async function resolveInstalledPackage(
   steps: ProductActivationSteps, packageDigest: Sha256Digest,
-): Promise<ProductPackageManifestV1> {
+): Promise<InstalledPackageV1> {
   const pkg = await steps.readInstalledPackage(packageDigest);
   if (pkg.status !== "ok") throw new ProductActivationError(`installed package is ${pkg.status}`);
-  return pkg.manifest;
+  return { manifest: pkg.manifest, verifiedMembers: pkg.verifiedMembers };
+}
+
+/**
+ * One member's text, under the lock: the bytes the package read just verified
+ * when it kept them, otherwise the member reader. Either rejects on any fault.
+ */
+async function installedMemberText(
+  steps: ProductActivationSteps, installed: InstalledPackageV1, member: PackageMemberRefV1, maxBytes: number,
+): Promise<string> {
+  return verifiedMemberText(installed.verifiedMembers, member, maxBytes)
+    ?? steps.readMemberText(installed.manifest.packageDigest, member, maxBytes);
 }
 
 /** Refuse activation while a legacy profile.json would create a conflict. */
@@ -158,10 +176,10 @@ async function assertNoLegacyProfile(steps: ProductActivationSteps): Promise<voi
 
 /** Whether the composition graph recomputes and its stored lock matches exactly. */
 async function isCompositionValid(
-  steps: ProductActivationSteps, manifest: ProductPackageManifestV1, pack: WorkspaceOperationsPackV2,
+  steps: ProductActivationSteps, installed: InstalledPackageV1, pack: WorkspaceOperationsPackV2,
 ): Promise<boolean> {
   try {
-    const lockText = await steps.readMemberText(manifest.packageDigest, manifest.compositionLock, MAX_COMPOSITION_LOCK_BYTES);
+    const lockText = await installedMemberText(steps, installed, installed.manifest.compositionLock, MAX_COMPOSITION_LOCK_BYTES);
     verifyCompositionLock(pack, lockText);
     return true;
   } catch {
@@ -171,24 +189,25 @@ async function isCompositionValid(
 
 /** Resolve the operations-pack structural facts, refusing to sentinels on failure. */
 async function readPackStructure(
-  steps: ProductActivationSteps, manifest: ProductPackageManifestV1,
+  steps: ProductActivationSteps, installed: InstalledPackageV1,
 ): Promise<PackContractInputs & Pick<StructuralCompatibilityInputsV1, "compositionValid">> {
   let pack: WorkspaceOperationsPackV2;
   try {
-    const opsText = await steps.readMemberText(manifest.packageDigest, manifest.rootOperationsPack, MAX_ROOT_OPERATIONS_PACK_BYTES);
+    const opsText = await installedMemberText(steps, installed, installed.manifest.rootOperationsPack, MAX_ROOT_OPERATIONS_PACK_BYTES);
     pack = parseOperationsPack(opsText);
   } catch {
     return { ...UNRECOGNIZED_CONTRACT_INPUTS, compositionValid: false };
   }
-  return { ...packContractInputs(pack), compositionValid: await isCompositionValid(steps, manifest, pack) };
+  return { ...packContractInputs(pack), compositionValid: await isCompositionValid(steps, installed, pack) };
 }
 
 /** Resolve the knowledge-profile structural facts, refusing to sentinels on failure. */
 async function readProfileStructure(
-  steps: ProductActivationSteps, manifest: ProductPackageManifestV1,
+  steps: ProductActivationSteps, installed: InstalledPackageV1,
 ): Promise<Pick<StructuralCompatibilityInputsV1, "knowledgeProfileSchemaVersion" | "knowledgeProfileLoadable">> {
+  const { manifest } = installed;
   try {
-    const kpText = await steps.readMemberText(manifest.packageDigest, manifest.knowledgeProfile, MAX_KNOWLEDGE_PROFILE_BYTES);
+    const kpText = await installedMemberText(steps, installed, manifest.knowledgeProfile, MAX_KNOWLEDGE_PROFILE_BYTES);
     const loaded = steps.loadKnowledgeProfile(manifest.packageDigest, manifest.knowledgeProfile.digest, kpText);
     return { knowledgeProfileSchemaVersion: loaded.profile.schemaVersion, knowledgeProfileLoadable: true };
   } catch {
@@ -198,9 +217,9 @@ async function readProfileStructure(
 
 /** Gather every structural compatibility fact from the installed package. */
 async function assessInstalledStructure(
-  steps: ProductActivationSteps, manifest: ProductPackageManifestV1,
+  steps: ProductActivationSteps, installed: InstalledPackageV1,
 ): Promise<StructuralCompatibilityInputsV1> {
-  return { ...(await readPackStructure(steps, manifest)), ...(await readProfileStructure(steps, manifest)) };
+  return { ...(await readPackStructure(steps, installed)), ...(await readProfileStructure(steps, installed)) };
 }
 
 /** Build the new binding from the manifest, so its component digests are exact. */
@@ -230,9 +249,10 @@ async function assertReadback(steps: ProductActivationSteps, packageDigest: Sha2
 export async function activateUnderLockWith(
   steps: ProductActivationSteps, packageDigest: Sha256Digest, principal: PrincipalRefV1, options: ActivateProductOptionsV1,
 ): Promise<ActivateResultV1> {
-  const manifest = await resolveInstalledManifest(steps, packageDigest);
+  const installed = await resolveInstalledPackage(steps, packageDigest);
+  const { manifest } = installed;
   await assertNoLegacyProfile(steps);
-  const report = assessStructuralCompatibility(await assessInstalledStructure(steps, manifest));
+  const report = assessStructuralCompatibility(await assessInstalledStructure(steps, installed));
   if (!report.structurallyCompatible) {
     throw new ProductActivationError(`structural incompatibility: ${report.refusals.join("; ")}`);
   }

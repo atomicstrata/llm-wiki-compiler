@@ -20,8 +20,8 @@
 import { existsSync, type Dirent } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { confineUnderRoot } from "../utils/path-confine.js";
-import { captureCandidateDirectoryBinding, UnsafeCandidateDirError } from "./disk-record-directory.js";
+import { confineUnderRoot, isInsideDir, safeRealpath } from "../utils/path-confine.js";
+import { captureCandidateDirectoryBinding, captureCandidateDirectoryUnderRoot, UnsafeCandidateDirError } from "./disk-record-directory.js";
 import type { LocalEntryKind } from "./legacy-local-reads.js";
 import type { LegacyLocalRecordDirs, LocalRecordDirectory, LocalRecordLeaf } from "./legacy-local-record-dirs.js";
 
@@ -47,16 +47,39 @@ export function diskRecordDirectory(realDir: string): LocalRecordDirectory {
   };
 }
 
-/** Resolve one leaf: the directory check, then confinement of its location under the project. */
+/**
+ * Resolve one leaf: the directory check, then confinement of its location under
+ * the project.
+ *
+ * The confinement is `confineUnderRoot(relDir/fileName, root, { mustExist: false })`
+ * with what the directory check already proved taken from it: the real root
+ * (resolved once, by the check) and, when the directory exists, that its real
+ * path is inside that root. So a bound directory leaves only the leaf itself
+ * to resolve: a leaf that resolves must stay inside the root, and one that does
+ * not resolve has the bound directory as its nearest existing ancestor. An
+ * absent directory takes the full ancestor walk.
+ */
 async function resolveDiskLeaf(root: string, relDir: string, fileName: string): Promise<LocalRecordLeaf> {
-  await captureCandidateDirectoryBinding(root, relDir);
+  const { realRoot, binding } = await captureCandidateDirectoryUnderRoot(root, relDir);
+  const relLeaf = path.join(relDir, fileName);
   let location: string;
   try {
-    location = await confineUnderRoot(path.join(relDir, fileName), root, { mustExist: false });
+    location = binding === null
+      ? await confineUnderRoot(relLeaf, root, { mustExist: false })
+      : await confineLeafOfBoundDirectory(relLeaf, realRoot);
   } catch {
     throw new UnsafeCandidateDirError();
   }
   return { location, readText: () => readFile(location, "utf-8") };
+}
+
+/** The leaf's absolute path under `realRoot`, refused when it, or its resolved target, escapes. */
+async function confineLeafOfBoundDirectory(relLeaf: string, realRoot: string): Promise<string> {
+  const location = path.normalize(path.resolve(realRoot, relLeaf));
+  if (!isInsideDir(location, realRoot)) throw new UnsafeCandidateDirError();
+  const real = await safeRealpath(location);
+  if (real !== null && !isInsideDir(real, realRoot)) throw new UnsafeCandidateDirError();
+  return location;
 }
 
 /**

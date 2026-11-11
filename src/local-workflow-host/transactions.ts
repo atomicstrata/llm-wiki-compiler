@@ -4,10 +4,13 @@
  * Uses the same recovery gate and release implementation as every compiler
  * mutation. Handles carry no caller-editable authority and expire before unlock.
  * Existing caller-held-lock APIs remain separate and do not mint these handles.
+ * The callback is one lock-held section (`utils/lock-held-reads.ts`): the
+ * profile and run key it loads are read once, and forgotten before the release.
  */
 import path from "node:path";
 import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { releaseLock, type BlockingLockOptions } from "../utils/lock.js";
+import { withLockHeldReads } from "../utils/lock-held-reads.js";
 import { trackHostEffect } from "./tracked-effect.js";
 import {
   LOCAL_WORKFLOW_CORE_INSTANCE, LocalWorkflowTransactionError,
@@ -38,7 +41,7 @@ async function withMutation<T>(leases: WeakMap<LocalWorkflowTransaction, Lease>,
   leases.set(transaction, lease);
   let callbackFailed = false;
   try {
-    return await body(transaction);
+    return await withLockHeldReads(() => body(transaction));
   } catch (error) {
     callbackFailed = true;
     throw error;

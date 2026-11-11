@@ -79,13 +79,13 @@ describe("lock liveness — PID-reuse safety (M8b)", () => {
     expect(await leaf()).toContain(String(process.pid));
   });
 
-  it("preserves public PID-reuse reclamation for a mismatching legacy timestamp", async () => {
-    // Public readers compare ambient timestamps. A 1970 timestamp cannot name
-    // this process; restoring that comparison avoids stranding old lock files.
+  it("respects an older timestamp-only leaf while its PID is alive", async () => {
+    // An ambient `ps` rendering is not a comparable identity, so a live PID
+    // cannot be shown reused: the lock is held until that PID is gone.
     const planted = JSON.stringify({ pid: process.pid, startTime: "Thu Jan  1 00:00:00 1970" });
     await plant(planted);
-    expect(await acquireLock(root)).toBe(true);
-    expect(await leaf()).not.toBe(planted);
+    expect(await acquireLock(root)).toBe(false);
+    expect(await leaf()).toBe(planted);
   });
 
   it("respects a lock with a MATCHING live PID + startTime (not reclaimed)", async () => {
@@ -194,11 +194,11 @@ describe("lock liveness — PID-reuse safety (M8b)", () => {
     expect(await acquireLock(root)).toBe(true);
   });
 
-  it("writes the new {pid, startTime} owner record on a fresh acquire", async () => {
+  it("writes the {pid, identity} owner record on a fresh acquire", async () => {
     expect(await acquireLock(root)).toBe(true);
-    const parsed = JSON.parse(await leaf()) as { pid: number; startTime?: string };
+    const parsed = JSON.parse(await leaf()) as { pid: number; identity?: string };
     expect(parsed.pid).toBe(process.pid);
-    expect(typeof parsed.startTime).toBe("string");
+    expect(parsed.identity).toMatch(/^unix:\d+$/u);
     await releaseLock(root);
     expect(await existsUnder(root, LOCK_REL)).toBe(false);
   });

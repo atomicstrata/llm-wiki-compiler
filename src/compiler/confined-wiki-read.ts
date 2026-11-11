@@ -30,7 +30,7 @@ import path from "path";
 import { leafPresent } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads, readConfinedExactFile } from "../storage/disk-local-reads.js";
 import type { ConfinedReadResult, LegacyLocalReads } from "../storage/legacy-local-reads.js";
-import { safeRealpath } from "../utils/path-confine.js";
+import { realpathOnce } from "../utils/path-confine.js";
 import * as output from "../utils/output.js";
 
 export type { ConfinedReadResult };
@@ -167,12 +167,17 @@ async function readWikiPageOrWarn(
 }
 
 /**
- * LOCAL DISK. Read one wiki page confined to the EXACT absolute directory
- * `absScanDir` (the directory itself is the confinement boundary): the
- * real-path look at `absScanDir`, then the confined exact-file read of
- * `<slug>.md` under it, through the shared realpath + isInsideDir +
- * handle-bound read flow. A directory that does not resolve is
+ * LOCAL DISK. A page reader confined to the EXACT absolute directory
+ * `absScanDir` (the directory itself is the confinement boundary). The
+ * directory's real path is looked up once ({@link realpathOnce}), and every read
+ * of `<slug>.md` under it then goes through the shared realpath + isInsideDir
+ * + handle-bound read flow. A directory that does not resolve is
  * `{dropped: "no-root"}`.
+ *
+ * One lookup per reader is safe: each read's post-open check re-resolves the
+ * page path and requires it inside that canonical directory, bound to the
+ * opened file, so a directory swapped mid-walk drops pages rather than
+ * leaking them. Build one reader per walk.
  *
  * Used by the directory-SCAN sites, the page scan in `indexgen` and the
  * concept load in `obsidian`, which hold an absolute scan dir, not a
@@ -184,15 +189,16 @@ async function readWikiPageOrWarn(
  * {@link warnDroppedWikiRead}, naming `<slug>.md`, since they iterate listed
  * entries that provably exist.
  *
- * @param absScanDir - Absolute directory the page must stay inside.
- * @param slug - Page slug; the file read is `<slug>.md` under `absScanDir`.
- * @returns The confined read result, with no warning emitted.
+ * @param absScanDir - Absolute directory every page must stay inside.
+ * @returns A reader of `<slug>.md` under `absScanDir`, emitting no warning.
  */
-export async function readWikiPageInDir(absScanDir: string, slug: string): Promise<ConfinedReadResult> {
-  const canonicalDir = await safeRealpath(absScanDir);
-  return canonicalDir
-    ? readConfinedExactFile(canonicalDir, path.join(canonicalDir, `${slug}.md`))
-    : { dropped: "no-root" };
+export function wikiPageReaderInDir(absScanDir: string): (slug: string) => Promise<ConfinedReadResult> {
+  const canonicalDir = realpathOnce(absScanDir);
+  return async (slug) => {
+    const dir = await canonicalDir();
+    if (!dir) return { dropped: "no-root" };
+    return readConfinedExactFile(dir, path.join(dir, `${slug}.md`));
+  };
 }
 
 /**

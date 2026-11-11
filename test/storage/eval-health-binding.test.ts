@@ -56,8 +56,8 @@ const FILES: Record<string, string> = {
   [`${CONCEPTS_DIR}/fine.md`]: page("Fine"),
   [`${SOURCES_DIR}/a.md`]: "A source.\n",
 };
-/** How many separate page walks one default lint run makes: ten plain page rules, the schema rule and the freshness rule. */
-const LINT_PAGE_WALKS = 12;
+/** How often one default lint run reads each page: once, shared by every rule that walks the pages. */
+const LINT_PAGE_READS = 1;
 
 /** What the disk evaluators answered. */
 interface OnDisk {
@@ -160,13 +160,13 @@ describe("the health score over a copied project, with the directory gone", () =
     await expect(evaluatePageHealthDistributionFrom(sources)).rejects.toBe(failure);
   });
 
-  it("H5 walks the pages once per lint rule for the score, and once more for the distribution", async () => {
+  it("H5 reads each page once for the score's lint run, and once more for the distribution", async () => {
     const scored: string[] = [];
     await evaluateHealthFrom(sourcesOver(scored));
-    expect(countOf(scored, `page ${ALPHA}`)).toBe(LINT_PAGE_WALKS);
+    expect(countOf(scored, `page ${ALPHA}`)).toBe(LINT_PAGE_READS);
     const distributed: string[] = [];
     await evaluatePageHealthDistributionFrom(sourcesOver(distributed));
-    expect(countOf(distributed, `page ${ALPHA}`)).toBe(LINT_PAGE_WALKS + 1);
+    expect(countOf(distributed, `page ${ALPHA}`)).toBe(LINT_PAGE_READS + 1);
   });
 });
 
