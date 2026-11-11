@@ -178,7 +178,7 @@ describe("the compositions and the root forms", () => {
     const append = vi.spyOn(runStore, "appendProjectedTransitionLocked").mockImplementation(async (_r, _b, _e, _i, project) => project(runIn("awaiting-gate")) as never);
     const release = vi.spyOn(lock, "releaseLock").mockResolvedValue(undefined);
     expect((await gatePreparationOperation("/project", DECIDER, REQUEST)).status).toBe("recorded");
-    expect([ready.mock.calls, acquire.mock.calls, resolve.mock.calls, release.mock.calls]).toEqual([[["/project"]], [["/project", "review"]], [["/project", "run_1"]], [["/project"]]]);
+    expect([ready.mock.calls, acquire.mock.calls, resolve.mock.calls, release.mock.calls]).toEqual([[["/project"]], [["/project", "review"]], [["/project", "run_1", expect.anything()]], [["/project"]]]);
     expect([authority.mock.calls[0]?.slice(0, 2), authority.mock.calls[0]?.[3], append.mock.calls[0]?.slice(0, 3)])
       .toEqual([["/project", BINDING], "g", ["/project", BINDING, { stateVersion: 2, chainTip: "tip" }]]);
   });
