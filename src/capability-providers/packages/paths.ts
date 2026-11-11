@@ -156,7 +156,7 @@ export async function ensureAuthorizedProviderDirectory(
     await mkdir(current, { mode: 0o700 }).catch((error) => existsOrThrow(error));
     const entry = await lstat(current);
     if (!entry.isDirectory() || entry.isSymbolicLink()) throw rootError();
-    await assertOwnedDirectory(current, entry.uid, entry.mode);
+    assertOwnedDirectory(entry.uid, entry.mode);
     if (process.platform !== "win32") await chmod(current, 0o700);
   }
   await assertAuthorizedProviderPaths(paths);
@@ -173,8 +173,9 @@ export async function bindAuthorizedProviderChildDirectory(
   parent: AuthorizedProviderDirectory,
   target: string,
 ): Promise<AuthorizedProviderDirectory> {
-  await assertAuthorizedProviderDirectory(paths, parent);
   if (path.dirname(target) !== parent.path) throw rootError();
+  // One revalidation, then the parent's inode-bound real path: the same proof
+  // `authorizedProviderDirectoryRealPath` makes, without repeating it back to back.
   const parentReal = await authorizedProviderDirectoryRealPath(paths, parent);
   const expectedReal = path.join(parentReal, path.basename(target));
   const identity = await captureExactDirectory(target, expectedReal);
@@ -274,7 +275,7 @@ async function validateAncestorChain(target: string): Promise<void> {
     const entry = await lstat(current).catch((error) => absentOrThrow(error));
     if (entry === null) return;
     if (!entry.isDirectory() || entry.isSymbolicLink()) throw rootError();
-    await assertOwnedDirectory(current, entry.uid, entry.mode);
+    assertOwnedDirectory(entry.uid, entry.mode);
   }
 }
 
@@ -298,7 +299,7 @@ async function captureNearestAncestor(target: string): Promise<DirectoryIdentity
     const entry = await lstat(current).catch((error) => absentOrThrow(error));
     if (entry !== null) {
       if (!entry.isDirectory() || entry.isSymbolicLink()) throw rootError();
-      await assertOwnedDirectory(current, entry.uid, entry.mode);
+      assertOwnedDirectory(entry.uid, entry.mode);
       return { path: current, dev: entry.dev, ino: entry.ino };
     }
     if (path.dirname(current) === current) throw rootError();
@@ -313,7 +314,7 @@ async function captureExactDirectory(target: string, expectedReal: string): Prom
     const resolved = await realpath(target);
     if (!opened.isDirectory() || !current.isDirectory() || current.isSymbolicLink()
       || opened.dev !== current.dev || opened.ino !== current.ino || resolved !== expectedReal) throw rootError();
-    await assertOwnedDirectory(resolved, opened.uid, opened.mode);
+    assertOwnedDirectory(opened.uid, opened.mode);
     return { path: resolved, dev: opened.dev, ino: opened.ino };
   } finally {
     await handle.close();
@@ -336,7 +337,7 @@ async function createPrivateRoot(target: string, ancestor: DirectoryIdentity): P
   await assertIdentity(ancestor);
   const entry = await lstat(target);
   if (!entry.isDirectory() || entry.isSymbolicLink()) throw rootError();
-  await assertOwnedDirectory(target, entry.uid, entry.mode);
+  assertOwnedDirectory(entry.uid, entry.mode);
   if (process.platform !== "win32") await chmod(target, 0o700);
   const handle = await open(target, "r");
   try {
@@ -352,16 +353,20 @@ async function assertIdentity(expected: DirectoryIdentity): Promise<void> {
   const current = await lstat(expected.path);
   if (!current.isDirectory() || current.isSymbolicLink()
     || current.dev !== expected.dev || current.ino !== expected.ino) throw rootError();
-  await assertOwnedDirectory(expected.path, current.uid, current.mode);
+  assertOwnedDirectory(current.uid, current.mode);
 }
 
-async function assertOwnedDirectory(target: string, uid: number, mode: number): Promise<void> {
+/**
+ * Refuse a directory not owned by this user (or root), or writable by others
+ * without the sticky bit. Pure over the metadata the caller JUST read (lstat or
+ * the open handle's stat), so it makes no filesystem call of its own.
+ */
+function assertOwnedDirectory(uid: number, mode: number): void {
   if (process.platform === "win32" || typeof process.getuid !== "function") return;
   const current = process.getuid();
   const stickyWorldDirectory = (mode & 0o1000) !== 0;
   if (uid !== current && uid !== 0) throw rootError();
   if ((mode & 0o022) !== 0 && !stickyWorldDirectory) throw rootError();
-  if ((await realpath(target)).length === 0) throw rootError();
 }
 
 function assertRootStrings(configRoot: string, cacheRoot: string, projectRoot?: string): void {

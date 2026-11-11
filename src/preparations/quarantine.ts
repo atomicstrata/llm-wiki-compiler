@@ -23,7 +23,7 @@
 
 import { ungated, type UngatedInput } from "./lifecycle-driver.js";
 import { createHash } from "node:crypto";
-import { readPreparationKey, type PreparationKeyRead } from "./key-epoch.js";
+import type { PreparationKeyRead } from "./key-epoch.js";
 import {
   runLifecycleCustodyOperation,
   type LifecycleCustodyAdapter, type LifecycleCustodyAssessment, type LifecycleGoverningKey,
@@ -35,7 +35,8 @@ import {
   quarantineUnitConfinement,
 } from "./lifecycle-fs/quarantine-operations.js";
 import { PreparationLifecycleNamespaceError } from "./lifecycle-fs/namespace.js";
-import { readPreparationRun, type PreparationRunRead } from "./run-store.js";
+import type { PreparationRunRead } from "./run-store.js";
+import { preparationPassReads } from "./pass-reads.js";
 import { scanActivePreparationStore, type PreparationLeafObservation, type PreparationOrphanScan } from "./orphan-scan.js";
 import type { PreparationLifecycleReadV1 } from "./lifecycle-snapshot/types.js";
 import { type QuarantineReceiptV1 } from "./receipts.js";
@@ -62,13 +63,13 @@ export class PreparationQuarantineError extends Error {
  * read; none takes a project root. All run inside the driver's read lease.
  */
 export interface QuarantineAssessmentReads {
-  /** The preparation key WITH ITS BYTES (custody and HMAC need them). Local: `readPreparationKey(root)`. */
+  /** The preparation key WITH ITS BYTES (custody and HMAC need them). Local: the assessment pass's one key read. */
   readKey(): Promise<PreparationKeyRead>;
   /** Whether an authenticated plan already started this unit. Local: `quarantineUnitStarted(root, ...)`. */
   unitStarted(unitId: string, key: Buffer): Promise<boolean>;
   /** A semantically settled completed receipt, or null. Local: `readSettledQuarantineReceipt(root, ...)`. */
   readSettledReceipt(unitId: string, key: Buffer, expect: Parameters<typeof readSettledQuarantineReceipt>[3]): Promise<QuarantineReceiptV1 | null>;
-  /** The authenticated run. Local: `readPreparationRun(root, binding)`. */
+  /** The authenticated run. Local: the assessment pass's run read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
   /** The run's owned leaves, from the driver's capture. Local: `enumerateRunScope(root, ...)`. */
   enumerateRunScope(binding: PreparationRunBinding, read: PreparationLifecycleReadV1): Promise<ScopedQuarantineObject[]>;
@@ -76,13 +77,19 @@ export interface QuarantineAssessmentReads {
   observePurgeUnit(unitId: string): ReturnType<typeof observePurgeUnit>;
 }
 
-/** The local assessment reads for one root, built per call. In no package index. */
+/**
+ * The local assessment reads for one root, built per call. In no package index.
+ * The key and the run are ONE PASS (`pass-reads.ts`): an assessment is
+ * read-only inside the driver's lease, so the key it governs under is the key
+ * the run is authenticated under.
+ */
 function localQuarantineAssessmentReads(root: string): QuarantineAssessmentReads {
+  const pass = preparationPassReads(root);
   return {
-    readKey: () => readPreparationKey(root),
+    readKey: pass.readKey,
     unitStarted: (unitId, key) => quarantineUnitStarted(root, unitId, key),
     readSettledReceipt: (unitId, key, expect) => readSettledQuarantineReceipt(root, unitId, key, expect),
-    readRun: (binding) => readPreparationRun(root, binding),
+    readRun: pass.readRun,
     enumerateRunScope: (binding, read) => enumerateRunScope(root, binding, read),
     observePurgeUnit: (unitId) => observePurgeUnit(root, unitId),
   };

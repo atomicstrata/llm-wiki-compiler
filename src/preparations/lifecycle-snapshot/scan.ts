@@ -249,16 +249,38 @@ export async function scanPreparationLifecycle(
 }
 
 /**
+ * {@link scanPreparationLifecycle} for a namespace its caller opened IMMEDIATELY
+ * before, with no await in between. The opener's own final revalidation is then
+ * the scan's start proof, so the body does not repeat it; the end proof, the key
+ * identity checks and the registries' own identity checks are all unchanged.
+ * Used only by `read.ts`, which opens and scans back to back. In no package index.
+ */
+export async function scanJustOpenedPreparationLifecycle(
+  namespace: PreparationLifecycleNamespaceV1,
+  options: PreparationLifecycleScanOptionsV1 = {},
+): Promise<PreparationLifecycleSnapshotV1> {
+  assertPreparationLifecycleNamespaceBrand(namespace);
+  return scanPreparationLifecycleFrom(diskLifecycleScanReads(namespace), namespace, options, "proven-by-open");
+}
+
+/**
  * {@link scanPreparationLifecycle} over {@link LifecycleScanReads}: THE ONE BODY.
  * Exported for its witness only; in no package index, and its snapshots are never
  * recorded lifecycle reads.
+ *
+ * THE START PROOF is the namespace revalidation before the key capture. It is
+ * skipped only for `proven-by-open`, where the opener revalidated the same
+ * namespace with nothing in between. Registry observation does NOT repeat it:
+ * the key capture between them is identity-checked against the namespace, and
+ * each registry enumeration proves its own registry's dev/ino.
  */
 export async function scanPreparationLifecycleFrom(
   reads: LifecycleScanReads,
   namespace: PreparationLifecycleNamespaceV1,
   options: PreparationLifecycleScanOptionsV1 = {},
+  startProof: "revalidate" | "proven-by-open" = "revalidate",
 ): Promise<PreparationLifecycleSnapshotV1> {
-  await reads.assertNamespaceCurrent();
+  if (startProof === "revalidate") await reads.assertNamespaceCurrent();
   const key = await reads.captureKey();
   try {
     await options.afterKeyCapturedForTest?.();

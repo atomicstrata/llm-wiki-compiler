@@ -94,6 +94,11 @@ const NON_PROTOCOL_NAMES: readonly string[] = [
   // binding. The durable read it depends on is `readPreparationManifest`,
   // mapped by PLA-MAP-SWP02.
   "preparationManifestDigest",
+  // A reads FACTORY, not a step. It builds the key, manifest and run reads one
+  // pass shares, doing no I/O itself; each read it hands out is the mapped
+  // incumbent (`readPreparationKey`, `readPreparationManifest`,
+  // `readPreparationRun`) asked at most once per pass.
+  "preparationPassReads",
 ];
 
 /** The destructive operation modules whose cross-module reach the map must cover. */

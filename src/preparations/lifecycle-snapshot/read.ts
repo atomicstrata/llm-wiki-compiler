@@ -11,7 +11,7 @@ import {
   preparationLifecycleRootMatchesBinding,
 } from "../lifecycle-fs/namespace.js";
 import type { PresentLifecycleDirectoryV1 } from "../lifecycle-fs/types.js";
-import { scanPreparationLifecycle } from "./scan.js";
+import { scanJustOpenedPreparationLifecycle } from "./scan.js";
 import type { PreparationLifecycleReadV1 } from "./types.js";
 
 /**
@@ -70,7 +70,8 @@ async function capturePreparationLifecycleRead(
 ): Promise<{ read: PreparationLifecycleReadV1; lease?: ReadLease }> {
   try {
     const namespace = await openPreparationLifecycleNamespace(root, "read");
-    const snapshot = await scanPreparationLifecycle(namespace, {
+    // Back to back with the open: its final revalidation is the scan's start proof.
+    const snapshot = await scanJustOpenedPreparationLifecycle(namespace, {
       maxRegistryEntries: options.maxRegistryEntries,
     });
     const read = Object.freeze({ status: "ok" as const, snapshot });

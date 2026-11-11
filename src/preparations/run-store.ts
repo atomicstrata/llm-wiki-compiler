@@ -22,7 +22,7 @@
  * ONE BODY PER WRITER, OVER THE WRITERS' OWN STEPS. Genesis, the authenticated
  * append (with or without a projector), the handoff settlement and the
  * abandonment each have one root-free body (`…With`) over
- * {@link PreparationRunWriteSteps}: the authenticated read, a fresh key, the
+ * {@link PreparationRunWriteSteps}: the authenticated read, the key, the
  * verifying evidence read, create-only genesis publication and durable
  * replacement. The bodies own predecessor authentication, the epoch, signing,
  * the budget lane, the projector invariant, the reserved handoff identities and
@@ -47,6 +47,7 @@ import {
   verifyPreparationRunIntegrity,
 } from "./run-integrity.js";
 import { parsePreparationRun } from "./run-parse.js";
+import { once } from "../utils/pass-memo.js";
 import type {
   AppendPreparationTransitionInput, HandoffBindingV1, HandoffStartBindingV1,
   InitialPreparationRunInput, PreparationPrincipalV1, PreparationRunBinding,
@@ -157,9 +158,12 @@ export async function readPreparationRunFrom(
 
 /** What the run writers ask of the store. No member takes a project root. */
 export interface PreparationRunWriteSteps {
-  /** The authenticated exact-binding run read. Local: `readPreparationRun(root, binding)`. */
+  /** The authenticated exact-binding run read. Local: `readPreparationRunFrom` over the operation's one key read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
-  /** The preparation key WITH ITS BYTES, fresh on each call. Local: `readPreparationKey(root)`. */
+  /**
+   * The preparation key WITH ITS BYTES. Local: read ONCE per write operation and
+   * shared with that operation's run read (see {@link diskPreparationRunWriteSteps}).
+   */
   readKey(): Promise<PreparationKeyRead>;
   /** The verifying evidence read. Local: `readPreparationEvidence(root, location, digest)`. */
   readEvidence(location: PreparationEvidenceLocation, digest: string): Promise<PreparationEvidenceRead>;
@@ -169,11 +173,33 @@ export interface PreparationRunWriteSteps {
   replaceRun(binding: PreparationRunBinding, serialized: string): Promise<void>;
 }
 
-/** The local-disk run write steps for one root, built per call; each closure calls the incumbent when asked. In no package index. */
+/** The two reads a write operation shares: the authenticated run and the key it is signed under. */
+export type PreparationRunWriteReads = Pick<PreparationRunWriteSteps, "readRun" | "readKey">;
+
+/**
+ * The local-disk run write steps for one root, built per call: ONE write
+ * operation under the project lock. The run read and the signing key are one
+ * reading of the key: the append reads the run (which authenticates it under
+ * the key) and then asks for the key to sign with, and nothing between the two
+ * writes the key, so the second disk read could only return the first one's
+ * answer. Every other closure calls the incumbent when asked. In no package index.
+ */
 function diskPreparationRunWriteSteps(root: string): PreparationRunWriteSteps {
+  const readKey = once(() => readPreparationKey(root));
+  const leaves: PreparationRunLeafReads = { readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes), readKey };
+  return preparationRunWriteStepsOn(root, { readRun: (binding) => readPreparationRunFrom(leaves, binding), readKey });
+}
+
+/**
+ * The local-disk run writers for one root over a caller's {@link PreparationRunWriteReads}:
+ * for a caller that already read the run and key in the same hold of the
+ * project lock and has written neither since. A caller that writes the run
+ * through these steps must not hand the same reads to a later write.
+ */
+export function preparationRunWriteStepsOn(root: string, reads: PreparationRunWriteReads): PreparationRunWriteSteps {
   return {
-    readRun: (binding) => readPreparationRun(root, binding),
-    readKey: () => readPreparationKey(root),
+    readRun: reads.readRun,
+    readKey: reads.readKey,
     readEvidence: (location, digest) => readPreparationEvidence(root, location, digest),
     publishGenesis: (binding, serialized, collisionMessage) =>
       publishRunGenesis({ root, file: preparationPaths(root, binding.workspaceId).runFile(binding.runId) }, serialized, collisionMessage),

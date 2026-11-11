@@ -133,7 +133,7 @@ describe("the candidate custody reads over copied candidates, with the minting d
     const log: string[] = [];
     const entry = await readCandidateEntryForMutationFrom(memoryReadsOf(heldFromCopy(), (call) => log.push(call)), "kept-a");
     expect(summaryOf(entry)).toEqual(project.onDisk.kept);
-    expect(log).toEqual([`leaf pending kept-a`, `dir ${CANDIDATES_DIR}`, `dir ${CANDIDATES_DIR}`, `leaf pending kept-a`, `read ${pending("kept-a")}`]);
+    expect(log).toEqual([`leaf pending kept-a`, `dir ${CANDIDATES_DIR}`, `read ${pending("kept-a")}`]);
   });
 
   it("K3 refuses a malformed, an absent and an unsafe id with the disk's errors; the unsafe id reaches no mechanism", async () => {
