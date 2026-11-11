@@ -30,8 +30,8 @@
  * runs over local-disk {@link EventRepairSources}, which are the read sources plus ONE raw write, the
  * whole-store replacement the repair truncates through. The verify-before-repair
  * order, the head classification, the truncation bytes and the header version
- * kept are decided here; the body still reads the anchor a second time, and
- * nothing is remembered between reads.
+ * kept are decided here; the head classification judges the anchor the whole
+ * read took, and nothing is remembered between calls.
  */
 
 import path from "path";
@@ -310,18 +310,27 @@ async function verifyHeadAnchorFrom(
   sources: EventReadSources,
   events: EventRecord[],
 ): Promise<{ ok: boolean; problem?: string }> {
-  const anchor = await readHeadAnchorFrom(sources);
+  return compareHeadAnchor(await readHeadAnchorFrom(sources), events);
+}
+
+/** Whether the anchor read seals the last of `events` (or is absent over none). Pure. */
+function compareHeadAnchor(anchor: string | null, events: EventRecord[]): { ok: boolean; problem?: string } {
   const expected = events.length === 0 ? null : eventPrevHash(events[events.length - 1]);
   if (anchor === expected) return { ok: true };
   return { ok: false, problem: `head anchor ${anchor ?? "<absent>"} does not match last event` };
 }
 
 /** Append chain + head-anchor problems (non-fatal) onto `problems`. */
-async function appendChainProblems(sources: EventReadSources, events: EventRecord[], problems: string[]): Promise<void> {
+function appendChainProblems(anchor: string | null, events: EventRecord[], problems: string[]): void {
   const chain = verifyEventChain(events);
   if (!chain.ok && chain.problem) problems.push(chain.problem);
-  const anchor = await verifyHeadAnchorFrom(sources, events);
-  if (!anchor.ok && anchor.problem) problems.push(anchor.problem);
+  const verdict = compareHeadAnchor(anchor, events);
+  if (!verdict.ok && verdict.problem) problems.push(verdict.problem);
+}
+
+/** A whole read, with the one head-anchor read its problems were judged against. */
+interface AnchoredEventsRead extends ReadEventsResult {
+  anchor: string | null;
 }
 
 /**
@@ -342,21 +351,29 @@ export async function readEvents(root: string): Promise<ReadEventsResult> {
  * store too. Nothing is caught, so a rejection leaves as the same error.
  */
 export async function readEventsFrom(sources: EventReadSources): Promise<ReadEventsResult> {
+  const { events, problems } = await readAnchoredEventsFrom(sources);
+  return { events, problems };
+}
+
+/**
+ * {@link readEventsFrom}, also answering the head anchor it read. The strict
+ * read and the append precondition judge THAT anchor: reading it a second time
+ * straight after would only ask the same leaf the same question (under the
+ * append's lock nothing can seal between the two; outside it, a seal landing
+ * between them would pit a newer anchor against the older events read here).
+ */
+async function readAnchoredEventsFrom(sources: EventReadSources): Promise<AnchoredEventsRead> {
   const raw = await readStoreFile(sources.graph); // throws on symlink/too-new/corrupt
   const recordLines = splitStoreRecords(raw, parseHeader);
   // An ABSENT or header-only log yields ZERO events — but if the sealed head
   // anchor still points at a real digest, a prior log was TRUNCATED to empty
   // (not a fresh project). Run the head-anchor check on the empty list so that
   // truncation surfaces as a head-mismatch problem instead of a healthy empty.
-  if (recordLines === null) {
-    const emptyProblems: string[] = [];
-    await appendChainProblems(sources, [], emptyProblems);
-    return { events: [], problems: emptyProblems };
-  }
   const problems: string[] = [];
-  const events = parseRecords(recordLines, problems);
-  await appendChainProblems(sources, events, problems);
-  return { events, problems };
+  const events = recordLines === null ? [] : parseRecords(recordLines, problems);
+  const anchor = await readHeadAnchorFrom(sources);
+  appendChainProblems(anchor, events, problems);
+  return { events, problems, anchor };
 }
 
 /**
@@ -371,11 +388,11 @@ export async function readEventsFrom(sources: EventReadSources): Promise<ReadEve
  * @param events - Events in append order.
  * @throws {EventStoreChainError} When the chain is broken or the head anchor mismatches.
  */
-async function verifyChainAndHeadFrom(sources: EventReadSources, events: EventRecord[]): Promise<void> {
+function verifyChainAndHead(anchor: string | null, events: EventRecord[]): void {
   const chain = verifyEventChain(events);
   if (!chain.ok) throw new EventStoreChainError(chain.problem ?? "chain verification failed");
-  const anchor = await verifyHeadAnchorFrom(sources, events);
-  if (!anchor.ok) throw new EventStoreChainError(anchor.problem ?? "head anchor mismatch");
+  const verdict = compareHeadAnchor(anchor, events);
+  if (!verdict.ok) throw new EventStoreChainError(verdict.problem ?? "head anchor mismatch");
 }
 
 /**
@@ -397,12 +414,12 @@ export async function readEventsStrict(root: string): Promise<EventRecord[]> {
 /**
  * {@link readEventsStrict} over {@link EventReadSources}: THE ONE BODY. The whole
  * read first ({@link readEventsFrom}: the store, then the anchor), then the strict
- * verification: the chain, then a SECOND, fresh head-anchor read. Every error
+ * verification: the chain, then that read's head anchor. Every error
  * leaves unchanged; a torn trailing line alone is tolerated.
  */
 export async function readEventsStrictFrom(sources: EventReadSources): Promise<EventRecord[]> {
-  const { events } = await readEventsFrom(sources);
-  await verifyChainAndHeadFrom(sources, events);
+  const { events, anchor } = await readAnchoredEventsFrom(sources);
+  verifyChainAndHead(anchor, events);
   return events;
 }
 
@@ -499,8 +516,8 @@ function classifyHeadState(anchor: string | null, events: EventRecord[]): HeadSt
  *
  * THE ONE BODY, over {@link EventRepairSources} (locally `diskEventRepairSources(root)`,
  * which the event store's own write sources spread). The whole read (store, then
- * anchor), the strict chain check, a SECOND
- * anchor read for the classification, then at most one truncation. A refusal
+ * anchor), the strict chain check, the classification of that read's anchor,
+ * then at most one truncation. A refusal
  * writes nothing; nothing is caught, so every rejection leaves as the same error.
  *
  * @param sources - The read sources plus the whole-store replacement.
@@ -508,12 +525,12 @@ function classifyHeadState(anchor: string | null, events: EventRecord[]): HeadSt
  * @throws {EventStoreChainError} When the chain is broken or the head anchor mismatches.
  */
 export async function prepareEventStoreForAppendFrom(sources: EventRepairSources): Promise<EventRecord[]> {
-  const { events, problems } = await readEventsFrom(sources); // throws on corrupt/too-new/symlink
+  const { events, problems, anchor } = await readAnchoredEventsFrom(sources); // throws on corrupt/too-new/symlink
   // VERIFY BEFORE REPAIR: a broken/reordered chain must be rejected with the file
   // left BYTE-IDENTICAL — never truncate (write to) a store we are about to refuse.
   const chain = verifyEventChain(events);
   if (!chain.ok) throw new EventStoreChainError(chain.problem ?? "chain verification failed");
-  const state = classifyHeadState(await readHeadAnchorFrom(sources), events);
+  const state = classifyHeadState(anchor, events);
   if (state === "tamper") {
     throw new EventStoreChainError(`head anchor does not match a committable store state`);
   }
