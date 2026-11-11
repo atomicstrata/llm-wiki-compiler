@@ -69,8 +69,12 @@ function detachRamDisk(device) {
   }
 }
 
-/** Tests spawn CLI subprocesses, so a worker per core oversubscribes the machine. */
-const WORKERS = Math.max(1, os.availableParallelism() >> 1);
+/**
+ * Three workers for every four cores. Many tests spawn a CLI subprocess, so a
+ * worker per core oversubscribes the machine: on 16 cores, 12 workers ran the
+ * suite clean and 16 left one worker spinning indefinitely.
+ */
+const WORKERS = Math.max(1, Math.floor(os.availableParallelism() * 0.75));
 const TEST_TIMEOUT_MS = 30000;
 
 /** Run `bun test` with the given temp directory and resolve with its exit code. */

@@ -1,8 +1,9 @@
 # Bun test runner settings. `bun run test` builds dist/ once first (integration
 # tests spawn dist/cli.js) and sets the 30s per-test timeout on the command line.
-# It also caps workers at half the cores: many tests spawn a CLI subprocess, so a
-# worker per core oversubscribes the machine ~2x and starves those spawns past
-# their timeout (a non-deterministic failure whose victim varies per run).
+# `scripts/run-tests.mjs` also caps workers below the core count: many tests
+# spawn a CLI subprocess, so a worker per core oversubscribes the machine and
+# starves those spawns past their timeout (a non-deterministic failure whose
+# victim varies per run).
 [test]
 # Suite-wide hooks (exit-code isolation); see the file's header.
 preload = ["./test/preload.ts"]
