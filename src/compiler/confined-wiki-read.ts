@@ -30,6 +30,7 @@ import path from "path";
 import { leafPresent } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads, readConfinedExactFile } from "../storage/disk-local-reads.js";
 import type { ConfinedReadResult, LegacyLocalReads } from "../storage/legacy-local-reads.js";
+import { sharedPageRead } from "../storage/shared-page-reads.js";
 import { safeRealpath } from "../utils/path-confine.js";
 import * as output from "../utils/output.js";
 
@@ -196,7 +197,9 @@ export function wikiPageReaderInDir(absScanDir: string): (slug: string) => Promi
   let canonicalDir: Promise<string | null> | undefined;
   return async (slug) => {
     const dir = await (canonicalDir ??= safeRealpath(absScanDir));
-    return dir ? readConfinedExactFile(dir, path.join(dir, `${slug}.md`)) : { dropped: "no-root" };
+    if (!dir) return { dropped: "no-root" };
+    const name = `${slug}.md`;
+    return sharedPageRead(dir, name, () => readConfinedExactFile(dir, path.join(dir, name)));
   };
 }
 

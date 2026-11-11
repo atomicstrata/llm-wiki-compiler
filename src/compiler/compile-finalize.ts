@@ -40,6 +40,7 @@ import { CONCEPTS_DIR } from "../utils/constants.js";
 import type { MergedConcept, PageGenerationResult } from "./types.js";
 import type { CompileOptions, CompileResult } from "../utils/types.js";
 import { timeStage } from "../utils/stage-timing.js";
+import { withSharedPageReads } from "../storage/shared-page-reads.js";
 
 /** The whole steps compile's tail composes. Each is a domain step or the draft's write; none is storage. */
 export interface CompileFinalizeSteps {
@@ -262,9 +263,13 @@ async function finalizeWikiWith(
     await steps.flushState(root, draft);
   }
 
-  await steps.generateIndex(root);
-  await steps.generateMOC(root);
-  if (embeddings) await timeStage("compile.embeddings", () => steps.refreshEmbeddings(root, conceptPageIds(allChangedSlugs)));
+  // The three steps below each walk every page and write none, so they share
+  // one read of each page (see shared-page-reads.ts).
+  await withSharedPageReads(async () => {
+    await steps.generateIndex(root);
+    await steps.generateMOC(root);
+    if (embeddings) await timeStage("compile.embeddings", () => steps.refreshEmbeddings(root, conceptPageIds(allChangedSlugs)));
+  });
 }
 
 /**

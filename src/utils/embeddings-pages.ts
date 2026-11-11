@@ -13,6 +13,7 @@ import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embedd
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { listDirectoryNames } from "../storage/disk-guarded-leaves.js";
 import { readConfinedExactFile } from "../storage/disk-local-reads.js";
+import { sharedPageRead } from "../storage/shared-page-reads.js";
 import { locationIsRegularFile } from "../storage/disk-locations.js";
 import type { ConfinedReadResult } from "../storage/legacy-local-reads.js";
 import type { PageRecord } from "../pages/read.js";
@@ -75,7 +76,7 @@ export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
       return resolved && isInsideDir(resolved, project) ? resolved : null;
     },
     listNames: (directory) => listDirectoryNames(directory),
-    readConfinedEntry: (directory, name) => readConfinedExactFile(directory, path.join(directory, name)),
+    readConfinedEntry: (directory, name) => sharedPageRead(directory, name, () => readConfinedExactFile(directory, path.join(directory, name))),
     isRegularFile: (relPath) => locationIsRegularFile(path.join(root, relPath)),
   };
 }
