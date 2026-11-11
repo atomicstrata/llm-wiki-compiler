@@ -70,7 +70,7 @@ import type {
 import type { LoadedProfile } from "../profile/types.js";
 import type { Sha256Digest } from "../capability-providers/types.js";
 import type { WorkflowParentRefV1 } from "../preparations/types.js";
-import { readStoredMemberText, readStoredMemberTextFrom } from "./binding/manifest-authority.js";
+import { readStoredMemberText, readStoredMemberTextFrom, verifiedMemberText } from "./binding/manifest-authority.js";
 import { ProductBindingError } from "./binding/problems.js";
 import {
   resolveActiveProduct, resolveActiveProductFrom, type ActiveProductResolution, type ActiveProductSources,
@@ -185,16 +185,25 @@ function modeRefusal(resolution: ActiveProductResolution): string {
 }
 
 /**
- * Read the installed operations-pack and composition-lock members and prove the
- * graph. Both reads go through the hardened member reader, which re-verifies
- * each leaf's byte count and content digest against the manifest.
+ * One installed member's text: the bytes the active resolution's package read
+ * verified, when it kept them; otherwise the hardened member reader, which
+ * re-verifies the leaf's byte count and content digest against the manifest.
  */
-async function readPackAuthority(
-  steps: ProductActionSteps, manifest: ProductPackageManifestV1,
-): Promise<PackAuthorityV1> {
-  const packText = await steps.readMember(manifest.packageDigest, manifest.rootOperationsPack, MAX_ROOT_OPERATIONS_PACK_BYTES);
-  const pack = parseOperationsPack(packText);
-  const lockText = await steps.readMember(manifest.packageDigest, manifest.compositionLock, MAX_COMPOSITION_LOCK_BYTES);
+async function packMemberText(
+  steps: ProductActionSteps, active: ActiveProductModeV1, member: PackageMemberRefV1, maxBytes: number,
+): Promise<string> {
+  return verifiedMemberText(active.verifiedMembers, member, maxBytes)
+    ?? steps.readMember(active.manifest.packageDigest, member, maxBytes);
+}
+
+/**
+ * Read the installed operations-pack and composition-lock members and prove the
+ * graph. Each member's bytes are verified against its content digest and byte
+ * count, by the resolution's package read or by the member reader.
+ */
+async function readPackAuthority(steps: ProductActionSteps, active: ActiveProductModeV1): Promise<PackAuthorityV1> {
+  const pack = parseOperationsPack(await packMemberText(steps, active, active.manifest.rootOperationsPack, MAX_ROOT_OPERATIONS_PACK_BYTES));
+  const lockText = await packMemberText(steps, active, active.manifest.compositionLock, MAX_COMPOSITION_LOCK_BYTES);
   return { pack, lock: verifyCompositionLock(pack, lockText) };
 }
 
@@ -209,10 +218,9 @@ function knowledgeRuntimeIdentity(loaded: LoadedProfile): Sha256Digest {
 
 /** Resolve the token against the proven graph and compile the named action. */
 async function compileResolved(
-  steps: ProductActionSteps, request: ProductActionRequestV1,
-  active: ActiveProductModeV1, manifest: ProductPackageManifestV1,
+  steps: ProductActionSteps, request: ProductActionRequestV1, active: ActiveProductModeV1,
 ): Promise<ProductActionResolutionV1> {
-  const { pack, lock } = await readPackAuthority(steps, manifest);
+  const { pack, lock } = await readPackAuthority(steps, active);
   const token = resolveActionToken({
     pack,
     composed: {
@@ -340,7 +348,7 @@ export async function resolveActiveWorkspaceContractWith(
   const resolution = await steps.resolveActive();
   if (resolution.mode !== "product") return { status: "refused", reason: modeRefusal(resolution) };
   try {
-    const authority = await readPackAuthority(steps, resolution.manifest);
+    const authority = await readPackAuthority(steps, resolution);
     return {
       status: "ok", contract: authority.pack.workspaceContract, packId: authority.pack.packId,
       providerRequirements: authority.pack.providerRequirements,
@@ -364,7 +372,7 @@ export async function resolveProductActionWith(
   const resolution = await steps.resolveActive();
   if (resolution.mode !== "product") return refused(modeRefusal(resolution));
   try {
-    return await compileResolved(steps, request, resolution, resolution.manifest);
+    return await compileResolved(steps, request, resolution);
   } catch (error) {
     if (!RESOLUTION_REFUSALS.some((klass) => error instanceof klass)) throw error;
     return refused(`the product action could not be compiled: ${(error as Error).message}`);

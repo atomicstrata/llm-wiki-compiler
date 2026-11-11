@@ -7,8 +7,10 @@
  * resolver was given steps of its own, so it has NO before-edit run.
  *
  * HOW IT IS BUILT. The real vertical product is installed and activated on disk,
- * ONCE: the active resolution (with its verified manifest), the pack and lock member
- * texts and the root forms' answers are taken, then the directory is removed.
+ * ONCE: the active resolution (with its verified manifest and the member bytes its
+ * package read verified), the pack and lock member texts and the root forms'
+ * answers are taken, then the directory is removed. `UNKEPT` is that resolution
+ * with no member bytes kept, which drives the member-reader fallback.
  * Memory steps answer from those values and log every call, so both bodies are
  * required to answer exactly as the disk did (the vertical action declares no
  * evidence captures, so its captures hand the input back unchanged), and the
@@ -39,7 +41,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 const REQUEST = { workspaceId: VERTICAL_WORKSPACE_ID, token: VERTICAL_ALIAS_TOKEN, surface: "sdk", input: { topic: "binding" } } as const;
 let ACTIVE: ActiveProductResolution, MANIFEST: ProductPackageManifestV1, TEXTS: { pack: string; lock: string };
-let RESOLVED: unknown, CONTRACT: unknown;
+let RESOLVED: unknown, CONTRACT: unknown, UNKEPT: ActiveProductResolution;
 
 beforeAll(async () => {
   const project = await activatedProject();
@@ -53,6 +55,7 @@ beforeAll(async () => {
       lock: await manifestAuthority.readStoredMemberText(project.root, manifest.packageDigest, manifest.compositionLock, 1 << 20),
     };
     [RESOLVED, CONTRACT] = [await resolveProductAction(project.root, REQUEST), await resolveActiveWorkspaceContract(project.root)];
+    UNKEPT = { ...ACTIVE, verifiedMembers: new Map() };
   } finally {
     await project.cleanup();
   }
@@ -86,19 +89,22 @@ async function resolveOver(world: World = {}): Promise<[unknown, string[]]> {
   return [await resolveProductActionWith(stepsOf(log, world), REQUEST), log];
 }
 
-const READS = ["active", "member pack", "member lock"];
+const READS = ["active"];
+const MEMBER_READS = ["member pack", "member lock"];
 const CAPTURES = ["source demo.run", "artifact demo.run", "page demo.run"];
 
 describe("the product resolver's one body over memory steps", () => {
-  it("A1 resolves the vertical action exactly as the disk did: active (which carries the verified manifest), pack, lock, then the three captures in order", async () => {
+  it("A1 resolves the vertical action exactly as the disk did: active (which carries the verified manifest and members), then the three captures in order", async () => {
     expect(RESOLVED).toMatchObject({ status: "resolved" });
     expect(await resolveOver()).toEqual([RESOLVED, [...READS, ...CAPTURES]]);
+    expect(await resolveOver({ active: UNKEPT })).toEqual([RESOLVED, [...READS, ...MEMBER_READS, ...CAPTURES]]);
   });
 
   it("A2 reviews the workspace contract exactly as the disk did, capturing nothing", async () => {
-    const log: string[] = [];
+    const [log, unkeptLog]: string[][] = [[], []];
     expect(CONTRACT).toMatchObject({ status: "ok" });
     expect([await resolveActiveWorkspaceContractWith(stepsOf(log)), log]).toEqual([CONTRACT, READS]);
+    expect([await resolveActiveWorkspaceContractWith(stepsOf(unkeptLog, { active: UNKEPT })), unkeptLog]).toEqual([CONTRACT, [...READS, ...MEMBER_READS]]);
   });
 
   it("A3 refuses every non-product mode, an unresolved package among them, before any member is read", async () => {
@@ -109,14 +115,14 @@ describe("the product resolver's one body over memory steps", () => {
   });
 
   it("A4 an allowlisted pack fault refuses and an unparsable pack refuses before the lock is read; any other fault rethrows", async () => {
-    const [bound] = await resolveOver({ pack: new ProductBindingError("member drifted") });
+    const [bound] = await resolveOver({ active: UNKEPT, pack: new ProductBindingError("member drifted") });
     expect(bound).toEqual({ status: "refused", reason: "the product action could not be compiled: member drifted" });
-    const [unparsable, log] = await resolveOver({ pack: "{}" });
+    const [unparsable, log] = await resolveOver({ active: UNKEPT, pack: "{}" });
     expect([unparsable, log]).toEqual([{ status: "refused", reason: expect.stringContaining("could not be compiled") }, ["active", "member pack"]]);
     const fault = new Error("EIO");
-    await expect(resolveProductActionWith(stepsOf([], { pack: fault }), REQUEST)).rejects.toBe(fault);
-    await expect(resolveActiveWorkspaceContractWith(stepsOf([], { pack: fault }))).rejects.toBe(fault);
-    expect(await resolveActiveWorkspaceContractWith(stepsOf([], { pack: new ProductBindingError("member drifted") })))
+    await expect(resolveProductActionWith(stepsOf([], { active: UNKEPT, pack: fault }), REQUEST)).rejects.toBe(fault);
+    await expect(resolveActiveWorkspaceContractWith(stepsOf([], { active: UNKEPT, pack: fault }))).rejects.toBe(fault);
+    expect(await resolveActiveWorkspaceContractWith(stepsOf([], { active: UNKEPT, pack: new ProductBindingError("member drifted") })))
       .toEqual({ status: "refused", reason: "the product package could not be read: member drifted" });
   });
 
@@ -128,17 +134,17 @@ describe("the product resolver's one body over memory steps", () => {
 });
 
 describe("the bound composition and the root forms", () => {
-  /** Spies on every reader and capture, answering as the disk did. */
+  /** Spies on every reader and capture, answering as the disk did; the resolution keeps no member bytes, so the member reads are made. */
   const spiesOn = (forms: "From" | "root") => {
     const input = (calls: unknown[]) => ({ input: calls[3] });
     return forms === "From" ? {
-      active: vi.spyOn(binding, "resolveActiveProductFrom").mockResolvedValue(ACTIVE),
+      active: vi.spyOn(binding, "resolveActiveProductFrom").mockResolvedValue(UNKEPT),
       member: vi.spyOn(manifestAuthority, "readStoredMemberTextFrom").mockImplementation(async (_r, _d, member) => (member === MANIFEST.rootOperationsPack ? TEXTS.pack : TEXTS.lock)),
       source: vi.spyOn(sourceCapture, "captureSourceEvidenceInputFrom").mockImplementation(async (...calls) => input(calls) as never),
       artifact: vi.spyOn(artifactCapture, "captureArtifactEvidenceInputFrom").mockImplementation(async (...calls) => input(calls) as never),
       page: vi.spyOn(pageCapture, "capturePageEvidenceInputFrom").mockImplementation(async (...calls) => input(calls) as never),
     } : {
-      active: vi.spyOn(binding, "resolveActiveProduct").mockResolvedValue(ACTIVE),
+      active: vi.spyOn(binding, "resolveActiveProduct").mockResolvedValue(UNKEPT),
       member: vi.spyOn(manifestAuthority, "readStoredMemberText").mockImplementation(async (_r, _d, member) => (member === MANIFEST.rootOperationsPack ? TEXTS.pack : TEXTS.lock)),
       source: vi.spyOn(sourceCapture, "captureSourceEvidenceInput").mockImplementation(async (...calls) => input(calls) as never),
       artifact: vi.spyOn(artifactCapture, "captureArtifactEvidenceInput").mockImplementation(async (...calls) => input(calls) as never),
