@@ -3,28 +3,24 @@
  * options and presentation together without expanding the main entrypoint.
  */
 import type { Command } from "commander";
-import { nextCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { contextCommand, type ContextCommandOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { setVerbose } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import nextCommand from "@atomicstrata/llmwiki-core/modules/commands/next";
+import contextCommand, { type ContextCommandOptions } from "@atomicstrata/llmwiki-core/modules/commands/context";
+import { setVerbose } from "@atomicstrata/llmwiki-core/modules/utils/output";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
+import { verboseEnabled } from "./verbose.js";
 
-/** Register advisory commands with the main CLI verbose-option policy. */
-export function registerContextCommands(program: Command, verboseEnabled: (flag?: boolean) => boolean): void {
-  program
-    .command("next")
-    .description("Show the recommended next action for this llmwiki project (read-only)")
+/** Add the options and action of the `next` command. */
+export function registerNextCommand(command: Command): void {
+  command
     .option("--json", "Emit a stable JSON envelope for agent consumption")
     .action(async (options: { json?: boolean }) =>
       runExitCodeCommand(() => nextCommand({ json: options.json })),
     );
-  
-  program
-    .command("context <prompt>")
-    .description(
-      "Build an agent-ready evidence pack for <prompt> from the compiled wiki " +
-        "(read-only; provider credentials optional — semantic retrieval is used " +
-        "when available and falls back to lexical otherwise)",
-    )
+}
+
+/** Add the options and action of the `context` command. */
+export function registerContextCommand(command: Command): void {
+  command
     .option("--budget <tokens>", "Approximate output token budget (default 8000)")
     .option("--format <format>", "Output format: json | markdown (default markdown)")
     .option("--json", "Emit the stable v1 JSON envelope (overrides --format)")

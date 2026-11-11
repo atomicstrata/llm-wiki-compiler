@@ -61,6 +61,7 @@ const SERVICE = "src/preparations/service.ts";
 const SOURCE_ALIASES: Record<string, string[]> = JSON.parse(
   readFileSync(path.join(REPO_ROOT, "tsconfig.json"), "utf8"),
 ).compilerOptions.paths;
+const CORE_MODULES = "@atomicstrata/llmwiki-core/modules/";
 /** The CLI registrar lives among unrelated CLI files, so it is named. */
 const CLI_REGISTRAR = "src/cli/preparation-commands.ts";
 
@@ -82,9 +83,15 @@ async function sourceOf(module: string): Promise<string> {
   return readFile(path.join(REPO_ROOT, module), "utf8");
 }
 
+/** The source file a package alias names, including core's per-module paths. */
+function aliasOf(specifier: string): string | undefined {
+  if (specifier.startsWith(CORE_MODULES)) return `src/${specifier.slice(CORE_MODULES.length)}.ts`;
+  return SOURCE_ALIASES[specifier]?.[0];
+}
+
 /** Resolve relative imports and the repository's real package aliases. */
 function resolveSpecifier(module: string, specifier: string): string {
-  const alias = SOURCE_ALIASES[specifier]?.[0];
+  const alias = aliasOf(specifier);
   if (alias) return path.posix.normalize(alias);
   return path.posix.normalize(
     path.posix.join(path.posix.dirname(module), specifier.replace(/\.js$/u, ".ts")));
@@ -95,7 +102,7 @@ async function substrateReaches(): Promise<string[]> {
   const offenders: string[] = [];
   for (const module of await adapterModules()) {
     for (const specifier of importedSpecifiers(module, await sourceOf(module))) {
-      if (!specifier.startsWith(".") && !SOURCE_ALIASES[specifier]) continue;
+      if (!specifier.startsWith(".") && !aliasOf(specifier)) continue;
       const resolved = resolveSpecifier(module, specifier);
       if (!resolved.startsWith("src/preparations/") || resolved === SERVICE) continue;
       offenders.push(`${module} -> ${resolved}`);
@@ -132,7 +139,7 @@ function valueImportsOf(module: string, source: string): string[] {
   const reached: string[] = [];
   for (const statement of parsed.statements) {
     const specifier = valueSpecifierOf(statement);
-    if (specifier !== undefined && (specifier.startsWith(".") || SOURCE_ALIASES[specifier])) {
+    if (specifier !== undefined && (specifier.startsWith(".") || aliasOf(specifier))) {
       reached.push(resolveSpecifier(module, specifier));
     }
   }
@@ -142,7 +149,7 @@ function valueImportsOf(module: string, source: string): string[] {
     // type` specifiers too, so every type-only reach became a value edge and
     // `documents.ts` — which imports exactly one type from the service — was
     // classified as able to call an operation.
-    if (specifier.startsWith(".") || SOURCE_ALIASES[specifier]) reached.push(resolveSpecifier(module, specifier));
+    if (specifier.startsWith(".") || aliasOf(specifier)) reached.push(resolveSpecifier(module, specifier));
   }
   return reached;
 }
