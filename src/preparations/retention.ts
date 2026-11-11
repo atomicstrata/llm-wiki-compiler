@@ -14,8 +14,8 @@
 import type { LifecycleAuthorizationV1 } from "../operation-bundles/lock-gate.js";
 import { readOperationManifest, type OperationManifestRead } from "../operation-bundles/manifest-store.js";
 import { assertBundleId, type BundleId } from "../operation-bundles/ids.js";
-import { readPreparationKey, type PreparationKeyRead } from "./key-epoch.js";
-import { readPreparationManifest, type PreparationManifestRead } from "./manifest-store.js";
+import type { PreparationKeyRead } from "./key-epoch.js";
+import type { PreparationManifestRead } from "./manifest-store.js";
 import { preparationManifestDigest } from "./manifest-parse.js";
 import { verifiedPruneReceipt } from "./lifecycle-fs/prune-protocol.js";
 import {
@@ -32,7 +32,8 @@ import {
   projectPendingUnits, projectPruneRegistryHealth,
 } from "./lifecycle-snapshot/compat.js";
 import { selectSweepTargetUnit } from "./lifecycle-snapshot/sweep-target.js";
-import { readPreparationRun, type PreparationRunRead } from "./run-store.js";
+import type { PreparationRunRead } from "./run-store.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
 import { enumerateRunScope, scanForDestructivePlan, scopedLeafObject } from "./quarantine.js";
 
 import type { PruneReceiptContentV1, PruneReceiptV1 } from "./receipts.js";
@@ -57,9 +58,9 @@ const TERMINAL_STATES = new Set<PreparationRunState>([
  * project root. All run inside the driver's read lease, as before.
  */
 export interface PruneAssessmentReads {
-  /** The preparation key WITH ITS BYTES. Local: `readPreparationKey(root)`. */
+  /** The preparation key WITH ITS BYTES. Local: the assessment pass's one key read. */
   readKey(): Promise<PreparationKeyRead>;
-  /** The authenticated run. Local: `readPreparationRun(root, binding)`. */
+  /** The authenticated run. Local: the assessment pass's run read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
   /** The handed-off Milestone A manifest. Local: `readOperationManifest(root, ...)`. */
   readBundleManifest(workspaceId: string, bundleId: BundleId): Promise<OperationManifestRead>;
@@ -71,15 +72,21 @@ export interface PruneAssessmentReads {
   enumerateSweepableOrphans(keyEpochId: PreparationRunBinding["keyEpochId"], read: PreparationLifecycleReadV1 & { status: "ok" }): Promise<ScopedQuarantineObject[]>;
 }
 
-/** The local assessment reads for one root, built per call. In no package index. */
+/**
+ * The local assessment reads for one root, built per call. In no package index.
+ * The key, the runs and the manifests are ONE PASS (`pass-reads.ts`): an
+ * assessment is read-only and runs inside the driver's lease, so the key it
+ * governs under is the key every run it reads is authenticated under.
+ */
 function localPruneAssessmentReads(root: string): PruneAssessmentReads {
+  const pass = preparationPassReads(root);
   return {
-    readKey: () => readPreparationKey(root),
-    readRun: (binding) => readPreparationRun(root, binding),
+    readKey: pass.readKey,
+    readRun: pass.readRun,
     readBundleManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
     pruneUnitStarted: (unitId, key, operation) => pruneUnitStarted(root, unitId, key, operation),
     enumerateRunScope: (binding, read) => enumerateRunScope(root, binding, read),
-    enumerateSweepableOrphans: (keyEpochId, read) => enumerateSweepableOrphansFrom(localSweepOrphanReads(root), keyEpochId, read),
+    enumerateSweepableOrphans: (keyEpochId, read) => enumerateSweepableOrphansFrom(localSweepOrphanReads(root, pass), keyEpochId, read),
   };
 }
 
@@ -508,20 +515,20 @@ function pendingSweepUnitOf(snapshot: PreparationLifecycleSnapshotV1): string | 
 export interface SweepOrphanReads {
   /** The gated destructive scan from the CALLER'S capture. Local: `scanForDestructivePlan(root, read)`. */
   scanForPlan(read: PreparationLifecycleReadV1): Promise<PreparationOrphanScan>;
-  /** One preparation's manifest. Local: `readPreparationManifest(root, ...)`. */
+  /** One preparation's manifest. Local: the assessment pass's manifest read. */
   readManifest(workspaceId: string, preparationId: PreparationRunBinding["preparationId"]): Promise<PreparationManifestRead>;
-  /** The authenticated run under an exact binding. Local: `readPreparationRun(root, binding)`. */
+  /** The authenticated run under an exact binding. Local: the assessment pass's run read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
   /** The confined capture of one leaf, failures mapped to `unit-unavailable`. Local: `scopedLeafObject(root, ...)`. */
   scopedLeafObject(relativePath: string, byteCount: number): Promise<ScopedQuarantineObject>;
 }
 
-/** The local sweep-orphan reads for one root, built per call. In no package index. */
-function localSweepOrphanReads(root: string): SweepOrphanReads {
+/** The local sweep-orphan reads for one root over the assessment's pass, built per call. In no package index. */
+function localSweepOrphanReads(root: string, pass: PreparationPassReads): SweepOrphanReads {
   return {
     scanForPlan: (read) => scanForDestructivePlan(root, read),
-    readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
-    readRun: (binding) => readPreparationRun(root, binding),
+    readManifest: pass.readManifest,
+    readRun: pass.readRun,
     scopedLeafObject: (relativePath, byteCount) => scopedLeafObject(root, relativePath, byteCount),
   };
 }

@@ -129,7 +129,7 @@ describe("the composition and the root form", () => {
     const manifest = vi.spyOn(manifestStore, "readPreparationManifest").mockResolvedValue({ status: "absent" });
     const run = vi.spyOn(runStore, "readPreparationRun").mockResolvedValue({ status: "absent" } as never);
     expect((await stagePreparationLocked("/project", requestOf({ dryRun: true }))).status).toBe("staged");
-    expect([scan.mock.calls, key.mock.calls, mint.mock.calls, evidence.mock.calls[0]?.[0], manifest.mock.calls[0]?.slice(0, 2), run.mock.calls[0]?.[0]])
+    expect([scan.mock.calls.map((call) => call.slice(0, 2)), key.mock.calls, mint.mock.calls, evidence.mock.calls[0]?.[0], manifest.mock.calls[0]?.slice(0, 2), run.mock.calls[0]?.[0]])
       .toEqual([[["/project", undefined]], [["/project"]], [], "/project", ["/project", fixturePlan().workspaceId], "/project"]);
   });
 });
