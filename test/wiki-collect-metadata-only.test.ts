@@ -17,7 +17,7 @@ import path from "node:path";
 import os from "node:os";
 import { scanEntityDir } from "../src/wiki/collect.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 /**
@@ -27,7 +27,7 @@ const realFsPromises = { ...(await import("node:fs/promises")) };
  * `vi.mock` because ESM named exports cannot be re-spied in place.
  */
 vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+  const actual = realFsPromises;
   return {
     ...actual,
     open: async (...args: Parameters<typeof actual.open>) => {

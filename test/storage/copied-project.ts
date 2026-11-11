@@ -150,9 +150,10 @@ export async function writeFiles(root: string, files: Record<string, string>): P
 
 /** Copy the tree at `root` into memory: texts of regular files, and every directory's listing. */
 async function copyTree(root: string, rel = "", copy: Copy = { files: new Map(), listings: new Map() }): Promise<Copy> {
-  // Name order, as the disk adapter lists (Node's libuv sorted; Bun's readdir does not).
+  // Name order, as the disk adapter lists (Node's libuv sorted; Bun's readdir
+  // does not). Names in one directory are unique, so no tie case.
   const entries = (await readdir(path.join(root, rel), { withFileTypes: true }))
-    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    .sort((a, b) => (a.name < b.name ? -1 : 1));
   const kindOf = (entry: (typeof entries)[number]): LocalEntry["kind"] =>
     entry.isDirectory() ? "directory" : entry.isFile() ? "file" : entry.isSymbolicLink() ? "link" : "other";
   copy.listings.set(rel, entries.map((entry) => ({ name: entry.name, kind: kindOf(entry) })));

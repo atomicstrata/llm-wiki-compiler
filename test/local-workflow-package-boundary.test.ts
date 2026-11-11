@@ -38,7 +38,8 @@ it("declares exactly the dependencies and peers used by built core JavaScript an
   // Fallow assigns shared src/ imports to the root workspace, not this package.
   // Audit the delivered output instead, including types needed by SDK consumers.
   const directory = path.join(SRC_DIR, "../packages/llmwiki-core");
-  const imports = readdirSync(path.join(directory, "dist"))
+  // Per-module entries are built into subdirectories, so walk the whole output.
+  const imports = readdirSync(path.join(directory, "dist"), { recursive: true, encoding: "utf8" })
     .filter(file => file.endsWith(".js") || file.endsWith(".d.ts"))
     .flatMap(file => literalModuleImports(path.join(directory, "dist", file)))
     .flatMap(dependencyName);

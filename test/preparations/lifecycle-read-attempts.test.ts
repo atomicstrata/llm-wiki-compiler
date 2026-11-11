@@ -24,16 +24,16 @@
 import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const openerProbe = (() => ({ modes: [] as string[] }))();
+const openerProbe = { modes: [] as string[] };
 
 type NamespaceModule = typeof import("../../src/preparations/lifecycle-fs/namespace.js");
 
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realNamespace = { ...(await import("../../src/preparations/lifecycle-fs/namespace.js")) };
 
-vi.mock("../../src/preparations/lifecycle-fs/namespace.js", async () => {
-  const actual = realNamespace as NamespaceModule;
+vi.mock("../../src/preparations/lifecycle-fs/namespace.js", () => {
+  const actual = realNamespace;
   return {
     ...actual,
     // The real opener still runs, so the returned namespace keeps its genuine

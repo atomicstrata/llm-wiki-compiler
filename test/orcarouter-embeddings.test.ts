@@ -2,7 +2,7 @@
  * Exercises gateway embeddings at the HTTP boundary, including independent
  * embedding selection and the model identity used to invalidate stored vectors.
  */
-import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { getEmbeddingProvider, findEmbeddingProviderProblem } from "../src/utils/embedding-provider.js";
 import { resolveEmbeddingModel } from "../src/utils/embeddings-store.js";

@@ -4,7 +4,7 @@
  * provider or its transport. No remote service or AWS identity is required.
  */
 import { createServer, type Server } from "node:http";
-import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { waitFor } from "./wait-for.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";

@@ -48,6 +48,7 @@
       "types": "./dist/local-workflow-contracts.d.ts",
       "import": "./dist/local-workflow-contracts.js"
     },
+    "./modules/*": "./dist/modules/*.js",
     "./package.json": "./package.json"
   },
   "dependencies": {

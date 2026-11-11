@@ -117,7 +117,6 @@ let rootReal: string;
 
 beforeEach(async () => {
   rootReal = await realpath(root.dir);
-  // useTempRoot already handles reset via afterEach
 });
 
 describe("review approve — lock discipline", () => {

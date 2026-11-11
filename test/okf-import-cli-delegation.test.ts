@@ -8,7 +8,7 @@ import { listCandidates } from "../src/compiler/candidates.js";
 import { writeOneDocBundle } from "./fixtures/okf-bundle-fixture.js";
 
 let dir: string;
-afterEach(async () => { vi.restoreAllMocks(); process.exitCode = 0; if (dir) await rm(dir, { recursive: true, force: true }); });
+afterEach(async () => { vi.restoreAllMocks(); if (dir) await rm(dir, { recursive: true, force: true }); });
 
 describe("importCommand delegates to runOkfImport", () => {
   it("stages + prints a summary the CLI test relies on", async () => {

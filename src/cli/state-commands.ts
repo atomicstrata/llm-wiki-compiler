@@ -7,16 +7,10 @@
  */
 
 import type { Command } from "commander";
-import { stateResetCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { stateResetCommand } from "@atomicstrata/llmwiki-core/modules/commands/state-reset";
 
-/** Register the `state` command group (currently just `state reset`) on `program`. */
-export function registerStateCommands(program: Command): void {
-  const stateCommand = program
-    .command("state")
-    .description(
-      "Back up and reset .llmwiki/state.json (recovery for a state written by a newer llmwiki version).",
-    );
-
+/** Register the `state` command group (currently just `state reset`). */
+export function registerStateCommands(stateCommand: Command): void {
   stateCommand
     .command("reset")
     .description("Back up and reset the project state file. Requires --yes to apply.")

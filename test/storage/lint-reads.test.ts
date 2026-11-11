@@ -26,16 +26,16 @@ import path from "node:path";
 
 interface PlannedFault { call: string; nth: number; error: Error }
 /** What the mock saw, and what it was asked to disturb. */
-const tape = (() => ({
+const tape = {
   calls: [] as string[], lastListing: null as unknown,
   reverseListings: false, fault: null as PlannedFault | null,
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const actual = realFsPromises as typeof import("fs/promises");
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   type Forwarded = (...args: unknown[]) => Promise<unknown>;
   const watch = (name: string): Forwarded => (...args) => {
     const call = `${name} ${String(args[0])}`;

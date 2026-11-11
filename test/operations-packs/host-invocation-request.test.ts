@@ -22,7 +22,7 @@ import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { assembleRunnerInput } from "../../src/operations-packs/runtime/runner-input.js";
 import type { PackProviderInvocationV1 } from "../../src/operations-packs/runtime/runner-input.js";
 import type { ProviderInvokeFn } from "../../src/preparations/attempts/provider.js";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import { providerIngestRecipe, requestWithRecipe } from "../operations-packs/compile-fixture.js";
 import { providerLegInputFor } from "../operations-packs/provider-invocation-fixture.js";
 import {

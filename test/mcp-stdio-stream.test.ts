@@ -17,7 +17,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "bun:test";
-import { CLI } from "./fixtures/run-cli.js";
+import { CLI, CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 import { isQuiet, setQuiet } from "../src/utils/output.js";
 
 vi.mock("@modelcontextprotocol/sdk/server/stdio.js", () => ({
@@ -47,7 +47,7 @@ interface RawSession {
 
 /** Spawn the built `llmwiki serve` and speak newline-delimited JSON-RPC to it directly. */
 function openRawSession(root: string): RawSession {
-  const child = spawn(process.execPath, [CLI, "serve", "--root", root], {
+  const child = spawn(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "serve", "--root", root], {
     env: { ...process.env, LLMWIKI_EMBEDDINGS: "off" },
   });
   children.push(child);

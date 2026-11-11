@@ -11,13 +11,12 @@ import {
   mkdir,
   readFile,
   rename,
-  rm,
   symlink,
   unlink,
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { describe, expect, it, vi } from "bun:test";
 import { archivePath, candidatePath } from "../../src/compiler/candidate-paths.js";
 import {
   MAX_CANDIDATE_RECORD_BYTES,
@@ -35,7 +34,7 @@ import {
   selectConnectorCandidateEntries,
   type CandidateMovePort,
 } from "../../src/connectors/candidate-supersession.js";
-import { makeTempRoot, useTempRoot } from "../fixtures/temp-root.js";
+import { useTempRoot } from "../fixtures/temp-root.js";
 import {
   connectorCandidateRecord,
   FIXTURE_IDEMPOTENCY_KEY,
@@ -43,11 +42,7 @@ import {
 } from "./final6-fixtures.js";
 
 const root = useTempRoot();
-// Only the project root owns the cwd: Bun runs afterEach hooks in registration
-// order, so a second useTempRoot would chdir back into the already-removed root.
-const outside = { dir: "" };
-beforeEach(async () => { outside.dir = await makeTempRoot("outside"); });
-afterEach(async () => { await rm(outside.dir, { recursive: true, force: true }); });
+const outside = useTempRoot();
 const FILE_ID = "custody-candidate";
 
 /** Select the planted fixture through the production mutation reader. */

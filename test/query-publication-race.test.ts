@@ -3,7 +3,8 @@
  * Only provider generation is mocked; advisory reporting, fresh authoritative
  * resolution, persistence, and activity logging exercise production code.
  */
-import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -20,7 +21,7 @@ const ANSWER = "The answer cites [[Target]].";
 beforeEach(async () => {
   stubEnv("VOYAGE_API_KEY", "");
   await stageCitationWorkspace(ctx.dir);
-  (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(async (options) => options.tools
+  mocked(callClaude).mockReset().mockImplementation(async (options) => options.tools
     ? JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Selected alpha" }) : ANSWER);
 });
 afterEach(() => {

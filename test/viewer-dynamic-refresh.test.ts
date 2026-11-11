@@ -18,7 +18,8 @@
  * it triggered instead of sleeping for it.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime, type Mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { mocked } from "./mocked.js";
 import path from "path";
 import { setImmediate as nextTick } from "timers/promises";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -33,15 +34,15 @@ import {
 } from "../src/viewer/snapshot-manager.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realViewerSnapshot = { ...(await import("../src/viewer/snapshot.js")) };
 
-vi.mock("../src/viewer/snapshot.js", async () => {
-  const original = realViewerSnapshot as typeof import("../src/viewer/snapshot.js");
+vi.mock("../src/viewer/snapshot.js", () => {
+  const original = realViewerSnapshot;
   return { ...original, buildViewerSnapshot: vi.fn(original.buildViewerSnapshot) };
 });
 
-const builderSpy = (buildViewerSnapshot as unknown as Mock<typeof buildViewerSnapshot>);
+const builderSpy = mocked(buildViewerSnapshot);
 
 /** Comfortably past the default interval, so a refreshing server would rebuild. */
 const PAST_DEFAULT_INTERVAL_MS = DEFAULT_REFRESH_INTERVAL_MS * 12;

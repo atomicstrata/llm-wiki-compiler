@@ -14,7 +14,8 @@
 import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { readRun, writeRun } from "../src/workflows/store.js";
+import { readRun } from "../src/workflow-history/store.js";
+import { writeRun } from "../src/local-workflow-host/run-store.js";
 import { migrateRun } from "../src/workflows/run-migrate.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun } from "../src/workflows/types.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";

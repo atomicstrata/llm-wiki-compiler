@@ -40,7 +40,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { vi, afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime, type Mock } from "bun:test";
+import { vi, afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
+import { mocked } from "../mocked.js";
 import { restoreEnv, stubEnv } from "../stubs.js";
 import { expectMintingDirectoryRemoved } from "./minted-directory.js";
 
@@ -103,7 +104,7 @@ function modelStub(): Promise<string> {
   const next = queued.shift() ?? SUPPORTED;
   return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
 }
-const calls = (): number => (callClaude as unknown as Mock<typeof callClaude>).mock.calls.length;
+const calls = (): number => mocked(callClaude).mock.calls.length;
 const offline = (): void => { stubEnv("LLMWIKI_PROVIDER", "offline"); };
 const withoutCredential = (): void => { stubEnv("LLMWIKI_PROVIDER", "openai"); stubEnv("OPENAI_API_KEY", ""); };
 
@@ -129,8 +130,8 @@ async function fiveRuns(evaluate: Evaluate): Promise<Run[]> {
 
 const tracker = tempRootTracker();
 let project: Minted<Run[]>;
-beforeAll(() => { setSystemTime(new Date(AT)); (callClaude as unknown as Mock<typeof callClaude>).mockImplementation(modelStub); });
-beforeEach(() => { offline(); (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockImplementation(modelStub); log.length = 0; });
+beforeAll(() => { setSystemTime(new Date(AT)); mocked(callClaude).mockImplementation(modelStub); });
+beforeEach(() => { offline(); mocked(callClaude).mockReset().mockImplementation(modelStub); log.length = 0; });
 afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), (root) => fiveRuns((suite, sampleSize) => evaluateCandidates(root, suite, sampleSize)));

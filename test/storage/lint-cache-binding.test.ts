@@ -40,7 +40,7 @@
 
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { afterEach, describe, expect, it, setSystemTime } from "bun:test";
 import {
   readLintCache, readLintCacheFrom, writeLintCache, writeLintCacheFrom, type LintCacheEntry, type LintCacheSources,
 } from "../../src/linter/cache.js";

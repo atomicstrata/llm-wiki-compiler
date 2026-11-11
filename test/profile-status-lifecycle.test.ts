@@ -17,7 +17,7 @@ import path from "node:path";
 import os from "node:os";
 import type { ProfilePack } from "../src/profile/types.js";
 import { collectStatus } from "../src/status/collect.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { makeResearchLiteProjectRoot, RESEARCH_LITE_PROFILE } from "./fixtures/profile-fixtures.js";
 import { PROFILE_FILE } from "../src/utils/constants.js";
 

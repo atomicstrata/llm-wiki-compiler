@@ -28,17 +28,17 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 /** Every directory read seen, plus a planted answer or failure per directory. */
-const watch = (() => ({
+const watch = {
   seen: [] as Array<{ target: string; extraArguments: number }>,
   answer: new Map<string, string[]>(),
   fail: new Map<string, Error>(),
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const disk = (realFsPromises as typeof import("fs/promises"));
+vi.mock("fs/promises", () => {
+  const disk = realFsPromises;
   const readdir = (target: unknown, ...rest: unknown[]): unknown => {
     watch.seen.push({ target: String(target), extraArguments: rest.length });
     const failure = watch.fail.get(String(target));

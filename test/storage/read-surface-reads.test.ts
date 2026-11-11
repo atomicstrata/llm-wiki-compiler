@@ -24,13 +24,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** Calls seen by the mock, and the one path whose read is made to fail. */
-const watch = (() => ({ seen: [] as string[], unreadable: "" }))();
+const watch = { seen: [] as string[], unreadable: "" };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const disk = (realFsPromises as typeof import("fs/promises"));
+vi.mock("fs/promises", () => {
+  const disk = realFsPromises;
   const readFile = (target: unknown, ...options: unknown[]): unknown => {
     watch.seen.push(`readFile ${String(target)} ${JSON.stringify(options)}`);
     if (target === watch.unreadable) return Promise.reject(Object.assign(new Error("planted read failure"), { code: "EIO" }));

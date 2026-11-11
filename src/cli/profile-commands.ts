@@ -5,15 +5,11 @@
  */
 
 import type { Command } from "commander";
-import { profileShow, profileValidate, profileDiff, profileInit } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { profileShow, profileValidate, profileDiff, profileInit } from "@atomicstrata/llmwiki-core/modules/commands/profile";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
 
 /** Register the `profile` inspection and starter-authoring commands. */
-export function registerProfileCommands(program: Command): void {
-  const profileCmd = program
-    .command("profile")
-    .description("Create or inspect the active wiki profile");
-
+export function registerProfileCommands(profileCmd: Command): void {
   profileCmd
     .command("init")
     .description("Create a minimal editable profile in an empty project")

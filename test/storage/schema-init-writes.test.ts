@@ -21,7 +21,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** `calls` are "<operation> <last path segment> <argument>"; `failWrite` is raised by the write when set. */
-const io = (() => ({ on: false, calls: [] as string[], failWrite: null as Error | null }))();
+const io = { on: false, calls: [] as string[], failWrite: null as Error | null };
 
 const recorder = (() => {
   const leaf = (file: unknown): string => String(file).slice(String(file).lastIndexOf("/") + 1);
@@ -47,21 +47,21 @@ const recorder = (() => {
   return { sync, asynchronous };
 })();
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
-
 const realFs = { ...(await import("fs")) };
 
-vi.mock("fs", async () => recorder.sync((realFs as typeof import("fs"))));
-vi.mock("node:fs", async () => recorder.sync((realFs as typeof import("node:fs"))));
-vi.mock("fs/promises", async () => recorder.asynchronous((realFsPromises as typeof import("fs/promises"))));
-vi.mock("node:fs/promises", async () => recorder.asynchronous((realFsPromises as typeof import("node:fs/promises"))));
+
+vi.mock("fs", () => recorder.sync(realFs));
+vi.mock("node:fs", () => recorder.sync(realFs));
+vi.mock("fs/promises", () => recorder.asynchronous(realFsPromises));
+vi.mock("node:fs/promises", () => recorder.asynchronous(realFsPromises));
 
 import { schemaInitCommand } from "../../src/commands/schema.js";
 import { buildDefaultSchema } from "../../src/schema/index.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = realFsPromises as typeof import("node:fs/promises");
+const fs = realFsPromises;
 const CALLS = ["existsSync schema.json null", 'mkdir .llmwiki {"recursive":true}', 'writeFile schema.json "utf-8"'];
 useTempRoot();
 let printed: string[] = [];

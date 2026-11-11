@@ -28,7 +28,7 @@
     "mcp:manifest": "bun scripts/mcp-manifest.mjs",
     "release:check-docs": "bun scripts/check-release-docs.mjs",
     "release:check-docs:current": "bun scripts/check-release-docs.mjs --current-version",
-    "test": "bun run build && bun test --parallel=$(bun -e 'console.log(Math.max(1, navigator.hardwareConcurrency >> 1))') --timeout 30000",
+    "test": "bun run build && bun scripts/run-tests.mjs",
     "test:watch": "bun test --watch",
     "typecheck:tests": "bun scripts/typecheck-tests.ts",
     "typecheck:tests:update": "bun scripts/typecheck-tests.ts --update",
@@ -70,6 +70,7 @@
     "LICENSE",
     "README.md"
   ],
+  "packageManager": "bun@1.4.2",
   "engines": {
     "bun": ">=1.3"
   },

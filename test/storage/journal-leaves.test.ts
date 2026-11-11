@@ -23,13 +23,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** What the wrapped opener should sabotage on the handles it returns. */
-const fault = (() => ({ close: false, read: false }))();
+const fault = { close: false, read: false };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
 
 vi.mock("../../src/utils/no-follow-open.js", async () => {
-  const actual = realUtilsNoFollowOpen as typeof import("../../src/utils/no-follow-open.js");
+  const actual = realUtilsNoFollowOpen;
   const openFileNoFollow: typeof actual.openFileNoFollow = async (...args) => {
     const handle = await actual.openFileNoFollow(...args);
     const close = handle.close.bind(handle);

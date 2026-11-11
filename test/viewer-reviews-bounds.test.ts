@@ -19,15 +19,16 @@
  * an undocumented promise.
  */
 
-import { describe, expect, it, vi, type Mock } from "bun:test";
+import { describe, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { CANDIDATES_DIR } from "../src/utils/constants.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
-vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+vi.mock("node:fs/promises", () => {
+  const actual = realFsPromises;
   return { ...actual, readFile: vi.fn(actual.readFile) };
 });
 
@@ -36,7 +37,7 @@ import { listCandidatePage, writeFreshCandidate } from "../src/compiler/candidat
 
 /** Candidate files read from disk since the counter was last reset. */
 function candidateReadCount(): number {
-  return (readFile as unknown as Mock<typeof readFile>)
+  return mocked(readFile)
     .mock.calls.filter(([file]) => typeof file === "string" && file.includes(CANDIDATES_DIR)).length;
 }
 
@@ -59,7 +60,7 @@ async function seedQueue(count: number): Promise<string> {
       body: `---\ntitle: Candidate ${i}\n---\n\nBody ${i}.`,
     });
   }
-  (readFile as unknown as Mock<typeof readFile>).mockClear();
+  mocked(readFile).mockClear();
   return root;
 }
 
@@ -88,7 +89,7 @@ describe("listCandidatePage — bounded disk I/O", () => {
 
   it("reads nothing when no candidates directory exists", async () => {
     const root = await makeTempRoot("reviews-bounds-empty");
-    (readFile as unknown as Mock<typeof readFile>).mockClear();
+    mocked(readFile).mockClear();
     expect(await listCandidatePage(root, 5)).toEqual({ candidates: [], total: 0 });
     expect(candidateReadCount()).toBe(0);
   });

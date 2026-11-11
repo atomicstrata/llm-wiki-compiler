@@ -3,7 +3,7 @@
  * Keeps credential validation consistent with the guard and verifies that
  * structured extraction reaches the gateway with its own key and model.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { getProvider, resolveActiveModelId } from "../src/utils/provider.js";
 import { ensureProviderAvailable } from "../src/utils/provider-guard.js";

@@ -4,6 +4,7 @@
  * confinement, parsing, and classification still run against real fixtures.
  */
 import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { mocked } from "./mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import os from "node:os";
@@ -16,11 +17,11 @@ import { UnsafeCandidateDirError } from "../src/compiler/candidate-store-paths.j
 import * as output from "../src/utils/output.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs/promises", async () => {
-  const actual = (realFsPromises as typeof fs);
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   return { ...actual, readFile: vi.fn(actual.readFile), realpath: vi.fn(actual.realpath),
     open: vi.fn(actual.open), readdir: vi.fn(actual.readdir) };
 });
@@ -67,7 +68,7 @@ type ForwardedRead = (target: never, ...rest: never[]) => Promise<unknown>;
 
 /** Intercept one candidate read while forwarding all reads to the real filesystem. */
 async function beforeCandidateRead(file: string, action: (actual: typeof fs) => void | Promise<void>): Promise<void> {
-  const actual = realFsPromises as typeof fs;
+  const actual = realFsPromises;
   (fs.readFile as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
     if (target === file) await action(actual);
     return actual.readFile(target, ...args);
@@ -125,8 +126,8 @@ it("allows in-directory leaf aliases and rejects escaping leaves and redirected 
 
 it("drops a page disappearing between listing and opening", async () => {
   const file = await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
-  const actual = realFsPromises as typeof fs;
-  (fs.open as unknown as Mock<typeof fs.open>).mockImplementationOnce(async (...args) => {
+  const actual = realFsPromises;
+  mocked(fs.open).mockImplementationOnce(async (...args) => {
     await actual.unlink(file);
     return actual.open(...args);
   });
@@ -136,9 +137,9 @@ it("drops a page disappearing between listing and opening", async () => {
 it("rejects a handle opened during a parent swap even after the path is restored", async () => {
   await put("wiki/concepts/alpha.md", "---\naliases: [Inside]\n---");
   await put("outside/alpha.md", "---\naliases: [Secret]\n---");
-  const actual = realFsPromises as typeof fs;
+  const actual = realFsPromises;
   const dir = path.join(root, "wiki/concepts");
-  (fs.open as unknown as Mock<typeof fs.open>).mockImplementationOnce(async (...args) => {
+  mocked(fs.open).mockImplementationOnce(async (...args) => {
     await actual.rename(dir, `${dir}-saved`);
     await actual.symlink(path.join(root, "outside"), dir);
     const handle = await actual.open(...args);
@@ -153,14 +154,14 @@ it.each(["open", "read", "realpath", "readdir"] as const)("propagates genuine re
   const file = await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
   const fault = Object.assign(new Error("I/O fault"), { code: "EIO" });
   if (operation === "read") {
-    const actual = realFsPromises as typeof fs;
-    (fs.open as unknown as Mock<typeof fs.open>).mockImplementationOnce(async (...args) => {
+    const actual = realFsPromises;
+    mocked(fs.open).mockImplementationOnce(async (...args) => {
       const handle = await actual.open(...args);
       vi.spyOn(handle, "read").mockRejectedValueOnce(fault);
       return handle;
     });
   } else if (operation === "realpath") {
-    const actual = realFsPromises as typeof fs;
+    const actual = realFsPromises;
     (fs.realpath as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
       if (target === file) throw fault;
       return actual.realpath(target, ...args);
@@ -171,12 +172,12 @@ it.each(["open", "read", "realpath", "readdir"] as const)("propagates genuine re
 
 it("closes the collector handle on success and on a read fault", async () => {
   await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
-  const actual = realFsPromises as typeof fs;
+  const actual = realFsPromises;
   let opened: FileHandle | undefined;
-  (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(async (...args) => { opened = await actual.open(...args); return opened; });
+  mocked(fs.open).mockImplementation(async (...args) => { opened = await actual.open(...args); return opened; });
   await collectAnswerCitationIndex(root);
   await expect(opened!.stat()).rejects.toMatchObject({ code: "EBADF" });
-  (fs.open as unknown as Mock<typeof fs.open>).mockImplementation(async (...args) => {
+  mocked(fs.open).mockImplementation(async (...args) => {
     opened = await actual.open(...args);
     vi.spyOn(opened, "read").mockRejectedValueOnce(Object.assign(new Error("fault"), { code: "EIO" }));
     return opened;
@@ -196,8 +197,10 @@ it("does not hide candidate read faults while legacy listing keeps its default",
 
 it("does not hide candidate directory realpath faults in either listing mode", async () => {
   await candidate("alpha");
-  const actual = realFsPromises as typeof fs;
+  const actual = realFsPromises;
   (fs.realpath as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
+    // EIO, not EACCES: portableRealpath resolves EACCES on an unreadable leaf the way
+    // Node does, so only a non-permission errno is still a genuine fault here.
     if (target === path.join(root, ".llmwiki/candidates")) throw Object.assign(new Error("I/O fault"), { code: "EIO" });
     return actual.realpath(target, ...args);
   });

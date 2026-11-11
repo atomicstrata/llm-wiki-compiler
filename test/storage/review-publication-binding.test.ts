@@ -40,7 +40,7 @@ import type { LoadedProfile } from "../../src/profile/types.js";
 import * as output from "../../src/utils/output.js";
 import type { ReviewCandidate } from "../../src/utils/types.js";
 
-afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
+afterEach(() => { vi.restoreAllMocks(); });
 
 /** A candidate with only the fields a case names. */
 const candidate = (fields: Partial<ReviewCandidate>): ReviewCandidate => ({ id: "cand-1", slug: "deployment", body: "---\ntitle: T\n---\n\nBody.\n", ...fields } as ReviewCandidate);

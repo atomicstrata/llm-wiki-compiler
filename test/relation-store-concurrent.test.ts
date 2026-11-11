@@ -67,7 +67,7 @@ for (let i = 0; i < ${APPENDS_PER_WRITER}; i++) {
 }`;
 }
 
-/** Spawn one writer subprocess (separate node process), resolving on clean exit. */
+/** Spawn one writer subprocess (separate bun process), resolving on clean exit. */
 function spawnWriter(writer: number): Promise<void> {
   return exec("bun", ["-e", workerScript(writer)]).then(() => undefined);
 }

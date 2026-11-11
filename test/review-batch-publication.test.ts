@@ -3,7 +3,8 @@
  * answers to individual approval, where exact bytes are protected from the
  * generic link-repair tail. Refusals preserve candidate files and other work.
  */
-import { expect, it, vi, type Mock } from "bun:test";
+import { expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { approveBatch, stageBatchCandidate } from "./fixtures/review-batch.js";
@@ -60,7 +61,7 @@ it("preserves generic warning-only behavior when citation checking is unavailabl
   const candidate = await generic(root.dir, "deployment", "Uses [[Missing]].");
   vi.spyOn(citations, "genericBrokenTargets").mockRejectedValueOnce(new Error("unavailable"));
   expect((await approveBatch(root.dir, candidate.id)).status).toBe("completed");
-  expect((console.log as unknown as Mock<typeof console.log>).mock.calls.flat().join(" ")).toContain("citation check unavailable");
+  expect(mocked(console.log).mock.calls.flat().join(" ")).toContain("citation check unavailable");
 });
 
 it("cannot bypass validated-answer policy with malformed answer metadata", async () => {

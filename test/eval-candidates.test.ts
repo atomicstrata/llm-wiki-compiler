@@ -3,7 +3,8 @@
  * judge only. No network or credentials: exercise revision, evidence and sampling
  * boundaries while proving the pending/live filesystem remains untouched.
  */
-import { beforeEach, afterEach, vi, type Mock, describe, it, expect } from "bun:test";
+import { beforeEach, afterEach, vi, describe, it, expect } from "bun:test";
+import { mocked } from "./mocked.js";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -25,7 +26,7 @@ describe("pending candidate evaluation", () => {
     stubEnv("LLMWIKI_PROVIDER", "openai");
     stubEnv("LLMWIKI_MODEL", "test-judge");
     stubEnv("OPENAI_API_KEY", "test-only-not-a-real-key");
-    (callClaude as unknown as Mock<typeof callClaude>).mockReset().mockResolvedValue(JSON.stringify({ score: 2, reason: "Supported." }));
+    mocked(callClaude).mockReset().mockResolvedValue(JSON.stringify({ score: 2, reason: "Supported." }));
   });
   afterEach(() => restoreEnv());
 
@@ -142,7 +143,7 @@ describe("pending candidate evaluation", () => {
   it.each(["not JSON", '{"score":9,"reason":"bad"}', '{"score":2}', 'null'])("rejects invalid judge responses: %s", async raw => {
     await env.writeSource("ref.md", source);
     await stage();
-    (callClaude as unknown as Mock<typeof callClaude>).mockResolvedValue(raw);
+    mocked(callClaude).mockResolvedValue(raw);
     const report = await evaluateCandidates(env.dir, "full");
     expect(report.coverage.judgeErrors).toBe(1);
     expect(report.meanScore).toBeNull();

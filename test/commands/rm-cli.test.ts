@@ -48,6 +48,7 @@ import path from "node:path";
 import { exec, CLI, stripAnsi } from "../fixtures/cli-runner.js";
 import { makeEmptyRmProject, twoSourceRmProject, twoSourceRmProjectWithProfile } from "../fixtures/rm-project.js";
 import type { WikiState } from "../../src/utils/types.js";
+import { CLI_RUNTIME_FLAGS } from "../fixtures/run-cli.js";
 
 /** A project with one source owning one concept page. */
 async function oneSourceProject(): Promise<string> {
@@ -67,7 +68,7 @@ describe("llmwiki rm CLI", () => {
   it("--dry-run reports the full delete/keep lines and changes nothing", async () => {
     const root = await twoSourceRmProject();
 
-    const { stdout } = await exec("bun", [CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
     const lines = stripAnsi(stdout);
 
     // Full labelled lines, not a bare substring: a delete/keep inversion would
@@ -84,7 +85,7 @@ describe("llmwiki rm CLI", () => {
   it("applies without any confirmation flag", async () => {
     const root = await oneSourceProject();
 
-    await exec("bun", [CLI, "rm", "bad.md"], { cwd: root });
+    await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md"], { cwd: root });
 
     expect(existsSync(path.join(root, "sources/bad.md"))).toBe(false);
     expect(existsSync(path.join(root, "wiki/concepts/junk.md"))).toBe(false);
@@ -93,7 +94,7 @@ describe("llmwiki rm CLI", () => {
   it("exits 1 with a pointer to sources/ when the ref matches nothing", async () => {
     const root = await oneSourceProject();
 
-    const err = await exec("bun", [CLI, "rm", "nope.md"], { cwd: root }).catch((e) => e);
+    const err = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "nope.md"], { cwd: root }).catch((e) => e);
 
     expect(err.code).toBe(1);
     expect(stripAnsi(err.stdout + err.stderr)).toContain("Look in sources/");
@@ -102,7 +103,7 @@ describe("llmwiki rm CLI", () => {
   it("does not warn about a profile on a default project", async () => {
     const root = await twoSourceRmProject();
 
-    const { stdout, stderr } = await exec("bun", [CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
 
     expect(stripAnsi(stdout + stderr)).not.toContain("This project uses the");
   });
@@ -110,7 +111,7 @@ describe("llmwiki rm CLI", () => {
   it("warns that typed entity pages are untracked and untouched on a profile project's --dry-run", async () => {
     const root = await twoSourceRmProjectWithProfile();
 
-    const { stdout, stderr } = await exec("bun", [CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
     const lines = stripAnsi(stdout + stderr);
 
     expect(lines).toContain("This project uses the `sample` profile.");
@@ -121,7 +122,7 @@ describe("llmwiki rm CLI", () => {
   it("warns on the applied path too, not only --dry-run", async () => {
     const root = await twoSourceRmProjectWithProfile();
 
-    const { stdout, stderr } = await exec("bun", [CLI, "rm", "bad.md"], { cwd: root });
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md"], { cwd: root });
 
     expect(stripAnsi(stdout + stderr)).toContain("This project uses the `sample` profile.");
   });
@@ -129,7 +130,7 @@ describe("llmwiki rm CLI", () => {
   it("prints the deletion report before regeneration's own progress output", async () => {
     const root = await oneSourceProject();
 
-    const { stdout } = await exec("bun", [CLI, "rm", "bad.md"], { cwd: root });
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md"], { cwd: root });
     const text = stripAnsi(stdout);
 
     const deletedAt = text.indexOf("Deleted: sources/bad.md");
@@ -144,7 +145,7 @@ describe("llmwiki rm CLI", () => {
   it("warns that kept pages may still cite the removed source", async () => {
     const root = await twoSourceRmProject(); // shared.md survives, still citing bad.md
 
-    const { stdout, stderr } = await exec("bun", [CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
     const lines = stripAnsi(stdout + stderr);
 
     expect(lines).toContain("Kept page(s) may still cite this source.");
@@ -154,7 +155,7 @@ describe("llmwiki rm CLI", () => {
   it("does not warn about citations when nothing is kept", async () => {
     const root = await oneSourceProject(); // every page is deleted with the source
 
-    const { stdout, stderr } = await exec("bun", [CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md", "--dry-run"], { cwd: root });
 
     expect(stripAnsi(stdout + stderr)).not.toContain("may still cite this source");
   });
@@ -163,7 +164,7 @@ describe("llmwiki rm CLI", () => {
     const root = await oneSourceProject();
     await rm(path.join(root, "sources/bad.md")); // as a failed page batch would leave it
 
-    const { stdout } = await exec("bun", [CLI, "rm", "bad.md"], { cwd: root });
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md"], { cwd: root });
     const lines = stripAnsi(stdout);
 
     expect(lines).toContain("sources/bad.md was already gone");
@@ -174,7 +175,7 @@ describe("llmwiki rm CLI", () => {
   it("reports every deleted page on an ordinary removal and exits 0", async () => {
     const root = await twoSourceRmProject();
 
-    const { stdout } = await exec("bun", [CLI, "rm", "bad.md"], { cwd: root });
+    const { stdout } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "rm", "bad.md"], { cwd: root });
     const lines = stripAnsi(stdout);
 
     // exec rejects on a non-zero exit, so reaching this point already pins

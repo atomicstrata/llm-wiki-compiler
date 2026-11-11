@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   process.exitCode = 0;
 });
-afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
+afterEach(() => { vi.restoreAllMocks(); });
 
 /** Memory steps: an index that is there or not, and an answer pipeline returning `result`. Each call logged. */
 function stepsOf(log: string[], indexExists: boolean, result: object = { answer: "an answer" }): QueryCommandSteps {

@@ -2,7 +2,8 @@
  * Ordinary default candidates keep pending chains and production prefix repair;
  * only genuinely broken links refuse. Typed and unavailable policy stay separate.
  */
-import { expect, it, vi, type Mock } from "bun:test";
+import { expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import approve from "../src/commands/review-approve.js";
@@ -66,7 +67,7 @@ it("warns and preserves generic approval when the new check is unavailable", asy
   await approve(candidate.id);
   expect(process.exitCode).toBe(0);
   expect(await readFile(path.join(root.dir, "wiki/queries/imported.md"), "utf8")).toBe(candidate.body);
-  expect((console.log as unknown as Mock<typeof console.log>).mock.calls.flat().join(" ")).toContain("citation check unavailable");
+  expect(mocked(console.log).mock.calls.flat().join(" ")).toContain("citation check unavailable");
 });
 
 it("leaves typed candidates on their existing policy despite broken default wikilinks", async () => {

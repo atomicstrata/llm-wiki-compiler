@@ -38,7 +38,7 @@ export interface McpRootHandle {
 }
 
 /**
- * Vitest composable that creates + tears down a per-test temp
+ * Test composable that creates + tears down a per-test temp
  * workspace with the directory layout the MCP server expects.
  * `prefix` lets each test file have an identifiable temp-dir name.
  */

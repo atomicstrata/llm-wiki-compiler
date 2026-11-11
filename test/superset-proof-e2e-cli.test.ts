@@ -28,12 +28,6 @@
  * seam; every other bullet drives the real `dist/cli.js`.
  */
 
-// This suite drives the whole CLI through many subprocess spawns and runs ~25s of
-// subprocess work against the 30s default. vitest already caps workers because subprocess
-// tests starve each other under load, so on a slower CI runner any test here can breach 30s
-// with nothing broken. Raise the timeout for the whole FILE — the fix belongs at file scope,
-// not on one victim test at a time. No assertion is weakened.
-setDefaultTimeout(90_000);
 import { describe, it, beforeEach, afterEach, expect, setDefaultTimeout } from "bun:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
@@ -69,6 +63,13 @@ import { listCandidates } from "../src/compiler/candidates.js";
 import { runConnector } from "../src/connectors/run.js";
 import { artifactPaths, hashArtifactBody, type ArtifactManifest } from "../src/artifacts/store.js";
 import { EXPORT_DIR } from "../src/utils/constants.js";
+
+// This suite drives the whole CLI through many subprocess spawns and runs ~25s of
+// subprocess work against the 30s default. Parallel test workers each spawn CLI
+// subprocesses and starve each other under load, so on a slower CI runner any test
+// here can breach 30s with nothing broken. Raise the timeout for the whole FILE: the
+// fix belongs at file scope, not on one victim test at a time. No assertion is weakened.
+setDefaultTimeout(90_000);
 
 /** The out-of-band grant the artifact-precondition profile's trusted writes need. */
 const ARTIFACT_GRANT = { LLMWIKI_TRUSTED_WRITE: "research-artifact" };
@@ -131,8 +132,8 @@ async function stageCrossrefOffline(): Promise<void> {
 
 /**
  * Measured ~14-15s on an idle machine against the 30s default, so this test carries barely
- * 2x headroom. It drives the whole CLI through many subprocess spawns, and vitest already
- * caps workers because subprocess tests starve each other under load — on a slower CI runner
+ * 2x headroom. It drives the whole CLI through many subprocess spawns, and parallel test
+ * workers each spawn CLI subprocesses and starve each other under load: on a slower CI runner
  * that margin disappears and the test times out with nothing actually broken. Give it the
  * headroom its measured cost demands.
  */

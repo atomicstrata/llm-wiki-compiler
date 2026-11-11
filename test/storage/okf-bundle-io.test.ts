@@ -24,13 +24,13 @@ import path from "node:path";
 import { describe, expect, it, onTestFinished, vi } from "bun:test";
 
 /** Every watched call, as `<function> <path relative to the test's base>`, and the names watched. */
-const calls = (() => ({
+const calls = {
   log: [] as string[],
   base: "",
   watched: ["readdir", "stat", "readFile", "access", "lstat", "mkdir", "copyFile", "rm"],
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("fs/promises")) };
 
 // Synchronous on purpose: Bun runs the factory eagerly, and an `await` inside it

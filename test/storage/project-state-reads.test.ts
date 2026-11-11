@@ -25,10 +25,10 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** `calls` are [function name, ...arguments] noted while `on`; `failRead` is the one path whose `readFile` rejects. */
-const io = (() => ({ on: false, calls: [] as unknown[][], failRead: null as string | null }))();
+const io = { on: false, calls: [] as unknown[][], failRead: null as string | null };
 
 /** A copy of one `fs/promises` module object with `stat`, `readdir` and `readFile` noted, as named exports and on `default`. */
-const noting = (() => <T extends object>(actual: T): T => {
+const noting = <T extends object>(actual: T): T => {
   const real = actual as unknown as Record<string, (...args: unknown[]) => unknown>;
   const noted: Record<string, (...args: unknown[]) => unknown> = {};
   for (const name of ["stat", "readdir", "readFile"]) {
@@ -39,21 +39,21 @@ const noting = (() => <T extends object>(actual: T): T => {
     };
   }
   return { ...actual, ...noted, default: { ...actual, ...noted } };
-})();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 // Both spellings: the collector uses the bare module name before the move and storage uses `node:` after it.
-vi.mock("fs/promises", async () => noting((realFsPromises as typeof import("fs/promises"))));
-vi.mock("node:fs/promises", async () => noting((realFsPromises as typeof import("node:fs/promises"))));
+vi.mock("fs/promises", () => noting(realFsPromises));
+vi.mock("node:fs/promises", () => noting(realFsPromises));
 
 import { writeLintCache } from "../../src/linter/cache.js";
 import { collectProjectState } from "../../src/project/state.js";
 import { CONCEPTS_DIR, INDEX_FILE, LAST_LINT_FILE, QUERIES_DIR, SOURCES_DIR } from "../../src/utils/constants.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = realFsPromises as typeof import("node:fs/promises");
+const fs = realFsPromises;
 useTempRoot();
 
 const root = (): string => process.cwd();

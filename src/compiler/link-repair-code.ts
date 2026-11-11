@@ -4,13 +4,25 @@
  * fences and indented code follow its grammar. Inline backtick runs require an
  * equally sized closing run; protected offsets always refer to original bytes.
  */
-import MarkdownIt from "markdown-it";
+import type MarkdownIt from "markdown-it";
+import { requireOnUse } from "../utils/require-on-use.js";
 
 type Span = { start: number; end: number };
-const markdown = new MarkdownIt();
-// Parsing only (nothing is rendered): `html` makes raw HTML blocks such as
-// <pre> and <script> visible as html_block tokens so their bytes stay literal.
-const markdownWithHtml = new MarkdownIt({ html: true });
+const parsers = new Map<boolean, MarkdownIt>();
+
+/**
+ * The parser for one `html` setting, built on first use so that commands which
+ * never scan a page body start without the Markdown parser. Parsing only
+ * (nothing is rendered): `html` makes raw HTML blocks such as <pre> and
+ * <script> visible as html_block tokens so their bytes stay literal.
+ */
+function parserFor(html: boolean): MarkdownIt {
+  const existing = parsers.get(html);
+  if (existing) return existing;
+  const parser = new (requireOnUse<typeof MarkdownIt>("markdown-it"))({ html });
+  parsers.set(html, parser);
+  return parser;
+}
 
 /** Which literal regions a caller must leave untouched. */
 export interface LiteralMarkdownOptions {
@@ -77,7 +89,7 @@ function inlineSpans(body: string): Span[] {
 
 /** Return a predicate identifying matches inside literal Markdown regions. */
 export function isLiteralMarkdown(body: string, options: LiteralMarkdownOptions = {}): (offset: number) => boolean {
-  const { literal, inline } = blockSpans(body, options.htmlBlocks ? markdownWithHtml : markdown);
+  const { literal, inline } = blockSpans(body, parserFor(options.htmlBlocks === true));
   // Code spans pair backticks only within one inline block (a paragraph, heading,
   // list item or table cell), as Markdown does: an unmatched backtick never pairs
   // with one in another block, or with a fenced block's run.

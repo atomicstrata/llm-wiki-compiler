@@ -3,7 +3,7 @@
  * The network is a fixture; connector mapping, durable provenance, approval,
  * profile validation and HTTP page serialization are production code.
  */
-import { afterEach, expect, it, vi } from "bun:test";
+import { afterEach, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "../stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";

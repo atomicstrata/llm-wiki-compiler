@@ -8,7 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "bun:test";
 
-const mockComplete = (() => vi.fn())();
+const mockComplete = vi.fn();
 
 vi.mock("../src/utils/provider.js", () => ({
   getProvider: () => ({

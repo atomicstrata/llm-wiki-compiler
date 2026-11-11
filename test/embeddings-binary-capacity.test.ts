@@ -5,7 +5,7 @@
  */
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, expect, it, vi } from "bun:test";
+import { afterEach, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { binaryFixture } from "./fixtures/binary-embedding-store.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";

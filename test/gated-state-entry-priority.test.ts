@@ -13,7 +13,8 @@
  * can prove the SHORT-CIRCUIT: the artifact enforcer is never even invoked, not just
  * that its error lost a priority race.
  */
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
+import { mocked } from "./mocked.js";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -27,18 +28,18 @@ import { RelationPreconditionUnmetError, RelationPreconditionUnverifiableError }
 import { ArtifactPreconditionUnmetError, ArtifactPreconditionUnverifiableError, enforceArtifactPreconditions } from "../src/artifacts/enforce-precondition.js";
 import { enforceGatedStateEntry, type GatedStateEntryInput } from "../src/trust/gated-state-entry.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realArtifactsEnforcePrecondition = { ...(await import("../src/artifacts/enforce-precondition.js")) };
 const realRelationsEnforcePrecondition = { ...(await import("../src/relations/enforce-precondition.js")) };
 
 // Pass-through spy: delegates to the real enforcer so every case's actual
 // deny/park/pass behavior is unchanged, while letting tests assert call counts.
-vi.mock("../src/artifacts/enforce-precondition.js", async () => {
-  const actual = realArtifactsEnforcePrecondition as typeof import("../src/artifacts/enforce-precondition.js");
+vi.mock("../src/artifacts/enforce-precondition.js", () => {
+  const actual = realArtifactsEnforcePrecondition;
   return { ...actual, enforceArtifactPreconditions: vi.fn(actual.enforceArtifactPreconditions) };
 });
-vi.mock("../src/relations/enforce-precondition.js", async () => {
-  const actual = realRelationsEnforcePrecondition as typeof import("../src/relations/enforce-precondition.js");
+vi.mock("../src/relations/enforce-precondition.js", () => {
+  const actual = realRelationsEnforcePrecondition;
   return { ...actual, enforceRelationPreconditions: vi.fn(actual.enforceRelationPreconditions) };
 });
 
@@ -130,7 +131,7 @@ describe("enforceGatedStateEntry surfaces deny-beats-park", () => {
   });
   afterEach(async () => {
     if (root) await rm(root, { recursive: true, force: true });
-    (enforceArtifactPreconditions as unknown as Mock<typeof enforceArtifactPreconditions>).mockClear();
+    mocked(enforceArtifactPreconditions).mockClear();
   });
 
   it("RED case: relation PARK + artifact DENY throws the DENY, not the park", async () => {
@@ -177,7 +178,7 @@ describe("enforceGatedStateEntry surfaces deny-beats-park", () => {
 
   it("a non-precondition error from an enforcer propagates unchanged (never swallowed)", async () => {
     const bug = new TypeError("planted non-precondition bug");
-    (enforceArtifactPreconditions as unknown as Mock<typeof enforceArtifactPreconditions>).mockRejectedValueOnce(bug);
+    mocked(enforceArtifactPreconditions).mockRejectedValueOnce(bug);
     await seedQualifyingRelation(root, profile); // relation passes so the artifact enforcer runs
     await expect(enforceGatedStateEntry(input(root, profile, {}))).rejects.toBe(bug);
   });

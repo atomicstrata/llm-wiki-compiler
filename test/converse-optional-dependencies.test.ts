@@ -35,6 +35,10 @@ it("starts the built CLI and SDKs without loading optional Converse packages", a
   const script = `${denyLoading(packages)}
     await import("./dist/index.js");
     await import("@atomicstrata/llmwiki-core");
+    // The CLI loads a command's code only when it runs, so load every command.
+    for (const chunk of require("node:fs").readdirSync("dist/cli-chunks")) {
+      if (chunk.endsWith(".js")) await import("./dist/cli-chunks/" + chunk);
+    }
     process.argv = [process.execPath, "dist/cli.js", "--help"];
     await import("./dist/cli.js");
     if (globalThis.deniedLoads.length) throw new Error("Unexpected Converse dependency load");

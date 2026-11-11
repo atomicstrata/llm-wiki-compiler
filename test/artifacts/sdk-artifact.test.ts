@@ -15,7 +15,8 @@
 
 import { describe, it, afterEach, expect } from "bun:test";
 import { rm } from "node:fs/promises";
-import { createWiki, ArtifactVerifyUnavailableError } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
+import { ArtifactVerifyUnavailableError } from "../../src/artifacts/resolve.js";
 import type { SdkWriteArtifactInput, ArtifactRef, ArtifactHealth } from "../../src/index.js";
 import { makeResearchLikeRoot, makeNonDefaultRootWithNoArtifactTypes } from "../fixtures/artifact-root.js";
 import { hashArtifactBody } from "../../src/artifacts/store.js";

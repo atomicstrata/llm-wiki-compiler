@@ -27,7 +27,7 @@ import {
   workflowActionShowCommand,
   workflowActionRunCommand,
 } from "../commands/workflow.js";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
 
 /** Register the read-only discovery/inspection commands: `list`, `show`, `events`, `status`, `advance`, `project`. */
 function registerWorkflowInspectionCommands(workflowCmd: Command): void {
@@ -198,12 +198,8 @@ function registerWorkflowGateCommands(workflowCmd: Command): void {
     });
 }
 
-/** Register the `workflow` command group and its `action`/`gate` sub-groups on `program`. */
-export function registerWorkflowCommands(program: Command): void {
-  const workflowCmd = program
-    .command("workflow")
-    .description("Run and inspect declarative profile workflows (experimental)");
-
+/** Register the `workflow` command group and its `action`/`gate` sub-groups. */
+export function registerWorkflowCommands(workflowCmd: Command): void {
   registerWorkflowInspectionCommands(workflowCmd);
   registerWorkflowRunCommands(workflowCmd);
   registerWorkflowActionCommands(workflowCmd);

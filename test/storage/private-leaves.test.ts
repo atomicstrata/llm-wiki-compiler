@@ -23,13 +23,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** The handle operations ("stat", "readFile", "close") the opened handle should fail at. */
-const failing = (() => new Set<string>())();
+const failing = new Set<string>();
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
 
 vi.mock("../../src/utils/no-follow-open.js", async () => {
-  const actual = realUtilsNoFollowOpen as typeof import("../../src/utils/no-follow-open.js");
+  const actual = realUtilsNoFollowOpen;
   /** A view of a real handle whose named operations reject; `close` still really closes first. */
   const sabotaged = <T extends object>(handle: T): T => new Proxy(handle, {
     get(target, key) {

@@ -14,7 +14,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { exportJson } from "../src/commands/export.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import {
   writeMarkdownPage,

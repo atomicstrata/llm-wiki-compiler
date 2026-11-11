@@ -30,11 +30,11 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** `calls` are [function name, ...arguments] noted while `on`; `fault` rejects one `lstat` on one path. */
-const io = (() => ({
+const io = {
   on: false,
   calls: [] as unknown[][],
   fault: null as null | { at: string; error: Error },
-}))();
+};
 
 /**
  * The suite's `fs` tapper (`fs-taps.ts`): each tapped call is noted with its arguments while `on`, and
@@ -48,16 +48,16 @@ const tap = fsTapper({
   answer: (name, args) => (name === "lstat" && io.fault !== null && io.fault.at === args[0] ? Promise.reject(io.fault.error) : undefined),
 });
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 // Both spellings of each module: `state-reset.ts` uses the bare names before the move, `reset-plan.ts` and storage the `node:` ones.
 const realFs = { ...(await import("fs")) };
 
-vi.mock("fs", () => tap(realFs as typeof import("fs"), ["existsSync"]));
-vi.mock("node:fs", () => tap(realFs as typeof import("node:fs"), ["existsSync"]));
-vi.mock("fs/promises", () => tap(realFsPromises as typeof import("fs/promises"), ["lstat", "rename", "readdir"]));
-vi.mock("node:fs/promises", () => tap(realFsPromises as typeof import("node:fs/promises"), ["lstat", "rename", "readdir"]));
+vi.mock("fs", () => tap(realFs, ["existsSync"]));
+vi.mock("node:fs", () => tap(realFs, ["existsSync"]));
+vi.mock("fs/promises", () => tap(realFsPromises, ["lstat", "rename", "readdir"]));
+vi.mock("node:fs/promises", () => tap(realFsPromises, ["lstat", "rename", "readdir"]));
 
 import { executeReset, planReset, type ResetPlanV1 } from "../../src/commands/reset-plan.js";
 import { stateResetCommand } from "../../src/commands/state-reset.js";
@@ -67,7 +67,7 @@ import * as lock from "../../src/utils/lock.js";
 import * as output from "../../src/utils/output.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = realFsPromises as typeof import("node:fs/promises");
+const fs = realFsPromises;
 const STATE_BYTES = "\u0000not json { at all";
 const ctx = useTempRoot();
 let statuses: string[] = [];

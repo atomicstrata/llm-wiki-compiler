@@ -12,7 +12,7 @@
  * agree by luck, which would let the regression back in unnoticed.
  */
 
-import { describe, it, expect, afterEach, vi, setSystemTime } from "bun:test";
+import { describe, it, expect, afterEach, setSystemTime } from "bun:test";
 import { rm } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

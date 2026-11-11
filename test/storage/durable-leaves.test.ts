@@ -21,13 +21,13 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** The one directory whose opens are counted, and the error its `sync` should raise (if any). */
-const watch = (() => ({ dir: "", syncError: null as Error | null, opened: 0, closed: 0 }))();
+const watch = { dir: "", syncError: null as Error | null, opened: 0, closed: 0 };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
 vi.mock("node:fs/promises", async () => {
-  const actual = realFsPromises as typeof import("node:fs/promises");
+  const actual = realFsPromises;
   const open = async (...args: Parameters<typeof actual.open>) => {
     const handle = await actual.open(...args);
     if (args[0] !== watch.dir) return handle;

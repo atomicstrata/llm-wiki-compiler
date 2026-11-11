@@ -33,7 +33,7 @@
 
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, setSystemTime } from "bun:test";
 import { collectStats, collectStatsFrom, type StatsSources } from "../../src/eval/stats.js";
 import type { StatsResult } from "../../src/eval/types.js";
 import type { LegacyLocalReads } from "../../src/storage/legacy-local-reads.js";

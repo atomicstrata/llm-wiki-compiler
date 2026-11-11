@@ -10,7 +10,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { mockClaudeEnv, useAimockLifecycle } from "./fixtures/aimock-helper.js";
-import { CLI, runCLI, expectCLIExit } from "./fixtures/run-cli.js";
+import { CLI, runCLI, expectCLIExit, CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const aimock = useAimockLifecycle("stage-timing");
 const SOURCE_TEXT = "Distinctive corpus sentence about Zyxwv lattices.";
@@ -65,7 +65,7 @@ describe("stage timing through the CLI", () => {
     const env = { ...process.env, ...mockClaudeEnv(handle), LLMWIKI_STAGE_TIMING_FILE: fifo };
     // Before the fix the first stage's append blocked forever opening the FIFO,
     // holding the project lock; the bound turns that hang into a failure here.
-    const run = await execBounded(process.execPath, [CLI, "compile"], { cwd, env, timeout: HANG_BOUND_MS, killSignal: "SIGKILL" });
+    const run = await execBounded(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], { cwd, env, timeout: HANG_BOUND_MS, killSignal: "SIGKILL" });
     expect(run.stderr).not.toContain("Error");
     expect((await readdir(path.join(cwd, "wiki", "concepts"))).length).toBeGreaterThan(0);
   }, 60_000);

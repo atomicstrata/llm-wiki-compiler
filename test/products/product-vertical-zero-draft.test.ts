@@ -38,14 +38,14 @@ import {
 
 type IntentModule = typeof import("../../src/operations-packs/handlers/intent-compile.js");
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realHandlersIntentCompile = { ...(await import("../../src/operations-packs/handlers/intent-compile.js")) };
 
 // The reviewer's mutation, applied to the family the runtime dispatches to: the
 // result keeps every other field the phase publishes, so ONLY the draft set is
 // emptied and nothing else about the run changes.
-vi.mock("../../src/operations-packs/handlers/intent-compile.js", async () => {
-  const actual = realHandlersIntentCompile as IntentModule;
+vi.mock("../../src/operations-packs/handlers/intent-compile.js", () => {
+  const actual = realHandlersIntentCompile;
   return {
     ...actual,
     compileIntents: (input: Parameters<IntentModule["compileIntents"]>[0]) => {

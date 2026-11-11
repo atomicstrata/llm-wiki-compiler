@@ -11,11 +11,11 @@ import { loadBatch } from "../src/trust/journal.js";
 import { releaseLock } from "../src/utils/lock.js";
 import { openDirectoryNoFollow, resolveDistributionPaths } from "../src/profile/templates/publish/distribution-paths.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFs = { ...(await import("node:fs")) };
 
-vi.mock("node:fs", async () => {
-  const fs = (realFs as typeof import("node:fs"));
+vi.mock("node:fs", () => {
+  const fs = realFs;
   return { ...fs, constants: { ...fs.constants, O_NOFOLLOW: undefined, O_NONBLOCK: undefined, O_DIRECTORY: undefined } };
 });
 

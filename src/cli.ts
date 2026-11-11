@@ -1,52 +1,13 @@
 /**
  * CLI entry point for llmwiki — the knowledge compiler.
  *
- * Registers all commands (ingest, compile, query, watch, lint) via Commander.
- * Validates the correct API key for the selected LLM provider.
+ * Lists every command with the module that implements it. Commander loads
+ * that module just before it runs the command, so help loads none of them.
  * Designed for `npx llmwiki` or global install via `npm install -g llm-wiki-compiler`.
  */
 
 import { createRequire } from "module";
 import { Command } from "commander";
-import { ingestCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { ingestSessionCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { visualizeCommand, type VisualizeOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { compileCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { rmCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { queryCommand, assertQuerySaveOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { watchCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { lintCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { statusCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { exportCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { importCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { recoverCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { registerRulesCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { registerContextCommands } from "./cli/context-commands.js";
-import { refreshCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { quickstartCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { startMCPServer } from "./mcp/server.js";
-import { applyLanguageOption } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { applySourcesSectionOption } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { readInstructions } from "./cli/instructions.js";
-import { ensureCompileProviderAvailable, ensureProviderAvailable } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { setVerbose } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { parseConcurrencyFlag } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { ENV_VERBOSE } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { registerStateCommands } from "./cli/state-commands.js";
-import { registerSchemaCommands } from "./cli/schema-commands.js";
-import { registerProfileCommands } from "./cli/profile-commands.js";
-import { registerTemplateCommands } from "./cli/template-commands.js";
-import { registerArtifactCommands } from "./cli/artifact-commands.js";
-import { registerReviewCommands } from "./cli/review-commands.js";
-import { registerViewCommands } from "./cli/view-commands.js";
-import { registerEvalCommands } from "./cli/eval-commands.js";
-import { registerWorkflowCommands } from "./cli/workflow-commands.js";
-import { registerConnectorCommands } from "./cli/connector-commands.js";
-import { registerOperationCommands } from "./cli/operation-commands.js";
-import { registerProductCommands } from "./cli/product-commands.js";
-import { registerPreparationCommands } from "./cli/preparation-commands.js";
-import { addProviderOption, applyProviderOption, type ProviderOption } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { loadCliEnvironment } from "./cli/environment.js";
 
 loadCliEnvironment();
@@ -54,14 +15,78 @@ loadCliEnvironment();
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+type Configure = (command: Command) => void;
+
 /**
- * Returns true when the --verbose flag was passed or LLMWIKI_VERBOSE is set
- * to a non-empty value in the environment. Both paths call setVerbose(true)
- * at the start of the action so verbose() emits output for that run only.
+ * Every top-level command in help order: its usage as help prints it, its
+ * description, and the module that adds its options, action and subcommands.
  */
-function verboseEnabled(flag?: boolean): boolean {
-  return Boolean(flag) || Boolean(process.env[ENV_VERBOSE]?.trim());
-}
+const COMMANDS: [usage: string, description: string, load: () => Promise<Configure>][] = [
+  ["ingest [options] <source>", "Ingest a URL or local file into sources/",
+    () => import("./cli/ingest-command.js").then((m) => m.registerIngestCommand)],
+  ["ingest-session [options] <path>", "Ingest a coding-agent session export (Claude, Codex, Cursor) into sources/",
+    () => import("./cli/ingest-session-command.js").then((m) => m.registerIngestSessionCommand)],
+  ["view [options]", "Start a local read-only web viewer for the current wiki project",
+    () => import("./cli/view-command.js").then((m) => m.registerViewCommand)],
+  ["view-v2 [options]", "Start the local read-only web viewer with the v2 client (pages, sources, images)",
+    () => import("./cli/view-command.js").then((m) => m.registerViewV2Command)],
+  ["compile [options]", "Compile sources/ into an interlinked wiki",
+    () => import("./cli/compile-command.js").then((m) => m.registerCompileCommand)],
+  ["rm [options] <source>", "Delete a source and the concept pages derived exclusively from it",
+    () => import("./cli/rm-command.js").then((m) => m.registerRmCommand)],
+  ["refresh [options]", "Recompile only stale/changed pages without touching unrelated new sources",
+    () => import("./cli/refresh-command.js").then((m) => m.registerRefreshCommand)],
+  ["review", "Inspect and act on pending compile review candidates",
+    () => import("./cli/review-commands.js").then((m) => m.registerReviewCommands)],
+  ["state", "Back up and reset .llmwiki/state.json (recovery for a state written by a newer llmwiki version).",
+    () => import("./cli/state-commands.js").then((m) => m.registerStateCommands)],
+  ["recover", "Recover an incomplete compile (revert a crashed compile's journal) without a full recompile.",
+    () => import("./cli/recover-command.js").then((m) => m.registerRecoverCommand)],
+  ["rules", "Extract, review, and export machine-actionable RuleCandidate records for a downstream rule importer",
+    () => import("./cli/rules-commands.js").then((m) => m.registerRulesCommands)],
+  ["query [options] <question>", "Ask a question against the wiki",
+    () => import("./cli/query-command.js").then((m) => m.registerQueryCommand)],
+  ["watch [options]", "Watch sources/ and auto-recompile on changes",
+    () => import("./cli/watch-command.js").then((m) => m.registerWatchCommand)],
+  ["visualize [options]", "Create Obsidian graph configuration and Canvas knowledge maps without overwriting edits",
+    () => import("./cli/visualize-command.js").then((m) => m.registerVisualizeCommand)],
+  ["lint [options]", "Run rule-based quality checks against the wiki",
+    () => import("./cli/lint-command.js").then((m) => m.registerLintCommand)],
+  ["status [options]", "Report project status: page/source counts, stale and orphaned pages, pending changes, review queue, and state health",
+    () => import("./cli/status-command.js").then((m) => m.registerStatusCommand)],
+  ["eval [options]", "Evaluate wiki quality (health, citation coverage, LLM judge)",
+    () => import("./cli/eval-commands.js").then((m) => m.registerEvalCommands)],
+  ["schema", "Inspect or initialize the project's wiki schema config",
+    () => import("./cli/schema-commands.js").then((m) => m.registerSchemaCommands)],
+  ["profile", "Create or inspect the active wiki profile",
+    () => import("./cli/profile-commands.js").then((m) => m.registerProfileCommands)],
+  ["template", "List, inspect, and install profile templates",
+    () => import("./cli/template-commands.js").then((m) => m.registerTemplateCommands)],
+  ["workflow", "Run and inspect declarative profile workflows (experimental)",
+    () => import("./cli/workflow-commands.js").then((m) => m.registerWorkflowCommands)],
+  ["artifact", "Write and verify typed artifacts",
+    () => import("./cli/artifact-commands.js").then((m) => m.registerArtifactCommands)],
+  ["connector", "List and run first-party external-data connectors into review candidates",
+    () => import("./cli/connector-commands.js").then((m) => m.registerConnectorCommands)],
+  ["operation", "Inspect and drive operation-bundle execution/recovery (list, inspect, resume, compensate, cancel)",
+    () => import("./cli/operation-commands.js").then((m) => m.registerOperationCommands)],
+  ["product", "Install, activate, and run product packages",
+    () => import("./cli/product-commands.js").then((m) => m.registerProductCommands)],
+  ["preparation", "Inspect and drive preparation runs",
+    () => import("./cli/preparation-commands.js").then((m) => m.registerPreparationCommands)],
+  ["export [options]", "Export wiki content to portable formats (llms.txt, JSON, GraphML, Marp, …)",
+    () => import("./cli/export-command.js").then((m) => m.registerExportCommand)],
+  ["import [options]", "Import an OKF bundle as review candidates (default) or live pages (--trusted)",
+    () => import("./cli/import-command.js").then((m) => m.registerImportCommand)],
+  ["next [options]", "Show the recommended next action for this llmwiki project (read-only)",
+    () => import("./cli/context-commands.js").then((m) => m.registerNextCommand)],
+  ["context [options] <prompt>", "Build an agent-ready evidence pack for <prompt> from the compiled wiki (read-only; provider credentials optional — semantic retrieval is used when available and falls back to lexical otherwise)",
+    () => import("./cli/context-commands.js").then((m) => m.registerContextCommand)],
+  ["quickstart [options] <source>", "Ingest a source and compile it into a wiki in one step. Recommends the next action when finished.",
+    () => import("./cli/quickstart-command.js").then((m) => m.registerQuickstartCommand)],
+  ["serve [options]", "Start an MCP server exposing wiki tools and resources over stdio",
+    () => import("./cli/serve-command.js").then((m) => (command) => m.registerServeCommand(command, version))],
+];
 
 const program = new Command();
 
@@ -70,371 +95,40 @@ program
   .description("The knowledge compiler — raw sources in, interlinked wiki out")
   .version(version);
 
-program
-  .command("ingest <source>")
-  .description("Ingest a URL or local file into sources/")
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (source: string, options: { verbose?: boolean }) => {
-    try {
-      setVerbose(verboseEnabled(options.verbose));
-      await ingestCommand(source);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-program
-  .command("ingest-session <path>")
-  .description("Ingest a coding-agent session export (Claude, Codex, Cursor) into sources/")
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (targetPath: string, options: { verbose?: boolean }) => {
-    try {
-      setVerbose(verboseEnabled(options.verbose));
-      await ingestSessionCommand(targetPath);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-registerViewCommands(program);
-
-addProviderOption(program.command("compile").description("Compile sources/ into an interlinked wiki"))
-  .option("--no-pages-limit", "Remove the requested 3–8 concepts per source; allow source-supported results with no pages")
-  .option("--instructions <path>", "Add UTF-8 project instructions for this compile (max 64 KiB); changing or omitting them recompiles affected pages")
-  .option(
-    "--review",
-    "Write generated pages as review candidates under .llmwiki/candidates/ instead of mutating wiki/. Orphan-marking for deleted sources is deferred until the next non-review compile.",
-  )
-  .option(
-    "--lang <code>",
-    "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
-  )
-  .option(
-    "--no-sources-section",
-    "Stop requesting a trailing ## Sources section; changing this preference recompiles affected pages. Equivalent to LLMWIKI_SOURCES_SECTION=off; unset it and omit this flag to restore the default.",
-  )
-  .option(
-    "--concurrency <n>",
-    "Max concurrent LLM calls during compile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
-  )
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: ProviderOption & {
-    review?: boolean;
-    lang?: string;
-    sourcesSection?: boolean;
-    pagesLimit?: boolean;
-    instructions?: string;
-    concurrency?: string;
-    verbose?: boolean;
-  }) => {
-    try {
-      applyProviderOption(options);
-      setVerbose(verboseEnabled(options.verbose));
-      applyLanguageOption(options.lang);
-      applySourcesSectionOption(options.sourcesSection);
-      const systemPolicy = await readInstructions(options.instructions);
-      requireCompileProvider();
-      await compileCommand({ review: options.review, concurrency: parseConcurrencyFlag(options.concurrency), systemPolicy,
-        noPagesLimit: options.pagesLimit === false });
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-program
-  .command("rm <source>")
-  .description("Delete a source and the concept pages derived exclusively from it")
-  .option("--dry-run", "Print what would be deleted and kept without changing anything")
-  .action(async (source: string, options: { dryRun?: boolean }) => {
-    try {
-      const code = await rmCommand(source, { dryRun: options.dryRun });
-      process.exit(code);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-addProviderOption(program.command("refresh").description("Recompile only stale/changed pages without touching unrelated new sources"))
-  .option("--no-pages-limit", "Use source-supported extraction without a requested concept count during the scoped recompile")
-  .option("--stale", "Resolve stale/orphaned pages and recompile them")
-  .option("--dry-run", "Print the refresh plan without calling the LLM or writing files")
-  .option(
-    "--concurrency <n>",
-    "Max concurrent LLM calls during the recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
-  )
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: ProviderOption & { stale?: boolean; dryRun?: boolean; concurrency?: string; verbose?: boolean; pagesLimit?: boolean }) => {
-    try {
-      applyProviderOption(options);
-      setVerbose(verboseEnabled(options.verbose));
-      const code = await refreshCommand(
-        { stale: options.stale, dryRun: options.dryRun, concurrency: parseConcurrencyFlag(options.concurrency),
-          noPagesLimit: options.pagesLimit === false },
-        requireCompileProvider,
-      );
-      process.exit(code);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-registerReviewCommands(program);
-
-registerStateCommands(program);
-
-program
-  .command("recover")
-  .description("Recover an incomplete compile (revert a crashed compile's journal) without a full recompile.")
-  .action(async () => {
-    try {
-      await recoverCommand();
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-registerRulesCommand(program, requireProvider);
-
-addProviderOption(program.command("query <question>").description("Ask a question against the wiki"))
-  .option("--save", "Save the answer as a wiki page")
-  .option("--review", "Stage the answer for review instead of publishing (requires --save)")
-  .option("--debug", "Print which pages and chunks were selected and their scores")
-  .option(
-    "--lang <code>",
-    "Target language for the answer (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
-  )
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(
-    async (
-      question: string,
-      options: ProviderOption & { save?: boolean; review?: boolean; debug?: boolean; lang?: string; verbose?: boolean },
-    ) => {
-      try {
-        assertQuerySaveOptions(options);
-        applyProviderOption(options);
-        setVerbose(verboseEnabled(options.verbose));
-        applyLanguageOption(options.lang);
-        requireProvider();
-        await queryCommand(process.cwd(), question, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    },
-  );
-
-addProviderOption(program.command("watch").description("Watch sources/ and auto-recompile on changes"))
-  .option(
-    "--concurrency <n>",
-    "Max concurrent LLM calls per recompile (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
-  )
-  .action(async (options: ProviderOption & { concurrency?: string }) => {
-    try {
-      applyProviderOption(options);
-      requireCompileProvider();
-      await watchCommand({ concurrency: parseConcurrencyFlag(options.concurrency) });
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-program
-  .command("visualize")
-  .description("Create Obsidian graph configuration and Canvas knowledge maps without overwriting edits")
-  .option("--focus <nodeId>", "Centre the canvas on one node, e.g. papers/alpha")
-  .option("--depth <hops>", "Hops around --focus (default 1)")
-  .action(async (options: VisualizeOptions) => {
-    try {
-      process.exitCode = await visualizeCommand(process.cwd(), options);
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exitCode = 1;
-    }
-  });
-
-program
-  .command("lint")
-  .description("Run rule-based quality checks against the wiki")
-  .option("--tiered", "Separate broken content, model judgements, and stale derived views")
-  .option("--fix-preview", "Preview deterministic repairs without applying them")
-  .option("--fix-propose <n>", "Propose the nth previewed repair for review; applies nothing")
-  .action(async (options: { tiered?: boolean; fixPreview?: boolean; fixPropose?: string }) => {
-    try {
-      await lintCommand({
-        tiered: options.tiered,
-        fixPreview: options.fixPreview,
-        ...(options.fixPropose === undefined ? {} : { fixPropose: Number(options.fixPropose) }),
-      });
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-program
-  .command("status")
-  .description("Report project status: page/source counts, stale and orphaned pages, pending changes, review queue, and state health")
-  .option("--json", "Emit the status snapshot as JSON (same shape as the MCP wiki_status tool)")
-  .action(async (options: { json?: boolean }) => {
-    try {
-      const code = await statusCommand({ json: options.json });
-      process.exit(code);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-registerEvalCommands(program);
-
-registerSchemaCommands(program);
-
-registerProfileCommands(program);
-
-registerTemplateCommands(program);
-
-registerWorkflowCommands(program);
-
-registerArtifactCommands(program);
-
-registerConnectorCommands(program);
-registerOperationCommands(program);
-registerProductCommands(program);
-registerPreparationCommands(program);
-
-program
-  .command("export")
-  .description("Export wiki content to portable formats (llms.txt, JSON, GraphML, Marp, …)")
-  .option("--target <name>", "Limit export to a single target format")
-  .option(
-    "--source <kind>",
-    "For marp target: which pages to include — concepts, queries, or all (default: all)",
-  )
-  .option(
-    "--project-id <id>",
-    "Bridge identifier embedded in the JSON export envelope. Must match /^[a-z0-9][a-z0-9-]{0,62}$/.",
-  )
-  .option("--out <dir>", "Output directory for directory-style targets (e.g. okf)")
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { target?: string; source?: string; projectId?: string; out?: string; verbose?: boolean }) => {
-    try {
-      setVerbose(verboseEnabled(options.verbose));
-      await exportCommand(process.cwd(), options);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-program
-  .command("import")
-  .description("Import an OKF bundle as review candidates (default) or live pages (--trusted)")
-  .requiredOption("--okf <dir>", "Path to the OKF bundle directory to import")
-  .option(
-    "--trusted",
-    "Write mapped pages directly into wiki/ instead of staging for review (you vouch for the bundle's contents and its self-declared provenance)",
-  )
-  .option("--dry-run", "Report what would be imported (and skipped) without writing anything")
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (options: { okf: string; trusted?: boolean; dryRun?: boolean; verbose?: boolean }) => {
-    try {
-      setVerbose(verboseEnabled(options.verbose));
-      await importCommand(process.cwd(), options);
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-registerContextCommands(program, verboseEnabled);
-
-program
-  .command("quickstart <source>")
-  .description(
-    "Ingest a source and compile it into a wiki in one step. Recommends the next action when finished.",
-  )
-  .option("--review", "Generate review candidates instead of mutating wiki/")
-  .option("--no-open", "Skip the viewer handoff after a successful compile")
-  .option(
-    "--provider <name>",
-    "Override LLMWIKI_PROVIDER for this run only (e.g. anthropic, codex-agent, openai, ollama)",
-  )
-  .option(
-    "--lang <code>",
-    "Target language for generated wiki content (e.g. \"Chinese\", \"ja\", \"zh-CN\"). Equivalent to setting LLMWIKI_OUTPUT_LANG.",
-  )
-  .option("--json", "Emit the quickstart JSON envelope instead of human output (implies --no-open)")
-  .option(
-    "--concurrency <n>",
-    "Max concurrent LLM calls during the compile step (or set LLMWIKI_COMPILE_CONCURRENCY; default 5)",
-  )
-  .option("--verbose", "Print detailed progress (or set LLMWIKI_VERBOSE=1)")
-  .action(async (
-    source: string,
-    options: {
-      review?: boolean; open?: boolean; provider?: string;
-      lang?: string; json?: boolean; concurrency?: string; verbose?: boolean;
-    },
-  ) => {
-    setVerbose(verboseEnabled(options.verbose));
-    return runExitCodeCommand(() => quickstartCommand(source, {
-      review: options.review,
-      open: options.open,
-      provider: options.provider,
-      lang: options.lang,
-      json: options.json,
-      // Choose the warning channel here: argument expressions evaluate before the callee body runs.
-      // Quickstart's own JSON quiet mode therefore can never intercept this warning.
-      concurrency: parseConcurrencyFlag(options.concurrency, options.json ? "stderr" : "stdout"),
-    }));
-  });
-
-program
-  .command("serve")
-  .description("Start an MCP server exposing wiki tools and resources over stdio")
-  .option("--root <dir>", "Project root directory", process.cwd())
-  .action(async (options: { root: string }) => {
-    try {
-      // Per-tool credential checks happen inside the MCP layer so read-only
-      // tools and ingest still work without an API key.
-      await startMCPServer({ root: options.root, version });
-    } catch (err) {
-      console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-      process.exit(1);
-    }
-  });
-
-/**
- * Run the shared provider guard but match the legacy CLI error path:
- * print the error in red and exit 1 instead of letting the throw
- * surface as a stack trace. Programmatic callers use the underlying guards
- * directly so they can convert the throw into a structured envelope.
- */
-function requireProvider(): void {
-  requireAvailableProvider(ensureProviderAvailable);
+// Declare each command with its name and arguments only, so help needs no
+// command module. Commander lists `[options]` only for a command that has
+// options, and these have none until their module loads, so the usage text
+// from the table is what the command list prints.
+const OPTIONS_MARKER = " [options]";
+const listed = new Map<Command, { usage: string; load: () => Promise<Configure> }>();
+for (const [usage, description, load] of COMMANDS) {
+  listed.set(program.command(usage.replace(OPTIONS_MARKER, "")).description(description), { usage, load });
 }
 
-/** Run the compile-aware provider guard through the legacy CLI error path. */
-function requireCompileProvider(): void {
-  requireAvailableProvider(ensureCompileProviderAvailable);
+const help = program.createHelp();
+program.configureHelp({ subcommandTerm: (command) => listed.get(command)?.usage ?? help.subcommandTerm(command) });
+
+/** Add a listed command's options, action and subcommands from its module. */
+async function configure(command: Command): Promise<void> {
+  const entry = listed.get(command);
+  if (entry) (await entry.load())(command);
 }
 
-/** Print a provider-guard failure in red and exit through the legacy path. */
-function requireAvailableProvider(ensureAvailable: () => void): void {
-  try {
-    ensureAvailable();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`\x1b[31mError:\x1b[0m ${message}`);
-    process.exit(1);
-  }
-}
+program.hook("preSubcommand", (_program, command) => configure(command));
 
-program.parse();
+// Commander's own `help <command>` prints the declared command without running
+// the hook, so this one configures the command before printing its help.
+program.helpCommand(false);
+program
+  .command("help [command]")
+  .description("display help for command")
+  .helpOption(false)
+  .allowExcessArguments()
+  .action(async (name?: string) => {
+    const command = name === undefined ? program : program.commands.find((candidate) => candidate.name() === name);
+    if (command === undefined) return program.help({ error: true });
+    await configure(command);
+    command.help();
+  });
+
+await program.parseAsync();

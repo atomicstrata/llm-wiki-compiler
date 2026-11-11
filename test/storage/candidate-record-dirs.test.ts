@@ -142,7 +142,7 @@ describe("targeted candidate read and identity page over a memory record-directo
 });
 
 describe("the targeted loads and the bounded page over the same binding", () => {
-  afterEach(() => { vi.restoreAllMocks(); process.exitCode = 0; });
+  afterEach(() => { vi.restoreAllMocks(); });
   /** Every status line a load prints, ANSI-stripped. */
   const errorsOf = () => {
     const lines: string[] = [];

@@ -30,13 +30,13 @@
  */
 
 import type { Command } from "commander";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { productInvokeCommand, productResumeCommand, productPreviewCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { productApplyCommand, type ProductApplyOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { productStatusCommand, type ProductStatusOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import type { ProductActionOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { productActivateCommand, productInstallCommand, type ProductPackageOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { productInitCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
+import { productInvokeCommand, productResumeCommand, productPreviewCommand } from "@atomicstrata/llmwiki-core/modules/commands/product/action";
+import { productApplyCommand, type ProductApplyOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/apply";
+import { productStatusCommand, type ProductStatusOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/status";
+import type { ProductActionOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/inputs";
+import { productActivateCommand, productInstallCommand, type ProductPackageOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/package";
+import { productInitCommand } from "@atomicstrata/llmwiki-core/modules/commands/product/init";
 
 /** Every verb here answers `--json` with the same envelope contract. */
 const JSON_DESCRIPTION = "Emit the machine-readable envelope instead of the human lines";
@@ -58,11 +58,8 @@ function withActionOptions(command: Command): Command {
     .option("--json", JSON_DESCRIPTION);
 }
 
-/** Register the `product` command group on the root program. */
-export function registerProductCommands(program: Command): void {
-  const product = program
-    .command("product")
-    .description("Install, activate, and run product packages");
+/** Register the `product` command group. */
+export function registerProductCommands(product: Command): void {
   registerPackageVerbs(product);
   registerActionVerbs(product);
 }

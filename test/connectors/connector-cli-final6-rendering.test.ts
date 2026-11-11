@@ -39,7 +39,6 @@ async function captureCommand(runner: typeof runConnector): Promise<string[]> {
 describe("Final6 connector CLI candidate rendering", () => {
   afterEach(() => {
     delete process.env.LLMWIKI_CONNECTORS;
-    process.exitCode = 0;
     vi.restoreAllMocks();
   });
 

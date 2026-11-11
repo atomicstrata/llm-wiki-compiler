@@ -20,21 +20,21 @@
  * failed to apply leaves the counter at zero and the expectation fails just as
  * loudly as a double scan would.
  *
- * IT LIVES ALONE because `vi.mock` is hoisted and module-scoped — folding it
+ * IT LIVES ALONE because `vi.mock` is module-scoped: folding it
  * into the behaviour suite would put every case in that file behind a wrapped
  * module.
  */
 
 import { describe, expect, it, vi } from "bun:test";
 
-/** Hoisted so the mock factory — which runs before the module body — can reach it. */
-const observed = (() => ({ scans: 0 }))();
+/** Scans the wrapped observation made; declared before the mock factory that counts into it. */
+const observed = { scans: 0 };
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realPreparationsCapacity = { ...(await import("../src/preparations/capacity.js")) };
 
 vi.mock("../src/preparations/capacity.js", async () => {
-  const actual = realPreparationsCapacity as typeof import("../src/preparations/capacity.js");
+  const actual = realPreparationsCapacity;
   return {
     ...actual,
     // A PASSTHROUGH, not a stub: the operation runs against the real scan and

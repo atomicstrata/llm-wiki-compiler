@@ -2,7 +2,8 @@
  * Approval preserves the exact validated document, skips answer-only repair
  * hazards, refreshes retrieval artifacts and handles siblings by explicit ID.
  */
-import { expect, it, vi, type Mock } from "bun:test";
+import { expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -57,7 +58,7 @@ it("refuses a sibling whose target precondition went stale after another sibling
   process.exitCode = 0;
   await approve(second.id);
   expect(process.exitCode).toBe(1);
-  const messages = (console.log as unknown as Mock<typeof console.log>).mock.calls.flat().map(String);
+  const messages = mocked(console.log).mock.calls.flat().map(String);
   expect(messages.some(line => line.includes("target page changed since this answer was staged"))).toBe(true);
   expect(await readFile(target, "utf8")).toBe(first.body);
   expect(await candidateBytes(root.dir, second.id)).toBe(secondBytes);
@@ -76,13 +77,13 @@ it("warns before replacing an unchanged existing query and refuses once the targ
   expect(await approvePage(root.dir, first)).toBe(first.body);
   const replacement = await propose(root.dir, "Replacement [[Alpha]]");
   expect(replacement.expectedTargetHash).toBeTypeOf("string");
-  (console.log as unknown as Mock<typeof console.log>).mockImplementation((...args) => {
+  mocked(console.log).mockImplementation((...args) => {
     if (args.join(" ").includes("Replacing existing query wiki/queries/answer.md")) {
       expect(readFileSync(target, "utf8")).toBe(first.body);
     }
   });
   expect(await approvePage(root.dir, replacement)).toBe(replacement.body);
-  const messages = (console.log as unknown as Mock<typeof console.log>).mock.calls.flat().map(String);
+  const messages = mocked(console.log).mock.calls.flat().map(String);
   expect(messages.some(line => line.includes("Replacing existing query wiki/queries/answer.md"))).toBe(true);
   const orphaned = await propose(root.dir, "Orphaned [[Alpha]]");
   const orphanedBytes = await candidateBytes(root.dir, orphaned.id);

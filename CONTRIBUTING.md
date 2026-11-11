@@ -54,6 +54,14 @@ bun run test         # Run all tests
 bun run dev      # Watch mode for development
 ```
 
+**Test speed on macOS:** `bun run test` runs through `scripts/run-tests.mjs`,
+which puts the suite's temporary files on a RAM disk for the run and detaches
+it afterwards. The durable write paths fsync every file they touch, and macOS
+fsync costs about 10 ms per call on the system disk. Set
+`LLMWIKI_TEST_RAMDISK=0` to use the normal temp directory. Other platforms are
+unaffected. Arguments pass through to `bun test`:
+`bun run test test/viewer-server.test.ts`.
+
 **Automatic checks via git hooks:**
 
 After `bun install`, husky wires up hooks that run automatically:

@@ -2,7 +2,7 @@
  * The unrestricted extraction mode is opt-in. Keep legacy prompts and parsing
  * by default, isolate concurrent callers, and invalidate snapshots on a switch.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { buildExtractionPrompt, buildPagePrompt, parseConcepts, parseConceptExtraction } from "../src/compiler/prompts.js";
 import { activePromptModifiers, noPagesLimitEnabled, promptModifiersDigest, withRunNoPagesLimit } from "../src/compiler/prompt-modifiers.js";

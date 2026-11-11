@@ -29,18 +29,18 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** What the mocks recorded, and the one disturbance a test may arm. */
-const seen = (() => ({
+const seen = {
   log: [] as string[],
   failOn: null as { label: string; error: Error } | null,
   justBefore: null as { label: string; run: () => Promise<void> } | null,
-}))();
+};
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFs = { ...(await import("fs")) };
 const realFsPromises = { ...(await import("fs/promises")) };
 
-vi.mock("fs", async () => {
-  const real = realFs as typeof import("fs");
+vi.mock("fs", () => {
+  const real = realFs;
   const existsSync = (target: unknown): boolean => {
     seen.log.push(`existsSync ${String(target)}`);
     return real.existsSync(target as string);
@@ -49,7 +49,7 @@ vi.mock("fs", async () => {
 });
 
 vi.mock("fs/promises", async () => {
-  const real = realFsPromises as typeof import("fs/promises");
+  const real = realFsPromises;
   const observed = ["mkdir", "appendFile", "readFile", "lstat", "realpath"] as const;
   const wrap = (name: (typeof observed)[number]) => async (...args: unknown[]): Promise<unknown> => {
     const label = `${name} ${String(args[0])}`;

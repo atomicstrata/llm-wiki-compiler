@@ -36,7 +36,7 @@ export interface CLIResult {
   /** Error message from child_process when the spawn itself fails (ENOENT etc). */
   message: string | null;
   /** Original args for inclusion in assertion-failure messages. */
-  args: string[];
+  args: readonly string[];
   /** Working directory passed to the subprocess. */
   cwd: string;
 }
@@ -102,7 +102,7 @@ export function expectCLIFailure(result: CLIResult): void {
  * @param envOverrides - Optional environment variable overrides.
  */
 export async function runCLI(
-  args: string[],
+  args: readonly string[],
   cwd: string,
   envOverrides: NodeJS.ProcessEnv = {},
 ): Promise<CLIResult> {

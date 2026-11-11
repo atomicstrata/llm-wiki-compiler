@@ -9,7 +9,7 @@ import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 
 const ctx = useConfinementRoots("wrapper-core-identity");
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realLlmwikiCoreLocalWorkflowHost = { ...(await import("@atomicstrata/llmwiki-core/local-workflow-host")) };
 
 // A second copy of the contracts module, so its core-instance token is foreign. Loaded
@@ -19,7 +19,7 @@ const duplicateModule: string = "../src/local-workflow-host/contracts.js?wrapper
 const foreign = await import(duplicateModule);
 
 vi.mock("@atomicstrata/llmwiki-core/local-workflow-host", () => {
-  const original = realLlmwikiCoreLocalWorkflowHost as typeof import("../src/local-workflow-host/index.js");
+  const original = realLlmwikiCoreLocalWorkflowHost;
   return { ...original, createLocalWorkflowHost: () => ({
     ...original.createLocalWorkflowHost(), coreInstance: foreign.LOCAL_WORKFLOW_CORE_INSTANCE,
   }) };

@@ -7,9 +7,9 @@
 import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const scanAttempt = (() => vi.fn(async () => {
+const scanAttempt = vi.fn(async () => {
   throw new Error("forced scanner failure with sensitive detail");
-}))();
+});
 
 vi.mock("../../src/preparations/lifecycle-snapshot/scan.js", () => ({
   scanPreparationLifecycle: scanAttempt,

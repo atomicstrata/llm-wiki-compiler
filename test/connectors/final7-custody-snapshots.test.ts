@@ -21,10 +21,10 @@ import {
   type CandidateMovePort,
 } from "../../src/connectors/candidate-supersession.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
-import { makeOutsideDir } from "../fixtures/outside-dir.js";
 import { plantConnectorCandidate } from "./final6-fixtures.js";
 
 const root = useTempRoot();
+const outside = useTempRoot();
 const FILE_ID = "candidate-one";
 
 /** Plant and select one exact mutation-authority entry. */
@@ -89,10 +89,9 @@ describe("Final7 immutable candidate custody", () => {
       storeIdentity: { ...entry.custodyReceipt.storeIdentity },
     };
     const request = { root: root.dir, fileId: FILE_ID, direction: "archive" as const, receipt };
-    const outsideDir = await makeOutsideDir();
 
     const moving = moveCandidateWithCustody(request);
-    request.root = outsideDir;
+    request.root = outside.dir;
     receipt.fileIdentity.ino += 1;
 
     await expect(moving).resolves.toBe(true);

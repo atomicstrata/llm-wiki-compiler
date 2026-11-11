@@ -16,7 +16,8 @@
  * enumerated candidates and the rendered prompt the selector sees.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "bun:test";
+import { describe, it, expect, vi, afterEach } from "bun:test";
+import { mocked } from "./mocked.js";
 import path from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -24,13 +25,16 @@ import { writePage } from "./fixtures/write-page.js";
 import { writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { stubSelectPages } from "./fixtures/fallback-stub.js";
 import type { ProfilePack } from "../src/profile/types.js";
+import { callClaude } from "../src/utils/llm.js";
+import { buildNamespaceDirs, buildSurfaceEligibleCandidates } from "../src/utils/page-registry.js";
+import { loadProfile } from "../src/profile/load.js";
+import { selectFallbackRefs } from "../src/search/retrieval.js";
 
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
-const { callClaude: mockedCallClaude } = await import("../src/utils/llm.js");
 
 // Bun's restoreAllMocks leaves a vi.fn's calls and stubbed value in place, so
 // the provider stub is reset per test or one test's calls leak into the next.
-afterEach(() => (mockedCallClaude as unknown as Mock<typeof mockedCallClaude>).mockReset());
+afterEach(() => mocked(callClaude).mockReset());
 
 /** A mixed profile: `papers` opts out of search; `secrets` opts out of both. */
 const MIXED_PROFILE: ProfilePack = {
@@ -58,14 +62,7 @@ async function seedMixed(): Promise<string> {
 }
 
 describe("buildSurfaceEligibleCandidates — privacy + surface specificity (Finding 3)", () => {
-  let buildSurfaceEligibleCandidates: typeof import("../src/utils/page-registry.js").buildSurfaceEligibleCandidates;
-  let buildNamespaceDirs: typeof import("../src/utils/page-registry.js").buildNamespaceDirs;
-  let loadProfile: typeof import("../src/profile/load.js").loadProfile;
 
-  beforeEach(async () => {
-    ({ buildSurfaceEligibleCandidates, buildNamespaceDirs } = await import("../src/utils/page-registry.js"));
-    ({ loadProfile } = await import("../src/profile/load.js"));
-  });
   afterEach(() => vi.restoreAllMocks());
 
   /** Enumerate candidate pageIds for `surface` over the mixed project. */
@@ -101,13 +98,7 @@ describe("buildSurfaceEligibleCandidates — privacy + surface specificity (Find
 });
 
 describe("selectFallbackRefs — namespace correctness + privacy drop (Findings 1 & 3)", () => {
-  let selectFallbackRefs: typeof import("../src/search/retrieval.js").selectFallbackRefs;
-  let loadProfile: typeof import("../src/profile/load.js").loadProfile;
 
-  beforeEach(async () => {
-    ({ selectFallbackRefs } = await import("../src/search/retrieval.js"));
-    ({ loadProfile } = await import("../src/profile/load.js"));
-  });
   afterEach(() => vi.restoreAllMocks());
 
   /** Run the fallback selector returning a chosen set of pageId tokens. */
@@ -144,8 +135,7 @@ describe("selectFallbackRefs — namespace correctness + privacy drop (Findings 
     await stubSelectPages([]);
     const profile = await loadProfile(root);
     await selectFallbackRefs(root, "q", "search", profile);
-    const { callClaude } = await import("../src/utils/llm.js");
-    const userMsg = (callClaude as unknown as Mock<typeof callClaude>).mock.calls[0][0].messages[0].content as string;
+    const userMsg = mocked(callClaude).mock.calls[0][0].messages[0].content as string;
     expect(userMsg).not.toContain("papers/p-one");
     expect(userMsg).not.toContain("secrets/s-one");
     expect(userMsg).not.toContain("Secret One");
@@ -154,22 +144,12 @@ describe("selectFallbackRefs — namespace correctness + privacy drop (Findings 
 });
 
 describe("selectFallbackRefs — collision + default project", () => {
-  let selectFallbackRefs: typeof import("../src/search/retrieval.js").selectFallbackRefs;
-  let buildSurfaceEligibleCandidates: typeof import("../src/utils/page-registry.js").buildSurfaceEligibleCandidates;
-  let buildNamespaceDirs: typeof import("../src/utils/page-registry.js").buildNamespaceDirs;
-  let loadProfile: typeof import("../src/profile/load.js").loadProfile;
 
-  beforeEach(async () => {
-    ({ selectFallbackRefs } = await import("../src/search/retrieval.js"));
-    ({ buildSurfaceEligibleCandidates, buildNamespaceDirs } = await import("../src/utils/page-registry.js"));
-    ({ loadProfile } = await import("../src/profile/load.js"));
-  });
   afterEach(() => vi.restoreAllMocks());
 
   it("returns no refs without calling the provider when no eligible pages exist", async () => {
     const root = await makeTempRoot("f-empty");
     const profile = await loadProfile(root);
-    const { callClaude } = await import("../src/utils/llm.js");
 
     const result = await selectFallbackRefs(root, "q", "search", profile);
 

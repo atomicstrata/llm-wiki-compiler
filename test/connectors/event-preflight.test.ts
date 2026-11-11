@@ -15,11 +15,11 @@ import type { AppendEventInput } from "../../src/events/store.js";
 import { buildNewsroomProject } from "../fixtures/newsroom-profile.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realUtilsConstants = { ...(await import("../../src/utils/constants.js")) };
 
-vi.mock("../../src/utils/constants.js", async () => {
-  const actual = realUtilsConstants as typeof import("../../src/utils/constants.js");
+vi.mock("../../src/utils/constants.js", () => {
+  const actual = realUtilsConstants;
   return { ...actual, MAX_EVENT_STORE_BYTES: 220 };
 });
 

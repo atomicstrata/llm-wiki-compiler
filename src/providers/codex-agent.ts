@@ -14,7 +14,6 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import Ajv from "ajv";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
 import { registerCodexProcess, signalCodexTree } from "./codex-agent-lifecycle.js";
 import { dropNullOptionals, toStrictSchema } from "./codex-strict-schema.js";
@@ -41,7 +40,6 @@ const ENV_ALLOWLIST = [
   "COMSPEC",
   "PATHEXT",
 ] as const;
-const ajv = new Ajv({ allErrors: true, strict: false });
 
 /** Testable resource bounds; production uses the secure defaults above. */
 export interface CodexAgentProviderOptions {
@@ -351,6 +349,9 @@ export class CodexAgentProvider implements LLMProvider {
     } catch {
       throw new CodexAgentError("Codex CLI returned invalid JSON for a structured request.");
     }
+    // Loaded here because only a structured Codex reply needs a validator.
+    const { default: Ajv } = await import("ajv");
+    const ajv = new Ajv({ allErrors: true, strict: false });
     const validate = ajv.compile(schema);
     if (!validate(parsed)) {
       throw new CodexAgentError(`Codex CLI response failed schema validation: ${ajv.errorsText(validate.errors)}`);

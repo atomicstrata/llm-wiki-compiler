@@ -57,7 +57,7 @@ import {
   unasked, writeFiles, type Copy, type Minted, type Note,
 } from "./copied-project.js";
 
-// Snapshot real modules before mock.module replaces them for this file.
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realIndexgen = { ...(await import("../../src/compiler/indexgen.js")) };
 const realEmbeddings = { ...(await import("../../src/utils/embeddings.js")) };
 const realCandidates = { ...(await import("../../src/compiler/candidates.js")) };

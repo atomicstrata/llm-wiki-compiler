@@ -20,9 +20,9 @@ import { useIngestWorkspaces } from "./fixtures/ingest-workspace.js";
 const workspaces = useIngestWorkspaces("collision");
 
 // Each case spawns 1–3 `bun dist/cli.js ingest` subprocesses. Isolated they
-// finish in 0.5–3.5s, but under full-suite parallel worker load the cold
-// Node startup contention can push a case past vitest's 5s default and turn
-// the file flaky. Give every case the same generous ceiling so failures
+// finish in 0.5–3.5s, but under full-suite parallel worker load, startup
+// contention can push a case past a short default timeout and turn the
+// file flaky. Give every case the same generous ceiling so failures
 // stay diagnostic (assertion-shaped), not timeout-shaped.
 const CLI_INTEGRATION_TIMEOUT_MS = 30_000;
 

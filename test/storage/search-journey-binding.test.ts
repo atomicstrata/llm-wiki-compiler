@@ -22,7 +22,8 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi, type Mock } from "bun:test";
+import { describe, expect, it, vi } from "bun:test";
+import { mocked } from "../mocked.js";
 import { loadProfile } from "../../src/profile/load.js";
 import type { LoadedProfile, ProfilePack } from "../../src/profile/types.js";
 import { loadSelectedRefsFrom, pickSearchRefsFrom, type LoadedSearchInputs, type SelectedPageRef } from "../../src/search/retrieval.js";
@@ -183,7 +184,7 @@ describe("the search journey over live page reads", () => {
     const inputs = inputsOf(null, { journalWarning, embeddings: { store: null, warnings: [outdated], stalePageIds: [] } });
     const opened: string[][] = [];
     expect(await pickSearchRefsFrom(memoryPages(opened), inputs, "q")).toEqual({ refs: [{ ...PAPER_REF, kind: "index" }], warnings: [journalWarning, outdated] });
-    const prompt = (callClaude as unknown as Mock<typeof callClaude>).mock.lastCall![0].messages[0]!.content as string;
+    const prompt = mocked(callClaude).mock.lastCall![0].messages[0]!.content as string;
     expect(prompt).toContain("- **papers/p-one**: Paper One — ps");
     expect(prompt).toContain("concepts/alpha");
     expect(prompt).not.toContain("secrets/s-one");

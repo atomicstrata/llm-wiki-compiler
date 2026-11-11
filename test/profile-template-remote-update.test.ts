@@ -25,6 +25,7 @@ import {
   removeRemoteUpdateRoots,
   TARGET_COORDINATE,
 } from "./fixtures/template-remote-update.js";
+import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const roots: string[] = [];
 const CLI = path.resolve("dist/cli.js");
@@ -135,7 +136,7 @@ describe("remote template update", () => {
 });
 
 function runCli(root: string, paths: { configRoot: string; cacheRoot: string }, args: string[]) {
-  return spawnSync(process.execPath, [CLI, ...args], {
+  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
     cwd: root,
     encoding: "utf8",
     env: {

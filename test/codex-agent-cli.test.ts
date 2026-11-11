@@ -104,7 +104,7 @@ describe("codex-agent through the real llmwiki CLI", () => {
     });
     const env = { ...codexEnv(fake), LLMWIKI_PROVIDER: baseProvider };
 
-    const result = await runCLI([...args], cwd, env);
+    const result = await runCLI(args, cwd, env);
 
     expectCLIExit(result, 0);
     const pages = await readdir(path.join(cwd, "wiki", "concepts"));

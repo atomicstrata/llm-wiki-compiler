@@ -13,7 +13,7 @@ import os from "node:os";
 import type { EntityId, ProfilePack } from "../../src/profile/types.js";
 import type { EventRecord } from "../../src/events/types.js";
 import type { RelationRef } from "../../src/relations/types.js";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import { readEvents, verifyEventChain, verifyHeadAnchor } from "../../src/events/store-read.js";
 import { buildResearchLiteRelationsProject, RESEARCH_LITE_RELATIONS_PROFILE } from "./profile-fixtures.js";
 

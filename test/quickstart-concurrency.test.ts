@@ -12,12 +12,12 @@ import { mkdtemp, writeFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
 
-const compileSpy = (() => vi.fn())();
-// Snapshot real modules before mock.module replaces them for this file.
+const compileSpy = vi.fn();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realCompilerIndex = { ...(await import("../src/compiler/index.js")) };
 
-vi.mock("../src/compiler/index.js", async () => ({
-  ...(realCompilerIndex as typeof import("../src/compiler/index.js")),
+vi.mock("../src/compiler/index.js", () => ({
+  ...realCompilerIndex,
   compileAndReport: compileSpy,
 }));
 

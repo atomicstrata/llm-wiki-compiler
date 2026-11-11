@@ -20,6 +20,7 @@
       "@atomicstrata/llmwiki-core/local-workflow-host": ["./src/local-workflow-host/index.ts"],
       "@atomicstrata/llmwiki-core": ["./src/core-index.ts"],
       "@atomicstrata/llmwiki-core/local-workflow-contracts": ["./src/local-workflow-host/shared-contracts.ts"],
+      "@atomicstrata/llmwiki-core/modules/*": ["./src/*.ts"],
       "llm-wiki-compiler": ["./src/index.ts"],
       "llmwiki-dev-backend": ["./packages/llmwiki-dev-backend/src/index.ts"],
       "llmwiki-limited-isolation-backend": ["./packages/llmwiki-limited-isolation-backend/src/index.ts"]

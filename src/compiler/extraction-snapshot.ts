@@ -8,8 +8,8 @@
  * Missing, incompatible, or malformed snapshots fall back to fresh extraction.
  */
 import { createHash } from "node:crypto";
-import { z } from "zod";
 import { slugify } from "../utils/markdown.js";
+import { requireOnUse } from "../utils/require-on-use.js";
 import { getActiveProviderName, resolveActiveModelId } from "../utils/provider.js";
 import type { ExtractedConcept, SourceState, SourceChange, WikiState } from "../utils/types.js";
 import type { ExtractionResult } from "./deps.js";
@@ -17,16 +17,32 @@ import { buildExtractionPrompt, CONCEPT_EXTRACTION_TOOL, PROMPT_VERSION } from "
 import { plainConceptTitle } from "./concept-title.js";
 import { noPagesLimitEnabled } from "./prompt-modifiers.js";
 
-const conceptSchema = z.object({
-  concept: z.string().min(1), summary: z.string(), is_new: z.boolean(),
-  tags: z.array(z.string()).optional(), confidence: z.number().min(0).max(1).optional(),
-  provenanceState: z.enum(["extracted", "merged", "inferred", "ambiguous", "imported"]).optional(),
-  contradictedBy: z.array(z.object({ slug: z.string(), reason: z.string().optional() }).strict()).optional(),
-  promptModifiers: z.array(z.string()).optional(),
-}).strict();
-const snapshotSchema = z.object({
-  fingerprint: z.string(), sourceHash: z.string(), concepts: z.array(conceptSchema),
-}).strict();
+/** Build the snapshot schema; see `snapshotSchema` for why zod is loaded here. */
+function buildSnapshotSchema() {
+  const { z } = requireOnUse<typeof import("zod")>("zod");
+  const conceptSchema = z.object({
+    concept: z.string().min(1), summary: z.string(), is_new: z.boolean(),
+    tags: z.array(z.string()).optional(), confidence: z.number().min(0).max(1).optional(),
+    provenanceState: z.enum(["extracted", "merged", "inferred", "ambiguous", "imported"]).optional(),
+    contradictedBy: z.array(z.object({ slug: z.string(), reason: z.string().optional() }).strict()).optional(),
+    promptModifiers: z.array(z.string()).optional(),
+  }).strict();
+  return z.object({
+    fingerprint: z.string(), sourceHash: z.string(), concepts: z.array(conceptSchema),
+  }).strict();
+}
+
+let cachedSnapshotSchema: ReturnType<typeof buildSnapshotSchema> | undefined;
+
+/**
+ * The snapshot schema, built on the first reuse check. Only a compile reads
+ * snapshots, and the check is synchronous, so zod is loaded here rather than
+ * with a static import that every command would pay for.
+ */
+function snapshotSchema(): ReturnType<typeof buildSnapshotSchema> {
+  cachedSnapshotSchema ??= buildSnapshotSchema();
+  return cachedSnapshotSchema;
+}
 
 /** Hash the bytes actually supplied to extraction, not a later disk read. */
 export function extractionSourceHash(content: string): string {
@@ -64,7 +80,7 @@ export function reusableSourceFiles(
 
 /** Return validated metadata only when bytes, contract and live ownership match. */
 export function reusableExtraction(entry: SourceState | undefined, content: string): ExtractedConcept[] | undefined {
-  const parsed = snapshotSchema.safeParse(entry?.extraction);
+  const parsed = snapshotSchema().safeParse(entry?.extraction);
   if (!parsed.success || !entry) return undefined;
   const snapshot = parsed.data;
   // Re-extract legacy markup instead of reusing its already-corrupted identity.
