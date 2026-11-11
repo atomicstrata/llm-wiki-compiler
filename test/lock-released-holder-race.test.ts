@@ -63,6 +63,7 @@ function hostFor(pid: number): LockHost {
     admit: unused,
     park: unused,
     releaseParked: () => {},
+    hasParked: () => false,
     status: () => {},
   };
 }

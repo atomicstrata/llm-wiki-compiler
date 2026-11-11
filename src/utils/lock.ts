@@ -108,6 +108,8 @@ export interface LockHost {
   park(key: string, release: () => void): void;
   /** Release and forget the permit parked for `key`, if any. Local: the process's permit map. */
   releaseParked(key: string): void;
+  /** Whether this process holds any parked permit at all. Local: the permit map is non-empty. */
+  hasParked(): boolean;
   /** Emit one status line. Local: `output.status(icon, message)`. */
   status(icon: string, message: string): void;
 }
@@ -156,6 +158,7 @@ const localLockHost: LockHost = Object.freeze({
     blockingQueueReleases.get(key)?.();
     blockingQueueReleases.delete(key);
   },
+  hasParked: () => blockingQueueReleases.size > 0,
   status: (icon: string, message: string) => output.status(icon, message),
 });
 
@@ -479,10 +482,12 @@ export async function releaseLock(root: string): Promise<void> {
   return releaseLockFrom(diskLockIo, localLockHost, root);
 }
 
-/** THE ONE BODY of {@link releaseLock}, over the raw I/O and the host it is handed. Releases the parked queue permit on EVERY exit. */
+/** THE ONE BODY of {@link releaseLock}, over the raw I/O and the host it is handed. Releases a permit parked when it began on EVERY exit. */
 export async function releaseLockFrom(io: LockIo, host: LockHost, root: string): Promise<void> {
-  const queueKey = await lockQueueKey(io, root);
-  const releaseQueue = (): void => host.releaseParked(queueKey);
+  // The queue key exists only to find this root's parked permit. A process with
+  // no permit parked has none to find, so the root is not resolved for one.
+  const queueKey = host.hasParked() ? await lockQueueKey(io, root) : null;
+  const releaseQueue = (): void => { if (queueKey !== null) host.releaseParked(queueKey); };
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDirFrom(io, root);
