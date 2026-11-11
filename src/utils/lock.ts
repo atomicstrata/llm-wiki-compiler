@@ -52,7 +52,7 @@ import { LOCK_FILE, MAX_LOCK_FILE_BYTES } from "./constants.js";
 import {
   diskPrivateDirIo, resolveConfinedPrivateDirFrom, resolveExistingConfinedPrivateDirFrom, type PrivateDirIo,
 } from "./private-dir.js";
-import { serializeOwner, parseOwner, isLockRecordStale, type LockOwner } from "./lock-owner.js";
+import { serializeOwner, parseOwner, isOwnerStale, type LockOwner } from "./lock-owner.js";
 import {
   diskLockPublicationIo, hostScratchEntropy, publishLockRecordFrom,
   type LockPublicationHooks, type LockPublicationIo, type ScratchEntropy,
@@ -94,7 +94,7 @@ export interface LockHost {
   processId(): number;
   /** The COMPLETE owner record naming `pid`, with its process identity. Local: `serializeOwner(pid)`. */
   serializeOwner(pid: number): string;
-  /** Whether a PARSED owner's process is positively gone or reused. Local: `isLockRecordStale(owner)`. */
+  /** Whether a PARSED owner's process is positively gone or reused. Local: `isOwnerStale(owner)`. */
   isOwnerProcessStale(owner: LockOwner): boolean;
   /** Fresh scratch-name entropy for publication. Local: `hostScratchEntropy`. */
   entropy: ScratchEntropy;
@@ -148,7 +148,7 @@ function delay(ms: number): Promise<void> {
 const localLockHost: LockHost = Object.freeze({
   processId: () => process.pid,
   serializeOwner: (pid: number) => serializeOwner(pid),
-  isOwnerProcessStale: (owner: LockOwner) => isLockRecordStale(owner),
+  isOwnerProcessStale: (owner: LockOwner) => isOwnerStale(owner),
   entropy: (bytes: number) => hostScratchEntropy(bytes),
   now: () => Date.now(),
   sleep: (ms: number) => delay(ms),
@@ -380,7 +380,7 @@ async function acquireReclaimLock(io: LockIo, host: LockHost, reclaimPath: strin
 /**
  * Publish the lock file carrying our OWNER record (`{pid, startTime}`).
  * Returns true if we published it, false if the name was already taken. The
- * recorded start time is the PID-reuse-safe liveness identity ({@link isLockRecordStale});
+ * recorded start time is the PID-reuse-safe liveness identity ({@link isOwnerStale});
  * a leaf with no start time (legacy build) is read back compatibly.
  *
  * The record is linked into place COMPLETE — see {@link publishLockRecordFrom}. The
@@ -439,7 +439,7 @@ type LockHolderState = "absent" | "live" | "stale";
  *
  * A present leaf whose owner cannot be read (symlinked / oversize / non-regular /
  * unparseable) is stale, or a corrupt lock would strand the project. A readable
- * owner is judged by the host's liveness classifier ({@link isLockRecordStale}
+ * owner is judged by the host's liveness classifier ({@link isOwnerStale}
  * locally): a dead PID, or a live PID whose recorded start time differs from the
  * live process's (PID reuse), is stale. A legacy bare-PID leaf keeps PID-only
  * behavior.

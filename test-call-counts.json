@@ -7,7 +7,7 @@
     },
     "test/activity-log-integration.test.ts": {
       "fs": 841,
-      "spawn": 3
+      "spawn": 2
     },
     "test/activity-log.test.ts": {
       "fs": 32,
@@ -19,15 +19,15 @@
     },
     "test/aimock-smoke.test.ts": {
       "fs": 124,
-      "spawn": 2
+      "spawn": 1
     },
     "test/answer-approval-bytes.test.ts": {
       "fs": 4488,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-approval.test.ts": {
       "fs": 4923,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-candidate-admission.test.ts": {
       "fs": 1625,
@@ -35,7 +35,7 @@
     },
     "test/answer-candidate-consumers.test.ts": {
       "fs": 910,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-candidate-dedup.test.ts": {
       "fs": 1191,
@@ -43,11 +43,11 @@
     },
     "test/answer-candidate-rejection.test.ts": {
       "fs": 1124,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-citation-index.test.ts": {
       "fs": 1179,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-citation-report.test.ts": {
       "fs": 0,
@@ -67,7 +67,7 @@
     },
     "test/answer-publication-replacement.test.ts": {
       "fs": 1944,
-      "spawn": 1
+      "spawn": 0
     },
     "test/answer-publication.test.ts": {
       "fs": 698,
@@ -79,15 +79,15 @@
     },
     "test/artifact-precondition-e2e-cli.test.ts": {
       "fs": 1263,
-      "spawn": 8
+      "spawn": 4
     },
     "test/artifact-precondition-enforce.test.ts": {
       "fs": 1722,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifact-precondition-lifecycle-transition.test.ts": {
       "fs": 436,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifact-precondition-seam-invariant.test.ts": {
       "fs": 1286,
@@ -95,11 +95,11 @@
     },
     "test/artifact-requirement-lint.test.ts": {
       "fs": 922,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-apply.test.ts": {
       "fs": 2702,
-      "spawn": 2
+      "spawn": 1
     },
     "test/artifacts/artifact-body-contract.test.ts": {
       "fs": 0,
@@ -119,23 +119,23 @@
     },
     "test/artifacts/artifact-health-surfaces.test.ts": {
       "fs": 1519,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-members-journal.test.ts": {
       "fs": 4600,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-members-manifest.test.ts": {
       "fs": 3403,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-members-tamper.test.ts": {
       "fs": 13832,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-members-write.test.ts": {
       "fs": 7970,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-name.test.ts": {
       "fs": 0,
@@ -143,7 +143,7 @@
     },
     "test/artifacts/artifact-origin.test.ts": {
       "fs": 540,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-plan.test.ts": {
       "fs": 0,
@@ -151,7 +151,7 @@
     },
     "test/artifacts/artifact-ref-layer-b.test.ts": {
       "fs": 103,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-ref.test.ts": {
       "fs": 0,
@@ -163,7 +163,7 @@
     },
     "test/artifacts/artifact-resolve.test.ts": {
       "fs": 2135,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/artifact-store.test.ts": {
       "fs": 190,
@@ -171,11 +171,11 @@
     },
     "test/artifacts/cli-artifact.test.ts": {
       "fs": 640,
-      "spawn": 13
+      "spawn": 10
     },
     "test/artifacts/e2e-research-artifact.test.ts": {
       "fs": 1527,
-      "spawn": 14
+      "spawn": 11
     },
     "test/artifacts/execution-provenance-conjuncts.test.ts": {
       "fs": 0,
@@ -191,11 +191,11 @@
     },
     "test/artifacts/sdk-artifact.test.ts": {
       "fs": 891,
-      "spawn": 1
+      "spawn": 0
     },
     "test/artifacts/sdk-discovery.test.ts": {
       "fs": 2079,
-      "spawn": 1
+      "spawn": 0
     },
     "test/ask-citations-resolve.test.ts": {
       "fs": 252,
@@ -203,11 +203,11 @@
     },
     "test/ask-crystallization.test.ts": {
       "fs": 2076,
-      "spawn": 1
+      "spawn": 0
     },
     "test/ask-no-mutation.test.ts": {
       "fs": 606,
-      "spawn": 1
+      "spawn": 0
     },
     "test/atomic-write-ancestor-confine.test.ts": {
       "fs": 98,
@@ -231,7 +231,7 @@
     },
     "test/atomic-write-durable.test.ts": {
       "fs": 225,
-      "spawn": 1
+      "spawn": 0
     },
     "test/atomic-write-no-replace-durable-growth.test.ts": {
       "fs": 176,
@@ -247,7 +247,7 @@
     },
     "test/atomic-write-post-commit-recovery.test.ts": {
       "fs": 780,
-      "spawn": 1
+      "spawn": 0
     },
     "test/atomic-write-stream-recovery.test.ts": {
       "fs": 290,
@@ -311,7 +311,7 @@
     },
     "test/candidate-mutation-capacity-final7.test.ts": {
       "fs": 8999,
-      "spawn": 1
+      "spawn": 0
     },
     "test/candidate-namespace-final9.test.ts": {
       "fs": 572,
@@ -319,7 +319,7 @@
     },
     "test/candidate-reject-final9.test.ts": {
       "fs": 598,
-      "spawn": 3
+      "spawn": 1
     },
     "test/candidate-scan-cap-final9.test.ts": {
       "fs": 173,
@@ -339,11 +339,11 @@
     },
     "test/capability-providers/broker-deadline-inflight.test.ts": {
       "fs": 2616,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/broker-deadline.test.ts": {
       "fs": 6104,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/broker-registry.test.ts": {
       "fs": 0,
@@ -351,23 +351,23 @@
     },
     "test/capability-providers/broker-requirement.test.ts": {
       "fs": 860,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/broker-response-ceiling.test.ts": {
       "fs": 1744,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/broker-response-custody.test.ts": {
       "fs": 2616,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/broker-secret-reflection.test.ts": {
       "fs": 10559,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/credential-isolation.test.ts": {
       "fs": 1704,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/custodian.test.ts": {
       "fs": 111,
@@ -395,11 +395,11 @@
     },
     "test/capability-providers/grant-intersection.test.ts": {
       "fs": 44874,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/grant-store.test.ts": {
       "fs": 4893,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/https-broker.test.ts": {
       "fs": 0,
@@ -419,7 +419,7 @@
     },
     "test/capability-providers/invocation-lifecycle.test.ts": {
       "fs": 14550,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/launch-snapshot.test.ts": {
       "fs": 634,
@@ -431,7 +431,7 @@
     },
     "test/capability-providers/model-broker.test.ts": {
       "fs": 14612,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/package-archive.test.ts": {
       "fs": 1161,
@@ -439,15 +439,15 @@
     },
     "test/capability-providers/package-install-races.test.ts": {
       "fs": 2806,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/package-install.test.ts": {
       "fs": 12167,
-      "spawn": 2
+      "spawn": 1
     },
     "test/capability-providers/package-local-snapshot.test.ts": {
       "fs": 839,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/package-protocol.test.ts": {
       "fs": 0,
@@ -455,7 +455,7 @@
     },
     "test/capability-providers/pricing.test.ts": {
       "fs": 7517,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/problem-codes.test.ts": {
       "fs": 0,
@@ -471,7 +471,7 @@
     },
     "test/capability-providers/provider-independent-pins.test.ts": {
       "fs": 1554,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/provider-inputs.test.ts": {
       "fs": 53,
@@ -479,15 +479,15 @@
     },
     "test/capability-providers/provider-removal.test.ts": {
       "fs": 9961,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/provider-resolution.test.ts": {
       "fs": 16846,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/provider-revocation.test.ts": {
       "fs": 3393,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/provider-tree-reader.test.ts": {
       "fs": 357,
@@ -495,11 +495,11 @@
     },
     "test/capability-providers/remote-effect-broker.test.ts": {
       "fs": 9825,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/repository-command-brokers.test.ts": {
       "fs": 19160,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/result-admission.test.ts": {
       "fs": 0,
@@ -507,7 +507,7 @@
     },
     "test/capability-providers/scheduler-email-brokers.test.ts": {
       "fs": 3524,
-      "spawn": 1
+      "spawn": 0
     },
     "test/capability-providers/schema-negative-sweep.test.ts": {
       "fs": 0,
@@ -527,11 +527,11 @@
     },
     "test/chunked-retrieval-aimock.test.ts": {
       "fs": 885,
-      "spawn": 5
+      "spawn": 3
     },
     "test/chunked-retrieval-integration.test.ts": {
       "fs": 623,
-      "spawn": 4
+      "spawn": 3
     },
     "test/ci/fallow-report-gate.test.ts": {
       "fs": 0,
@@ -559,11 +559,11 @@
     },
     "test/cli.test.ts": {
       "fs": 417,
-      "spawn": 15
+      "spawn": 12
     },
     "test/codex-agent-cli.test.ts": {
       "fs": 1319,
-      "spawn": 39
+      "spawn": 33
     },
     "test/codex-agent-environment.test.ts": {
       "fs": 35,
@@ -571,7 +571,7 @@
     },
     "test/codex-agent-interrupt.test.ts": {
       "fs": 618,
-      "spawn": 16
+      "spawn": 12
     },
     "test/codex-agent-preservation.test.ts": {
       "fs": 0,
@@ -591,31 +591,31 @@
     },
     "test/commands/rm-cli.test.ts": {
       "fs": 1353,
-      "spawn": 16
+      "spawn": 11
     },
     "test/compile-batch-embeddings.test.ts": {
       "fs": 498,
-      "spawn": 2
+      "spawn": 1
     },
     "test/compile-candidate-preflight.test.ts": {
       "fs": 768,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-claim-provenance.test.ts": {
       "fs": 1056,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-concurrency.test.ts": {
       "fs": 1542,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-deletion-owner-closure.test.ts": {
       "fs": 845,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-delta.test.ts": {
       "fs": 1648,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-derived-confine.test.ts": {
       "fs": 88,
@@ -623,43 +623,43 @@
     },
     "test/compile-empty-extraction.test.ts": {
       "fs": 4546,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-fault-injection.test.ts": {
       "fs": 1830,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-floor-proof.test.ts": {
       "fs": 669,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-instructions.test.ts": {
       "fs": 2470,
-      "spawn": 26
+      "spawn": 14
     },
     "test/compile-journal-bounded.test.ts": {
       "fs": 2830,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-late-owner-closure.test.ts": {
       "fs": 1621,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-marker-ordering.test.ts": {
       "fs": 886,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-options.test.ts": {
       "fs": 1086,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-pending-embeddings.test.ts": {
       "fs": 470,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-provenance.test.ts": {
       "fs": 701,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-read-confinement.test.ts": {
       "fs": 55,
@@ -667,7 +667,7 @@
     },
     "test/compile-read-extraction-egress.test.ts": {
       "fs": 99,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-read-routing.test.ts": {
       "fs": 44,
@@ -675,23 +675,23 @@
     },
     "test/compile-refresh-watch-reroute.test.ts": {
       "fs": 1191,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-reroute-cli.test.ts": {
       "fs": 2463,
-      "spawn": 27
+      "spawn": 16
     },
     "test/compile-reroute-generation.test.ts": {
       "fs": 1065,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-reroute-phases.test.ts": {
       "fs": 2187,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-source-deletion-reconciliation.test.ts": {
       "fs": 1849,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-state-draft.test.ts": {
       "fs": 528,
@@ -699,15 +699,15 @@
     },
     "test/compile-state-via-draft.test.ts": {
       "fs": 1214,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compile-token-budget.test.ts": {
       "fs": 361,
-      "spawn": 2
+      "spawn": 1
     },
     "test/compile-write.test.ts": {
       "fs": 641,
-      "spawn": 1
+      "spawn": 0
     },
     "test/compounding.test.ts": {
       "fs": 196,
@@ -735,7 +735,7 @@
     },
     "test/confinement-fail-closed-surfaces.test.ts": {
       "fs": 371,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/candidate-boundary-rechecks.test.ts": {
       "fs": 13,
@@ -767,7 +767,7 @@
     },
     "test/connectors/connector-cli-final6-rendering.test.ts": {
       "fs": 396,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/connector-cli.test.ts": {
       "fs": 40,
@@ -779,15 +779,15 @@
     },
     "test/connectors/durable-block-surfaces.test.ts": {
       "fs": 419,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/e2e-crossref-offline.test.ts": {
       "fs": 3240,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/event-preflight.test.ts": {
       "fs": 615,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/fence.test.ts": {
       "fs": 0,
@@ -799,11 +799,11 @@
     },
     "test/connectors/final6-bounds.test.ts": {
       "fs": 29236,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final7-authority-capture.test.ts": {
       "fs": 390,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final7-custody-snapshots.test.ts": {
       "fs": 1971,
@@ -815,19 +815,19 @@
     },
     "test/connectors/final7-robustness-decisions.test.ts": {
       "fs": 636,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final7-split-lock-overflow.test.ts": {
       "fs": 14442,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final8-archived-id-collision.test.ts": {
       "fs": 2056,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final8-queue-authority.test.ts": {
       "fs": 130235,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/final8-runtime-boundaries.test.ts": {
       "fs": 30,
@@ -835,7 +835,7 @@
     },
     "test/connectors/final9-candidate-store.test.ts": {
       "fs": 2653,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/import-lint.test.ts": {
       "fs": 3,
@@ -847,7 +847,7 @@
     },
     "test/connectors/legacy-capacity-parity.test.ts": {
       "fs": 61552,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/origin.test.ts": {
       "fs": 0,
@@ -863,27 +863,27 @@
     },
     "test/connectors/review-pin.test.ts": {
       "fs": 444,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/run-candidate-binding.test.ts": {
       "fs": 6076,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/run-recovery-required.test.ts": {
       "fs": 1997,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/run-substrate.test.ts": {
       "fs": 5954,
-      "spawn": 1
+      "spawn": 0
     },
     "test/connectors/viewer-drilldown.test.ts": {
       "fs": 1106,
-      "spawn": 1
+      "spawn": 0
     },
     "test/context-artifact-surface.test.ts": {
       "fs": 788,
-      "spawn": 1
+      "spawn": 0
     },
     "test/context-audit-regressions.test.ts": {
       "fs": 318,
@@ -923,11 +923,11 @@
     },
     "test/context-typed-pages.test.ts": {
       "fs": 2627,
-      "spawn": 1
+      "spawn": 0
     },
     "test/converse-compile-cli.test.ts": {
       "fs": 542,
-      "spawn": 4
+      "spawn": 2
     },
     "test/converse-optional-dependencies.test.ts": {
       "fs": 1,
@@ -943,11 +943,11 @@
     },
     "test/dev-backend/dev-grant.test.ts": {
       "fs": 9967,
-      "spawn": 1
+      "spawn": 0
     },
     "test/dev-backend/dev-install.test.ts": {
       "fs": 4002,
-      "spawn": 1
+      "spawn": 0
     },
     "test/dev-backend/local-backend.test.ts": {
       "fs": 32,
@@ -955,7 +955,7 @@
     },
     "test/dev-backend/provider-execution-journey.test.ts": {
       "fs": 5696,
-      "spawn": 2
+      "spawn": 1
     },
     "test/embed-batch-providers.test.ts": {
       "fs": 0,
@@ -971,7 +971,7 @@
     },
     "test/embedding-attempt-accounting.test.ts": {
       "fs": 3124,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embedding-fingerprint.test.ts": {
       "fs": 0,
@@ -979,7 +979,7 @@
     },
     "test/embedding-legacy-transitions.test.ts": {
       "fs": 2910,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embedding-provider-guard.test.ts": {
       "fs": 0,
@@ -1019,7 +1019,7 @@
     },
     "test/embeddings-binary-recovery.test.ts": {
       "fs": 183,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-binary-scale.test.ts": {
       "fs": 46,
@@ -1039,11 +1039,11 @@
     },
     "test/embeddings-chunks.test.ts": {
       "fs": 981,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-disabled-contract.test.ts": {
       "fs": 3419,
-      "spawn": 3
+      "spawn": 1
     },
     "test/embeddings-disabled.test.ts": {
       "fs": 140,
@@ -1079,15 +1079,15 @@
     },
     "test/embeddings-reconciliation-retry.test.ts": {
       "fs": 6718,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-reenable.test.ts": {
       "fs": 2802,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-scoped-refresh.test.ts": {
       "fs": 6680,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-store-confine.test.ts": {
       "fs": 121,
@@ -1099,7 +1099,7 @@
     },
     "test/embeddings-v3-flip.test.ts": {
       "fs": 1083,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings-v3-shape.test.ts": {
       "fs": 63,
@@ -1107,11 +1107,11 @@
     },
     "test/embeddings-validation.test.ts": {
       "fs": 191,
-      "spawn": 1
+      "spawn": 0
     },
     "test/embeddings.test.ts": {
       "fs": 380,
-      "spawn": 1
+      "spawn": 0
     },
     "test/eval-cache.test.ts": {
       "fs": 34,
@@ -1187,51 +1187,51 @@
     },
     "test/event-append-fail-closed.test.ts": {
       "fs": 1449,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-audit-content.test.ts": {
       "fs": 1295,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-crash-recovery.test.ts": {
       "fs": 1393,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-emit.test.ts": {
       "fs": 735,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-head-size-cap.test.ts": {
       "fs": 318,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-lint.test.ts": {
       "fs": 1696,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-mandatory-preflight.test.ts": {
       "fs": 1034,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-store-cap.test.ts": {
       "fs": 1570,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-store-integration.test.ts": {
       "fs": 647,
-      "spawn": 5
+      "spawn": 4
     },
     "test/event-store.test.ts": {
       "fs": 1466,
-      "spawn": 1
+      "spawn": 0
     },
     "test/event-torn-append-repair.test.ts": {
       "fs": 2390,
-      "spawn": 1
+      "spawn": 0
     },
     "test/exclusive-lock.test.ts": {
       "fs": 80,
-      "spawn": 1
+      "spawn": 0
     },
     "test/export-freshness.test.ts": {
       "fs": 63,
@@ -1267,7 +1267,7 @@
     },
     "test/extraction-reuse.test.ts": {
       "fs": 10153,
-      "spawn": 1
+      "spawn": 0
     },
     "test/extraction-snapshot.test.ts": {
       "fs": 0,
@@ -1275,7 +1275,7 @@
     },
     "test/fifo-leaf-hardening.test.ts": {
       "fs": 318,
-      "spawn": 16
+      "spawn": 15
     },
     "test/freshness-context.test.ts": {
       "fs": 642,
@@ -1315,11 +1315,11 @@
     },
     "test/gated-state-entry-priority.test.ts": {
       "fs": 813,
-      "spawn": 1
+      "spawn": 0
     },
     "test/generic-approval-citations.test.ts": {
       "fs": 4279,
-      "spawn": 1
+      "spawn": 0
     },
     "test/genericity-grep-gate.test.ts": {
       "fs": 0,
@@ -1327,7 +1327,7 @@
     },
     "test/graph-dir-confine-surfaces.test.ts": {
       "fs": 620,
-      "spawn": 1
+      "spawn": 0
     },
     "test/hasher.test.ts": {
       "fs": 87,
@@ -1411,11 +1411,11 @@
     },
     "test/legacy-private-layout-parity.test.ts": {
       "fs": 399,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lifecycle-audit-payload.test.ts": {
       "fs": 496,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lifecycle-evidence-content.test.ts": {
       "fs": 0,
@@ -1423,7 +1423,7 @@
     },
     "test/lifecycle-frontmatter-preservation.test.ts": {
       "fs": 609,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lifecycle-frontmatter-splice.test.ts": {
       "fs": 0,
@@ -1435,11 +1435,11 @@
     },
     "test/limited-isolation/limited-isolation-seam.test.ts": {
       "fs": 9836,
-      "spawn": 6
+      "spawn": 5
     },
     "test/link-repair-approval.test.ts": {
       "fs": 592,
-      "spawn": 1
+      "spawn": 0
     },
     "test/link-repair.test.ts": {
       "fs": 2355,
@@ -1459,11 +1459,11 @@
     },
     "test/lint-fix-propose-routing.test.ts": {
       "fs": 59,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lint-fix-propose.test.ts": {
       "fs": 1257,
-      "spawn": 3
+      "spawn": 1
     },
     "test/lint-profile-scope-parity.test.ts": {
       "fs": 153,
@@ -1471,7 +1471,7 @@
     },
     "test/lint-tier-registry-emitters.test.ts": {
       "fs": 514,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lint-tier-registry.test.ts": {
       "fs": 47,
@@ -1511,39 +1511,39 @@
     },
     "test/local-workflow-projection-body.test.ts": {
       "fs": 215,
-      "spawn": 1
+      "spawn": 0
     },
     "test/local-workflow-runtime-action.test.ts": {
       "fs": 204,
-      "spawn": 1
+      "spawn": 0
     },
     "test/local-workflow-runtime-lifecycle.test.ts": {
       "fs": 1588,
-      "spawn": 1
+      "spawn": 0
     },
     "test/local-workflow-runtime-output.test.ts": {
       "fs": 1075,
-      "spawn": 1
+      "spawn": 0
     },
     "test/local-workflow-runtime-start.test.ts": {
       "fs": 317,
-      "spawn": 1
+      "spawn": 0
     },
     "test/local-workflow-transactions.test.ts": {
       "fs": 455,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-blocking-fifo.test.ts": {
       "fs": 75,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-hardening.test.ts": {
       "fs": 225,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-identity-consumer-consequences.test.ts": {
       "fs": 137,
-      "spawn": 11
+      "spawn": 5
     },
     "test/lock-owner-identity-invariance.test.ts": {
       "fs": 0,
@@ -1554,24 +1554,24 @@
       "spawn": 0
     },
     "test/lock-pid-reuse.test.ts": {
-      "fs": 656,
-      "spawn": 1
+      "fs": 622,
+      "spawn": 0
     },
     "test/lock-private-dir-confine.test.ts": {
       "fs": 56,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-public-format-parity.test.ts": {
       "fs": 0,
-      "spawn": 3
+      "spawn": 0
     },
     "test/lock-publication-race.test.ts": {
       "fs": 118,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-release-confined.test.ts": {
       "fs": 112,
-      "spawn": 1
+      "spawn": 0
     },
     "test/lock-released-holder-race.test.ts": {
       "fs": 27,
@@ -1587,7 +1587,7 @@
     },
     "test/mcp-server.test.ts": {
       "fs": 586,
-      "spawn": 1
+      "spawn": 0
     },
     "test/mcp-stdio-stream.test.ts": {
       "fs": 7,
@@ -1607,11 +1607,11 @@
     },
     "test/mcp-workflow-action-tools.test.ts": {
       "fs": 465,
-      "spawn": 1
+      "spawn": 0
     },
     "test/mcp/artifact-verify.test.ts": {
       "fs": 2088,
-      "spawn": 10
+      "spawn": 9
     },
     "test/mcp/ingest-root.test.ts": {
       "fs": 18,
@@ -1631,11 +1631,11 @@
     },
     "test/newsroom-profile.test.ts": {
       "fs": 1218,
-      "spawn": 2
+      "spawn": 1
     },
     "test/newsroom-workflow-e2e-cli.test.ts": {
       "fs": 1476,
-      "spawn": 17
+      "spawn": 8
     },
     "test/next-integration.test.ts": {
       "fs": 191,
@@ -1643,7 +1643,7 @@
     },
     "test/no-pages-limit-cli.test.ts": {
       "fs": 1960,
-      "spawn": 20
+      "spawn": 10
     },
     "test/no-pages-limit.test.ts": {
       "fs": 0,
@@ -1659,11 +1659,11 @@
     },
     "test/offline-provider-keyless.test.ts": {
       "fs": 2199,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-bundle-block-import.test.ts": {
       "fs": 3085,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-bundle.test.ts": {
       "fs": 498,
@@ -1683,7 +1683,7 @@
     },
     "test/okf-import-approve-target-dir.test.ts": {
       "fs": 525,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-import-candidate-fields.test.ts": {
       "fs": 50,
@@ -1691,15 +1691,15 @@
     },
     "test/okf-import-cli-delegation.test.ts": {
       "fs": 145,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-import-cli.test.ts": {
       "fs": 117,
-      "spawn": 2
+      "spawn": 1
     },
     "test/okf-import-command-stage.test.ts": {
       "fs": 219,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-import-dry-run.test.ts": {
       "fs": 29,
@@ -1711,7 +1711,7 @@
     },
     "test/okf-import-invariants.test.ts": {
       "fs": 1454,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-import-link-reversal.test.ts": {
       "fs": 31,
@@ -1739,7 +1739,7 @@
     },
     "test/okf-import-trusted.test.ts": {
       "fs": 340,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-index-log.test.ts": {
       "fs": 0,
@@ -1763,7 +1763,7 @@
     },
     "test/okf-mcp-queue-cap.test.ts": {
       "fs": 94,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-mcp-stdio.test.ts": {
       "fs": 40,
@@ -1771,7 +1771,7 @@
     },
     "test/okf-mcp-tools.test.ts": {
       "fs": 279,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-nested-export.test.ts": {
       "fs": 127,
@@ -1791,7 +1791,7 @@
     },
     "test/okf-profile-bundle-block.test.ts": {
       "fs": 9826,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-profile-export.test.ts": {
       "fs": 784,
@@ -1799,23 +1799,23 @@
     },
     "test/okf-profile-import-failclosed.test.ts": {
       "fs": 137,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-profile-import-trusted.test.ts": {
       "fs": 997,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-profile-import.test.ts": {
       "fs": 1358,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-profile-roundtrip-genericity.test.ts": {
       "fs": 2523,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-profile-roundtrip.test.ts": {
       "fs": 20027,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-read-confinement.test.ts": {
       "fs": 12,
@@ -1843,7 +1843,7 @@
     },
     "test/okf-reexport-okfpath.test.ts": {
       "fs": 548,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-reexport-roundtrip.test.ts": {
       "fs": 248,
@@ -1859,7 +1859,7 @@
     },
     "test/okf-relation-import.test.ts": {
       "fs": 1456,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-render-doc.test.ts": {
       "fs": 0,
@@ -1883,15 +1883,15 @@
     },
     "test/okf-run-import-lock.test.ts": {
       "fs": 18,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-run-import.test.ts": {
       "fs": 790,
-      "spawn": 1
+      "spawn": 0
     },
     "test/okf-sdk.test.ts": {
       "fs": 239,
-      "spawn": 1
+      "spawn": 0
     },
     "test/openai-embeddings-credential.test.ts": {
       "fs": 0,
@@ -1943,7 +1943,7 @@
     },
     "test/operation-bundles/cancel-semantics.test.ts": {
       "fs": 5693,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/capacity.test.ts": {
       "fs": 21814,
@@ -1983,7 +1983,7 @@
     },
     "test/operation-bundles/event-operation-binding.test.ts": {
       "fs": 636,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/evidence-store.test.ts": {
       "fs": 327,
@@ -2015,7 +2015,7 @@
     },
     "test/operation-bundles/lock-gate.test.ts": {
       "fs": 1401,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/manifest-grammar.test.ts": {
       "fs": 0,
@@ -2087,7 +2087,7 @@
     },
     "test/operation-bundles/prepare-record.test.ts": {
       "fs": 6823,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/projection-adapter.test.ts": {
       "fs": 546,
@@ -2115,7 +2115,7 @@
     },
     "test/operation-bundles/recovery-after-stale-lock.test.ts": {
       "fs": 1175,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/recovery-authority-drift.test.ts": {
       "fs": 580,
@@ -2123,7 +2123,7 @@
     },
     "test/operation-bundles/recovery-blocks-compensating.test.ts": {
       "fs": 2361,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/recovery-bundle-settlement.test.ts": {
       "fs": 2444,
@@ -2139,19 +2139,19 @@
     },
     "test/operation-bundles/relation-adapter.test.ts": {
       "fs": 1307,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/relation-operation-binding.test.ts": {
       "fs": 1303,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/relation-recovery-detail.test.ts": {
       "fs": 1123,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-bundles/rm-recovery-gate.test.ts": {
       "fs": 1267,
-      "spawn": 3
+      "spawn": 2
     },
     "test/operation-bundles/run-abandonment-compact.test.ts": {
       "fs": 0,
@@ -2211,11 +2211,11 @@
     },
     "test/operation-bundles/store-v1-compat.test.ts": {
       "fs": 861,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operation-cli-drive.test.ts": {
       "fs": 4529,
-      "spawn": 12
+      "spawn": 9
     },
     "test/operation-cli-list-inspect.test.ts": {
       "fs": 4534,
@@ -2223,7 +2223,7 @@
     },
     "test/operation-cli-recovery-e2e.test.ts": {
       "fs": 3738,
-      "spawn": 6
+      "spawn": 3
     },
     "test/operations-packs/alias-resolver.test.ts": {
       "fs": 0,
@@ -2231,11 +2231,11 @@
     },
     "test/operations-packs/artifact-evidence-runner.test.ts": {
       "fs": 6820,
-      "spawn": 2
+      "spawn": 1
     },
     "test/operations-packs/artifact-evidence.test.ts": {
       "fs": 3677,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/authored-update.test.ts": {
       "fs": 0,
@@ -2267,7 +2267,7 @@
     },
     "test/operations-packs/host-invocation-request.test.ts": {
       "fs": 2584,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/host-runtime-execute.test.ts": {
       "fs": 25,
@@ -2279,7 +2279,7 @@
     },
     "test/operations-packs/one-of-drive.test.ts": {
       "fs": 5388,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/one-of-predicate-parse.test.ts": {
       "fs": 0,
@@ -2291,7 +2291,7 @@
     },
     "test/operations-packs/pack-chaining-drive.test.ts": {
       "fs": 12192,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-chaining-units.test.ts": {
       "fs": 0,
@@ -2303,15 +2303,15 @@
     },
     "test/operations-packs/pack-materializer-obligation.test.ts": {
       "fs": 17400,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-mixed-intents-drive.test.ts": {
       "fs": 5616,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-multi-source-drive.test.ts": {
       "fs": 4410,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-negative-sweep.test.ts": {
       "fs": 0,
@@ -2319,7 +2319,7 @@
     },
     "test/operations-packs/pack-page-payload-drive.test.ts": {
       "fs": 8055,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-parse.test.ts": {
       "fs": 0,
@@ -2327,11 +2327,11 @@
     },
     "test/operations-packs/pack-reconcile-drive.test.ts": {
       "fs": 6112,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-relation-drive.test.ts": {
       "fs": 7890,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-relation-obligation.test.ts": {
       "fs": 0,
@@ -2339,11 +2339,11 @@
     },
     "test/operations-packs/pack-render-drive.test.ts": {
       "fs": 9964,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/pack-vertical-drive.test.ts": {
       "fs": 7409,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/page-evidence-inputid-uniqueness.test.ts": {
       "fs": 0,
@@ -2351,7 +2351,7 @@
     },
     "test/operations-packs/page-evidence-synthetic.test.ts": {
       "fs": 4477,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/plan-compiler-determinism.test.ts": {
       "fs": 0,
@@ -2367,7 +2367,7 @@
     },
     "test/operations-packs/provider-ingest-journey.test.ts": {
       "fs": 4305,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/provider-phase-lowering.test.ts": {
       "fs": 0,
@@ -2375,7 +2375,7 @@
     },
     "test/operations-packs/provider-phase-routing.test.ts": {
       "fs": 6660,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/provider-response.test.ts": {
       "fs": 0,
@@ -2419,7 +2419,7 @@
     },
     "test/operations-packs/source-evidence-descriptor.test.ts": {
       "fs": 2679,
-      "spawn": 1
+      "spawn": 0
     },
     "test/operations-packs/store-snapshot.test.ts": {
       "fs": 206,
@@ -2439,7 +2439,7 @@
     },
     "test/output-language-integration.test.ts": {
       "fs": 363,
-      "spawn": 6
+      "spawn": 3
     },
     "test/output-language-query-integration.test.ts": {
       "fs": 192,
@@ -2459,7 +2459,7 @@
     },
     "test/page-apply-net-growth-floor.test.ts": {
       "fs": 422,
-      "spawn": 1
+      "spawn": 0
     },
     "test/page-id.test.ts": {
       "fs": 0,
@@ -2467,7 +2467,7 @@
     },
     "test/page-link-targets.test.ts": {
       "fs": 557,
-      "spawn": 2
+      "spawn": 1
     },
     "test/page-prompt-order.test.ts": {
       "fs": 0,
@@ -2547,11 +2547,11 @@
     },
     "test/preflight-produce-pin-require.test.ts": {
       "fs": 5686,
-      "spawn": 68
+      "spawn": 34
     },
     "test/preflight-produce.test.ts": {
       "fs": 1196,
-      "spawn": 12
+      "spawn": 6
     },
     "test/preparation-cancel-collision-window.test.ts": {
       "fs": 497,
@@ -2559,15 +2559,15 @@
     },
     "test/preparation-cancel-recovery-authority.test.ts": {
       "fs": 4992,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-cancel-recovery-faults.test.ts": {
       "fs": 2229,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-cancel-recovery-races.test.ts": {
       "fs": 6610,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-cancel-single-observation.test.ts": {
       "fs": 1082,
@@ -2579,7 +2579,7 @@
     },
     "test/preparation-capacity-matrix-budget.test.ts": {
       "fs": 1955,
-      "spawn": 12
+      "spawn": 6
     },
     "test/preparation-capacity-matrix-ceilings.test.ts": {
       "fs": 0,
@@ -2587,7 +2587,7 @@
     },
     "test/preparation-capacity-matrix-plan.test.ts": {
       "fs": 1326,
-      "spawn": 10
+      "spawn": 7
     },
     "test/preparation-capacity-matrix-projection.test.ts": {
       "fs": 983,
@@ -2595,59 +2595,59 @@
     },
     "test/preparation-capacity-matrix-store.test.ts": {
       "fs": 18380,
-      "spawn": 12
+      "spawn": 6
     },
     "test/preparation-cli-cancel-recovery.test.ts": {
       "fs": 4182,
-      "spawn": 12
+      "spawn": 8
     },
     "test/preparation-cli-gate.test.ts": {
       "fs": 3203,
-      "spawn": 10
+      "spawn": 6
     },
     "test/preparation-cli-prune-sweep.test.ts": {
       "fs": 6934,
-      "spawn": 16
+      "spawn": 9
     },
     "test/preparation-cli-reset.test.ts": {
       "fs": 14841,
-      "spawn": 42
+      "spawn": 25
     },
     "test/preparation-cli-sdk-pause.test.ts": {
       "fs": 7792,
-      "spawn": 18
+      "spawn": 11
     },
     "test/preparation-cli-sdk-reads.test.ts": {
       "fs": 5020,
-      "spawn": 22
+      "spawn": 15
     },
     "test/preparation-cli-stage.test.ts": {
       "fs": 3357,
-      "spawn": 34
+      "spawn": 23
     },
     "test/preparation-cli.test.ts": {
       "fs": 6499,
-      "spawn": 26
+      "spawn": 22
     },
     "test/preparation-destructive-registry-evidence.test.ts": {
       "fs": 24963,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-destructive-unattributed-evidence.test.ts": {
       "fs": 1522,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-gate-binding.test.ts": {
       "fs": 4206,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-gate-executor-race.test.ts": {
       "fs": 1416,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-gate-supersession.test.ts": {
       "fs": 4974,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-genericity.test.ts": {
       "fs": 0,
@@ -2655,35 +2655,35 @@
     },
     "test/preparation-handoff-obligation-capture.test.ts": {
       "fs": 9555,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-lifecycle-gate-cli.test.ts": {
       "fs": 7881,
-      "spawn": 22
+      "spawn": 12
     },
     "test/preparation-lifecycle-gate-owner.test.ts": {
       "fs": 15238,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-lifecycle-gate.test.ts": {
       "fs": 9254,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-operation-contract.test.ts": {
       "fs": 348,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-parkable-states.test.ts": {
       "fs": 609,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-paused-escapable.test.ts": {
       "fs": 7426,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-pending-reset-envelopes.test.ts": {
       "fs": 4580,
-      "spawn": 21
+      "spawn": 11
     },
     "test/preparation-preview-no-caller-path.test.ts": {
       "fs": 6321,
@@ -2691,47 +2691,47 @@
     },
     "test/preparation-prune-gate-executor-race.test.ts": {
       "fs": 1506,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-prune-sweep-races.test.ts": {
       "fs": 35048,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-reset-cli-only.test.ts": {
       "fs": 2794,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-reset-owner-reachability.test.ts": {
       "fs": 2036,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-reset-project-scope.test.ts": {
       "fs": 8263,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-sdk-authority.test.ts": {
       "fs": 3872,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-sdk-facade.test.ts": {
       "fs": 4891,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-sdk-gate-handoff.test.ts": {
       "fs": 3545,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-sdk-prototype-authority.test.ts": {
       "fs": 3265,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-sdk-prune-sweep.test.ts": {
       "fs": 9014,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-authority.test.ts": {
       "fs": 3357,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-boundary.test.ts": {
       "fs": 687,
@@ -2739,27 +2739,27 @@
     },
     "test/preparation-service-cancel.test.ts": {
       "fs": 4855,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-capture-totality.test.ts": {
       "fs": 87,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-gate-refusals.test.ts": {
       "fs": 3397,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-gate.test.ts": {
       "fs": 4447,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-handoff.test.ts": {
       "fs": 10856,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-input-capture.test.ts": {
       "fs": 6707,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-list-bounds.test.ts": {
       "fs": 222444,
@@ -2767,31 +2767,31 @@
     },
     "test/preparation-service-pause.test.ts": {
       "fs": 6347,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-preview-purity.test.ts": {
       "fs": 3885,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-prune.test.ts": {
       "fs": 13802,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-recovery.test.ts": {
       "fs": 5711,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-request-capture.test.ts": {
       "fs": 2853,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-request-two-answers.test.ts": {
       "fs": 1060,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-reset.test.ts": {
       "fs": 6934,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-show-unreadable.test.ts": {
       "fs": 4210,
@@ -2799,11 +2799,11 @@
     },
     "test/preparation-service-show.test.ts": {
       "fs": 5039,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-service-sweep.test.ts": {
       "fs": 7692,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-stage-residue.test.ts": {
       "fs": 2007,
@@ -2811,11 +2811,11 @@
     },
     "test/preparation-stage-typed-refusal.test.ts": {
       "fs": 3022,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparation-synthetic-packs.test.ts": {
       "fs": 1040,
-      "spawn": 6
+      "spawn": 4
     },
     "test/preparations/abandonment.test.ts": {
       "fs": 1970,
@@ -2823,47 +2823,47 @@
     },
     "test/preparations/attempt-authority-drift.test.ts": {
       "fs": 7406,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-custody-dedup.test.ts": {
       "fs": 1816,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-durable-spend.test.ts": {
       "fs": 5912,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-host-handler.test.ts": {
       "fs": 2760,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-intent.test.ts": {
       "fs": 2156,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-metering.test.ts": {
       "fs": 23700,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-parallelism.test.ts": {
       "fs": 2250,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-provider.test.ts": {
       "fs": 9230,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-recovery.test.ts": {
       "fs": 1458,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/attempt-recustody.test.ts": {
       "fs": 2604,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/authority-references.test.ts": {
       "fs": 15441,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/cancel-consumer-sets.test.ts": {
       "fs": 0,
@@ -2871,23 +2871,23 @@
     },
     "test/preparations/cancel-delivery.test.ts": {
       "fs": 4204,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/cancel-races.test.ts": {
       "fs": 4225,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/cancel-settlement-effects.test.ts": {
       "fs": 14361,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/cancel-settlement.test.ts": {
       "fs": 7430,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/cancellation.test.ts": {
       "fs": 2434,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/capture-catch-ledger.test.ts": {
       "fs": 1289,
@@ -2931,7 +2931,7 @@
     },
     "test/preparations/ephemeral-read.test.ts": {
       "fs": 4529,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/evidence-read-bytes.test.ts": {
       "fs": 448,
@@ -2959,11 +2959,11 @@
     },
     "test/preparations/failed-reason-readback.test.ts": {
       "fs": 1392,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/finalization.test.ts": {
       "fs": 11435,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/gate-authority-drift.test.ts": {
       "fs": 0,
@@ -2971,7 +2971,7 @@
     },
     "test/preparations/gate-driver.test.ts": {
       "fs": 4343,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/gates.test.ts": {
       "fs": 0,
@@ -2979,23 +2979,23 @@
     },
     "test/preparations/handoff-cancel-wedge.test.ts": {
       "fs": 11636,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/handoff-capacity.test.ts": {
       "fs": 2968,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/handoff-faults.test.ts": {
       "fs": 6976,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/handoff-key-loss.test.ts": {
       "fs": 3085,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/handoff.test.ts": {
       "fs": 4981,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/identities.test.ts": {
       "fs": 0,
@@ -3023,7 +3023,7 @@
     },
     "test/preparations/leg-fault-park.test.ts": {
       "fs": 3497,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/lifecycle-capacity-bounds.test.ts": {
       "fs": 735,
@@ -3087,7 +3087,7 @@
     },
     "test/preparations/lifecycle-prune-binding-degradation.test.ts": {
       "fs": 6177,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/lifecycle-public-boundary-capture.test.ts": {
       "fs": 7797,
@@ -3119,7 +3119,7 @@
     },
     "test/preparations/lifecycle-single-capture.test.ts": {
       "fs": 4046,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/lifecycle-snapshot-architecture.test.ts": {
       "fs": 122,
@@ -3167,7 +3167,7 @@
     },
     "test/preparations/pack-journeys.test.ts": {
       "fs": 32391,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/plan-bounds.test.ts": {
       "fs": 0,
@@ -3235,15 +3235,15 @@
     },
     "test/preparations/recovery-cancel-settlement.test.ts": {
       "fs": 10409,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/recovery-gate-order.test.ts": {
       "fs": 6473,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/recovery-settlement-isolation.test.ts": {
       "fs": 6780,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/recursive-delete-scope.test.ts": {
       "fs": 94,
@@ -3283,7 +3283,7 @@
     },
     "test/preparations/runner.test.ts": {
       "fs": 12808,
-      "spawn": 1
+      "spawn": 0
     },
     "test/preparations/schedule.test.ts": {
       "fs": 0,
@@ -3343,7 +3343,7 @@
     },
     "test/products/apply-revalidation.test.ts": {
       "fs": 7345,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/cli-provider-invocation.test.ts": {
       "fs": 8,
@@ -3359,15 +3359,15 @@
     },
     "test/products/product-activation-faults.test.ts": {
       "fs": 6741,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-activation.test.ts": {
       "fs": 6619,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-apply-seam.test.ts": {
       "fs": 24360,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-authority-conflict.test.ts": {
       "fs": 1183,
@@ -3375,19 +3375,19 @@
     },
     "test/products/product-cli-apply.test.ts": {
       "fs": 27257,
-      "spawn": 65
+      "spawn": 34
     },
     "test/products/product-cli-refusals.test.ts": {
       "fs": 6959,
-      "spawn": 38
+      "spawn": 24
     },
     "test/products/product-cli.test.ts": {
       "fs": 26123,
-      "spawn": 67
+      "spawn": 38
     },
     "test/products/product-command-reporting.test.ts": {
       "fs": 3778,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-compatibility.test.ts": {
       "fs": 0,
@@ -3395,11 +3395,11 @@
     },
     "test/products/product-install-races.test.ts": {
       "fs": 2483,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-install.test.ts": {
       "fs": 3349,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-package-negative-sweep.test.ts": {
       "fs": 0,
@@ -3415,7 +3415,7 @@
     },
     "test/products/product-parent-resume-e2e.test.ts": {
       "fs": 10788,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-profile-loader.test.ts": {
       "fs": 3811,
@@ -3435,23 +3435,23 @@
     },
     "test/products/product-service-capture.test.ts": {
       "fs": 11558,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-service-refusals.test.ts": {
       "fs": 5236,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-status-skip-cli.test.ts": {
       "fs": 2783,
-      "spawn": 8
+      "spawn": 7
     },
     "test/products/product-vertical-e2e.test.ts": {
       "fs": 18109,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/product-vertical-zero-draft.test.ts": {
       "fs": 3958,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/provider-host-surface-shipped.test.ts": {
       "fs": 0,
@@ -3459,15 +3459,15 @@
     },
     "test/products/provider-paths-cross-bundle.test.ts": {
       "fs": 240,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/readiness-credentialless-provider.test.ts": {
       "fs": 16538,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/readiness-installed-provider.test.ts": {
       "fs": 4167,
-      "spawn": 1
+      "spawn": 0
     },
     "test/products/readiness-skips.test.ts": {
       "fs": 34,
@@ -3535,11 +3535,11 @@
     },
     "test/profile-init-cli.test.ts": {
       "fs": 361,
-      "spawn": 12
+      "spawn": 9
     },
     "test/profile-lifecycle-enforce.test.ts": {
       "fs": 1427,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-lint-health-tiers.test.ts": {
       "fs": 488,
@@ -3579,7 +3579,7 @@
     },
     "test/profile-onboarding-e2e.test.ts": {
       "fs": 451,
-      "spawn": 8
+      "spawn": 7
     },
     "test/profile-posix-dir.test.ts": {
       "fs": 0,
@@ -3607,7 +3607,7 @@
     },
     "test/profile-scaffold-install.test.ts": {
       "fs": 1490,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-scaffold.test.ts": {
       "fs": 0,
@@ -3619,11 +3619,11 @@
     },
     "test/profile-status-lifecycle.test.ts": {
       "fs": 983,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-status.test.ts": {
       "fs": 1884,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-subject-gate.test.ts": {
       "fs": 0,
@@ -3635,7 +3635,7 @@
     },
     "test/profile-template-cli.test.ts": {
       "fs": 871,
-      "spawn": 17
+      "spawn": 13
     },
     "test/profile-template-confirm.test.ts": {
       "fs": 0,
@@ -3643,19 +3643,19 @@
     },
     "test/profile-template-corpus.test.ts": {
       "fs": 1346,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-genericity.test.ts": {
       "fs": 1366,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-install.test.ts": {
       "fs": 2061,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-local.test.ts": {
       "fs": 328,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-lock-read.test.ts": {
       "fs": 43,
@@ -3663,7 +3663,7 @@
     },
     "test/profile-template-lock.test.ts": {
       "fs": 502,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-r3-boundary.test.ts": {
       "fs": 12,
@@ -3679,15 +3679,15 @@
     },
     "test/profile-template-remote-install.test.ts": {
       "fs": 1897,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-remote-status.test.ts": {
       "fs": 1850,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-remote-update.test.ts": {
       "fs": 8445,
-      "spawn": 5
+      "spawn": 3
     },
     "test/profile-template-signing-canonical-base64.test.ts": {
       "fs": 0,
@@ -3711,27 +3711,27 @@
     },
     "test/profile-template-status.test.ts": {
       "fs": 508,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-tap-cli.test.ts": {
       "fs": 1131,
-      "spawn": 15
+      "spawn": 10
     },
     "test/profile-template-tap-discovery.test.ts": {
       "fs": 1526,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-tap-package.test.ts": {
       "fs": 1746,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-tap-refresh.test.ts": {
       "fs": 1775,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-tap-state.test.ts": {
       "fs": 1448,
-      "spawn": 1
+      "spawn": 0
     },
     "test/profile-template-update-plan.test.ts": {
       "fs": 644,
@@ -3779,7 +3779,7 @@
     },
     "test/prompt-blowup-integration.test.ts": {
       "fs": 561,
-      "spawn": 6
+      "spawn": 3
     },
     "test/prompt-budget.test.ts": {
       "fs": 0,
@@ -3787,7 +3787,7 @@
     },
     "test/prompt-modifiers-integration.test.ts": {
       "fs": 3501,
-      "spawn": 24
+      "spawn": 12
     },
     "test/prompt-modifiers.test.ts": {
       "fs": 0,
@@ -3859,15 +3859,15 @@
     },
     "test/query-answer-citations-cli.test.ts": {
       "fs": 565,
-      "spawn": 6
+      "spawn": 5
     },
     "test/query-answer-citations-recovery.test.ts": {
       "fs": 1424,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-answer-citations.test.ts": {
       "fs": 705,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-dirs.test.ts": {
       "fs": 44,
@@ -3891,7 +3891,7 @@
     },
     "test/query-hydrated-grounding.test.ts": {
       "fs": 1657,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-page-candidate-pageid.test.ts": {
       "fs": 512,
@@ -3907,27 +3907,27 @@
     },
     "test/query-proposal.test.ts": {
       "fs": 875,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-publication-cli.test.ts": {
       "fs": 3660,
-      "spawn": 31
+      "spawn": 16
     },
     "test/query-publication-race.test.ts": {
       "fs": 494,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-publication-sdk-mcp.test.ts": {
       "fs": 1692,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-publication.test.ts": {
       "fs": 486,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-save-profile-gate.test.ts": {
       "fs": 334,
-      "spawn": 1
+      "spawn": 0
     },
     "test/query-save.test.ts": {
       "fs": 92,
@@ -3951,7 +3951,7 @@
     },
     "test/quickstart-integration.test.ts": {
       "fs": 4344,
-      "spawn": 32
+      "spawn": 19
     },
     "test/quickstart-json-stdout.test.ts": {
       "fs": 140,
@@ -3959,7 +3959,7 @@
     },
     "test/ranking-baseline.test.ts": {
       "fs": 516,
-      "spawn": 1
+      "spawn": 0
     },
     "test/ranking-parity-v2-v3.test.ts": {
       "fs": 965,
@@ -3979,15 +3979,15 @@
     },
     "test/reconciliation-invalid-replacement.test.ts": {
       "fs": 1903,
-      "spawn": 1
+      "spawn": 0
     },
     "test/recover-command.test.ts": {
       "fs": 154,
-      "spawn": 8
+      "spawn": 4
     },
     "test/recursive-source-compile.test.ts": {
       "fs": 1295,
-      "spawn": 1
+      "spawn": 0
     },
     "test/recursive-source-inventory.test.ts": {
       "fs": 339,
@@ -3995,15 +3995,15 @@
     },
     "test/refresh-cli.test.ts": {
       "fs": 692,
-      "spawn": 10
+      "spawn": 7
     },
     "test/refresh-integration.test.ts": {
       "fs": 1725,
-      "spawn": 1
+      "spawn": 0
     },
     "test/refresh-pipeline.test.ts": {
       "fs": 1540,
-      "spawn": 1
+      "spawn": 0
     },
     "test/refresh-plan.test.ts": {
       "fs": 215,
@@ -4011,15 +4011,15 @@
     },
     "test/relation-attribute-contract.test.ts": {
       "fs": 277,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-compaction-confine.test.ts": {
       "fs": 1098,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-compaction-preflight.test.ts": {
       "fs": 10550,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-contract.test.ts": {
       "fs": 0,
@@ -4031,43 +4031,43 @@
     },
     "test/relation-endpoint-validity.test.ts": {
       "fs": 3144,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-event-store-full-preflight.test.ts": {
       "fs": 1412,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-evidence-contract.test.ts": {
       "fs": 887,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-graph-confine.test.ts": {
       "fs": 245,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-lifecycle-audit-residual.test.ts": {
       "fs": 352,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-lifecycle-executor-kinds.test.ts": {
       "fs": 2335,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-lifecycle-seam-integration.test.ts": {
       "fs": 659,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-lint.test.ts": {
       "fs": 913,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-live-valid.test.ts": {
       "fs": 286,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-precondition-enforce.test.ts": {
       "fs": 2645,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-precondition.test.ts": {
       "fs": 0,
@@ -4075,43 +4075,43 @@
     },
     "test/relation-profile-adaptation.test.ts": {
       "fs": 944,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-required-undefined.test.ts": {
       "fs": 328,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-standing-surfaces.test.ts": {
       "fs": 3434,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-store-agent-surfaces.test.ts": {
       "fs": 722,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-store-audit.test.ts": {
       "fs": 5513,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-store-concurrent.test.ts": {
       "fs": 4493,
-      "spawn": 6
+      "spawn": 3
     },
     "test/relation-store-leaf-symlink.test.ts": {
       "fs": 219,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-store-symlink-surfaces.test.ts": {
       "fs": 658,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-store.test.ts": {
       "fs": 1642,
-      "spawn": 1
+      "spawn": 0
     },
     "test/relation-surface.test.ts": {
       "fs": 887,
-      "spawn": 1
+      "spawn": 0
     },
     "test/research-content-tiers-cli.test.ts": {
       "fs": 272,
@@ -4119,31 +4119,31 @@
     },
     "test/research-literature-review-e2e-cli.test.ts": {
       "fs": 2204,
-      "spawn": 35
+      "spawn": 18
     },
     "test/research-profile.test.ts": {
       "fs": 48340,
-      "spawn": 5
+      "spawn": 4
     },
     "test/research-standing-lint-cli.test.ts": {
       "fs": 1048,
-      "spawn": 3
+      "spawn": 2
     },
     "test/research-workflow-denial-cli.test.ts": {
       "fs": 8851,
-      "spawn": 105
+      "spawn": 53
     },
     "test/research-workflow-e2e-cli.test.ts": {
       "fs": 5682,
-      "spawn": 64
+      "spawn": 32
     },
     "test/research-workflow-projection-genericity.test.ts": {
       "fs": 410,
-      "spawn": 7
+      "spawn": 4
     },
     "test/research-workflow-surface-authority.test.ts": {
       "fs": 200,
-      "spawn": 1
+      "spawn": 0
     },
     "test/research-workflow-validate.test.ts": {
       "fs": 77,
@@ -4155,7 +4155,7 @@
     },
     "test/reset-all-scopes-cli.test.ts": {
       "fs": 374,
-      "spawn": 12
+      "spawn": 8
     },
     "test/reset-plan.test.ts": {
       "fs": 423,
@@ -4163,7 +4163,7 @@
     },
     "test/reset-scope-cli.test.ts": {
       "fs": 268,
-      "spawn": 11
+      "spawn": 6
     },
     "test/resolver-code-spans.test.ts": {
       "fs": 2003,
@@ -4191,27 +4191,27 @@
     },
     "test/review-approve-drains-pending.test.ts": {
       "fs": 481,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-approve-keeps-extraction.test.ts": {
       "fs": 7272,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-approve-planner.test.ts": {
       "fs": 1833,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-approve-typed.test.ts": {
       "fs": 3998,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-cli.test.ts": {
       "fs": 2978,
-      "spawn": 21
+      "spawn": 12
     },
     "test/review-batch-embedding-recovery.test.ts": {
       "fs": 18457,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-input.test.ts": {
       "fs": 76,
@@ -4219,35 +4219,35 @@
     },
     "test/review-batch-intent-preflight.test.ts": {
       "fs": 1515,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-mutation-gate.test.ts": {
       "fs": 1970,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-preconditions.test.ts": {
       "fs": 2609,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-publication.test.ts": {
       "fs": 5126,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-recovery.test.ts": {
       "fs": 9260,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-sources.test.ts": {
       "fs": 2869,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch-targets.test.ts": {
       "fs": 5190,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-batch.test.ts": {
       "fs": 7680,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-candidate-durability.test.ts": {
       "fs": 1203,
@@ -4271,31 +4271,31 @@
     },
     "test/review-deletion-authority-final11.test.ts": {
       "fs": 527,
-      "spawn": 5
+      "spawn": 2
     },
     "test/review-embedding-intent.test.ts": {
       "fs": 841,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-integration.test.ts": {
       "fs": 1350,
-      "spawn": 15
+      "spawn": 12
     },
     "test/review-lock.test.ts": {
       "fs": 2266,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-policy-cli.test.ts": {
       "fs": 2258,
-      "spawn": 12
+      "spawn": 7
     },
     "test/review-policy-compile.test.ts": {
-      "fs": 6921,
-      "spawn": 1
+      "fs": 6920,
+      "spawn": 0
     },
     "test/review-policy-source-state.test.ts": {
       "fs": 6440,
-      "spawn": 1
+      "spawn": 0
     },
     "test/review-policy.test.ts": {
       "fs": 0,
@@ -4303,19 +4303,19 @@
     },
     "test/review-provenance-integration.test.ts": {
       "fs": 369,
-      "spawn": 6
+      "spawn": 3
     },
     "test/review-reject-embedding-intent.test.ts": {
       "fs": 21601,
-      "spawn": 8
+      "spawn": 4
     },
     "test/review.test.ts": {
       "fs": 4029,
-      "spawn": 1
+      "spawn": 0
     },
     "test/rm-frozen-page-rebuild.test.ts": {
       "fs": 2153,
-      "spawn": 14
+      "spawn": 7
     },
     "test/rm-integration.test.ts": {
       "fs": 1111,
@@ -4335,7 +4335,7 @@
     },
     "test/rule-language-state.test.ts": {
       "fs": 465,
-      "spawn": 2
+      "spawn": 1
     },
     "test/rule-validation.test.ts": {
       "fs": 0,
@@ -4371,11 +4371,11 @@
     },
     "test/scoped-refresh-deleted-exclusion.test.ts": {
       "fs": 4996,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk-relation-lifecycle.test.ts": {
       "fs": 1549,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/acceptance.test.ts": {
       "fs": 170,
@@ -4411,7 +4411,7 @@
     },
     "test/sdk/record-operations.test.ts": {
       "fs": 1409,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/source-api.test.ts": {
       "fs": 35,
@@ -4419,23 +4419,23 @@
     },
     "test/sdk/staging.test.ts": {
       "fs": 616,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/workflow-action-run-sdk.test.ts": {
       "fs": 136,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/workflow-facade.test.ts": {
       "fs": 216,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/workflow-lifecycle-sdk.test.ts": {
       "fs": 1120,
-      "spawn": 1
+      "spawn": 0
     },
     "test/sdk/workflow-submit-sdk.test.ts": {
       "fs": 463,
-      "spawn": 1
+      "spawn": 0
     },
     "test/search-embedding-degrade.test.ts": {
       "fs": 161,
@@ -4451,7 +4451,7 @@
     },
     "test/second-profile-genericity-gate.test.ts": {
       "fs": 1349,
-      "spawn": 1
+      "spawn": 0
     },
     "test/seed-pages-committed-slugs.test.ts": {
       "fs": 11,
@@ -4459,7 +4459,7 @@
     },
     "test/seed-pages-early-return.test.ts": {
       "fs": 1137,
-      "spawn": 1
+      "spawn": 0
     },
     "test/seed-pages-slug-dedup.test.ts": {
       "fs": 14,
@@ -4483,11 +4483,11 @@
     },
     "test/source-review-generation.test.ts": {
       "fs": 262,
-      "spawn": 1
+      "spawn": 0
     },
     "test/source-review-nested.test.ts": {
       "fs": 666,
-      "spawn": 1
+      "spawn": 0
     },
     "test/source-review-prototype.test.ts": {
       "fs": 720,
@@ -4503,7 +4503,7 @@
     },
     "test/sources-section-integration.test.ts": {
       "fs": 2244,
-      "spawn": 18
+      "spawn": 9
     },
     "test/sources-section.test.ts": {
       "fs": 0,
@@ -4515,7 +4515,7 @@
     },
     "test/sources/recursive-access.test.ts": {
       "fs": 422,
-      "spawn": 2
+      "spawn": 1
     },
     "test/sources/removal-plan.test.ts": {
       "fs": 0,
@@ -4543,7 +4543,7 @@
     },
     "test/stage-timing-cli.test.ts": {
       "fs": 1864,
-      "spawn": 12
+      "spawn": 7
     },
     "test/stage-timing.test.ts": {
       "fs": 31,
@@ -4559,7 +4559,7 @@
     },
     "test/state-reset-cli.test.ts": {
       "fs": 236,
-      "spawn": 13
+      "spawn": 8
     },
     "test/state-shape-validation.test.ts": {
       "fs": 119,
@@ -4599,19 +4599,19 @@
     },
     "test/storage/artifact-apply-binding.test.ts": {
       "fs": 1665,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/artifact-evidence-specs-binding.test.ts": {
       "fs": 493,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/artifact-health-binding.test.ts": {
       "fs": 2038,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/artifact-members-binding.test.ts": {
       "fs": 3412,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/artifact-resolver-binding.test.ts": {
       "fs": 0,
@@ -4699,11 +4699,11 @@
     },
     "test/storage/compile-run-binding.test.ts": {
       "fs": 2431,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/compile-tail.test.ts": {
       "fs": 1488,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/connector-config-binding.test.ts": {
       "fs": 79,
@@ -4711,11 +4711,11 @@
     },
     "test/storage/connector-rate-binding.test.ts": {
       "fs": 70,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/connector-rate-legacy.test.ts": {
       "fs": 450,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/connector-run-binding.test.ts": {
       "fs": 0,
@@ -4867,7 +4867,7 @@
     },
     "test/storage/event-head-legacy.test.ts": {
       "fs": 328,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/event-read-binding.test.ts": {
       "fs": 0,
@@ -4879,7 +4879,7 @@
     },
     "test/storage/evidence-capture-binding.test.ts": {
       "fs": 1508,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/executor-held-lock-binding.test.ts": {
       "fs": 573,
@@ -4895,7 +4895,7 @@
     },
     "test/storage/export-profile-block-binding.test.ts": {
       "fs": 734,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/export-run-binding.test.ts": {
       "fs": 430,
@@ -4903,7 +4903,7 @@
     },
     "test/storage/gated-provenance-health-binding.test.ts": {
       "fs": 1248,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/handle-leaves.test.ts": {
       "fs": 213,
@@ -4911,7 +4911,7 @@
     },
     "test/storage/handoff-binding.test.ts": {
       "fs": 5002,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/host-registry-reads-binding.test.ts": {
       "fs": 13,
@@ -4959,7 +4959,7 @@
     },
     "test/storage/lifecycle-apply-binding.test.ts": {
       "fs": 1322,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/lifecycle-classifier-binding.test.ts": {
       "fs": 229,
@@ -4975,7 +4975,7 @@
     },
     "test/storage/lifecycle-gate-binding.test.ts": {
       "fs": 2283,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/lifecycle-scan-binding.test.ts": {
       "fs": 555,
@@ -5007,15 +5007,15 @@
     },
     "test/storage/lint-fix-proposal-binding.test.ts": {
       "fs": 183,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/lint-pages-binding.test.ts": {
       "fs": 86,
       "spawn": 0
     },
     "test/storage/lint-reads.test.ts": {
-      "fs": 487,
-      "spawn": 1
+      "fs": 486,
+      "spawn": 0
     },
     "test/storage/lint-rules-binding.test.ts": {
       "fs": 483,
@@ -5031,11 +5031,11 @@
     },
     "test/storage/lock-gate-binding.test.ts": {
       "fs": 225,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/lock-leaves.test.ts": {
       "fs": 175,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/lock-publication-binding.test.ts": {
       "fs": 67,
@@ -5055,7 +5055,7 @@
     },
     "test/storage/okf-bundle-binding.test.ts": {
       "fs": 647,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/okf-bundle-io.test.ts": {
       "fs": 177,
@@ -5063,11 +5063,11 @@
     },
     "test/storage/okf-import-binding.test.ts": {
       "fs": 595,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/okf-profile-blocks-binding.test.ts": {
       "fs": 397,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/operation-apply-binding.test.ts": {
       "fs": 5471,
@@ -5119,11 +5119,11 @@
     },
     "test/storage/operation-record-effect-binding.test.ts": {
       "fs": 7175,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/operation-recovery-binding.test.ts": {
       "fs": 3379,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/operation-relation-adapter-binding.test.ts": {
       "fs": 484,
@@ -5187,7 +5187,7 @@
     },
     "test/storage/portable-pending-gate-binding.test.ts": {
       "fs": 429,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/preparation-attempt-execution-binding.test.ts": {
       "fs": 420,
@@ -5195,7 +5195,7 @@
     },
     "test/storage/preparation-cancel-settlement-binding.test.ts": {
       "fs": 6273,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/preparation-control-verbs-binding.test.ts": {
       "fs": 0,
@@ -5215,7 +5215,7 @@
     },
     "test/storage/preparation-gate-handover.test.ts": {
       "fs": 1873,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/preparation-gate-moves-binding.test.ts": {
       "fs": 0,
@@ -5227,7 +5227,7 @@
     },
     "test/storage/preparation-handoff-settlement-binding.test.ts": {
       "fs": 4138,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/preparation-initial-inputs-binding.test.ts": {
       "fs": 0,
@@ -5299,7 +5299,7 @@
     },
     "test/storage/product-action-binding.test.ts": {
       "fs": 1152,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/product-apply-binding.test.ts": {
       "fs": 0,
@@ -5311,7 +5311,7 @@
     },
     "test/storage/product-install-activation-io.test.ts": {
       "fs": 10226,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/product-package-commit-binding.test.ts": {
       "fs": 39,
@@ -5327,7 +5327,7 @@
     },
     "test/storage/profile-install-binding.test.ts": {
       "fs": 99,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/profile-lint-binding.test.ts": {
       "fs": 157,
@@ -5351,7 +5351,7 @@
     },
     "test/storage/project-lock-binding.test.ts": {
       "fs": 392,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/project-state-binding.test.ts": {
       "fs": 0,
@@ -5383,7 +5383,7 @@
     },
     "test/storage/query-publication-binding.test.ts": {
       "fs": 1087,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/query-reads.test.ts": {
       "fs": 351,
@@ -5419,7 +5419,7 @@
     },
     "test/storage/relation-append-binding.test.ts": {
       "fs": 1479,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/relation-import-binding.test.ts": {
       "fs": 0,
@@ -5439,15 +5439,15 @@
     },
     "test/storage/residual-reads.test.ts": {
       "fs": 563,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/review-approve-binding.test.ts": {
       "fs": 1370,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/review-batch-approve-binding.test.ts": {
       "fs": 749,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/review-batch-plan-binding.test.ts": {
       "fs": 0,
@@ -5531,7 +5531,7 @@
     },
     "test/storage/source-mutation-journeys-binding.test.ts": {
       "fs": 504,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/source-review-binding.test.ts": {
       "fs": 234,
@@ -5595,7 +5595,7 @@
     },
     "test/storage/viewer-projection-binding.test.ts": {
       "fs": 206,
-      "spawn": 1
+      "spawn": 0
     },
     "test/storage/viewer-snapshot-binding.test.ts": {
       "fs": 0,
@@ -5619,15 +5619,15 @@
     },
     "test/storage/workflow-status-binding.test.ts": {
       "fs": 539,
-      "spawn": 1
+      "spawn": 0
     },
     "test/superset-proof-e2e-cli.test.ts": {
       "fs": 11805,
-      "spawn": 92
+      "spawn": 47
     },
     "test/system-policy-invalidation.test.ts": {
       "fs": 2909,
-      "spawn": 1
+      "spawn": 0
     },
     "test/system-policy.test.ts": {
       "fs": 0,
@@ -5647,11 +5647,11 @@
     },
     "test/template-publish-build.test.ts": {
       "fs": 25663,
-      "spawn": 1
+      "spawn": 0
     },
     "test/template-publish-cli-e2e.test.ts": {
       "fs": 1901,
-      "spawn": 12
+      "spawn": 7
     },
     "test/template-publish-init.test.ts": {
       "fs": 421,
@@ -5731,7 +5731,7 @@
     },
     "test/trust-planner-default.test.ts": {
       "fs": 450,
-      "spawn": 1
+      "spawn": 0
     },
     "test/trust-planner-unified.test.ts": {
       "fs": 14,
@@ -5739,15 +5739,15 @@
     },
     "test/trust-planner.test.ts": {
       "fs": 1217,
-      "spawn": 1
+      "spawn": 0
     },
     "test/trust-promote.test.ts": {
       "fs": 857,
-      "spawn": 1
+      "spawn": 0
     },
     "test/trust-relation-write.test.ts": {
       "fs": 783,
-      "spawn": 1
+      "spawn": 0
     },
     "test/trust-staged-change.test.ts": {
       "fs": 0,
@@ -5755,7 +5755,7 @@
     },
     "test/trust-staging.test.ts": {
       "fs": 3309,
-      "spawn": 1
+      "spawn": 0
     },
     "test/utils/fs-presence.test.ts": {
       "fs": 16,
@@ -5803,7 +5803,7 @@
     },
     "test/verbose-compile.test.ts": {
       "fs": 514,
-      "spawn": 4
+      "spawn": 2
     },
     "test/verbose-json-purity.test.ts": {
       "fs": 174,
@@ -5883,7 +5883,7 @@
     },
     "test/viewer-entity-context.test.ts": {
       "fs": 1290,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-entity-fields-contract.test.ts": {
       "fs": 36,
@@ -5923,11 +5923,11 @@
     },
     "test/viewer-graph-invalid-page.test.ts": {
       "fs": 442,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-graph-profile-filter.test.ts": {
       "fs": 545,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-graph-theming.test.ts": {
       "fs": 8,
@@ -6019,7 +6019,7 @@
     },
     "test/viewer-process-authority.test.ts": {
       "fs": 239,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-profile-schema.test.ts": {
       "fs": 0,
@@ -6111,7 +6111,7 @@
     },
     "test/viewer-snapshot-typed-graph.test.ts": {
       "fs": 945,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-snapshot.test.ts": {
       "fs": 323,
@@ -6135,7 +6135,7 @@
     },
     "test/viewer-stage-output.test.ts": {
       "fs": 4669,
-      "spawn": 9
+      "spawn": 8
     },
     "test/viewer-theme-contrast.test.ts": {
       "fs": 3,
@@ -6235,11 +6235,11 @@
     },
     "test/viewer-workflow-pdf.test.ts": {
       "fs": 3129,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-workflow-run-facts.test.ts": {
       "fs": 688,
-      "spawn": 1
+      "spawn": 0
     },
     "test/viewer-workflow-run-hints.test.ts": {
       "fs": 0,
@@ -6247,11 +6247,11 @@
     },
     "test/viewer-workflow-run.test.ts": {
       "fs": 7004,
-      "spawn": 4
+      "spawn": 3
     },
     "test/viewer-workflow-runs.test.ts": {
       "fs": 421,
-      "spawn": 5
+      "spawn": 4
     },
     "test/viewer-workflows-route.test.ts": {
       "fs": 36,
@@ -6287,7 +6287,7 @@
     },
     "test/workflow-action-artifact-origin.test.ts": {
       "fs": 1954,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-action-cli.test.ts": {
       "fs": 71,
@@ -6299,59 +6299,59 @@
     },
     "test/workflow-action-run-cli.test.ts": {
       "fs": 765,
-      "spawn": 18
+      "spawn": 13
     },
     "test/workflow-action-status-availability.test.ts": {
       "fs": 394,
-      "spawn": 2
+      "spawn": 1
     },
     "test/workflow-action-status-redact.test.ts": {
       "fs": 1637,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-active-run-quota.test.ts": {
       "fs": 24396,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt-apply.test.ts": {
       "fs": 1375,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt-cli.test.ts": {
       "fs": 848,
-      "spawn": 17
+      "spawn": 11
     },
     "test/workflow-adapt-orphan.test.ts": {
       "fs": 776,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt-outputs.test.ts": {
       "fs": 625,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt-pending.test.ts": {
       "fs": 520,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt-sdk.test.ts": {
       "fs": 383,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-adapt.test.ts": {
       "fs": 461,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-advance-artifact-stage.test.ts": {
       "fs": 502,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-advance.test.ts": {
-      "fs": 4476,
-      "spawn": 1
+      "fs": 4458,
+      "spawn": 0
     },
     "test/workflow-artifact-immutable.test.ts": {
       "fs": 2165,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-authority.test.ts": {
       "fs": 0,
@@ -6359,15 +6359,15 @@
     },
     "test/workflow-auto-fail-denial.test.ts": {
       "fs": 1540,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-cancel-resume.test.ts": {
       "fs": 2083,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-cli.test.ts": {
       "fs": 260,
-      "spawn": 8
+      "spawn": 6
     },
     "test/workflow-digest.test.ts": {
       "fs": 0,
@@ -6379,11 +6379,11 @@
     },
     "test/workflow-gate-error-parity.test.ts": {
       "fs": 559,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-gate.test.ts": {
       "fs": 3561,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-gates.test.ts": {
       "fs": 0,
@@ -6391,7 +6391,7 @@
     },
     "test/workflow-history-boundary.test.ts": {
       "fs": 552,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-human-gate-confirm.test.ts": {
       "fs": 0,
@@ -6399,11 +6399,11 @@
     },
     "test/workflow-human-input-cli.test.ts": {
       "fs": 407,
-      "spawn": 4
+      "spawn": 2
     },
     "test/workflow-human-input.test.ts": {
       "fs": 5206,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-input-bounds.test.ts": {
       "fs": 4,
@@ -6411,15 +6411,15 @@
     },
     "test/workflow-input-json-parity.test.ts": {
       "fs": 1164,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-lifecycle-cli.test.ts": {
       "fs": 2718,
-      "spawn": 56
+      "spawn": 32
     },
     "test/workflow-lifecycle-evidence-parity.test.ts": {
       "fs": 2286,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-list.test.ts": {
       "fs": 23,
@@ -6431,7 +6431,7 @@
     },
     "test/workflow-page-typed-validation.test.ts": {
       "fs": 1807,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-park-message.test.ts": {
       "fs": 0,
@@ -6443,55 +6443,55 @@
     },
     "test/workflow-process-authority.test.ts": {
       "fs": 6184,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-projection-cli.test.ts": {
       "fs": 339,
-      "spawn": 7
+      "spawn": 5
     },
     "test/workflow-projection-confine.test.ts": {
       "fs": 172,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-projection-freshness.test.ts": {
       "fs": 721,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-projection-sdk.test.ts": {
       "fs": 324,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-projection.test.ts": {
       "fs": 908,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-refused.test.ts": {
       "fs": 8304,
-      "spawn": 3
+      "spawn": 1
     },
     "test/workflow-resume-clears-retry.test.ts": {
       "fs": 1674,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-action-capture.test.ts": {
       "fs": 872,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-action-input.test.ts": {
       "fs": 164,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-action-scope.test.ts": {
       "fs": 1089,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-action.test.ts": {
       "fs": 4064,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-durability.test.ts": {
       "fs": 1013,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-integrity.test.ts": {
       "fs": 762,
@@ -6499,7 +6499,7 @@
     },
     "test/workflow-run-lint.test.ts": {
       "fs": 527,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-run-migrate.test.ts": {
       "fs": 144,
@@ -6507,43 +6507,43 @@
     },
     "test/workflow-run-ownership.test.ts": {
       "fs": 1642,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-show-events-cli.test.ts": {
       "fs": 178,
-      "spawn": 6
+      "spawn": 5
     },
     "test/workflow-show-events.test.ts": {
       "fs": 278,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-stage-output-artifact.test.ts": {
       "fs": 2253,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-stage-output-idempotent.test.ts": {
       "fs": 985,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-stage-output-kinds.test.ts": {
       "fs": 3157,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-stage-output.test.ts": {
-      "fs": 2002,
-      "spawn": 1
+      "fs": 1990,
+      "spawn": 0
     },
     "test/workflow-start-status.test.ts": {
       "fs": 1470,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-status-artifact-hint.test.ts": {
       "fs": 270,
-      "spawn": 4
+      "spawn": 2
     },
     "test/workflow-status-next-hint.test.ts": {
       "fs": 777,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-store-availability.test.ts": {
       "fs": 57,
@@ -6559,39 +6559,39 @@
     },
     "test/workflow-subject-gate-cli.test.ts": {
       "fs": 1820,
-      "spawn": 2
+      "spawn": 1
     },
     "test/workflow-subject-gate.test.ts": {
       "fs": 13648,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-submit-action.test.ts": {
       "fs": 1235,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-submit-artifact-cli.test.ts": {
       "fs": 492,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-submit-artifact-subprocess.test.ts": {
       "fs": 495,
-      "spawn": 4
+      "spawn": 2
     },
     "test/workflow-submit-cli.test.ts": {
       "fs": 2342,
-      "spawn": 48
+      "spawn": 28
     },
     "test/workflow-terminal-cap-escape.test.ts": {
       "fs": 1116,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-trust-gate-staging.test.ts": {
       "fs": 1984,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-verifier-receipt.test.ts": {
       "fs": 6666,
-      "spawn": 1
+      "spawn": 0
     },
     "test/workflow-wrapper-core-identity.test.ts": {
       "fs": 15,

@@ -384,7 +384,7 @@ describe("the bound lock route reaches no disk binding", () => {
     vi.spyOn(confine, "confineUnderRoot"), vi.spyOn(confine, "safeRealpath"), vi.spyOn(diskLocations, "locationRealPath"),
     vi.spyOn(privateLeaves, "readPrivateLeafText"), vi.spyOn(privateLeaves, "createPrivateLeafExclusive"),
     vi.spyOn(privateLeaves, "linkPrivateLeafNoReplace"), vi.spyOn(diskLeaves, "removeLeaf"), vi.spyOn(publication, "publishLockRecord"),
-    vi.spyOn(lockOwner, "serializeOwner"), vi.spyOn(lockOwner, "isLockRecordStale"), vi.spyOn(fifo, "acquireKeyedFifo"),
+    vi.spyOn(lockOwner, "serializeOwner"), vi.spyOn(lockOwner, "isOwnerStale"), vi.spyOn(fifo, "acquireKeyedFifo"),
     vi.spyOn(output, "status").mockImplementation(() => {}),
   ];
 
