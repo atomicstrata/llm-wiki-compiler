@@ -21,10 +21,10 @@
  * identity checks; the FIFO non-blocking guarantee below is native-POSIX-only.
  */
 
-import { constants as fsConstants } from "node:fs";
+import { constants as fsConstants, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import { stat, realpath, lstat } from "./fs-metadata.js";
-import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
+import { NoFollowOpenError, openRegularNoFollow } from "./no-follow-open.js";
 import path from "path";
 import { safeRealpath, isInsideDir, type StrictIoOptions } from "./path-confine.js";
 
@@ -60,21 +60,14 @@ type OpenedCappedHandle = { kind: "absent" } | { kind: "unavailable" } | { kind:
  * @param maxBytes - The inclusive byte ceiling; a larger leaf is `unavailable`.
  */
 async function openCappedNoFollow(filePath: string, maxBytes: number): Promise<OpenedCappedHandle> {
-  let handle: FileHandle;
+  let opened: Awaited<ReturnType<typeof openRegularNoFollow>>;
   try {
-    handle = await openFileNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    opened = await openRegularNoFollow(filePath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
   } catch (err) {
     return (err as NodeJS.ErrnoException)?.code === "ENOENT" ? { kind: "absent" } : { kind: "unavailable" };
   }
-  try {
-    const st = await handle.stat();
-    if (st.isFile() && st.size <= maxBytes) return { kind: "ok", handle };
-    await handle.close().catch(() => {});
-    return { kind: "unavailable" };
-  } catch {
-    await handle.close().catch(() => {});
-    return { kind: "unavailable" };
-  }
+  if (opened.stat.size <= maxBytes) return { kind: "ok", handle: opened.handle };
+  return closeReturning(opened.handle, { kind: "unavailable" });
 }
 
 /**
@@ -177,8 +170,31 @@ function classifyLeafOpenError(err: unknown): "absent" | "unavailable" {
 async function passesPostOpenChecks(leaf: string, expectedReal: string, canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<boolean> {
   const parentReal = await realpath(path.dirname(leaf)).catch(() => null);
   if (parentReal !== expectedReal) return false;
+  return isCanonicalLeafOf(canonicalLeaf, opened);
+}
+
+/** The INODE BINDING half of {@link passesPostOpenChecks}: the canonical leaf, not followed, is the opened file. */
+async function isCanonicalLeafOf(canonicalLeaf: string, opened: { dev: number; ino: number }): Promise<boolean> {
   const canonical = await lstat(canonicalLeaf).catch(() => null);
   return canonical !== null && canonical.dev === opened.dev && canonical.ino === opened.ino;
+}
+
+/**
+ * The canonical form of the in-root `lexicalPath` when `observedReal` (a realpath
+ * just taken of it) equals that form, else null. This is
+ * `resolveExpectedReal(root, lexicalPath) === observedReal` without resolving the
+ * root when it cannot change the answer: a realpath result contains no symlink,
+ * so when it equals the lexical path, every prefix of that path — the root among
+ * them, since `lexicalPath` must lie lexically inside it — resolved to
+ * itself in that same lookup, and `realpath(root)` would have rebuilt exactly
+ * `lexicalPath`. Only a root given in another form (`/var` for `/private/var`)
+ * is resolved, and then compared exactly as before.
+ */
+export async function expectedRealMatching(root: string, lexicalPath: string, observedReal: string | null): Promise<string | null> {
+  if (observedReal === null || !isInsideDir(lexicalPath, path.resolve(root))) return null;
+  if (observedReal === lexicalPath) return lexicalPath;
+  const expected = await resolveExpectedReal(root, lexicalPath);
+  return expected === observedReal ? expected : null;
 }
 
 /** A confirmed-in-root, confirmed-regular open handle, or the absent/unavailable outcome that stopped short of one. */
@@ -204,25 +220,27 @@ async function closeReturning<T>(handle: FileHandle, result: T): Promise<T> {
  * `confirmed` (i.e. already-confinement-proven) open. On `confirmed` the handle
  * is STILL OPEN for the caller to read (or not) and close; every other outcome
  * has already closed it. `expectedDir` is a LEXICAL in-root join (see
- * {@link resolveExpectedReal}).
+ * {@link resolveExpectedReal}). The open's own `fstat` (which proved the handle
+ * regular) is the identity checked; the root is resolved only when the parent's
+ * realpath is not already the lexical expected dir ({@link expectedRealMatching}).
  */
 export async function openConfinedLeaf(root: string, leaf: string, expectedDir: string, opts: ReadLeafOptions = {}): Promise<ConfinedLeafOpen> {
-  const expectedReal = await resolveExpectedReal(root, expectedDir);
-  if (expectedReal === null) return { kind: "unavailable" };
-  const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
-  let handle: FileHandle;
+  const lexicalExpected = path.resolve(expectedDir);
+  if (!isInsideDir(lexicalExpected, path.resolve(root))) return { kind: "unavailable" };
+  let handle: FileHandle, opened: Stats;
   try {
-    handle = await openFileNoFollow(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    ({ handle, stat: opened } = await openRegularNoFollow(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
   } catch (err) {
     if (classifyLeafOpenError(err) !== "absent") return { kind: "unavailable" };
-    return await hasCanonicalExistingAncestor(expectedDir, expectedReal) ? { kind: "absent" } : { kind: "unavailable" };
+    return await hasCanonicalExistingAncestor(root, lexicalExpected) ? { kind: "absent" } : { kind: "unavailable" };
   }
   try {
-    const opened = await handle.stat();
-    if (!opened.isFile()) return await closeReturning(handle, { kind: "unavailable" });
     if (opts.requireSingleLink && opened.nlink !== 1) return await closeReturning(handle, { kind: "unavailable" });
     if (opts.afterOpenForTest) await opts.afterOpenForTest();
-    if (!(await passesPostOpenChecks(leaf, expectedReal, canonicalLeaf, opened))) return await closeReturning(handle, { kind: "unavailable" });
+    const expectedReal = await expectedRealMatching(root, lexicalExpected, await realpath(path.dirname(leaf)).catch(() => null));
+    if (expectedReal === null) return await closeReturning(handle, { kind: "unavailable" });
+    const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
+    if (!(await isCanonicalLeafOf(canonicalLeaf, opened))) return await closeReturning(handle, { kind: "unavailable" });
     return { kind: "confirmed", handle, size: opened.size, dev: opened.dev, ino: opened.ino,
       mode: opened.mode, uid: opened.uid, nlink: opened.nlink, leaf, expectedReal, canonicalLeaf,
       beforePostReadCheckForTest: opts.beforePostReadCheckForTest };
@@ -267,25 +285,31 @@ export async function readConfirmedBufferOrElse<T>(opened: Extract<ConfinedLeafO
   }
 }
 
-/** Treat ENOENT as clean absence only below the exact canonical ancestor chain. */
-async function hasCanonicalExistingAncestor(expectedDir: string, expectedReal: string): Promise<boolean> {
-  let lexical = path.resolve(expectedDir), canonical = expectedReal;
-  for (;;) {
-    try {
-      return await realpath(lexical) === canonical;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
-      try {
-        await lstat(lexical);
-        return false;
-      } catch (lstatError) {
-        if ((lstatError as NodeJS.ErrnoException).code !== "ENOENT") return false;
-      }
-    }
-    const parent = path.dirname(lexical);
-    if (parent === lexical) return false;
-    lexical = parent;
-    canonical = path.dirname(canonical);
+/**
+ * Treat ENOENT as clean absence only below the exact canonical ancestor chain:
+ * the nearest existing ancestor of `lexicalExpected`, at or below the root, must
+ * resolve to its canonical in-root form ({@link expectedRealMatching}). A missing
+ * root is never a clean absence.
+ */
+async function hasCanonicalExistingAncestor(root: string, lexicalExpected: string): Promise<boolean> {
+  const lexicalRoot = path.resolve(root);
+  for (let lexical = lexicalExpected; isInsideDir(lexical, lexicalRoot); lexical = path.dirname(lexical)) {
+    const observed = await existingRealpath(lexical);
+    if (observed === "fault") return false;
+    if (observed !== "missing") return await expectedRealMatching(root, lexical, observed) !== null;
+    if (lexical === lexicalRoot) return false;
+  }
+  return false;
+}
+
+/** realpath of `lexical`; "missing" only when neither it nor an entry at it exists, "fault" otherwise. */
+async function existingRealpath(lexical: string): Promise<string | "missing" | "fault"> {
+  try {
+    return await realpath(lexical);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") return "fault";
+    return lstat(lexical).then(() => "fault" as const, (lstatError: NodeJS.ErrnoException) =>
+      lstatError.code === "ENOENT" ? "missing" as const : "fault" as const);
   }
 }
 
@@ -395,15 +419,13 @@ export async function readConfinedPageWith<T>(
 ): Promise<{ kind: "ok"; value: T } | Exclude<ConfinedPageRead, { kind: "ok" }>> {
   const precheck = await safeRealpath(capturedRealpath, opts);
   if (precheck !== capturedRealpath || !isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
-  let handle: FileHandle;
+  let handle: FileHandle, opened: Stats;
   try {
-    handle = await openFileNoFollow(capturedRealpath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    ({ handle, stat: opened } = await openRegularNoFollow(capturedRealpath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
   } catch (err) {
     return classifyConfinedError(err as NodeJS.ErrnoException);
   }
   try {
-    const opened = await handle.stat();
-    if (!opened.isFile()) return { kind: "absent" };
     if (opts.afterOpenForTest) await opts.afterOpenForTest();
     if (!(await stillBoundToHandle(capturedRealpath, expectedCanonicalDir, opened, opts))) return { kind: "absent" };
     return { kind: "ok", value: await read(handle) };
