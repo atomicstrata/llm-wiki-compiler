@@ -27,7 +27,10 @@ const EXTRACTION_MAX_TOKENS = 16_000;
 
 /** One record as one source names it. */
 export interface ExtractedRecord {
+  /** Who the record is: the fullest correct name the source supports. */
   name: string;
+  /** Every way the source writes it (nicknames, misspellings, "mama"), as written. */
+  writtenAs?: string[];
   fields: Record<string, unknown>;
   lines: LineRange[];
 }
@@ -149,14 +152,19 @@ function numberedChunks(lines: string[]): string[] {
   return chunks;
 }
 
-/** The request for one chunk: what to list, the owner to leave out, and the numbered text. */
+/** The request for one chunk: what to list, how to name it, the owner to leave out, and the numbered text. */
 export function extractionRequest(types: ExtractableType[], file: string, chunk: string, ownerNames: string[]): ExtractRequest {
   const kinds = types.map(({ type, def, fields }) => {
     const guidance = fields.map(([name]) => def.extract?.fields?.[name] ? `  - ${name}: ${def.extract.fields[name]}` : "").filter(Boolean);
     return [`- ${type}: ${def.extract!.description}`, ...guidance].join("\n");
   }).join("\n");
+  const ownerName = ownerNames[0] ?? "the owner";
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
-  const system = `List every record of each kind below that the source names.\n${kinds}\nGive each name exactly as written. Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
+  const system = `List every record of each kind below that the source names.
+${kinds}
+name: who it is, as the fullest correctly spelled name the source supports. Use the full name when the source shows who a nickname, misspelling or first name means. Name someone the source calls only by a relation (mama, my brother) by that relation, e.g. "${ownerName}'s mother".
+writtenAs: every way the source writes them, exactly as written.
+Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
   return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)], maxTokens: EXTRACTION_MAX_TOKENS };
 }
 
@@ -170,7 +178,8 @@ export function parseRecords(answer: string, types: ExtractableType[], lineCount
       const lines = (Array.isArray(item.lines) ? item.lines as LineRange[] : [])
         .filter((range) => Number.isInteger(range?.start) && Number.isInteger(range?.end) && range.start >= 1 && range.start <= range.end && range.end <= lineCount);
       if (!name || lines.length === 0) return [];
-      return [{ name, fields: Object.fromEntries(fields.map(([field]) => [field, item[field] ?? null])), lines }];
+      const writtenAs = Array.isArray(item.writtenAs) ? [...new Set(item.writtenAs.filter((form): form is string => typeof form === "string").map((form) => form.trim()).filter(Boolean))] : [];
+      return [{ name, writtenAs, fields: Object.fromEntries(fields.map(([field]) => [field, item[field] ?? null])), lines }];
     });
     return [type, records];
   }));

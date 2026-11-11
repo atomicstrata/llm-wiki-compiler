@@ -27,8 +27,8 @@ export function personProfile(description = "A person the owner knows"): Profile
   } as unknown as ProfilePack;
 }
 
-/** An extracted person, as the fake model reports one. */
-export interface FakePerson { name: string; relationship?: string; line: number }
+/** An extracted person, as the fake model reports one: who, how the source wrote them (default: the name), and where. */
+export interface FakePerson { name: string; writtenAs?: string[]; relationship?: string; line: number }
 
 /** In-memory steps over `sources`; `people` says who each source names. */
 export function memoryEntitySteps(sources: Record<string, string>, people: Record<string, FakePerson[]>, registry: AliasRegistry = { entities: {} }) {
@@ -66,7 +66,7 @@ function answer(request: ExtractRequest, people: Record<string, FakePerson[]>, e
     const file = /--- SOURCE: (\S+) ---/.exec(content)![1];
     extractions.push(file);
     return JSON.stringify({ person: (people[file] ?? []).map((person) => ({
-      name: person.name, relationship: person.relationship ?? null, aliases: [], organization: null, lines: [{ start: person.line, end: person.line }],
+      name: person.name, writtenAs: person.writtenAs ?? [person.name], relationship: person.relationship ?? null, aliases: [], organization: null, lines: [{ start: person.line, end: person.line }],
     })) });
   }
   const name = /Records that mention (.+):/.exec(content)![1];

@@ -53,11 +53,11 @@ describe("entity pages when things go wrong", () => {
 
   it("writes the name under the type's own title field", async () => {
     const named = personProfile();
-    named.entities.person.titleField = "name";
-    named.entities.person.fields!.name = { type: "string", required: true };
+    named.entities.person.titleField = "fullName";
+    named.entities.person.fields!.fullName = { type: "string", required: true };
     const memory = memoryEntitySteps({ "chat.md": CHAT }, PEOPLE);
     expect((await generateEntitiesWith(memory.steps, config(named))).errors).toEqual([]);
-    expect(parseFrontmatter(memory.pages.get("person/ana")!).meta).toMatchObject({ title: "Ana", name: "Ana" });
+    expect(parseFrontmatter(memory.pages.get("person/ana")!).meta).toMatchObject({ title: "Ana", fullName: "Ana" });
   });
 });
 

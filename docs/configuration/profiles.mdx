@@ -343,8 +343,12 @@ optional guidance per declared field. Both are prompt text only.
 }
 ```
 
-Each source is read once for records of every opted-in type: the name as
-written, the declared fields, and the line numbers that mention the record.
+Each source is read once for records of every opted-in type. For each record
+the model answers who it is (`name`: the fullest correctly spelled name the
+source supports, or a relation such as "Sam's mother" for someone called only
+"mama"), how the source writes it (`writtenAs`: "Tommmy", "mama"), the declared
+fields, and the line numbers that mention it. A type with `extract` cannot
+declare fields named `name`, `writtenAs` or `lines`.
 A long source is read in chunks of about 60,000 characters. Answers are kept
 in `.llmwiki/entities.json`, per chunk, keyed by the chunk's text and the types'
 structure (type names, field names, field types, enum values). A compile
@@ -375,6 +379,9 @@ compile and are never replaced or removed.
 
 ### Who is who: `.llmwiki/aliases.json`
 
+Records are grouped by `name`, so a misspelling, a nickname or a relation the
+source makes clear joins the right record, and every spelling becomes one of
+its `aliases`. A registered name also matches a mention written that way.
 Names that differ only in case, accents or spacing are one record. Any other
 two names are two records until you say otherwise; compile never guesses. Two
 names that make the same id (`Anne-Marie` and `Anne Marie`) stay two records,

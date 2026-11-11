@@ -36,6 +36,12 @@ describe("entity pages", () => {
     expect(ana.body).toContain("- Mentioned. ^[chat.md:1-1]");
   });
 
+  it("writes how the sources spelled a person as aliases", async () => {
+    const memory = memoryEntitySteps({ "chat.md": CHAT }, { "chat.md": [{ name: "Ana Lee", writtenAs: ["Annna", "ana"], line: 2 }] }, OWNER);
+    await generateEntitiesWith(memory.steps, config());
+    expect(parseFrontmatter(memory.pages.get("person/ana-lee")!).meta.aliases).toEqual(["Annna", "ana"]);
+  });
+
   it("lists each record's days and flags possible duplicates without merging them", async () => {
     const memory = memoryEntitySteps({ "chat.md": CHAT, "note.md": NOTE }, PEOPLE, OWNER);
     await generateEntitiesWith(memory.steps, config());

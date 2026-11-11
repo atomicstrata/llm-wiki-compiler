@@ -204,10 +204,10 @@ function reportStrayCitations(ctx: TypeContext, id: string, body: string, draft:
   if (stray > 0) ctx.result.errors.push(`Page "${ctx.type.type}/${id}" cites ${stray} span(s) outside the lines it was written from`);
 }
 
-/** Every other name the record went by, with any `aliases` the sources gave. */
+/** Every other name the record went by, how the sources wrote it, and any `aliases` the sources gave. */
 function aliasesOf(record: ResolvedRecord, title: string, fields: Record<string, unknown>): string[] {
   const given = Array.isArray(fields.aliases) ? fields.aliases as string[] : [];
-  return [...new Set([...record.names, ...given])].filter((name) => name !== title);
+  return [...new Set([...record.names, ...record.writtenAs, ...given])].filter((name) => name !== title);
 }
 
 /** The agreed fields without `aliases`, which the page carries from {@link aliasesOf}. */

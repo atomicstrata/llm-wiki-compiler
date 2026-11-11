@@ -3,6 +3,10 @@
  * @description Which extracted names are the same record. Wrong merges are
  * worse than duplicates, so nothing here guesses:
  *
+ *  - Extraction answers WHO each mention is (`name`, the fullest correct name the
+ *    source supports, or a relation such as "Sam's mother") separately from how
+ *    the source writes it (`writtenAs`: "Tommmy", "mama"). Records are grouped by
+ *    `name`; the spellings become the page's aliases.
  *  - The registry, `.llmwiki/aliases.json`, is the owner's word. Every name it
  *    lists under a record id is that record, and the owner's own names are never
  *    a record at all:
@@ -36,15 +40,20 @@ export interface AliasRegistry {
 /** One record as one source names it. */
 export interface Mention {
   file: string;
+  /** Who it is. */
   name: string;
+  /** How the source writes it, as written. */
+  writtenAs?: string[];
   fields: Record<string, unknown>;
   lines: LineRange[];
 }
 
-/** One record after identity: its id, every name it went by, and every mention. */
+/** One record after identity: its id, every name it went by, how the sources wrote it, and every mention. */
 export interface ResolvedRecord {
   id: string;
   names: string[];
+  /** Spellings the sources used that are not among `names`. */
+  writtenAs: string[];
   mentions: Mention[];
 }
 
@@ -135,7 +144,7 @@ export function resolveRecords(type: string, mentions: Mention[], registry: Alia
   return [...groupMentions(type, mentions, registry)].sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => ({ group, id: group.registered ?? uniqueId(recordId(group.names[0]), taken) }))
     .filter(({ group }) => !group.excluded)
-    .map(({ group, id }) => ({ id, names: group.names, mentions: group.mentions }))
+    .map(({ group, id }) => ({ id, names: group.names, writtenAs: spellingsOf(group), mentions: group.mentions }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -149,7 +158,7 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
   for (const mention of mentions) {
     const key = normalizeName(mention.name);
     if (!key || owner.has(key)) continue;
-    const registered = known.get(key);
+    const registered = known.get(key) ?? (mention.writtenAs ?? []).map((form) => known.get(normalizeName(form))).find(Boolean);
     const groupKey = registered ? `id:${registered}` : `name:${key}`;
     const group = groups.get(groupKey) ?? { registered, excluded: excluded.has(key), names: [], mentions: [] };
     if (!group.names.includes(mention.name.trim())) group.names.push(mention.name.trim());
@@ -157,6 +166,13 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
     groups.set(groupKey, group);
   }
   return groups;
+}
+
+/** The spellings a group's mentions used that are not among its names. */
+function spellingsOf(group: MentionGroup): string[] {
+  const names = new Set(group.names.map(normalizeName));
+  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).filter((form) => !names.has(normalizeName(form)));
+  return [...new Map(forms.map((form) => [normalizeName(form), form])).values()];
 }
 
 /** The registry for one type, by normalized name: the owner's names, the excluded names, and each registered name's id. */

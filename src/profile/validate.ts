@@ -194,7 +194,13 @@ function validateExtract(entityType: string, def: EntityTypeDef, canonicalDirect
     assert(def.fields?.[name] !== undefined, `entity '${entityType}' extract.fields entry '${name}' is not a declared field`);
   }
   assert(canonicalDirectory === `wiki/${entityType}`, `entity '${entityType}' with extract must use directory 'wiki/${entityType}'`);
+  for (const reserved of EXTRACTED_RECORD_KEYS) {
+    assert(def.fields?.[reserved] === undefined, `entity '${entityType}' with extract cannot declare field '${reserved}': extraction answers it for every record`);
+  }
 }
+
+/** Keys every extracted record answers, so an extracted type cannot declare them as fields. */
+const EXTRACTED_RECORD_KEYS = ["name", "writtenAs", "lines"];
 
 /** Every requiredFields entry must reference a declared field. */
 function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
