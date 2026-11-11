@@ -19,7 +19,6 @@
  * stay usable even if the asset bundle is incomplete; only `GET /` degrades.
  */
 
-import { readFile } from "fs/promises";
 import path from "path";
 
 /** Per-`assetsDir` template cache. `null` is cached too so the missing-template path doesn't hammer the disk. */
@@ -37,7 +36,7 @@ export async function loadShellTemplate(assetsDir: string): Promise<string | nul
   if (cached !== undefined) return cached;
   let bytes: string | null;
   try {
-    bytes = await readFile(path.join(assetsDir, "index.html"), "utf-8");
+    bytes = await Bun.file(path.join(assetsDir, "index.html")).text();
   } catch {
     bytes = null;
   }

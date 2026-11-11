@@ -110,6 +110,7 @@ describe("the storage functions the source writer uses", () => {
     expect([await read("page.md"), await read("created.md")]).toEqual(["short", "made"]);
     expect(await fs.readFile(path.join(base, "outside.md"), "utf-8")).toBe("written through");
     expect(await settled(overwriteLocationText(root, "x"))).toMatchObject({ code: "EISDIR" });
+    expect(await settled(overwriteLocationText(at("no-parent/x.md"), "x"))).toMatchObject({ code: "ENOENT" });
   });
 });
 

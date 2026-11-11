@@ -13,7 +13,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile, realpath } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { resolveLlmwikiOperatorRoots } from "../../operator-state/paths.js";
 
@@ -41,7 +41,7 @@ export function rootMappingFile(controlRoot: string, canonicalRoot: string): str
 /** Parse a JSON file, or `null` when it does not exist. */
 export async function readJsonFile<T>(file: string): Promise<T | null> {
   try {
-    return JSON.parse(await readFile(file, "utf8")) as T;
+    return (await Bun.file(file).json()) as T;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;

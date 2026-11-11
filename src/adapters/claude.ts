@@ -13,7 +13,6 @@
  * the timestamp range from `timestamp` fields when present.
  */
 
-import { readFile } from "fs/promises";
 import path from "path";
 import type { SessionAdapter, NormalizedSession, SessionTurn } from "./types.js";
 import { resolveSessionTitle } from "./utils.js";
@@ -80,7 +79,7 @@ export const claudeAdapter: SessionAdapter = {
 
   async detect(filePath: string): Promise<boolean> {
     if (path.extname(filePath).toLowerCase() !== CLAUDE_EXTENSION) return false;
-    const raw = await readFile(filePath, "utf-8").catch(() => "");
+    const raw = await Bun.file(filePath).text().catch(() => "");
     const firstLine = raw.split("\n")[0].trim();
     if (!firstLine.startsWith("{")) return false;
     try {
@@ -92,7 +91,7 @@ export const claudeAdapter: SessionAdapter = {
   },
 
   async parse(filePath: string): Promise<NormalizedSession> {
-    const raw = await readFile(filePath, "utf-8");
+    const raw = await Bun.file(filePath).text();
     const lines = raw.split("\n").filter((l) => l.trim().length > 0);
 
     if (lines.length === 0) {

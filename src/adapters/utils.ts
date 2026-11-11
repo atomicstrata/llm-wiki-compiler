@@ -46,10 +46,20 @@ export function resolveSessionTitle(
  * @param raw - Raw JSON string.
  * @param filePath - Used in the error message to identify the file.
  */
-export function parseJsonOrThrow(raw: string, filePath: string): unknown {
+function parseJsonOrThrow(raw: string, filePath: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
     throw new Error(`Invalid JSON in session file: ${filePath}`);
   }
+}
+
+/**
+ * Read a session export from disk and parse it as JSON.
+ * @param filePath - Path to the export file.
+ * @returns The parsed JSON value.
+ * @throws When the file cannot be read, or with a message naming the file when it is not valid JSON.
+ */
+export async function readSessionJson(filePath: string): Promise<unknown> {
+  return parseJsonOrThrow(await Bun.file(filePath).text(), filePath);
 }

@@ -208,14 +208,14 @@ export function createLocationTextExclusive(location: string, text: string): Pro
 }
 
 /**
- * NO GUARD, AND IT OVERWRITES. `writeFile(location, text, "utf-8")`: whatever
- * is at the location is truncated and replaced, and the file is created when
- * nothing is there. A link at the location is FOLLOWED and written through.
+ * NO GUARD, AND IT OVERWRITES. `Bun.write(location, text)`: whatever is at
+ * the location is truncated and replaced, and the file is created when nothing
+ * is there. A missing parent directory is NOT created (`createPath: false`),
+ * matching `writeFile`. A link at the location is FOLLOWED and written through.
  * NOT ATOMIC: a reader can see the file empty or half written, and a crash
- * can leave it so. Not locked, not made durable. Returns Node's promise
- * itself. REJECTS with the raw error. A caller that must not write through a
+ * can leave it so. Not locked, not made durable. REJECTS with the raw error. A caller that must not write through a
  * link has to check first, and that check is by path, not by handle.
  */
 export function overwriteLocationText(location: string, text: string): Promise<void> {
-  return writeFile(location, text, "utf-8");
+  return Bun.write(location, text, { createPath: false }).then(() => undefined);
 }
