@@ -48,11 +48,26 @@ describe("identity", () => {
   });
 
   it("leaves out the names the registry excludes for a type, in any spelling, and only for that type", () => {
-    const registry = parseRegistry(JSON.stringify({ exclude: { person: ["Donald Trump", "Bevyl", 7] } }));
-    expect(registry.exclude).toEqual({ person: ["Donald Trump", "Bevyl"] });
-    const records = resolveRecords("person", [mention("donald  TRUMP"), mention("bevyl"), mention("Ana")], registry);
+    const registry = parseRegistry(JSON.stringify({ exclude: { person: ["Donald Trump", "Acme Corp", 7] } }));
+    expect(registry.exclude).toEqual({ person: ["Donald Trump", "Acme Corp"] });
+    const records = resolveRecords("person", [mention("donald  TRUMP"), mention("acme corp"), mention("Ana")], registry);
     expect(records.map((record) => record.id)).toEqual(["ana"]);
-    expect(resolveRecords("company", [mention("Bevyl")], registry).map((record) => record.id)).toEqual(["bevyl"]);
+    expect(resolveRecords("company", [mention("Acme Corp")], registry).map((record) => record.id)).toEqual(["acme-corp"]);
+  });
+
+  it("never renames another record when a name is excluded", () => {
+    const names = [mention("Mary Jane"), mention("Mary-Jane")];
+    const before = resolveRecords("person", names, { entities: {} });
+    const after = resolveRecords("person", names, parseRegistry(JSON.stringify({ exclude: { person: ["Mary Jane"] } })));
+    expect(before.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane", "Mary Jane"], ["mary-jane-2", "Mary-Jane"]]);
+    expect(after.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane-2", "Mary-Jane"]]);
+  });
+
+  it("refuses an exclude that is not a map of lists, and a name both excluded and registered", () => {
+    expect(() => parseRegistry(JSON.stringify({ exclude: ["Donald Trump"] }))).toThrow(/must map each entity type/);
+    expect(() => parseRegistry(JSON.stringify({ exclude: { person: "Donald Trump" } }))).toThrow(/must map each entity type/);
+    expect(() => parseRegistry(JSON.stringify({ exclude: { person: ["alex kim"] }, entities: { person: { "alex-kim": ["Alex Kim"] } } })))
+      .toThrow('"Alex Kim" is both excluded and registered under person "alex-kim"');
   });
 
   it("merges only what the registry says, and shows the registry's first name", () => {

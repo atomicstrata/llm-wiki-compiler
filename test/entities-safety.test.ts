@@ -61,6 +61,26 @@ describe("entity pages when things go wrong", () => {
   });
 });
 
+describe("the alias registry's exclude list", () => {
+  it("reports an exclude key that names no extracted type", async () => {
+    const memory = memoryEntitySteps({ "chat.md": CHAT }, PEOPLE, { entities: {}, exclude: { people: ["Alex"] } });
+    const result = await generateEntitiesWith(memory.steps, config());
+    expect(result.errors).toEqual(['.llmwiki/aliases.json excludes names from "people", which is not an extracted type; ignored']);
+    expect(memory.pages.has("person/alex")).toBe(true);
+  });
+
+  it("removes an excluded person's page with no model call, and drops them from the hub", async () => {
+    const memory = memoryEntitySteps({ "chat.md": CHAT }, PEOPLE, { owner: { type: "person", names: ["Sam"] }, entities: {} });
+    await generateEntitiesWith(memory.steps, config());
+    const [extractions, pageRequests] = [memory.extractions.length, memory.pageRequests.length];
+    memory.state.registry = { ...memory.state.registry, exclude: { person: ["Alex"] } };
+    const result = await generateEntitiesWith(memory.steps, config());
+    expect(result.deleted).toEqual(["person/alex"]);
+    expect([memory.extractions.length, memory.pageRequests.length]).toEqual([extractions, pageRequests]);
+    expect(memory.pages.get("person/sam")).not.toContain("person/alex");
+  });
+});
+
 describe("record ids", () => {
   it("never merges a name into a registered record because their slugs match", () => {
     const registry = { entities: { person: { alex: ["Alex Johnson", "AJ"] } } };
