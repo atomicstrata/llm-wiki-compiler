@@ -31,6 +31,11 @@ https://github.com/JetBrains/JetBrainsMono
 Copyright 2020 The JetBrains Mono Project Authors
 License: SIL Open Font License 1.1
 
+Inter (bundled by the v2 client from @fontsource-variable/inter)
+https://github.com/rsms/inter
+Copyright 2016 The Inter Project Authors
+License: SIL Open Font License 1.1
+
 Both fonts are licensed under the SIL Open Font License, Version 1.1.
 This license is available with a FAQ at https://openfontlicense.org
 

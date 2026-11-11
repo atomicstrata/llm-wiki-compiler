@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`llmwiki view-v2` previews links and citations in place.** Pointing at or focusing a wikilink shows the linked page's title and summary. Pointing at a citation chip shows the cited source lines, numbered. Links in the page rail preview too.
+- **`llmwiki view-v2` pages gain an outline and a reading layout.** A page with two or more sections shows an **On this page** outline that highlights the current section. Body text is limited to a readable line length, and the client ships Inter as its typeface.
 - **`llmwiki view-v2` is styled with Tailwind.** The hand-written stylesheet is gone. Every screen is built from shared components on Tailwind's default palette: a sticky header, a sidebar, cards, stats, row lists and badges. The typography plugin styles the wiki content, citation chips show short line ranges, the page follows the system's light or dark setting through `color-scheme`, and the theme control is removed.
 - **The `llmwiki view-v2` graph explorer keeps large graphs readable.** A pull toward the centre stops unlinked nodes from drifting apart, so a few hundred nodes no longer fit to a sub-pixel scale.
 - **`llmwiki view-v2` pages gain a support rail.** Each page now shows its heading, question line and warnings as `llmwiki view` does, and a rail beside the article with its metadata, every citation grouped by source file and linked to the cited lines, its links out and backlinks derived from `/api/graph`, and, on a typed page, its connected records, evidence spans and import provenance.

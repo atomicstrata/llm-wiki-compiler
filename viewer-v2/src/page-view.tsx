@@ -4,10 +4,11 @@
  * graph loads alongside the page so the rail can list backlinks, which the
  * page payload does not carry.
  */
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { fetchGraph, fetchPage, type PagePayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Badge } from "./components";
+import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { pageTitle, stripLeadingHeading } from "./page-model";
 import { PageRail } from "./page-rail";
 import { SourceImages } from "./source-images-view";
@@ -55,9 +56,9 @@ function PageMeta({ page }: { page: PagePayload }): ReactNode {
 }
 
 /** The rendered body minus a heading that repeats the title, or a note when the page has no body. */
-export function PageBody({ page }: { page: PagePayload }): ReactNode {
+export function PageBody({ page, onRender }: { page: PagePayload; onRender?: (container: HTMLElement) => void }): ReactNode {
   if (page.html.length === 0) return <p className="text-sm text-zinc-500">No rendered content.</p>;
-  return <WikiHtml html={stripLeadingHeading(page.html, pageTitle(page))} />;
+  return <WikiHtml html={stripLeadingHeading(page.html, pageTitle(page))} onRender={onRender} />;
 }
 
 interface PageViewProps {
@@ -70,19 +71,22 @@ interface PageViewProps {
 export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const state = useAsync(() => fetchPage(directory, slug), `${directory}/${slug}`);
   const graph = useAsync(fetchGraph, "graph");
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const onRender = (container: HTMLElement): void => setOutline(assignHeadingIds(container));
   return (
     <AsyncView state={state}>
       {(page) => (
-        <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row lg:items-start">
-          <article className="min-w-0 flex-1">
+        <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row lg:items-start lg:justify-center">
+          <article className="max-w-[68ch] min-w-0 flex-1">
             <header className="mb-8 border-b border-zinc-950/5 pb-6 dark:border-white/10">
               <PageHeader page={page} />
               <PageMeta page={page} />
             </header>
-            <PageBody page={page} />
+            <PageBody page={page} onRender={onRender} />
             <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
           </article>
-          <div className="lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
+          <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
+            <Outline items={outline} />
             <PageRail page={page} wiki={wiki} graph={graph} />
           </div>
         </div>
