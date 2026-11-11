@@ -5,17 +5,19 @@
  * page payload does not carry.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { fetchGraph, fetchPage, type PagePayload, type PagesEnvelope } from "./api";
+import { fetchGraph, fetchPage, type GraphData, type PagePayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Badge } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { rememberPage } from "./palette-model";
 import { pageTitle, stripLeadingHeading } from "./page-model";
 import { tagHref } from "./route";
+import { useMediaQuery } from "./media";
 import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
+import { RailSheet } from "./rail-sheet";
 import { SourceImages } from "./source-images-view";
-import { useAsync } from "./use-async";
+import { useAsync, type AsyncState } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
 /** Keep only the string entries of a frontmatter value that should be a list. */
@@ -64,10 +66,24 @@ export function PageBody({ page, onRender }: { page: PagePayload; onRender?: (co
   return <WikiHtml html={stripLeadingHeading(page.html, pageTitle(page))} onRender={onRender} />;
 }
 
+/** From this width the rail sits beside the article; below it, it opens as a bottom sheet. Tailwind's `lg`. */
+const WIDE_LAYOUT = "(min-width: 64rem)";
+
 interface PageViewProps {
   directory: string;
   slug: string;
   wiki: PagesEnvelope;
+}
+
+/** The rail's sections: the outline, the neighbourhood graph, then metadata, citations and connections. */
+function Rail({ page, wiki, graph, outline }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData>; outline: OutlineItem[] }): ReactNode {
+  return (
+    <>
+      <Outline items={outline} />
+      <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />
+      <PageRail page={page} wiki={wiki} graph={graph} />
+    </>
+  );
 }
 
 /** Load and show the page at `directory/slug` with its support rail. */
@@ -77,6 +93,7 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   useEffect(() => rememberPage(`${directory}/${slug}`), [directory, slug]);
   const onRender = (container: HTMLElement): void => setOutline(assignHeadingIds(container));
+  const wide = useMediaQuery(WIDE_LAYOUT);
   return (
     <AsyncView state={state}>
       {(page) => (
@@ -89,11 +106,9 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
             <PageBody page={page} onRender={onRender} />
             <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
           </article>
-          <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-            <Outline items={outline} />
-            <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />
-            <PageRail page={page} wiki={wiki} graph={graph} />
-          </div>
+          {wide
+            ? <div className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto"><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></div>
+            : <RailSheet><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></RailSheet>}
         </div>
       )}
     </AsyncView>

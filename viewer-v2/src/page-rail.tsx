@@ -117,14 +117,18 @@ function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: Pa
   );
 }
 
+const RAIL_HEADING = "mt-4 mb-1 flex items-center gap-2 font-medium text-zinc-900 first:mt-0 dark:text-zinc-100";
+const RAIL_NOTE = "text-xs text-zinc-500 dark:text-zinc-400";
+const RAIL_LINK = "text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400";
+
 /** One related record; an unresolved target keeps its id and says so. */
 function RelationItem({ relation }: { relation: EntityRelation }): ReactNode {
   const { target } = relation;
   return (
     <li title={`${relation.type} · ${relation.direction} · ${target.id}`}>
       {target.resolved
-        ? <a href={pageIdHref(target.id)} data-page-id={target.id}>{target.title || target.id}</a>
-        : <>{target.id} <span>not found</span></>}
+        ? <a href={pageIdHref(target.id)} data-page-id={target.id} className={RAIL_LINK}>{target.title || target.id}</a>
+        : <span className="text-zinc-500">{target.id} <Badge tone="amber">not found</Badge></span>}
     </li>
   );
 }
@@ -133,35 +137,44 @@ function RelationItem({ relation }: { relation: EntityRelation }): ReactNode {
 function ConnectorBlock({ connector }: { connector: ConnectorProvenance }): ReactNode {
   const href = connectorHref(connector.sourceUrl);
   return (
-    <div data-connector={connector.connectorId}>
-      <h3>Where these details came from</h3>
-      <p>Imported from {typeLabel(connector.connectorId)} on {formatUtcTimestamp(connector.fetchedAt)}.</p>
-      {href && <a href={href} target="_blank" rel="noopener noreferrer">View imported metadata</a>}
-      <details>
-        <summary>Technical details</summary>
-        <pre>{`Importer: ${connector.connectorId}\nVersion: ${connector.connectorVersion}\nContent hash: ${connector.contentHash}`}</pre>
+    <div data-connector={connector.connectorId} className="mt-4 border-t border-zinc-950/5 pt-3 dark:border-white/10">
+      <h3 className={RAIL_HEADING}>Where these details came from</h3>
+      <p className="text-zinc-600 dark:text-zinc-300">Imported from {typeLabel(connector.connectorId)} on {formatUtcTimestamp(connector.fetchedAt)}.</p>
+      {href && <a href={href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">View imported metadata</a>}
+      <details className={`mt-2 ${RAIL_NOTE}`}>
+        <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-200">Technical details</summary>
+        <pre className="mt-1 font-mono whitespace-pre-wrap">{`Importer: ${connector.connectorId}\nVersion: ${connector.connectorVersion}\nContent hash: ${connector.contentHash}`}</pre>
       </details>
     </div>
   );
 }
 
-/** A typed page's relations by type and direction, its evidence spans, and its import provenance. */
-function EntityContextSection({ context }: { context: EntityContext }): ReactNode {
+/** A typed page's relations by type and direction. */
+function RelationGroups({ context }: { context: EntityContext }): ReactNode {
   const groups = groupRelations(context.relations);
+  if (groups.length === 0) return <p className={RAIL_NOTE}>No connections recorded yet.</p>;
   return (
-    <RailSection title="Connected records">
-      {groups.length === 0 && <p>No connections recorded yet.</p>}
+    <>
       {groups.map((group) => (
         <div key={`${group.type}:${group.direction}`}>
-          <h3>{typeLabel(group.type)} <span>{group.direction}</span></h3>
-          <ul>{group.relations.map((relation) => <RelationItem key={relation.target.id} relation={relation} />)}</ul>
+          <h3 className={RAIL_HEADING}>{typeLabel(group.type)} <Badge>{group.direction}</Badge></h3>
+          <ul role="list" className="space-y-1">{group.relations.map((relation) => <RelationItem key={relation.target.id} relation={relation} />)}</ul>
         </div>
       ))}
-      {context.relationTotal > context.relations.length && <p>Showing {context.relations.length} of {context.relationTotal} relations.</p>}
-      <h3>Supporting evidence</h3>
-      {context.sources.length === 0 && <p>No supporting source passages linked yet.</p>}
-      <ul>{context.sources.map((source) => <li key={spanLabel(source)}><SpanLink span={source} resolved={source.resolved} /></li>)}</ul>
-      {context.sourceTotal > context.sources.length && <p>Showing {context.sources.length} of {context.sourceTotal} source spans.</p>}
+      {context.relationTotal > context.relations.length && <p className={`mt-2 ${RAIL_NOTE}`}>Showing {context.relations.length} of {context.relationTotal} relations.</p>}
+    </>
+  );
+}
+
+/** A typed page's relations, its evidence spans, and its import provenance. */
+function EntityContextSection({ context }: { context: EntityContext }): ReactNode {
+  return (
+    <RailSection title="Connected records">
+      <RelationGroups context={context} />
+      <h3 className={RAIL_HEADING}>Supporting evidence</h3>
+      {context.sources.length === 0 && <p className={RAIL_NOTE}>No supporting source passages linked yet.</p>}
+      <ul role="list" className="flex flex-wrap gap-1">{context.sources.map((source) => <li key={spanLabel(source)}><SpanLink span={source} resolved={source.resolved} /></li>)}</ul>
+      {context.sourceTotal > context.sources.length && <p className={`mt-2 ${RAIL_NOTE}`}>Showing {context.sources.length} of {context.sourceTotal} source spans.</p>}
       {context.connector && <ConnectorBlock connector={context.connector} />}
     </RailSection>
   );
