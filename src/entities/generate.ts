@@ -81,6 +81,7 @@ export async function generateEntitiesWith(steps: EntitySteps, config: EntityCon
   if (config.types.length === 0) return result;
   const sources = await steps.listSources();
   const registry = await steps.readRegistry();
+  result.errors.push(...unknownExcludeTypes(registry, config.types));
   const extraction = await refreshExtractions(steps, config.types, sources, await steps.readCache(), registry.owner?.names ?? [], config.concurrency);
   result.extracted = extraction.extracted.length;
   result.errors.push(...extraction.errors);
@@ -93,6 +94,13 @@ export async function generateEntitiesWith(steps: EntitySteps, config: EntityCon
     await writeType({ steps, type, registry, texts, days, limit, result }, mentionsOf(extraction.cache, type.type));
   }
   return result;
+}
+
+/** A report for each `exclude` key that names no opted-in type, so a misspelled type is not silently ignored. */
+function unknownExcludeTypes(registry: AliasRegistry, types: ExtractableType[]): string[] {
+  const known = new Set(types.map(({ type }) => type));
+  return Object.keys(registry.exclude ?? {}).filter((type) => !known.has(type))
+    .map((type) => `.llmwiki/aliases.json excludes names from "${type}", which is not an extracted type; ignored`);
 }
 
 /** Every mention of `type` across the cached sources. */
