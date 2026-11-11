@@ -22,6 +22,7 @@
     "test/call-counter-child.ts"
   ],
   "ignorePatterns": [
+    "src/profile/schema/profile-validator.generated.ts",
     "packages/llmwiki-core/package.json",
     "docs/**",
     "src/viewer/assets/index.html",

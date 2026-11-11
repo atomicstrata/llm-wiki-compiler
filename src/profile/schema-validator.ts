@@ -1,52 +1,21 @@
 /**
- * Ajv-backed structural validator for v0 profile packs.
+ * Structural validator for v0 profile packs.
  *
  * The published JSON Schema at `./schema/profile.v1.schema.json` (draft
  * 2020-12) is the SINGLE SOURCE OF TRUTH for structural, type, enum, and
- * `additionalProperties` validation. This module compiles that schema ONCE, on
- * the first validation, with Ajv2020 and exposes `assertStructurallyValid`, which the
- * profile validator runs FIRST — before any semantic check the schema cannot
- * express (directory confinement, lifecycle FSM, reserved ids).
- *
- * The schema is imported as a JSON module so the bundler (tsup) inlines it
- * into `dist/`; there is no separate runtime file to copy or resolve.
+ * `additionalProperties` validation. Ajv compiles it ahead of time into
+ * `./schema/profile-validator.generated.ts` (`bun scripts/generate-profile-validator.ts`;
+ * a test fails when the two drift), so no process loads Ajv or compiles the
+ * schema. The profile validator runs `assertStructurallyValid` FIRST — before
+ * any semantic check the schema cannot express (directory confinement,
+ * lifecycle FSM, reserved ids).
  */
 
 import type { ValidateFunction } from "ajv/dist/2020.js";
-import { requireOnUse } from "../utils/require-on-use.js";
 import { ProfileValidationError } from "./errors.js";
-import schema from "./schema/profile.v1.schema.json" with { type: "json" };
+import { validate as validateGenerated } from "./schema/profile-validator.generated.js";
 
-let compiledValidator: ValidateFunction | undefined;
-
-/**
- * The Ajv options the runtime compiles the schema with. `strict: true` surfaces
- * any schema authoring mistake (so the schema and runtime can't drift silently);
- * `allErrors` collects every violation for a complete message.
- *
- * The other two only make the compile cheaper, never the validation different.
- * `validateSchema: false` skips checking the schema against the draft 2020-12
- * meta-schema, which compiled that whole meta-schema in every process for a
- * schema that is a bundled constant; the meta-schema check is a test instead
- * (`test/profile-schema-meta.test.ts`). `code.optimize: false` skips Ajv's
- * code-simplification passes over the generated checks: the same keywords run
- * and report the same errors, in a few more lines of generated code.
- */
-const PROFILE_SCHEMA_AJV_OPTIONS = {
-  allErrors: true, strict: true, validateSchema: false, code: { optimize: false },
-} as const;
-
-/**
- * The compiled schema validator. Compiled once per process, on the first
- * validation rather than at module load, so a command that validates no
- * profile pack neither loads Ajv nor pays for the compile.
- */
-function structureValidator(): ValidateFunction {
-  if (compiledValidator) return compiledValidator;
-  const { default: Ajv2020 } = requireOnUse<typeof import("ajv/dist/2020.js")>("ajv/dist/2020.js");
-  compiledValidator = new Ajv2020(PROFILE_SCHEMA_AJV_OPTIONS).compile(schema);
-  return compiledValidator;
-}
+const validateStructure = validateGenerated as ValidateFunction;
 
 /**
  * Render one ajv error into a human-readable message. `additionalProperties`
@@ -71,7 +40,6 @@ function describeAjvError(error: NonNullable<ValidateFunction["errors"]>[number]
  * @throws {ProfileValidationError} When the structure violates the schema.
  */
 export function assertStructurallyValid(raw: unknown): void {
-  const validateStructure = structureValidator();
   if (validateStructure(raw)) return;
   const errors = validateStructure.errors ?? [];
   const detail = errors.map(describeAjvError).join("; ");
