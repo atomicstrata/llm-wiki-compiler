@@ -35,6 +35,7 @@ import path from "node:path";
 import {
   readConfinedLeaf, readConfinedPage, readConfinedPageOutcome, readConfinedPageWith, type ConfinedPageRead, type ReadConfinedPageOptions,
 } from "../utils/confined-read.js";
+import { fileIdentityOf, sharedConfinedRead, type IdentifiedRead } from "./shared-page-reads.js";
 import { isInsideDir, resolveRealDir, safeRealpath } from "../utils/path-confine.js";
 import { listDirectoryNames } from "./disk-guarded-leaves.js";
 import { readLocationPrefix, readLocationText } from "./disk-locations.js";
@@ -83,18 +84,29 @@ export async function locationKindNoFollow(location: string): Promise<LocalEntry
  * through its target as before; a page that resolves to itself got its
  * confined read already, and an absent read of it is unreadable, as it was.
  */
-export async function readConfinedExactFile(
+export function readConfinedExactFile(
   expectedDir: string,
   filePath: string,
 ): Promise<ConfinedReadResult> {
-  const direct = await readConfinedPageOutcome(filePath, expectedDir);
-  if (direct.kind === "ok") return { content: direct.body };
-  if (direct.kind === "unreadable") return { dropped: "unreadable" };
+  return sharedConfinedRead(expectedDir, filePath, () => readConfinedExactFileIdentified(expectedDir, filePath));
+}
+
+/**
+ * {@link readConfinedExactFile} made now, with the identity a shared read may
+ * be reused under: the opened file's, for a direct read only. A page read
+ * through an in-directory link, and every drop, carries none.
+ */
+async function readConfinedExactFileIdentified(expectedDir: string, filePath: string): Promise<IdentifiedRead> {
+  const direct = await readConfinedPageWith(filePath, expectedDir, async (handle, opened) => ({
+    body: await handle.readFile("utf-8"),
+    identity: fileIdentityOf(opened),
+  }));
+  if (direct.kind === "ok") return { result: { content: direct.value.body }, identity: direct.value.identity };
+  if (direct.kind === "unreadable") return { result: { dropped: "unreadable" }, identity: null };
   const real = await safeRealpath(filePath);
-  if (!real || !isInsideDir(real, expectedDir)) return { dropped: "escapes-dir" };
+  if (!real || !isInsideDir(real, expectedDir)) return { result: { dropped: "escapes-dir" }, identity: null };
   const content = real === filePath ? null : await readConfinedPage(real, expectedDir);
-  if (content === null) return { dropped: "unreadable" };
-  return { content };
+  return { result: content === null ? { dropped: "unreadable" } : { content }, identity: null };
 }
 
 /**

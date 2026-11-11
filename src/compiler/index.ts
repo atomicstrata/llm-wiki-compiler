@@ -72,6 +72,7 @@ import type {
   SourceState,
 } from "../utils/types.js";
 import { timeStage } from "../utils/stage-timing.js";
+import { withSharedPageReads } from "../storage/shared-page-reads.js";
 
 /**
  * Everything ONE compile run asks for, beyond the provider and the other host
@@ -150,7 +151,9 @@ export async function compileAndReport(
   root: string,
   options: CompileOptions = {},
 ): Promise<CompileResult> {
-  return compileAndReportWith(localCompileRunSteps, root, options);
+  // Every walk over the pages in this compile shares each page's confined
+  // read, reused only while the file on disk is unchanged (shared-page-reads.ts).
+  return withSharedPageReads(() => compileAndReportWith(localCompileRunSteps, root, options));
 }
 
 /**

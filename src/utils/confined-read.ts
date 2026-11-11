@@ -436,13 +436,15 @@ export async function readConfinedPageOutcome(
 
 /**
  * Reuse the page read's handle-bound confinement proof with a caller-selected
- * reader (e.g. metadata only). The callback borrows the handle; this helper
- * closes it in finally. Strict I/O is opt-in so existing read defaults remain.
+ * reader (e.g. metadata only). The callback borrows the handle, and receives
+ * the handle's `fstat` taken at open, before any byte is read; this helper
+ * closes the handle in finally. Strict I/O is opt-in so existing read
+ * defaults remain.
  */
 export async function readConfinedPageWith<T>(
   capturedRealpath: string,
   expectedCanonicalDir: string,
-  read: (handle: FileHandle) => Promise<T>,
+  read: (handle: FileHandle, opened: Stats) => Promise<T>,
   opts: ReadConfinedPageOptions = {},
 ): Promise<{ kind: "ok"; value: T } | Exclude<ConfinedPageRead, { kind: "ok" }>> {
   // No realpath before the open: O_NOFOLLOW refuses a symlinked leaf, and the
@@ -458,7 +460,7 @@ export async function readConfinedPageWith<T>(
   try {
     if (opts.afterOpenForTest) await opts.afterOpenForTest();
     if (!(await stillBoundToHandle(capturedRealpath, expectedCanonicalDir, opened, opts))) return { kind: "absent" };
-    return { kind: "ok", value: await read(handle) };
+    return { kind: "ok", value: await read(handle, opened) };
   } catch (err) {
     return classifyConfinedError(err as NodeJS.ErrnoException);
   } finally {
