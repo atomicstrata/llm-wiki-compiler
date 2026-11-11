@@ -237,7 +237,10 @@ describe("the lint cache: exact bytes out, strict read back", () => {
     const rule = { rule: "broken-wikilink", severity: "error", count: 2, fileCount: 1, topFile: "wiki/concepts/a.md", topFileCount: 2 };
     const expected = { warnings: 0, errors: 2, at: "2026-01-02T03:04:05.678Z", freshness: { stalePages: 0, orphanedPages: 0 }, rules: [rule] };
     expect(await fs.readFile(path.join(root, CACHE), "utf8")).toBe(`${JSON.stringify(expected, null, 2)}\n`);
-    const written = tape.calls.slice(0, tape.calls.findIndex((call) => call.startsWith("rename ")) + 1);
+    // Only the writer's calls, on the cache directory: the tape is shared with
+    // the whole module, so a call from elsewhere is not part of this sequence.
+    const cacheCalls = tape.calls.filter((call) => call.split(" ")[1]?.startsWith(path.join(root, ".llmwiki")));
+    const written = cacheCalls.slice(0, cacheCalls.findIndex((call) => call.startsWith("rename ")) + 1);
     const steps = written.map((call) => call.split(" ")[0]);
     expect(steps).toEqual(["mkdir", "mkdir", "open", "rename"]);
     expect(recorded("mkdir")).toEqual(['mkdir .llmwiki {"recursive":true}', 'mkdir .llmwiki {"recursive":true}']);
