@@ -457,3 +457,80 @@ ANTHROPIC_API_KEY=sk-ant-...
 <Note>
   Except for explicitly selected `codex-agent` runs, the `.env` file is read from your project root at startup. It is a convenience for projects where you don't want to export variables in your shell every session. Shell environment variables always take precedence over `.env` values, so you can override any `.env` setting with a one-off `export` without editing the file.
 </Note>
+
+
+## Usage receipts for subprocess hosts
+
+Usage collection is off by default. If you run `llmwiki` as a child process, set
+both variables in its private environment to collect content-free receipts without
+changing command output:
+
+| Variable | Description |
+| --- | --- |
+| `LLMWIKI_USAGE_DIRECTORY` | Absolute path to a host-owned receipt directory, outside your project directory and its rollback paths |
+| `LLMWIKI_USAGE_EXECUTION_ID` | Nonblank correlation identifier chosen by the host for this invocation; do not put secrets here |
+
+Each observed response produces an immutable UUID-named JSON file. The compiler
+flushes the file before atomically renaming it from `.pending` to `.json`. Collect
+only `.json` files. Re-reading the same file must not add another charge; a new
+provider call gets a new event ID even when it retries earlier work. The host owns
+retention, import checkpoints, tenant attribution and pricing. Never rerun model
+work just to recover accounting.
+
+Version 1 receipts contain `version`, `eventId`, `executionId`, `occurredAt`,
+`provider`, `model`, `operation`, `inputTokens`, `outputTokens`, `usageComplete`, optional provider
+`requestId` / `responseId` correlation fields, and, when usage is
+known, `cacheReadTokens` and `cacheWriteTokens`. Input tokens **include** cache
+reads and writes: cache counters are subsets, not additional tokens. Missing
+counters are null, not fabricated zero usage; independently observed counters are
+preserved even when the other counter is missing. Cache counters also stay null
+when the provider omits them, including OpenAI-compatible responses without
+`prompt_tokens_details`; an explicitly reported zero stays zero. The OpenAI adapter
+reads `cached_tokens` and `cache_write_tokens` from `prompt_tokens_details` without
+adding them to the inclusive input count. Inspect cache coverage before applying
+cache-specific prices, even when
+`usageComplete` is true for the input/output counters.
+Operations are `complete`, `stream`, `toolCall`, `embed`, and `embedBatch`.
+
+`usageComplete` is true only when both input and output counts are known and
+stream iteration completed normally. Interrupted streams retain their last
+observed counters with `usageComplete: false`, even when both counts are present.
+Embeddings have zero output tokens when input usage is observed; absent input
+usage remains unknown. Explicit zero input and output is complete observed usage.
+Output validation failure does not make otherwise complete usage partial.
+
+For a host-wide usage ledger, map `eventId` to the external event key, namespaced
+by producer and trusted tenant; keep `executionId` as invocation correlation,
+not the deduplication key. Map timestamps, model/response identity, operation,
+token/cache counts and `usageComplete` to the corresponding ledger fields.
+No conversation or message record is required. Resolve tenant identity using the
+host's invocation record, not receipt-supplied authorization claims, and apply
+prices in the host. Keep known partial spend separate from unpriced or missing
+usage; complete counters do not imply that the model has a known price.
+
+Generation collection supports OpenAI-compatible, Anthropic and Converse
+providers. Embedding collection supports OpenAI-compatible and Voyage calls.
+Agent-backed, offline and custom providers do not produce generation receipts.
+OpenAI-compatible streams request `stream_options.include_usage` only when
+collection is enabled; the endpoint must support that option. The provider field
+identifies the protocol adapter, not the billing vendor behind a custom endpoint.
+Use the response model when provided, otherwise the configured request model.
+
+Receipts are written before generated content or vectors are validated. Stream
+receipts retain the last usage observed when iteration fails. Storage errors are
+non-retryable by the shared LLM retry wrapper, because repeating inference cannot
+repair the receipt directory. Configuration errors are rejected before requests.
+Malformed counters (negative, fractional, nonnumeric or unsafe integers, or cache
+totals exceeding input tokens) also fail the call non-retryably, before any
+receipt is written. The provider may already have billed that call, so account
+for this gap when reporting coverage.
+Neither prompts, source/page bodies, vectors, credentials nor endpoint URLs are
+stored in receipts.
+
+This is observed-usage collection, not provider invoice reconciliation. An HTTP
+error, SDK-internal retry, or a killed process may incur spend without delivering
+usable counters. The compiler attempts to remove `.pending` files after handled
+publication failures. A crash or failed cleanup can still leave a `.pending` file
+for operator inspection. Filesystem and machine failures can still lose data;
+choose storage appropriate for the host's durability requirements. The collector
+must report incomplete coverage instead of presenting unknown spend as zero.

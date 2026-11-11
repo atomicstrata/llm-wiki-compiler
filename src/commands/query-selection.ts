@@ -7,9 +7,9 @@
  * pre-filter when available, then page-level embeddings, then an LLM fallback
  * over LIVE, surface-eligible, pageId-keyed candidates.
  *
- * A failed chunk pre-filter falls through to page-level retrieval. Page-level
- * failures propagate by default; explicit fallback retains the D29 recovery
- * capability with an `embedding-degraded` warning.
+ * An ordinary chunk pre-filter failure falls through to page-level retrieval.
+ * Page-level failures fall back with an `embedding-degraded` warning unless
+ * strict handling is requested. Accounting failures always propagate.
  *
  * Disk access: {@link selectRelevantPages} loads the profile, the embedding
  * store and the journal warning from the project, then reads live pages through
@@ -19,6 +19,7 @@
  */
 
 import * as output from "../utils/output.js";
+import { UsageAccountingError } from "../providers/usage.js";
 import {
   QUERY_PAGE_LIMIT,
   CHUNK_TOP_K,
@@ -186,8 +187,8 @@ interface PageLookup {
 }
 
 /**
- * Degrade a page-level embedding error to fallback selection unless `throw`
- * is requested. Recovery is reported as data rather than a stdout diagnostic.
+ * Degrade an ordinary page-level embedding error unless `throw` is requested.
+ * Accounting failures always propagate; recovery is reported as data.
  */
 async function tryFindRelevantPages(
   pages: LivePageReads,
@@ -199,7 +200,7 @@ async function tryFindRelevantPages(
   try {
     return await findRelevantPagesV3From(pages, store, "search", question, EMBEDDING_TOP_K, profile);
   } catch (err) {
-    if (options.embeddingFailure === "throw") throw err;
+    if (err instanceof UsageAccountingError || options.embeddingFailure === "throw") throw err;
     const message = err instanceof Error ? err.message : String(err);
     return {
       hits: [],
@@ -350,11 +351,12 @@ interface ChunkLookup {
 }
 
 /**
- * Chunk-level candidate lookup over the v3 store that never throws. Adapts each
+ * Chunk-level candidate lookup over the v3 store. Adapts each
  * live-rehydrated {@link findRelevantChunksV3From} hit to the chunk-entry shape the
  * BM25 reranker consumes (its `title` is the slug — query provenance shows the
  * slug, not the title) and forwards the read's `stalePageIds` so the caller can
- * surface `embedding-entry-stale`. Provider failures degrade to an empty list.
+ * surface `embedding-entry-stale`. Ordinary provider failures degrade to an empty
+ * list; accounting failures propagate before page-level retrieval can spend more.
  */
 async function tryFindRelevantChunks(
   pages: LivePageReads,
@@ -366,6 +368,7 @@ async function tryFindRelevantChunks(
     const { hits, stalePageIds } = await findRelevantChunksV3From(pages, store, "search", question, CHUNK_TOP_K, profile);
     return { chunks: hits.map((hit) => ({ chunk: toChunkEntry(hit), pageId: hit.pageId, score: hit.score })), stalePageIds };
   } catch (err) {
+    if (err instanceof UsageAccountingError) throw err;
     const message = err instanceof Error ? err.message : String(err);
     output.status("!", output.dim(`Chunk pre-filter unavailable (${message}); falling back.`));
     return { chunks: [], stalePageIds: [] };

@@ -39,6 +39,7 @@ import {
 import type { PageId } from "../utils/page-id.js";
 import { loadProfile } from "../profile/load.js";
 import { selectPages } from "../commands/page-selection.js";
+import { UsageAccountingError } from "../providers/usage.js";
 import { CHUNK_TOP_K, EMBEDDING_TOP_K } from "../utils/constants.js";
 import type { LoadedProfile } from "../profile/types.js";
 import type { PageRecord } from "../pages/read.js";
@@ -71,6 +72,7 @@ export interface SearchSelection {
 /**
  * How retrieval handles an embedding error: `fallback` (the default) selects
  * pages without embeddings and reports `embedding-degraded`; `throw` rejects.
+ * Accounting failures always reject before any fallback request.
  */
 export interface RetrievalOptions {
   embeddingFailure?: "throw" | "fallback";
@@ -205,9 +207,9 @@ export function withStaleWarning(base: SearchWarning[], stalePageIds: PageId[]):
 }
 
 /**
- * Run chunk-then-page retrieval. An embedding error degrades to fallback
- * selection unless `throw` is requested, and the fallback is reported as a
- * structured warning, never a stdout diagnostic:
+ * Run chunk-then-page retrieval. An ordinary embedding error degrades to fallback
+ * selection unless `throw` is requested; accounting failures always propagate.
+ * The fallback is reported as a structured warning, never a stdout diagnostic:
  * this library also serves the MCP stdio transport.
  */
 async function selectViaEmbeddings(
@@ -229,7 +231,7 @@ async function selectViaEmbeddings(
     const refs = pageHits.map((p) => ({ pageId: p.pageId, slug: p.slug, title: p.title, kind: "page" as const }));
     return { refs, stalePageIds: pageStale };
   } catch (err) {
-    if (options.embeddingFailure === "throw") throw err;
+    if (err instanceof UsageAccountingError || options.embeddingFailure === "throw") throw err;
     const message = err instanceof Error ? err.message : String(err);
     return {
       refs: [],

@@ -4,7 +4,7 @@
  * source tracking, and persisted provenance use the production compiler.
  */
 import { createServer, type Server } from "node:http";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
@@ -39,7 +39,8 @@ afterEach(async () => {
 
 it("compiles and refreshes cited pages through the explicit Converse route", async () => {
   const env = { LLMWIKI_PROVIDER: "converse", LLMWIKI_MODEL: "test-model:1",
-    LLMWIKI_CONVERSE_BASE_URL: endpoint, LLMWIKI_CONVERSE_API_KEY: "synthetic-secret", LLMWIKI_EMBEDDINGS: "off" };
+    LLMWIKI_CONVERSE_BASE_URL: endpoint, LLMWIKI_CONVERSE_API_KEY: "synthetic-secret", LLMWIKI_EMBEDDINGS: "off",
+    LLMWIKI_USAGE_DIRECTORY: path.join(workspace, "usage"), LLMWIKI_USAGE_EXECUTION_ID: "test-execution" };
   expectCLIExit(await runCLI(["compile"], workspace, env), 0);
   const pagePath = path.join(workspace, "wiki/concepts/documented-topic.md");
   const page = await readFile(pagePath, "utf8");
@@ -52,6 +53,14 @@ it("compiles and refreshes cited pages through the explicit Converse route", asy
   expect(requests.length).toBeGreaterThan(beforeRefresh);
   expect(requests.every((url) => url === "/proxy/test-route/model/test-model%3A1/converse")).toBe(true);
   expect(await readFile(pagePath, "utf8")).toContain("Widgets are blue");
+  const files = await readdir(env.LLMWIKI_USAGE_DIRECTORY);
+  expect(files.length).toBe(requests.length);
+  for (const file of files) {
+    const event = JSON.parse(await readFile(path.join(env.LLMWIKI_USAGE_DIRECTORY, file), "utf8"));
+    expect(event).toMatchObject({ version: 1, executionId: "test-execution", provider: "converse",
+      model: "test-model:1", inputTokens: 40, outputTokens: 20 });
+    expect(JSON.stringify(event)).not.toMatch(/synthetic-secret|Widgets|intro.md/);
+  }
 });
 
 /** Return source-grounded extraction and page text for the synthetic document. */

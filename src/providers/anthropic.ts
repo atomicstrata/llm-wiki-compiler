@@ -6,6 +6,7 @@
  */
 
 import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
+import { normalizeUsage, recordUsage, usageEnabled } from "./usage.js";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { VoyageEmbeddingProvider } from "./voyage-embed.js";
 
@@ -58,6 +59,7 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
 
   constructor(model: string, options: AnthropicProviderOptions = {}) {
     super();
+    usageEnabled();
     this.model = model;
     this.client = new Anthropic(buildAnthropicClientOptions(options));
   }
@@ -71,6 +73,7 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
       messages,
     });
 
+    recordUsage(() => ({ provider: "anthropic", model: response.model || this.model, requestId: response._request_id, responseId: response.id, operation: "complete", usage: anthropicUsage(response.usage) }));
     const textBlock = response.content.find((block) => block.type === "text");
     return textBlock?.type === "text" ? textBlock.text : "";
   }
@@ -90,11 +93,19 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
     });
 
     let fullText = "";
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        fullText += event.delta.text;
-        onToken?.(event.delta.text);
+    let streamCompleted = false;
+    try {
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          fullText += event.delta.text;
+          onToken?.(event.delta.text);
+        }
       }
+      streamCompleted = true;
+    } finally {
+      const message = stream.currentMessage ?? stream.receivedMessages.at(-1);
+      recordUsage(() => ({ provider: "anthropic", model: message?.model || this.model,
+        operation: "stream", usageComplete: streamCompleted, requestId: stream.request_id ?? undefined, responseId: message?.id, usage: anthropicUsage(message?.usage) }));
     }
 
     return fullText;
@@ -122,6 +133,7 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
       tool_choice: { type: "any" },
     });
 
+    recordUsage(() => ({ provider: "anthropic", model: response.model || this.model, requestId: response._request_id, responseId: response.id, operation: "toolCall", usage: anthropicUsage(response.usage) }));
     const toolBlock = response.content.find((block) => block.type === "tool_use");
     if (toolBlock?.type === "tool_use") {
       return JSON.stringify(toolBlock.input);
@@ -130,4 +142,10 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
     const textBlock = response.content.find((block) => block.type === "text");
     return textBlock?.type === "text" ? textBlock.text : "";
   }
+}
+
+/** Anthropic separates cached tokens from ordinary input tokens. */
+function anthropicUsage(usage: Anthropic.Usage | undefined) {
+  return normalizeUsage(usage && { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens,
+    cacheReadTokens: usage.cache_read_input_tokens, cacheWriteTokens: usage.cache_creation_input_tokens }, true);
 }
