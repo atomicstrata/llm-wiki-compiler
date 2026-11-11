@@ -13,7 +13,8 @@
  */
 
 import { createHash } from "node:crypto";
-import { sourceDayRanges, type LineRange } from "./event-days.js";
+import { sourceDayRanges } from "./event-days.js";
+import type { LineRange } from "../compiler/source-excerpt.js";
 
 /** Bump to regenerate every timeline page after a prompt or layout change. */
 const TIMELINE_PAGE_VERSION = 2;

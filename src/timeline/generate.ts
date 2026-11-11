@@ -23,8 +23,9 @@ import pLimit from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import { dayBuckets, weekBuckets, type DayBucket, type WeekBucket } from "./buckets.js";
-import { dailyRequest, splitAnswer, weeklyRequest, type TimelineRequest } from "./prompts.js";
-import { citationsOutside, pagesCitingDay, peopleInDay, timelinePage, TIMELINE_NAMESPACE, withDaySections, type CitingPage, type DayPerson, type PersonMentions } from "./pages.js";
+import { dailyRequest, weeklyRequest } from "./prompts.js";
+import { citationsOutside, splitAnswer, type PageRequest } from "../compiler/source-excerpt.js";
+import { pagesCitingDay, peopleInDay, timelinePage, TIMELINE_NAMESPACE, withDaySections, type CitingPage, type DayPerson, type PersonMentions } from "./pages.js";
 import { withoutGenerated } from "../wiki/generated-section.js";
 import { applyWrites, type DerivedSteps } from "../compiler/derived-steps.js";
 
@@ -46,7 +47,7 @@ export interface TimelineSteps extends DerivedSteps {
   /** The people with the lines they are mentioned on, for each day's "People this day" section. */
   listPeople(): Promise<PersonMentions[]>;
   /** One model completion. */
-  complete(request: TimelineRequest): Promise<string>;
+  complete(request: PageRequest): Promise<string>;
 }
 
 /** What a timeline pass did. */
@@ -205,7 +206,7 @@ function reportStrayCitations(answer: string, period: string, days: DayBucket[],
 }
 
 /** The model's answer, or null after recording why there is none. */
-async function completeOrRecord(steps: TimelineSteps, request: TimelineRequest, period: string, result: TimelineResult): Promise<string | null> {
+async function completeOrRecord(steps: TimelineSteps, request: PageRequest, period: string, result: TimelineResult): Promise<string | null> {
   try {
     const answer = await steps.complete(request);
     if (splitAnswer(answer).body) return answer;

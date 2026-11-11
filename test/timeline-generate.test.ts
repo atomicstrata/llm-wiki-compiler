@@ -9,9 +9,10 @@ import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import type { CompilePageWrite } from "../src/compiler/compile-write.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
-import { dayExcerpt, splitAnswer, type TimelineRequest } from "../src/timeline/prompts.js";
+import { dayExcerpt } from "../src/timeline/prompts.js";
+import { citationsOutside, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
-import { citationsOutside, withDaySections } from "../src/timeline/pages.js";
+import { withDaySections } from "../src/timeline/pages.js";
 
 const CONFIG = { enabled: true, timeZone: "UTC" };
 const CHAT = ["# Chat", "- 2026-05-04 09:00 A: plan the trip", "- 2026-05-05 10:00 B: booked it"].join("\n");
@@ -26,7 +27,7 @@ function firstCitation(prompt: string): string {
 /** In-memory sources, pages and model; records every request and write. */
 function memorySteps(sources: Record<string, string>, failOn: string[] = []) {
   const pages = new Map<string, string>();
-  const requests: TimelineRequest[] = [];
+  const requests: PageRequest[] = [];
   const batches: CompilePageWrite[][] = [];
   const steps: TimelineSteps = {
     listSources: async () => Object.entries(sources).map(([file, text]) => ({ file, hash: `h:${text.length}:${text}` })),

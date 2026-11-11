@@ -10,8 +10,8 @@
  */
 
 import { buildFrontmatter, extractClaimCitations } from "../utils/markdown.js";
+import { overlaps, type LineRange } from "../compiler/source-excerpt.js";
 import { withGenerated } from "../wiki/generated-section.js";
-import type { LineRange } from "./event-days.js";
 import type { DayBucket } from "./buckets.js";
 import { weekStart } from "./buckets.js";
 
@@ -120,28 +120,4 @@ export function pagesCitingDay(bucket: DayBucket, pages: CitingPage[], singleDay
       return span.lines ? ranges.some((range) => overlaps(range, span.lines!)) : singleDayFiles.has(span.file);
     })))
     .sort((a, b) => a.title.localeCompare(b.title));
-}
-
-/**
- * How many of a page's cited spans fall outside the lines it was written from:
- * a file not among the days' sources, or lines past the days' ranges. The model
- * is shown only those lines, so any such span is a citation it made up.
- */
-export function citationsOutside(body: string, days: { sources: { file: string; ranges: LineRange[] }[] }[]): number {
-  const rangesByFile = new Map<string, LineRange[]>();
-  for (const day of days) for (const source of day.sources) {
-    rangesByFile.set(source.file, [...(rangesByFile.get(source.file) ?? []), ...source.ranges]);
-  }
-  const spans = extractClaimCitations(body).flatMap((citation) => citation.spans);
-  return spans.filter((span) => {
-    const ranges = rangesByFile.get(span.file);
-    if (!ranges) return true;
-    const lines = span.lines;
-    return lines !== undefined && !ranges.some((range) => range.start <= lines.start && lines.end <= range.end);
-  }).length;
-}
-
-/** Whether two inclusive line ranges share a line. */
-export function overlaps(a: LineRange, b: LineRange): boolean {
-  return a.start <= b.end && b.start <= a.end;
 }

@@ -21,9 +21,8 @@ import { createHash } from "node:crypto";
 import { buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
 import { withGenerated } from "../wiki/generated-section.js";
-import { overlaps } from "../timeline/pages.js";
+import { CITED_BULLETS, mergeRanges, overlaps, SUMMARY_PREFIX, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
 import type { DayBucket } from "../timeline/buckets.js";
-import type { LineRange } from "../timeline/event-days.js";
 import type { ExtractableType } from "./schema.js";
 import type { ResolvedRecord } from "./identity.js";
 
@@ -31,8 +30,6 @@ import type { ResolvedRecord } from "./identity.js";
 const RECORD_PAGE_VERSION = 1;
 /** Lines of context shown on each side of a mention. */
 const CONTEXT_LINES = 2;
-/** The marker the model's first line must start with. */
-const SUMMARY_PREFIX = "SUMMARY:";
 
 /** A source and the line ranges the model is shown from it. */
 export interface ShownSource {
@@ -72,17 +69,6 @@ export function shownSources(record: ResolvedRecord, texts: Map<string, string>)
   return [...byFile].sort(([a], [b]) => a.localeCompare(b)).map(([file, ranges]) => ({ file, ranges: mergeRanges(ranges) }));
 }
 
-/** Sorted, non-overlapping ranges; adjacent ones join. */
-function mergeRanges(ranges: LineRange[]): LineRange[] {
-  const merged: LineRange[] = [];
-  for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
-    const last = merged.at(-1);
-    if (last && range.start <= last.end + 1) last.end = Math.max(last.end, range.end);
-    else merged.push({ ...range });
-  }
-  return merged;
-}
-
 /**
  * The record's declared fields agreed across its mentions: a list is the union of
  * every value; any other field is its most frequent valid value (ties go to the
@@ -116,12 +102,11 @@ export function recordSignature(title: string, fields: Record<string, unknown>, 
 }
 
 /** The request for a record page. */
-export function recordPageRequest(type: string, title: string, excerpt: string, ownerNames: string[]): { system: string; messages: { role: "user"; content: string }[] } {
+export function recordPageRequest(type: string, title: string, excerpt: string, ownerNames: string[]): PageRequest {
   const owner = ownerNames[0] ? ` The owner of this memory is ${ownerNames[0]}.` : "";
   const system = `Write a page about ${title}, a ${type} in a personal memory, from the records below, in the third person.${owner}
 First line: "${SUMMARY_PREFIX} " and one sentence about who ${title} is.
-Then short "## " sections of bullets. End each bullet with its citation, ^[file.md:START-END], using the line numbers shown.
-Only what the records say. No title.`;
+${CITED_BULLETS}`;
   return { system, messages: [{ role: "user", content: `Records that mention ${title}:\n\n${excerpt}\n\nWrite the page about ${title}.` }] };
 }
 

@@ -17,7 +17,7 @@
 
 import { createHash } from "node:crypto";
 import pLimit from "p-limit";
-import type { LineRange } from "../timeline/event-days.js";
+import type { LineRange } from "../compiler/source-excerpt.js";
 import { extractionTool, structuralDigest, type ExtractableType } from "./schema.js";
 
 /** Characters of numbered source text one extraction call carries. */

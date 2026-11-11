@@ -28,7 +28,7 @@
  */
 
 import { slugify } from "../utils/markdown.js";
-import type { LineRange } from "../timeline/event-days.js";
+import type { LineRange } from "../compiler/source-excerpt.js";
 
 /** The owner's alias registry. */
 export interface AliasRegistry {
