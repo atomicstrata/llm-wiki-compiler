@@ -14,6 +14,7 @@ import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { WikiState, SourceChange } from "../utils/types.js";
 import { listSelectedSourceFilesFrom } from "../sources/scan.js";
+import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { isSourceSelected, loadSourceSelectionFrom, type SourceSelection } from "../sources/selection.js";
 
 // Re-exported where `hashFile` callers have always imported it from.
@@ -83,9 +84,12 @@ export async function detectChangesFrom(
 ): Promise<SourceChange[]> {
   const selection = await loadSourceSelectionFrom(reads);
   const currentFiles = await listSelectedSourceFilesFrom(reads, selection);
+  // Reads start in parallel but are taken in listing order, so the first
+  // failing source still rejects the detection where the loop reached it.
   const hashed: HashedSource[] = [];
-  for (const file of currentFiles) {
-    hashed.push({ file, hash: await hashSourceFrom(hashText, file) });
+  const pending = prefetchInOrder(currentFiles, (file) => hashSourceFrom(hashText, file));
+  for (const [index, file] of currentFiles.entries()) {
+    hashed.push({ file, hash: await pending[index] });
   }
   return changesFromHashes(hashed, prevState, selection);
 }
