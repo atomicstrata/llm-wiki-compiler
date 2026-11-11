@@ -117,9 +117,14 @@ export function diskOperationRunLeafReads(root: string, scanned?: ScannedLeafByt
   };
 }
 
-/** Read, parse, and authenticate only against all caller-requested identities. */
-export async function readOperationRun(root: string, binding: OperationRunBinding): Promise<OperationRunRead> {
-  return readOperationRunFrom(diskOperationRunLeafReads(root), binding);
+/**
+ * Read, parse, and authenticate only against all caller-requested identities. A
+ * caller that already read the key under the same lock hold may hand in its
+ * `readKey`; otherwise the key is read here.
+ */
+export async function readOperationRun(root: string, binding: OperationRunBinding, readKey?: () => Promise<OperationKeyRead>): Promise<OperationRunRead> {
+  const leaves = diskOperationRunLeafReads(root);
+  return readOperationRunFrom(readKey === undefined ? leaves : { ...leaves, readKey }, binding);
 }
 
 /**
@@ -162,13 +167,12 @@ export interface OperationRunWriteSteps {
  * steps live for one writer call, under the caller's lock, and no writer writes
  * the key, so the key that authenticates the predecessor (and a recovery run) is
  * the key read once here and the key that signs the next record. A second read
- * would only re-ask the first (the body's epoch checks still compare it).
+ * would only re-ask the first (the body's epoch checks still compare it). A
+ * caller whose whole lock hold shares one key read hands its `readKey` in.
  */
-function diskOperationRunWriteSteps(root: string): OperationRunWriteSteps {
-  const readKey = once(() => readOperationKey(root));
-  const leaves: OperationRunLeafReads = { readRunLeaf: diskOperationRunLeafReads(root).readRunLeaf, readKey };
+function diskOperationRunWriteSteps(root: string, readKey = once(() => readOperationKey(root))): OperationRunWriteSteps {
   return {
-    readRun: (binding) => readOperationRunFrom(leaves, binding),
+    readRun: (binding) => readOperationRun(root, binding, readKey),
     readKey,
     readEvidenceLeaf: (binding, digestHex, maxBytes) => {
       const paths = operationPaths(root, binding.workspaceId);
@@ -239,15 +243,18 @@ function assertExpectedPredecessor(run: OperationRun, expected: OperationRunPred
 
 /**
  * Authenticate the exact predecessor, append exactly one next state version,
- * and durably replace the record. The caller must hold the project lock.
+ * and durably replace the record. The caller must hold the project lock; a
+ * caller that already read the key under that same hold may hand in its
+ * `readKey`, since nothing it holds the lock for writes the key.
  */
 export async function appendOperationTransitionLocked(
   root: string,
   binding: OperationRunBinding,
   expected: OperationRunPredecessor,
   input: AppendOperationTransitionInput,
+  readKey?: () => Promise<OperationKeyRead>,
 ): Promise<OperationRun> {
-  return appendOperationTransitionWith(diskOperationRunWriteSteps(root), binding, expected, input);
+  return appendOperationTransitionWith(diskOperationRunWriteSteps(root, readKey), binding, expected, input);
 }
 
 /** {@link appendOperationTransitionLocked} over the writers' own steps: the one append body. */
