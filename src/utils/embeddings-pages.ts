@@ -16,6 +16,7 @@ import { readConfinedExactFile } from "../storage/disk-local-reads.js";
 import { locationIsRegularFile } from "../storage/disk-locations.js";
 import type { ConfinedReadResult } from "../storage/legacy-local-reads.js";
 import type { PageRecord } from "../pages/read.js";
+import { prefetchInOrder } from "./prefetch-in-order.js";
 
 /** A reserved-namespace page record tagged with the directory it came from. */
 export interface NamespacedPageRecord {
@@ -113,8 +114,9 @@ export async function collectNamespacedPageRecordsFrom(reads: EmbeddingPageReads
     } catch {
       continue;
     }
-    for (const file of files.filter((f) => f.endsWith(".md"))) {
-      const record = await readConfinedPageRecord(reads, directory, file);
+    const pageFiles = files.filter((f) => f.endsWith(".md"));
+    for (const pending of prefetchInOrder(pageFiles, (file) => readConfinedPageRecord(reads, directory, file))) {
+      const record = await pending;
       if (record) records.push({ namespace, record });
     }
   }
