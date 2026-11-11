@@ -29,6 +29,7 @@ import { readConfinedLeafBuffer, type CappedLeafRead, type CappedLeafReadBuffer 
 import { MAX_MUTATIONS_PER_BUNDLE, MAX_RUN_BYTES, MAX_RUN_EVIDENCE_BLOB_BYTES } from "./constants.js";
 import { mutationId, type MutationId } from "./ids.js";
 import { readDurableOperationLeaf } from "./durable-leaf.js";
+import { once } from "../utils/pass-memo.js";
 import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { readOperationKey, type OperationKeyRead } from "./key-epoch.js";
 import { operationPaths } from "./paths.js";
@@ -142,7 +143,10 @@ export async function readOperationRunFrom(leaves: OperationRunLeafReads, bindin
 export interface OperationRunWriteSteps {
   /** The authenticated exact-binding run read. Local: `readOperationRun(root, binding)`. */
   readRun(binding: OperationRunBinding): Promise<OperationRunRead>;
-  /** The operation key WITH ITS BYTES, fresh on each call. Local: `readOperationKey(root)`. */
+  /**
+   * The operation key WITH ITS BYTES. Local: `readOperationKey(root)`, read once per
+   * write and shared with that write's run reads (see {@link diskOperationRunWriteSteps}).
+   */
   readKey(): Promise<OperationKeyRead>;
   /** One content-addressed run-evidence leaf, single-link and capped; a path it cannot derive rejects. */
   readEvidenceLeaf(binding: OperationRunBinding, digestHex: string, maxBytes: number): Promise<CappedLeafReadBuffer>;
@@ -152,11 +156,20 @@ export interface OperationRunWriteSteps {
   replaceRun(binding: OperationRunBinding, serialized: string): Promise<void>;
 }
 
-/** The local-disk run write steps for one root, built per call; each closure calls the incumbent when asked. In no package index. */
+/**
+ * The local-disk run write steps for one root, built per call; each closure calls
+ * the incumbent when asked. In no package index. ONE KEY READ PER WRITE: the
+ * steps live for one writer call, under the caller's lock, and no writer writes
+ * the key, so the key that authenticates the predecessor (and a recovery run) is
+ * the key read once here and the key that signs the next record. A second read
+ * would only re-ask the first (the body's epoch checks still compare it).
+ */
 function diskOperationRunWriteSteps(root: string): OperationRunWriteSteps {
+  const readKey = once(() => readOperationKey(root));
+  const leaves: OperationRunLeafReads = { readRunLeaf: diskOperationRunLeafReads(root).readRunLeaf, readKey };
   return {
-    readRun: (binding) => readOperationRun(root, binding),
-    readKey: () => readOperationKey(root),
+    readRun: (binding) => readOperationRunFrom(leaves, binding),
+    readKey,
     readEvidenceLeaf: (binding, digestHex, maxBytes) => {
       const paths = operationPaths(root, binding.workspaceId);
       return readConfinedLeafBuffer(root, paths.evidenceFile(binding.runId, digestHex), paths.evidenceRoot(binding.runId), maxBytes, { requireSingleLink: true });
