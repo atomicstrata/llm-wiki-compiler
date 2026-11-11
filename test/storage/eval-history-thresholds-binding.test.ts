@@ -171,6 +171,6 @@ describe("the threshold check over the same copies", () => {
 
   it("T3 rejects with the parser's own error for malformed YAML", async () => {
     const reads = readsOver(withText(kept.copy, THRESHOLDS, "health_score: [unclosed\n"), []);
-    await expect(checkThresholdsFrom(REPORT, reads)).rejects.toMatchObject({ name: "YAMLException" });
+    await expect(checkThresholdsFrom(REPORT, reads)).rejects.toThrow(/YAML Parse error/);
   });
 });

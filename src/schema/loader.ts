@@ -8,7 +8,6 @@
  */
 
 import path from "path";
-import yaml from "js-yaml";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
 import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
 import type {
@@ -41,7 +40,7 @@ async function findSchemaPath(reads: LegacyLocalReads): Promise<string | null> {
 /** Decide whether to parse the file as JSON or YAML based on its extension. */
 function parseSchemaFile(filePath: string, content: string): PartialSchemaFile {
   const isJson = filePath.endsWith(".json");
-  const parsed = isJson ? JSON.parse(content) : yaml.load(content);
+  const parsed: unknown = isJson ? JSON.parse(content) : Bun.YAML.parse(content);
   if (parsed && typeof parsed === "object") return parsed as PartialSchemaFile;
   return {};
 }

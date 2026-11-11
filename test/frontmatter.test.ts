@@ -175,3 +175,21 @@ describe("frontmatter round-trip", () => {
     expect(meta.orphaned).toBe(true);
   });
 });
+
+// Frontmatter is read with Bun's YAML 1.2 parser. These pin the deliberate
+// differences from the js-yaml reader it replaced, so they stay a contract.
+describe("frontmatter reader semantics", () => {
+  it("keeps unquoted dates and timestamps as the strings written", () => {
+    const { meta } = parseFrontmatter("---\ndate: 2026-01-01\nat: 2026-01-01T10:00:00Z\n---\nBody.");
+    expect(meta).toEqual({ date: "2026-01-01", at: "2026-01-01T10:00:00Z" });
+  });
+
+  it("takes the last value of a duplicated key, without flagging the block", () => {
+    const status = parseFrontmatterStatus("---\ntitle: First\ntitle: Second\n---\nBody.");
+    expect([status.meta.title, status.malformedFrontmatter]).toEqual(["Second", false]);
+  });
+
+  it("still flags YAML that does not parse", () => {
+    expect(parseFrontmatterStatus("---\ntitle: [unclosed\n---\nBody.").malformedFrontmatter).toBe(true);
+  });
+});

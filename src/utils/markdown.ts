@@ -2,6 +2,11 @@
  * Markdown parsing and manipulation helpers.
  * Handles YAML frontmatter extraction, slugification, citation parsing, and
  * compatibility exports for wiki page utilities.
+ *
+ * Frontmatter is READ with Bun's native YAML 1.2 parser (fast: it runs for
+ * every page of every command) and WRITTEN with js-yaml, whose output bytes
+ * every compiled page already carries. Bun's parser keeps unquoted dates as
+ * strings and accepts duplicate keys (last wins) and unknown tags.
  */
 
 import yaml from "js-yaml";
@@ -128,7 +133,7 @@ export function parseFrontmatterStatus(content: string): {
   let meta: Record<string, unknown> = {};
   let malformedFrontmatter = false;
   try {
-    const parsed = yaml.load(match[1]);
+    const parsed: unknown = Bun.YAML.parse(match[1]);
     if (parsed && typeof parsed === "object") {
       meta = parsed as Record<string, unknown>;
     } else if (parsed !== null && parsed !== undefined) {

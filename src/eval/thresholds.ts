@@ -19,7 +19,6 @@
  */
 
 import path from "path";
-import yaml from "js-yaml";
 import { diskEvalFileReads, type EvalFileReads } from "./file-reads.js";
 import type { EvalReport } from "./types.js";
 
@@ -48,7 +47,7 @@ interface ThresholdConfig {
 async function loadThresholds(reads: EvalFileReads): Promise<ThresholdConfig> {
   if (!reads.existsSync(THRESHOLDS_FILE)) return {};
   const raw = await reads.readText(THRESHOLDS_FILE);
-  return (yaml.load(raw) as ThresholdConfig) ?? {};
+  return (Bun.YAML.parse(raw) as ThresholdConfig | null) ?? {};
 }
 
 /** Check the source-utilization and citation-depth thresholds. */

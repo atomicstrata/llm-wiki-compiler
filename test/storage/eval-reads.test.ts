@@ -181,7 +181,7 @@ describe("checkThresholds: an optional file, read whole when present", () => {
 
   it("rejects with the parser's own error for malformed YAML, and the disk's for a directory", async () => {
     await write({ [THRESHOLDS]: "health_score: [unclosed\n" });
-    await expect(checkThresholds(report, root)).rejects.toMatchObject({ name: "YAMLException" });
+    await expect(checkThresholds(report, root)).rejects.toThrow(/YAML Parse error/);
     await disk.rm(path.join(root, THRESHOLDS));
     await disk.mkdir(path.join(root, THRESHOLDS));
     await expect(checkThresholds(report, root)).rejects.toMatchObject({ code: "EISDIR" });
