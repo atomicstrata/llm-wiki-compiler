@@ -36,7 +36,9 @@ The v2 client has the dashboard, the navigation sidebar with counts, the whole-w
 
 It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
 
-The graph explorer, health, reviews, source changes, workflows, and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
+It also has the maintenance screens: `#/health` with the lint caption, the CONTENTS strip, the lint panel with its rule table, freshness, traceability, and a profile project's record problems; `#/reviews` with the held candidates, their provenance and the reasons they are held; and `#/source-changes`, the read-only source review cockpit, which says so when source comparison is not enabled. Health and reviews are re-read on every visit, so a new lint run or candidate shows up on reload.
+
+The graph explorer, workflows, and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
 
 ### Source images
 
