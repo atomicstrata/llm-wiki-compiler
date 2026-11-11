@@ -4,7 +4,8 @@
  * parent-swap defenses for project writes.
  */
 
-import { rename, mkdir, lstat, open, unlink, realpath } from "fs/promises";
+import { rename, mkdir, open, unlink } from "fs/promises";
+import { lstat, realpath } from "./fs-metadata.js";
 import { randomBytes } from "node:crypto";
 import type { Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
