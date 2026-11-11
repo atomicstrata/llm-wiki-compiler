@@ -3,6 +3,7 @@
  * compiled panel, the compact live graph, a compile receipt, and the next
  * actions the CLI offers.
  */
+import { Download, Link2Off, ListChecks, Maximize2, RefreshCw, type LucideIcon } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope, RecentPage } from "./api";
 import { Badge, Button, ButtonLink, Card, DefinitionRows, Row, RowList, Stat, TextLink, type Tone } from "./components";
@@ -93,7 +94,7 @@ function GraphPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
       action={
         <span className="flex items-center gap-2">
           <Button disabled={controls === null} onClick={() => controls?.fit()}>Fit</Button>
-          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">⤢</a>
+          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"><Maximize2 className="size-4" strokeWidth={1.75} /></a>
         </span>
       }
       footer={<><span>hover a node to inspect</span>{" "}<span>{plural(danglingCount, "dangling target")}</span></>}>
@@ -129,12 +130,12 @@ function Receipt({ wiki, health, totals }: { wiki: PagesEnvelope; health: Health
 }
 
 /** The CLI actions that currently apply; the export hint always does. */
-function nextActions(wiki: PagesEnvelope, health: HealthPayload | null, dangling: number): { glyph: string; title: string; hint: string }[] {
+function nextActions(wiki: PagesEnvelope, health: HealthPayload | null, dangling: number): { icon: LucideIcon; title: string; hint: string }[] {
   const rows = [];
-  if (dangling > 0) rows.push({ glyph: "⌗", title: `Resolve ${plural(dangling, "dangling link")}`, hint: "create the pages or fix the targets" });
-  if (wiki.counts.stale > 0) rows.push({ glyph: "↻", title: `Recompile ${plural(wiki.counts.stale, "stale page")}`, hint: "llmwiki compile" });
-  if (lintTotal(health) === null) rows.push({ glyph: "✓", title: "Run lint", hint: "llmwiki lint" });
-  rows.push({ glyph: "⇩", title: "Export for agents", hint: "llmwiki export" });
+  if (dangling > 0) rows.push({ icon: Link2Off, title: `Resolve ${plural(dangling, "dangling link")}`, hint: "create the pages or fix the targets" });
+  if (wiki.counts.stale > 0) rows.push({ icon: RefreshCw, title: `Recompile ${plural(wiki.counts.stale, "stale page")}`, hint: "llmwiki compile" });
+  if (lintTotal(health) === null) rows.push({ icon: ListChecks, title: "Run lint", hint: "llmwiki lint" });
+  rows.push({ icon: Download, title: "Export for agents", hint: "llmwiki export" });
   return rows;
 }
 
@@ -166,7 +167,7 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
           <ul role="list" className="space-y-3">
             {nextActions(wiki, health, dangling).map((row) => (
               <li key={row.title} className="flex gap-3 text-sm">
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-950/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400" aria-hidden="true">{row.glyph}</span>{" "}
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-950/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400" aria-hidden="true"><row.icon className="size-4" strokeWidth={1.75} /></span>{" "}
                 <span className="min-w-0"><strong className="block font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong>{" "}<span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.hint}</span></span>
               </li>
             ))}

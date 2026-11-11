@@ -30,7 +30,7 @@ describe("Sidebar", () => {
     expect(html).toContain('data-route="queries"');
     expect(html).toContain("—");
     // Asserted on structure and text, not utility classes, so restyling cannot break it.
-    expect(html).toMatch(/data-route="reviews"[^>]*><span[^>]*>Reviews<\/span> <span[^>]*>0<\/span>/);
+    expect(text(html.match(/<a[^>]*data-route="reviews"[\s\S]*?<\/a>/)![0])).toBe("Reviews 0");
     expect(html).toContain('data-route="concepts" aria-current="page"');
     expect(html).not.toContain("Workflows");
   });

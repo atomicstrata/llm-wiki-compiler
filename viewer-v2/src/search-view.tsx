@@ -1,10 +1,16 @@
-/** Search results for a query, each linking to its page. */
+/**
+ * Full-text search results for a query, each linking to its page with its
+ * kind and, for a body match, the passage that matched. The palette's last
+ * row opens this screen for a query.
+ */
 import type { ReactNode } from "react";
 import { fetchSearch } from "./api";
 import { AsyncView } from "./async-view";
-import { Card, RowList, Screen } from "./components";
+import { Badge, Card, RowList, Screen } from "./components";
 import { pageIdHref } from "./route";
+import { plainSnippet, resultKind } from "./search";
 import { useAsync } from "./use-async";
+import { plural, typeLabel } from "./wiki-model";
 
 /** Load and list the pages matching `query`. */
 export function SearchView({ query }: { query: string }): ReactNode {
@@ -12,14 +18,20 @@ export function SearchView({ query }: { query: string }): ReactNode {
   return (
     <AsyncView state={state}>
       {({ results }) => (
-        <Screen title={`Search: ${query}`}>
+        <Screen title={`Search: ${query}`} description={`${plural(results.length, "page")} ${results.length === 1 ? "matches" : "match"}`}>
           <Card flush>
             {results.length === 0 && <p className="p-4 text-sm text-zinc-500 dark:text-zinc-400">No pages match.</p>}
             <RowList>
               {results.map((result) => (
-                <li key={result.id} className="px-4 py-2.5 text-sm hover:bg-zinc-50 dark:hover:bg-white/5">
-                  <a href={pageIdHref(result.id)} className="block truncate font-medium text-zinc-900 hover:text-indigo-600 dark:text-zinc-100 dark:hover:text-indigo-400">{result.title}</a>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{result.snippet}</p>
+                <li key={result.id}>
+                  <a href={pageIdHref(result.id)} data-row="" data-page-id={result.id}
+                    className="block px-4 py-2.5 text-sm outline-none hover:bg-zinc-50 focus-visible:bg-indigo-50 dark:hover:bg-white/5 dark:focus-visible:bg-indigo-500/10">
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{result.title || result.id}</span>
+                      <Badge>{typeLabel(resultKind(result))}</Badge>
+                    </span>
+                    {result.matchedIn === "body" && <span className="mt-0.5 line-clamp-2 block text-xs text-zinc-500 dark:text-zinc-400">{plainSnippet(result.snippet)}</span>}
+                  </a>
                 </li>
               ))}
             </RowList>

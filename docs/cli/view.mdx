@@ -32,7 +32,7 @@ Press `Ctrl+C` to stop the server.
 llmwiki view-v2 --open
 ```
 
-The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
+The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, a command palette, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
 
 It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
 
@@ -47,6 +47,25 @@ Every screen of `llmwiki view` is now in the v2 client.
 Point at a wikilink, or move keyboard focus to it, and a card shows the linked page's type, title and summary. A page without a summary shows its opening paragraph instead. Point at a citation chip and the card shows the cited lines of the source, numbered, up to eight lines; a longer span says how many more lines it covers. Press <kbd>Esc</kbd> to close a card. Cards appear after a short pause, so passing over a link opens nothing, and touch input never opens one: a tap follows the link. The links in a page's rail open cards too.
 
 A citation card needs the source's text, so it works where the source view does: when the viewer is bound to loopback and the source is a Markdown file. Otherwise the card says the source is not available. The client fetches each source and page at most once per visit.
+
+### Search and keyboard
+
+Press <kbd>⌘K</kbd> on macOS, <kbd>Ctrl+K</kbd> on Windows and Linux, or <kbd>/</kbd> to open the command palette. You can also select **Search or jump to** in the header. With nothing typed, it lists the pages you opened recently in this browser, then every screen in the sidebar. As you type, it lists:
+
+- **Pages**: page titles and summaries that contain every word you typed. A title match ranks above a summary match. Initials also work, such as `fsep` for "Founder Separation".
+- **Go to**: screens whose name matches.
+- **In page text**: further pages whose body text matches, from the same full-text search as `#/_search`.
+- A last row that opens the full results for your query at `#/_search`.
+
+Use the arrow keys to move and <kbd>Enter</kbd> to open. <kbd>Esc</kbd> closes the palette. Recent pages are kept in this browser's local storage for the viewer's address only. They are never sent anywhere.
+
+Other shortcuts work anywhere outside a text field:
+
+| Keys | Action |
+| --- | --- |
+| <kbd>j</kbd> and <kbd>k</kbd> | Move to the next or previous row of a list. <kbd>Enter</kbd> opens it. |
+| <kbd>g</kbd> then <kbd>d</kbd>, <kbd>c</kbd>, <kbd>q</kbd>, <kbd>r</kbd>, <kbd>s</kbd>, <kbd>g</kbd>, <kbd>h</kbd> or <kbd>v</kbd> | Go to the dashboard, concepts, queries, recent, sources, graph, health or reviews. |
+| <kbd>?</kbd> | Show the shortcut list. |
 
 A page with two or more sections has an **On this page** outline above its rail. It highlights the section you are reading. Selecting an entry scrolls to that section without changing the address, because the address holds the page's route.
 

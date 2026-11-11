@@ -113,7 +113,7 @@ describe("graph markup", () => {
     expect(explorer).toContain("Loading…");
     const dashboard = renderToStaticMarkup(createElement(Dashboard, { wiki: WIKI, health: null }));
     expect(dashboard).toMatch(/disabled=""[^>]*>Fit<\/button>/);
-    expect(dashboard).toMatch(/aria-label="Open the full graph explorer"[^>]*>⤢<\/a>/);
+    expect(dashboard).toMatch(/aria-label="Open the full graph explorer"[^>]*><svg/);
     expect(dashboard).toContain("size = degree");
     expect(dashboard).toContain("hover a node to inspect");
   });
