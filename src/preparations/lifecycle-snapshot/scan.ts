@@ -52,8 +52,12 @@ import type {
 
 /** The confined reads one scan makes, each bound to one namespace. No member takes a project root. */
 export interface LifecycleScanReads {
-  /** Re-prove the namespace's root, private root, registries and key binding; THROWS on drift. */
-  assertNamespaceCurrent(): Promise<void>;
+  /**
+   * Re-prove the namespace's root, private root, registries and key binding; THROWS
+   * on drift. `"reproved-after"` leaves the key binding to the key observation's
+   * re-proof that immediately follows.
+   */
+  assertNamespaceCurrent(keyBinding?: "recheck" | "reproved-after"): Promise<void>;
   /** Capture the bound key observation once. */
   captureKey(): Promise<CapturedLifecycleKey>;
   /** Enumerate both registries once within `bounds`. */
@@ -71,7 +75,7 @@ export interface LifecycleScanReads {
 /** LOCAL DISK. The confined incumbents for `namespace`, each called when asked. Exported for the scan witness only; in no package index. */
 export function diskLifecycleScanReads(namespace: PreparationLifecycleNamespaceV1): LifecycleScanReads {
   return {
-    assertNamespaceCurrent: () => assertPreparationLifecycleNamespaceCurrent(namespace),
+    assertNamespaceCurrent: (keyBinding) => assertPreparationLifecycleNamespaceCurrent(namespace, keyBinding),
     captureKey: () => captureLifecycleKey(namespace),
     observeRegistries: (bounds, onEnumerated) => observeLifecycleRegistries(namespace, bounds, onEnumerated),
     unitStillCurrent: (observation) => lifecycleUnitStillCurrent(observation),
@@ -290,7 +294,10 @@ export async function scanPreparationLifecycleFrom(
       reads, namespace, observed.units, key, bounds, options.afterClassificationForTest,
     );
     const currentStorage = await reads.revalidateStorage(observed.storage);
-    await reads.assertNamespaceCurrent();
+    // An ok key observation is re-proven next against the namespace's own key
+    // binding, which proves every fact the namespace's key check would; an absent
+    // or unavailable one opens nothing there, so the namespace checks the leaf.
+    await reads.assertNamespaceCurrent(key.status === "ok" ? "reproved-after" : "recheck");
     await reads.assertKeyCurrent(key);
     const projected = passTwoUnits(passOne);
     const registryProblems = observed.problems.filter((problem) => problem.unitId === undefined);
