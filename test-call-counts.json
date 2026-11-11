@@ -1,0 +1,6517 @@
+{
+  "version": 1,
+  "files": {
+    "test/active-profile-digest-genericity.test.ts": {
+      "fs": 81,
+      "spawn": 2
+    },
+    "test/activity-log-integration.test.ts": {
+      "fs": 1370,
+      "spawn": 4
+    },
+    "test/activity-log.test.ts": {
+      "fs": 32,
+      "spawn": 0
+    },
+    "test/agent-discovery.test.ts": {
+      "fs": 10,
+      "spawn": 8
+    },
+    "test/aimock-smoke.test.ts": {
+      "fs": 229,
+      "spawn": 3
+    },
+    "test/answer-approval-bytes.test.ts": {
+      "fs": 7458,
+      "spawn": 2
+    },
+    "test/answer-approval.test.ts": {
+      "fs": 8338,
+      "spawn": 2
+    },
+    "test/answer-candidate-admission.test.ts": {
+      "fs": 2140,
+      "spawn": 0
+    },
+    "test/answer-candidate-consumers.test.ts": {
+      "fs": 1525,
+      "spawn": 2
+    },
+    "test/answer-candidate-dedup.test.ts": {
+      "fs": 1786,
+      "spawn": 0
+    },
+    "test/answer-candidate-rejection.test.ts": {
+      "fs": 1889,
+      "spawn": 2
+    },
+    "test/answer-citation-index.test.ts": {
+      "fs": 1337,
+      "spawn": 2
+    },
+    "test/answer-citation-report.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/answer-citation-viewer-stack.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/answer-frontmatter-reader.test.ts": {
+      "fs": 18981,
+      "spawn": 0
+    },
+    "test/answer-manifest.test.ts": {
+      "fs": 1184,
+      "spawn": 0
+    },
+    "test/answer-publication-replacement.test.ts": {
+      "fs": 3136,
+      "spawn": 2
+    },
+    "test/answer-publication.test.ts": {
+      "fs": 770,
+      "spawn": 0
+    },
+    "test/answer-wikilink-tokens.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifact-precondition-e2e-cli.test.ts": {
+      "fs": 2073,
+      "spawn": 12
+    },
+    "test/artifact-precondition-enforce.test.ts": {
+      "fs": 2969,
+      "spawn": 2
+    },
+    "test/artifact-precondition-lifecycle-transition.test.ts": {
+      "fs": 803,
+      "spawn": 2
+    },
+    "test/artifact-precondition-seam-invariant.test.ts": {
+      "fs": 1251,
+      "spawn": 0
+    },
+    "test/artifact-requirement-lint.test.ts": {
+      "fs": 1328,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-apply.test.ts": {
+      "fs": 4892,
+      "spawn": 3
+    },
+    "test/artifacts/artifact-body-contract.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-content.test.ts": {
+      "fs": 147,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-enforce-precondition.test.ts": {
+      "fs": 702,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-field-contract.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-health-surfaces.test.ts": {
+      "fs": 2498,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-members-journal.test.ts": {
+      "fs": 7163,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-members-manifest.test.ts": {
+      "fs": 5664,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-members-tamper.test.ts": {
+      "fs": 15991,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-members-write.test.ts": {
+      "fs": 13134,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-name.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-origin.test.ts": {
+      "fs": 880,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-plan.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-ref-layer-b.test.ts": {
+      "fs": 191,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-ref.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-resolve-storefault.test.ts": {
+      "fs": 472,
+      "spawn": 0
+    },
+    "test/artifacts/artifact-resolve.test.ts": {
+      "fs": 3442,
+      "spawn": 2
+    },
+    "test/artifacts/artifact-store.test.ts": {
+      "fs": 237,
+      "spawn": 0
+    },
+    "test/artifacts/cli-artifact.test.ts": {
+      "fs": 1071,
+      "spawn": 16
+    },
+    "test/artifacts/e2e-research-artifact.test.ts": {
+      "fs": 2188,
+      "spawn": 17
+    },
+    "test/artifacts/execution-provenance-conjuncts.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/execution-provenance-scan-binding.test.ts": {
+      "fs": 26,
+      "spawn": 0
+    },
+    "test/artifacts/profile-artifacts.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/artifacts/sdk-artifact.test.ts": {
+      "fs": 1495,
+      "spawn": 2
+    },
+    "test/artifacts/sdk-discovery.test.ts": {
+      "fs": 3364,
+      "spawn": 2
+    },
+    "test/ask-citations-resolve.test.ts": {
+      "fs": 318,
+      "spawn": 0
+    },
+    "test/ask-crystallization.test.ts": {
+      "fs": 3654,
+      "spawn": 2
+    },
+    "test/ask-no-mutation.test.ts": {
+      "fs": 820,
+      "spawn": 2
+    },
+    "test/atomic-write-ancestor-confine.test.ts": {
+      "fs": 120,
+      "spawn": 0
+    },
+    "test/atomic-write-bytes.test.ts": {
+      "fs": 97,
+      "spawn": 0
+    },
+    "test/atomic-write-confine-race.test.ts": {
+      "fs": 27,
+      "spawn": 0
+    },
+    "test/atomic-write-create-only.test.ts": {
+      "fs": 384,
+      "spawn": 0
+    },
+    "test/atomic-write-durable-hardlink.test.ts": {
+      "fs": 224,
+      "spawn": 0
+    },
+    "test/atomic-write-durable.test.ts": {
+      "fs": 370,
+      "spawn": 2
+    },
+    "test/atomic-write-no-replace-durable-growth.test.ts": {
+      "fs": 307,
+      "spawn": 0
+    },
+    "test/atomic-write-no-replace-durable-review.test.ts": {
+      "fs": 8001,
+      "spawn": 0
+    },
+    "test/atomic-write-no-replace-final9.test.ts": {
+      "fs": 138,
+      "spawn": 0
+    },
+    "test/atomic-write-post-commit-recovery.test.ts": {
+      "fs": 1434,
+      "spawn": 2
+    },
+    "test/atomic-write-stream-recovery.test.ts": {
+      "fs": 357,
+      "spawn": 0
+    },
+    "test/atomic-write-symlink-hardening.test.ts": {
+      "fs": 63,
+      "spawn": 0
+    },
+    "test/atomic-write-temp-cleanup.test.ts": {
+      "fs": 36,
+      "spawn": 0
+    },
+    "test/bridge-export-contract-cli.test.ts": {
+      "fs": 85,
+      "spawn": 4
+    },
+    "test/bridge-export-contract.test.ts": {
+      "fs": 91,
+      "spawn": 0
+    },
+    "test/candidate-content-mutation-binding.test.ts": {
+      "fs": 1072,
+      "spawn": 0
+    },
+    "test/candidate-deletion-final11.test.ts": {
+      "fs": 911,
+      "spawn": 0
+    },
+    "test/candidate-deterministic-order.test.ts": {
+      "fs": 159,
+      "spawn": 0
+    },
+    "test/candidate-directory-alias-parity.test.ts": {
+      "fs": 297,
+      "spawn": 0
+    },
+    "test/candidate-final6-ingress.test.ts": {
+      "fs": 102,
+      "spawn": 0
+    },
+    "test/candidate-fresh-publication-final8.test.ts": {
+      "fs": 1421,
+      "spawn": 0
+    },
+    "test/candidate-id-safety.test.ts": {
+      "fs": 958,
+      "spawn": 0
+    },
+    "test/candidate-identity-binding.test.ts": {
+      "fs": 1197,
+      "spawn": 0
+    },
+    "test/candidate-identity-dedup.test.ts": {
+      "fs": 956,
+      "spawn": 0
+    },
+    "test/candidate-identity-limits.test.ts": {
+      "fs": 577,
+      "spawn": 0
+    },
+    "test/candidate-mutation-capacity-final7.test.ts": {
+      "fs": 14045,
+      "spawn": 2
+    },
+    "test/candidate-namespace-final9.test.ts": {
+      "fs": 773,
+      "spawn": 0
+    },
+    "test/candidate-reject-final9.test.ts": {
+      "fs": 982,
+      "spawn": 5
+    },
+    "test/candidate-scan-cap-final9.test.ts": {
+      "fs": 249,
+      "spawn": 0
+    },
+    "test/candidate-store-binding-final8.test.ts": {
+      "fs": 392,
+      "spawn": 0
+    },
+    "test/candidate-store-confinement.test.ts": {
+      "fs": 154,
+      "spawn": 0
+    },
+    "test/candidate-writer-final9.test.ts": {
+      "fs": 1646,
+      "spawn": 0
+    },
+    "test/capability-providers/broker-deadline-inflight.test.ts": {
+      "fs": 4332,
+      "spawn": 2
+    },
+    "test/capability-providers/broker-deadline.test.ts": {
+      "fs": 10108,
+      "spawn": 2
+    },
+    "test/capability-providers/broker-registry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/broker-requirement.test.ts": {
+      "fs": 1425,
+      "spawn": 2
+    },
+    "test/capability-providers/broker-response-ceiling.test.ts": {
+      "fs": 2888,
+      "spawn": 2
+    },
+    "test/capability-providers/broker-response-custody.test.ts": {
+      "fs": 4332,
+      "spawn": 2
+    },
+    "test/capability-providers/broker-secret-reflection.test.ts": {
+      "fs": 17548,
+      "spawn": 2
+    },
+    "test/capability-providers/credential-isolation.test.ts": {
+      "fs": 2824,
+      "spawn": 2
+    },
+    "test/capability-providers/custodian.test.ts": {
+      "fs": 138,
+      "spawn": 0
+    },
+    "test/capability-providers/custody-bounds.test.ts": {
+      "fs": 85,
+      "spawn": 0
+    },
+    "test/capability-providers/custody-fail-closed.test.ts": {
+      "fs": 73,
+      "spawn": 0
+    },
+    "test/capability-providers/custody.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/effect-plan.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/evidence-retention.test.ts": {
+      "fs": 35,
+      "spawn": 0
+    },
+    "test/capability-providers/grant-intersection.test.ts": {
+      "fs": 74595,
+      "spawn": 2
+    },
+    "test/capability-providers/grant-store.test.ts": {
+      "fs": 8075,
+      "spawn": 2
+    },
+    "test/capability-providers/https-broker.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/identities.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/identity-bounds.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/input-exposure.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/invocation-lifecycle.test.ts": {
+      "fs": 22190,
+      "spawn": 2
+    },
+    "test/capability-providers/launch-snapshot.test.ts": {
+      "fs": 672,
+      "spawn": 0
+    },
+    "test/capability-providers/logical-id-snapshot.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/model-broker.test.ts": {
+      "fs": 24276,
+      "spawn": 2
+    },
+    "test/capability-providers/package-archive.test.ts": {
+      "fs": 1211,
+      "spawn": 0
+    },
+    "test/capability-providers/package-install-races.test.ts": {
+      "fs": 4667,
+      "spawn": 2
+    },
+    "test/capability-providers/package-install.test.ts": {
+      "fs": 19722,
+      "spawn": 3
+    },
+    "test/capability-providers/package-local-snapshot.test.ts": {
+      "fs": 1319,
+      "spawn": 2
+    },
+    "test/capability-providers/package-protocol.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/pricing.test.ts": {
+      "fs": 12460,
+      "spawn": 2
+    },
+    "test/capability-providers/problem-codes.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/protocol-fuzz.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/protocol.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/provider-independent-pins.test.ts": {
+      "fs": 2481,
+      "spawn": 2
+    },
+    "test/capability-providers/provider-inputs.test.ts": {
+      "fs": 57,
+      "spawn": 0
+    },
+    "test/capability-providers/provider-removal.test.ts": {
+      "fs": 16381,
+      "spawn": 2
+    },
+    "test/capability-providers/provider-resolution.test.ts": {
+      "fs": 27457,
+      "spawn": 2
+    },
+    "test/capability-providers/provider-revocation.test.ts": {
+      "fs": 5580,
+      "spawn": 2
+    },
+    "test/capability-providers/provider-tree-reader.test.ts": {
+      "fs": 375,
+      "spawn": 0
+    },
+    "test/capability-providers/remote-effect-broker.test.ts": {
+      "fs": 16265,
+      "spawn": 2
+    },
+    "test/capability-providers/repository-command-brokers.test.ts": {
+      "fs": 31730,
+      "spawn": 2
+    },
+    "test/capability-providers/result-admission.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/scheduler-email-brokers.test.ts": {
+      "fs": 5833,
+      "spawn": 2
+    },
+    "test/capability-providers/schema-negative-sweep.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/schema-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/schema-validation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/capability-providers/untrusted-text.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/chunked-retrieval-aimock.test.ts": {
+      "fs": 1414,
+      "spawn": 7
+    },
+    "test/chunked-retrieval-integration.test.ts": {
+      "fs": 1169,
+      "spawn": 5
+    },
+    "test/ci/fallow-report-gate.test.ts": {
+      "fs": 0,
+      "spawn": 5
+    },
+    "test/citation-normalize.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/claim-provenance-integration.test.ts": {
+      "fs": 369,
+      "spawn": 6
+    },
+    "test/claim-provenance.test.ts": {
+      "fs": 293,
+      "spawn": 0
+    },
+    "test/claude-settings.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/cli-command-loading.test.ts": {
+      "fs": 9,
+      "spawn": 9
+    },
+    "test/cli.test.ts": {
+      "fs": 804,
+      "spawn": 18
+    },
+    "test/codex-agent-cli.test.ts": {
+      "fs": 2234,
+      "spawn": 45
+    },
+    "test/codex-agent-environment.test.ts": {
+      "fs": 35,
+      "spawn": 5
+    },
+    "test/codex-agent-interrupt.test.ts": {
+      "fs": 33274,
+      "spawn": 20
+    },
+    "test/codex-agent-preservation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/codex-strict-schema.test.ts": {
+      "fs": 1189,
+      "spawn": 2
+    },
+    "test/commands/ingest-status.test.ts": {
+      "fs": 74,
+      "spawn": 0
+    },
+    "test/commands/ingest-text.test.ts": {
+      "fs": 80,
+      "spawn": 0
+    },
+    "test/commands/rm-cli.test.ts": {
+      "fs": 2135,
+      "spawn": 21
+    },
+    "test/compile-batch-embeddings.test.ts": {
+      "fs": 882,
+      "spawn": 3
+    },
+    "test/compile-candidate-preflight.test.ts": {
+      "fs": 1272,
+      "spawn": 2
+    },
+    "test/compile-claim-provenance.test.ts": {
+      "fs": 1788,
+      "spawn": 2
+    },
+    "test/compile-concurrency.test.ts": {
+      "fs": 2659,
+      "spawn": 2
+    },
+    "test/compile-deletion-owner-closure.test.ts": {
+      "fs": 1426,
+      "spawn": 2
+    },
+    "test/compile-delta.test.ts": {
+      "fs": 2789,
+      "spawn": 2
+    },
+    "test/compile-derived-confine.test.ts": {
+      "fs": 112,
+      "spawn": 0
+    },
+    "test/compile-empty-extraction.test.ts": {
+      "fs": 7943,
+      "spawn": 2
+    },
+    "test/compile-fault-injection.test.ts": {
+      "fs": 3175,
+      "spawn": 2
+    },
+    "test/compile-floor-proof.test.ts": {
+      "fs": 1109,
+      "spawn": 2
+    },
+    "test/compile-instructions.test.ts": {
+      "fs": 4401,
+      "spawn": 38
+    },
+    "test/compile-journal-bounded.test.ts": {
+      "fs": 4852,
+      "spawn": 2
+    },
+    "test/compile-late-owner-closure.test.ts": {
+      "fs": 2748,
+      "spawn": 2
+    },
+    "test/compile-marker-ordering.test.ts": {
+      "fs": 1506,
+      "spawn": 2
+    },
+    "test/compile-options.test.ts": {
+      "fs": 1866,
+      "spawn": 2
+    },
+    "test/compile-pending-embeddings.test.ts": {
+      "fs": 835,
+      "spawn": 2
+    },
+    "test/compile-provenance.test.ts": {
+      "fs": 1189,
+      "spawn": 2
+    },
+    "test/compile-read-confinement.test.ts": {
+      "fs": 59,
+      "spawn": 0
+    },
+    "test/compile-read-extraction-egress.test.ts": {
+      "fs": 192,
+      "spawn": 2
+    },
+    "test/compile-read-routing.test.ts": {
+      "fs": 58,
+      "spawn": 0
+    },
+    "test/compile-refresh-watch-reroute.test.ts": {
+      "fs": 1980,
+      "spawn": 2
+    },
+    "test/compile-reroute-cli.test.ts": {
+      "fs": 4061,
+      "spawn": 38
+    },
+    "test/compile-reroute-generation.test.ts": {
+      "fs": 1837,
+      "spawn": 2
+    },
+    "test/compile-reroute-phases.test.ts": {
+      "fs": 3761,
+      "spawn": 2
+    },
+    "test/compile-source-deletion-reconciliation.test.ts": {
+      "fs": 3144,
+      "spawn": 2
+    },
+    "test/compile-state-draft.test.ts": {
+      "fs": 748,
+      "spawn": 0
+    },
+    "test/compile-state-via-draft.test.ts": {
+      "fs": 2093,
+      "spawn": 2
+    },
+    "test/compile-token-budget.test.ts": {
+      "fs": 615,
+      "spawn": 3
+    },
+    "test/compile-write.test.ts": {
+      "fs": 941,
+      "spawn": 2
+    },
+    "test/compounding.test.ts": {
+      "fs": 269,
+      "spawn": 0
+    },
+    "test/concept-extraction-result.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/concept-title-normalization.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/confidence-metadata-integration.test.ts": {
+      "fs": 354,
+      "spawn": 6
+    },
+    "test/confidence-metadata.test.ts": {
+      "fs": 151,
+      "spawn": 0
+    },
+    "test/confined-read.test.ts": {
+      "fs": 98,
+      "spawn": 0
+    },
+    "test/confinement-fail-closed-surfaces.test.ts": {
+      "fs": 598,
+      "spawn": 2
+    },
+    "test/connectors/candidate-boundary-rechecks.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/connectors/candidate-custody-final6.test.ts": {
+      "fs": 1648,
+      "spawn": 0
+    },
+    "test/connectors/candidate-metadata.test.ts": {
+      "fs": 88,
+      "spawn": 0
+    },
+    "test/connectors/candidate-supersession-recovery.test.ts": {
+      "fs": 4390,
+      "spawn": 0
+    },
+    "test/connectors/config.test.ts": {
+      "fs": 63,
+      "spawn": 0
+    },
+    "test/connectors/confined-fetch-origin.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/confined-fetch.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/connector-cli-final6-rendering.test.ts": {
+      "fs": 706,
+      "spawn": 2
+    },
+    "test/connectors/connector-cli.test.ts": {
+      "fs": 46,
+      "spawn": 2
+    },
+    "test/connectors/crossref.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/durable-block-surfaces.test.ts": {
+      "fs": 644,
+      "spawn": 2
+    },
+    "test/connectors/e2e-crossref-offline.test.ts": {
+      "fs": 5639,
+      "spawn": 2
+    },
+    "test/connectors/event-preflight.test.ts": {
+      "fs": 1080,
+      "spawn": 2
+    },
+    "test/connectors/fence.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/final11-candidate-access.test.ts": {
+      "fs": 307,
+      "spawn": 0
+    },
+    "test/connectors/final6-bounds.test.ts": {
+      "fs": 46714,
+      "spawn": 2
+    },
+    "test/connectors/final7-authority-capture.test.ts": {
+      "fs": 659,
+      "spawn": 2
+    },
+    "test/connectors/final7-custody-snapshots.test.ts": {
+      "fs": 2656,
+      "spawn": 0
+    },
+    "test/connectors/final7-effect-snapshots.test.ts": {
+      "fs": 33,
+      "spawn": 0
+    },
+    "test/connectors/final7-robustness-decisions.test.ts": {
+      "fs": 1071,
+      "spawn": 2
+    },
+    "test/connectors/final7-split-lock-overflow.test.ts": {
+      "fs": 23225,
+      "spawn": 2
+    },
+    "test/connectors/final8-archived-id-collision.test.ts": {
+      "fs": 3316,
+      "spawn": 2
+    },
+    "test/connectors/final8-queue-authority.test.ts": {
+      "fs": 207066,
+      "spawn": 2
+    },
+    "test/connectors/final8-runtime-boundaries.test.ts": {
+      "fs": 30,
+      "spawn": 0
+    },
+    "test/connectors/final9-candidate-store.test.ts": {
+      "fs": 4394,
+      "spawn": 2
+    },
+    "test/connectors/import-lint.test.ts": {
+      "fs": 3,
+      "spawn": 0
+    },
+    "test/connectors/input-diagnostics-parity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/legacy-capacity-parity.test.ts": {
+      "fs": 85829,
+      "spawn": 2
+    },
+    "test/connectors/origin.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/profile-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/registry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/connectors/review-pin.test.ts": {
+      "fs": 825,
+      "spawn": 2
+    },
+    "test/connectors/run-candidate-binding.test.ts": {
+      "fs": 10528,
+      "spawn": 2
+    },
+    "test/connectors/run-recovery-required.test.ts": {
+      "fs": 3324,
+      "spawn": 2
+    },
+    "test/connectors/run-substrate.test.ts": {
+      "fs": 10666,
+      "spawn": 2
+    },
+    "test/connectors/viewer-drilldown.test.ts": {
+      "fs": 1750,
+      "spawn": 2
+    },
+    "test/context-artifact-surface.test.ts": {
+      "fs": 1174,
+      "spawn": 2
+    },
+    "test/context-audit-regressions.test.ts": {
+      "fs": 342,
+      "spawn": 0
+    },
+    "test/context-content-tiers.test.ts": {
+      "fs": 1020,
+      "spawn": 0
+    },
+    "test/context-graph-relations.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/context-graph.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/context-integration.test.ts": {
+      "fs": 2020,
+      "spawn": 29
+    },
+    "test/context-pack.test.ts": {
+      "fs": 2072,
+      "spawn": 0
+    },
+    "test/context-provenance-integration.test.ts": {
+      "fs": 1352,
+      "spawn": 19
+    },
+    "test/context-provenance.test.ts": {
+      "fs": 91,
+      "spawn": 0
+    },
+    "test/context-retrieval.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/context-typed-pages.test.ts": {
+      "fs": 3981,
+      "spawn": 2
+    },
+    "test/converse-compile-cli.test.ts": {
+      "fs": 917,
+      "spawn": 6
+    },
+    "test/converse-optional-dependencies.test.ts": {
+      "fs": 1,
+      "spawn": 3
+    },
+    "test/deps.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/dev-backend/channel-scratch-cleanup.test.ts": {
+      "fs": 6,
+      "spawn": 0
+    },
+    "test/dev-backend/dev-grant.test.ts": {
+      "fs": 15951,
+      "spawn": 2
+    },
+    "test/dev-backend/dev-install.test.ts": {
+      "fs": 6397,
+      "spawn": 2
+    },
+    "test/dev-backend/local-backend.test.ts": {
+      "fs": 32,
+      "spawn": 5
+    },
+    "test/dev-backend/provider-execution-journey.test.ts": {
+      "fs": 15112,
+      "spawn": 3
+    },
+    "test/embed-batch-providers.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embed-eligibility.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embed.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embedding-attempt-accounting.test.ts": {
+      "fs": 4757,
+      "spawn": 2
+    },
+    "test/embedding-fingerprint.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embedding-legacy-transitions.test.ts": {
+      "fs": 7025,
+      "spawn": 2
+    },
+    "test/embedding-provider-guard.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embedding-provider-model.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embedding-provider.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embedding-retry-capacity.test.ts": {
+      "fs": 471,
+      "spawn": 0
+    },
+    "test/embeddings-batch-failure.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-batch-parity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-batch.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-binary-capacity.test.ts": {
+      "fs": 110,
+      "spawn": 0
+    },
+    "test/embeddings-binary-consumers.test.ts": {
+      "fs": 312,
+      "spawn": 0
+    },
+    "test/embeddings-binary-recovery.test.ts": {
+      "fs": 376,
+      "spawn": 2
+    },
+    "test/embeddings-binary-scale.test.ts": {
+      "fs": 61,
+      "spawn": 0
+    },
+    "test/embeddings-binary-storage.test.ts": {
+      "fs": 396,
+      "spawn": 0
+    },
+    "test/embeddings-binary.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-caps.test.ts": {
+      "fs": 114,
+      "spawn": 0
+    },
+    "test/embeddings-chunks.test.ts": {
+      "fs": 1920,
+      "spawn": 2
+    },
+    "test/embeddings-disabled-contract.test.ts": {
+      "fs": 5504,
+      "spawn": 5
+    },
+    "test/embeddings-disabled.test.ts": {
+      "fs": 202,
+      "spawn": 0
+    },
+    "test/embeddings-egress.test.ts": {
+      "fs": 58,
+      "spawn": 0
+    },
+    "test/embeddings-empty-store.test.ts": {
+      "fs": 120,
+      "spawn": 0
+    },
+    "test/embeddings-json.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-load.test.ts": {
+      "fs": 335,
+      "spawn": 0
+    },
+    "test/embeddings-migrate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-pages.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/embeddings-parse.test.ts": {
+      "fs": 128,
+      "spawn": 0
+    },
+    "test/embeddings-reconciliation-retry.test.ts": {
+      "fs": 42835,
+      "spawn": 2
+    },
+    "test/embeddings-reenable.test.ts": {
+      "fs": 4974,
+      "spawn": 2
+    },
+    "test/embeddings-scoped-refresh.test.ts": {
+      "fs": 10326,
+      "spawn": 2
+    },
+    "test/embeddings-store-confine.test.ts": {
+      "fs": 160,
+      "spawn": 0
+    },
+    "test/embeddings-v3-consumers.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/embeddings-v3-flip.test.ts": {
+      "fs": 1977,
+      "spawn": 2
+    },
+    "test/embeddings-v3-shape.test.ts": {
+      "fs": 99,
+      "spawn": 0
+    },
+    "test/embeddings-validation.test.ts": {
+      "fs": 337,
+      "spawn": 2
+    },
+    "test/embeddings.test.ts": {
+      "fs": 687,
+      "spawn": 2
+    },
+    "test/eval-cache.test.ts": {
+      "fs": 34,
+      "spawn": 0
+    },
+    "test/eval-candidates-cli.test.ts": {
+      "fs": 199,
+      "spawn": 2
+    },
+    "test/eval-candidates.test.ts": {
+      "fs": 3195,
+      "spawn": 0
+    },
+    "test/eval-citation-depth.test.ts": {
+      "fs": 69,
+      "spawn": 0
+    },
+    "test/eval-citation-support.test.ts": {
+      "fs": 189,
+      "spawn": 0
+    },
+    "test/eval-citation.test.ts": {
+      "fs": 109,
+      "spawn": 0
+    },
+    "test/eval-cli.test.ts": {
+      "fs": 7,
+      "spawn": 3
+    },
+    "test/eval-command.test.ts": {
+      "fs": 126,
+      "spawn": 0
+    },
+    "test/eval-delta.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/eval-formatters.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/eval-graph-health.test.ts": {
+      "fs": 174,
+      "spawn": 0
+    },
+    "test/eval-health.test.ts": {
+      "fs": 516,
+      "spawn": 0
+    },
+    "test/eval-page-health-distribution.test.ts": {
+      "fs": 696,
+      "spawn": 0
+    },
+    "test/eval-run.test.ts": {
+      "fs": 244,
+      "spawn": 0
+    },
+    "test/eval-source-path.test.ts": {
+      "fs": 55,
+      "spawn": 0
+    },
+    "test/eval-source-utilization.test.ts": {
+      "fs": 274,
+      "spawn": 0
+    },
+    "test/eval-stats.test.ts": {
+      "fs": 142,
+      "spawn": 0
+    },
+    "test/eval-thresholds.test.ts": {
+      "fs": 93,
+      "spawn": 0
+    },
+    "test/event-append-fail-closed.test.ts": {
+      "fs": 3064,
+      "spawn": 2
+    },
+    "test/event-audit-content.test.ts": {
+      "fs": 2276,
+      "spawn": 2
+    },
+    "test/event-crash-recovery.test.ts": {
+      "fs": 2851,
+      "spawn": 2
+    },
+    "test/event-emit.test.ts": {
+      "fs": 1282,
+      "spawn": 2
+    },
+    "test/event-head-size-cap.test.ts": {
+      "fs": 624,
+      "spawn": 2
+    },
+    "test/event-lint.test.ts": {
+      "fs": 2882,
+      "spawn": 2
+    },
+    "test/event-mandatory-preflight.test.ts": {
+      "fs": 2033,
+      "spawn": 2
+    },
+    "test/event-store-cap.test.ts": {
+      "fs": 3364,
+      "spawn": 2
+    },
+    "test/event-store-integration.test.ts": {
+      "fs": 1108,
+      "spawn": 6
+    },
+    "test/event-store.test.ts": {
+      "fs": 2915,
+      "spawn": 2
+    },
+    "test/event-torn-append-repair.test.ts": {
+      "fs": 4824,
+      "spawn": 2
+    },
+    "test/exclusive-lock.test.ts": {
+      "fs": 103,
+      "spawn": 2
+    },
+    "test/export-freshness.test.ts": {
+      "fs": 63,
+      "spawn": 0
+    },
+    "test/export-integration.test.ts": {
+      "fs": 1137,
+      "spawn": 23
+    },
+    "test/export-provenance.test.ts": {
+      "fs": 114,
+      "spawn": 0
+    },
+    "test/export-timestamp-fidelity.test.ts": {
+      "fs": 228,
+      "spawn": 0
+    },
+    "test/export-timestamp-roundtrip.test.ts": {
+      "fs": 375,
+      "spawn": 0
+    },
+    "test/export.test.ts": {
+      "fs": 329,
+      "spawn": 0
+    },
+    "test/export/export-json.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/extraction-page-scope.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/extraction-reuse.test.ts": {
+      "fs": 16954,
+      "spawn": 2
+    },
+    "test/extraction-snapshot.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/fifo-leaf-hardening.test.ts": {
+      "fs": 543,
+      "spawn": 17
+    },
+    "test/freshness-context.test.ts": {
+      "fs": 740,
+      "spawn": 0
+    },
+    "test/freshness-lint-next-e2e.test.ts": {
+      "fs": 110,
+      "spawn": 2
+    },
+    "test/freshness-lint.test.ts": {
+      "fs": 199,
+      "spawn": 0
+    },
+    "test/freshness-mcp-status.test.ts": {
+      "fs": 1548,
+      "spawn": 0
+    },
+    "test/freshness-next.test.ts": {
+      "fs": 165,
+      "spawn": 6
+    },
+    "test/freshness-readonly.test.ts": {
+      "fs": 111,
+      "spawn": 0
+    },
+    "test/freshness-viewer.test.ts": {
+      "fs": 211,
+      "spawn": 0
+    },
+    "test/freshness.test.ts": {
+      "fs": 111,
+      "spawn": 1
+    },
+    "test/frontmatter.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/gated-state-entry-priority.test.ts": {
+      "fs": 1392,
+      "spawn": 2
+    },
+    "test/generic-approval-citations.test.ts": {
+      "fs": 6969,
+      "spawn": 2
+    },
+    "test/genericity-grep-gate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/graph-dir-confine-surfaces.test.ts": {
+      "fs": 823,
+      "spawn": 2
+    },
+    "test/hasher.test.ts": {
+      "fs": 87,
+      "spawn": 1
+    },
+    "test/indexgen.test.ts": {
+      "fs": 845,
+      "spawn": 0
+    },
+    "test/ingest-basename-collision.test.ts": {
+      "fs": 166,
+      "spawn": 9
+    },
+    "test/ingest-journal-path.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/ingest-session.test.ts": {
+      "fs": 64,
+      "spawn": 0
+    },
+    "test/ingest-truncation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/ingest-unicode-filenames.test.ts": {
+      "fs": 75,
+      "spawn": 5
+    },
+    "test/ingest-web-lazy.test.ts": {
+      "fs": 16,
+      "spawn": 1
+    },
+    "test/instruction-file.test.ts": {
+      "fs": 37,
+      "spawn": 0
+    },
+    "test/journal-binary-port.test.ts": {
+      "fs": 684,
+      "spawn": 0
+    },
+    "test/journal-commit-prune.test.ts": {
+      "fs": 508,
+      "spawn": 0
+    },
+    "test/journal-health-surfaces.test.ts": {
+      "fs": 1806,
+      "spawn": 0
+    },
+    "test/journal-health.test.ts": {
+      "fs": 90,
+      "spawn": 0
+    },
+    "test/journal-loadbatch-nofollow.test.ts": {
+      "fs": 14,
+      "spawn": 0
+    },
+    "test/journal-prestate.test.ts": {
+      "fs": 1184,
+      "spawn": 0
+    },
+    "test/journal-recordprestate-confined.test.ts": {
+      "fs": 1027,
+      "spawn": 1
+    },
+    "test/journal-revert-confined.test.ts": {
+      "fs": 63,
+      "spawn": 0
+    },
+    "test/journal-strict-recovery.test.ts": {
+      "fs": 127,
+      "spawn": 0
+    },
+    "test/json-schema-to-zod.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/legacy-private-layout-parity.test.ts": {
+      "fs": 481,
+      "spawn": 2
+    },
+    "test/lifecycle-audit-payload.test.ts": {
+      "fs": 827,
+      "spawn": 2
+    },
+    "test/lifecycle-evidence-content.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/lifecycle-frontmatter-preservation.test.ts": {
+      "fs": 1068,
+      "spawn": 2
+    },
+    "test/lifecycle-frontmatter-splice.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/limited-isolation/limited-isolation-backend.test.ts": {
+      "fs": 14,
+      "spawn": 4
+    },
+    "test/limited-isolation/limited-isolation-seam.test.ts": {
+      "fs": 23852,
+      "spawn": 7
+    },
+    "test/link-repair-approval.test.ts": {
+      "fs": 992,
+      "spawn": 2
+    },
+    "test/link-repair.test.ts": {
+      "fs": 3319,
+      "spawn": 1
+    },
+    "test/lint-cache-integration.test.ts": {
+      "fs": 191,
+      "spawn": 3
+    },
+    "test/lint-cache.test.ts": {
+      "fs": 325,
+      "spawn": 0
+    },
+    "test/lint-fix-preview-cli.test.ts": {
+      "fs": 61,
+      "spawn": 3
+    },
+    "test/lint-fix-propose-routing.test.ts": {
+      "fs": 140,
+      "spawn": 2
+    },
+    "test/lint-fix-propose.test.ts": {
+      "fs": 2278,
+      "spawn": 5
+    },
+    "test/lint-profile-scope-parity.test.ts": {
+      "fs": 197,
+      "spawn": 0
+    },
+    "test/lint-tier-registry-emitters.test.ts": {
+      "fs": 799,
+      "spawn": 2
+    },
+    "test/lint-tier-registry.test.ts": {
+      "fs": 52,
+      "spawn": 0
+    },
+    "test/lint-tiered-cli.test.ts": {
+      "fs": 63,
+      "spawn": 1
+    },
+    "test/lint.test.ts": {
+      "fs": 407,
+      "spawn": 0
+    },
+    "test/linter/fix-plan.test.ts": {
+      "fs": 326,
+      "spawn": 0
+    },
+    "test/linter/tiered-check.test.ts": {
+      "fs": 137,
+      "spawn": 0
+    },
+    "test/llm-compat.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/llm-retry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/llm-token-budget.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/local-workflow-package-boundary.test.ts": {
+      "fs": 1,
+      "spawn": 2
+    },
+    "test/local-workflow-projection-body.test.ts": {
+      "fs": 354,
+      "spawn": 2
+    },
+    "test/local-workflow-runtime-action.test.ts": {
+      "fs": 344,
+      "spawn": 2
+    },
+    "test/local-workflow-runtime-lifecycle.test.ts": {
+      "fs": 3197,
+      "spawn": 2
+    },
+    "test/local-workflow-runtime-output.test.ts": {
+      "fs": 2104,
+      "spawn": 2
+    },
+    "test/local-workflow-runtime-start.test.ts": {
+      "fs": 565,
+      "spawn": 2
+    },
+    "test/local-workflow-transactions.test.ts": {
+      "fs": 1050,
+      "spawn": 2
+    },
+    "test/lock-blocking-fifo.test.ts": {
+      "fs": 91,
+      "spawn": 2
+    },
+    "test/lock-hardening.test.ts": {
+      "fs": 259,
+      "spawn": 2
+    },
+    "test/lock-identity-consumer-consequences.test.ts": {
+      "fs": 169,
+      "spawn": 12
+    },
+    "test/lock-owner-identity-invariance.test.ts": {
+      "fs": 0,
+      "spawn": 22
+    },
+    "test/lock-owner-liveness-classification.test.ts": {
+      "fs": 0,
+      "spawn": 9
+    },
+    "test/lock-pid-reuse.test.ts": {
+      "fs": 797,
+      "spawn": 7
+    },
+    "test/lock-private-dir-confine.test.ts": {
+      "fs": 62,
+      "spawn": 2
+    },
+    "test/lock-public-format-parity.test.ts": {
+      "fs": 0,
+      "spawn": 7
+    },
+    "test/lock-publication-race.test.ts": {
+      "fs": 151,
+      "spawn": 2
+    },
+    "test/lock-release-confined.test.ts": {
+      "fs": 130,
+      "spawn": 2
+    },
+    "test/lock-released-holder-race.test.ts": {
+      "fs": 31,
+      "spawn": 0
+    },
+    "test/mcp-context.test.ts": {
+      "fs": 668,
+      "spawn": 0
+    },
+    "test/mcp-resource-confinement.test.ts": {
+      "fs": 121,
+      "spawn": 0
+    },
+    "test/mcp-server.test.ts": {
+      "fs": 801,
+      "spawn": 2
+    },
+    "test/mcp-stdio-stream.test.ts": {
+      "fs": 7,
+      "spawn": 1
+    },
+    "test/mcp-stdio-workflow.test.ts": {
+      "fs": 7,
+      "spawn": 2
+    },
+    "test/mcp-stdio.test.ts": {
+      "fs": 7,
+      "spawn": 2
+    },
+    "test/mcp-tools-stdout.test.ts": {
+      "fs": 122,
+      "spawn": 0
+    },
+    "test/mcp-workflow-action-tools.test.ts": {
+      "fs": 748,
+      "spawn": 2
+    },
+    "test/mcp/artifact-verify.test.ts": {
+      "fs": 3446,
+      "spawn": 20
+    },
+    "test/mcp/ingest-root.test.ts": {
+      "fs": 18,
+      "spawn": 0
+    },
+    "test/mcp/page-resource-listing.test.ts": {
+      "fs": 72,
+      "spawn": 0
+    },
+    "test/multimodal-ingest-integration.test.ts": {
+      "fs": 376,
+      "spawn": 22
+    },
+    "test/multimodal-ingest.test.ts": {
+      "fs": 40,
+      "spawn": 0
+    },
+    "test/newsroom-profile.test.ts": {
+      "fs": 1892,
+      "spawn": 3
+    },
+    "test/newsroom-workflow-e2e-cli.test.ts": {
+      "fs": 2874,
+      "spawn": 26
+    },
+    "test/next-integration.test.ts": {
+      "fs": 198,
+      "spawn": 11
+    },
+    "test/no-pages-limit-cli.test.ts": {
+      "fs": 3461,
+      "spawn": 30
+    },
+    "test/no-pages-limit.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/no-research-branch-in-core.test.ts": {
+      "fs": 1168,
+      "spawn": 0
+    },
+    "test/obsidian.test.ts": {
+      "fs": 258,
+      "spawn": 0
+    },
+    "test/offline-provider-keyless.test.ts": {
+      "fs": 4054,
+      "spawn": 2
+    },
+    "test/okf-bundle-block-import.test.ts": {
+      "fs": 5354,
+      "spawn": 2
+    },
+    "test/okf-bundle.test.ts": {
+      "fs": 567,
+      "spawn": 0
+    },
+    "test/okf-citations.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-collision.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/okf-export-cli.test.ts": {
+      "fs": 183,
+      "spawn": 2
+    },
+    "test/okf-import-approve-target-dir.test.ts": {
+      "fs": 852,
+      "spawn": 2
+    },
+    "test/okf-import-candidate-fields.test.ts": {
+      "fs": 67,
+      "spawn": 0
+    },
+    "test/okf-import-cli-delegation.test.ts": {
+      "fs": 261,
+      "spawn": 2
+    },
+    "test/okf-import-cli.test.ts": {
+      "fs": 227,
+      "spawn": 3
+    },
+    "test/okf-import-command-stage.test.ts": {
+      "fs": 422,
+      "spawn": 2
+    },
+    "test/okf-import-dry-run.test.ts": {
+      "fs": 31,
+      "spawn": 0
+    },
+    "test/okf-import-empty-slug.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-import-invariants.test.ts": {
+      "fs": 2500,
+      "spawn": 2
+    },
+    "test/okf-import-link-reversal.test.ts": {
+      "fs": 33,
+      "spawn": 0
+    },
+    "test/okf-import-lint-exemption.test.ts": {
+      "fs": 9,
+      "spawn": 0
+    },
+    "test/okf-import-orchestrator.test.ts": {
+      "fs": 30,
+      "spawn": 0
+    },
+    "test/okf-import-provenance-state.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-import-review-policy.test.ts": {
+      "fs": 80,
+      "spawn": 0
+    },
+    "test/okf-import-review-render.test.ts": {
+      "fs": 264,
+      "spawn": 0
+    },
+    "test/okf-import-trusted.test.ts": {
+      "fs": 617,
+      "spawn": 2
+    },
+    "test/okf-index-log.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-links-general.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-links.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-map.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-mapping.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-mcp-queue-cap.test.ts": {
+      "fs": 187,
+      "spawn": 2
+    },
+    "test/okf-mcp-stdio.test.ts": {
+      "fs": 44,
+      "spawn": 8
+    },
+    "test/okf-mcp-tools.test.ts": {
+      "fs": 412,
+      "spawn": 2
+    },
+    "test/okf-nested-export.test.ts": {
+      "fs": 145,
+      "spawn": 0
+    },
+    "test/okf-nested-roundtrip.test.ts": {
+      "fs": 304,
+      "spawn": 0
+    },
+    "test/okf-output-dir-safety.test.ts": {
+      "fs": 460,
+      "spawn": 0
+    },
+    "test/okf-output-paths.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-profile-bundle-block.test.ts": {
+      "fs": 16356,
+      "spawn": 2
+    },
+    "test/okf-profile-export.test.ts": {
+      "fs": 884,
+      "spawn": 0
+    },
+    "test/okf-profile-import-failclosed.test.ts": {
+      "fs": 305,
+      "spawn": 2
+    },
+    "test/okf-profile-import-trusted.test.ts": {
+      "fs": 1526,
+      "spawn": 2
+    },
+    "test/okf-profile-import.test.ts": {
+      "fs": 2587,
+      "spawn": 2
+    },
+    "test/okf-profile-roundtrip-genericity.test.ts": {
+      "fs": 3936,
+      "spawn": 2
+    },
+    "test/okf-profile-roundtrip.test.ts": {
+      "fs": 30569,
+      "spawn": 2
+    },
+    "test/okf-read-confinement.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/okf-read-limits.test.ts": {
+      "fs": 58,
+      "spawn": 0
+    },
+    "test/okf-read-onwarn.test.ts": {
+      "fs": 13,
+      "spawn": 0
+    },
+    "test/okf-read-tolerance.test.ts": {
+      "fs": 22,
+      "spawn": 0
+    },
+    "test/okf-reexport-collect.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/okf-reexport-map.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-reexport-okfpath.test.ts": {
+      "fs": 891,
+      "spawn": 2
+    },
+    "test/okf-reexport-roundtrip.test.ts": {
+      "fs": 276,
+      "spawn": 0
+    },
+    "test/okf-references.test.ts": {
+      "fs": 7,
+      "spawn": 0
+    },
+    "test/okf-refresh-drains-pending.test.ts": {
+      "fs": 200,
+      "spawn": 0
+    },
+    "test/okf-relation-import.test.ts": {
+      "fs": 2521,
+      "spawn": 2
+    },
+    "test/okf-render-doc.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-roundtrip-export.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-roundtrip-import.test.ts": {
+      "fs": 127,
+      "spawn": 0
+    },
+    "test/okf-run-errors.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/okf-run-export.test.ts": {
+      "fs": 150,
+      "spawn": 0
+    },
+    "test/okf-run-import-lock.test.ts": {
+      "fs": 21,
+      "spawn": 2
+    },
+    "test/okf-run-import.test.ts": {
+      "fs": 1348,
+      "spawn": 2
+    },
+    "test/okf-sdk.test.ts": {
+      "fs": 372,
+      "spawn": 2
+    },
+    "test/openai-embeddings-credential.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/openai-extra-body.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/openai-request-retry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/openai-request-shape.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/adapter-registry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/adapter-unavailable.test.ts": {
+      "fs": 52,
+      "spawn": 0
+    },
+    "test/operation-bundles/apply-enqueues-embeddings.test.ts": {
+      "fs": 27412,
+      "spawn": 0
+    },
+    "test/operation-bundles/artifact-adapter.test.ts": {
+      "fs": 1565,
+      "spawn": 0
+    },
+    "test/operation-bundles/authority.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/cancel-directory-advisory.test.ts": {
+      "fs": 3413,
+      "spawn": 0
+    },
+    "test/operation-bundles/cancel-during-apply.test.ts": {
+      "fs": 6877,
+      "spawn": 0
+    },
+    "test/operation-bundles/cancel-request.test.ts": {
+      "fs": 137,
+      "spawn": 0
+    },
+    "test/operation-bundles/cancel-semantics.test.ts": {
+      "fs": 19367,
+      "spawn": 2
+    },
+    "test/operation-bundles/capacity.test.ts": {
+      "fs": 31299,
+      "spawn": 0
+    },
+    "test/operation-bundles/catalog-adapter.test.ts": {
+      "fs": 1403,
+      "spawn": 0
+    },
+    "test/operation-bundles/catalog-durability.test.ts": {
+      "fs": 747,
+      "spawn": 0
+    },
+    "test/operation-bundles/catalog-store.test.ts": {
+      "fs": 791,
+      "spawn": 0
+    },
+    "test/operation-bundles/compensation-faults.test.ts": {
+      "fs": 9342,
+      "spawn": 0
+    },
+    "test/operation-bundles/compensation-verification.test.ts": {
+      "fs": 4610,
+      "spawn": 0
+    },
+    "test/operation-bundles/compensation.test.ts": {
+      "fs": 12086,
+      "spawn": 0
+    },
+    "test/operation-bundles/crash-tail-recovery.test.ts": {
+      "fs": 13092,
+      "spawn": 0
+    },
+    "test/operation-bundles/effect-reservation.test.ts": {
+      "fs": 1361,
+      "spawn": 0
+    },
+    "test/operation-bundles/event-operation-binding.test.ts": {
+      "fs": 1052,
+      "spawn": 2
+    },
+    "test/operation-bundles/evidence-store.test.ts": {
+      "fs": 1032,
+      "spawn": 0
+    },
+    "test/operation-bundles/executor-faults.test.ts": {
+      "fs": 7232,
+      "spawn": 0
+    },
+    "test/operation-bundles/executor.test.ts": {
+      "fs": 8280,
+      "spawn": 0
+    },
+    "test/operation-bundles/identity-paths.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/identity-refusal-work.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/inventory-corruption.test.ts": {
+      "fs": 14979,
+      "spawn": 0
+    },
+    "test/operation-bundles/lifecycle-adapter.test.ts": {
+      "fs": 419,
+      "spawn": 0
+    },
+    "test/operation-bundles/lock-gate.test.ts": {
+      "fs": 4671,
+      "spawn": 2
+    },
+    "test/operation-bundles/manifest-grammar.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/manifest-graph.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/manifest-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/manifest-store.test.ts": {
+      "fs": 1689,
+      "spawn": 0
+    },
+    "test/operation-bundles/never-started.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/observe-record.test.ts": {
+      "fs": 3937,
+      "spawn": 0
+    },
+    "test/operation-bundles/operation-binding-grammar.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/operations-authority-boundary.test.ts": {
+      "fs": 20,
+      "spawn": 0
+    },
+    "test/operation-bundles/operations-authority-resolver-drift.test.ts": {
+      "fs": 14459,
+      "spawn": 0
+    },
+    "test/operation-bundles/operations-authority-resolver.test.ts": {
+      "fs": 8063,
+      "spawn": 0
+    },
+    "test/operation-bundles/orphan-scan-foreign-store.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/operation-bundles/page-adapter.test.ts": {
+      "fs": 666,
+      "spawn": 0
+    },
+    "test/operation-bundles/page-delete-executor-journey.test.ts": {
+      "fs": 9326,
+      "spawn": 0
+    },
+    "test/operation-bundles/page-delete-journey.test.ts": {
+      "fs": 1573,
+      "spawn": 0
+    },
+    "test/operation-bundles/page-update-journey.test.ts": {
+      "fs": 6079,
+      "spawn": 0
+    },
+    "test/operation-bundles/payload-store.test.ts": {
+      "fs": 2776,
+      "spawn": 0
+    },
+    "test/operation-bundles/preparation-origin.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/prepare-record.test.ts": {
+      "fs": 24842,
+      "spawn": 2
+    },
+    "test/operation-bundles/projection-adapter.test.ts": {
+      "fs": 1260,
+      "spawn": 0
+    },
+    "test/operation-bundles/projection-confinement.test.ts": {
+      "fs": 332,
+      "spawn": 0
+    },
+    "test/operation-bundles/projection-criticality.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/projection-store.test.ts": {
+      "fs": 5480,
+      "spawn": 0
+    },
+    "test/operation-bundles/read-stale-owner.test.ts": {
+      "fs": 2797,
+      "spawn": 0
+    },
+    "test/operation-bundles/record-intent.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/recovery-after-stale-lock.test.ts": {
+      "fs": 4085,
+      "spawn": 2
+    },
+    "test/operation-bundles/recovery-authority-drift.test.ts": {
+      "fs": 1957,
+      "spawn": 0
+    },
+    "test/operation-bundles/recovery-blocks-compensating.test.ts": {
+      "fs": 8415,
+      "spawn": 2
+    },
+    "test/operation-bundles/recovery-bundle-settlement.test.ts": {
+      "fs": 9190,
+      "spawn": 0
+    },
+    "test/operation-bundles/recovery-plan.test.ts": {
+      "fs": 11094,
+      "spawn": 0
+    },
+    "test/operation-bundles/recovery.test.ts": {
+      "fs": 7494,
+      "spawn": 0
+    },
+    "test/operation-bundles/relation-adapter.test.ts": {
+      "fs": 2133,
+      "spawn": 2
+    },
+    "test/operation-bundles/relation-operation-binding.test.ts": {
+      "fs": 2286,
+      "spawn": 2
+    },
+    "test/operation-bundles/relation-recovery-detail.test.ts": {
+      "fs": 3088,
+      "spawn": 2
+    },
+    "test/operation-bundles/rm-recovery-gate.test.ts": {
+      "fs": 4207,
+      "spawn": 4
+    },
+    "test/operation-bundles/run-abandonment-compact.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-budget.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-forward-order.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-integrity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-parse.test.ts": {
+      "fs": 61,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-retirement-annotations.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-store-abandonment-verification.test.ts": {
+      "fs": 11912,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-store-durability.test.ts": {
+      "fs": 9646,
+      "spawn": 0
+    },
+    "test/operation-bundles/run-terminal.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operation-bundles/runtime-factory.test.ts": {
+      "fs": 1603,
+      "spawn": 0
+    },
+    "test/operation-bundles/source-adapter.test.ts": {
+      "fs": 1046,
+      "spawn": 0
+    },
+    "test/operation-bundles/source-store.test.ts": {
+      "fs": 524,
+      "spawn": 0
+    },
+    "test/operation-bundles/stage-faults.test.ts": {
+      "fs": 296129,
+      "spawn": 0
+    },
+    "test/operation-bundles/stage.test.ts": {
+      "fs": 15497,
+      "spawn": 0
+    },
+    "test/operation-bundles/store-v1-compat.test.ts": {
+      "fs": 1595,
+      "spawn": 2
+    },
+    "test/operation-cli-drive.test.ts": {
+      "fs": 14677,
+      "spawn": 15
+    },
+    "test/operation-cli-list-inspect.test.ts": {
+      "fs": 15390,
+      "spawn": 8
+    },
+    "test/operation-cli-recovery-e2e.test.ts": {
+      "fs": 12591,
+      "spawn": 9
+    },
+    "test/operations-packs/alias-resolver.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/artifact-evidence-runner.test.ts": {
+      "fs": 17311,
+      "spawn": 3
+    },
+    "test/operations-packs/artifact-evidence.test.ts": {
+      "fs": 5735,
+      "spawn": 2
+    },
+    "test/operations-packs/authored-update.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/canonical-projection.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/composition-lock.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/composition.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/content-identity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/context-assemble.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/handler-registry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/host-invocation-request.test.ts": {
+      "fs": 8776,
+      "spawn": 2
+    },
+    "test/operations-packs/host-runtime-execute.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/operations-packs/intent-conjunctive-gate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/one-of-drive.test.ts": {
+      "fs": 20272,
+      "spawn": 2
+    },
+    "test/operations-packs/one-of-predicate-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-authority-resolver.test.ts": {
+      "fs": 9441,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-chaining-drive.test.ts": {
+      "fs": 46287,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-chaining-units.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-input-default.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-materializer-obligation.test.ts": {
+      "fs": 69990,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-mixed-intents-drive.test.ts": {
+      "fs": 22690,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-multi-source-drive.test.ts": {
+      "fs": 17366,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-negative-sweep.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-page-payload-drive.test.ts": {
+      "fs": 30755,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-reconcile-drive.test.ts": {
+      "fs": 22320,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-relation-drive.test.ts": {
+      "fs": 27613,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-relation-obligation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/pack-render-drive.test.ts": {
+      "fs": 37328,
+      "spawn": 2
+    },
+    "test/operations-packs/pack-vertical-drive.test.ts": {
+      "fs": 29753,
+      "spawn": 2
+    },
+    "test/operations-packs/page-evidence-inputid-uniqueness.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/page-evidence-synthetic.test.ts": {
+      "fs": 7293,
+      "spawn": 2
+    },
+    "test/operations-packs/plan-compiler-determinism.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/plan-compiler-refusals.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/plan-compiler.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/provider-ingest-journey.test.ts": {
+      "fs": 16188,
+      "spawn": 2
+    },
+    "test/operations-packs/provider-phase-lowering.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/provider-phase-routing.test.ts": {
+      "fs": 21854,
+      "spawn": 2
+    },
+    "test/operations-packs/provider-response.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/readiness-cross-reference.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/reconcile-disposition.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/reconcile-expected-current-digest.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/reconcile-intent.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/render-template.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/rule-evaluate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/set-select-one-of.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/set-select-validation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/set-select.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operations-packs/source-evidence-descriptor.test.ts": {
+      "fs": 9006,
+      "spawn": 2
+    },
+    "test/operations-packs/store-snapshot.test.ts": {
+      "fs": 232,
+      "spawn": 0
+    },
+    "test/operator-state/paths-snapshot.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/operator-state/paths.test.ts": {
+      "fs": 34,
+      "spawn": 0
+    },
+    "test/orcarouter-embeddings.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/output-language-integration.test.ts": {
+      "fs": 678,
+      "spawn": 9
+    },
+    "test/output-language-query-integration.test.ts": {
+      "fs": 212,
+      "spawn": 2
+    },
+    "test/output-language.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/output-verbose.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/pack-and-install.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/page-apply-net-growth-floor.test.ts": {
+      "fs": 647,
+      "spawn": 2
+    },
+    "test/page-id.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/page-link-targets.test.ts": {
+      "fs": 940,
+      "spawn": 3
+    },
+    "test/page-prompt-order.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/page-registry.test.ts": {
+      "fs": 291,
+      "spawn": 0
+    },
+    "test/page-renderer-citation-normalize.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/page-selection-order.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/pages/list.test.ts": {
+      "fs": 412,
+      "spawn": 0
+    },
+    "test/pages/read.test.ts": {
+      "fs": 28,
+      "spawn": 0
+    },
+    "test/parity-default.test.ts": {
+      "fs": 1088,
+      "spawn": 6
+    },
+    "test/parity-edge.test.ts": {
+      "fs": 249,
+      "spawn": 0
+    },
+    "test/path-confine-confine-under-root.test.ts": {
+      "fs": 35,
+      "spawn": 0
+    },
+    "test/pending-embeddings-lifecycle.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/pending-embeddings-lint-cli.test.ts": {
+      "fs": 252,
+      "spawn": 3
+    },
+    "test/pending-embeddings-priority-drain.test.ts": {
+      "fs": 165,
+      "spawn": 0
+    },
+    "test/pending-embeddings-status.test.ts": {
+      "fs": 312,
+      "spawn": 0
+    },
+    "test/pending-embeddings-warning.test.ts": {
+      "fs": 475,
+      "spawn": 0
+    },
+    "test/pending-embeddings.test.ts": {
+      "fs": 661,
+      "spawn": 0
+    },
+    "test/pending-target-lint.test.ts": {
+      "fs": 488,
+      "spawn": 0
+    },
+    "test/portable-nofollow-consumers.test.ts": {
+      "fs": 121,
+      "spawn": 0
+    },
+    "test/portable-nofollow.test.ts": {
+      "fs": 83,
+      "spawn": 0
+    },
+    "test/posix-path.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preflight-produce-pin-require.test.ts": {
+      "fs": 10958,
+      "spawn": 102
+    },
+    "test/preflight-produce.test.ts": {
+      "fs": 2172,
+      "spawn": 18
+    },
+    "test/preparation-cancel-collision-window.test.ts": {
+      "fs": 1758,
+      "spawn": 0
+    },
+    "test/preparation-cancel-recovery-authority.test.ts": {
+      "fs": 18820,
+      "spawn": 2
+    },
+    "test/preparation-cancel-recovery-faults.test.ts": {
+      "fs": 6933,
+      "spawn": 2
+    },
+    "test/preparation-cancel-recovery-races.test.ts": {
+      "fs": 20369,
+      "spawn": 2
+    },
+    "test/preparation-cancel-single-observation.test.ts": {
+      "fs": 3742,
+      "spawn": 0
+    },
+    "test/preparation-capacity-matrix-bounds.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparation-capacity-matrix-budget.test.ts": {
+      "fs": 7755,
+      "spawn": 18
+    },
+    "test/preparation-capacity-matrix-ceilings.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparation-capacity-matrix-plan.test.ts": {
+      "fs": 5098,
+      "spawn": 13
+    },
+    "test/preparation-capacity-matrix-projection.test.ts": {
+      "fs": 32153,
+      "spawn": 0
+    },
+    "test/preparation-capacity-matrix-store.test.ts": {
+      "fs": 66917,
+      "spawn": 18
+    },
+    "test/preparation-cli-cancel-recovery.test.ts": {
+      "fs": 13832,
+      "spawn": 18
+    },
+    "test/preparation-cli-gate.test.ts": {
+      "fs": 12151,
+      "spawn": 14
+    },
+    "test/preparation-cli-prune-sweep.test.ts": {
+      "fs": 19717,
+      "spawn": 23
+    },
+    "test/preparation-cli-reset.test.ts": {
+      "fs": 43567,
+      "spawn": 59
+    },
+    "test/preparation-cli-sdk-pause.test.ts": {
+      "fs": 25181,
+      "spawn": 34
+    },
+    "test/preparation-cli-sdk-reads.test.ts": {
+      "fs": 17804,
+      "spawn": 30
+    },
+    "test/preparation-cli-stage.test.ts": {
+      "fs": 12264,
+      "spawn": 46
+    },
+    "test/preparation-cli.test.ts": {
+      "fs": 22150,
+      "spawn": 31
+    },
+    "test/preparation-destructive-registry-evidence.test.ts": {
+      "fs": 61224,
+      "spawn": 2
+    },
+    "test/preparation-destructive-unattributed-evidence.test.ts": {
+      "fs": 3436,
+      "spawn": 2
+    },
+    "test/preparation-gate-binding.test.ts": {
+      "fs": 15821,
+      "spawn": 2
+    },
+    "test/preparation-gate-executor-race.test.ts": {
+      "fs": 4362,
+      "spawn": 2
+    },
+    "test/preparation-gate-supersession.test.ts": {
+      "fs": 19798,
+      "spawn": 2
+    },
+    "test/preparation-genericity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparation-handoff-obligation-capture.test.ts": {
+      "fs": 36312,
+      "spawn": 2
+    },
+    "test/preparation-lifecycle-gate-cli.test.ts": {
+      "fs": 20633,
+      "spawn": 32
+    },
+    "test/preparation-lifecycle-gate-owner.test.ts": {
+      "fs": 41695,
+      "spawn": 2
+    },
+    "test/preparation-lifecycle-gate.test.ts": {
+      "fs": 25709,
+      "spawn": 2
+    },
+    "test/preparation-operation-contract.test.ts": {
+      "fs": 724,
+      "spawn": 2
+    },
+    "test/preparation-parkable-states.test.ts": {
+      "fs": 2067,
+      "spawn": 2
+    },
+    "test/preparation-paused-escapable.test.ts": {
+      "fs": 23781,
+      "spawn": 13
+    },
+    "test/preparation-pending-reset-envelopes.test.ts": {
+      "fs": 13005,
+      "spawn": 31
+    },
+    "test/preparation-preview-no-caller-path.test.ts": {
+      "fs": 14579,
+      "spawn": 0
+    },
+    "test/preparation-prune-gate-executor-race.test.ts": {
+      "fs": 4628,
+      "spawn": 2
+    },
+    "test/preparation-prune-sweep-races.test.ts": {
+      "fs": 101135,
+      "spawn": 2
+    },
+    "test/preparation-reset-cli-only.test.ts": {
+      "fs": 10310,
+      "spawn": 2
+    },
+    "test/preparation-reset-owner-reachability.test.ts": {
+      "fs": 6460,
+      "spawn": 2
+    },
+    "test/preparation-reset-project-scope.test.ts": {
+      "fs": 20299,
+      "spawn": 2
+    },
+    "test/preparation-sdk-authority.test.ts": {
+      "fs": 14409,
+      "spawn": 2
+    },
+    "test/preparation-sdk-facade.test.ts": {
+      "fs": 17135,
+      "spawn": 2
+    },
+    "test/preparation-sdk-gate-handoff.test.ts": {
+      "fs": 13498,
+      "spawn": 2
+    },
+    "test/preparation-sdk-prototype-authority.test.ts": {
+      "fs": 12173,
+      "spawn": 2
+    },
+    "test/preparation-sdk-prune-sweep.test.ts": {
+      "fs": 25204,
+      "spawn": 2
+    },
+    "test/preparation-service-authority.test.ts": {
+      "fs": 12502,
+      "spawn": 2
+    },
+    "test/preparation-service-boundary.test.ts": {
+      "fs": 8177,
+      "spawn": 0
+    },
+    "test/preparation-service-cancel.test.ts": {
+      "fs": 16496,
+      "spawn": 2
+    },
+    "test/preparation-service-capture-totality.test.ts": {
+      "fs": 216,
+      "spawn": 2
+    },
+    "test/preparation-service-gate-refusals.test.ts": {
+      "fs": 13239,
+      "spawn": 2
+    },
+    "test/preparation-service-gate.test.ts": {
+      "fs": 17377,
+      "spawn": 2
+    },
+    "test/preparation-service-handoff.test.ts": {
+      "fs": 41054,
+      "spawn": 2
+    },
+    "test/preparation-service-input-capture.test.ts": {
+      "fs": 24331,
+      "spawn": 2
+    },
+    "test/preparation-service-list-bounds.test.ts": {
+      "fs": 622707,
+      "spawn": 0
+    },
+    "test/preparation-service-pause.test.ts": {
+      "fs": 21646,
+      "spawn": 6
+    },
+    "test/preparation-service-preview-purity.test.ts": {
+      "fs": 13898,
+      "spawn": 2
+    },
+    "test/preparation-service-prune.test.ts": {
+      "fs": 37276,
+      "spawn": 2
+    },
+    "test/preparation-service-recovery.test.ts": {
+      "fs": 19016,
+      "spawn": 4
+    },
+    "test/preparation-service-request-capture.test.ts": {
+      "fs": 10494,
+      "spawn": 2
+    },
+    "test/preparation-service-request-two-answers.test.ts": {
+      "fs": 3778,
+      "spawn": 2
+    },
+    "test/preparation-service-reset.test.ts": {
+      "fs": 20197,
+      "spawn": 2
+    },
+    "test/preparation-service-show-unreadable.test.ts": {
+      "fs": 15287,
+      "spawn": 4
+    },
+    "test/preparation-service-show.test.ts": {
+      "fs": 17555,
+      "spawn": 5
+    },
+    "test/preparation-service-sweep.test.ts": {
+      "fs": 21925,
+      "spawn": 2
+    },
+    "test/preparation-stage-residue.test.ts": {
+      "fs": 7199,
+      "spawn": 0
+    },
+    "test/preparation-stage-typed-refusal.test.ts": {
+      "fs": 11588,
+      "spawn": 2
+    },
+    "test/preparation-synthetic-packs.test.ts": {
+      "fs": 3824,
+      "spawn": 8
+    },
+    "test/preparations/abandonment.test.ts": {
+      "fs": 7144,
+      "spawn": 0
+    },
+    "test/preparations/attempt-authority-drift.test.ts": {
+      "fs": 27008,
+      "spawn": 2
+    },
+    "test/preparations/attempt-custody-dedup.test.ts": {
+      "fs": 6714,
+      "spawn": 2
+    },
+    "test/preparations/attempt-durable-spend.test.ts": {
+      "fs": 21556,
+      "spawn": 2
+    },
+    "test/preparations/attempt-host-handler.test.ts": {
+      "fs": 10554,
+      "spawn": 2
+    },
+    "test/preparations/attempt-intent.test.ts": {
+      "fs": 7846,
+      "spawn": 2
+    },
+    "test/preparations/attempt-metering.test.ts": {
+      "fs": 36398,
+      "spawn": 2
+    },
+    "test/preparations/attempt-parallelism.test.ts": {
+      "fs": 8289,
+      "spawn": 2
+    },
+    "test/preparations/attempt-provider.test.ts": {
+      "fs": 35582,
+      "spawn": 2
+    },
+    "test/preparations/attempt-recovery.test.ts": {
+      "fs": 5227,
+      "spawn": 2
+    },
+    "test/preparations/attempt-recustody.test.ts": {
+      "fs": 9683,
+      "spawn": 2
+    },
+    "test/preparations/authority-references.test.ts": {
+      "fs": 43495,
+      "spawn": 2
+    },
+    "test/preparations/cancel-consumer-sets.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/cancel-delivery.test.ts": {
+      "fs": 14387,
+      "spawn": 2
+    },
+    "test/preparations/cancel-races.test.ts": {
+      "fs": 14604,
+      "spawn": 2
+    },
+    "test/preparations/cancel-settlement-effects.test.ts": {
+      "fs": 44395,
+      "spawn": 2
+    },
+    "test/preparations/cancel-settlement.test.ts": {
+      "fs": 24781,
+      "spawn": 2
+    },
+    "test/preparations/cancellation.test.ts": {
+      "fs": 8946,
+      "spawn": 2
+    },
+    "test/preparations/capture-catch-ledger.test.ts": {
+      "fs": 3760,
+      "spawn": 0
+    },
+    "test/preparations/capture-fault-classification.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/checkpoint.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/completeness.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/deep-capture.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/destructive-object-scope.test.ts": {
+      "fs": 2335,
+      "spawn": 0
+    },
+    "test/preparations/dry-run-purity.test.ts": {
+      "fs": 3537,
+      "spawn": 0
+    },
+    "test/preparations/ephemeral-broker-surface.test.ts": {
+      "fs": 10,
+      "spawn": 1
+    },
+    "test/preparations/ephemeral-eligibility.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/ephemeral-read-security.test.ts": {
+      "fs": 1615,
+      "spawn": 1
+    },
+    "test/preparations/ephemeral-read.test.ts": {
+      "fs": 17146,
+      "spawn": 2
+    },
+    "test/preparations/evidence-read-bytes.test.ts": {
+      "fs": 1475,
+      "spawn": 0
+    },
+    "test/preparations/evidence-read-disk-witness.test.ts": {
+      "fs": 671,
+      "spawn": 0
+    },
+    "test/preparations/evidence-store.test.ts": {
+      "fs": 1170,
+      "spawn": 1
+    },
+    "test/preparations/expansion.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/exposure.test.ts": {
+      "fs": 84,
+      "spawn": 0
+    },
+    "test/preparations/external-effects.test.ts": {
+      "fs": 30959,
+      "spawn": 0
+    },
+    "test/preparations/failed-reason-readback.test.ts": {
+      "fs": 4876,
+      "spawn": 2
+    },
+    "test/preparations/finalization.test.ts": {
+      "fs": 42012,
+      "spawn": 2
+    },
+    "test/preparations/gate-authority-drift.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/gate-driver.test.ts": {
+      "fs": 15579,
+      "spawn": 2
+    },
+    "test/preparations/gates.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/handoff-cancel-wedge.test.ts": {
+      "fs": 41336,
+      "spawn": 2
+    },
+    "test/preparations/handoff-capacity.test.ts": {
+      "fs": 11591,
+      "spawn": 2
+    },
+    "test/preparations/handoff-faults.test.ts": {
+      "fs": 26471,
+      "spawn": 2
+    },
+    "test/preparations/handoff-key-loss.test.ts": {
+      "fs": 11891,
+      "spawn": 2
+    },
+    "test/preparations/handoff.test.ts": {
+      "fs": 19143,
+      "spawn": 2
+    },
+    "test/preparations/identities.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/initial-input-disk-witness.test.ts": {
+      "fs": 1543,
+      "spawn": 0
+    },
+    "test/preparations/input-swap.test.ts": {
+      "fs": 798,
+      "spawn": 1
+    },
+    "test/preparations/intent-compiler.test.ts": {
+      "fs": 21,
+      "spawn": 0
+    },
+    "test/preparations/key-read-disk-witness.test.ts": {
+      "fs": 495,
+      "spawn": 0
+    },
+    "test/preparations/key-reset.test.ts": {
+      "fs": 65663,
+      "spawn": 0
+    },
+    "test/preparations/leg-fault-park.test.ts": {
+      "fs": 12143,
+      "spawn": 2
+    },
+    "test/preparations/lifecycle-capacity-bounds.test.ts": {
+      "fs": 2069,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-capacity-parity.test.ts": {
+      "fs": 980,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-compat.test.ts": {
+      "fs": 12156,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-custody-observations.test.ts": {
+      "fs": 14201,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-destructive-compat.test.ts": {
+      "fs": 340,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-driver.test.ts": {
+      "fs": 29828,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-fs-operations.test.ts": {
+      "fs": 88,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/coverage-matrix.test.ts": {
+      "fs": 5010,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/frozen-regressions.test.ts": {
+      "fs": 220,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/protocol-maps.test.ts": {
+      "fs": 1786,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/source-text.test.ts": {
+      "fs": 2,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/structural-controls.test.ts": {
+      "fs": 4561,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-model/unit-shape.test.ts": {
+      "fs": 6392,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-mutation-permit.test.ts": {
+      "fs": 1,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-namespace.test.ts": {
+      "fs": 612,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-prune-binding-degradation.test.ts": {
+      "fs": 18963,
+      "spawn": 2
+    },
+    "test/preparations/lifecycle-public-boundary-capture.test.ts": {
+      "fs": 22200,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-quarantine-key-guard.test.ts": {
+      "fs": 5278,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-races.test.ts": {
+      "fs": 16306,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-read-attempts.test.ts": {
+      "fs": 59,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-read-lease.test.ts": {
+      "fs": 112,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-read-scan-failure.test.ts": {
+      "fs": 11,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-root-enumeration.test.ts": {
+      "fs": 189,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-single-capture.test.ts": {
+      "fs": 10123,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-snapshot-architecture.test.ts": {
+      "fs": 122,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-snapshot-properties.test.ts": {
+      "fs": 4815,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-snapshot.test.ts": {
+      "fs": 4278,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-storage-faults.test.ts": {
+      "fs": 3036,
+      "spawn": 2
+    },
+    "test/preparations/lifecycle-storage-races.test.ts": {
+      "fs": 3420,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-storage.test.ts": {
+      "fs": 4394,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-supersession-resume.test.ts": {
+      "fs": 24995,
+      "spawn": 0
+    },
+    "test/preparations/lifecycle-supplied-consumers.test.ts": {
+      "fs": 52,
+      "spawn": 0
+    },
+    "test/preparations/materialization-capture.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/materialization-manifest.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/non-atomicity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/pack-journeys.test.ts": {
+      "fs": 118270,
+      "spawn": 2
+    },
+    "test/preparations/plan-bounds.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/plan-evidence-grammar.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/plan-graph.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/plan-materialization-reservation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/plan-negative-sweep.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/plan-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/prepared-inputs.test.ts": {
+      "fs": 390,
+      "spawn": 0
+    },
+    "test/preparations/principals.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/proposals.test.ts": {
+      "fs": 9,
+      "spawn": 0
+    },
+    "test/preparations/prune-sweep-authority.test.ts": {
+      "fs": 9828,
+      "spawn": 0
+    },
+    "test/preparations/prune-sweep.test.ts": {
+      "fs": 45088,
+      "spawn": 0
+    },
+    "test/preparations/purge-authority.test.ts": {
+      "fs": 15688,
+      "spawn": 0
+    },
+    "test/preparations/quarantine.test.ts": {
+      "fs": 33686,
+      "spawn": 0
+    },
+    "test/preparations/readiness-disk-witness.test.ts": {
+      "fs": 286,
+      "spawn": 0
+    },
+    "test/preparations/readiness.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/reconciliation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/recovery-cancel-settlement.test.ts": {
+      "fs": 34374,
+      "spawn": 2
+    },
+    "test/preparations/recovery-gate-order.test.ts": {
+      "fs": 25784,
+      "spawn": 2
+    },
+    "test/preparations/recovery-settlement-isolation.test.ts": {
+      "fs": 23528,
+      "spawn": 2
+    },
+    "test/preparations/recursive-delete-scope.test.ts": {
+      "fs": 98,
+      "spawn": 0
+    },
+    "test/preparations/reset-intent-contract.test.ts": {
+      "fs": 2015,
+      "spawn": 0
+    },
+    "test/preparations/reset-intent-supersession.test.ts": {
+      "fs": 29901,
+      "spawn": 0
+    },
+    "test/preparations/retry.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/run-headroom.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/run-integrity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/run-parse-spend.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/run-state-machine.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/run-store.test.ts": {
+      "fs": 9559,
+      "spawn": 0
+    },
+    "test/preparations/runner.test.ts": {
+      "fs": 51079,
+      "spawn": 2
+    },
+    "test/preparations/schedule.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/selection.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/stage-faults.test.ts": {
+      "fs": 5192,
+      "spawn": 0
+    },
+    "test/preparations/stage.test.ts": {
+      "fs": 11210,
+      "spawn": 0
+    },
+    "test/preparations/store-confinement.test.ts": {
+      "fs": 47,
+      "spawn": 1
+    },
+    "test/preparations/store-walk-disk-witness.test.ts": {
+      "fs": 290,
+      "spawn": 0
+    },
+    "test/preparations/sweep-target-selector.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/task7-authority.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/task7-blockers.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/task7-capture-invariant.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/preparations/workflow-parent-staging.test.ts": {
+      "fs": 7484,
+      "spawn": 0
+    },
+    "test/preparations/workflow-parent.test.ts": {
+      "fs": 392,
+      "spawn": 0
+    },
+    "test/product-boundary-genericity.test.ts": {
+      "fs": 1,
+      "spawn": 0
+    },
+    "test/products/active-binding.test.ts": {
+      "fs": 245,
+      "spawn": 0
+    },
+    "test/products/apply-revalidation.test.ts": {
+      "fs": 26561,
+      "spawn": 2
+    },
+    "test/products/cli-provider-invocation.test.ts": {
+      "fs": 8,
+      "spawn": 0
+    },
+    "test/products/keyless-gate.test.ts": {
+      "fs": 11,
+      "spawn": 2
+    },
+    "test/products/legacy-profile-compatibility.test.ts": {
+      "fs": 43,
+      "spawn": 0
+    },
+    "test/products/private-packages-pack.test.ts": {
+      "fs": 13,
+      "spawn": 15
+    },
+    "test/products/product-activation-faults.test.ts": {
+      "fs": 28030,
+      "spawn": 2
+    },
+    "test/products/product-activation.test.ts": {
+      "fs": 26269,
+      "spawn": 2
+    },
+    "test/products/product-apply-seam.test.ts": {
+      "fs": 88413,
+      "spawn": 2
+    },
+    "test/products/product-authority-conflict.test.ts": {
+      "fs": 5188,
+      "spawn": 0
+    },
+    "test/products/product-cli-apply.test.ts": {
+      "fs": 96706,
+      "spawn": 96
+    },
+    "test/products/product-cli-refusals.test.ts": {
+      "fs": 23250,
+      "spawn": 52
+    },
+    "test/products/product-cli.test.ts": {
+      "fs": 95270,
+      "spawn": 96
+    },
+    "test/products/product-command-reporting.test.ts": {
+      "fs": 11559,
+      "spawn": 2
+    },
+    "test/products/product-compatibility.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/product-install-races.test.ts": {
+      "fs": 8924,
+      "spawn": 2
+    },
+    "test/products/product-install.test.ts": {
+      "fs": 11850,
+      "spawn": 2
+    },
+    "test/products/product-package-negative-sweep.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/product-package-parse.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/product-package-store.test.ts": {
+      "fs": 27910,
+      "spawn": 1
+    },
+    "test/products/product-parent-resume-e2e.test.ts": {
+      "fs": 36939,
+      "spawn": 2
+    },
+    "test/products/product-profile-loader.test.ts": {
+      "fs": 15954,
+      "spawn": 0
+    },
+    "test/products/product-provider-forwarding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/product-readiness-no-read.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/product-readiness.test.ts": {
+      "fs": 1952,
+      "spawn": 0
+    },
+    "test/products/product-service-capture.test.ts": {
+      "fs": 39183,
+      "spawn": 2
+    },
+    "test/products/product-service-refusals.test.ts": {
+      "fs": 17376,
+      "spawn": 2
+    },
+    "test/products/product-status-skip-cli.test.ts": {
+      "fs": 8505,
+      "spawn": 9
+    },
+    "test/products/product-vertical-e2e.test.ts": {
+      "fs": 65580,
+      "spawn": 2
+    },
+    "test/products/product-vertical-zero-draft.test.ts": {
+      "fs": 13531,
+      "spawn": 2
+    },
+    "test/products/provider-host-surface-shipped.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/products/provider-paths-cross-bundle.test.ts": {
+      "fs": 402,
+      "spawn": 2
+    },
+    "test/products/readiness-credentialless-provider.test.ts": {
+      "fs": 26511,
+      "spawn": 2
+    },
+    "test/products/readiness-installed-provider.test.ts": {
+      "fs": 6705,
+      "spawn": 2
+    },
+    "test/products/readiness-skips.test.ts": {
+      "fs": 59,
+      "spawn": 0
+    },
+    "test/profile-autosci-drilldown.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-cli.test.ts": {
+      "fs": 233,
+      "spawn": 7
+    },
+    "test/profile-collect.test.ts": {
+      "fs": 135,
+      "spawn": 0
+    },
+    "test/profile-confidence-cli.test.ts": {
+      "fs": 761,
+      "spawn": 7
+    },
+    "test/profile-confidence.test.ts": {
+      "fs": 273,
+      "spawn": 0
+    },
+    "test/profile-content-tiers-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-default.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-digest.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-entitypage.test.ts": {
+      "fs": 33,
+      "spawn": 0
+    },
+    "test/profile-evidence-type-compat.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-export.test.ts": {
+      "fs": 276,
+      "spawn": 0
+    },
+    "test/profile-field-format-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-field-types.test.ts": {
+      "fs": 192,
+      "spawn": 0
+    },
+    "test/profile-human-input.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-identity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-init-cli.test.ts": {
+      "fs": 668,
+      "spawn": 15
+    },
+    "test/profile-lifecycle-enforce.test.ts": {
+      "fs": 2118,
+      "spawn": 2
+    },
+    "test/profile-lint-health-tiers.test.ts": {
+      "fs": 614,
+      "spawn": 0
+    },
+    "test/profile-lint-order.test.ts": {
+      "fs": 212,
+      "spawn": 0
+    },
+    "test/profile-lint-tiers.test.ts": {
+      "fs": 528,
+      "spawn": 0
+    },
+    "test/profile-lint.test.ts": {
+      "fs": 247,
+      "spawn": 0
+    },
+    "test/profile-listpages-pagination.test.ts": {
+      "fs": 528,
+      "spawn": 0
+    },
+    "test/profile-listpages.test.ts": {
+      "fs": 147,
+      "spawn": 0
+    },
+    "test/profile-loader-confined.test.ts": {
+      "fs": 99,
+      "spawn": 0
+    },
+    "test/profile-loader.test.ts": {
+      "fs": 94,
+      "spawn": 0
+    },
+    "test/profile-onboarding-docs.test.ts": {
+      "fs": 6,
+      "spawn": 0
+    },
+    "test/profile-onboarding-e2e.test.ts": {
+      "fs": 643,
+      "spawn": 9
+    },
+    "test/profile-posix-dir.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-posix-path-gate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-presentation-trust.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-problem-cap-ordering.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-relation-requirements-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-relations.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-scaffold-install.test.ts": {
+      "fs": 3001,
+      "spawn": 2
+    },
+    "test/profile-scaffold.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-status-lifecycle.test.ts": {
+      "fs": 1527,
+      "spawn": 2
+    },
+    "test/profile-status.test.ts": {
+      "fs": 2540,
+      "spawn": 2
+    },
+    "test/profile-subject-gate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-substrate.test.ts": {
+      "fs": 283,
+      "spawn": 0
+    },
+    "test/profile-template-cli.test.ts": {
+      "fs": 1393,
+      "spawn": 21
+    },
+    "test/profile-template-confirm.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-corpus.test.ts": {
+      "fs": 1996,
+      "spawn": 2
+    },
+    "test/profile-template-genericity.test.ts": {
+      "fs": 2618,
+      "spawn": 2
+    },
+    "test/profile-template-install.test.ts": {
+      "fs": 3750,
+      "spawn": 2
+    },
+    "test/profile-template-local.test.ts": {
+      "fs": 548,
+      "spawn": 2
+    },
+    "test/profile-template-lock-read.test.ts": {
+      "fs": 55,
+      "spawn": 0
+    },
+    "test/profile-template-lock.test.ts": {
+      "fs": 874,
+      "spawn": 2
+    },
+    "test/profile-template-r3-boundary.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/profile-template-registry.test.ts": {
+      "fs": 9,
+      "spawn": 0
+    },
+    "test/profile-template-releases.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-remote-install.test.ts": {
+      "fs": 2808,
+      "spawn": 2
+    },
+    "test/profile-template-remote-status.test.ts": {
+      "fs": 2780,
+      "spawn": 2
+    },
+    "test/profile-template-remote-update.test.ts": {
+      "fs": 13130,
+      "spawn": 7
+    },
+    "test/profile-template-signing-canonical-base64.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-signing-continuity.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-signing-fixture.test.ts": {
+      "fs": 3,
+      "spawn": 0
+    },
+    "test/profile-template-signing-protocol.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-signing-verify.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-template-status.test.ts": {
+      "fs": 882,
+      "spawn": 2
+    },
+    "test/profile-template-tap-cli.test.ts": {
+      "fs": 1602,
+      "spawn": 20
+    },
+    "test/profile-template-tap-discovery.test.ts": {
+      "fs": 2049,
+      "spawn": 2
+    },
+    "test/profile-template-tap-package.test.ts": {
+      "fs": 2353,
+      "spawn": 2
+    },
+    "test/profile-template-tap-refresh.test.ts": {
+      "fs": 2383,
+      "spawn": 2
+    },
+    "test/profile-template-tap-state.test.ts": {
+      "fs": 1914,
+      "spawn": 2
+    },
+    "test/profile-template-update-plan.test.ts": {
+      "fs": 752,
+      "spawn": 0
+    },
+    "test/profile-title-field-blast-radius.test.ts": {
+      "fs": 184,
+      "spawn": 0
+    },
+    "test/profile-title-field.test.ts": {
+      "fs": 115,
+      "spawn": 0
+    },
+    "test/profile-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-viewer.test.ts": {
+      "fs": 374,
+      "spawn": 0
+    },
+    "test/profile-workflow-actions-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-workflow-artifact-writes-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile-workflows-validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile/artifact-precondition-guard.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/profile/artifact-requirements-load.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/project-state.test.ts": {
+      "fs": 429,
+      "spawn": 0
+    },
+    "test/prompt-blowup-integration.test.ts": {
+      "fs": 876,
+      "spawn": 9
+    },
+    "test/prompt-budget.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/prompt-modifiers-integration.test.ts": {
+      "fs": 5965,
+      "spawn": 36
+    },
+    "test/prompt-modifiers.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provenance-metadata-shape.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provenance-violations.test.ts": {
+      "fs": 400,
+      "spawn": 0
+    },
+    "test/provider-anthropic.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-atlascloud.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-claude-agent.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-codex-agent-live.test.ts": {
+      "fs": 7,
+      "spawn": 3
+    },
+    "test/provider-codex-agent.test.ts": {
+      "fs": 11168,
+      "spawn": 32
+    },
+    "test/provider-converse.test.ts": {
+      "fs": 2,
+      "spawn": 0
+    },
+    "test/provider-copilot.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-factory.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-openai.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-orcarouter.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/provider-timeout.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/providers/offline.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/providers/ollama.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/quarantined-embeddings-surfaces.test.ts": {
+      "fs": 1548,
+      "spawn": 2
+    },
+    "test/query-answer-citations-cli.test.ts": {
+      "fs": 727,
+      "spawn": 7
+    },
+    "test/query-answer-citations-recovery.test.ts": {
+      "fs": 1960,
+      "spawn": 2
+    },
+    "test/query-answer-citations.test.ts": {
+      "fs": 900,
+      "spawn": 2
+    },
+    "test/query-dirs.test.ts": {
+      "fs": 44,
+      "spawn": 0
+    },
+    "test/query-document.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/query-embedding-degrade.test.ts": {
+      "fs": 825,
+      "spawn": 0
+    },
+    "test/query-grounding-default-cli.test.ts": {
+      "fs": 139,
+      "spawn": 1
+    },
+    "test/query-grounding-default-surfaces.test.ts": {
+      "fs": 758,
+      "spawn": 0
+    },
+    "test/query-hydrated-grounding.test.ts": {
+      "fs": 2255,
+      "spawn": 2
+    },
+    "test/query-page-candidate-pageid.test.ts": {
+      "fs": 614,
+      "spawn": 0
+    },
+    "test/query-page-scope.test.ts": {
+      "fs": 584,
+      "spawn": 0
+    },
+    "test/query-pageid-provenance.test.ts": {
+      "fs": 478,
+      "spawn": 0
+    },
+    "test/query-proposal.test.ts": {
+      "fs": 1527,
+      "spawn": 2
+    },
+    "test/query-publication-cli.test.ts": {
+      "fs": 5721,
+      "spawn": 46
+    },
+    "test/query-publication-race.test.ts": {
+      "fs": 712,
+      "spawn": 2
+    },
+    "test/query-publication-sdk-mcp.test.ts": {
+      "fs": 2521,
+      "spawn": 2
+    },
+    "test/query-publication.test.ts": {
+      "fs": 856,
+      "spawn": 2
+    },
+    "test/query-save-profile-gate.test.ts": {
+      "fs": 635,
+      "spawn": 2
+    },
+    "test/query-save.test.ts": {
+      "fs": 125,
+      "spawn": 0
+    },
+    "test/query-stale-warning.test.ts": {
+      "fs": 313,
+      "spawn": 0
+    },
+    "test/query-typed-grounding-surfaces.test.ts": {
+      "fs": 206,
+      "spawn": 0
+    },
+    "test/query-typed-grounding.test.ts": {
+      "fs": 739,
+      "spawn": 0
+    },
+    "test/quickstart-concurrency.test.ts": {
+      "fs": 27,
+      "spawn": 0
+    },
+    "test/quickstart-integration.test.ts": {
+      "fs": 6932,
+      "spawn": 45
+    },
+    "test/quickstart-json-stdout.test.ts": {
+      "fs": 140,
+      "spawn": 5
+    },
+    "test/ranking-baseline.test.ts": {
+      "fs": 790,
+      "spawn": 2
+    },
+    "test/ranking-parity-v2-v3.test.ts": {
+      "fs": 1263,
+      "spawn": 0
+    },
+    "test/ranking-qualified-id.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/read-path-no-mkdir.test.ts": {
+      "fs": 160,
+      "spawn": 0
+    },
+    "test/reconcile-digest-ref-genericity.test.ts": {
+      "fs": 0,
+      "spawn": 2
+    },
+    "test/reconciliation-invalid-replacement.test.ts": {
+      "fs": 3276,
+      "spawn": 2
+    },
+    "test/recover-command.test.ts": {
+      "fs": 189,
+      "spawn": 12
+    },
+    "test/recursive-source-compile.test.ts": {
+      "fs": 2177,
+      "spawn": 2
+    },
+    "test/recursive-source-inventory.test.ts": {
+      "fs": 390,
+      "spawn": 2
+    },
+    "test/refresh-cli.test.ts": {
+      "fs": 1123,
+      "spawn": 13
+    },
+    "test/refresh-integration.test.ts": {
+      "fs": 2885,
+      "spawn": 2
+    },
+    "test/refresh-pipeline.test.ts": {
+      "fs": 2599,
+      "spawn": 2
+    },
+    "test/refresh-plan.test.ts": {
+      "fs": 236,
+      "spawn": 0
+    },
+    "test/relation-attribute-contract.test.ts": {
+      "fs": 636,
+      "spawn": 2
+    },
+    "test/relation-compaction-confine.test.ts": {
+      "fs": 2016,
+      "spawn": 2
+    },
+    "test/relation-compaction-preflight.test.ts": {
+      "fs": 19508,
+      "spawn": 2
+    },
+    "test/relation-contract.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/relation-digest.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/relation-endpoint-validity.test.ts": {
+      "fs": 5843,
+      "spawn": 2
+    },
+    "test/relation-event-store-full-preflight.test.ts": {
+      "fs": 2707,
+      "spawn": 2
+    },
+    "test/relation-evidence-contract.test.ts": {
+      "fs": 1772,
+      "spawn": 2
+    },
+    "test/relation-graph-confine.test.ts": {
+      "fs": 524,
+      "spawn": 2
+    },
+    "test/relation-lifecycle-audit-residual.test.ts": {
+      "fs": 694,
+      "spawn": 2
+    },
+    "test/relation-lifecycle-executor-kinds.test.ts": {
+      "fs": 4287,
+      "spawn": 2
+    },
+    "test/relation-lifecycle-seam-integration.test.ts": {
+      "fs": 1271,
+      "spawn": 2
+    },
+    "test/relation-lint.test.ts": {
+      "fs": 1387,
+      "spawn": 2
+    },
+    "test/relation-live-valid.test.ts": {
+      "fs": 528,
+      "spawn": 2
+    },
+    "test/relation-precondition-enforce.test.ts": {
+      "fs": 4901,
+      "spawn": 2
+    },
+    "test/relation-precondition.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/relation-profile-adaptation.test.ts": {
+      "fs": 1485,
+      "spawn": 2
+    },
+    "test/relation-required-undefined.test.ts": {
+      "fs": 650,
+      "spawn": 2
+    },
+    "test/relation-standing-surfaces.test.ts": {
+      "fs": 4283,
+      "spawn": 2
+    },
+    "test/relation-store-agent-surfaces.test.ts": {
+      "fs": 1006,
+      "spawn": 2
+    },
+    "test/relation-store-audit.test.ts": {
+      "fs": 10302,
+      "spawn": 2
+    },
+    "test/relation-store-concurrent.test.ts": {
+      "fs": 8208,
+      "spawn": 44
+    },
+    "test/relation-store-leaf-symlink.test.ts": {
+      "fs": 430,
+      "spawn": 2
+    },
+    "test/relation-store-symlink-surfaces.test.ts": {
+      "fs": 860,
+      "spawn": 2
+    },
+    "test/relation-store.test.ts": {
+      "fs": 3200,
+      "spawn": 2
+    },
+    "test/relation-surface.test.ts": {
+      "fs": 1326,
+      "spawn": 2
+    },
+    "test/research-content-tiers-cli.test.ts": {
+      "fs": 298,
+      "spawn": 2
+    },
+    "test/research-literature-review-e2e-cli.test.ts": {
+      "fs": 4412,
+      "spawn": 52
+    },
+    "test/research-profile.test.ts": {
+      "fs": 84299,
+      "spawn": 6
+    },
+    "test/research-standing-lint-cli.test.ts": {
+      "fs": 1680,
+      "spawn": 4
+    },
+    "test/research-workflow-denial-cli.test.ts": {
+      "fs": 16987,
+      "spawn": 157
+    },
+    "test/research-workflow-e2e-cli.test.ts": {
+      "fs": 10737,
+      "spawn": 96
+    },
+    "test/research-workflow-projection-genericity.test.ts": {
+      "fs": 775,
+      "spawn": 10
+    },
+    "test/research-workflow-surface-authority.test.ts": {
+      "fs": 338,
+      "spawn": 2
+    },
+    "test/research-workflow-validate.test.ts": {
+      "fs": 97,
+      "spawn": 4
+    },
+    "test/reserved-verbs-drift.test.ts": {
+      "fs": 1,
+      "spawn": 1
+    },
+    "test/reset-all-scopes-cli.test.ts": {
+      "fs": 726,
+      "spawn": 16
+    },
+    "test/reset-plan.test.ts": {
+      "fs": 455,
+      "spawn": 0
+    },
+    "test/reset-scope-cli.test.ts": {
+      "fs": 600,
+      "spawn": 17
+    },
+    "test/resolver-code-spans.test.ts": {
+      "fs": 3111,
+      "spawn": 0
+    },
+    "test/resolver-dollar-patterns.test.ts": {
+      "fs": 576,
+      "spawn": 0
+    },
+    "test/resolver-literal-parse.test.ts": {
+      "fs": 848,
+      "spawn": 0
+    },
+    "test/resolver.test.ts": {
+      "fs": 608,
+      "spawn": 0
+    },
+    "test/retrieval.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/retry-exclusions.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/review-approve-drains-pending.test.ts": {
+      "fs": 812,
+      "spawn": 2
+    },
+    "test/review-approve-keeps-extraction.test.ts": {
+      "fs": 14209,
+      "spawn": 2
+    },
+    "test/review-approve-planner.test.ts": {
+      "fs": 3082,
+      "spawn": 2
+    },
+    "test/review-approve-typed.test.ts": {
+      "fs": 6432,
+      "spawn": 2
+    },
+    "test/review-batch-cli.test.ts": {
+      "fs": 5393,
+      "spawn": 30
+    },
+    "test/review-batch-embedding-recovery.test.ts": {
+      "fs": 33790,
+      "spawn": 2
+    },
+    "test/review-batch-input.test.ts": {
+      "fs": 90,
+      "spawn": 1
+    },
+    "test/review-batch-intent-preflight.test.ts": {
+      "fs": 2945,
+      "spawn": 2
+    },
+    "test/review-batch-mutation-gate.test.ts": {
+      "fs": 5435,
+      "spawn": 2
+    },
+    "test/review-batch-preconditions.test.ts": {
+      "fs": 4783,
+      "spawn": 2
+    },
+    "test/review-batch-publication.test.ts": {
+      "fs": 8352,
+      "spawn": 2
+    },
+    "test/review-batch-recovery.test.ts": {
+      "fs": 16900,
+      "spawn": 2
+    },
+    "test/review-batch-sources.test.ts": {
+      "fs": 5695,
+      "spawn": 2
+    },
+    "test/review-batch-targets.test.ts": {
+      "fs": 11668,
+      "spawn": 2
+    },
+    "test/review-batch.test.ts": {
+      "fs": 13336,
+      "spawn": 2
+    },
+    "test/review-candidate-durability.test.ts": {
+      "fs": 1666,
+      "spawn": 0
+    },
+    "test/review-candidate-lifecycle.test.ts": {
+      "fs": 1472,
+      "spawn": 0
+    },
+    "test/review-candidate-metadata.test.ts": {
+      "fs": 342,
+      "spawn": 0
+    },
+    "test/review-candidate-validation.test.ts": {
+      "fs": 527,
+      "spawn": 0
+    },
+    "test/review-config.test.ts": {
+      "fs": 31,
+      "spawn": 0
+    },
+    "test/review-deletion-authority-final11.test.ts": {
+      "fs": 995,
+      "spawn": 8
+    },
+    "test/review-embedding-intent.test.ts": {
+      "fs": 1232,
+      "spawn": 2
+    },
+    "test/review-integration.test.ts": {
+      "fs": 2239,
+      "spawn": 18
+    },
+    "test/review-lock.test.ts": {
+      "fs": 3884,
+      "spawn": 2
+    },
+    "test/review-policy-cli.test.ts": {
+      "fs": 3798,
+      "spawn": 17
+    },
+    "test/review-policy-compile.test.ts": {
+      "fs": 11700,
+      "spawn": 2
+    },
+    "test/review-policy-source-state.test.ts": {
+      "fs": 10879,
+      "spawn": 2
+    },
+    "test/review-policy.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/review-provenance-integration.test.ts": {
+      "fs": 684,
+      "spawn": 9
+    },
+    "test/review-reject-embedding-intent.test.ts": {
+      "fs": 39379,
+      "spawn": 12
+    },
+    "test/review.test.ts": {
+      "fs": 6782,
+      "spawn": 2
+    },
+    "test/rm-frozen-page-rebuild.test.ts": {
+      "fs": 3641,
+      "spawn": 21
+    },
+    "test/rm-integration.test.ts": {
+      "fs": 1430,
+      "spawn": 0
+    },
+    "test/rule-candidate-store-confinement.test.ts": {
+      "fs": 95,
+      "spawn": 0
+    },
+    "test/rule-candidates.test.ts": {
+      "fs": 430,
+      "spawn": 0
+    },
+    "test/rule-extraction-state.test.ts": {
+      "fs": 334,
+      "spawn": 0
+    },
+    "test/rule-language-state.test.ts": {
+      "fs": 659,
+      "spawn": 3
+    },
+    "test/rule-validation.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/rules-integration.test.ts": {
+      "fs": 65,
+      "spawn": 6
+    },
+    "test/safe-evidence-path.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/schema-integration.test.ts": {
+      "fs": 232,
+      "spawn": 7
+    },
+    "test/schema-lint.test.ts": {
+      "fs": 166,
+      "spawn": 0
+    },
+    "test/schema-subprocess.test.ts": {
+      "fs": 26,
+      "spawn": 2
+    },
+    "test/schema-violations.test.ts": {
+      "fs": 364,
+      "spawn": 0
+    },
+    "test/schema.test.ts": {
+      "fs": 40,
+      "spawn": 0
+    },
+    "test/scoped-refresh-deleted-exclusion.test.ts": {
+      "fs": 8458,
+      "spawn": 2
+    },
+    "test/sdk-relation-lifecycle.test.ts": {
+      "fs": 2727,
+      "spawn": 2
+    },
+    "test/sdk/acceptance.test.ts": {
+      "fs": 198,
+      "spawn": 0
+    },
+    "test/sdk/core-composition.test.ts": {
+      "fs": 18,
+      "spawn": 2
+    },
+    "test/sdk/create-wiki-root.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/sdk/domain-read.test.ts": {
+      "fs": 128,
+      "spawn": 0
+    },
+    "test/sdk/facade.test.ts": {
+      "fs": 56,
+      "spawn": 0
+    },
+    "test/sdk/ingest-journal.test.ts": {
+      "fs": 32,
+      "spawn": 0
+    },
+    "test/sdk/lint-tiers.test.ts": {
+      "fs": 378,
+      "spawn": 0
+    },
+    "test/sdk/quiet-concurrency.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/sdk/record-operations.test.ts": {
+      "fs": 5066,
+      "spawn": 2
+    },
+    "test/sdk/source-api.test.ts": {
+      "fs": 35,
+      "spawn": 0
+    },
+    "test/sdk/staging.test.ts": {
+      "fs": 1133,
+      "spawn": 2
+    },
+    "test/sdk/workflow-action-run-sdk.test.ts": {
+      "fs": 254,
+      "spawn": 2
+    },
+    "test/sdk/workflow-facade.test.ts": {
+      "fs": 361,
+      "spawn": 2
+    },
+    "test/sdk/workflow-lifecycle-sdk.test.ts": {
+      "fs": 2287,
+      "spawn": 2
+    },
+    "test/sdk/workflow-submit-sdk.test.ts": {
+      "fs": 894,
+      "spawn": 2
+    },
+    "test/search-embedding-degrade.test.ts": {
+      "fs": 171,
+      "spawn": 0
+    },
+    "test/search-fallback-eligibility.test.ts": {
+      "fs": 887,
+      "spawn": 0
+    },
+    "test/search-index-fallback-namespace.test.ts": {
+      "fs": 368,
+      "spawn": 0
+    },
+    "test/second-profile-genericity-gate.test.ts": {
+      "fs": 2357,
+      "spawn": 2
+    },
+    "test/seed-pages-committed-slugs.test.ts": {
+      "fs": 9,
+      "spawn": 0
+    },
+    "test/seed-pages-early-return.test.ts": {
+      "fs": 2045,
+      "spawn": 2
+    },
+    "test/seed-pages-slug-dedup.test.ts": {
+      "fs": 12,
+      "spawn": 0
+    },
+    "test/session-adapters-integration.test.ts": {
+      "fs": 179,
+      "spawn": 13
+    },
+    "test/slugify.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/source-review-cockpit.test.ts": {
+      "fs": 222,
+      "spawn": 0
+    },
+    "test/source-review-command.test.ts": {
+      "fs": 0,
+      "spawn": 1
+    },
+    "test/source-review-generation.test.ts": {
+      "fs": 476,
+      "spawn": 2
+    },
+    "test/source-review-nested.test.ts": {
+      "fs": 1066,
+      "spawn": 2
+    },
+    "test/source-review-prototype.test.ts": {
+      "fs": 880,
+      "spawn": 0
+    },
+    "test/source-review-viewer.test.ts": {
+      "fs": 402,
+      "spawn": 0
+    },
+    "test/source-selection.test.ts": {
+      "fs": 222,
+      "spawn": 0
+    },
+    "test/sources-section-integration.test.ts": {
+      "fs": 3912,
+      "spawn": 27
+    },
+    "test/sources-section.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/sources/delete.test.ts": {
+      "fs": 11,
+      "spawn": 0
+    },
+    "test/sources/recursive-access.test.ts": {
+      "fs": 566,
+      "spawn": 3
+    },
+    "test/sources/removal-plan.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/sources/removal-resolve.test.ts": {
+      "fs": 202,
+      "spawn": 0
+    },
+    "test/sources/store-intree-alias.test.ts": {
+      "fs": 37,
+      "spawn": 0
+    },
+    "test/sources/store-sources-symlink.test.ts": {
+      "fs": 18,
+      "spawn": 0
+    },
+    "test/sources/store-symlink.test.ts": {
+      "fs": 41,
+      "spawn": 0
+    },
+    "test/sources/store.test.ts": {
+      "fs": 62,
+      "spawn": 0
+    },
+    "test/stage-timing-cli.test.ts": {
+      "fs": 3060,
+      "spawn": 17
+    },
+    "test/stage-timing.test.ts": {
+      "fs": 31,
+      "spawn": 1
+    },
+    "test/state-classified.test.ts": {
+      "fs": 27,
+      "spawn": 0
+    },
+    "test/state-migrate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/state-reset-cli.test.ts": {
+      "fs": 563,
+      "spawn": 18
+    },
+    "test/state-shape-validation.test.ts": {
+      "fs": 131,
+      "spawn": 0
+    },
+    "test/state-slug-safety.test.ts": {
+      "fs": 44,
+      "spawn": 0
+    },
+    "test/state-sync-mirror.test.ts": {
+      "fs": 110,
+      "spawn": 0
+    },
+    "test/state-version-guard.test.ts": {
+      "fs": 129,
+      "spawn": 0
+    },
+    "test/status/cli-integration.test.ts": {
+      "fs": 107,
+      "spawn": 3
+    },
+    "test/status/collect.test.ts": {
+      "fs": 134,
+      "spawn": 0
+    },
+    "test/status/command.test.ts": {
+      "fs": 1550,
+      "spawn": 0
+    },
+    "test/storage/active-product-sources.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/artifact-access-authority-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/artifact-apply-binding.test.ts": {
+      "fs": 2864,
+      "spawn": 2
+    },
+    "test/storage/artifact-evidence-specs-binding.test.ts": {
+      "fs": 762,
+      "spawn": 2
+    },
+    "test/storage/artifact-health-binding.test.ts": {
+      "fs": 3163,
+      "spawn": 2
+    },
+    "test/storage/artifact-members-binding.test.ts": {
+      "fs": 5407,
+      "spawn": 2
+    },
+    "test/storage/artifact-resolver-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/bundle-tree-leaves.test.ts": {
+      "fs": 17,
+      "spawn": 0
+    },
+    "test/storage/caller-file-materialize-binding.test.ts": {
+      "fs": 180,
+      "spawn": 0
+    },
+    "test/storage/candidate-archive-move.test.ts": {
+      "fs": 178,
+      "spawn": 0
+    },
+    "test/storage/candidate-custody-binding.test.ts": {
+      "fs": 770,
+      "spawn": 0
+    },
+    "test/storage/candidate-eval-binding.test.ts": {
+      "fs": 296,
+      "spawn": 0
+    },
+    "test/storage/candidate-move-preflight-binding.test.ts": {
+      "fs": 970,
+      "spawn": 0
+    },
+    "test/storage/candidate-publication-binding.test.ts": {
+      "fs": 938,
+      "spawn": 0
+    },
+    "test/storage/candidate-readable-selection-binding.test.ts": {
+      "fs": 1918,
+      "spawn": 0
+    },
+    "test/storage/candidate-record-dirs.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/candidate-rejection-binding.test.ts": {
+      "fs": 922,
+      "spawn": 0
+    },
+    "test/storage/candidate-selection-binding.test.ts": {
+      "fs": 1452,
+      "spawn": 0
+    },
+    "test/storage/candidate-write-delete-binding.test.ts": {
+      "fs": 3207,
+      "spawn": 0
+    },
+    "test/storage/capture-member-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/citation-index-binding.test.ts": {
+      "fs": 69,
+      "spawn": 0
+    },
+    "test/storage/citation-index-legacy.test.ts": {
+      "fs": 140,
+      "spawn": 0
+    },
+    "test/storage/citation-judge-binding.test.ts": {
+      "fs": 33,
+      "spawn": 0
+    },
+    "test/storage/citation-support-binding.test.ts": {
+      "fs": 138,
+      "spawn": 0
+    },
+    "test/storage/command-family-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/compile-finalize-binding.test.ts": {
+      "fs": 2195,
+      "spawn": 0
+    },
+    "test/storage/compile-orphan-binding.test.ts": {
+      "fs": 497,
+      "spawn": 0
+    },
+    "test/storage/compile-run-binding.test.ts": {
+      "fs": 4112,
+      "spawn": 2
+    },
+    "test/storage/compile-tail.test.ts": {
+      "fs": 2499,
+      "spawn": 2
+    },
+    "test/storage/connector-config-binding.test.ts": {
+      "fs": 100,
+      "spawn": 0
+    },
+    "test/storage/connector-rate-binding.test.ts": {
+      "fs": 91,
+      "spawn": 2
+    },
+    "test/storage/connector-rate-legacy.test.ts": {
+      "fs": 994,
+      "spawn": 2
+    },
+    "test/storage/connector-run-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/connector-stage-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/connector-stage-draft-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/connector-supersession-binding.test.ts": {
+      "fs": 3729,
+      "spawn": 0
+    },
+    "test/storage/consumer-closure-binding.test.ts": {
+      "fs": 50,
+      "spawn": 0
+    },
+    "test/storage/context-pack-binding.test.ts": {
+      "fs": 135,
+      "spawn": 0
+    },
+    "test/storage/context-semantic-binding.test.ts": {
+      "fs": 114,
+      "spawn": 0
+    },
+    "test/storage/context-semantic-legacy.test.ts": {
+      "fs": 364,
+      "spawn": 0
+    },
+    "test/storage/derived-regeneration-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/derived-tail.test.ts": {
+      "fs": 396,
+      "spawn": 0
+    },
+    "test/storage/disk-guarded-leaves.test.ts": {
+      "fs": 818,
+      "spawn": 0
+    },
+    "test/storage/disk-local-reads.test.ts": {
+      "fs": 149,
+      "spawn": 0
+    },
+    "test/storage/disk-local-record-dirs.test.ts": {
+      "fs": 138,
+      "spawn": 0
+    },
+    "test/storage/disk-local-records.test.ts": {
+      "fs": 89,
+      "spawn": 0
+    },
+    "test/storage/disk-locations.test.ts": {
+      "fs": 155,
+      "spawn": 0
+    },
+    "test/storage/durable-leaves.test.ts": {
+      "fs": 384,
+      "spawn": 0
+    },
+    "test/storage/effective-profile-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/effective-profile-reads.test.ts": {
+      "fs": 10575,
+      "spawn": 0
+    },
+    "test/storage/embedding-gate-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/embedding-page-collection-binding.test.ts": {
+      "fs": 121,
+      "spawn": 0
+    },
+    "test/storage/embedding-refresh-binding.test.ts": {
+      "fs": 924,
+      "spawn": 0
+    },
+    "test/storage/embedding-retry-lifecycle-binding.test.ts": {
+      "fs": 642,
+      "spawn": 0
+    },
+    "test/storage/embedding-store-persistence-binding.test.ts": {
+      "fs": 181,
+      "spawn": 0
+    },
+    "test/storage/embedding-writer-binding.test.ts": {
+      "fs": 469,
+      "spawn": 0
+    },
+    "test/storage/entity-scan-binding.test.ts": {
+      "fs": 30,
+      "spawn": 0
+    },
+    "test/storage/entity-scan-legacy.test.ts": {
+      "fs": 83,
+      "spawn": 0
+    },
+    "test/storage/eval-cache-history-writes-binding.test.ts": {
+      "fs": 40,
+      "spawn": 0
+    },
+    "test/storage/eval-cli-binding.test.ts": {
+      "fs": 506,
+      "spawn": 0
+    },
+    "test/storage/eval-coverage-utilization-binding.test.ts": {
+      "fs": 125,
+      "spawn": 0
+    },
+    "test/storage/eval-depth-graph-binding.test.ts": {
+      "fs": 47,
+      "spawn": 0
+    },
+    "test/storage/eval-evidence-pairs-binding.test.ts": {
+      "fs": 69,
+      "spawn": 0
+    },
+    "test/storage/eval-health-binding.test.ts": {
+      "fs": 615,
+      "spawn": 0
+    },
+    "test/storage/eval-history-thresholds-binding.test.ts": {
+      "fs": 42,
+      "spawn": 0
+    },
+    "test/storage/eval-pipeline-binding.test.ts": {
+      "fs": 988,
+      "spawn": 0
+    },
+    "test/storage/eval-reads.test.ts": {
+      "fs": 540,
+      "spawn": 0
+    },
+    "test/storage/eval-stats-binding.test.ts": {
+      "fs": 179,
+      "spawn": 0
+    },
+    "test/storage/event-head-legacy.test.ts": {
+      "fs": 630,
+      "spawn": 2
+    },
+    "test/storage/event-read-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/event-strict-binding.test.ts": {
+      "fs": 104,
+      "spawn": 0
+    },
+    "test/storage/evidence-capture-binding.test.ts": {
+      "fs": 2319,
+      "spawn": 2
+    },
+    "test/storage/executor-held-lock-binding.test.ts": {
+      "fs": 790,
+      "spawn": 0
+    },
+    "test/storage/executor-writeone-timing.test.ts": {
+      "fs": 494,
+      "spawn": 0
+    },
+    "test/storage/export-json-binding.test.ts": {
+      "fs": 281,
+      "spawn": 0
+    },
+    "test/storage/export-profile-block-binding.test.ts": {
+      "fs": 1186,
+      "spawn": 2
+    },
+    "test/storage/export-run-binding.test.ts": {
+      "fs": 472,
+      "spawn": 0
+    },
+    "test/storage/gated-provenance-health-binding.test.ts": {
+      "fs": 2981,
+      "spawn": 2
+    },
+    "test/storage/handle-leaves.test.ts": {
+      "fs": 137,
+      "spawn": 0
+    },
+    "test/storage/handoff-binding.test.ts": {
+      "fs": 18790,
+      "spawn": 2
+    },
+    "test/storage/host-registry-reads-binding.test.ts": {
+      "fs": 13,
+      "spawn": 0
+    },
+    "test/storage/index-generation-binding.test.ts": {
+      "fs": 212,
+      "spawn": 0
+    },
+    "test/storage/ingest-binding.test.ts": {
+      "fs": 73,
+      "spawn": 0
+    },
+    "test/storage/journal-batch-binding.test.ts": {
+      "fs": 370,
+      "spawn": 0
+    },
+    "test/storage/journal-health-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/journal-leaves.test.ts": {
+      "fs": 411,
+      "spawn": 0
+    },
+    "test/storage/journal-replay-binding.test.ts": {
+      "fs": 422,
+      "spawn": 0
+    },
+    "test/storage/journal-restore-binding.test.ts": {
+      "fs": 274,
+      "spawn": 0
+    },
+    "test/storage/judged-eval-reads.test.ts": {
+      "fs": 346,
+      "spawn": 0
+    },
+    "test/storage/key-epoch-create-binding.test.ts": {
+      "fs": 406,
+      "spawn": 0
+    },
+    "test/storage/lifecycle-apply-binding.test.ts": {
+      "fs": 2291,
+      "spawn": 2
+    },
+    "test/storage/lifecycle-classifier-binding.test.ts": {
+      "fs": 313,
+      "spawn": 0
+    },
+    "test/storage/lifecycle-compat-read-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/lifecycle-driver-binding.test.ts": {
+      "fs": 1,
+      "spawn": 0
+    },
+    "test/storage/lifecycle-gate-binding.test.ts": {
+      "fs": 5145,
+      "spawn": 2
+    },
+    "test/storage/lifecycle-scan-binding.test.ts": {
+      "fs": 756,
+      "spawn": 0
+    },
+    "test/storage/link-repair-binding.test.ts": {
+      "fs": 715,
+      "spawn": 0
+    },
+    "test/storage/link-resolution-binding.test.ts": {
+      "fs": 384,
+      "spawn": 0
+    },
+    "test/storage/lint-cache-binding.test.ts": {
+      "fs": 53,
+      "spawn": 0
+    },
+    "test/storage/lint-citations-binding.test.ts": {
+      "fs": 50,
+      "spawn": 0
+    },
+    "test/storage/lint-command-binding.test.ts": {
+      "fs": 171,
+      "spawn": 0
+    },
+    "test/storage/lint-coordinator-binding.test.ts": {
+      "fs": 676,
+      "spawn": 0
+    },
+    "test/storage/lint-fix-proposal-binding.test.ts": {
+      "fs": 291,
+      "spawn": 2
+    },
+    "test/storage/lint-pages-binding.test.ts": {
+      "fs": 86,
+      "spawn": 0
+    },
+    "test/storage/lint-reads.test.ts": {
+      "fs": 678,
+      "spawn": 2
+    },
+    "test/storage/lint-rules-binding.test.ts": {
+      "fs": 579,
+      "spawn": 0
+    },
+    "test/storage/local-compile-reads.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/local-grant-binding.test.ts": {
+      "fs": 170,
+      "spawn": 0
+    },
+    "test/storage/lock-gate-binding.test.ts": {
+      "fs": 483,
+      "spawn": 2
+    },
+    "test/storage/lock-leaves.test.ts": {
+      "fs": 206,
+      "spawn": 2
+    },
+    "test/storage/lock-publication-binding.test.ts": {
+      "fs": 67,
+      "spawn": 0
+    },
+    "test/storage/mcp-resources-binding.test.ts": {
+      "fs": 109,
+      "spawn": 0
+    },
+    "test/storage/moc-generation-binding.test.ts": {
+      "fs": 213,
+      "spawn": 0
+    },
+    "test/storage/okf-apply-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/okf-bundle-binding.test.ts": {
+      "fs": 823,
+      "spawn": 2
+    },
+    "test/storage/okf-bundle-io.test.ts": {
+      "fs": 194,
+      "spawn": 0
+    },
+    "test/storage/okf-import-binding.test.ts": {
+      "fs": 782,
+      "spawn": 2
+    },
+    "test/storage/okf-profile-blocks-binding.test.ts": {
+      "fs": 662,
+      "spawn": 2
+    },
+    "test/storage/operation-apply-binding.test.ts": {
+      "fs": 18184,
+      "spawn": 0
+    },
+    "test/storage/operation-artifact-adapter-binding.test.ts": {
+      "fs": 3920,
+      "spawn": 0
+    },
+    "test/storage/operation-authority-binding.test.ts": {
+      "fs": 6434,
+      "spawn": 0
+    },
+    "test/storage/operation-catalog-adapter-binding.test.ts": {
+      "fs": 2696,
+      "spawn": 0
+    },
+    "test/storage/operation-cli-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/operation-drive-binding.test.ts": {
+      "fs": 10839,
+      "spawn": 0
+    },
+    "test/storage/operation-inventory-binding.test.ts": {
+      "fs": 6633,
+      "spawn": 0
+    },
+    "test/storage/operation-key-run-binding.test.ts": {
+      "fs": 6523,
+      "spawn": 0
+    },
+    "test/storage/operation-lifecycle-adapter-binding.test.ts": {
+      "fs": 696,
+      "spawn": 0
+    },
+    "test/storage/operation-observe-binding.test.ts": {
+      "fs": 9802,
+      "spawn": 0
+    },
+    "test/storage/operation-page-adapter-binding.test.ts": {
+      "fs": 9906,
+      "spawn": 0
+    },
+    "test/storage/operation-projection-adapter-binding.test.ts": {
+      "fs": 861,
+      "spawn": 0
+    },
+    "test/storage/operation-record-effect-binding.test.ts": {
+      "fs": 27331,
+      "spawn": 2
+    },
+    "test/storage/operation-recovery-binding.test.ts": {
+      "fs": 11996,
+      "spawn": 2
+    },
+    "test/storage/operation-relation-adapter-binding.test.ts": {
+      "fs": 804,
+      "spawn": 0
+    },
+    "test/storage/operation-settlement-binding.test.ts": {
+      "fs": 26330,
+      "spawn": 0
+    },
+    "test/storage/operation-side-store-binding.test.ts": {
+      "fs": 129,
+      "spawn": 0
+    },
+    "test/storage/operation-source-adapter-binding.test.ts": {
+      "fs": 10377,
+      "spawn": 0
+    },
+    "test/storage/operation-write-binding.test.ts": {
+      "fs": 3269,
+      "spawn": 0
+    },
+    "test/storage/operation-write-journey.test.ts": {
+      "fs": 5950,
+      "spawn": 0
+    },
+    "test/storage/pack-authority-binding.test.ts": {
+      "fs": 1599,
+      "spawn": 0
+    },
+    "test/storage/page-apply-binding.test.ts": {
+      "fs": 192,
+      "spawn": 0
+    },
+    "test/storage/page-evidence-forms-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/page-mutation-planner-binding.test.ts": {
+      "fs": 125,
+      "spawn": 0
+    },
+    "test/storage/page-publication-leaves.test.ts": {
+      "fs": 370,
+      "spawn": 0
+    },
+    "test/storage/page-read-binding.test.ts": {
+      "fs": 1004,
+      "spawn": 0
+    },
+    "test/storage/page-record-binding.test.ts": {
+      "fs": 101,
+      "spawn": 0
+    },
+    "test/storage/pending-embeddings-writes-binding.test.ts": {
+      "fs": 232,
+      "spawn": 0
+    },
+    "test/storage/pending-source-states-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/portable-pending-gate-binding.test.ts": {
+      "fs": 752,
+      "spawn": 2
+    },
+    "test/storage/preparation-attempt-execution-binding.test.ts": {
+      "fs": 1582,
+      "spawn": 1
+    },
+    "test/storage/preparation-cancel-settlement-binding.test.ts": {
+      "fs": 20709,
+      "spawn": 2
+    },
+    "test/storage/preparation-control-verbs-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-destructive-binding.test.ts": {
+      "fs": 1564,
+      "spawn": 0
+    },
+    "test/storage/preparation-evidence-read-binding.test.ts": {
+      "fs": 1535,
+      "spawn": 0
+    },
+    "test/storage/preparation-finalization-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-gate-moves-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-handoff-operation-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-handoff-settlement-binding.test.ts": {
+      "fs": 13788,
+      "spawn": 2
+    },
+    "test/storage/preparation-initial-inputs-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-inventory-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-key-read-binding.test.ts": {
+      "fs": 1536,
+      "spawn": 0
+    },
+    "test/storage/preparation-list-show-binding.test.ts": {
+      "fs": 2119,
+      "spawn": 0
+    },
+    "test/storage/preparation-manifest-create-binding.test.ts": {
+      "fs": 1541,
+      "spawn": 0
+    },
+    "test/storage/preparation-readiness-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-record-reads-binding.test.ts": {
+      "fs": 1639,
+      "spawn": 0
+    },
+    "test/storage/preparation-reset-flow-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-run-genesis-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-run-lookup-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-runner-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-stage-locked-binding.test.ts": {
+      "fs": 26,
+      "spawn": 0
+    },
+    "test/storage/preparation-stage-shell-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-store-walk-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-thin-reads-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/preparation-write-binding.test.ts": {
+      "fs": 1649,
+      "spawn": 0
+    },
+    "test/storage/private-leaves.test.ts": {
+      "fs": 150,
+      "spawn": 0
+    },
+    "test/storage/product-action-binding.test.ts": {
+      "fs": 3781,
+      "spawn": 2
+    },
+    "test/storage/product-apply-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/product-cli-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/product-install-activation-io.test.ts": {
+      "fs": 37768,
+      "spawn": 2
+    },
+    "test/storage/product-package-commit-binding.test.ts": {
+      "fs": 50,
+      "spawn": 0
+    },
+    "test/storage/product-service-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/product-workflow-storage-binding.test.ts": {
+      "fs": 23,
+      "spawn": 0
+    },
+    "test/storage/profile-install-binding.test.ts": {
+      "fs": 194,
+      "spawn": 2
+    },
+    "test/storage/profile-lint-binding.test.ts": {
+      "fs": 201,
+      "spawn": 0
+    },
+    "test/storage/profile-plan-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/profile-summary-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/profile-update-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/profile-viewer-legacy.test.ts": {
+      "fs": 10742,
+      "spawn": 0
+    },
+    "test/storage/project-lock-binding.test.ts": {
+      "fs": 474,
+      "spawn": 2
+    },
+    "test/storage/project-state-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/project-state-reads.test.ts": {
+      "fs": 158,
+      "spawn": 0
+    },
+    "test/storage/project-state-writers-binding.test.ts": {
+      "fs": 271,
+      "spawn": 0
+    },
+    "test/storage/provenance-store-binding.test.ts": {
+      "fs": 2672,
+      "spawn": 0
+    },
+    "test/storage/query-answer-binding.test.ts": {
+      "fs": 139,
+      "spawn": 0
+    },
+    "test/storage/query-command-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/query-facade-async.test.ts": {
+      "fs": 1,
+      "spawn": 0
+    },
+    "test/storage/query-publication-binding.test.ts": {
+      "fs": 1826,
+      "spawn": 2
+    },
+    "test/storage/query-reads.test.ts": {
+      "fs": 413,
+      "spawn": 0
+    },
+    "test/storage/query-selection-binding.test.ts": {
+      "fs": 151,
+      "spawn": 0
+    },
+    "test/storage/query-selection-legacy.test.ts": {
+      "fs": 1141,
+      "spawn": 0
+    },
+    "test/storage/read-observers-legacy.test.ts": {
+      "fs": 163,
+      "spawn": 0
+    },
+    "test/storage/read-surface-reads.test.ts": {
+      "fs": 131,
+      "spawn": 0
+    },
+    "test/storage/refresh-plan-binding.test.ts": {
+      "fs": 191,
+      "spawn": 0
+    },
+    "test/storage/registry-reads-binding.test.ts": {
+      "fs": 88,
+      "spawn": 0
+    },
+    "test/storage/registry-reads-legacy.test.ts": {
+      "fs": 147,
+      "spawn": 0
+    },
+    "test/storage/relation-append-binding.test.ts": {
+      "fs": 2591,
+      "spawn": 2
+    },
+    "test/storage/relation-import-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/relation-operation-append-binding.test.ts": {
+      "fs": 2254,
+      "spawn": 0
+    },
+    "test/storage/reset-binding.test.ts": {
+      "fs": 206,
+      "spawn": 0
+    },
+    "test/storage/reset-disk-calls.test.ts": {
+      "fs": 164,
+      "spawn": 0
+    },
+    "test/storage/residual-reads.test.ts": {
+      "fs": 618,
+      "spawn": 2
+    },
+    "test/storage/review-approve-binding.test.ts": {
+      "fs": 2397,
+      "spawn": 2
+    },
+    "test/storage/review-batch-approve-binding.test.ts": {
+      "fs": 1271,
+      "spawn": 2
+    },
+    "test/storage/review-batch-plan-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/review-embedding-intent-binding.test.ts": {
+      "fs": 531,
+      "spawn": 0
+    },
+    "test/storage/review-publication-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/review-reject-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/rule-export-selection-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/rule-extraction-binding.test.ts": {
+      "fs": 342,
+      "spawn": 0
+    },
+    "test/storage/rules-command-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/rules-storage-io.test.ts": {
+      "fs": 559,
+      "spawn": 0
+    },
+    "test/storage/schema-init-writes.test.ts": {
+      "fs": 44,
+      "spawn": 0
+    },
+    "test/storage/scoped-embedding-planner-binding.test.ts": {
+      "fs": 306,
+      "spawn": 0
+    },
+    "test/storage/scoped-reset-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/search-journey-binding.test.ts": {
+      "fs": 149,
+      "spawn": 0
+    },
+    "test/storage/search-journey-legacy.test.ts": {
+      "fs": 391,
+      "spawn": 0
+    },
+    "test/storage/single-probes.test.ts": {
+      "fs": 362,
+      "spawn": 0
+    },
+    "test/storage/source-freshness-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/source-freshness-legacy.test.ts": {
+      "fs": 85,
+      "spawn": 0
+    },
+    "test/storage/source-hash-nonblocking.test.ts": {
+      "fs": 70,
+      "spawn": 3
+    },
+    "test/storage/source-identity-names-binding.test.ts": {
+      "fs": 8,
+      "spawn": 0
+    },
+    "test/storage/source-mutation-journeys-binding.test.ts": {
+      "fs": 778,
+      "spawn": 2
+    },
+    "test/storage/source-review-binding.test.ts": {
+      "fs": 300,
+      "spawn": 0
+    },
+    "test/storage/source-store-leaves.test.ts": {
+      "fs": 137,
+      "spawn": 0
+    },
+    "test/storage/source-windows-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/source-writes.test.ts": {
+      "fs": 230,
+      "spawn": 0
+    },
+    "test/storage/stage-materialization-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/state-records.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/status-consumer-binding.test.ts": {
+      "fs": 443,
+      "spawn": 0
+    },
+    "test/storage/stored-embeddings-binding.test.ts": {
+      "fs": 180,
+      "spawn": 0
+    },
+    "test/storage/sweep-assessment-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/typed-import-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/typed-promotion-binding.test.ts": {
+      "fs": 183,
+      "spawn": 0
+    },
+    "test/storage/typed-viewer-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/viewer-artifact-writes.test.ts": {
+      "fs": 14,
+      "spawn": 0
+    },
+    "test/storage/viewer-pdf-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/viewer-project-reads.test.ts": {
+      "fs": 597,
+      "spawn": 0
+    },
+    "test/storage/viewer-projection-binding.test.ts": {
+      "fs": 346,
+      "spawn": 2
+    },
+    "test/storage/viewer-snapshot-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/viewer-snapshot-legacy.test.ts": {
+      "fs": 364,
+      "spawn": 0
+    },
+    "test/storage/viewer-source-binding.test.ts": {
+      "fs": 23,
+      "spawn": 0
+    },
+    "test/storage/viewer-source-preview.test.ts": {
+      "fs": 113,
+      "spawn": 0
+    },
+    "test/storage/workflow-engine-binding.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/storage/workflow-status-binding.test.ts": {
+      "fs": 804,
+      "spawn": 2
+    },
+    "test/superset-proof-e2e-cli.test.ts": {
+      "fs": 21293,
+      "spawn": 137
+    },
+    "test/system-policy-invalidation.test.ts": {
+      "fs": 5033,
+      "spawn": 2
+    },
+    "test/system-policy.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/t1-journey-compare.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/t1-transparent-disk-journey.test.ts": {
+      "fs": 392,
+      "spawn": 18
+    },
+    "test/temp-writer-symlink-hardening.test.ts": {
+      "fs": 157,
+      "spawn": 0
+    },
+    "test/template-publish-build.test.ts": {
+      "fs": 30005,
+      "spawn": 2
+    },
+    "test/template-publish-cli-e2e.test.ts": {
+      "fs": 2104,
+      "spawn": 17
+    },
+    "test/template-publish-init.test.ts": {
+      "fs": 561,
+      "spawn": 0
+    },
+    "test/template-publish-sign.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/template-publish-verify-cli.test.ts": {
+      "fs": 313,
+      "spawn": 24
+    },
+    "test/template-publish-verify-directory-mutation.test.ts": {
+      "fs": 196,
+      "spawn": 0
+    },
+    "test/template-publish-verify-error-disclosure.test.ts": {
+      "fs": 26,
+      "spawn": 2
+    },
+    "test/template-publish-verify-filesystem.test.ts": {
+      "fs": 1838,
+      "spawn": 37
+    },
+    "test/template-publish-verify-r8-remediation.test.ts": {
+      "fs": 597,
+      "spawn": 2
+    },
+    "test/template-publish-verify-r9-leaf-binding.test.ts": {
+      "fs": 3346,
+      "spawn": 0
+    },
+    "test/template-publish-verify-sibling-churn.test.ts": {
+      "fs": 1083,
+      "spawn": 0
+    },
+    "test/template-publish-workspace.test.ts": {
+      "fs": 243,
+      "spawn": 0
+    },
+    "test/test-typecheck-command.test.ts": {
+      "fs": 1303,
+      "spawn": 26
+    },
+    "test/test-typecheck-program.test.ts": {
+      "fs": 239,
+      "spawn": 0
+    },
+    "test/test-typecheck-ratchet.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/trust-candidate-typed.test.ts": {
+      "fs": 301,
+      "spawn": 0
+    },
+    "test/trust-checks.test.ts": {
+      "fs": 82,
+      "spawn": 0
+    },
+    "test/trust-decision.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/trust-delete-journal.test.ts": {
+      "fs": 268,
+      "spawn": 0
+    },
+    "test/trust-journal-confinement.test.ts": {
+      "fs": 272,
+      "spawn": 0
+    },
+    "test/trust-journal.test.ts": {
+      "fs": 595,
+      "spawn": 0
+    },
+    "test/trust-planner-default.test.ts": {
+      "fs": 857,
+      "spawn": 2
+    },
+    "test/trust-planner-unified.test.ts": {
+      "fs": 36,
+      "spawn": 0
+    },
+    "test/trust-planner.test.ts": {
+      "fs": 2467,
+      "spawn": 2
+    },
+    "test/trust-promote.test.ts": {
+      "fs": 1488,
+      "spawn": 2
+    },
+    "test/trust-relation-write.test.ts": {
+      "fs": 1516,
+      "spawn": 2
+    },
+    "test/trust-staged-change.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/trust-staging.test.ts": {
+      "fs": 4462,
+      "spawn": 2
+    },
+    "test/utils/fs-presence.test.ts": {
+      "fs": 16,
+      "spawn": 0
+    },
+    "test/utils/keyed-fifo.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/utils/provider-guard.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/utils/quiet.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/utils/source-identity.test.ts": {
+      "fs": 70,
+      "spawn": 0
+    },
+    "test/utils/source-writer-collision-nofollow.test.ts": {
+      "fs": 14,
+      "spawn": 0
+    },
+    "test/utils/source-writer-collision-symlink.test.ts": {
+      "fs": 18,
+      "spawn": 0
+    },
+    "test/utils/source-writer-intree-alias.test.ts": {
+      "fs": 17,
+      "spawn": 0
+    },
+    "test/utils/source-writer-status.test.ts": {
+      "fs": 40,
+      "spawn": 0
+    },
+    "test/utils/source-writer-symlink.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/validate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/verbose-compile.test.ts": {
+      "fs": 918,
+      "spawn": 6
+    },
+    "test/verbose-json-purity.test.ts": {
+      "fs": 195,
+      "spawn": 3
+    },
+    "test/viewer-access-api.test.ts": {
+      "fs": 269,
+      "spawn": 0
+    },
+    "test/viewer-access-detail.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-access-read.test.ts": {
+      "fs": 35,
+      "spawn": 0
+    },
+    "test/viewer-access-routing.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-access.test.ts": {
+      "fs": 265,
+      "spawn": 0
+    },
+    "test/viewer-accessibility.test.ts": {
+      "fs": 397,
+      "spawn": 0
+    },
+    "test/viewer-citation-rule.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-citation-warnings.test.ts": {
+      "fs": 168,
+      "spawn": 0
+    },
+    "test/viewer-client-graph.test.ts": {
+      "fs": 20,
+      "spawn": 0
+    },
+    "test/viewer-collect.test.ts": {
+      "fs": 188,
+      "spawn": 0
+    },
+    "test/viewer-contrast.test.ts": {
+      "fs": 52,
+      "spawn": 0
+    },
+    "test/viewer-css-specificity.test.ts": {
+      "fs": 50,
+      "spawn": 0
+    },
+    "test/viewer-dashboard-authored-copy.test.ts": {
+      "fs": 180,
+      "spawn": 0
+    },
+    "test/viewer-dashboard-vocabulary.test.ts": {
+      "fs": 432,
+      "spawn": 0
+    },
+    "test/viewer-dashboard.test.ts": {
+      "fs": 1008,
+      "spawn": 0
+    },
+    "test/viewer-dom-helpers.test.ts": {
+      "fs": 6,
+      "spawn": 0
+    },
+    "test/viewer-dynamic-refresh.test.ts": {
+      "fs": 121,
+      "spawn": 0
+    },
+    "test/viewer-entity-context.test.ts": {
+      "fs": 1834,
+      "spawn": 2
+    },
+    "test/viewer-entity-fields-contract.test.ts": {
+      "fs": 216,
+      "spawn": 0
+    },
+    "test/viewer-entity-fields.test.ts": {
+      "fs": 1152,
+      "spawn": 0
+    },
+    "test/viewer-entity-list-route.test.ts": {
+      "fs": 828,
+      "spawn": 0
+    },
+    "test/viewer-envelope.test.ts": {
+      "fs": 422,
+      "spawn": 8
+    },
+    "test/viewer-field-format.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-fonts.test.ts": {
+      "fs": 114,
+      "spawn": 3
+    },
+    "test/viewer-format.test.ts": {
+      "fs": 10,
+      "spawn": 0
+    },
+    "test/viewer-graph-compact.test.ts": {
+      "fs": 7,
+      "spawn": 0
+    },
+    "test/viewer-graph-initial-fit.test.ts": {
+      "fs": 36,
+      "spawn": 0
+    },
+    "test/viewer-graph-invalid-page.test.ts": {
+      "fs": 706,
+      "spawn": 2
+    },
+    "test/viewer-graph-profile-filter.test.ts": {
+      "fs": 809,
+      "spawn": 2
+    },
+    "test/viewer-graph-theming.test.ts": {
+      "fs": 8,
+      "spawn": 0
+    },
+    "test/viewer-graph.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-header.test.ts": {
+      "fs": 612,
+      "spawn": 0
+    },
+    "test/viewer-health-dashboard.test.ts": {
+      "fs": 504,
+      "spawn": 0
+    },
+    "test/viewer-health-lint.test.ts": {
+      "fs": 1234,
+      "spawn": 0
+    },
+    "test/viewer-health-panels.test.ts": {
+      "fs": 720,
+      "spawn": 0
+    },
+    "test/viewer-health.test.ts": {
+      "fs": 308,
+      "spawn": 6
+    },
+    "test/viewer-host.test.ts": {
+      "fs": 164,
+      "spawn": 8
+    },
+    "test/viewer-human-language.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-journey-public-navigation.test.ts": {
+      "fs": 108,
+      "spawn": 0
+    },
+    "test/viewer-journey.test.ts": {
+      "fs": 577,
+      "spawn": 0
+    },
+    "test/viewer-jsdom-harness.test.ts": {
+      "fs": 308,
+      "spawn": 0
+    },
+    "test/viewer-layout-css.test.ts": {
+      "fs": 11,
+      "spawn": 0
+    },
+    "test/viewer-lists.test.ts": {
+      "fs": 432,
+      "spawn": 0
+    },
+    "test/viewer-narrow-chrome.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-newsroom-journey.test.ts": {
+      "fs": 108,
+      "spawn": 0
+    },
+    "test/viewer-pack.test.ts": {
+      "fs": 0,
+      "spawn": 1
+    },
+    "test/viewer-path-safety.test.ts": {
+      "fs": 800,
+      "spawn": 0
+    },
+    "test/viewer-pattern.test.ts": {
+      "fs": 252,
+      "spawn": 0
+    },
+    "test/viewer-pipeline-envelope.test.ts": {
+      "fs": 2337,
+      "spawn": 0
+    },
+    "test/viewer-pipeline-route.test.ts": {
+      "fs": 540,
+      "spawn": 0
+    },
+    "test/viewer-port.test.ts": {
+      "fs": 110,
+      "spawn": 4
+    },
+    "test/viewer-process-authority.test.ts": {
+      "fs": 397,
+      "spawn": 2
+    },
+    "test/viewer-profile-schema.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-public-origin.test.ts": {
+      "fs": 29,
+      "spawn": 0
+    },
+    "test/viewer-query-frontmatter.test.ts": {
+      "fs": 294,
+      "spawn": 2
+    },
+    "test/viewer-rail.test.ts": {
+      "fs": 504,
+      "spawn": 0
+    },
+    "test/viewer-render-codefence.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-render-error-contract.test.ts": {
+      "fs": 135,
+      "spawn": 0
+    },
+    "test/viewer-render-security.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-render.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-reviews-api.test.ts": {
+      "fs": 22485,
+      "spawn": 8
+    },
+    "test/viewer-reviews-bounds.test.ts": {
+      "fs": 4775,
+      "spawn": 0
+    },
+    "test/viewer-reviews-route.test.ts": {
+      "fs": 612,
+      "spawn": 0
+    },
+    "test/viewer-runs-nav.test.ts": {
+      "fs": 180,
+      "spawn": 0
+    },
+    "test/viewer-search.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-server-security.test.ts": {
+      "fs": 591,
+      "spawn": 15
+    },
+    "test/viewer-server.test.ts": {
+      "fs": 922,
+      "spawn": 24
+    },
+    "test/viewer-shell-template.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    },
+    "test/viewer-shell.test.ts": {
+      "fs": 216,
+      "spawn": 0
+    },
+    "test/viewer-sidebar-label-collision.test.ts": {
+      "fs": 180,
+      "spawn": 0
+    },
+    "test/viewer-sidebar-nav.test.ts": {
+      "fs": 720,
+      "spawn": 0
+    },
+    "test/viewer-sidebar-profile-gating.test.ts": {
+      "fs": 504,
+      "spawn": 0
+    },
+    "test/viewer-sidebar-vocabulary.test.ts": {
+      "fs": 864,
+      "spawn": 0
+    },
+    "test/viewer-sidebar.test.ts": {
+      "fs": 324,
+      "spawn": 0
+    },
+    "test/viewer-snapshot-typed-graph.test.ts": {
+      "fs": 1353,
+      "spawn": 2
+    },
+    "test/viewer-snapshot.test.ts": {
+      "fs": 363,
+      "spawn": 1
+    },
+    "test/viewer-source-images-api.test.ts": {
+      "fs": 157,
+      "spawn": 0
+    },
+    "test/viewer-source-link.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-source-list-access.test.ts": {
+      "fs": 72,
+      "spawn": 0
+    },
+    "test/viewer-stage-facts.test.ts": {
+      "fs": 2,
+      "spawn": 0
+    },
+    "test/viewer-stage-output.test.ts": {
+      "fs": 7760,
+      "spawn": 10
+    },
+    "test/viewer-theme-contrast.test.ts": {
+      "fs": 3,
+      "spawn": 0
+    },
+    "test/viewer-theme-css.test.ts": {
+      "fs": 40,
+      "spawn": 0
+    },
+    "test/viewer-theme.test.ts": {
+      "fs": 649,
+      "spawn": 0
+    },
+    "test/viewer-typed-list-namespace.test.ts": {
+      "fs": 468,
+      "spawn": 0
+    },
+    "test/viewer-typed-page-route.test.ts": {
+      "fs": 144,
+      "spawn": 0
+    },
+    "test/viewer-typed-pages-default-parity.test.ts": {
+      "fs": 225,
+      "spawn": 0
+    },
+    "test/viewer-typed-pages.test.ts": {
+      "fs": 2328,
+      "spawn": 0
+    },
+    "test/viewer-typed-wikilink-index.test.ts": {
+      "fs": 314,
+      "spawn": 0
+    },
+    "test/viewer-v2-cli.test.ts": {
+      "fs": 142,
+      "spawn": 2
+    },
+    "test/viewer-v2-client.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-workflow-pdf.test.ts": {
+      "fs": 4879,
+      "spawn": 2
+    },
+    "test/viewer-workflow-run-facts.test.ts": {
+      "fs": 1212,
+      "spawn": 2
+    },
+    "test/viewer-workflow-run-hints.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/viewer-workflow-run.test.ts": {
+      "fs": 12945,
+      "spawn": 5
+    },
+    "test/viewer-workflow-runs.test.ts": {
+      "fs": 599,
+      "spawn": 6
+    },
+    "test/viewer-workflows-route.test.ts": {
+      "fs": 1080,
+      "spawn": 0
+    },
+    "test/viewer/navigation-artifacts.test.ts": {
+      "fs": 10,
+      "spawn": 0
+    },
+    "test/viewer/visualize-command.test.ts": {
+      "fs": 303,
+      "spawn": 0
+    },
+    "test/wiki-collect-metadata-only.test.ts": {
+      "fs": 141,
+      "spawn": 0
+    },
+    "test/wiki-collect.test.ts": {
+      "fs": 186,
+      "spawn": 0
+    },
+    "test/wiki/delete-page.test.ts": {
+      "fs": 523,
+      "spawn": 0
+    },
+    "test/wikilink-locate.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/wikilinks-literal.test.ts": {
+      "fs": 119,
+      "spawn": 1
+    },
+    "test/workflow-action-artifact-origin.test.ts": {
+      "fs": 3439,
+      "spawn": 2
+    },
+    "test/workflow-action-cli.test.ts": {
+      "fs": 90,
+      "spawn": 4
+    },
+    "test/workflow-action-discovery.test.ts": {
+      "fs": 161,
+      "spawn": 0
+    },
+    "test/workflow-action-run-cli.test.ts": {
+      "fs": 1379,
+      "spawn": 23
+    },
+    "test/workflow-action-status-availability.test.ts": {
+      "fs": 678,
+      "spawn": 3
+    },
+    "test/workflow-action-status-redact.test.ts": {
+      "fs": 3063,
+      "spawn": 2
+    },
+    "test/workflow-active-run-quota.test.ts": {
+      "fs": 43609,
+      "spawn": 2
+    },
+    "test/workflow-adapt-apply.test.ts": {
+      "fs": 2779,
+      "spawn": 2
+    },
+    "test/workflow-adapt-cli.test.ts": {
+      "fs": 1580,
+      "spawn": 23
+    },
+    "test/workflow-adapt-orphan.test.ts": {
+      "fs": 1482,
+      "spawn": 2
+    },
+    "test/workflow-adapt-outputs.test.ts": {
+      "fs": 1219,
+      "spawn": 2
+    },
+    "test/workflow-adapt-pending.test.ts": {
+      "fs": 995,
+      "spawn": 2
+    },
+    "test/workflow-adapt-sdk.test.ts": {
+      "fs": 736,
+      "spawn": 2
+    },
+    "test/workflow-adapt.test.ts": {
+      "fs": 833,
+      "spawn": 2
+    },
+    "test/workflow-advance-artifact-stage.test.ts": {
+      "fs": 978,
+      "spawn": 2
+    },
+    "test/workflow-advance.test.ts": {
+      "fs": 8971,
+      "spawn": 2
+    },
+    "test/workflow-artifact-immutable.test.ts": {
+      "fs": 4050,
+      "spawn": 2
+    },
+    "test/workflow-authority.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-auto-fail-denial.test.ts": {
+      "fs": 3022,
+      "spawn": 2
+    },
+    "test/workflow-cancel-resume.test.ts": {
+      "fs": 4282,
+      "spawn": 2
+    },
+    "test/workflow-cli.test.ts": {
+      "fs": 477,
+      "spawn": 10
+    },
+    "test/workflow-digest.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-events-record.test.ts": {
+      "fs": 149,
+      "spawn": 0
+    },
+    "test/workflow-gate-error-parity.test.ts": {
+      "fs": 1115,
+      "spawn": 2
+    },
+    "test/workflow-gate.test.ts": {
+      "fs": 7274,
+      "spawn": 2
+    },
+    "test/workflow-gates.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-history-boundary.test.ts": {
+      "fs": 929,
+      "spawn": 2
+    },
+    "test/workflow-human-gate-confirm.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-human-input-cli.test.ts": {
+      "fs": 782,
+      "spawn": 6
+    },
+    "test/workflow-human-input.test.ts": {
+      "fs": 9507,
+      "spawn": 2
+    },
+    "test/workflow-input-bounds.test.ts": {
+      "fs": 4,
+      "spawn": 0
+    },
+    "test/workflow-input-json-parity.test.ts": {
+      "fs": 2127,
+      "spawn": 2
+    },
+    "test/workflow-lifecycle-cli.test.ts": {
+      "fs": 5482,
+      "spawn": 80
+    },
+    "test/workflow-lifecycle-evidence-parity.test.ts": {
+      "fs": 4428,
+      "spawn": 2
+    },
+    "test/workflow-list.test.ts": {
+      "fs": 28,
+      "spawn": 0
+    },
+    "test/workflow-local-config.test.ts": {
+      "fs": 145,
+      "spawn": 0
+    },
+    "test/workflow-page-typed-validation.test.ts": {
+      "fs": 3523,
+      "spawn": 2
+    },
+    "test/workflow-park-message.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-parse-json-object.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
+    "test/workflow-process-authority.test.ts": {
+      "fs": 22502,
+      "spawn": 2
+    },
+    "test/workflow-projection-cli.test.ts": {
+      "fs": 596,
+      "spawn": 9
+    },
+    "test/workflow-projection-confine.test.ts": {
+      "fs": 296,
+      "spawn": 2
+    },
+    "test/workflow-projection-freshness.test.ts": {
+      "fs": 1429,
+      "spawn": 2
+    },
+    "test/workflow-projection-sdk.test.ts": {
+      "fs": 579,
+      "spawn": 2
+    },
+    "test/workflow-projection.test.ts": {
+      "fs": 1580,
+      "spawn": 2
+    },
+    "test/workflow-refused.test.ts": {
+      "fs": 25350,
+      "spawn": 5
+    },
+    "test/workflow-resume-clears-retry.test.ts": {
+      "fs": 3335,
+      "spawn": 2
+    },
+    "test/workflow-run-action-capture.test.ts": {
+      "fs": 1601,
+      "spawn": 2
+    },
+    "test/workflow-run-action-input.test.ts": {
+      "fs": 288,
+      "spawn": 2
+    },
+    "test/workflow-run-action-scope.test.ts": {
+      "fs": 1987,
+      "spawn": 2
+    },
+    "test/workflow-run-action.test.ts": {
+      "fs": 7761,
+      "spawn": 2
+    },
+    "test/workflow-run-durability.test.ts": {
+      "fs": 1866,
+      "spawn": 2
+    },
+    "test/workflow-run-integrity.test.ts": {
+      "fs": 1043,
+      "spawn": 0
+    },
+    "test/workflow-run-lint.test.ts": {
+      "fs": 920,
+      "spawn": 2
+    },
+    "test/workflow-run-migrate.test.ts": {
+      "fs": 189,
+      "spawn": 0
+    },
+    "test/workflow-run-ownership.test.ts": {
+      "fs": 3149,
+      "spawn": 2
+    },
+    "test/workflow-show-events-cli.test.ts": {
+      "fs": 305,
+      "spawn": 7
+    },
+    "test/workflow-show-events.test.ts": {
+      "fs": 524,
+      "spawn": 2
+    },
+    "test/workflow-stage-output-artifact.test.ts": {
+      "fs": 4105,
+      "spawn": 2
+    },
+    "test/workflow-stage-output-idempotent.test.ts": {
+      "fs": 1909,
+      "spawn": 2
+    },
+    "test/workflow-stage-output-kinds.test.ts": {
+      "fs": 6043,
+      "spawn": 2
+    },
+    "test/workflow-stage-output.test.ts": {
+      "fs": 3979,
+      "spawn": 2
+    },
+    "test/workflow-start-status.test.ts": {
+      "fs": 2678,
+      "spawn": 2
+    },
+    "test/workflow-status-artifact-hint.test.ts": {
+      "fs": 514,
+      "spawn": 6
+    },
+    "test/workflow-status-next-hint.test.ts": {
+      "fs": 1509,
+      "spawn": 2
+    },
+    "test/workflow-store-availability.test.ts": {
+      "fs": 69,
+      "spawn": 1
+    },
+    "test/workflow-store-confine.test.ts": {
+      "fs": 116,
+      "spawn": 2
+    },
+    "test/workflow-store.test.ts": {
+      "fs": 478,
+      "spawn": 0
+    },
+    "test/workflow-subject-gate-cli.test.ts": {
+      "fs": 5610,
+      "spawn": 3
+    },
+    "test/workflow-subject-gate.test.ts": {
+      "fs": 41631,
+      "spawn": 2
+    },
+    "test/workflow-submit-action.test.ts": {
+      "fs": 2425,
+      "spawn": 2
+    },
+    "test/workflow-submit-artifact-cli.test.ts": {
+      "fs": 858,
+      "spawn": 2
+    },
+    "test/workflow-submit-artifact-subprocess.test.ts": {
+      "fs": 861,
+      "spawn": 6
+    },
+    "test/workflow-submit-cli.test.ts": {
+      "fs": 4693,
+      "spawn": 68
+    },
+    "test/workflow-terminal-cap-escape.test.ts": {
+      "fs": 2050,
+      "spawn": 2
+    },
+    "test/workflow-trust-gate-staging.test.ts": {
+      "fs": 3959,
+      "spawn": 2
+    },
+    "test/workflow-verifier-receipt.test.ts": {
+      "fs": 21385,
+      "spawn": 2
+    },
+    "test/workflow-wrapper-core-identity.test.ts": {
+      "fs": 15,
+      "spawn": 0
+    }
+  }
+}

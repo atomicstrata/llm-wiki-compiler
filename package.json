@@ -30,6 +30,7 @@
     "release:check-docs:current": "bun scripts/check-release-docs.mjs --current-version",
     "test": "bun run build && bun scripts/run-tests.mjs",
     "test:watch": "bun test --watch",
+    "test:profile": "bun run build && bun scripts/test-profile.ts",
     "typecheck:tests": "bun scripts/typecheck-tests.ts",
     "typecheck:tests:update": "bun scripts/typecheck-tests.ts --update",
     "fallow:ci": "bash scripts/fallow-ci.sh",
