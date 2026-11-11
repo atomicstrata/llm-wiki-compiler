@@ -46,7 +46,7 @@ import { applyArtifactLocked, applyArtifactLockedWith, type ArtifactApplySources
 import type { ArtifactLeafReads } from "../../src/artifacts/resolve.js";
 import * as artifactStore from "../../src/artifacts/store.js";
 import * as eventRecord from "../../src/events/store-record.js";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import * as profileBlock from "../../src/profile/block.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";

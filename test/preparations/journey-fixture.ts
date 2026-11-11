@@ -20,7 +20,7 @@ import { deriveCompleteness } from "../../src/preparations/completeness.js";
 import type { AttemptLegOutcomeV1 } from "../../src/preparations/attempts/types.js";
 // Drive through the PUBLIC package entry (the public adapter), not the internal
 // runner module — the journeys exercise the same surface a host consumer calls.
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import type {
   RunPreparationInputV1, RunPreparationResultV1, PreparationMaterializerV1,
 } from "../../src/preparations/runner.js";

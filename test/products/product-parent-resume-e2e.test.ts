@@ -12,7 +12,7 @@
 
 import { onTestFinished, describe, expect, it } from "bun:test";
 import { preparationGateCommand } from "../../src/commands/preparation/gate.js";
-import { writeRun } from "../../src/workflows/store.js";
+import { writeRun } from "../../src/local-workflow-host/run-store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus } from "../../src/workflows/types.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { acquireMutationLockBlocking } from "../../src/operation-bundles/lock-gate.js";

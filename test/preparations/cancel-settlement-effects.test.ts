@@ -24,7 +24,7 @@ import {
 import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";
 import { appendPreparationTransitionLocked, appendProjectedTransitionLocked } from "../../src/preparations/run-store.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import type { RunPreparationInputV1 } from "../../src/preparations/runner.js";
 import {
   settleCancelledRunLocked, type CancelSettlementOutcomeV1,

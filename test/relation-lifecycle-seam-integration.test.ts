@@ -25,7 +25,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { EntityId } from "../src/profile/types.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { applyApprovedMutations } from "../src/trust/executor.js";
 import { CrossStoreBatchUnsupportedError } from "../src/trust/apply-result.js";

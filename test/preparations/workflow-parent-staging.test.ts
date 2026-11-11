@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
-import { writeRun } from "../../src/workflows/store.js";
+import { writeRun } from "../../src/local-workflow-host/run-store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus } from "../../src/workflows/types.js";
 import { stagePreparationLocked } from "../../src/preparations/stage.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";

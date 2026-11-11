@@ -5,7 +5,7 @@
  */
 import { afterEach, beforeEach, expect, expectTypeOf, it, vi } from "bun:test";
 import { readFile, realpath } from "node:fs/promises";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import type { LintSummary, LintTierV1, TieredLintReportV1 } from "../../src/index.js";
 import * as providers from "../../src/utils/provider.js";
 import * as embeddings from "../../src/utils/embedding-provider.js";

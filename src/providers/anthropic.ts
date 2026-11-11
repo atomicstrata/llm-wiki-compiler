@@ -5,7 +5,8 @@
  * Handles complete, streaming, and tool-use calls against Claude models.
  */
 
-import Anthropic, { type ClientOptions } from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
+import type { ClientOptions } from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { VoyageEmbeddingProvider } from "./voyage-embed.js";
 
@@ -53,18 +54,29 @@ export function buildAnthropicClientOptions(
 
 /** Anthropic-backed LLM provider using the official SDK. */
 export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMProvider {
-  private readonly client: Anthropic;
+  private readonly clientOptions: ClientOptions;
   private readonly model: string;
+  private client?: Promise<Anthropic>;
 
   constructor(model: string, options: AnthropicProviderOptions = {}) {
     super();
     this.model = model;
-    this.client = new Anthropic(buildAnthropicClientOptions(options));
+    this.clientOptions = buildAnthropicClientOptions(options);
+  }
+
+  /**
+   * The SDK client, created on the first request. The provider factory imports
+   * this module on every CLI start, so a static SDK import would make every
+   * command load it; the options are still resolved in the constructor.
+   */
+  private loadClient(): Promise<Anthropic> {
+    this.client ??= import("@anthropic-ai/sdk").then(({ default: Sdk }) => new Sdk(this.clientOptions));
+    return this.client;
   }
 
   /** Send a single non-streaming completion request. */
   async complete(system: string, messages: LLMMessage[], maxTokens: number): Promise<string> {
-    const response = await this.client.messages.create({
+    const response = await (await this.loadClient()).messages.create({
       model: this.model,
       max_tokens: maxTokens,
       system,
@@ -82,7 +94,7 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
     maxTokens: number,
     onToken?: (text: string) => void,
   ): Promise<string> {
-    const stream = this.client.messages.stream({
+    const stream = (await this.loadClient()).messages.stream({
       model: this.model,
       max_tokens: maxTokens,
       system,
@@ -113,7 +125,7 @@ export class AnthropicProvider extends VoyageEmbeddingProvider implements LLMPro
       input_schema: t.input_schema as Anthropic.Tool.InputSchema,
     }));
 
-    const response = await this.client.messages.create({
+    const response = await (await this.loadClient()).messages.create({
       model: this.model,
       max_tokens: maxTokens,
       system,

@@ -10,7 +10,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
-import { writeRun } from "../../src/workflows/store.js";
+import { writeRun } from "../../src/local-workflow-host/run-store.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun } from "../../src/workflows/types.js";
 import { verifyWorkflowParent } from "../../src/preparations/workflow-parent.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";

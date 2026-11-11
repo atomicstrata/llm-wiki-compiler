@@ -42,7 +42,7 @@ import type { EventBoundWriteSources } from "../../src/events/store.js";
 import { readEvents, readEventsFrom, verifyEventChain } from "../../src/events/store-read.js";
 import * as eventRecord from "../../src/events/store-record.js";
 import type { EventRecord } from "../../src/events/types.js";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import { mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";
 import * as profileBlock from "../../src/profile/block.js";
 import type { ProfilePack } from "../../src/profile/types.js";

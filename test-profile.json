@@ -1,0 +1,53 @@
+{
+  "totals": {
+    "files": 3,
+    "tests": 14,
+    "fileDurationMs": 9358,
+    "cliSpawns": 62,
+    "cliCpuMs": 11062
+  },
+  "commands": [
+    {
+      "command": "workflow advance",
+      "count": 27,
+      "cpuMs": 5043
+    },
+    {
+      "command": "workflow submit",
+      "count": 21,
+      "cpuMs": 3517
+    },
+    {
+      "command": "workflow start",
+      "count": 12,
+      "cpuMs": 2225
+    },
+    {
+      "command": "workflow status",
+      "count": 1,
+      "cpuMs": 172
+    },
+    {
+      "command": "",
+      "count": 1,
+      "cpuMs": 105
+    }
+  ],
+  "files": [
+    {
+      "file": "test/preflight-produce-pin-require.test.ts",
+      "tests": 4,
+      "durationMs": 5509
+    },
+    {
+      "file": "test/workflow-submit-cli.test.ts",
+      "tests": 9,
+      "durationMs": 3754
+    },
+    {
+      "file": "test/reserved-verbs-drift.test.ts",
+      "tests": 1,
+      "durationMs": 95
+    }
+  ]
+}

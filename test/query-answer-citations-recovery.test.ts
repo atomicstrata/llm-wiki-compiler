@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
 import { restoreEnv, stubEnv } from "./stubs.js";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { generateAnswer } from "../src/commands/query.js";
 import { reportAnswerCitations } from "../src/citations/answer-report.js";
 import { callClaude } from "../src/utils/llm.js";

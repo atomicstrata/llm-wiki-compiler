@@ -112,8 +112,32 @@ export function serializeOwner(pid: number): string {
     ...(identity === null ? {} : { identity }) });
 }
 
+/** Environment inputs that change how `ps -o lstart=` renders a start time. */
+const AMBIENT_RENDERING_ENV = ["TZ", "LC_ALL", "LC_TIME", "LANG"] as const;
+
+/** This process's ambient rendering, with the environment it was rendered under. */
+let cachedSelfLegacyStartTime: { env: string; value: string | null } | undefined;
+
+/**
+ * This process's own ambient rendering. A running process's start time never
+ * changes, so one `ps` per process answers every lock acquisition; the entry is
+ * reused only while the locale and zone inputs that shape the text are unchanged.
+ */
+function selfLegacyStartTime(): string | null {
+  const env = AMBIENT_RENDERING_ENV.map((name) => process.env[name] ?? "").join("\0");
+  if (cachedSelfLegacyStartTime?.env !== env) {
+    cachedSelfLegacyStartTime = { env, value: spawnLegacyProcessStartTime(process.pid) };
+  }
+  return cachedSelfLegacyStartTime.value;
+}
+
 /** Read the exact ambient ps rendering used by public lock readers and writers. */
 function readLegacyProcessStartTime(pid: number): string | null {
+  return pid === process.pid ? selfLegacyStartTime() : spawnLegacyProcessStartTime(pid);
+}
+
+/** Ask `ps` for one process's ambient start-time rendering. */
+function spawnLegacyProcessStartTime(pid: number): string | null {
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],

@@ -5,13 +5,24 @@
  * Translates Anthropic-style tool schemas (input_schema) to OpenAI format (parameters).
  */
 
-import OpenAI from "openai";
+import type OpenAI from "openai";
+import { requireOnUse } from "../utils/require-on-use.js";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { EMBEDDING_MODELS, OPENAI_DEFAULT_TIMEOUT_MS } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import { assertVectorValid, normalizeEmbeddingData } from "../utils/embeddings-validate.js";
 import { reasoningParams, tokenLimitParams } from "./openai-request.js";
 import { extraBodyParams } from "./openai-extra-body.js";
+
+/**
+ * Load the OpenAI SDK when the first client is built. The provider factory
+ * imports this module on every CLI start, so a static import would make every
+ * command load the SDK. The constructor is synchronous and callers read
+ * `client` straight after it, which rules out a dynamic `import()` here.
+ */
+function loadOpenAI(): typeof OpenAI {
+  return requireOnUse<typeof import("openai")>("openai").default;
+}
 
 /** Construction options for an OpenAI-compatible provider. */
 interface OpenAIProviderOptions {
@@ -159,7 +170,7 @@ export class OpenAIProvider implements LLMProvider {
     // placeholder when unset to defer the check to that single source of truth.
     const resolvedKey = options.apiKey ?? process.env.OPENAI_API_KEY ?? PLACEHOLDER_API_KEY;
     const timeout = options.timeoutMs ?? resolveOpenAITimeoutMs() ?? OPENAI_DEFAULT_TIMEOUT_MS;
-    this.client = new OpenAI({
+    this.client = new (loadOpenAI())({
       apiKey: resolvedKey,
       baseURL: options.baseURL ?? null,
       timeout,
@@ -179,7 +190,7 @@ export class OpenAIProvider implements LLMProvider {
    */
   private buildEmbeddingsClient(options: OpenAIProviderOptions, chatKey: string, timeout: number): OpenAI {
     if (!options.embeddingsBaseURL && !options.embeddingsApiKey) return this.client;
-    return new OpenAI({
+    return new (loadOpenAI())({
       apiKey: this.resolveEmbeddingsKey(options, chatKey),
       // Falls back to the chat base URL: when only the credential differs, the
       // endpoint is unchanged.

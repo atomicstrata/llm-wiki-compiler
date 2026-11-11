@@ -29,7 +29,7 @@ import { mkdtemp, rm, writeFile, mkdir, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { EntityId } from "../src/profile/types.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { EVENTS_FILE } from "../src/utils/constants.js";
 import { buildSeamProject, pageLifecycle } from "./fixtures/seam-fixtures.js";

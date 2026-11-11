@@ -22,9 +22,10 @@
  * page record and the rendered HTML cannot drift on what the page cites.
  */
 
-import MarkdownIt from "markdown-it";
-import sanitizeHtml from "sanitize-html";
+import type MarkdownIt from "markdown-it";
+import type sanitizeHtml from "sanitize-html";
 import type { IOptions } from "sanitize-html";
+import { requireOnUse } from "../utils/require-on-use.js";
 import { registerWikilink } from "./wikilink-rule.js";
 import { registerCitation } from "./citation-rule.js";
 import type { ViewerSnapshot } from "./types.js";
@@ -52,13 +53,17 @@ export function renderPageHtml(
 ): { html: string } {
   const md = buildMarkdownIt(snapshot, options);
   const rendered = md.render(body);
-  const html = sanitizeHtml(rendered, buildSanitizerPolicy(options));
+  // The parser and sanitizer are loaded on the first render: the package index
+  // re-exports the viewer, so static imports would load both for every command.
+  const sanitize = requireOnUse<typeof sanitizeHtml>("sanitize-html");
+  const html = sanitize(rendered, buildSanitizerPolicy(options));
   return { html };
 }
 
 /** Construct a fresh markdown-it instance with the viewer's inline rules wired in. */
 function buildMarkdownIt(snapshot: ViewerSnapshot, options: RenderOptions): MarkdownIt {
-  const md = new MarkdownIt({
+  const Parser = requireOnUse<typeof MarkdownIt>("markdown-it");
+  const md = new Parser({
     html: false,
     linkify: false,
     breaks: false,

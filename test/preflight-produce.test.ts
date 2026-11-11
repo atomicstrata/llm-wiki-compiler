@@ -13,7 +13,7 @@
  * proves it by recomputing one side independently via `hashArtifactBody`).
  */
 import { describe, it, expect } from "bun:test";
-import { readRun } from "../src/workflows/store.js";
+import { readRun } from "../src/workflow-history/store.js";
 import { hashArtifactBody } from "../src/artifacts/store.js";
 import { makeResearchLiteProjectRoot } from "./fixtures/profile-fixtures.js";
 import { startRun } from "./fixtures/research-workflow.js";

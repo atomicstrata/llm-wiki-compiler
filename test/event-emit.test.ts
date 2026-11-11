@@ -11,7 +11,7 @@ import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { appendRelation, updateRelation } from "../src/relations/store.js";
 import { readEvents, verifyEventChain, verifyHeadAnchor } from "../src/events/store-read.js";
 import {
