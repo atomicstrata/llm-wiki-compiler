@@ -1,22 +1,17 @@
 /**
- * A screen this client does not have yet. The route is reserved and the
- * sidebar entry exists so links keep working while the screen is built; until
- * then the original client at `llmwiki view` shows it.
+ * The fallback for a route the shell has no screen for. Every screen of the
+ * original client now exists here, so this renders only if a route kind is
+ * added without a view.
  */
 import type { ReactNode } from "react";
 import type { Route } from "./route";
 
-const TITLES: Partial<Record<Route["view"], string>> = {
-  workflows: "Workflows",
-  pipeline: "Lifecycle status",
-};
-
-/** Name the screen and point at the client that has it. */
+/** Name the route and point at the original client. */
 export function PendingView({ route }: { route: Route }): ReactNode {
   return (
     <section>
-      <h1>{TITLES[route.view] ?? "Not available"}</h1>
-      <p className="status">This screen is not in the v2 client yet. Open it with <code>llmwiki view</code> at the same address.</p>
+      <h1>Not available</h1>
+      <p className="status">This client has no screen for <code>{route.view}</code>. Open it with <code>llmwiki view</code> at the same address.</p>
     </section>
   );
 }

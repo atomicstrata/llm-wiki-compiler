@@ -1,7 +1,8 @@
 /** Builders for the v2 viewer's API payloads, with calm defaults every test can override. */
+import type { ArtifactMetadata, RecordedStage, VerifiedStage, WorkflowRunRow } from "../../viewer-v2/src/api-workflows.js";
 import type {
-  GraphData, GraphEdge, HealthPayload, LintRule, LintSummary, PagePayload, PageRow, PagesEnvelope,
-  ReviewCandidate, ReviewsEnvelope, SourceChangePage, SourceChangesReport,
+  EntityTypeRow, GraphData, GraphEdge, HealthPayload, LintRule, LintSummary, PagePayload, PageRow, PagesEnvelope,
+  PipelineLifecycle, ReviewCandidate, ReviewsEnvelope, SourceChangePage, SourceChangesReport,
 } from "../../viewer-v2/src/api.js";
 
 /** `alpha` reads as `Alpha`: the title a fixture page takes from its slug. */
@@ -118,5 +119,54 @@ export function sourceChangesReport(pages: SourceChangePage[], overrides: Partia
   return {
     projectRoot: "/tmp/wiki", stateStatus: "ok", pages, totalPages: pages.length, candidateTotal: 0, candidateShown: 0,
     observedAt: "2026-11-10T12:00:00.000Z", ...overrides,
+  };
+}
+
+/** A three-state lifecycle, `draft → review → published`, with `review` able to return to `draft`. */
+export function lifecycle(overrides: Partial<PipelineLifecycle> = {}): PipelineLifecycle {
+  return {
+    field: "status",
+    initial: "draft",
+    terminal: ["published"],
+    transitions: { draft: ["review"], review: ["draft", "published"] },
+    declaredStates: ["draft", "review", "published"],
+    ...overrides,
+  };
+}
+
+/** One declared entity type; override any field. */
+export function entityType(overrides: Partial<EntityTypeRow> = {}): EntityTypeRow {
+  const type = overrides.type ?? "papers";
+  return { type, directory: `wiki/${type}`, pageCount: 0, ...overrides };
+}
+
+/** A readable, running run of the `review` workflow; override any field. */
+export function workflowRun(overrides: Partial<WorkflowRunRow> = {}): WorkflowRunRow {
+  return { runId: "run-1", classification: "current", status: "running", currentStage: "draft", workflow: "review", ...overrides };
+}
+
+/** A stage known only from the run log. */
+export function recordedStage(overrides: Partial<RecordedStage> = {}): RecordedStage {
+  return { stageId: "draft", status: "completed", verification: "recorded-only", ...overrides };
+}
+
+/** A stage a provider verified. */
+export function verifiedStage(overrides: Partial<VerifiedStage> = {}): VerifiedStage {
+  return {
+    stageId: "render", status: "completed", verification: "verified",
+    summary: "Rendered the report.", appliedTargets: ["papers/alpha"], evidenceDigests: ["sha256:abc"],
+    ...overrides,
+  };
+}
+
+/** Metadata of a healthy, downloadable artifact. */
+export function artifactMetadata(overrides: Partial<ArtifactMetadata> = {}): ArtifactMetadata {
+  return {
+    ref: "report/alpha@sha256:" + "a".repeat(64),
+    health: "ok",
+    contentAccess: "available",
+    fileName: "report.json",
+    manifest: { artifactType: "report", slug: "alpha", sha256: "a".repeat(64), bytes: 12, contentKind: "json", writtenAt: "2026-11-10T12:00:00.000Z" },
+    ...overrides,
   };
 }

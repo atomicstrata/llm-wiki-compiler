@@ -9,8 +9,9 @@
  * `#/graph`, `#/health`, `#/reviews`, `#/source-changes`, `#/workflows` and
  * `#/pipeline`. A profile's typed list lives at `#/_type/<entity-type>`, so a
  * type sharing a name with one of those screens still opens its own pages.
- * `#/_search?q=` is the one route only this client has. Reserved segments
- * start with an underscore, which no page directory can.
+ * `#/_search?q=` and a run's journey at `#/_journey/<workflow>/<run>` are the
+ * routes only this client has. Reserved segments start with an underscore,
+ * which no page directory can.
  */
 
 /** The three lists of a default project. */
@@ -29,6 +30,7 @@ export type Route =
   | { view: "sourceChanges" }
   | { view: "workflows" }
   | { view: "pipeline" }
+  | { view: "journey"; workflowId: string; runId: string }
   | { view: "page"; directory: string; slug: string }
   | { view: "source"; id: string; lineStart?: number; lineEnd?: number }
   | { view: "search"; query: string };
@@ -37,6 +39,7 @@ const HOME: Route = { view: "home" };
 const SOURCE_SEGMENT = "_source";
 const TYPE_SEGMENT = "_type";
 const SEARCH_SEGMENT = "_search";
+const JOURNEY_SEGMENT = "_journey";
 const WHOLE_NUMBER = /^\d+$/;
 
 /** Single-segment hashes that name a screen outright. */
@@ -62,6 +65,9 @@ export function parseRoute(hash: string): Route {
   const params = new URLSearchParams(rawQuery);
   if (segments[0] === SEARCH_SEGMENT) return { view: "search", query: params.get("q") ?? "" };
   if (segments.length === 1) return STATIC_ROUTES.get(segments[0]) ?? HOME;
+  if (segments[0] === JOURNEY_SEGMENT) {
+    return segments.length === 3 ? { view: "journey", workflowId: segments[1], runId: segments[2] } : HOME;
+  }
   if (segments.length !== 2) return HOME;
   if (segments[0] === TYPE_SEGMENT) return { view: "typeList", type: segments[1] };
   if (segments[0] === SOURCE_SEGMENT) {
@@ -103,6 +109,11 @@ export function citationHref(file: string | undefined, lineStart?: string, lineE
 /** Hash for a search. */
 export function searchHref(query: string): string {
   return `#/${SEARCH_SEGMENT}?q=${encodeURIComponent(query)}`;
+}
+
+/** Hash for one workflow run's journey. */
+export function journeyHref(workflowId: string, runId: string): string {
+  return `#/${JOURNEY_SEGMENT}/${encodeURIComponent(workflowId)}/${encodeURIComponent(runId)}`;
 }
 
 /** Decode each path segment; null when any segment is not valid percent-encoding. */

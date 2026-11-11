@@ -3,7 +3,7 @@
  * server renders.
  */
 import { describe, expect, it } from "bun:test";
-import { citationHref, pageHref, pageIdHref, parseRoute, searchHref, sourceHref, typeListHref } from "../viewer-v2/src/route.js";
+import { citationHref, journeyHref, pageHref, pageIdHref, parseRoute, searchHref, sourceHref, typeListHref } from "../viewer-v2/src/route.js";
 
 describe("v2 viewer routes", () => {
   it("round-trips a page whose slug needs encoding", () => {
@@ -46,7 +46,12 @@ describe("v2 viewer routes", () => {
     expect(parseRoute("#/papers")).toEqual({ view: "home" });
   });
 
-  it.each(["", "#", "#/", "#/nonsense", "#/a/b/c", "#/concepts/%E0%A4%A"])("treats %j as home", (hash) => {
+  it("round-trips a run's journey, with both ids encoded", () => {
+    expect(parseRoute(journeyHref("review flow", "run/1"))).toEqual({ view: "journey", workflowId: "review flow", runId: "run/1" });
+    expect(journeyHref("review flow", "run/1")).toBe("#/_journey/review%20flow/run%2F1");
+  });
+
+  it.each(["", "#", "#/", "#/nonsense", "#/a/b/c", "#/_journey/wf", "#/_journey/wf/run/extra", "#/concepts/%E0%A4%A"])("treats %j as home", (hash) => {
     expect(parseRoute(hash)).toEqual({ view: "home" });
   });
 });
