@@ -119,12 +119,12 @@ describe("reading an extraction answer", () => {
 
   it("keeps named records with lines inside the file and nulls missing fields", () => {
     const answer = JSON.stringify({ person: [
-      { name: " Ana ", writtenAs: ["ana", " ana", 3], relationship: "friend", lines: [{ start: 2, end: 3 }, { start: 9, end: 12 }] },
+      { name: " Ana ", writtenAs: ["ana", " ana", 3, "Ana’s", "ana@example.com"], relationship: "friend", lines: [{ start: 2, end: 3 }, { start: 9, end: 12 }] },
       { name: "", lines: [{ start: 1, end: 1 }] },
       { name: "Ghost", lines: [{ start: 0, end: 1 }] },
     ] });
     expect(parseRecords(answer, types, 10).person).toEqual([
-      { name: "Ana", writtenAs: ["ana"], fields: { aliases: null, organization: null, relationship: "friend" }, lines: [{ start: 2, end: 3 }] },
+      { name: "Ana", writtenAs: ["ana", "Ana"], fields: { aliases: null, organization: null, relationship: "friend" }, lines: [{ start: 2, end: 3 }] },
     ]);
   });
 

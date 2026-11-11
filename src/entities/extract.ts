@@ -162,8 +162,9 @@ export function extractionRequest(types: ExtractableType[], file: string, chunk:
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
   const system = `List every record of each kind below that the source names.
 ${kinds}
-name: who it is, as the fullest correctly spelled name the source supports. Use the full name when the source shows who a nickname, misspelling or first name means. Name someone the source calls only by a relation (mama, my brother) by that relation, e.g. "${ownerName}'s mother".
-writtenAs: every way the source writes them, exactly as written.
+One record per person. name: who it is, correctly spelled. Use a fuller name only when the source itself makes clear it is the same person; if unsure, keep the name as written.
+List someone the source does not name only when a family relation identifies them (mama, my brother), named by that relation, e.g. "${ownerName}'s mother". Skip other unnamed people.
+writtenAs: every way the source writes their name, exactly as written.
 Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
   return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)], maxTokens: EXTRACTION_MAX_TOKENS };
 }
@@ -178,9 +179,22 @@ export function parseRecords(answer: string, types: ExtractableType[], lineCount
       const lines = (Array.isArray(item.lines) ? item.lines as LineRange[] : [])
         .filter((range) => Number.isInteger(range?.start) && Number.isInteger(range?.end) && range.start >= 1 && range.start <= range.end && range.end <= lineCount);
       if (!name || lines.length === 0) return [];
-      const writtenAs = Array.isArray(item.writtenAs) ? [...new Set(item.writtenAs.filter((form): form is string => typeof form === "string").map((form) => form.trim()).filter(Boolean))] : [];
+      const writtenAs = spellings(item.writtenAs);
       return [{ name, writtenAs, fields: Object.fromEntries(fields.map(([field]) => [field, item[field] ?? null])), lines }];
     });
     return [type, records];
   }));
+}
+
+/** An address rather than a name, which is never kept as a spelling. */
+const ADDRESS = /@|:\/\//;
+/** A possessive ending ("Ben’s"), which is not part of the name. */
+const POSSESSIVE = /['’]s$/i;
+
+/** The distinct names in a `writtenAs` answer: trimmed, without possessive endings, and without addresses. */
+function spellings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const forms = value.filter((form): form is string => typeof form === "string" && !ADDRESS.test(form))
+    .map((form) => form.trim().replace(POSSESSIVE, "").trim()).filter(Boolean);
+  return [...new Set(forms)];
 }
