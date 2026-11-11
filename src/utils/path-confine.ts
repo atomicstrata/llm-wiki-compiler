@@ -126,33 +126,44 @@ export function resolveSourcesDir(root: string): Promise<string | null> {
   return resolveRealDir(root, SOURCES_DIR);
 }
 
+/** The nearest path at or above `start` that resolves, with its realpath; with `onlyStart`, `start` alone. */
+async function nearestExistingRealpath(start: string, onlyStart: boolean): Promise<{ at: string; real: string } | null> {
+  for (let at = start; ; at = path.dirname(at)) {
+    const real = await safeRealpath(at);
+    if (real !== null) return { at, real };
+    if (onlyStart || path.dirname(at) === at) return null; // no existing ancestor up to the filesystem root
+  }
+}
+
 /**
  * Confine a caller-supplied path under `root` and return its absolute form, or THROW.
  * `mustExist:true` (an input dir) requires the realpath to exist inside root.
  * `mustExist:false` (an output dir that may not exist yet) resolves lexically, then
  * realpath-checks the nearest existing path AT OR ABOVE the target — starting with the
  * target itself — so an existing symlinked dir/parent that escapes root is rejected.
+ *
+ * The root is resolved only when the answer needs it. A realpath contains no
+ * symlink, so when the nearest existing path under the LEXICAL root resolves to
+ * itself, every prefix of it resolved to itself in that same lookup — the root
+ * among them — and `realpath(root)` would be the lexical root: the target, the
+ * checks and the answer are then exactly the ones below. Any other outcome (a
+ * root given in another form, a symlink on the way, nothing existing under the
+ * root) takes the full path, reusing the lookup when the root resolved to itself.
  */
 export async function confineUnderRoot(
   target: string,
   root: string,
   opts: { mustExist: boolean },
 ): Promise<string> {
-  const realRoot = (await safeRealpath(root)) ?? path.resolve(root);
+  const lexicalRoot = path.resolve(root);
+  const lexicalAbs = path.normalize(path.resolve(lexicalRoot, target));
+  const probe = isInsideDir(lexicalAbs, lexicalRoot) ? await nearestExistingRealpath(lexicalAbs, opts.mustExist) : undefined;
+  if (probe && probe.real === probe.at && isInsideDir(probe.at, lexicalRoot)) return lexicalAbs;
+  const realRoot = (await safeRealpath(root)) ?? lexicalRoot;
   const abs = path.normalize(path.resolve(realRoot, target));
   if (!isInsideDir(abs, realRoot)) throw new Error(`path escapes project root: ${target}`);
-  if (opts.mustExist) {
-    const real = await safeRealpath(abs);
-    if (real === null || !isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
-    return real;
-  }
-  for (let cur = abs; ; cur = path.dirname(cur)) {
-    const real = await safeRealpath(cur);
-    if (real !== null) {
-      if (!isInsideDir(real, realRoot)) throw new Error(`path escapes project root: ${target}`);
-      break;
-    }
-    if (path.dirname(cur) === cur) break; // reached filesystem root without an existing ancestor
-  }
-  return abs;
+  const found = probe !== undefined && abs === lexicalAbs ? probe : await nearestExistingRealpath(abs, opts.mustExist);
+  const escapes = found === null ? opts.mustExist : !isInsideDir(found.real, realRoot);
+  if (escapes) throw new Error(`path escapes project root: ${target}`);
+  return opts.mustExist && found !== null ? found.real : abs;
 }
