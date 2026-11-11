@@ -78,7 +78,11 @@ interface Clock { now(): Date }
 export interface StageLockedSteps {
   /** The workflow parent's verification, raw: the park ladder over it is the body's. */
   verifyParent(ref: WorkflowParentRefV1): Promise<WorkflowParentVerification>;
-  /** The preparation inventory under the scan options. */
+  /**
+   * The preparation inventory under the scan options. It must describe the same
+   * store the reads below answer for: the body takes every leg's absence from it
+   * when it saw neither the preparation nor its run.
+   */
   scanInventory(options?: PreparationScanOptions): Promise<PreparationInventory>;
   /** The current integrity key. */
   readKey(): Promise<PreparationKeyRead>;
@@ -261,8 +265,27 @@ function prepareStage(
 
 interface Materialization { missingEvidence: Set<string>; missingManifest: boolean; missingRun: boolean; complete: boolean }
 
+/**
+ * Whether the healthy inventory this staging just scanned, under the same hold
+ * of the lock and before any write, already proves every leg absent: no
+ * directory for the preparation (so no manifest and no evidence beneath it) and
+ * no run leaf for the run. Each read below would then answer `absent` too. The
+ * reads stay for a reused or fixed identity the scan saw, which a crash may have
+ * left partly written; the create-only writes still refuse anything that appears
+ * after the scan.
+ */
+function scanProvesAbsent(prepared: PreparedStage, inventory: PreparationInventory): boolean {
+  return !inventory.preparationIds.has(prepared.manifest.preparationId) && !inventory.runIds.has(prepared.manifest.runId);
+}
+
 /** Inspect what a fixed-id replay still needs, distinguishing an exact replay. */
-async function inspectMaterialization(steps: StageLockedSteps, prepared: PreparedStage, keyEpochId: Sha256Digest): Promise<Materialization> {
+async function inspectMaterialization(
+  steps: StageLockedSteps, prepared: PreparedStage, keyEpochId: Sha256Digest, inventory: PreparationInventory,
+): Promise<Materialization> {
+  if (scanProvesAbsent(prepared, inventory)) {
+    const missingEvidence = new Set(prepared.inputs.objects.map((object) => object.digest));
+    return { missingEvidence, missingManifest: true, missingRun: true, complete: false };
+  }
   const location = { workspaceId: prepared.manifest.workspaceId, preparationId: prepared.manifest.preparationId };
   const missingEvidence = new Set<string>();
   for (const object of prepared.inputs.objects) {
@@ -510,7 +533,7 @@ export async function stagePreparationLockedWith(steps: StageLockedSteps, reques
   const stage = planStage(request, planned.set);
   const keyEpoch = await resolveKeyEpoch(steps, inventory, currentKey);
   const prepared = prepareStage(request, stage, keyEpoch.keyEpochId, reuse);
-  const materialization = await inspectMaterialization(steps, prepared, keyEpoch.keyEpochId);
+  const materialization = await inspectMaterialization(steps, prepared, keyEpoch.keyEpochId, inventory);
   assertSupersession(prepared, inventory);
   assertStageCapacity(projectCapacity(prepared, inventory, materialization));
   const result = { manifest: prepared.manifest, manifestDigest: prepared.manifestDigest, projectedRunBudget: prepared.projectedRunBudget };
