@@ -47,6 +47,7 @@
  */
 
 import path from "node:path";
+import pLimit from "p-limit";
 import { authoritativeManifests, hasAuthoritativeRun, capacityViolation, uniqueInventoryBytes as uniqueBytes } from "../utils/inventory-arithmetic.js";
 import {
   MAX_ACTIVE_NONTERMINAL_RUNS, MAX_ACTIVE_PREPARATION_BYTES,
@@ -234,38 +235,55 @@ function diskPreparationInventoryLifecycleReads(root: string): PreparationInvent
   };
 }
 
+/**
+ * How many store reads one scan keeps in flight. The reads are independent and
+ * each waits on the disk, so a store of many runs is scanned in a fraction of
+ * the time a one-at-a-time walk takes. Results are still reported in leaf order.
+ */
+const SCAN_READ_CONCURRENCY = 16;
+
 /** Read every authoritative manifest and preserve invalid/unavailable state. */
 async function readManifests(
   reads: PreparationInventoryReads, leaves: readonly PreparationLeafObservation[], problems: PreparationInventoryProblem[],
 ): Promise<Map<string, PreparationManifestV1>> {
+  const limit = pLimit(SCAN_READ_CONCURRENCY);
+  const identified = authoritativeManifests(leaves).flatMap((leaf) =>
+    leaf.workspaceId === undefined || leaf.preparationId === undefined
+      ? [] : [{ leaf, workspaceId: leaf.workspaceId, preparationId: leaf.preparationId as PreparationId }]);
+  const read = await Promise.all(identified.map((item) => limit(() => reads.readManifest(item.workspaceId, item.preparationId))));
   const result = new Map<string, PreparationManifestV1>();
-  for (const leaf of authoritativeManifests(leaves)) {
-    if (leaf.workspaceId === undefined || leaf.preparationId === undefined) continue;
-    const read = await reads.readManifest(leaf.workspaceId, leaf.preparationId as PreparationId);
-    if (read.status === "ok") result.set(`${leaf.workspaceId}\0${leaf.preparationId}`, read.manifest);
-    else problems.push({ dimension: "manifest-state", detail: `preparation manifest is ${read.status}`, path: path.join(".llmwiki", leaf.relativePath) });
-  }
+  identified.forEach(({ leaf, workspaceId, preparationId }, index) => {
+    const outcome = read[index];
+    if (outcome.status === "ok") result.set(`${workspaceId}\0${preparationId}`, outcome.manifest);
+    else problems.push({ dimension: "manifest-state", detail: `preparation manifest is ${outcome.status}`, path: path.join(".llmwiki", leaf.relativePath) });
+  });
   return result;
 }
+
+type KeyEpochRead = Awaited<ReturnType<PreparationInventoryReads["readKeyEpoch"]>>;
+
+/** One manifest's state, with the problem that made it incomplete, if any. */
+interface PreparationStateOutcome { state: PreparationState; problem?: PreparationInventoryProblem }
 
 /** Verify one manifest's initial evidence, run leaf, and authenticated run. */
 async function preparationState(
   reads: PreparationInventoryReads, manifest: PreparationManifestV1, leaves: readonly PreparationLeafObservation[],
-  problems: PreparationInventoryProblem[],
-): Promise<PreparationState> {
+  keyEpoch: () => Promise<KeyEpochRead>,
+): Promise<PreparationStateOutcome> {
+  const incomplete: PreparationState = { manifest, complete: false, nonterminal: false };
   const evidencePresent = manifest.initialEvidence.every((evidence) => leaves.some((leaf) =>
     leaf.kind === "evidence" && leaf.workspaceId === manifest.workspaceId && leaf.preparationId === manifest.preparationId
     && leaf.protocolAlias === undefined && path.basename(leaf.logicalRelativePath) === evidence.digest.slice("sha256:".length)));
   const runLeaf = hasAuthoritativeRun(leaves, manifest);
-  if (!evidencePresent || !runLeaf) return { manifest, complete: false, nonterminal: false };
-  const key = await reads.readKeyEpoch();
-  if (key.status !== "ok") { problems.push({ dimension: "run-state", detail: `preparation key is ${key.status}` }); return { manifest, complete: false, nonterminal: false }; }
+  if (!evidencePresent || !runLeaf) return { state: incomplete };
+  const key = await keyEpoch();
+  if (key.status !== "ok") return { state: incomplete, problem: { dimension: "run-state", detail: `preparation key is ${key.status}` } };
   const run = await reads.readRun({
     runId: manifest.runId, preparationId: manifest.preparationId, workspaceId: manifest.workspaceId,
     manifestDigest: preparationManifestDigest(manifest), keyEpochId: key.keyEpochId,
   });
-  if (run.status !== "ok") { problems.push({ dimension: "run-state", detail: `preparation run is ${run.status}` }); return { manifest, complete: false, nonterminal: false }; }
-  return { manifest, complete: true, nonterminal: !TERMINAL_STATES.has(run.run.state) };
+  if (run.status !== "ok") return { state: incomplete, problem: { dimension: "run-state", detail: `preparation run is ${run.status}` } };
+  return { state: { manifest, complete: true, nonterminal: !TERMINAL_STATES.has(run.run.state) } };
 }
 
 /** Build exact active epoch totals from the active-only classified scan. */
@@ -391,9 +409,15 @@ async function preparationStates(
   } catch (error) {
     problems.push({ dimension: "supersession", detail: error instanceof Error ? error.message : "invalid supersession set" });
   }
-  const states: PreparationState[] = [];
-  for (const manifest of manifestList) states.push(await preparationState(reads, manifest, scan.leaves, problems));
-  return { manifestList, states };
+  // The key epoch is one fact about the store, so one scan reads it once and
+  // every run is authenticated against that same reading.
+  let keyRead: Promise<KeyEpochRead> | undefined;
+  const keyEpoch = () => (keyRead ??= reads.readKeyEpoch());
+  const limit = pLimit(SCAN_READ_CONCURRENCY);
+  const outcomes = await Promise.all(manifestList.map((manifest) =>
+    limit(() => preparationState(reads, manifest, scan.leaves, keyEpoch))));
+  for (const { problem } of outcomes) if (problem) problems.push(problem);
+  return { manifestList, states: outcomes.map((outcome) => outcome.state) };
 }
 
 /**
