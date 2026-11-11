@@ -44,7 +44,7 @@
 
 import { constants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { openConfinedLeaf, type ReadLeafOptions } from "../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen, type ReadLeafOptions } from "../utils/confined-read.js";
 import { openFileNoFollow, readOpenedTextWithinCap } from "../utils/no-follow-open.js";
 import { streamConfinedDigest } from "../utils/stream-digest.js";
 
@@ -91,9 +91,6 @@ export type ConfinedLeafDigestRead =
 
 /** The bytes a leaf is expected to hold: a lowercase hex SHA-256 and an exact byte count. */
 interface ExpectedLeafBytes { sha256Hex: string; byteCount: number }
-
-/** One confirmed confined open, as {@link openConfinedLeaf} returns it. */
-type ConfirmedLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
 
 /**
  * CARRIES THE CONFINED OPEN'S GUARD. `openConfinedLeaf(root, leaf,
@@ -171,7 +168,7 @@ async function digestConfinedLeaf(
  * `expected.byteCount` bytes is allocated once the size is confirmed, and the
  * stream fills it; it is returned only with `matches`.
  */
-async function digestOpenedLeaf(opened: ConfirmedLeaf, expected: ExpectedLeafBytes, keepBytes: boolean): Promise<DigestOutcome> {
+async function digestOpenedLeaf(opened: ConfirmedLeafOpen, expected: ExpectedLeafBytes, keepBytes: boolean): Promise<DigestOutcome> {
   if (opened.size !== expected.byteCount) return DIFFERS;
   const bytes = keepBytes ? Buffer.alloc(expected.byteCount) : null;
   const streamed = await streamConfinedDigest(bytes === null ? opened : copyingSource(opened, bytes), expected.byteCount);
@@ -181,7 +178,7 @@ async function digestOpenedLeaf(opened: ConfirmedLeaf, expected: ExpectedLeafByt
 }
 
 /** Whether the opened handle is still the same file it was opened as: device, inode, link count, size. */
-async function isSameFile(opened: ConfirmedLeaf): Promise<boolean> {
+async function isSameFile(opened: ConfirmedLeafOpen): Promise<boolean> {
   const after = await opened.handle.stat();
   return after.dev === opened.dev && after.ino === opened.ino
     && after.nlink === opened.nlink && after.size === opened.size;
@@ -192,7 +189,7 @@ async function isSameFile(opened: ConfirmedLeaf): Promise<boolean> {
  * copied into `into` at the chunk's own position. A chunk past the end of
  * `into` is not copied; the loop refuses that leaf anyway (it is over the cap).
  */
-function copyingSource(opened: ConfirmedLeaf, into: Buffer): Parameters<typeof streamConfinedDigest>[0] {
+function copyingSource(opened: ConfirmedLeafOpen, into: Buffer): Parameters<typeof streamConfinedDigest>[0] {
   return {
     size: opened.size,
     handle: {

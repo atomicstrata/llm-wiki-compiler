@@ -81,7 +81,6 @@
         "ajv": "^8.20.0",
         "canonicalize": "^3.0.0",
         "chokidar": "^4.0.0",
-        "commander": "^13.0.0",
         "js-yaml": "^4.3.0",
         "jsdom": "^25.0.0",
         "markdown-it": "^14.3.0",

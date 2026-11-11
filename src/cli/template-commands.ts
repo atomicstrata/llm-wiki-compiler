@@ -1,8 +1,9 @@
 /**
  * @file src/cli/template-commands.ts
  * @description Registers the `template` command group with Commander. The
- * group is intentionally thin: parsing stays here, while registry inspection
- * and install behavior stay in `src/commands/template.ts`. Each subcommand's
+ * group is intentionally thin: option parsing stays in the
+ * `src/cli/template-*-commands.ts` modules, while registry inspection and
+ * install behavior stay in `src/commands/template*.ts`. Each subcommand's
  * module loads when it runs, so `template list` does not load the remote, tap
  * and publish code.
  */

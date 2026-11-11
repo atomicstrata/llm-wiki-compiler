@@ -242,18 +242,10 @@ export async function assertPathNamesInode(tmpPath: string, expected: Stats): Pr
  * check (a closed-handle snapshot could be satisfied by a reused inode number
  * on allocators that recycle eagerly, e.g. Linux). This portable same-UID check
  * detects replacement before return; it is not a sandbox or a native lease
- * against a same-UID actor racing after the final check.
+ * against a same-UID actor racing after the final check. Returns the
+ * destination's `lstat` that proved it.
  */
 export async function assertPublishedDestination(
-  filePath: string,
-  handle: FileHandle,
-  binding: ParentBinding | undefined,
-): Promise<void> {
-  await publishedDestinationStat(filePath, handle, binding);
-}
-
-/** The destination's lstat once it is verified to name the pinned inode. */
-async function publishedDestinationStat(
   filePath: string,
   handle: FileHandle,
   binding: ParentBinding | undefined,
@@ -278,7 +270,7 @@ export async function assertSettledDestination(
   handle: FileHandle,
   binding: ParentBinding | undefined,
 ): Promise<void> {
-  const actual = await publishedDestinationStat(filePath, handle, binding);
+  const actual = await assertPublishedDestination(filePath, handle, binding);
   if (actual.nlink !== 1) {
     throw new Error(`atomic destination has an external alias: ${filePath}`);
   }

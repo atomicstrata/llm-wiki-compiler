@@ -46,7 +46,6 @@ import type { WorkflowRun } from "../workflows/types.js";
 import type { AppendRelationInput } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 export { parseJsonObject } from "./workflow-shared.js";
-export type { WorkflowStartOptions };
 
 /** The `--kind` values `workflow submit` accepts, for fail-closed validation. */
 const STAGE_OUTPUT_KINDS: ReadonlySet<string> = new Set(["page", "relation", "lifecycle-transition", "artifact", "human-input"]);

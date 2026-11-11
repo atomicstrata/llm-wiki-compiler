@@ -75,6 +75,7 @@ import type {
 import type { PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding, PreparationRunState } from "./run-types.js";
 import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
+import { once } from "../utils/pass-memo.js";
 
 const TERMINAL_STATES = new Set<PreparationRunState>([
   "handed-off", "succeeded", "succeeded-with-warnings", "failed", "cancelled",
@@ -410,8 +411,7 @@ async function preparationStates(
   }
   // The key epoch is one fact about the store, so one scan reads it once and
   // every run is authenticated against that same reading.
-  let keyRead: Promise<KeyEpochRead> | undefined;
-  const keyEpoch = () => (keyRead ??= reads.readKeyEpoch());
+  const keyEpoch = once(() => reads.readKeyEpoch());
   const limit = pLimit(SCAN_READ_CONCURRENCY);
   const outcomes = await Promise.all(manifestList.map((manifest) =>
     limit(() => preparationState(reads, manifest, scan.leaves, keyEpoch))));

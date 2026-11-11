@@ -13,9 +13,6 @@
 
 import { afterEach } from "bun:test";
 
-// `bun run test:profile` counts each file's filesystem calls and spawns.
-if (process.env.LLMWIKI_CALL_COUNTS !== undefined) await import("./call-counter.ts");
-
 afterEach(() => {
   process.exitCode = 0;
 });

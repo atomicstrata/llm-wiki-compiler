@@ -21,10 +21,9 @@ const texts = new Map<string, Promise<string>>();
 /** The UTF-8 text of a committed source file; `file` is absolute or relative to the cwd. */
 export function readCommittedSource(file: string): Promise<string> {
   const key = path.resolve(file);
-  let text = texts.get(key);
-  if (text === undefined) {
-    text = readFile(key, "utf8");
-    texts.set(key, text);
-  }
+  const cached = texts.get(key);
+  if (cached !== undefined) return cached;
+  const text = readFile(key, "utf8");
+  texts.set(key, text);
   return text;
 }

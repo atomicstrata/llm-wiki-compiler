@@ -3,8 +3,7 @@
  * @description Configures the `workflow` subcommands implemented by
  * `src/commands/workflow.ts`: the read-only `list`, `show`, `events` and
  * `status`, and the run lifecycle `start`, `submit`, `cancel`, `fail` and
- * `resume`. Moved out of `workflow-commands.ts` verbatim; only the
- * `.command()`/`.description()` declaration moved to the group's table.
+ * `resume`.
  */
 
 import type { Command } from "commander";
@@ -19,7 +18,7 @@ import {
   workflowResumeCommand,
   workflowSubmitCommand,
 } from "../commands/workflow.js";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
+import { exitOnError, runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
 
 /** Add the action of `workflow list`. */
 export function configureWorkflowList(command: Command): void {
@@ -49,14 +48,7 @@ export function configureWorkflowStatus(command: Command): void {
 export function configureWorkflowStart(command: Command): void {
   command
     .option("--input <pair...>", "Run input as key=value (repeatable)")
-    .action(async (workflow: string, options: { input?: string[] }) => {
-      try {
-        await workflowStartCommand(workflow, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
+    .action(exitOnError(workflowStartCommand));
 }
 
 /** Add the options and action of `workflow submit`. */
@@ -70,52 +62,24 @@ export function configureWorkflowSubmit(command: Command): void {
     .option("--to-state <state>", "Target lifecycle state (lifecycle-transition)")
     .option("--evidence-file <path>", "JSON evidence file (lifecycle-transition)")
     .option("--output-file <path>", "JSON payload file (relation/human-input)")
-    .action(async (runId: string, options) => {
-      try {
-        await workflowSubmitCommand(runId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
+    .action(exitOnError(workflowSubmitCommand));
 }
 
 /** Add the action of `workflow cancel`. */
 export function configureWorkflowCancel(command: Command): void {
   command
-    .action(async (runId: string) => {
-      try {
-        await workflowCancelCommand(runId);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
+    .action(exitOnError(workflowCancelCommand));
 }
 
 /** Add the options and action of `workflow fail`. */
 export function configureWorkflowFail(command: Command): void {
   command
     .option("--detail <reason>", "Human-readable failure reason recorded on the run-failed event")
-    .action(async (runId: string, options: { detail?: string }) => {
-      try {
-        await workflowFailCommand(runId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
+    .action(exitOnError(workflowFailCommand));
 }
 
 /** Add the action of `workflow resume`. */
 export function configureWorkflowResume(command: Command): void {
   command
-    .action(async (runId: string) => {
-      try {
-        await workflowResumeCommand(runId);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
+    .action(exitOnError(workflowResumeCommand));
 }

@@ -61,11 +61,10 @@ function parseName(fileName: string): string {
 function factsOf(fileName: string, source: string): SourceFacts {
   const name = parseName(fileName);
   const key = `${name}\0${source}`;
-  let facts = factsBySource.get(key);
-  if (facts === undefined) {
-    facts = computeFacts(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source);
-    factsBySource.set(key, facts);
-  }
+  const cached = factsBySource.get(key);
+  if (cached !== undefined) return cached;
+  const facts = computeFacts(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source);
+  factsBySource.set(key, facts);
   return facts;
 }
 

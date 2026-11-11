@@ -3,8 +3,8 @@
  * @description Declare a command group from a table and load each command's
  * module only when that command runs.
  *
- * `src/cli.ts` and every command group with subcommands list their commands
- * here as `[usage, description, load]`. Each command is declared with its name,
+ * `src/cli.ts` and the `workflow`, `review`, `template` and `product` groups
+ * list their commands as `[usage, description, load]`. Each command is declared with its name,
  * arguments and description only, so help for the group needs no command
  * module. Commander's `preSubcommand` hook loads the module just before the
  * command parses its arguments, and that module adds the command's options,
@@ -67,8 +67,10 @@ function declareHelpCommand(group: Command, configure: (command: Command) => Pro
     .description("display help for command")
     .helpOption(false)
     .allowExcessArguments()
+    .allowUnknownOption()
     .action(async (name?: string) => {
-      const command = name === undefined ? group : group.commands.find((candidate) => candidate.name() === name);
+      // No name, or an option such as `help --help`, asks for the group's own help.
+      const command = name === undefined || name.startsWith("-") ? group : group.commands.find((candidate) => candidate.name() === name);
       if (command === undefined) return group.help({ error: true });
       await configure(command);
       command.help();

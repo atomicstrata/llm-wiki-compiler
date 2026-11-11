@@ -42,11 +42,10 @@ async function readFromDisk(name: string): Promise<string | null> {
 
 /** One asset's text, or null when it does not exist; read once per test file. */
 export function readViewerAsset(name: string): Promise<string | null> {
-  let text = assetTexts.get(name);
-  if (text === undefined) {
-    text = readFromDisk(name);
-    assetTexts.set(name, text);
-  }
+  const cached = assetTexts.get(name);
+  if (cached !== undefined) return cached;
+  const text = readFromDisk(name);
+  assetTexts.set(name, text);
   return text;
 }
 

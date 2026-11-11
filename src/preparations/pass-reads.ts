@@ -23,12 +23,12 @@
  * so a step never learns whether an answer was shared.
  */
 
-import { readPreparationKey, type PreparationKeyEpochRead, type PreparationKeyRead } from "./key-epoch.js";
+import type { PreparationKeyEpochRead, PreparationKeyRead } from "./key-epoch.js";
 import { readPreparationManifest, type PreparationManifestRead } from "./manifest-store.js";
 import type { PreparationId } from "./ids.js";
-import { diskPreparationRunLeafReads, preparationRunReadIdentity, readPreparationRunFrom, type PreparationRunRead } from "./run-store.js";
+import { preparationRunHoldReads, type PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding } from "./run-types.js";
-import { epochOnly, once, oncePer } from "../utils/pass-memo.js";
+import { epochOnly, oncePer } from "../utils/pass-memo.js";
 import { scannedLeafBytes, type ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { perBorrowLifecycleReads, type PreparationLifecycleReads } from "./lifecycle-snapshot/read.js";
 
@@ -60,9 +60,8 @@ export interface PreparationPassReads {
 export function preparationPassReads(
   root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
 ): PreparationPassReads {
-  const readKey = once(() => readPreparationKey(root));
   const scannedLeaves = scannedLeafBytes();
-  const runLeaves = { readRunLeaf: diskPreparationRunLeafReads(root, scannedLeaves).readRunLeaf, readKey };
+  const { readKey, readRun } = preparationRunHoldReads(root, scannedLeaves);
   return {
     lifecycle,
     readKey,
@@ -71,7 +70,7 @@ export function preparationPassReads(
       (workspaceId, preparationId) => `${workspaceId}\0${preparationId}`,
       (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId, scannedLeaves),
     ),
-    readRun: oncePer(preparationRunReadIdentity, (binding) => readPreparationRunFrom(runLeaves, binding)),
+    readRun,
     scannedLeaves,
   };
 }

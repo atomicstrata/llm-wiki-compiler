@@ -6,19 +6,18 @@
  */
 
 import type { Stats } from "node:fs";
-import path from "node:path";
-import { lstat, realpath } from "../utils/fs-metadata.js";
+import { lstat } from "../utils/fs-metadata.js";
 import type { HeldLeaf, ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import {
-  openConfinedLeaf, readConfirmedBufferOrElse,
-  type CappedLeafRead, type CappedLeafReadBuffer, type ConfinedLeafOpen,
+  openConfinedLeaf, passesPostOpenChecks, readConfirmedBufferOrElse,
+  type CappedLeafRead, type CappedLeafReadBuffer, type ConfirmedLeafOpen,
 } from "../utils/confined-read.js";
 import {
   durableTempPath, durableWritingPath,
 } from "../utils/atomic-write-no-replace-durable.js";
 
 /** What the reserved-link check needs of a leaf: its path, identity and link count, from its handle. */
-type LinkedLeaf = Pick<Extract<ConfinedLeafOpen, { kind: "confirmed" }>, "leaf" | "dev" | "ino" | "nlink">;
+type LinkedLeaf = Pick<ConfirmedLeafOpen, "leaf" | "dev" | "ino" | "nlink">;
 
 /** Preserve absence while distinguishing an unreadable alias lookup. */
 async function optionalStat(file: string): Promise<Stats | null | undefined> {
@@ -67,18 +66,16 @@ async function reservedLinksAreExact(opened: LinkedLeaf): Promise<boolean> {
  * Whether a leaf the pass's walk read is STILL that version at the same
  * confined path: the parent's realpath is the canonical directory the walk's
  * open proved, and the canonical leaf, not followed, is a regular file with
- * that handle's identity, link count, size and modification and change times.
- * These are the post-read checks of {@link readConfirmedBufferOrElse}, which
+ * that handle's identity ({@link passesPostOpenChecks}), link count, size and
+ * modification and change times. These are the post-read checks of {@link readConfirmedBufferOrElse}, which
  * the walk's read deliberately left to this moment: the version comparison,
  * taken after the walk's read ended, refuses any write to the inode since the
  * open, because every such write moves its change time.
  */
 async function heldLeafIsCurrent(held: HeldLeaf): Promise<boolean> {
-  const parentReal = await realpath(path.dirname(held.leaf)).catch(() => null);
-  if (parentReal !== held.expectedReal) return false;
-  const now = await lstat(held.canonicalLeaf).catch(() => null);
-  return now !== null && now.isFile() && now.dev === held.dev && now.ino === held.ino && now.nlink === held.nlink
-    && now.size === held.size && now.mtimeMs === held.mtimeMs && now.ctimeMs === held.ctimeMs;
+  const now = await passesPostOpenChecks(held.leaf, held.expectedReal, held.canonicalLeaf, held);
+  return now !== null && now.isFile() && now.nlink === held.nlink && now.size === held.size
+    && now.mtimeMs === held.mtimeMs && now.ctimeMs === held.ctimeMs;
 }
 
 /** The held leaf's bytes when it is still that version and its reserved links are exact; otherwise undefined. */

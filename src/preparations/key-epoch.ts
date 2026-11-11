@@ -32,7 +32,7 @@
  */
 
 import { durableTempPath, durableWritingPath } from "../utils/atomic-write-no-replace-durable.js";
-import { openConfinedLeaf, readWithinCapOrElse, type CappedLeafRead } from "../utils/confined-read.js";
+import { openConfinedLeaf, readWithinCapOrElse, type CappedLeafRead, type ConfirmedLeafOpen } from "../utils/confined-read.js";
 import { healthyKeyLinks, healthyKeyMetadata, publishKeyLeafNoReplace, recoveredEpochKey } from "../utils/key-leaf-health.js";
 import path from "node:path";
 import { MAX_PREPARATION_KEY_FILE_BYTES } from "./constants.js";
@@ -188,7 +188,7 @@ async function readHealthyKeyLeafText(
  * The handle is always closed, and no caller-supplied pathname is consulted.
  */
 export async function readOpenedPreparationKey(
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<Buffer | null> {
   const read = await readWithinCapOrElse(opened, MAX_PREPARATION_KEY_FILE_BYTES, () => ({ kind: "unavailable" as const }));
   return read.kind === "ok" ? decodePreparationKey(read.body) : null;

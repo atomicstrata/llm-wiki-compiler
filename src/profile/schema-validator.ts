@@ -20,16 +20,31 @@ import schema from "./schema/profile.v1.schema.json" with { type: "json" };
 let compiledValidator: ValidateFunction | undefined;
 
 /**
- * The compiled schema validator. Compiled once, on the first validation rather
- * than at module load, so a command that validates no profile pack neither
- * loads Ajv nor pays for the compile. `strict: true` surfaces any schema
- * authoring mistake (so the schema and runtime can't drift silently);
+ * The Ajv options the runtime compiles the schema with. `strict: true` surfaces
+ * any schema authoring mistake (so the schema and runtime can't drift silently);
  * `allErrors` collects every violation for a complete message.
+ *
+ * The other two only make the compile cheaper, never the validation different.
+ * `validateSchema: false` skips checking the schema against the draft 2020-12
+ * meta-schema, which compiled that whole meta-schema in every process for a
+ * schema that is a bundled constant; the meta-schema check is a test instead
+ * (`test/profile-schema-meta.test.ts`). `code.optimize: false` skips Ajv's
+ * code-simplification passes over the generated checks: the same keywords run
+ * and report the same errors, in a few more lines of generated code.
+ */
+const PROFILE_SCHEMA_AJV_OPTIONS = {
+  allErrors: true, strict: true, validateSchema: false, code: { optimize: false },
+} as const;
+
+/**
+ * The compiled schema validator. Compiled once per process, on the first
+ * validation rather than at module load, so a command that validates no
+ * profile pack neither loads Ajv nor pays for the compile.
  */
 function structureValidator(): ValidateFunction {
   if (compiledValidator) return compiledValidator;
   const { default: Ajv2020 } = requireOnUse<typeof import("ajv/dist/2020.js")>("ajv/dist/2020.js");
-  compiledValidator = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
+  compiledValidator = new Ajv2020(PROFILE_SCHEMA_AJV_OPTIONS).compile(schema);
   return compiledValidator;
 }
 

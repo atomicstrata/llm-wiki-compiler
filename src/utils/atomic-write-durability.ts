@@ -7,6 +7,7 @@
  * module's established public surface.
  */
 
+import { randomUUID } from "node:crypto";
 import { open } from "fs/promises";
 import { lstat, realpath } from "./fs-metadata.js";
 import { constants as fsConstants, type Stats } from "node:fs";
@@ -56,8 +57,13 @@ interface DirectoryBinding {
  */
 const durableEntries = new Set<string>();
 
-/** One directory object's identity; the birth time tells a reused inode apart. */
+/**
+ * One directory object's identity; the birth time tells a reused inode apart.
+ * A filesystem that reports no birth time cannot tell them apart, so each such
+ * directory gets an identity that never matches again: it is always synced.
+ */
 function directoryIdentity(stat: { dev: number; ino: number; birthtimeMs: number }): string {
+  if (stat.birthtimeMs === 0) return `unidentified:${randomUUID()}`;
   return `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
 }
 

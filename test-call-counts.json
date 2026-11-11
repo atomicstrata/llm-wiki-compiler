@@ -570,7 +570,7 @@
       "spawn": 5
     },
     "test/codex-agent-interrupt.test.ts": {
-      "fs": 841,
+      "fs": 618,
       "spawn": 16
     },
     "test/codex-agent-preservation.test.ts": {
@@ -1266,7 +1266,7 @@
       "spawn": 0
     },
     "test/extraction-reuse.test.ts": {
-      "fs": 10196,
+      "fs": 10153,
       "spawn": 1
     },
     "test/extraction-snapshot.test.ts": {
@@ -1554,7 +1554,7 @@
       "spawn": 0
     },
     "test/lock-pid-reuse.test.ts": {
-      "fs": 680,
+      "fs": 656,
       "spawn": 1
     },
     "test/lock-private-dir-confine.test.ts": {
@@ -2230,7 +2230,7 @@
       "spawn": 0
     },
     "test/operations-packs/artifact-evidence-runner.test.ts": {
-      "fs": 6822,
+      "fs": 6820,
       "spawn": 2
     },
     "test/operations-packs/artifact-evidence.test.ts": {
@@ -3613,6 +3613,10 @@
       "fs": 0,
       "spawn": 0
     },
+    "test/profile-schema-meta.test.ts": {
+      "fs": 0,
+      "spawn": 0
+    },
     "test/profile-status-lifecycle.test.ts": {
       "fs": 983,
       "spawn": 1
@@ -3814,7 +3818,7 @@
       "spawn": 3
     },
     "test/provider-codex-agent.test.ts": {
-      "fs": 337,
+      "fs": 323,
       "spawn": 32
     },
     "test/provider-converse.test.ts": {
@@ -4090,7 +4094,7 @@
       "spawn": 1
     },
     "test/relation-store-concurrent.test.ts": {
-      "fs": 4667,
+      "fs": 4493,
       "spawn": 6
     },
     "test/relation-store-leaf-symlink.test.ts": {
@@ -4190,7 +4194,7 @@
       "spawn": 1
     },
     "test/review-approve-keeps-extraction.test.ts": {
-      "fs": 7273,
+      "fs": 7272,
       "spawn": 1
     },
     "test/review-approve-planner.test.ts": {
@@ -4306,7 +4310,7 @@
       "spawn": 8
     },
     "test/review.test.ts": {
-      "fs": 4030,
+      "fs": 4029,
       "spawn": 1
     },
     "test/rm-frozen-page-rebuild.test.ts": {
@@ -6378,7 +6382,7 @@
       "spawn": 1
     },
     "test/workflow-gate.test.ts": {
-      "fs": 3573,
+      "fs": 3561,
       "spawn": 1
     },
     "test/workflow-gates.test.ts": {
@@ -6530,7 +6534,7 @@
       "spawn": 1
     },
     "test/workflow-start-status.test.ts": {
-      "fs": 1482,
+      "fs": 1470,
       "spawn": 1
     },
     "test/workflow-status-artifact-hint.test.ts": {

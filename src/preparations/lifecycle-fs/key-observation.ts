@@ -6,7 +6,7 @@
 
 import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import { openConfinedLeaf } from "../../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen } from "../../utils/confined-read.js";
 import { healthyKeyMetadata } from "../../utils/key-leaf-health.js";
 import { readOpenedPreparationKey } from "../key-epoch.js";
 import { preparationKeyEpochId } from "../run-integrity.js";
@@ -27,7 +27,7 @@ export type CapturedLifecycleKey =
 /** Whether the opened key retains the metadata captured by the namespace. */
 function openedKeyMatches(
   namespace: PreparationLifecycleNamespaceV1,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): boolean {
   const expected = namespace.preparationKey;
   if (expected.status !== "present" || expected.kind !== "regular") return false;
@@ -59,7 +59,7 @@ export async function captureLifecycleKey(
 /** Validate, read, copy, and identify one already-opened bound key leaf. */
 async function captureOpenedKey(
   namespace: PreparationLifecycleNamespaceV1,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<CapturedLifecycleKey> {
   if (!openedKeyMatches(namespace, opened)) {
     await opened.handle.close().catch(() => {});

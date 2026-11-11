@@ -53,17 +53,13 @@ export function readBaseline(text: string): Baseline {
   return value;
 }
 
-/** Each file's totals, its own and its child processes': every op is a filesystem call except `spawn:…`. */
+/** Each file's totals, from counts already merged per file: every op is a filesystem call except `spawn:…`. */
 export function summarize(counts: readonly FileCallCounts[]): Record<string, FileTotals> {
-  const totals: Record<string, FileTotals> = {};
-  for (const { file, ops } of counts) {
+  return Object.fromEntries(counts.map(({ file, ops }) => {
     const spawn = Object.entries(ops).reduce((sum, [op, count]) => sum + (op.startsWith("spawn:") ? count : 0), 0);
     const fs = Object.values(ops).reduce((sum, count) => sum + count, 0) - spawn;
-    const total = (totals[file] ??= { fs: 0, spawn: 0 });
-    total.fs += fs;
-    total.spawn += spawn;
-  }
-  return totals;
+    return [file, { fs, spawn }];
+  }));
 }
 
 /** One entry per file: its own and its child processes' ops and sites added together. */
@@ -76,7 +72,7 @@ export function mergeByFile(counts: readonly FileCallCounts[]): FileCallCounts[]
     const entry = merged.get(item.file) ?? { file: item.file, ops: {}, sites: {}, cpu: {} };
     add(entry.ops, item.ops);
     add(entry.sites!, item.sites);
-    add(entry.cpu!, item.cpu);
+    add(entry.cpu, item.cpu);
     merged.set(item.file, entry);
   }
   return [...merged.values()];

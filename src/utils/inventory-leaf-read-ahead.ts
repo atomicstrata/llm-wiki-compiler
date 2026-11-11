@@ -36,8 +36,8 @@
 import { constants as fsConstants, type Dirent, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
-import { expectedRealMatching, type ConfinedLeafOpen } from "./confined-read.js";
-import { lstat, realpath } from "./fs-metadata.js";
+import { confirmOpenedLeaf, expectedRealMatching, type ConfinedLeafOpen } from "./confined-read.js";
+import { realpath } from "./fs-metadata.js";
 import { openRegularNoFollow } from "./no-follow-open.js";
 
 /** The most consecutive leaves one visit opens ahead, and so the most handles it holds at once. */
@@ -67,12 +67,6 @@ export function runContinues(run: readonly Dirent[]): boolean {
   return last !== undefined && last.isFile() && run.length < MAX_LEAVES_OPENED_AHEAD;
 }
 
-/** Close a claimed handle whose proof failed and answer `unavailable`, as `openConfinedLeaf` does. */
-async function refuse(handle: FileHandle): Promise<ConfinedLeafOpen> {
-  await handle.close().catch(() => {});
-  return { kind: "unavailable" };
-}
-
 /** Open one leaf as `openConfinedLeaf` does, or null when that open fails (its observation then opens it afresh). */
 async function openAhead(leaf: string): Promise<{ handle: FileHandle; stat: Stats } | null> {
   return openRegularNoFollow(leaf, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK).catch(() => null);
@@ -91,19 +85,6 @@ async function openRunOf(root: string, directory: string, run: readonly Dirent[]
   const expectedReal = await expectedRealMatching(root, resolved, await realpath(resolved).catch(() => null));
   for (const [leaf, open] of handles) opened.set(leaf, { ...open, directory: resolved, expectedReal });
   return opened;
-}
-
-/** The canonical identity check of one claimed leaf, after its directory's proof: confirmed, or unavailable. */
-async function confirmClaimed(leaf: string, ahead: LeafOpenedAhead): Promise<ConfinedLeafOpen> {
-  const { handle, stat, expectedReal } = ahead;
-  if (expectedReal === null) return refuse(handle);
-  const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
-  const now = await lstat(canonicalLeaf).catch(() => null);
-  if (now === null || now.dev !== stat.dev || now.ino !== stat.ino) return refuse(handle);
-  return {
-    kind: "confirmed", handle, size: stat.size, dev: stat.dev, ino: stat.ino, mode: stat.mode, uid: stat.uid,
-    nlink: stat.nlink, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, leaf, expectedReal, canonicalLeaf,
-  };
 }
 
 /** A new, empty read-ahead for one walk. PURE to build. */
@@ -126,7 +107,7 @@ export function leafReadAhead(): LeafReadAhead {
       const key = path.resolve(leaf), ahead = held.get(key);
       if (ahead === undefined || ahead.directory !== path.resolve(parent)) return undefined;
       held.delete(key);
-      return confirmClaimed(leaf, ahead);
+      return confirmOpenedLeaf(ahead.handle, ahead.stat, leaf, ahead.expectedReal);
     },
     release: (leaf) => release(path.resolve(leaf)),
     releaseAll: async () => { for (const leaf of [...held.keys()]) await release(leaf); },

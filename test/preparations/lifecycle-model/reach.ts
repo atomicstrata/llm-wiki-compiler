@@ -145,17 +145,16 @@ const factsBySource = new Map<string, ScenarioFacts>();
 /** The memoized scenario facts of one source text. */
 function scenarioFactsOf(fileName: string, source: string): ScenarioFacts {
   const key = `${fileName}\0${source}`;
-  let facts = factsBySource.get(key);
-  if (facts === undefined) {
-    const reach: ScenarioReachV1[] = [];
-    const bodies: { title: string; body: string }[] = [];
-    forEachScenario(fileName, source, (title, node) => {
-      reach.push({ title, calls: reachOf(node) });
-      bodies.push({ title, body: node.getText().replace(/\s+/g, " ").trim() });
-    });
-    facts = { reach, bodies };
-    factsBySource.set(key, facts);
-  }
+  const cached = factsBySource.get(key);
+  if (cached !== undefined) return cached;
+  const reach: ScenarioReachV1[] = [];
+  const bodies: { title: string; body: string }[] = [];
+  forEachScenario(fileName, source, (title, node) => {
+    reach.push({ title, calls: reachOf(node) });
+    bodies.push({ title, body: node.getText().replace(/\s+/g, " ").trim() });
+  });
+  const facts = { reach, bodies };
+  factsBySource.set(key, facts);
   return facts;
 }
 

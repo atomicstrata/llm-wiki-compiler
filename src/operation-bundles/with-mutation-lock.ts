@@ -1,4 +1,4 @@
-/** Shared ordinary-mutation lock lifetime; admission still belongs to lock-gate. */
+/** The gated project lock held for one operation's lifetime; admission still belongs to lock-gate. */
 import { acquireMutationLockBlocking } from "./lock-gate.js";
 import { releaseLock } from "../utils/lock.js";
 

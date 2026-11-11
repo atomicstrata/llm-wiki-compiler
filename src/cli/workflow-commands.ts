@@ -11,6 +11,22 @@
 import type { Command } from "commander";
 import { declareLazyCommands, type LazyCommand } from "./lazy-commands.js";
 
+/** The `workflow action` subcommands: read-only discovery and execution. */
+const WORKFLOW_ACTION_COMMANDS: LazyCommand[] = [
+  ["list", "List workflow actions declared in the active profile",
+    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionList)],
+  ["show <action-id>", "Show one workflow action and its effective permission per surface",
+    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionShow)],
+  ["run [options] <action-id>", "Run a declared workflow action under the composed authority",
+    () => import("./workflow-action-run-command.js").then((m) => m.configureWorkflowActionRun)],
+];
+
+/** The `workflow gate` subcommands. */
+const WORKFLOW_GATE_COMMANDS: LazyCommand[] = [
+  ["approve [options] <run-id> <gate-id>", "Approve a human/agent gate on a run's current stage",
+    () => import("./workflow-gate-command.js").then((m) => m.configureWorkflowGateApprove)],
+];
+
 /** The `workflow` subcommands. */
 const WORKFLOW_COMMANDS: LazyCommand[] = [
   ["list", "List workflows declared in the active profile",
@@ -37,39 +53,13 @@ const WORKFLOW_COMMANDS: LazyCommand[] = [
     () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowFail)],
   ["resume <run-id>", "Resume a failed workflow run (or report its position)",
     () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowResume)],
-  ["action", "Discover declared workflow actions (read-only)",
-    () => Promise.resolve(registerWorkflowActionCommands)],
+  ["action", "Discover and run declared workflow actions",
+    async () => (action) => declareLazyCommands(action, WORKFLOW_ACTION_COMMANDS)],
   ["gate", "Workflow gate operations",
-    () => Promise.resolve(registerWorkflowGateCommands)],
-];
-
-/** The `workflow action` subcommands: read-only discovery and execution. */
-const WORKFLOW_ACTION_COMMANDS: LazyCommand[] = [
-  ["list", "List workflow actions declared in the active profile",
-    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionList)],
-  ["show <action-id>", "Show one workflow action and its effective permission per surface",
-    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionShow)],
-  ["run [options] <action-id>", "Run a declared workflow action under the composed authority",
-    () => import("./workflow-action-run-command.js").then((m) => m.configureWorkflowActionRun)],
-];
-
-/** The `workflow gate` subcommands. */
-const WORKFLOW_GATE_COMMANDS: LazyCommand[] = [
-  ["approve [options] <run-id> <gate-id>", "Approve a human/agent gate on a run's current stage",
-    () => import("./workflow-gate-command.js").then((m) => m.configureWorkflowGateApprove)],
+    async () => (gate) => declareLazyCommands(gate, WORKFLOW_GATE_COMMANDS)],
 ];
 
 /** Register the `workflow` command group and its `action`/`gate` sub-groups. */
 export function registerWorkflowCommands(workflowCmd: Command): void {
   declareLazyCommands(workflowCmd, WORKFLOW_COMMANDS);
-}
-
-/** Register the `workflow action` sub-group. */
-function registerWorkflowActionCommands(actionCmd: Command): void {
-  declareLazyCommands(actionCmd, WORKFLOW_ACTION_COMMANDS);
-}
-
-/** Register the `workflow gate` sub-group. */
-function registerWorkflowGateCommands(gateCmd: Command): void {
-  declareLazyCommands(gateCmd, WORKFLOW_GATE_COMMANDS);
 }

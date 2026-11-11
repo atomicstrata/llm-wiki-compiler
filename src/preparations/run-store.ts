@@ -127,9 +127,9 @@ export interface PreparationRunLeafReads {
  * calls the incumbent's function when it is asked. Exported for the store's
  * leaf composition (`store-leaf-reads.ts`) only; in no package index.
  */
-export function diskPreparationRunLeafReads(root: string, scanned?: ScannedLeafBytes): PreparationRunLeafReads {
+export function diskPreparationRunLeafReads(root: string): PreparationRunLeafReads {
   return {
-    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned),
+    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes),
     readKey: () => readPreparationKey(root),
   };
 }
@@ -146,7 +146,7 @@ export async function readPreparationRun(
 }
 
 /** One run read's identity: every field of the binding it authenticates against. */
-export function preparationRunReadIdentity(binding: PreparationRunBinding): string {
+function preparationRunReadIdentity(binding: PreparationRunBinding): string {
   return [binding.workspaceId, binding.preparationId, binding.runId, binding.manifestDigest, binding.keyEpochId].join("\0");
 }
 
@@ -157,10 +157,12 @@ export function preparationRunReadIdentity(binding: PreparationRunBinding): stri
  * before this hold's own write could only return the first one's answer. The
  * caller takes a fresh one per hold and never consults it after writing the run
  * or the key; a write through {@link preparationRunWriteStepsOn} is the end of it.
+ * With `scanned`, a run leaf the pass's inventory walk already read is used
+ * once the durable reader proves it current.
  */
-function preparationRunHoldReads(root: string): PreparationRunWriteReads {
+export function preparationRunHoldReads(root: string, scanned?: ScannedLeafBytes): PreparationRunWriteReads {
   const readKey = once(() => readPreparationKey(root));
-  const leaves: PreparationRunLeafReads = { readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes), readKey };
+  const leaves: PreparationRunLeafReads = { readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned), readKey };
   return { readKey, readRun: oncePer(preparationRunReadIdentity, (binding) => readPreparationRunFrom(leaves, binding)) };
 }
 

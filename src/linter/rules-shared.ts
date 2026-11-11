@@ -36,6 +36,7 @@ import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
 import type { LegacyLocalRecordDirs } from "../storage/legacy-local-record-dirs.js";
 import type { LocalEntry } from "../storage/legacy-local-reads.js";
+import { oncePer } from "../utils/pass-memo.js";
 
 /** Pattern matching ^[filename.md] citation markers in markdown content. */
 export const CITATION_PATTERN = /\^\[([^\]]+)\]/g;
@@ -180,18 +181,12 @@ const runCollections = new WeakMap<LintPageSources, Map<PageScope, Promise<LintP
  * pages as they were when first read.
  */
 export function readOncePageSources(sources: LintPageSources): LintPageSources {
-  const once = <T>(read: (relPath: string) => Promise<T>) => {
-    const answers = new Map<string, Promise<T>>();
-    return (relPath: string): Promise<T> => {
-      if (!answers.has(relPath)) answers.set(relPath, read(relPath));
-      return answers.get(relPath)!;
-    };
-  };
+  const perPath = <T>(read: (relPath: string) => Promise<T>) => oncePer((relPath: string) => relPath, read);
   const run: LintPageSources = {
-    exists: once((relPath) => sources.exists(relPath)),
-    listNames: once((relPath) => sources.listNames(relPath)),
-    listEntries: once((relPath) => sources.listEntries(relPath)),
-    readText: once((relPath) => sources.readText(relPath)),
+    exists: perPath((relPath) => sources.exists(relPath)),
+    listNames: perPath((relPath) => sources.listNames(relPath)),
+    listEntries: perPath((relPath) => sources.listEntries(relPath)),
+    readText: perPath((relPath) => sources.readText(relPath)),
     locate: (relPath) => sources.locate(relPath),
   };
   runCollections.set(run, new Map());

@@ -9,16 +9,16 @@
  * inspection.
  *
  * ACYCLIC RULE: this module (and every `products/binding` module) loads the
- * knowledge-profile member and calls {@link validateProfile}/{@link profileDigest}
- * DIRECTLY. It MUST NOT call `loadProfile()` — the profile loader imports the
- * binding, never the reverse, so the effective-profile dependency stays a DAG.
+ * knowledge-profile member and validates it through `validatedProfileText`
+ * (`validateProfile` + `profileDigest`) DIRECTLY. It MUST NOT call
+ * `loadProfile()` — the profile loader imports the binding, never the reverse,
+ * so the effective-profile dependency stays a DAG.
  */
 
 import { createHash } from "node:crypto";
 import { TextDecoder } from "node:util";
 import { canonicalDigest } from "../../profile/templates/signing/canonical.js";
-import { profileDigest } from "../../profile/digest.js";
-import { validateProfile } from "../../profile/validate.js";
+import { validatedProfileText } from "../../profile/validated-text.js";
 import type { LoadedProfile } from "../../profile/types.js";
 import { digestDirectoryName, type Sha256Digest } from "../ids.js";
 import { diskProductPackageReads, type ProductPackageReads, type VerifiedMemberBytes } from "../packages/store.js";
@@ -142,18 +142,13 @@ export function knowledgeProfileMemberPath(root: string, packageDigest: Sha256Di
 
 /**
  * Load and validate the knowledge-profile member into a {@link LoadedProfile},
- * calling {@link validateProfile}/{@link profileDigest} DIRECTLY (never
+ * validating it through {@link validatedProfileText} DIRECTLY (never
  * `loadProfile`). `loadedFrom` is the member's absolute store path so the product
  * profile is treated as non-default by every read surface. A parse or validation
  * failure throws; the caller classifies it as `unavailable`.
  */
 export function loadKnowledgeProfileMember(text: string, memberPath: string): LoadedProfile {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (error) {
-    throw new ProductBindingError("knowledge-profile member is not valid JSON", { cause: error });
-  }
-  const { profile } = validateProfile(parsed);
-  return { profile, loadedFrom: memberPath, digest: profileDigest(profile) };
+  const { profile, digest } = validatedProfileText(text,
+    (parseError) => new ProductBindingError("knowledge-profile member is not valid JSON", { cause: parseError }));
+  return { profile, loadedFrom: memberPath, digest };
 }
