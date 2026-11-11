@@ -37,7 +37,7 @@ import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
 import type { LegacyLocalRecordDirs } from "../storage/legacy-local-record-dirs.js";
 import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
-import { readOncePages } from "../storage/read-once-pages.js";
+import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { parseFrontmatter, slugify } from "../utils/markdown.js";
 import { warnDroppedReadIfPresentFrom } from "./confined-wiki-read.js";
 import { rewriteWikilinks } from "../wiki/wikilinks.js";
@@ -150,12 +150,11 @@ async function collectRepairPages(reads: LegacyLocalReads): Promise<Array<{ file
       throw error;
     });
     const pageFiles = files.filter(file => file.endsWith(".md"));
-    // Read the directory's pages in parallel up front; the loop below consumes them in order.
-    const pageReads = readOncePages(reads);
-    await pageReads.prefetchPages(dir, pageFiles.map(file => file.slice(0, -3)));
-    for (const file of pageFiles) {
+    // Read the directory's pages in parallel; the loop below consumes them in order.
+    const pending = prefetchInOrder(pageFiles, (file) => reads.readConfinedPage(dir, file.slice(0, -3)));
+    for (const [index, file] of pageFiles.entries()) {
       const filePath = path.join(dir, file);
-      const result = await pageReads.readConfinedPage(dir, file.slice(0, -3));
+      const result = await pending[index];
       if ("dropped" in result) {
         await warnDroppedReadIfPresentFrom(reads, filePath, filePath, result.dropped);
         continue;

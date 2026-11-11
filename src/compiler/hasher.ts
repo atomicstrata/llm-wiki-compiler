@@ -40,7 +40,7 @@ export async function hashFile(filePath: string): Promise<string> {
  * Reads one source's text for HASHING, by its project-relative path
  * (`sources/<file>`). Kept apart from the generic content reads so the local
  * disk can hash without blocking (see {@link diskSourceHashText}) while every
- * other page and configuration read keeps its incumbent behaviour.
+ * other page and configuration read goes through the ordinary binding.
  */
 export type SourceHashText = (relPath: string) => Promise<string>;
 

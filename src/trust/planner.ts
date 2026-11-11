@@ -46,6 +46,7 @@ import { entityId, isSlugSafe, isSafeFilenameComponent } from "../profile/identi
 import type { EntityId } from "../profile/types.js";
 import type { ArtifactMemberFileInput } from "../artifacts/members.js";
 import type { AppendRelationInput } from "../relations/store.js";
+import { oncePer } from "../utils/pass-memo.js";
 
 /** Every CLP store a mutation can target. The executor handles `page`, `relation`,
  * `lifecycle-transition`, and `artifact` kinds; `workflow-*` is not-implemented. */
@@ -270,14 +271,9 @@ async function targetAlreadyExists(probes: PageTargetProbes, root: string, targe
  * the floor), so asking again within the plan proved nothing the plan keeps.
  */
 function onePlanProbes(probes: PageTargetProbes): PageTargetProbes {
-  const answers = new Map<string, Promise<unknown>>();
-  const once = <T>(key: string, ask: () => Promise<T>): Promise<T> => {
-    if (!answers.has(key)) answers.set(key, ask());
-    return answers.get(key) as Promise<T>;
-  };
   return {
-    confineTarget: (targetPath, root) => once(`confine\0${root}\0${targetPath}`, () => probes.confineTarget(targetPath, root)),
-    leafPresent: (dir, name) => once(`present\0${dir}\0${name}`, () => probes.leafPresent(dir, name)),
+    confineTarget: oncePer((targetPath, root) => `${root}\0${targetPath}`, (targetPath, root) => probes.confineTarget(targetPath, root)),
+    leafPresent: oncePer((dir, name) => `${dir}\0${name}`, (dir, name) => probes.leafPresent(dir, name)),
   };
 }
 

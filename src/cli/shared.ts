@@ -64,6 +64,21 @@ export async function runExitCodeCommand(
   }
 }
 
+/**
+ * Wrap a Commander action whose command returns nothing with the same error
+ * exit as {@link runExitCodeCommand}: a throw prints the red `Error:` line and
+ * exits 1.
+ *
+ * @param action - The command implementation Commander calls with the parsed arguments.
+ * @returns The action to pass to `.action()`.
+ */
+export function exitOnError<Args extends unknown[]>(action: (...args: Args) => Promise<void>) {
+  return async (...args: Args): Promise<void> => runExitCodeCommand(async () => {
+    await action(...args);
+    return 0;
+  });
+}
+
 function formatExitError(error: unknown, colorError: boolean | undefined): string {
   const label = colorError === false ? "Error:" : "\x1b[31mError:\x1b[0m";
   const message = error instanceof Error ? error.message : error;

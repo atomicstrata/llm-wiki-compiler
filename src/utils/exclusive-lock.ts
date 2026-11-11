@@ -7,14 +7,14 @@
 import { randomBytes } from "node:crypto";
 import { open, unlink } from "node:fs/promises";
 import { readConfinedLeaf } from "./confined-read.js";
-import { isLockRecordStale, parseOwner, serializeOwner } from "./lock-owner.js";
+import { isOwnerStale, parseOwner, serializeOwner, type LockOwner } from "./lock-owner.js";
 import { ensurePrivateRoot } from "../profile/templates/taps/private-root.js";
 
 const MAX_LOCK_BYTES = 1024;
 const DEFAULT_TIMEOUT_MS = 5_000;
 const POLL_MS = 25;
 
-interface OperatorLockRecord { pid: number; startTime?: string; token: string }
+type OperatorLockRecord = LockOwner & { token: string };
 
 /** The two paths a file lock needs: its confined private root and the lock leaf. */
 export interface LockPaths {
@@ -45,8 +45,7 @@ async function acquireOperatorLock(paths: LockPaths, timeoutMs: number): Promise
 }
 
 async function tryCreate(lockFile: string, token: string): Promise<boolean> {
-  const owner = JSON.parse(serializeOwner(process.pid)) as { pid: number; startTime?: string };
-  const record: OperatorLockRecord = { ...owner, token };
+  const record = { ...(JSON.parse(serializeOwner(process.pid)) as object), token };
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(lockFile, "wx", 0o600);
@@ -65,13 +64,13 @@ async function tryCreate(lockFile: string, token: string): Promise<boolean> {
 
 async function reclaimIfStale(paths: LockPaths): Promise<void> {
   const record = await readRecord(paths, paths.lockFile);
-  if (!record || !isLockRecordStale(record)) return;
+  if (!record || !isOwnerStale(record)) return;
   const reclaim = `${paths.lockFile}.reclaim`;
   const token = randomBytes(24).toString("hex");
   if (!(await acquireReclaim(paths, reclaim, token))) return;
   try {
     const current = await readRecord(paths, paths.lockFile);
-    if (current && isLockRecordStale(current)) await unlink(paths.lockFile).catch(() => {});
+    if (current && isOwnerStale(current)) await unlink(paths.lockFile).catch(() => {});
   } finally {
     await unlink(reclaim).catch(() => {});
   }
@@ -80,7 +79,7 @@ async function reclaimIfStale(paths: LockPaths): Promise<void> {
 async function acquireReclaim(paths: LockPaths, file: string, token: string): Promise<boolean> {
   if (await tryCreate(file, token)) return true;
   const existing = await readRecord(paths, file);
-  if (existing && isLockRecordStale(existing)) await unlink(file).catch(() => {});
+  if (existing && isOwnerStale(existing)) await unlink(file).catch(() => {});
   return false;
 }
 

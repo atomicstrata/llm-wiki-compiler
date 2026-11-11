@@ -39,13 +39,12 @@ export function compileTwoPhasePaperAction(input: { topic: string; doi?: string 
   return compilePackAction(twoPhasePaperRequest(input));
 }
 
-/** Compile the both-sources union action (action-input + pick output into one dedupe). */
-/** Compile the bootstrap-shaped mixed-intents action (three groups, one terminal). */
 /** Compile the single-group page-payload action (title, listFields tags, content body). */
 export function compilePagePayloadAction(input: { topic: string; tag: string }): Promise<CompiledPackActionV1> {
   return compilePackAction(pagePayloadPaperRequest(input));
 }
 
+/** Compile the bootstrap-shaped mixed-intents action (three groups, one terminal). */
 export function compileMixedBootstrapAction(
   input: { topic: string; doi: readonly string[]; pid: readonly string[]; cites: readonly string[] },
 ): Promise<CompiledPackActionV1> {
@@ -64,6 +63,7 @@ export function compileCitesRelationAction(
   return compilePackAction(citesRelationRequest(input));
 }
 
+/** Compile the both-sources union action (action-input + pick output into one dedupe). */
 export function compileBothSourcesAction(input: { topic: string; doi?: string }): Promise<CompiledPackActionV1> {
   return compilePackAction(bothSourcesPaperRequest(input));
 }

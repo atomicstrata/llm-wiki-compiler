@@ -5,8 +5,7 @@
 import type { Dir, Dirent } from "node:fs";
 import { opendir } from "node:fs/promises";
 import path from "node:path";
-import { lstat, realpath } from "./fs-metadata.js";
-import { expectedRealMatching, openConfinedLeaf } from "./confined-read.js";
+import { existingRealpath, expectedRealMatching, openConfinedLeaf, type ConfirmedLeafOpen } from "./confined-read.js";
 import { runContinues, type LeafReadAhead } from "./inventory-leaf-read-ahead.js";
 import type { ScannedLeafBytes } from "./scanned-leaf-bytes.js";
 
@@ -30,30 +29,20 @@ export function verified<T>(read: () => T): T | null {
   try { return read(); } catch { return null; }
 }
 
-/**
- * Distinguish a missing directory from one whose confinement cannot be proved.
- * The realpath must be the canonical in-root path, which no symlink at `dir` can
- * produce; a non-directory there is refused when it is opened for listing. Only
- * a failed realpath is lstat'd, to tell nothing there (absent) from a dangling
- * link or a fault (unavailable).
- */
-async function directoryIsConfined(state: { root: string }, dir: string): Promise<boolean | "absent"> {
-  const observed = await realpath(dir).catch((error: NodeJS.ErrnoException) => error);
-  if (observed instanceof Error) {
-    if (observed.code !== "ENOENT") return false;
-    return lstat(dir).then(() => false, (error: NodeJS.ErrnoException) => error.code === "ENOENT" ? "absent" as const : false);
-  }
-  return await expectedRealMatching(state.root, path.resolve(dir), observed) !== null;
-}
-
 /** Why a confined directory was not opened. Each is decided BEFORE any entry is seen. */
 type InventoryDirectoryRefusal = "absent" | "unavailable" | "unlistable";
 
-/** Open one confined directory for listing, or say which refusal stopped short of it. Names no store and notes nothing. */
-async function openConfinedDirectory(state: { root: string }, dir: string) {
-  const confined = await directoryIsConfined(state, dir);
-  if (confined === "absent") return "absent" as const;
-  if (!confined) return "unavailable" as const;
+/**
+ * Open one confined directory for listing, or say which refusal stopped short
+ * of it. Names no store and notes nothing. The realpath must be the canonical
+ * in-root path, which no symlink at `dir` can produce; a non-directory there is
+ * refused by the open. Nothing there at all is absent; a dangling link or a
+ * fault is unavailable ({@link existingRealpath}).
+ */
+async function openConfinedDirectory(root: string, dir: string): Promise<Dir | InventoryDirectoryRefusal> {
+  const observed = await existingRealpath(dir);
+  if (observed === "missing") return "absent";
+  if (observed === "fault" || await expectedRealMatching(root, path.resolve(dir), observed) === null) return "unavailable";
   return opendir(dir).catch(listingRefusal);
 }
 
@@ -156,7 +145,7 @@ function listingRefusal(error: NodeJS.ErrnoException): InventoryDirectoryRefusal
 export async function visitInventoryDirectory(
   root: string, directory: string, visitor: InventoryVisitor, ahead?: LeafReadAhead,
 ): Promise<"visited" | InventoryDirectoryRefusal> {
-  const opened = await openConfinedDirectory({ root }, directory);
+  const opened = await openConfinedDirectory(root, directory);
   if (typeof opened === "string") return opened;
   return walkInventoryEntries({ root, directory, entries: opened }, visitor, ahead);
 }
@@ -179,9 +168,6 @@ export type InventoryLeafObserver = (file: string, parent: string, retainUpToByt
 /** Where an observation may leave the leaf's bytes, and the most it may read. */
 interface InventoryLeafRetention { into: ScannedLeafBytes; maxBytes: number }
 
-/** A confined open the walk confirmed, still holding its handle. */
-type ConfirmedInventoryLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
-
 /**
  * Read a confirmed leaf's bytes for the pass's holder, or null, and close the
  * handle. ONE read of one byte more than the handle's size: a leaf that grew
@@ -196,7 +182,7 @@ type ConfirmedInventoryLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf
  * change time, which that later comparison sees; a handle `fstat` here would
  * compare the same fields earlier and so could refuse nothing it lets through.
  */
-async function readForHolder(opened: ConfirmedInventoryLeaf): Promise<Buffer | null> {
+async function readForHolder(opened: ConfirmedLeafOpen): Promise<Buffer | null> {
   try {
     const buffer = Buffer.alloc(opened.size + 1);
     const { bytesRead } = await opened.handle.read(buffer, 0, buffer.length, 0);
@@ -322,8 +308,7 @@ export async function captureInventoryLeaf<C extends { kind: string; protocolAli
   file: string, parent: string, policy: InventoryLeafPolicy<C>,
 ): Promise<void> {
   const classified = policy.classify(file);
-  const retainUpToBytes = policy.retainUpTo?.(classified);
-  const observed = await (retainUpToBytes === undefined ? observeLeaf(file, parent) : observeLeaf(file, parent, retainUpToBytes));
+  const observed = await observeLeaf(file, parent, policy.retainUpTo?.(classified));
   if (observed.kind !== "confirmed") {
     policy.problem("leaf-unavailable", `${policy.label} leaf is ${observed.kind}`, file);
     return;

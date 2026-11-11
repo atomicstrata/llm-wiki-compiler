@@ -12,7 +12,7 @@ import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embedd
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { listDirectoryNames } from "../storage/disk-guarded-leaves.js";
 import { readConfinedExactFile } from "../storage/disk-local-reads.js";
-import { frontmatterOfRead, sharedPageRead } from "../storage/shared-page-reads.js";
+import { frontmatterOfRead } from "../storage/shared-page-reads.js";
 import { locationIsRegularFile } from "../storage/disk-locations.js";
 import type { ConfinedReadResult } from "../storage/legacy-local-reads.js";
 import type { PageRecord } from "../pages/read.js";
@@ -33,14 +33,14 @@ const RESERVED_DIRS: ReadonlyArray<{ namespace: string; dir: string }> = [
 
 /**
  * The PHYSICAL reads the embedding page collectors run over: the reserved scan
- * and the requested-page existence check. Each member is ONE incumbent
+ * and the requested-page existence check. Each member is ONE disk
  * mechanism; which names are pages, the parse, eligibility, order and what a
  * failure means stay with the collectors. Directory and entry locators are
  * opaque strings (on disk, absolute canonical paths). It is distinct from
  * `LegacyLocalReads`, whose `readConfinedPage` confines to the LEXICAL
  * `<root>/<dir>` and whose `realDirectory` refuses linked directories: this
  * scan confines to the RESOLVED directory, so an in-project linked directory
- * is read, as before. Naming these selects no backend.
+ * is read. Naming these selects no backend.
  */
 export interface EmbeddingPageReads {
   /** MECHANISM. The project's canonical locator, or `null` when it cannot be resolved. Never rejects. */
@@ -68,7 +68,7 @@ export interface EmbeddingPageReads {
 }
 
 /**
- * LOCAL DISK. The incumbent mechanisms for `root`: `safeRealpath`, the
+ * LOCAL DISK. The mechanisms for `root`: `safeRealpath`, the
  * resolved-and-contained directory check, `listDirectoryNames`,
  * `readConfinedExactFile`, `locationIsRegularFile` and `listDirectoryNames`
  * again for a project-relative directory, with their exact
@@ -82,7 +82,7 @@ export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
       return resolved && isInsideDir(resolved, project) ? resolved : null;
     },
     listNames: (directory) => listDirectoryNames(directory),
-    readConfinedEntry: (directory, name) => sharedPageRead(directory, name, () => readConfinedExactFile(directory, path.join(directory, name))),
+    readConfinedEntry: (directory, name) => readConfinedExactFile(directory, path.join(directory, name)),
     isRegularFile: (relPath) => locationIsRegularFile(path.join(root, relPath)),
     listRelativeNames: (relDir) => listDirectoryNames(path.join(root, relDir)),
   };

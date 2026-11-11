@@ -1,9 +1,12 @@
 /**
  * @file test/call-counter.ts
  * @description The test-file preload of the call counter (see `call-counting.ts`).
+ * `scripts/test-profile.ts` adds it with `--preload`.
  *
- * Bun gives each test file fresh builtin modules and re-runs the preload, so
- * what is counted here is exactly one file's calls, recorded when it finishes.
+ * Under `--parallel`, which `scripts/run-tests.mjs` always passes, Bun gives each
+ * test file fresh globals, builtin modules and environment and re-runs the
+ * preloads, so what is counted here is exactly one file's calls, recorded when
+ * it finishes. Without `--parallel` the preload runs once for every file.
  * The CLI processes the file spawns count themselves through
  * `call-counter-child.ts`, which Bun preloads from `BUN_OPTIONS`, and record
  * under this file's name.

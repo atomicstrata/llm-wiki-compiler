@@ -2,206 +2,64 @@
  * @file src/cli/workflow-commands.ts
  * @description Registers the `workflow` command group and its `action`/
  * `gate` sub-groups: run and inspect declarative profile workflows
- * (experimental). Kept together in one file because `action` and `gate`
- * are sub-commands of the same group-local `workflowCmd` const. Moved out
- * of `src/cli.ts` verbatim (pure move, no behavior change) as part of the
- * per-domain command split.
+ * (experimental). Each table below lists a group's subcommands in help order
+ * with the module that configures each; that module loads when its subcommand
+ * runs, so `workflow list` does not load the code (and core entry points)
+ * behind `advance`, `adapt`, `gate` or `action run`.
  */
 
 import type { Command } from "commander";
-import {
-  workflowListCommand,
-  workflowShowCommand,
-  workflowEventsCommand,
-  workflowStartCommand,
-  workflowStatusCommand,
-  workflowAdvanceCommand,
-  workflowGateApproveCommand,
-  workflowCancelCommand,
-  workflowFailCommand,
-  workflowResumeCommand,
-  workflowAdaptCommand,
-  workflowProjectCommand,
-  workflowSubmitCommand,
-  workflowActionListCommand,
-  workflowActionShowCommand,
-  workflowActionRunCommand,
-} from "../commands/workflow.js";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
+import { declareLazyCommands, type LazyCommand } from "./lazy-commands.js";
 
-/** Register the read-only discovery/inspection commands: `list`, `show`, `events`, `status`, `advance`, `project`. */
-function registerWorkflowInspectionCommands(workflowCmd: Command): void {
-  workflowCmd
-    .command("list")
-    .description("List workflows declared in the active profile")
-    .action(async () => runExitCodeCommand(() => workflowListCommand()));
+/** The `workflow action` subcommands: read-only discovery and execution. */
+const WORKFLOW_ACTION_COMMANDS: LazyCommand[] = [
+  ["list", "List workflow actions declared in the active profile",
+    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionList)],
+  ["show <action-id>", "Show one workflow action and its effective permission per surface",
+    () => import("./workflow-action-read-commands.js").then((m) => m.configureWorkflowActionShow)],
+  ["run [options] <action-id>", "Run a declared workflow action under the composed authority",
+    () => import("./workflow-action-run-command.js").then((m) => m.configureWorkflowActionRun)],
+];
 
-  workflowCmd
-    .command("show <workflow-id>")
-    .description("Show one workflow's stages (reads/writes/gates), projectionFile, and actions")
-    .action(async (workflowId: string) => runExitCodeCommand(() => workflowShowCommand(workflowId)));
+/** The `workflow gate` subcommands. */
+const WORKFLOW_GATE_COMMANDS: LazyCommand[] = [
+  ["approve [options] <run-id> <gate-id>", "Approve a human/agent gate on a run's current stage",
+    () => import("./workflow-gate-command.js").then((m) => m.configureWorkflowGateApprove)],
+];
 
-  workflowCmd
-    .command("events <run-id>")
-    .description("Show one run's recorded audit events (the in-record events[] trail)")
-    .action(async (runId: string) => runExitCodeCommand(() => workflowEventsCommand(runId)));
-
-  workflowCmd
-    .command("status [run-id]")
-    .description("Show workflow run status (all runs, or one by id)")
-    .action(async (runId?: string) => runExitCodeCommand(() => workflowStatusCommand(runId)));
-
-  workflowCmd
-    .command("advance <run-id>")
-    .description("Advance a workflow run to the next stage")
-    .action(async (runId: string) => runExitCodeCommand(() => workflowAdvanceCommand(runId)));
-
-  workflowCmd
-    .command("project <run-id>")
-    .description("Write a DERIVED markdown projection of a run to its workflow's projectionFile")
-    .action(async (runId: string) => runExitCodeCommand(() => workflowProjectCommand(runId)));
-}
-
-/** Register the run-lifecycle commands: `start`, `adapt`, `submit`, `cancel`, `fail`, `resume`. */
-function registerWorkflowRunCommands(workflowCmd: Command): void {
-  workflowCmd
-    .command("start <workflow>")
-    .description("Start a new run of a declared workflow")
-    .option("--input <pair...>", "Run input as key=value (repeatable)")
-    .action(async (workflow: string, options: { input?: string[] }) => {
-      try {
-        await workflowStartCommand(workflow, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-
-  workflowCmd
-    .command("adapt [run-id]")
-    .description("Adapt a run to the changed workflow def (--dry-run preview, --apply re-anchor)")
-    .option("--dry-run", "Preview the adaptation plan(s) without changing anything (default)")
-    .option("--apply", "Re-anchor the run to the active def (requires a run-id)")
-    .option("--confirm", "Authorize a lossy adaptation (drop/cancel an unmappable stage)")
-    .action(async (runId: string | undefined, options: { dryRun?: boolean; apply?: boolean; confirm?: boolean }) =>
-      runExitCodeCommand(() => workflowAdaptCommand(runId, options)),
-    );
-
-  workflowCmd
-    .command("submit <run-id>")
-    .description("Submit a stage output (page/relation/lifecycle/artifact/human-input) for the current stage")
-    .option("--kind <kind>", "Output kind: page | relation | lifecycle-transition | artifact | human-input")
-    .option("--entity-type <t>", "Target entity type (page/lifecycle-transition)")
-    .option("--artifact-type <type>", "artifact type (for --kind artifact)")
-    .option("--slug <s>", "Target entity/artifact slug (page/lifecycle-transition/artifact)")
-    .option("--body-file <path>", "Page/artifact body file (page/artifact)")
-    .option("--to-state <state>", "Target lifecycle state (lifecycle-transition)")
-    .option("--evidence-file <path>", "JSON evidence file (lifecycle-transition)")
-    .option("--output-file <path>", "JSON payload file (relation/human-input)")
-    .action(async (runId: string, options) => {
-      try {
-        await workflowSubmitCommand(runId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-
-  registerWorkflowTerminationCommands(workflowCmd);
-}
-
-/** Register the terminal-state commands: `cancel`, `fail`, `resume`. */
-function registerWorkflowTerminationCommands(workflowCmd: Command): void {
-  workflowCmd
-    .command("cancel <run-id>")
-    .description("Cancel an active workflow run")
-    .action(async (runId: string) => {
-      try {
-        await workflowCancelCommand(runId);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-
-  workflowCmd
-    .command("fail <run-id>")
-    .description("Fail an active workflow run (move it to terminal failed; retryable via resume)")
-    .option("--detail <reason>", "Human-readable failure reason recorded on the run-failed event")
-    .action(async (runId: string, options: { detail?: string }) => {
-      try {
-        await workflowFailCommand(runId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-
-  workflowCmd
-    .command("resume <run-id>")
-    .description("Resume a failed workflow run (or report its position)")
-    .action(async (runId: string) => {
-      try {
-        await workflowResumeCommand(runId);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-}
-
-/** Register the `workflow action` sub-group: `list`, `show`, `run` (read-only discovery + execution). */
-function registerWorkflowActionCommands(workflowCmd: Command): void {
-  const actionCmd = workflowCmd.command("action").description("Discover declared workflow actions (read-only)");
-
-  actionCmd
-    .command("list")
-    .description("List workflow actions declared in the active profile")
-    .action(async () => runExitCodeCommand(() => workflowActionListCommand()));
-
-  actionCmd
-    .command("show <action-id>")
-    .description("Show one workflow action and its effective permission per surface")
-    .action(async (actionId: string) => runExitCodeCommand(() => workflowActionShowCommand(actionId)));
-
-  actionCmd
-    .command("run <action-id>")
-    .description("Run a declared workflow action under the composed authority")
-    .option("--input <pair...>", "Action input as key=value (repeatable, string-typed)")
-    .option("--input-json <json>", "Action inputs as a JSON object (typed; merged over --input)")
-    .action(async (actionId: string, options: { input?: string[]; inputJson?: string }) => {
-      try {
-        await workflowActionRunCommand(actionId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-}
-
-/** Register the `workflow gate` sub-group: `approve`. */
-function registerWorkflowGateCommands(workflowCmd: Command): void {
-  const gateCmd = workflowCmd.command("gate").description("Workflow gate operations");
-
-  gateCmd
-    .command("approve <run-id> <gate-id>")
-    .description("Approve a human/agent gate on a run's current stage")
-    .option("--actor <kind>", "Approving actor kind for a non-human gate: agent (default) or system (a human gate is approved via interactive confirmation)")
-    .option("--actor-label <label>", "Optional human-readable actor label")
-    .action(async (runId: string, gateId: string, options: { actor?: string; actorLabel?: string }) => {
-      try {
-        await workflowGateApproveCommand(runId, gateId, options);
-      } catch (err) {
-        console.error(`\x1b[31mError:\x1b[0m ${err instanceof Error ? err.message : err}`);
-        process.exit(1);
-      }
-    });
-}
+/** The `workflow` subcommands. */
+const WORKFLOW_COMMANDS: LazyCommand[] = [
+  ["list", "List workflows declared in the active profile",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowList)],
+  ["show <workflow-id>", "Show one workflow's stages (reads/writes/gates), projectionFile, and actions",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowShow)],
+  ["events <run-id>", "Show one run's recorded audit events (the in-record events[] trail)",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowEvents)],
+  ["status [run-id]", "Show workflow run status (all runs, or one by id)",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowStatus)],
+  ["advance <run-id>", "Advance a workflow run to the next stage",
+    () => import("./workflow-advance-command.js").then((m) => m.configureWorkflowAdvance)],
+  ["project <run-id>", "Write a DERIVED markdown projection of a run to its workflow's projectionFile",
+    () => import("./workflow-adapt-commands.js").then((m) => m.configureWorkflowProject)],
+  ["start [options] <workflow>", "Start a new run of a declared workflow",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowStart)],
+  ["adapt [options] [run-id]", "Adapt a run to the changed workflow def (--dry-run preview, --apply re-anchor)",
+    () => import("./workflow-adapt-commands.js").then((m) => m.configureWorkflowAdapt)],
+  ["submit [options] <run-id>", "Submit a stage output (page/relation/lifecycle/artifact/human-input) for the current stage",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowSubmit)],
+  ["cancel <run-id>", "Cancel an active workflow run",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowCancel)],
+  ["fail [options] <run-id>", "Fail an active workflow run (move it to terminal failed; retryable via resume)",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowFail)],
+  ["resume <run-id>", "Resume a failed workflow run (or report its position)",
+    () => import("./workflow-run-commands.js").then((m) => m.configureWorkflowResume)],
+  ["action", "Discover and run declared workflow actions",
+    async () => (action) => declareLazyCommands(action, WORKFLOW_ACTION_COMMANDS)],
+  ["gate", "Workflow gate operations",
+    async () => (gate) => declareLazyCommands(gate, WORKFLOW_GATE_COMMANDS)],
+];
 
 /** Register the `workflow` command group and its `action`/`gate` sub-groups. */
 export function registerWorkflowCommands(workflowCmd: Command): void {
-  registerWorkflowInspectionCommands(workflowCmd);
-  registerWorkflowRunCommands(workflowCmd);
-  registerWorkflowActionCommands(workflowCmd);
-  registerWorkflowGateCommands(workflowCmd);
+  declareLazyCommands(workflowCmd, WORKFLOW_COMMANDS);
 }

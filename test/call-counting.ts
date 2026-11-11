@@ -27,7 +27,7 @@ export interface FileCallCounts {
   ops: Record<string, number>;
   sites?: Record<string, number>;
   /** CPU milliseconds (user + system), by where they were spent: `self` (the test file's process) or `child` (a CLI it spawned). */
-  cpu?: Record<string, number>;
+  cpu: Record<string, number>;
 }
 
 const SPAWN_FUNCTIONS = ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"];
@@ -83,7 +83,7 @@ function spawnName(args: unknown[]): string {
 }
 
 /** `original`, counting each call as `op`; what callers read off the function itself is kept. */
-function counted(original: (...args: unknown[]) => unknown, op: OpName, customForm = true): (...args: unknown[]) => unknown {
+function counted(original: (...args: unknown[]) => unknown, op: OpName): (...args: unknown[]) => unknown {
   const wrapper = function (this: unknown, ...args: unknown[]) {
     // One call from the caller is one op. Bun's own fs functions call other fs
     // functions (`fs.promises.opendir` calls `fs.opendir`); those nested calls
@@ -103,8 +103,8 @@ function counted(original: (...args: unknown[]) => unknown, op: OpName, customFo
   // `promisify(execFile)` calls the function's custom promisified form, not the
   // function. That form points at itself, so it is wrapped once and not followed.
   const custom = (original as { [promisify.custom]?: (...args: unknown[]) => unknown })[promisify.custom];
-  if (customForm && typeof custom === "function") {
-    Object.defineProperty(wrapper, promisify.custom, { value: counted(custom, op, false), configurable: true });
+  if (typeof custom === "function" && custom !== original) {
+    Object.defineProperty(wrapper, promisify.custom, { value: counted(custom, op), configurable: true });
   }
   return wrapper;
 }
@@ -128,7 +128,7 @@ export async function installCallCounting(prefix: string): Promise<void> {
   const probe = await fs.promises.open(import.meta.path, "r");
   const handlePrototype = Object.getPrototypeOf(probe) as Record<string, unknown>;
   await probe.close();
-  wrap(fs as unknown as Record<string, unknown>, apiFunctions(fs).filter((name) => name !== "promises"), (name) => `${prefix}${name.replace(/Sync$/u, "")}`);
+  wrap(fs as unknown as Record<string, unknown>, apiFunctions(fs), (name) => `${prefix}${name.replace(/Sync$/u, "")}`);
   wrap(fs.promises as unknown as Record<string, unknown>, apiFunctions(fs.promises), (name) => `${prefix}${name}`);
   wrap(handlePrototype, Object.getOwnPropertyNames(handlePrototype).filter((name) => name !== "constructor"), (name) => `${prefix}handle.${name}`);
   wrap(childProcess as unknown as Record<string, unknown>, SPAWN_FUNCTIONS, () => spawnName);

@@ -1,22 +1,14 @@
 /**
- * @file Read-only context and next-action CLI registration. Keeps command
- * options and presentation together without expanding the main entrypoint.
+ * @file src/cli/context-command.ts
+ * @description Registers `context`: build an agent-ready evidence pack for a
+ * prompt from the compiled wiki (read-only). Keeps the command's options and
+ * presentation together without expanding the main entrypoint.
  */
 import type { Command } from "commander";
-import nextCommand from "@atomicstrata/llmwiki-core/modules/commands/next";
 import contextCommand, { type ContextCommandOptions } from "@atomicstrata/llmwiki-core/modules/commands/context";
 import { setVerbose } from "@atomicstrata/llmwiki-core/modules/utils/output";
 import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
 import { verboseEnabled } from "./verbose.js";
-
-/** Add the options and action of the `next` command. */
-export function registerNextCommand(command: Command): void {
-  command
-    .option("--json", "Emit a stable JSON envelope for agent consumption")
-    .action(async (options: { json?: boolean }) =>
-      runExitCodeCommand(() => nextCommand({ json: options.json })),
-    );
-}
 
 /** Add the options and action of the `context` command. */
 export function registerContextCommand(command: Command): void {

@@ -1,6 +1,6 @@
 /**
  * @file src/utils/verified-bytes-memo.ts
- * @description Remember the verdict of a pure verifier over exact bytes.
+ * @description Remember the verdict of a pure verifier over exact bytes (or exact text).
  *
  * Some stored records are immutable or append-only, and their verification —
  * strict decoding, a closed parse, recomputed digests, the canonical-bytes rule —
@@ -31,21 +31,36 @@ const DEFAULT_MEMO_BYTES = 16 * 1024 * 1024;
  * verdict instead of verifying again. `verify` must be a pure function of its bytes.
  */
 export function verifiedBytesMemo<T>(verify: (bytes: Buffer) => T, maxBytes = DEFAULT_MEMO_BYTES): (bytes: Buffer) => T {
+  return verdictMemo((bytes: Buffer) => bytes.toString("latin1"), verify, maxBytes);
+}
+
+/**
+ * {@link verifiedBytesMemo} for a verifier whose input is text the caller already
+ * decoded: the text itself is the key, so two keys are equal exactly when the
+ * texts are. `verify` must be a pure function of its text; memory is bounded by
+ * the total key characters held.
+ */
+export function verifiedTextMemo<T>(verify: (text: string) => T, maxChars = DEFAULT_MEMO_BYTES): (text: string) => T {
+  return verdictMemo((text: string) => text, verify, maxChars);
+}
+
+/** The one memo body: `keyOf` must map two inputs to one key exactly when they are equal. */
+function verdictMemo<I, T>(keyOf: (input: I) => string, verify: (input: I) => T, maxKeyLength: number): (input: I) => T {
   const verdicts = new Map<string, T>();
-  let heldBytes = 0;
-  return (bytes) => {
-    const key = bytes.toString("latin1");
+  let heldKeyLength = 0;
+  return (input) => {
+    const key = keyOf(input);
     const known = verdicts.get(key);
     if (known !== undefined) return structuredClone(known);
-    const value = verify(bytes);
-    if (key.length > maxBytes) return value;
-    while (heldBytes + key.length > maxBytes) {
+    const value = verify(input);
+    if (key.length > maxKeyLength) return value;
+    while (heldKeyLength + key.length > maxKeyLength) {
       const oldest = verdicts.keys().next().value as string;
       verdicts.delete(oldest);
-      heldBytes -= oldest.length;
+      heldKeyLength -= oldest.length;
     }
     verdicts.set(key, structuredClone(value));
-    heldBytes += key.length;
+    heldKeyLength += key.length;
     return value;
   };
 }

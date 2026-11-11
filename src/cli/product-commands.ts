@@ -27,114 +27,51 @@
  * that approving any bundle costs. Each description below says which side of
  * that line its verb is on, because `--help` is where an operator decides
  * whether running a verb will change their wiki.
+ *
+ * Each verb's module loads when it runs, so `product status` does not load the
+ * install, invoke and apply paths.
  */
 
 import type { Command } from "commander";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
-import { productInvokeCommand, productResumeCommand, productPreviewCommand } from "@atomicstrata/llmwiki-core/modules/commands/product/action";
-import { productApplyCommand, type ProductApplyOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/apply";
-import { productStatusCommand, type ProductStatusOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/status";
-import type { ProductActionOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/inputs";
-import { productActivateCommand, productInstallCommand, type ProductPackageOptions } from "@atomicstrata/llmwiki-core/modules/commands/product/package";
-import { productInitCommand } from "@atomicstrata/llmwiki-core/modules/commands/product/init";
-
-/** Every verb here answers `--json` with the same envelope contract. */
-const JSON_DESCRIPTION = "Emit the machine-readable envelope instead of the human lines";
+import { declareLazyCommands, type LazyCommand } from "./lazy-commands.js";
 
 /**
- * The flags both action verbs take, declared ONCE.
- *
- * Registering them twice is how `--input` comes to mean one thing on `preview`
- * and another on `invoke` — and the entire value of preview is that it cannot
- * diverge from the invocation it previews, which has to include how its input is
- * spelled.
+ * The verbs in the order of the work (see above), with the module that
+ * configures each: the package verbs put a package in the project and make it
+ * authoritative; the action verbs run the active product's actions.
  */
-function withActionOptions(command: Command): Command {
-  return command
-    .option("--input <pair...>", "Action input as key=value (repeatable; every value is a STRING)")
-    .option("--input-json <json>",
-      "Action input as a JSON object of typed values (numbers, booleans, lists); wins over --input on a key collision")
-    .option("--workspace <id>", "Workspace the run is recorded under (default \"default\")")
-    .option("--json", JSON_DESCRIPTION);
-}
-
-/** Register the `product` command group. */
-export function registerProductCommands(product: Command): void {
-  registerPackageVerbs(product);
-  registerActionVerbs(product);
-}
-
-/** The verbs that put a package in the project and make it authoritative. */
-function registerPackageVerbs(product: Command): void {
-  product
-    .command("install <sourceDir>")
-    .description("Install a local product package inertly (activates nothing)")
-    .option("--json", JSON_DESCRIPTION)
-    .action(async (sourceDir: string, options: ProductPackageOptions) =>
-      runExitCodeCommand(() => productInstallCommand(process.cwd(), sourceDir, options)));
-
-  product
-    .command("activate <packageDigest>")
-    .description("Make one installed package this project's knowledge and operations authority")
-    .option("--json", JSON_DESCRIPTION)
-    .action(async (packageDigest: string, options: ProductPackageOptions) =>
-      runExitCodeCommand(() => productActivateCommand(process.cwd(), packageDigest, options)));
-
-  product
-    .command("init <sourceDir>")
-    .description("Cold-init a project: install + activate a package, then scaffold its entity directories")
-    .option("--json", JSON_DESCRIPTION)
-    .action(async (sourceDir: string, options: ProductPackageOptions) =>
-      runExitCodeCommand(() => productInitCommand(process.cwd(), sourceDir, options)));
-}
-
-/** The verbs that run the active product's actions. */
-function registerActionVerbs(product: Command): void {
-  withActionOptions(product
-    .command("preview <token>")
-    .description("Report what invoking this action would do, writing nothing"))
-    .action(async (token: string, options: ProductActionOptions) =>
-      runExitCodeCommand(() => productPreviewCommand(process.cwd(), token, options)));
-
+const PRODUCT_COMMANDS: LazyCommand[] = [
+  ["install [options] <sourceDir>", "Install a local product package inertly (activates nothing)",
+    () => import("./product-package-commands.js").then((m) => m.configureProductInstall)],
+  ["activate [options] <packageDigest>", "Make one installed package this project's knowledge and operations authority",
+    () => import("./product-package-commands.js").then((m) => m.configureProductActivate)],
+  ["init [options] <sourceDir>", "Cold-init a project: install + activate a package, then scaffold its entity directories",
+    () => import("./product-package-commands.js").then((m) => m.configureProductInit)],
+  ["preview [options] <token>", "Report what invoking this action would do, writing nothing",
+    () => import("./product-action-commands.js").then((m) => m.configureProductPreview)],
   // THE DESCRIPTION NAMES THE LIMIT. An operator reading `--help` is deciding
   // whether this verb changes their wiki, and the honest answer is that it does
   // not: it produces a bundle proposing the change, for a separate approval.
-  withActionOptions(product
-    .command("invoke <token>")
-    .description("Run an action to a reviewable handoff bundle (proposes the change; applies nothing)"))
-    .action(async (token: string, options: ProductActionOptions) =>
-      runExitCodeCommand(() => productInvokeCommand(process.cwd(), token, options)));
-
+  ["invoke [options] <token>", "Run an action to a reviewable handoff bundle (proposes the change; applies nothing)",
+    () => import("./product-action-commands.js").then((m) => m.configureProductInvoke)],
   // The route back from a review gate. `invoke` reports `awaiting-review` and
   // names this command, so it must exist: a surface that tells an operator to
   // run something it does not implement is worse than one that never offered.
-  withActionOptions(product
-    .command("resume <runId> <token>")
-    .description("Continue a run that stopped at a review gate, after deciding it with `preparation gate`"))
-    .action(async (runId: string, token: string, options: ProductActionOptions) =>
-      runExitCodeCommand(() => productResumeCommand(process.cwd(), runId, token, options)));
-
+  ["resume [options] <runId> <token>", "Continue a run that stopped at a review gate, after deciding it with `preparation gate`",
+    () => import("./product-action-commands.js").then((m) => m.configureProductResume)],
   // The readiness review. It sits beside the acting verbs deliberately: an
   // operator asking "can this product actually do its optional work here?"
   // should not have to know that the answer lives in a credential registry.
-  product
-    .command("status")
-    .description("Review every optional capability the active product declares — reads only, changes nothing")
-    .option("--json", JSON_DESCRIPTION)
-    // A recorded skip stays LISTED in the review: the decision is the thing
-    // being stored, so a reader can tell it apart from an oversight.
-    .option("--skip <dimension>", "Record that you are declining this optional capability")
-    .option("--unskip <dimension>", "Clear a previously recorded skip")
-    .action(async (options: ProductStatusOptions) =>
-      runExitCodeCommand(() => productStatusCommand(process.cwd(), options)));
-
+  ["status [options]", "Review every optional capability the active product declares — reads only, changes nothing",
+    () => import("./product-status-command.js").then((m) => m.configureProductStatus)],
   // AND THIS DESCRIPTION NAMES THE OTHER HALF, for the same reason: `apply` is
   // the one verb in the group that changes the wiki, so `--help` says WRITES
   // rather than leaving an operator to infer it from the verb's name.
-  product
-    .command("apply <bundle>")
-    .description("Approve and apply a bundle `invoke` proposed — WRITES the change to your wiki. The bundle digest is resolved across every workspace, so no --workspace flag exists or is needed")
-    .option("--json", JSON_DESCRIPTION)
-    .action(async (bundle: string, options: ProductApplyOptions) =>
-      runExitCodeCommand(() => productApplyCommand(process.cwd(), bundle, options)));
+  ["apply [options] <bundle>", "Approve and apply a bundle `invoke` proposed — WRITES the change to your wiki. The bundle digest is resolved across every workspace, so no --workspace flag exists or is needed",
+    () => import("./product-apply-command.js").then((m) => m.configureProductApply)],
+];
+
+/** Register the `product` command group. */
+export function registerProductCommands(product: Command): void {
+  declareLazyCommands(product, PRODUCT_COMMANDS);
 }

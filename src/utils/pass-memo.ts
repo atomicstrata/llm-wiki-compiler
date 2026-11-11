@@ -1,11 +1,14 @@
 /**
- * @file The two memo shapes a store's pass reads are built from.
+ * @file Share one read among every caller of a pass.
  *
- * A PASS reads a store under one hold of the project lock before it writes.
- * Each store's `pass-reads.ts` builds its reads from these: a question asked
- * once per pass (the key), or once per distinct argument (a manifest, a run).
- * Every caller in the pass shares the first caller's answer. See
- * `preparations/pass-reads.ts` for the pattern.
+ * A PASS is a stretch of work that reads before it writes: a store pass under
+ * one hold of the project lock, a compile link pass, a lint run, a trust plan.
+ * Wrap each read the pass repeats in {@link once} (one question) or
+ * {@link oncePer} (one question per distinct argument), and every caller after
+ * the first shares the first caller's promise, its rejection included. Build
+ * the wrappers at the start of the pass and drop them with it: a wrapper kept
+ * past a write answers with what was there before. See
+ * `preparations/pass-reads.ts` for a store's use of the pattern.
  */
 
 /** Ask `read` at most once; every caller shares the one answer. */

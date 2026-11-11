@@ -93,7 +93,7 @@ describe("consumer 1: project-lock reclamation", () => {
     expect(parsed.pid).toBe(process.pid);
     // VERSIONED, which is the whole reason the migration is detectable at all.
     expect(parsed.identity).toMatch(/^unix:\d+$/u);
-    expect(parsed.startTime).toBe(execFileSync("ps", ["-o", "lstart=", "-p", String(process.pid)]).toString().trim());
+    expect(parsed.startTime).toBeUndefined();
     await releaseLock(root);
   });
 });

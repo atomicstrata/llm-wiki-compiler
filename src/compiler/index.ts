@@ -8,12 +8,12 @@
  * sources are processed through the LLM pipeline.
  *
  * ONE BODY. {@link compileAndReport} runs {@link compileAndReportWith} over
- * {@link localCompileRunSteps}: ONE production orchestration body now consumes
- * explicit steps. The production default supplies the incumbent root forms
- * (each called at call time, so every namespace spy and module mock still
+ * {@link localCompileRunSteps}: ONE production orchestration body consumes
+ * explicit steps. The production default supplies the local root forms
+ * (each called at call time, so every namespace spy and module mock
  * intercepts). No non-disk production adapter exists; the bound composition is
- * test-only (`test/storage/compile-memory-steps.ts`). This is not a complete
- * migration: the acquisition still reaches the gate's four domain legs as
+ * test-only (`test/storage/compile-memory-steps.ts`). The acquisition reaches
+ * the gate's four domain legs as
  * root-taking local steps (each delegates to one root-free decision body over
  * local-disk reads; see `lock-gate.ts`), and the provider, environment readers,
  * terminal output and `timeStage` stay host collaborators.
@@ -72,13 +72,13 @@ import type {
   SourceState,
 } from "../utils/types.js";
 import { timeStage } from "../utils/stage-timing.js";
+import { withSharedPageReads } from "../storage/shared-page-reads.js";
 
 /**
  * Everything ONE compile run asks for, beyond the provider and the other host
- * collaborators. Each member is either the incumbent ROOT form (the local
- * default) or an accepted bound body (composed only in tests today). Not
- * `ProjectStore`, not a backend, and it selects nothing: local default =
- * incumbent root forms; not a backend.
+ * collaborators. Each member is either the local ROOT form (the default) or
+ * an accepted bound body (composed only in tests). Not `ProjectStore`, not a
+ * backend, and it selects nothing.
  */
 export interface CompileRunSteps {
   /** The ordinary gated acquisition: lock, the gate's own journal recovery, the four domain legs, each reached by root. Local: `acquireMutationLock(root, "ordinary")`. */
@@ -150,15 +150,15 @@ export async function compileAndReport(
   root: string,
   options: CompileOptions = {},
 ): Promise<CompileResult> {
-  return compileAndReportWith(localCompileRunSteps, root, options);
+  // Every walk over the pages in this compile shares each page's confined
+  // read, reused only while the file on disk is unchanged (shared-page-reads.ts).
+  return withSharedPageReads(() => compileAndReportWith(localCompileRunSteps, root, options));
 }
 
 /**
  * {@link compileAndReport} over {@link CompileRunSteps}: THE ONE production
- * orchestration body, in the incumbent order. ONE production orchestration
- * body now consumes explicit steps; the production default supplies the
- * incumbent root forms; no non-disk production adapter exists; the bound
- * composition is test-only; this is not a complete migration.
+ * orchestration body. The production default supplies the local root forms;
+ * no non-disk production adapter exists; the bound composition is test-only.
  *
  * @param steps - The gated acquisition, both recoveries, access, draft, page writes, orphans, finalize, listing and log.
  * @param root - Project root directory (a display and confinement value for the steps).
