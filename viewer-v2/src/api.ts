@@ -113,6 +113,43 @@ export interface HealthPayload {
   lint: LintSummary | null;
 }
 
+/** A cited span of a source file; `file` is relative to `sources/`. */
+export interface SourceSpan {
+  file: string;
+  lines?: { start: number; end: number };
+}
+
+/** One structured citation of a page, as written in its record. */
+export interface ClaimCitation {
+  raw: string;
+  spans: SourceSpan[];
+}
+
+/** One relation of a typed page, relative to that page. */
+export interface EntityRelation {
+  type: string;
+  direction: "incoming" | "outgoing" | "symmetric";
+  target: { id: string; resolved: boolean; title?: string };
+}
+
+/** The import a typed page's details came from. */
+export interface ConnectorProvenance {
+  connectorId: string;
+  connectorVersion: string;
+  fetchedAt: string;
+  contentHash: string;
+  sourceUrl?: string;
+}
+
+/** Relations and evidence of a typed page; the server caps both lists at 100. */
+export interface EntityContext {
+  relations: EntityRelation[];
+  relationTotal: number;
+  sources: (SourceSpan & { resolved: boolean })[];
+  sourceTotal: number;
+  connector?: ConnectorProvenance;
+}
+
 /** One rendered page. `html` is sanitized by the server. */
 export interface PagePayload {
   id: string;
@@ -120,13 +157,42 @@ export interface PagePayload {
   pageDirectory: string;
   slug: string;
   html: string;
+  citations: ClaimCitation[];
   updatedAt: string;
   createdAt: string;
   warnings: PageWarning[];
   freshness: PageFreshness;
   outgoingLinks: string[];
-  frontmatter: { tags?: unknown; sources?: unknown };
+  frontmatter: { tags?: unknown; sources?: unknown; kind?: unknown; type?: unknown };
   entityType?: string;
+  entityContext?: EntityContext;
+}
+
+/** One node of the wiki graph: a page, a typed record, or a dangling link target. */
+export interface GraphNode {
+  id: string;
+  title: string;
+  slug: string;
+  directory: string;
+  kind: string;
+  degree: number;
+  isDangling?: true;
+  entityType?: string;
+}
+
+/** One edge of the wiki graph; a wikilink unless `edgeKind` says relation. */
+export interface GraphEdge {
+  source: string;
+  target: string;
+  edgeKind?: "relation";
+  relationType?: string;
+  direction?: "directed" | "symmetric";
+}
+
+/** The whole wiki graph the snapshot holds. */
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 /** One search hit. */
@@ -169,6 +235,11 @@ export function fetchHealth(): Promise<HealthPayload> {
 /** One page by directory and slug. */
 export function fetchPage(directory: string, slug: string): Promise<PagePayload> {
   return getJson(`/api/page/${encodeURIComponent(directory)}/${encodeURIComponent(slug)}`);
+}
+
+/** The wiki graph: every page and every link between pages. */
+export function fetchGraph(): Promise<GraphData> {
+  return getJson("/api/graph");
 }
 
 /** The rendered `wiki/index.md`. */

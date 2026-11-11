@@ -235,9 +235,33 @@ main > .dashboard { max-width: 64rem; }
 .action-glyph { flex: none; width: 1.4rem; color: var(--accent); }
 .action-hint { font-size: 0.78rem; color: var(--muted); font-family: ui-monospace, monospace; }
 
+/* ---- page: article and support rail ---- */
+main > .page-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem; gap: 2.5rem; align-items: start; max-width: 72rem; }
+.page-layout > article { min-width: 0; }
+.query-question { margin: -0.5rem 0 1rem; font-style: italic; color: var(--muted); }
+.warning-banner { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; font-size: 0.88rem; background: var(--mark); border: 1px solid var(--border); border-radius: 0.5rem; }
+.rail { position: sticky; top: 4rem; max-height: calc(100vh - 4.4rem); overflow-y: auto; font-size: 0.85rem; }
+.rail-section { padding: 0.9rem 1rem; margin-bottom: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.6rem; }
+.rail h2 { margin: 0 0 0.5rem; font-size: 0.72rem; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.rail h3 { margin: 0.7rem 0 0.2rem; font-size: 0.8rem; font-weight: 600; }
+.rail ul { list-style: none; margin: 0; padding: 0; }
+.rail li { padding: 0.15rem 0; overflow-wrap: anywhere; }
+.rail .span-list { padding-left: 0; }
+.rail .dot { display: inline-block; margin-right: 0.35rem; vertical-align: middle; }
+.rail .status { padding: 0; }
+.rail p { margin: 0.2rem 0; }
+.rail-file { font-family: ui-monospace, monospace; font-size: 0.78rem; }
+.rail-file.is-unresolved { color: var(--warn); }
+.rail-note { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
+.rail-empty { color: var(--muted); }
+.rail details { margin-top: 0.4rem; font-size: 0.78rem; color: var(--muted); }
+.rail pre { margin: 0.3rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 @media (max-width: 800px) {
   .nav-toggle { display: block; }
   .identity .meta { display: none; }
   .theme-control span { display: none; }
   .shell[data-nav-open="true"] .sidebar { display: block; }
+  main > .page-layout { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .rail { position: static; max-height: none; }
 }
