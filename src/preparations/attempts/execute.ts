@@ -24,7 +24,7 @@
  * {@link attemptExecutionStepsOver} composes them from each store's own body.
  */
 
-import { withOrdinaryMutationLock as underLock } from "../../operation-bundles/with-mutation-lock.js";
+import { withAttemptMutationLock as underLock } from "../../operation-bundles/with-mutation-lock.js";
 import { LockBusyError } from "../../utils/lock.js";
 import { parseSha256Digest } from "../../capability-providers/ids.js";
 import { captureOwnDataRecord } from "../../utils/runtime-capture.js";

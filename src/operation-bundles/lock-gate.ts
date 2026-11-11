@@ -92,10 +92,13 @@ import { portableGateBlock, PortableRecoveryBlockingError } from "../portable/ho
  * The class of mutation acquiring the lock. `recovery` bypasses the whole gate
  * (it owns the re-drive); `handoff` runs the page-journal and Milestone A legs but
  * DEFERS the preparation-recovery leg to the handoff command, which resolves its
- * own run's `handoff-started` state rather than being blocked by it.
+ * own run's `handoff-started` state rather than being blocked by it. `attempt`
+ * is one transition of an attempt already running: it defers the same leg,
+ * because that leg is maintenance for commands arriving at the store, and a
+ * running attempt takes the lock twice per attempt.
  */
 export type RecoveryGateIntent =
-  | "ordinary" | "review" | "recovery" | "quarantine" | "sweep" | "prune" | "handoff"
+  | "ordinary" | "review" | "recovery" | "quarantine" | "sweep" | "prune" | "handoff" | "attempt"
   | "reset"
   // A portable publication or its recovery. It takes the same lock and runs the
   // same legacy legs, and is the one intent the pending-portable-intent leg lets
@@ -821,8 +824,10 @@ async function runRecoveryGateWith(
   // `handed-off` transition, but never blocks: a parked or bundle-absent in-flight
   // handoff belongs to its own command's resume and cannot conflict with this
   // mutation, so blocking here would wrongly stall concurrent preparation work. The
-  // handoff intent resolves its own run and skips this leg.
-  if (intent === "handoff") return ticket;
+  // handoff intent resolves its own run and skips this leg. So does an attempt's
+  // own transition: the leg settles nothing an attempt depends on, it scans the
+  // whole store, and the next command to arrive still runs it.
+  if (intent === "handoff" || intent === "attempt") return ticket;
   await steps.settleHandoffs(root);
   return ticket;
 }

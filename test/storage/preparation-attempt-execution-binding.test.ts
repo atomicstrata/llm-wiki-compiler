@@ -124,7 +124,7 @@ describe("the composition and the root form", () => {
   });
 
   it("B2 the root form locks and reads with the captured root, and a non-string root parks before any lock", async () => {
-    const lock = vi.spyOn(withMutationLock, "withOrdinaryMutationLock").mockImplementation(async (_root, work) => work());
+    const lock = vi.spyOn(withMutationLock, "withAttemptMutationLock").mockImplementation(async (_root, work) => work());
     const read = vi.spyOn(runStore, "readPreparationRun").mockResolvedValue({ status: "absent" } as never);
     expect(await executePhaseAttempt(attemptRequest(STAGED, { root: "/project" }))).toEqual({ status: "parked", reason: "run-absent" });
     expect([lock.mock.calls.map((call) => call[0]), read.mock.calls]).toEqual([["/project"], [["/project", STAGED.binding]]]);
