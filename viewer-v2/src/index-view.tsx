@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { fetchIndex } from "./api";
 import { AsyncView } from "./async-view";
+import { EmptyState, Screen } from "./components";
 import { useAsync } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
@@ -11,9 +12,11 @@ export function IndexView({ hasIndex }: { hasIndex: boolean }): ReactNode {
   return (
     <AsyncView state={state}>
       {({ html }) => (
-        <div>
-          {html ? <WikiHtml html={html} /> : <p>wiki/index.md is not available. Run `llmwiki compile`.</p>}
-        </div>
+        html ? <div className="mx-auto max-w-3xl"><WikiHtml html={html} /></div> : (
+          <Screen title="Index">
+            <EmptyState title="No compiled index" body="wiki/index.md is not available yet." command="$ llmwiki compile" />
+          </Screen>
+        )
       )}
     </AsyncView>
   );

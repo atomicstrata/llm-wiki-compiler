@@ -7,8 +7,15 @@
  */
 import type { ReactNode } from "react";
 import type { FactRow, StageProjection, VerifiedStage } from "./api-workflows";
+import { DefinitionRows } from "./components";
 
-const FACT_TONES = new Set<string>(["neutral", "success", "warning", "danger"]);
+/** The closed set of fact tones, each with the text colour its value is drawn in. */
+const FACT_TONE_TEXT: Record<string, string> = {
+  neutral: "text-zinc-900 dark:text-zinc-100",
+  success: "text-green-600 dark:text-green-400",
+  warning: "text-amber-600 dark:text-amber-400",
+  danger: "text-red-600 dark:text-red-400",
+};
 
 interface StageEdge {
   kind: string;
@@ -27,23 +34,16 @@ function stageEdges(stage: VerifiedStage): StageEdge[] {
 
 /** A row is shown only with a label, a value and one of the closed tones. */
 function isDisplayableRow(row: FactRow): boolean {
-  return row.label.length > 0 && row.value.length > 0 && FACT_TONES.has(row.tone);
+  return row.label.length > 0 && row.value.length > 0 && Object.hasOwn(FACT_TONE_TEXT, row.tone);
 }
 
 /** The provider's fact panel, or nothing when any row is not displayable. */
 function FactPanel({ panel }: { panel: VerifiedStage["factPanel"] }): ReactNode {
   if (!panel || panel.title.length === 0 || panel.rows.length === 0 || !panel.rows.every(isDisplayableRow)) return null;
   return (
-    <section>
-      <h4>{panel.title}</h4>
-      <dl>
-        {panel.rows.map((row) => (
-          <div key={row.label}>
-            <dt>{row.label}</dt>
-            <dd>{row.value}</dd>
-          </div>
-        ))}
-      </dl>
+    <section className="mt-4 rounded-lg bg-zinc-50 p-3 dark:bg-white/5">
+      <h4 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">{panel.title}</h4>
+      <DefinitionRows rows={panel.rows.map((row) => [row.label, <span className={FACT_TONE_TEXT[row.tone]}>{row.value}</span>])} />
     </section>
   );
 }
@@ -53,24 +53,24 @@ function Provenance({ stage }: { stage: VerifiedStage }): ReactNode {
   const edges = stageEdges(stage);
   const digests = [...stage.evidenceDigests, ...(stage.groundedRefs ?? [])];
   return (
-    <div>
-      <span>What happened</span>{" "}
-      {stage.summary && <p>{stage.summary}</p>}
+    <div className="mt-4 space-y-3 text-sm">
+      <span className="block text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">What happened</span>{" "}
+      {stage.summary && <p className="text-zinc-700 dark:text-zinc-300">{stage.summary}</p>}
       {stage.appliedTargets.length > 0 && (
-        <ul>{stage.appliedTargets.map((target) => <li key={target}>{target}</li>)}</ul>
+        <ul role="list" className="space-y-1 font-mono text-xs text-zinc-700 dark:text-zinc-300">{stage.appliedTargets.map((target) => <li key={target}>{target}</li>)}</ul>
       )}
       {edges.length > 0 && (
         <div>
-          <h4>Graph edges</h4>
-          <ul>
+          <h4 className="mb-1 font-medium text-zinc-900 dark:text-zinc-100">Graph edges</h4>
+          <ul role="list" className="space-y-1 font-mono text-xs break-all text-zinc-500 dark:text-zinc-400">
             {edges.map((edge) => <li key={`${edge.kind}:${edge.value}`} data-edge-kind={edge.kind}>{stage.stageId} → {edge.label}: {edge.value}</li>)}
           </ul>
         </div>
       )}
       {digests.length > 0 && (
-        <details>
-          <summary>Evidence digests</summary>
-          <ul>{digests.map((digest) => <li key={digest}>{digest}</li>)}</ul>
+        <details className="text-xs">
+          <summary className="cursor-pointer font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">Evidence digests</summary>
+          <ul role="list" className="mt-1 space-y-1 font-mono break-all text-zinc-500 dark:text-zinc-400">{digests.map((digest) => <li key={digest}>{digest}</li>)}</ul>
         </details>
       )}
     </div>

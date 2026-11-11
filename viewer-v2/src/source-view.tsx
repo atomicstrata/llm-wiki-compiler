@@ -5,6 +5,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { fetchSourceMeta, fetchSourceText, type SourceMeta } from "./api";
 import { AsyncView } from "./async-view";
+import { Card, Screen } from "./components";
 import { SourceImageFigure } from "./source-images-view";
 import { useAsync } from "./use-async";
 
@@ -34,16 +35,48 @@ function SourceLines({ text, lineStart, lineEnd }: { text: string; lineStart?: n
   const isCited = (line: number): boolean =>
     lineStart !== undefined && line >= lineStart && line <= (lineEnd ?? lineStart);
   return (
-    <ol>
-      {text.split(/\r?\n/).map((line, index) => {
-        const number = index + 1;
-        return (
-          <li key={number} ref={number === lineStart ? firstCited : undefined}>
-            {line}
-          </li>
-        );
-      })}
-    </ol>
+    <Card flush>
+      <ol className="list-decimal overflow-x-auto py-3 pr-4 pl-14 font-mono text-xs leading-5 text-zinc-800 marker:text-zinc-400 dark:text-zinc-200 dark:marker:text-zinc-500">
+        {text.split(/\r?\n/).map((line, index) => {
+          const number = index + 1;
+          return (
+            <li key={number} ref={number === lineStart ? firstCited : undefined}
+              className={`min-h-5 pl-2 break-words whitespace-pre-wrap ${isCited(number) ? "bg-amber-50 dark:bg-amber-500/10" : ""}`}>
+              {line}
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
+  );
+}
+
+/** The images a source declares, or nothing when it has none. */
+function SourceImageGrid({ id, images }: { id: string; images: string[] }): ReactNode {
+  if (images.length === 0) return null;
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      {images.map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}
+    </div>
+  );
+}
+
+/** A link to where the source came from, or nothing when it has no locator. */
+function OriginalLink({ locator }: { locator?: string }): ReactNode {
+  if (!locator) return null;
+  return <a href={locator} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Original</a>;
+}
+
+/** A loaded source: its id and original link in the header, then its images and numbered text. */
+function SourceDocument({ id, source, lineStart, lineEnd }: { id: string; source: LoadedSource; lineStart?: number; lineEnd?: number }): ReactNode {
+  const { meta, text } = source;
+  return (
+    <Screen title={meta.title ?? id} description={<span className="font-mono text-xs break-all">{id}</span>} actions={<OriginalLink locator={meta.locator} />}>
+      <div className="space-y-6">
+        <SourceImageGrid id={id} images={meta.images ?? []} />
+        <SourceLines text={text} lineStart={lineStart} lineEnd={lineEnd} />
+      </div>
+    </Screen>
   );
 }
 
@@ -52,17 +85,7 @@ export function SourceView({ id, lineStart, lineEnd }: SourceViewProps): ReactNo
   const state = useAsync(() => loadSource(id), id);
   return (
     <AsyncView state={state}>
-      {({ meta, text }) => (
-        <article>
-          <h1>{meta.title ?? id}</h1>
-          <p>
-            <span>{id}</span>{" "}
-            {meta.locator && <a href={meta.locator} target="_blank" rel="noreferrer">Original</a>}
-          </p>
-          {(meta.images ?? []).map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}
-          <SourceLines text={text} lineStart={lineStart} lineEnd={lineEnd} />
-        </article>
-      )}
+      {(source) => <SourceDocument id={id} source={source} lineStart={lineStart} lineEnd={lineEnd} />}
     </AsyncView>
   );
 }

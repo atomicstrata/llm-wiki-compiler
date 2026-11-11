@@ -6,6 +6,7 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
+import { Badge, Card, EmptyState, Row, RowList, Screen, SelectField, TextField } from "./components";
 import { relativeAge } from "./recency";
 import { pageHref, sourceHref } from "./route";
 import { entityTypes, isProfileProject, isWarnFreshness, pagesIn, plural, typeLabel } from "./wiki-model";
@@ -35,31 +36,22 @@ export function matchesTitle(pages: PageRow[], filter: string): PageRow[] {
   return pages.filter((page) => words.every((word) => page.title.toLowerCase().includes(word)));
 }
 
-/** A short explanation shown when a list is empty. */
-export function EmptyState({ title, body, command }: { title: string; body: string; command?: string }): ReactNode {
-  return (
-    <div>
-      <strong>{title}</strong>
-      <p>{body}</p>
-      {command && <code>{command}</code>}
-    </div>
-  );
-}
-
-/** One page row: freshness dot, title, citation count, age, and anything the screen adds. */
+/** One page row: title, freshness when it needs attention, citation count, age, and anything the screen adds. */
 export function PageRowItem({ page, now, trailing }: { page: PageRow; now: Date; trailing?: ReactNode }): ReactNode {
   const status = page.freshness.freshnessStatus;
   const warnCitations = page.unresolvedCitationCount > 0;
   return (
-    <li>
-      {isWarnFreshness(status) && <span>{status}</span>}{" "}
-      <a href={pageHref(page.pageDirectory, page.slug)}>{page.title || page.slug}</a>{" "}
-      <span title={warnCitations ? `${page.unresolvedCitationCount} unresolved` : "citations"}>
-        {page.citationCount}
-      </span>{" "}
-      <span>{relativeAge(page.updatedAt, now)}</span>{" "}
-      {trailing}
-    </li>
+    <Row href={pageHref(page.pageDirectory, page.slug)} title={page.title || page.slug}
+      trailing={
+        <>
+          {trailing}
+          {isWarnFreshness(status) && <Badge tone="amber">{status}</Badge>}
+          <span title={warnCitations ? `${page.unresolvedCitationCount} unresolved` : "citations"}>
+            <Badge tone={warnCitations ? "amber" : "neutral"}>{page.citationCount}</Badge>
+          </span>
+        </>
+      }
+      meta={relativeAge(page.updatedAt, now)} />
   );
 }
 
@@ -77,26 +69,23 @@ function PageList({ heading, pages, whenEmpty, freshnessFilter = false }: PageLi
   const now = useMemo(() => new Date(), [pages]);
   const shown = matchesTitle(pages, title).filter((page) => passesFreshness(page, freshness));
   return (
-    <section>
-      <h1>{heading}</h1>
+    <Screen title={heading} description={plural(pages.length, "page")}>
       {pages.length === 0 ? whenEmpty : (
-        <>
-          <div>
-            <input type="search" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Filter by title" aria-label="Filter by title" />
+        <Card flush>
+          <div className="flex flex-wrap items-center gap-3 border-b border-zinc-950/5 p-3 dark:border-white/10">
+            <TextField value={title} onChange={setTitle} placeholder="Filter by title" label="Filter by title" />
             {freshnessFilter && (
-              <label>Freshness
-                <select value={freshness} onChange={(event) => setFreshness(event.target.value as FreshnessFilter)}>
-                  {FRESHNESS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
+              <SelectField value={freshness} onChange={(value) => setFreshness(value as FreshnessFilter)} label="Freshness">
+                {FRESHNESS_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </SelectField>
             )}
-            <span>{shown.length === pages.length ? plural(pages.length, "page") : `${shown.length} of ${pages.length}`}</span>
+            <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{shown.length === pages.length ? plural(pages.length, "page") : `${shown.length} of ${pages.length}`}</span>
           </div>
-          {shown.length === 0 && <p>No pages match this filter.</p>}
-          <ul>{shown.map((page) => <PageRowItem key={page.id} page={page} now={now} />)}</ul>
-        </>
+          {shown.length === 0 && <p className="p-4 text-sm text-zinc-500">No pages match this filter.</p>}
+          <RowList>{shown.map((page) => <PageRowItem key={page.id} page={page} now={now} />)}</RowList>
+        </Card>
       )}
-    </section>
+    </Screen>
   );
 }
 
@@ -129,21 +118,17 @@ export function SourcesList({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [filter, setFilter] = useState("");
   const names = wiki.sourceFilenames.filter((name) => name.toLowerCase().includes(filter.toLowerCase()));
   return (
-    <section>
-      <h1>{isProfileProject(wiki) ? "Raw sources" : "Sources"}</h1>
-      <p>{wiki.counts.compiledSources} compiled · {wiki.counts.sourceFiles} on disk</p>
+    <Screen title={isProfileProject(wiki) ? "Raw sources" : "Sources"} description={`${wiki.counts.compiledSources} compiled · ${wiki.counts.sourceFiles} on disk`}>
       {wiki.sourceFilenames.length === 0 ? (
         <EmptyState title="No sources yet" body="Sources are the raw files the compiler reads. Every claim on a page traces back to a span in one of them." command="$ llmwiki ingest <source>" />
       ) : (
-        <>
-          <div>
-            <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by file name" aria-label="Filter by file name" />
+        <Card flush>
+          <div className="border-b border-zinc-950/5 p-3 dark:border-white/10">
+            <TextField value={filter} onChange={setFilter} placeholder="Filter by file name" label="Filter by file name" />
           </div>
-          <ul>
-            {names.map((name) => <li key={name}><a href={sourceHref(name)}>{name}</a></li>)}
-          </ul>
-        </>
+          <RowList>{names.map((name) => <Row key={name} href={sourceHref(name)} title={<span className="font-mono text-xs">{name}</span>} />)}</RowList>
+        </Card>
       )}
-    </section>
+    </Screen>
   );
 }

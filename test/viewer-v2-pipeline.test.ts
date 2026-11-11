@@ -44,9 +44,9 @@ describe("classifyStates", () => {
 
 describe("row sentences", () => {
   it("labels chips with their role only when it matters", () => {
-    expect(chipLabel({ state: "draft", count: 3, role: "flight", alpha: 1 })).toBe("3 draft");
-    expect(chipLabel({ state: "published", count: 2, role: "terminal", alpha: 1 })).toBe("2 published · terminal");
-    expect(chipLabel({ state: "limbo", count: 1, role: "unreachable", alpha: 0.55 })).toBe("1 limbo · unreachable");
+    expect(chipLabel({ state: "draft", count: 3, role: "flight" })).toBe("3 draft");
+    expect(chipLabel({ state: "published", count: 2, role: "terminal" })).toBe("2 published · terminal");
+    expect(chipLabel({ state: "limbo", count: 1, role: "unreachable" })).toBe("1 limbo · unreachable");
   });
 
   it("states what the profile declared rather than what was derived", () => {

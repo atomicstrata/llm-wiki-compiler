@@ -8,7 +8,7 @@
 import { useMemo, type ReactNode } from "react";
 import { fetchReviews, type HeldReason, type ReviewCandidate, type ReviewsEnvelope } from "./api";
 import { AsyncView } from "./async-view";
-import { EmptyState } from "./lists";
+import { Badge, Card, Code, EmptyState, RowList, Screen, TextLink } from "./components";
 import { relativeAge } from "./recency";
 import { useAsync } from "./use-async";
 import { plural } from "./wiki-model";
@@ -42,7 +42,7 @@ export function targetDirectoryOf(review: ReviewCandidate): string {
 
 /** The chip reads as human wording; the structured detail explains the hold on hover. */
 function ReasonChip({ reason }: { reason: HeldReason }): ReactNode {
-  return <span title={reason.detail || undefined}>{HELD_REASON_LABELS[reason.code] ?? reason.code}</span>;
+  return <span title={reason.detail || undefined}><Badge tone="amber">{HELD_REASON_LABELS[reason.code] ?? reason.code}</Badge></span>;
 }
 
 /** The title is plain text, not a link: the page does not exist in `wiki/` yet. */
@@ -50,11 +50,14 @@ function ReviewRow({ review, now }: { review: ReviewCandidate; now: Date }): Rea
   const summary = review.summary.trim();
   const from = review.sources.length > 0 ? review.sources.join(" · ") : "No sources recorded";
   return (
-    <li>
-      <div><strong>{review.title || review.slug}</strong>{" "}<span>{relativeAge(review.generatedAt, now)}</span></div>
-      <p>{summary.length > 0 ? summary : "No summary recorded."}</p>
-      <p>{from} → wiki/{targetDirectoryOf(review)}/</p>
-      <div>{review.heldReasons.map((reason, index) => <ReasonChip key={index} reason={reason} />)}</div>
+    <li className="space-y-1.5 px-4 py-3 text-sm">
+      <div className="flex items-baseline gap-3">
+        <strong className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{review.title || review.slug}</strong>{" "}
+        <span className="shrink-0 text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{relativeAge(review.generatedAt, now)}</span>
+      </div>
+      <p className="text-zinc-600 dark:text-zinc-300">{summary.length > 0 ? summary : "No summary recorded."}</p>
+      <p className="font-mono text-xs break-all text-zinc-500 dark:text-zinc-400">{from} → wiki/{targetDirectoryOf(review)}/</p>
+      <div className="flex flex-wrap gap-1.5">{review.heldReasons.map((reason, index) => <ReasonChip key={index} reason={reason} />)}</div>
     </li>
   );
 }
@@ -64,17 +67,20 @@ export function ReviewsList({ payload }: { payload: ReviewsEnvelope }): ReactNod
   const now = useMemo(() => new Date(), [payload]);
   const shown = payload.reviews.length;
   return (
-    <section>
-      <h1>Reviews</h1>
-      {payload.sourceChanges === true && <p><a href="#/source-changes">Compare changed sources and proposed wiki updates</a></p>}
-      {payload.total > shown && <p>Showing {shown} of {plural(payload.total, "pending candidate")} · {FULL_QUEUE_COMMAND} shows the whole queue</p>}
-      {shown === 0 ? (
-        <EmptyState title="Nothing awaiting review" command="$ llmwiki compile --review"
-          body="Review candidates are pages the compiler held back instead of writing live. Approve one with the CLI and it becomes a wiki page." />
-      ) : (
-        <ul>{payload.reviews.map((review) => <ReviewRow key={review.id} review={review} now={now} />)}</ul>
-      )}
-    </section>
+    <Screen title="Reviews">
+      <div className="space-y-4">
+        {payload.sourceChanges === true && <p><TextLink href="#/source-changes">Compare changed sources and proposed wiki updates</TextLink></p>}
+        {payload.total > shown && <p className="text-sm text-zinc-500 dark:text-zinc-400">Showing {shown} of {plural(payload.total, "pending candidate")} · <Code>{FULL_QUEUE_COMMAND}</Code> shows the whole queue</p>}
+        {shown === 0 ? (
+          <EmptyState title="Nothing awaiting review" command="$ llmwiki compile --review"
+            body="Review candidates are pages the compiler held back instead of writing live. Approve one with the CLI and it becomes a wiki page." />
+        ) : (
+          <Card flush>
+            <RowList>{payload.reviews.map((review) => <ReviewRow key={review.id} review={review} now={now} />)}</RowList>
+          </Card>
+        )}
+      </div>
+    </Screen>
   );
 }
 

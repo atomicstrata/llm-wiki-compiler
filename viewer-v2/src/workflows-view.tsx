@@ -10,7 +10,7 @@
 import type { ReactNode } from "react";
 import { fetchWorkflowRuns, type WorkflowRunRow, type WorkflowRunsEnvelope } from "./api-workflows";
 import { AsyncView } from "./async-view";
-import { EmptyState } from "./lists";
+import { Badge, Card, Code, EmptyState, RowList, Screen, type Tone } from "./components";
 import { journeyHref } from "./route";
 import { useAsync } from "./use-async";
 
@@ -23,6 +23,12 @@ const CLASSIFICATION_LABELS: Partial<Record<WorkflowRunRow["classification"], st
   historical: "History",
   "needs-adaptation": "Project setup has changed",
   "blocked-by-config": "Project configuration needs attention",
+};
+
+/** A classification chip reads louder the less the run can be acted on. */
+const CLASSIFICATION_TONES: Partial<Record<WorkflowRunRow["classification"], Tone>> = {
+  "needs-adaptation": "amber",
+  "blocked-by-config": "red",
 };
 
 const NO_STAGE = "no active step";
@@ -82,7 +88,10 @@ function RunFlags({ run }: { run: WorkflowRunRow }): ReactNode {
   const parked = parkLabels(run);
   if (parked.length === 0 && classification === undefined) return null;
   return (
-    <div>{[...parked, ...(classification ? [classification] : [])].join(" · ")}</div>
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {parked.map((label) => <Badge key={label} tone="amber">{label}</Badge>)}
+      {classification && <Badge tone={CLASSIFICATION_TONES[run.classification] ?? "neutral"}>{classification}</Badge>}
+    </div>
   );
 }
 
@@ -91,15 +100,17 @@ function RunRow({ run }: { run: WorkflowRunRow }): ReactNode {
   const workflow = run.workflow?.trim() ?? "";
   const stage = run.currentStage?.trim() ?? "";
   return (
-    <li>
-      <div>
-        {workflow ? <a href={journeyHref(workflow, run.runId)}>{workflow}</a> : <span>Unknown workflow</span>}{" "}
-        <span>{run.runId}</span>
+    <li className="px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        {workflow
+          ? <a href={journeyHref(workflow, run.runId)} className="font-medium text-zinc-900 hover:text-indigo-600 dark:text-zinc-100 dark:hover:text-indigo-400">{workflow}</a>
+          : <span className="font-medium text-zinc-500 dark:text-zinc-400">Unknown workflow</span>}{" "}
+        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{run.runId}</span>
       </div>
-      <p>{run.status || "unknown"} · {stage || NO_STAGE}</p>
+      <p className="mt-0.5 text-zinc-500 dark:text-zinc-400">{run.status || "unknown"} · {stage || NO_STAGE}</p>
       <RunFlags run={run} />
-      {run.awaitingTrustGate === true && <p>{TRUST_GATE_NOTE}</p>}
-      {nextCommands(run).map((command) => <p key={command}><code>{command}</code></p>)}
+      {run.awaitingTrustGate === true && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{TRUST_GATE_NOTE}</p>}
+      {nextCommands(run).map((command) => <p key={command} className="mt-2"><Code>{command}</Code></p>)}
     </li>
   );
 }
@@ -107,12 +118,12 @@ function RunRow({ run }: { run: WorkflowRunRow }): ReactNode {
 /** An unreadable run or store: what the trouble is attributed to, and why. */
 function ProblemRow({ run }: { run: WorkflowRunRow }): ReactNode {
   return (
-    <li>
-      <div>
-        <span>{run.runId || "Unknown run"}</span>{" "}
-        <span>Problem</span>
+    <li className="px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{run.runId || "Unknown run"}</span>{" "}
+        <Badge tone="red">Problem</Badge>
       </div>
-      <p>{run.problem}</p>
+      <p className="mt-1 text-red-700 dark:text-red-400">{run.problem}</p>
     </li>
   );
 }
@@ -120,8 +131,7 @@ function ProblemRow({ run }: { run: WorkflowRunRow }): ReactNode {
 /** The run list for a loaded envelope. */
 export function WorkflowRuns({ payload }: { payload: WorkflowRunsEnvelope }): ReactNode {
   return (
-    <section>
-      <h1>Workflows</h1>
+    <Screen title="Workflows">
       {payload.runs.length === 0 ? (
         <EmptyState
           title="No workflow runs"
@@ -129,11 +139,13 @@ export function WorkflowRuns({ payload }: { payload: WorkflowRunsEnvelope }): Re
           command="$ llmwiki workflow list"
         />
       ) : (
-        <ul>
-          {payload.runs.map((run) => (run.problem ? <ProblemRow key={run.runId} run={run} /> : <RunRow key={run.runId} run={run} />))}
-        </ul>
+        <Card flush>
+          <RowList>
+            {payload.runs.map((run) => (run.problem ? <ProblemRow key={run.runId} run={run} /> : <RunRow key={run.runId} run={run} />))}
+          </RowList>
+        </Card>
       )}
-    </section>
+    </Screen>
   );
 }
 

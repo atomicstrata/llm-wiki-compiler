@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import type { ConnectorProvenance, EntityContext, EntityRelation, GraphData, PagePayload, PagesEnvelope, SourceSpan } from "./api";
 import { AsyncView } from "./async-view";
+import { Badge, DefinitionRows } from "./components";
 import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageCitationCounts, pageKind, spanLabel } from "./page-model";
 import { pageIdHref, sourceHref } from "./route";
 import type { AsyncState } from "./use-async";
@@ -15,8 +16,8 @@ import { formatUtcTimestamp, isWarnFreshness, typeLabel } from "./wiki-model";
 /** A rail section with the small uppercase heading. */
 function RailSection({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <section>
-      <h2>{title}</h2>
+    <section className="rounded-xl bg-white p-4 text-sm shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
+      <h2 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">{title}</h2>
       {children}
     </section>
   );
@@ -26,11 +27,7 @@ function RailSection({ title, children }: { title: string; children: ReactNode }
 function FreshnessValue({ page }: { page: PagePayload }): ReactNode {
   const { freshnessStatus, contradicted, archived } = page.freshness;
   const flags = [freshnessStatus, contradicted ? "contradicted" : "", archived ? "archived" : ""].filter((flag) => flag.length > 0);
-  return (
-    <>
-      {flags.join(" · ")}
-    </>
-  );
+  return <>{flags.join(" · ")}</>;
 }
 
 function MetadataSection({ page }: { page: PagePayload }): ReactNode {
@@ -41,11 +38,11 @@ function MetadataSection({ page }: { page: PagePayload }): ReactNode {
     ["Created", formatUtcTimestamp(page.createdAt)],
     ["Updated", formatUtcTimestamp(page.updatedAt)],
     ["Citations", counts.total],
-    ["Unresolved", <span>{counts.unresolved}</span>],
+    ["Unresolved", <span className={counts.unresolved > 0 ? "text-amber-600 dark:text-amber-400" : ""}>{counts.unresolved}</span>],
   ];
   return (
     <RailSection title="Metadata">
-      <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      <DefinitionRows rows={rows} />
     </RailSection>
   );
 }
@@ -53,20 +50,33 @@ function MetadataSection({ page }: { page: PagePayload }): ReactNode {
 /** A cited span: a link to the source at its lines when the file exists, otherwise a marked label. */
 function SpanLink({ span, resolved }: { span: SourceSpan; resolved: boolean }): ReactNode {
   const label = spanLabel(span);
-  if (!resolved) return <span data-resolved="false">{label} <span>not found</span></span>;
-  return <a data-resolved="true" href={sourceHref(span.file, span.lines?.start, span.lines?.end)}>{label}</a>;
+  if (!resolved) return <span data-resolved="false" className="font-mono text-xs break-all text-zinc-400">{label} <Badge tone="amber">not found</Badge></span>;
+  return <a data-resolved="true" href={sourceHref(span.file, span.lines?.start, span.lines?.end)} className="font-mono text-xs break-all text-indigo-600 hover:underline dark:text-indigo-400">{label}</a>;
+}
+
+/** A cited range as a small chip under its file: a link when the file exists, struck through when it does not. */
+function LineChip({ span, resolved }: { span: SourceSpan; resolved: boolean }): ReactNode {
+  const lines = span.lines ? (span.lines.start === span.lines.end ? `L${span.lines.start}` : `L${span.lines.start}–${span.lines.end}`) : "whole file";
+  if (!resolved) return <span data-resolved="false" className="rounded bg-amber-50 px-1.5 py-0.5 font-mono text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">{lines} · not found</span>;
+  return (
+    <a data-resolved="true" href={sourceHref(span.file, span.lines?.start, span.lines?.end)} title={spanLabel(span)}
+      className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs text-zinc-600 hover:bg-indigo-50 hover:text-indigo-700 dark:bg-white/5 dark:text-zinc-400 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300">
+      {lines}
+    </a>
+  );
 }
 
 function CitationsSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelope }): ReactNode {
   const groups = groupCitationsByFile(page.citations, wiki.sourceFilenames);
   return (
     <RailSection title="Citations">
-      {groups.length === 0 ? <p>No citations.</p> : (
-        <ul>
+      {groups.length === 0 ? <p className="text-zinc-500">No citations.</p> : (
+        <ul role="list" className="space-y-3">
           {groups.map((group) => (
             <li key={group.file} data-file={group.file}>
-              <ul>
-                {group.spans.map((span) => <li key={spanLabel(span)}><SpanLink span={span} resolved={group.resolved} /></li>)}
+              <p className="truncate font-mono text-xs text-zinc-700 dark:text-zinc-300" title={group.file}>{group.file}</p>
+              <ul role="list" className="mt-1 flex flex-wrap gap-1">
+                {group.spans.map((span) => <li key={spanLabel(span)}><LineChip span={span} resolved={group.resolved} /></li>)}
               </ul>
             </li>
           ))}
@@ -78,10 +88,10 @@ function CitationsSection({ page, wiki }: { page: PagePayload; wiki: PagesEnvelo
 
 /** Page ids as links titled from the envelope, or an empty note. */
 function PageLinks({ ids, wiki, whenEmpty }: { ids: string[]; wiki: PagesEnvelope; whenEmpty: string }): ReactNode {
-  if (ids.length === 0) return <p>{whenEmpty}</p>;
+  if (ids.length === 0) return <p className="text-zinc-500">{whenEmpty}</p>;
   return (
-    <ul>
-      {ids.map((id) => <li key={id}><a href={pageIdHref(id)}>{wiki.pages.find((page) => page.id === id)?.title || id}</a></li>)}
+    <ul role="list" className="space-y-1">
+      {ids.map((id) => <li key={id}><a href={pageIdHref(id)} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{wiki.pages.find((page) => page.id === id)?.title || id}</a></li>)}
     </ul>
   );
 }
@@ -89,14 +99,18 @@ function PageLinks({ ids, wiki, whenEmpty }: { ids: string[]; wiki: PagesEnvelop
 function ConnectionsSection({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData> }): ReactNode {
   return (
     <RailSection title="Connections">
-      <h3>Links out</h3>
+      <h3 className="mb-1 font-medium text-zinc-900 dark:text-zinc-100">Links out</h3>
       <PageLinks ids={page.outgoingLinks} wiki={wiki} whenEmpty="No outgoing links." />
-      <h3>Backlinks</h3>
+      <h3 className="mt-4 mb-1 font-medium text-zinc-900 dark:text-zinc-100">Backlinks</h3>
       <AsyncView state={graph}>
         {(data) => {
           const links = backlinksFrom(data, page.id);
-          if (links.length === 0) return <p>No backlinks.</p>;
-          return <ul>{links.map((link) => <li key={link.id}><a href={link.href}>{link.title}</a></li>)}</ul>;
+          if (links.length === 0) return <p className="text-zinc-500">No backlinks.</p>;
+          return (
+            <ul role="list" className="space-y-1">
+              {links.map((link) => <li key={link.id}><a href={link.href} className="text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-indigo-400">{link.title}</a></li>)}
+            </ul>
+          );
         }}
       </AsyncView>
     </RailSection>

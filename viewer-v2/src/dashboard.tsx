@@ -5,6 +5,7 @@
  */
 import { useMemo, useState, type ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope, RecentPage } from "./api";
+import { Badge, Button, ButtonLink, Card, DefinitionRows, Row, RowList, Stat, TextLink, type Tone } from "./components";
 import { GraphCanvas, GraphLegend } from "./graph-canvas";
 import type { GraphControls } from "./graph-layout";
 import { relativeAge } from "./recency";
@@ -19,6 +20,8 @@ interface StatCard {
   sub: string;
   tone?: "warn" | "calm";
 }
+
+const CARD_TONE: Record<"warn" | "calm", Tone> = { warn: "amber", calm: "green" };
 
 /** The four cards: the inventory card changes with the profile, the rest are fixed. */
 function statCards(wiki: PagesEnvelope, dangling: number, unresolved: number): StatCard[] {
@@ -42,14 +45,14 @@ function Hero({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const pages = vocabulary ? vocabulary.pageCount : wiki.counts.concepts;
   const citations = vocabulary ? vocabulary.citationCount : citationTotals(wiki.pages).total;
   return (
-    <div>
+    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
       <div>
-        <strong>Your knowledge base is ready.</strong>
-        <p>{plural(pages, "page")}, {plural(citations, "citation")} traced to source spans.</p>
+        <p className="font-semibold text-zinc-950 dark:text-white">Your knowledge base is ready.</p>
+        <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{plural(pages, "page")}, {plural(citations, "citation")} traced to source spans.</p>
       </div>
-      <div>
-        {wiki.index.available && <a href="#/index">Browse compiled index →</a>}{" "}
-        <a href="#/graph">Explore graph</a>
+      <div className="flex flex-wrap gap-2">
+        {wiki.index.available && <ButtonLink href="#/index" primary>Browse compiled index →</ButtonLink>}{" "}
+        <ButtonLink href="#/graph">Explore graph</ButtonLink>
       </div>
     </div>
   );
@@ -60,12 +63,9 @@ function RecentRow({ recent, wiki, now }: { recent: RecentPage; wiki: PagesEnvel
   const page = wiki.pages.find((row) => row.id === recent.id);
   const status = page?.freshness.freshnessStatus ?? "unverified";
   return (
-    <li>
-      {isWarnFreshness(status) && <span>{status}</span>}{" "}
-      <a href={pageHref(recent.pageDirectory, recent.slug)}>{recent.title || recent.slug}</a>{" "}
-      <span>{page?.citationCount ?? 0}</span>{" "}
-      <span>{relativeAge(recent.updatedAt, now)}</span>
-    </li>
+    <Row href={pageHref(recent.pageDirectory, recent.slug)} title={recent.title || recent.slug}
+      trailing={<>{isWarnFreshness(status) && <Badge tone="amber">{status}</Badge>}<Badge>{page?.citationCount ?? 0}</Badge></>}
+      meta={relativeAge(recent.updatedAt, now)} />
   );
 }
 
@@ -73,15 +73,14 @@ function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = useMemo(() => new Date(), [wiki]);
   const profile = profileVocabulary(wiki) !== null;
   return (
-    <section>
-      <div><span>{profile ? "Recently updated" : "Recently compiled"}</span>{" "}<a href="#/recent">View all</a></div>
+    <Card flush title={profile ? "Recently updated" : "Recently compiled"} action={<TextLink href="#/recent">View all</TextLink>}
+      footer={<><span>cited pages, most recent first</span>{" "}<TextLink href="#/recent">All {plural(wiki.pages.length, "page")} →</TextLink></>}>
       {wiki.recentPages.length === 0 ? (
-        <p>{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
+        <p className="p-4 text-sm text-zinc-500">{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
       ) : (
-        <ul>{wiki.recentPages.map((recent) => <RecentRow key={recent.id} recent={recent} wiki={wiki} now={now} />)}</ul>
+        <RowList>{wiki.recentPages.map((recent) => <RecentRow key={recent.id} recent={recent} wiki={wiki} now={now} />)}</RowList>
       )}
-      <div><span>cited pages, most recent first</span>{" "}<a href="#/recent">All {plural(wiki.pages.length, "page")} →</a></div>
-    </section>
+    </Card>
   );
 }
 
@@ -90,19 +89,18 @@ function GraphPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [controls, setControls] = useState<GraphControls | null>(null);
   const { nodeCount, edgeCount, danglingCount } = wiki.graph;
   return (
-    <section>
-      <div>
-        <span>Knowledge graph</span>{" "}
-        <span>
-          <button type="button" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
-          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer">⤢</a>
+    <Card title="Knowledge graph"
+      action={
+        <span className="flex items-center gap-2">
+          <Button disabled={controls === null} onClick={() => controls?.fit()}>Fit</Button>
+          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">⤢</a>
         </span>
-      </div>
-      <p>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
+      }
+      footer={<><span>hover a node to inspect</span>{" "}<span>{plural(danglingCount, "dangling target")}</span></>}>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
       <GraphLegend compact />
-      <div><GraphCanvas wiki={wiki} compact onSettled={setControls} /></div>
-      <div><span>hover a node to inspect</span>{" "}<span>{plural(danglingCount, "dangling target")}</span></div>
-    </section>
+      <GraphCanvas wiki={wiki} compact onSettled={setControls} />
+    </Card>
   );
 }
 
@@ -119,15 +117,14 @@ function Receipt({ wiki, health, totals }: { wiki: PagesEnvelope; health: Health
     ["Lint", lint === null ? "never run" : plural(lint, "finding")],
   ];
   return (
-    <section>
-      <div><span>Compile receipt</span></div>
-      <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-      <div>
-        <div><span>Citations resolved</span>{" "}<span>{percent}%</span></div>
-        <meter min={0} max={100} value={percent} />
-        <p>{resolved} of {totals.total} citations resolve to a source file</p>
+    <Card title="Compile receipt">
+      <DefinitionRows rows={rows} />
+      <div className="mt-4 border-t border-zinc-950/5 pt-4 dark:border-white/10">
+        <div className="flex justify-between text-sm"><span className="text-zinc-500 dark:text-zinc-400">Citations resolved</span>{" "}<span className="font-medium tabular-nums">{percent}%</span></div>
+        <meter min={0} max={100} value={percent} className="mt-2 h-2 w-full" />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{resolved} of {totals.total} citations resolve to a source file</p>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -146,32 +143,35 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
   const totals = citationTotals(wiki.pages);
   const dangling = wiki.graph.danglingCount;
   return (
-    <div>
-      <div>
-        {statCards(wiki, dangling, totals.unresolved).map((card) => (
-          <div key={card.key} data-stat={card.key}>
-            <div><span>{card.label}</span>{" "}<span>{card.badge}</span></div>
-            <strong>{card.value}</strong>{" "}
-            <span>{card.sub}</span>
-          </div>
-        ))}
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {statCards(wiki, dangling, totals.unresolved).map((card) => {
+          const tone = card.tone ? CARD_TONE[card.tone] : "neutral";
+          return (
+            <div key={card.key} data-stat={card.key}>
+              <Stat label={card.label} value={card.value} detail={card.sub} tone={tone} badge={card.tone && <Badge tone={tone}>{card.badge}</Badge>} />
+            </div>
+          );
+        })}
+      </dl>
       <Hero wiki={wiki} />
-      <div>
+      <div className="grid gap-6 lg:grid-cols-2">
         <RecentPanel wiki={wiki} />
         <GraphPanel wiki={wiki} />
       </div>
-      <div>
+      <div className="grid gap-6 lg:grid-cols-2">
         <Receipt wiki={wiki} health={health} totals={totals} />
-        <section>
-          <div><span>Next actions</span></div>
-          <ul>
+        <Card title="Next actions"
+          footer={<span>The viewer rereads the wiki from disk every few seconds, so a compile shows up without a restart.</span>}>
+          <ul role="list" className="space-y-3">
             {nextActions(wiki, health, dangling).map((row) => (
-              <li key={row.title}><span>{row.glyph}</span>{" "}<span><strong>{row.title}</strong>{" "}<span>{row.hint}</span></span></li>
+              <li key={row.title} className="flex gap-3 text-sm">
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-zinc-950/5 text-zinc-500 dark:bg-white/5 dark:text-zinc-400" aria-hidden="true">{row.glyph}</span>{" "}
+                <span className="min-w-0"><strong className="block font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong>{" "}<span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{row.hint}</span></span>
+              </li>
             ))}
           </ul>
-          <p>The viewer rereads the wiki from disk every few seconds, so a compile shows up without a restart.</p>
-        </section>
+        </Card>
       </div>
     </div>
   );

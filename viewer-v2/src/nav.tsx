@@ -100,9 +100,10 @@ function NavRow({ item, zero, active, label }: { item: NavItem; zero: ZeroDispla
   const count = countText(item, zero);
   return (
     <li>
-      <a className="aria-[current=page]:font-bold" href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}>
-        <span>{label}</span>{" "}
-        {count !== null && <span>{count}</span>}
+      <a href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}
+        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-600 hover:bg-zinc-950/5 hover:text-zinc-950 aria-[current=page]:bg-zinc-950/5 aria-[current=page]:font-medium aria-[current=page]:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/5 dark:aria-[current=page]:text-white">
+        <span className="min-w-0 flex-1 truncate">{label}</span>{" "}
+        {count !== null && <span className="text-xs text-zinc-400 tabular-nums dark:text-zinc-500">{count}</span>}
       </a>
     </li>
   );
@@ -120,24 +121,19 @@ export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   const profile = isProfileProject(wiki);
   const typeLabels = new Set(browseItems(wiki).map((item) => item.label));
   return (
-    <nav aria-label="Wiki navigation" className="p-4">
-      <div>
-        <span>PROJECT</span>{" "}
-        <strong>{wiki.project.title || "llmwiki"}</strong>{" "}
-        <span>LOCAL · READ ONLY</span>
-      </div>
-      <ul>
+    <nav aria-label="Wiki navigation" className="space-y-6 px-3 py-5">
+      <ul role="list" className="space-y-0.5">
         <NavRow item={{ route: "home", href: "#/", label: "Dashboard" }} zero="dash" active={active === "home"} label="Dashboard" />
       </ul>
       {sections(wiki, health).map((section) => (
         <section key={section.label}>
-          <h2>
+          <h2 className="mb-1 flex justify-between px-2 text-xs font-medium tracking-wide text-zinc-400 dark:text-zinc-500">
             {section.label}
             {section.label === "CATEGORIES" && (
-              <span>{entityTypes(wiki).length > MANY_TYPES ? `${wiki.profileId} · ${entityTypes(wiki).length}` : wiki.profileId}</span>
+              <span className="font-normal normal-case">{entityTypes(wiki).length > MANY_TYPES ? `${wiki.profileId} · ${entityTypes(wiki).length}` : wiki.profileId}</span>
             )}
           </h2>
-          <ul>
+          <ul role="list" className="space-y-0.5">
             {section.items
               .filter((item) => !item.profileOnly || profile)
               .map((item) => (

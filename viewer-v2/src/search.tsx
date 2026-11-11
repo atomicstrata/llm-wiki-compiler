@@ -85,20 +85,22 @@ export function SearchBox({ initialQuery }: { initialQuery: string }): ReactNode
   };
   const showList = open && query.trim().length > 0;
   return (
-    <form className="relative" role="search" onSubmit={onSubmit} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <form className="relative ml-auto w-full min-w-0 max-w-sm" role="search" onSubmit={onSubmit} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
       <input ref={input} type="search" value={query} placeholder="Search…" aria-label="Search wiki"
+        className="block w-full rounded-md bg-zinc-950/5 py-1.5 pr-10 pl-3 text-sm text-zinc-900 placeholder:text-zinc-500 focus:bg-white focus:ring-2 focus:ring-indigo-600 focus:outline-none dark:bg-white/5 dark:text-white dark:focus:bg-zinc-900 dark:focus:ring-indigo-500"
         onChange={(event) => { setQuery(event.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onInputKey} />
-      <span aria-hidden="true">⌘K</span>{" "}
+      <kbd aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-2 my-auto hidden h-5 rounded sm:block border border-zinc-950/10 px-1 font-sans text-xs text-zinc-400 dark:border-white/10">⌘K</kbd>
       {showList && (
-        <ul ref={list} className="absolute z-10 border bg-white p-2 dark:bg-black" role="listbox" aria-label="Search results" onKeyDown={(event) => onResultKey(event, input.current)}>
-          {error !== null && <li>Search failed: {error}</li>}
-          {error === null && results.length === 0 && <li>No matches.</li>}
+        <ul ref={list} className="absolute inset-x-0 top-full z-40 mt-2 max-h-[70vh] overflow-y-auto rounded-xl bg-white p-1 shadow-lg ring-1 ring-zinc-950/10 sm:-right-24 dark:bg-zinc-900 dark:ring-white/10" role="listbox" aria-label="Search results" onKeyDown={(event) => onResultKey(event, input.current)}>
+          {error !== null && <li className="px-3 py-2 text-sm text-red-600 dark:text-red-400">Search failed: {error}</li>}
+          {error === null && results.length === 0 && <li className="px-3 py-2 text-sm text-zinc-500">No matches.</li>}
           {results.map((result) => (
             <li key={result.id} role="option">
-              <a href={pageIdHref(result.id)} onClick={() => { setQuery(""); setOpen(false); }}>
-                <span>{resultKind(result)}</span>{" "}
-                <span>{result.title || result.id}</span>{" "}
-                {result.matchedIn === "body" && <span>{plainSnippet(result.snippet)}</span>}
+              <a href={pageIdHref(result.id)} onClick={() => { setQuery(""); setOpen(false); }}
+                className="block rounded-lg px-3 py-2 hover:bg-zinc-950/5 focus:bg-zinc-950/5 focus:outline-none dark:hover:bg-white/5 dark:focus:bg-white/5">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">{resultKind(result)}</span>{" "}
+                <span className="block truncate text-sm font-medium text-zinc-900 dark:text-white">{result.title || result.id}</span>{" "}
+                {result.matchedIn === "body" && <span className="mt-0.5 line-clamp-2 block text-xs text-zinc-500 dark:text-zinc-400">{plainSnippet(result.snippet)}</span>}
               </a>
             </li>
           ))}

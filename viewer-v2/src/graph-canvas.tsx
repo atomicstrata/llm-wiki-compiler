@@ -33,19 +33,21 @@ const TOOLTIP_EDGE_GAP = 8;
 /** The legend: node colours, then in the explorer edge kinds and the size rule. */
 export function GraphLegend({ compact }: { compact: boolean }): ReactNode {
   const nodeRows = NODE_LEGEND.map((row) => (
-    <span key={row.kind}><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{" "}{row.label}{" "}</span>
+    <span key={row.kind} className="inline-flex items-center gap-1"><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{" "}{row.label}{" "}</span>
   ));
-  if (compact) return <div>{nodeRows}<span>size = degree</span></div>;
+  if (compact) {
+    return <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">{nodeRows}<span className="ml-auto">size = degree</span></div>;
+  }
   return (
-    <div>
-      <div>Node kind</div>
-      {nodeRows}
-      <div>Edge kind</div>
+    <div className="absolute top-3 right-3 space-y-1 rounded-lg bg-white/90 p-3 text-xs text-zinc-600 shadow-sm ring-1 ring-zinc-950/5 backdrop-blur dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-white/10">
+      <div className="font-medium text-zinc-900 dark:text-zinc-100">Node kind</div>
+      <div className="flex flex-col gap-0.5">{nodeRows}</div>
+      <div className="pt-1 font-medium text-zinc-900 dark:text-zinc-100">Edge kind</div>
       {EDGE_LEGEND.map((row) => (
-        <span key={row.kind}>{row.kind === "relation" ? "╌ " : "─ "}{row.label} </span>
+        <span key={row.kind} className="block">{row.kind === "relation" ? "╌ " : "─ "}{row.label} </span>
       ))}
-      <div>Node size</div>
-      <span>larger = more connections</span>
+      <div className="pt-1 font-medium text-zinc-900 dark:text-zinc-100">Node size</div>
+      <span className="block">larger = more connections</span>
     </div>
   );
 }
@@ -135,12 +137,12 @@ function Arrowhead({ id }: { id: string }): ReactNode {
 /** Title, kind and degree of the hovered node; the hint only when a click goes somewhere. */
 function Tooltip({ node, tooltipRef }: { node: GraphNode | null; tooltipRef: RefObject<HTMLDivElement | null> }): ReactNode {
   return (
-    <div ref={tooltipRef} hidden={node === null} className="pointer-events-none absolute border bg-white p-2 text-sm dark:bg-black">
+    <div ref={tooltipRef} hidden={node === null} className="pointer-events-none absolute z-10 max-w-64 rounded-lg bg-white px-3 py-2 text-xs shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:ring-white/10">
       {node && (
         <>
-          <div>{node.title}</div>
-          <div>{nodeMeta(node)}</div>
-          {!node.isDangling && <div>Click to open page</div>}
+          <div className="font-medium text-zinc-900 dark:text-white">{node.title}</div>
+          <div className="text-zinc-500 dark:text-zinc-400">{nodeMeta(node)}</div>
+          {!node.isDangling && <div className="mt-1 text-indigo-600 dark:text-indigo-400">Click to open page</div>}
         </>
       )}
     </div>
@@ -163,8 +165,8 @@ function Drawing({ data, stale, compact, onSettled }: SurfaceProps): ReactNode {
   };
   return (
     <div className="relative">
-      {!settled && <p role="status">Arranging graph…</p>}
-      <svg ref={svgRef} data-settled={settled} data-compact={compact} className={compact ? "h-72 w-full" : "h-[70vh] w-full"}>
+      {!settled && <p role="status" className="absolute inset-0 grid place-items-center text-sm text-zinc-500">Arranging graph…</p>}
+      <svg ref={svgRef} data-settled={settled} data-compact={compact} className={compact ? "h-72 w-full text-zinc-400" : "h-[70vh] w-full text-zinc-400"}>
         <Arrowhead id={markerId} />
         <g ref={viewportRef}>
           <g>{data.edges.map((edge, index) => <EdgeLine key={`${edge.source}|${edge.target}|${index}`} edge={edge} markerId={markerId} />)}</g>

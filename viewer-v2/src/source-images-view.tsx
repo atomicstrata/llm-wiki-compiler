@@ -28,12 +28,13 @@ async function loadSourceImages(sourceIds: string[]): Promise<SourceImage[]> {
 /** One image with a caption linking to the source it came from. */
 export function SourceImageFigure({ sourceId, file }: SourceImage): ReactNode {
   return (
-    <figure>
-      <a href={sourceImageUrl(sourceId, file)} target="_blank" rel="noreferrer">
-        <img src={sourceImageUrl(sourceId, file)} alt={`Original image from ${sourceId}`} loading="lazy" />
+    <figure className="min-w-0">
+      <a href={sourceImageUrl(sourceId, file)} target="_blank" rel="noreferrer" className="block">
+        <img src={sourceImageUrl(sourceId, file)} alt={`Original image from ${sourceId}`} loading="lazy"
+          className="w-full rounded-lg bg-zinc-100 ring-1 ring-zinc-950/5 dark:bg-white/5 dark:ring-white/10" />
       </a>
-      <figcaption>
-        From <a href={sourceHref(sourceId)}>{sourceId}</a>
+      <figcaption className="mt-1.5 truncate text-xs text-zinc-500 dark:text-zinc-400">
+        From <a href={sourceHref(sourceId)} className="font-mono text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">{sourceId}</a>
       </figcaption>
     </figure>
   );
@@ -48,8 +49,10 @@ export function SourceImages({ sourceIds }: { sourceIds: string[] }): ReactNode 
     <AsyncView state={state}>
       {(images) => images.length > 0 && (
         <section aria-label="Images from cited sources">
-          <h2>Images</h2>
-          {images.map((image) => <SourceImageFigure key={`${image.sourceId}/${image.file}`} {...image} />)}
+          <h2 className="mb-3 text-sm font-semibold text-zinc-950 dark:text-white">Images</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            {images.map((image) => <SourceImageFigure key={`${image.sourceId}/${image.file}`} {...image} />)}
+          </div>
         </section>
       )}
     </AsyncView>

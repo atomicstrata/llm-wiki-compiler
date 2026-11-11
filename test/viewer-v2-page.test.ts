@@ -11,7 +11,7 @@ import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pag
 import { PageRail } from "../viewer-v2/src/page-rail.js";
 import { PageBody, PageHeader } from "../viewer-v2/src/page-view.js";
 import type { AsyncState } from "../viewer-v2/src/use-async.js";
-import { envelope, graph, page, pagePayload } from "./fixtures/viewer-v2-fixtures.js";
+import { envelope, graph, page, pagePayload, text } from "./fixtures/viewer-v2-fixtures.js";
 
 const WIKI = envelope({ sourceFilenames: ["notes.md"], pages: [page({ id: "concepts/beta" }), page({ id: "concepts/alpha" })] });
 
@@ -56,9 +56,9 @@ describe("PageHeader and PageBody", () => {
       warnings: [{ code: "missing_title", message: "" }, { code: "unresolved_citation", message: "Source not found: gone.md" }],
     });
     const html = renderToStaticMarkup(createElement(PageHeader, { page: query }));
-    expect(html).toContain("<h1>why-cone-6</h1>");
+    expect(html).toMatch(/<h1[^>]*>why-cone-6<\/h1>/);
     expect(html).toContain("Question: why-cone-6");
-    expect(html).toContain('data-code="missing_title">missing_title<');
+    expect(html).toMatch(/data-code="missing_title"[^>]*>missing_title</);
     expect(html).toContain("Source not found: gone.md");
   });
 
@@ -74,21 +74,19 @@ describe("PageHeader and PageBody", () => {
 describe("PageRail", () => {
   it("shows metadata with the list's freshness dot and the list row's counts", () => {
     const html = rail(PAGE, { status: "ready", data: GRAPH });
-    expect(html).toContain("<dt>Freshness</dt><dd>stale · contradicted</dd>");
-    expect(html).toContain("stale · contradicted");
-    expect(html).toContain("<dt>Kind</dt><dd>concept</dd>");
-    expect(html).toContain("<dt>Citations</dt><dd>2</dd>");
-    expect(html).toContain("<dt>Unresolved</dt><dd><span>1</span></dd>");
-    expect(html).toContain("<dd>2026-11-10 12:00</dd>");
+    const shown = text(html);
+    expect(shown).toContain("Kind concept Freshness stale · contradicted");
+    expect(shown).toContain("Created 2026-11-10 12:00 Updated 2026-11-10 12:00");
+    expect(shown).toContain("Citations 2 Unresolved 1");
   });
 
   it("links each cited span once, marks the missing file, and lists links out and backlinks by title", () => {
     const html = rail(PAGE, { status: "ready", data: GRAPH });
     expect(html.match(/notes\.md:12-15/g)?.length).toBe(1);
     expect(html).toContain('href="#/_source/notes.md?start=12&amp;end=15"');
-    expect(html).toContain('data-resolved="false">gone.md <span>not found</span>');
-    expect(html).toContain('<h3>Links out</h3><ul><li><a href="#/concepts/beta">Beta</a></li></ul>');
-    expect(html).toContain('<h3>Backlinks</h3><ul><li><a href="#/concepts/beta">Beta</a></li><li><a href="#/concepts/gamma">Gamma</a></li></ul>');
+    expect(html).toMatch(/data-file="gone.md".*data-resolved="false"[^>]*>whole file · not found</);
+    expect(text(html)).toContain("Links out Beta Backlinks Beta Gamma");
+    expect(html).toMatch(/href="#\/concepts\/gamma"[^>]*>Gamma</);
   });
 
   it("says when nothing is cited or linked, and waits for the graph", () => {
