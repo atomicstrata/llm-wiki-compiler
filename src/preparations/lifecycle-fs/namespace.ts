@@ -38,6 +38,18 @@ import type {
 /** Process-local provenance for namespace objects minted by this module. */
 const OPENED_NAMESPACES = new WeakSet<object>();
 
+/**
+ * Whether a capture re-stats what it just statted to prove it held still.
+ *
+ * A REVALIDATION re-stats: it is the swap check. An OPEN's first capture does
+ * not, because `openPreparationLifecycleNamespace` always ends by revalidating
+ * the whole namespace against it. A swap the second stat would have caught
+ * persists into that revalidation and fails it on dev/ino; one undone before it
+ * left the captured identity in place. The literal-path and kind checks
+ * (directory, not a symlink, realpath equals the path) still run on the first look.
+ */
+type StabilityRecheck = "recheck" | "first-look";
+
 /** Test-only seam immediately before the final open-time identity recheck. */
 interface PreparationLifecycleNamespaceOpenOptions {
   beforeFinalRevalidationForTest?: () => Promise<void>;
@@ -93,12 +105,15 @@ function presentDirectory(
 }
 
 /** Capture the supplied project-root alias and the canonical directory it names. */
-async function captureRoot(root: string): Promise<PresentLifecycleDirectoryV1> {
+async function captureRoot(
+  root: string,
+  stability: StabilityRecheck = "recheck",
+): Promise<PresentLifecycleDirectoryV1> {
   const lexicalPath = path.resolve(root);
   try {
     const realPath = await realpath(lexicalPath);
     const before = await lstat(realPath);
-    const after = await lstat(realPath);
+    const after = stability === "recheck" ? await lstat(realPath) : before;
     if (!before.isDirectory() || before.isSymbolicLink() ||
         before.dev !== after.dev || before.ino !== after.ino) {
       throw new Error("project root is not a stable real directory");
@@ -117,6 +132,7 @@ async function captureChild(
   parent: PresentLifecycleDirectoryV1,
   segment: string,
   code: "private-root-unavailable" | "registry-unavailable",
+  stability: StabilityRecheck = "recheck",
 ): Promise<BoundLifecycleDirectoryV1> {
   const lexicalPath = path.join(parent.realPath, segment);
   const leaf = await lstatLeaf(lexicalPath);
@@ -124,20 +140,21 @@ async function captureChild(
   if (leaf.kind !== "present" || !leaf.stats.isDirectory() || leaf.stats.isSymbolicLink()) {
     throw new PreparationLifecycleNamespaceError(code, `${segment} is unavailable`);
   }
-  return finishChildCapture(lexicalPath, leaf.stats.dev, leaf.stats.ino, code);
+  return finishChildCapture(lexicalPath, leaf.stats, code, stability);
 }
 
 /** Finish a child capture without accepting a redirected path or identity swap. */
 async function finishChildCapture(
   lexicalPath: string,
-  dev: number,
-  ino: number,
+  before: Stats,
   code: "private-root-unavailable" | "registry-unavailable",
+  stability: StabilityRecheck,
 ): Promise<PresentLifecycleDirectoryV1> {
+  const { dev, ino } = before;
   try {
     // Portable: an unreadable registry must still bind, so its fault is attributed to it.
     const realPath = await portableRealpath(lexicalPath);
-    const after = await lstat(lexicalPath);
+    const after = stability === "recheck" ? await lstat(lexicalPath) : before;
     if (realPath !== lexicalPath || after.isSymbolicLink() || !after.isDirectory() ||
         after.dev !== dev || after.ino !== ino) {
       throw new Error("directory identity changed");
@@ -153,6 +170,7 @@ async function createChild(
   parent: PresentLifecycleDirectoryV1,
   segment: string,
   code: "private-root-unavailable" | "registry-unavailable",
+  stability: StabilityRecheck,
 ): Promise<PresentLifecycleDirectoryV1> {
   const lexicalPath = path.join(parent.realPath, segment);
   try {
@@ -163,7 +181,7 @@ async function createChild(
     }
   }
   await fsyncDirectoryChain(parent.realPath);
-  const captured = await captureChild(parent, segment, code);
+  const captured = await captureChild(parent, segment, code, stability);
   if (captured.status !== "present") {
     throw new PreparationLifecycleNamespaceError(code, `${segment} remained absent after creation`);
   }
@@ -177,9 +195,9 @@ async function ownedChild(
   mode: PreparationLifecycleNamespaceMode,
   code: "private-root-unavailable" | "registry-unavailable",
 ): Promise<BoundLifecycleDirectoryV1> {
-  const captured = await captureChild(parent, segment, code);
+  const captured = await captureChild(parent, segment, code, "first-look");
   return captured.status === "absent" && mode === "mutate"
-    ? createChild(parent, segment, code)
+    ? createChild(parent, segment, code, "first-look")
     : captured;
 }
 
@@ -204,8 +222,9 @@ function absentRegistries(privateRoot: AbsentLifecycleDirectoryV1) {
 async function capturePruneRegistry(
   privateRoot: PresentLifecycleDirectoryV1,
   mode: PreparationLifecycleNamespaceMode,
+  stability: StabilityRecheck,
 ): Promise<BoundLifecycleRegistryV1> {
-  const capture = () => captureChild(privateRoot, PREPARATION_PRUNE_REGISTRY, "registry-unavailable");
+  const capture = () => captureChild(privateRoot, PREPARATION_PRUNE_REGISTRY, "registry-unavailable", stability);
   if (mode === "mutate") return capture();
   try {
     return await capture();
@@ -225,21 +244,22 @@ async function capturePruneRegistry(
 async function captureRegistries(
   privateRoot: PresentLifecycleDirectoryV1,
   mode: PreparationLifecycleNamespaceMode,
+  stability: StabilityRecheck,
 ) {
   const quarantine = await captureChild(
-    privateRoot, PREPARATION_QUARANTINE_SEGMENT, "registry-unavailable",
+    privateRoot, PREPARATION_QUARANTINE_SEGMENT, "registry-unavailable", stability,
   );
-  const prune = await capturePruneRegistry(privateRoot, mode);
+  const prune = await capturePruneRegistry(privateRoot, mode, stability);
   if (mode === "read") {
     return { quarantineRegistry: quarantine, pruneRegistry: prune };
   }
   return {
     quarantineRegistry: quarantine.status === "present"
       ? quarantine
-      : await createChild(privateRoot, PREPARATION_QUARANTINE_SEGMENT, "registry-unavailable"),
+      : await createChild(privateRoot, PREPARATION_QUARANTINE_SEGMENT, "registry-unavailable", stability),
     pruneRegistry: prune.status === "present"
       ? prune
-      : await createChild(privateRoot, PREPARATION_PRUNE_REGISTRY, "registry-unavailable"),
+      : await createChild(privateRoot, PREPARATION_PRUNE_REGISTRY, "registry-unavailable", stability),
   };
 }
 
@@ -247,6 +267,7 @@ async function captureRegistries(
 async function capturePreparationKey(
   root: PresentLifecycleDirectoryV1,
   privateRoot: BoundLifecycleDirectoryV1,
+  stability: StabilityRecheck,
 ): Promise<BoundLifecycleKeyLeafV1> {
   const lexicalPath = preparationKeyFile(root.realPath);
   if (privateRoot.status === "absent") return absentDirectory(lexicalPath);
@@ -255,7 +276,7 @@ async function capturePreparationKey(
   if (before.kind === "unavailable") {
     throw new PreparationLifecycleNamespaceError("key-unavailable", "preparation key is unavailable");
   }
-  const after = await lstatLeaf(lexicalPath);
+  const after = stability === "recheck" ? await lstatLeaf(lexicalPath) : before;
   if (after.kind !== "present" || !sameKeyStats(before.stats, after.stats)) {
     throw new PreparationLifecycleNamespaceError("key-unavailable", "preparation key changed during capture");
   }
@@ -305,14 +326,15 @@ export async function openPreparationLifecycleNamespace(
   mode: PreparationLifecycleNamespaceMode,
   options: PreparationLifecycleNamespaceOpenOptions = {},
 ): Promise<PreparationLifecycleNamespaceV1> {
-  const rootBinding = await captureRoot(root);
+  // First look only: the revalidation that ends this function is the swap check.
+  const rootBinding = await captureRoot(root, "first-look");
   const privateRoot = await ownedChild(
     rootBinding, LLMWIKI_DIR, mode, "private-root-unavailable",
   );
   const registries = privateRoot.status === "present"
-    ? await captureRegistries(privateRoot, mode)
+    ? await captureRegistries(privateRoot, mode, "first-look")
     : absentRegistries(privateRoot);
-  const preparationKey = await capturePreparationKey(rootBinding, privateRoot);
+  const preparationKey = await capturePreparationKey(rootBinding, privateRoot, "first-look");
   const captured = {
     mode,
     root: rootBinding,
@@ -408,12 +430,12 @@ export async function assertPreparationLifecycleNamespaceCurrent(
     const privateRoot = await captureChild(root, LLMWIKI_DIR, "private-root-unavailable");
     if (!sameBinding(namespace.privateRoot, privateRoot)) throw new Error("private root changed");
     if (privateRoot.status === "absent") return;
-    const registries = await captureRegistries(privateRoot, "read");
+    const registries = await captureRegistries(privateRoot, "read", "recheck");
     if (!sameBinding(namespace.quarantineRegistry, registries.quarantineRegistry) ||
         !sameBinding(namespace.pruneRegistry, registries.pruneRegistry)) {
       throw new Error("registry changed");
     }
-    const preparationKey = await capturePreparationKey(root, privateRoot);
+    const preparationKey = await capturePreparationKey(root, privateRoot, "recheck");
     if (!sameKeyBinding(namespace.preparationKey, preparationKey)) {
       throw new Error("preparation key changed");
     }
