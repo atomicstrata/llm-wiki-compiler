@@ -47,6 +47,14 @@ describe("identity", () => {
     expect(records.map((record) => [record.id, record.names])).toEqual([["alex", ["Alex", "alex"]], ["alex-kim", ["Alex Kim"]]]);
   });
 
+  it("leaves out the names the registry excludes for a type, in any spelling, and only for that type", () => {
+    const registry = parseRegistry(JSON.stringify({ exclude: { person: ["Donald Trump", "Bevyl", 7] } }));
+    expect(registry.exclude).toEqual({ person: ["Donald Trump", "Bevyl"] });
+    const records = resolveRecords("person", [mention("donald  TRUMP"), mention("bevyl"), mention("Ana")], registry);
+    expect(records.map((record) => record.id)).toEqual(["ana"]);
+    expect(resolveRecords("company", [mention("Bevyl")], registry).map((record) => record.id)).toEqual(["bevyl"]);
+  });
+
   it("merges only what the registry says, and shows the registry's first name", () => {
     const registry = parseRegistry(JSON.stringify({ entities: { person: { "alex-kim": ["Alex Kim", "Alex"] } } }));
     const [record] = resolveRecords("person", [mention("Alex"), mention("Alex Kim")], registry);

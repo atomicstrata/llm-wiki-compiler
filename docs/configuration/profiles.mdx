@@ -390,8 +390,22 @@ the names that are one record under one id, and name the owner of the memory:
 }
 ```
 
-The first name listed is the one the page shows. The owner's names are never a
-record. Instead the owner gets a hub page, `wiki/<type>/<owner>.md` (or
+The first name listed is the one the page shows. Names under `exclude` are not
+records of that type, so they get no page and no place in a day's People list:
+people only mentioned in passing, such as public figures, or names the model
+took for a person that are not one. Excluding a name needs no model call; to
+keep such names out of future extractions too, say so in the type's
+`extract.description` (for example "A person the owner knows or deals with
+directly; not public figures only mentioned").
+
+```json
+{
+  "exclude": { "person": ["Donald Trump", "Acme Corp"] }
+}
+```
+
+The owner's names are never a record. Instead the owner gets a hub page,
+`wiki/<type>/<owner>.md` (or
 `<owner>-owner.md` when a record is registered under that id), built without a
 model call, that lists every record of that type grouped by the first enum
 field the type declares (here, relationship), each with its summary.

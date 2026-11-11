@@ -11,6 +11,10 @@
  *  - Otherwise a name is its own record: names that normalize the same (case,
  *    accents, spacing) are one record, and any other name is a different one,
  *    even when both make the same slug: the later one's id gets a suffix.
+ *  - Names the registry lists under `exclude` are not records of that type:
+ *    people only mentioned in passing, such as public figures, or names the
+ *    model took for a person that are not one.
+ *      { "exclude": { "person": ["Donald Trump", "Bevyl"] } }
  *  - The owner's hub page has an id of its own that no record takes.
  *  - Records that MIGHT be the same (one name is another's first name, or two
  *    share a first name) are flagged both ways for the owner to settle in the
@@ -25,6 +29,8 @@ export interface AliasRegistry {
   owner?: { type: string; names: string[] };
   /** Entity type → record id → the names that are that record. */
   entities: Record<string, Record<string, string[]>>;
+  /** Entity type → names that are not records of that type. */
+  exclude?: Record<string, string[]>;
 }
 
 /** One record as one source names it. */
@@ -58,7 +64,10 @@ export function parseRegistry(text: string | null): AliasRegistry {
       .filter(([id, names]) => SLUG.test(id) && Array.isArray(names))
       .map(([id, names]) => [id, (names as unknown[]).filter((name): name is string => typeof name === "string")]));
   }
-  return { ...(owner ? { owner } : {}), entities };
+  const exclude = Object.fromEntries(Object.entries(raw.exclude ?? {})
+    .filter(([, names]) => Array.isArray(names))
+    .map(([type, names]) => [type, (names as unknown[]).filter((name): name is string => typeof name === "string")]));
+  return { ...(owner ? { owner } : {}), entities, ...(Object.keys(exclude).length > 0 ? { exclude } : {}) };
 }
 
 /** A name compared without case, accents, punctuation or extra spacing. */
@@ -103,13 +112,13 @@ export function resolveRecords(type: string, mentions: Mention[], registry: Alia
 /** One record's mentions before it has an id: the registry id it has, if any, and the names it went by. */
 interface MentionGroup { registered?: string; names: string[]; mentions: Mention[] }
 
-/** Mentions grouped by registry id, else by normalized name; the owner's names are left out. */
+/** Mentions grouped by registry id, else by normalized name; the owner's names and excluded names are left out. */
 function groupMentions(type: string, mentions: Mention[], registry: AliasRegistry): Map<string, MentionGroup> {
-  const { owner, known } = registryIndex(type, registry);
+  const { skipped, known } = registryIndex(type, registry);
   const groups = new Map<string, MentionGroup>();
   for (const mention of mentions) {
     const key = normalizeName(mention.name);
-    if (!key || owner.has(key)) continue;
+    if (!key || skipped.has(key)) continue;
     const registered = known.get(key);
     const groupKey = registered ? `id:${registered}` : `name:${key}`;
     const group = groups.get(groupKey) ?? { registered, names: [], mentions: [] };
@@ -120,12 +129,13 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
   return groups;
 }
 
-/** The registry for one type, by normalized name: the owner's names, and each registered name's id. */
-function registryIndex(type: string, registry: AliasRegistry): { owner: Set<string>; known: Map<string, string> } {
-  const owner = new Set(registry.owner?.type === type ? registry.owner.names.map(normalizeName) : []);
+/** The registry for one type, by normalized name: the names that are no record (the owner's, excluded ones), and each registered name's id. */
+function registryIndex(type: string, registry: AliasRegistry): { skipped: Set<string>; known: Map<string, string> } {
+  const ownerNames = registry.owner?.type === type ? registry.owner.names : [];
+  const skipped = new Set([...ownerNames, ...(registry.exclude?.[type] ?? [])].map(normalizeName));
   const known = new Map<string, string>();
   for (const [id, names] of Object.entries(registry.entities[type] ?? {})) for (const name of names) known.set(normalizeName(name), id);
-  return { owner, known };
+  return { skipped, known };
 }
 
 /** `base`, or `base-2`, `base-3`… the first one not yet taken; marks it taken. */
