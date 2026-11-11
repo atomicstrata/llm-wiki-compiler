@@ -116,8 +116,9 @@ const NODE_PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * Directory of the real Node binary behind the first `node` on `searchPath`.
- * llmwiki runs on Bun, so its own executable cannot stand in for Node. A
- * wrapper (`exec node "$@"`) reports the binary it finally runs, not itself.
+ * llmwiki's own executable is Bun under the test runner, so it cannot stand in
+ * for Node. A wrapper (`exec node "$@"`) reports the binary it finally runs,
+ * not itself.
  */
 function realNodeDirectory(searchPath: string): string | null {
   try {
