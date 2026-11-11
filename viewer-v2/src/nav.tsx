@@ -1,5 +1,5 @@
 /**
- * The sidebar: project identity and navigation with counts.
+ * The sidebar: navigation with counts.
  *
  * Browse holds the default project's Concepts and Queries, or a profile's
  * declared types in their place. Explore and Maintain are fixed. A zero count
@@ -12,10 +12,8 @@
 import { Activity, Clock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
-import type { Route } from "./route";
-import { typeListHref } from "./route";
-import { entityTypes, isProfileProject, lintTotal, typeLabel } from "./wiki-model";
-
+import { typeListHref, type Route } from "./route";
+import { entityTypes, humanLabel, isProfileProject, lintTotal } from "./wiki-model";
 
 /** How a zero count is written in a section. */
 type ZeroDisplay = "dash" | "digit";
@@ -52,7 +50,7 @@ function browseItems(wiki: PagesEnvelope): NavItem[] {
   }
   return [...types]
     .sort((a, b) => b.pageCount - a.pageCount)
-    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: typeLabel(row.type), icon: Folder, count: row.pageCount }));
+    .map((row) => ({ route: row.type, href: typeListHref(row.type), label: humanLabel(row.type), icon: Folder, count: row.pageCount }));
 }
 
 /** Every section with its rows, counts filled in from the payloads. */
@@ -153,7 +151,7 @@ interface SidebarProps {
   route: Route;
 }
 
-/** Project identity and the three navigation sections. */
+/** The dashboard link and the three navigation sections. */
 export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   const active = activeNavRoute(route);
   return (

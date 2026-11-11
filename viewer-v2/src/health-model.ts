@@ -10,7 +10,7 @@
 import type { HealthPayload, LintRule, PageRow, PagesEnvelope } from "./api";
 import { relativeAge } from "./recency";
 import { pageHref } from "./route";
-import { citationTotals, formatUtcTimestamp, plural, typeLabel } from "./wiki-model";
+import { citationTotals, formatUtcTimestamp, humanLabel, plural } from "./wiki-model";
 
 /** Rendered in place of a bold 0: an empty count is an absence, not news. */
 const EMPTY_COUNT = "—";
@@ -198,7 +198,7 @@ export interface ProblemsSummary {
 
 /** `slug-mismatch` reads as `Slug mismatch`; a field violation gets the plainer wording the old screen used. */
 function problemLabel(kind: string): string {
-  return kind === "field-violation" ? "Missing or invalid information" : typeLabel(kind);
+  return kind === "field-violation" ? "Missing or invalid information" : humanLabel(kind);
 }
 
 /** The capped list with its true total, so a truncated list never presents itself as the whole set. */

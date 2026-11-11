@@ -9,15 +9,15 @@ import { fetchGraph, fetchPage, type GraphData, type PagePayload, type PagesEnve
 import { AsyncView } from "./async-view";
 import { Badge, Notice } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
-import { rememberPage } from "./palette-model";
-import { safeLocalStorage } from "./storage";
-import { pageTitle, stripLeadingHeading } from "./page-model";
-import { tagHref } from "./route";
 import { useMediaQuery } from "./media";
+import { pageTitle, stripLeadingHeading } from "./page-model";
 import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
+import { rememberPage } from "./palette-model";
 import { RailSheet } from "./rail-sheet";
+import { tagHref } from "./route";
 import { SourceImages } from "./source-images-view";
+import { safeLocalStorage } from "./storage";
 import { useAsync, type AsyncState } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
@@ -86,35 +86,36 @@ function Rail({ page, wiki, graph, outline }: { page: PagePayload; wiki: PagesEn
   );
 }
 
+/** A loaded page beside its rail; keyed by page, so the outline never outlives the page it came from. */
+function LoadedPage({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData> }): ReactNode {
+  const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const wide = useMediaQuery(WIDE_LAYOUT);
+  const rail = <Rail page={page} wiki={wiki} graph={graph} outline={outline} />;
+  return (
+    <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row lg:items-start lg:justify-center">
+      <article className="max-w-[68ch] min-w-0 flex-1">
+        <header className="mb-8 border-b border-zinc-950/5 pb-6 dark:border-white/10">
+          <PageHeader page={page} />
+          <PageMeta page={page} />
+        </header>
+        <PageBody page={page} onRender={(container) => setOutline(assignHeadingIds(container))} />
+        <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
+      </article>
+      {wide
+        ? <aside aria-label="Page details" className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto">{rail}</aside>
+        : <RailSheet>{rail}</RailSheet>}
+    </div>
+  );
+}
+
 /** Load and show the page at `directory/slug` with its support rail. */
 export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   const state = useAsync(() => fetchPage(directory, slug), `${directory}/${slug}`);
   // Keyed on the snapshot, so backlinks and the neighbourhood follow a compile like the rest of the screen.
   const graph = useAsync(fetchGraph, wiki.updatedAt);
-  const [outline, setOutline] = useState<OutlineItem[]>([]);
   // Only a page that loaded is worth a recent slot; a broken link is not.
   useEffect(() => {
     if (state.status === "ready") rememberPage(`${directory}/${slug}`, safeLocalStorage());
   }, [state.status, directory, slug]);
-  const onRender = (container: HTMLElement): void => setOutline(assignHeadingIds(container));
-  const wide = useMediaQuery(WIDE_LAYOUT);
-  return (
-    <AsyncView state={state}>
-      {(page) => (
-        <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row lg:items-start lg:justify-center">
-          <article className="max-w-[68ch] min-w-0 flex-1">
-            <header className="mb-8 border-b border-zinc-950/5 pb-6 dark:border-white/10">
-              <PageHeader page={page} />
-              <PageMeta page={page} />
-            </header>
-            <PageBody page={page} onRender={onRender} />
-            <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
-          </article>
-          {wide
-            ? <aside aria-label="Page details" className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto"><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></aside>
-            : <RailSheet><Rail page={page} wiki={wiki} graph={graph} outline={outline} /></RailSheet>}
-        </div>
-      )}
-    </AsyncView>
-  );
+  return <AsyncView state={state}>{(page) => <LoadedPage key={page.id} page={page} wiki={wiki} graph={graph} />}</AsyncView>;
 }

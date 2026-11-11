@@ -32,10 +32,19 @@ export function isProfileProject(wiki: PagesEnvelope): boolean {
   return wiki.profileId !== "default";
 }
 
-/** `instrument_calibrations` reads as `Instrument calibrations`. */
-export function typeLabel(type: string): string {
-  const spaced = type.replace(/[_-]+/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+/** Identifiers that read as letters, not words. */
+const ACRONYMS = /^(doi|url|id|api)$/i;
+
+/**
+ * An identifier as a sentence-case label: `instrument_calibrations` reads as
+ * "Instrument calibrations", `citedBy` as "Cited by", `doi` as "DOI". Used for
+ * type names, field keys, and the kinds the server reports.
+ */
+export function humanLabel(value: string): string {
+  const words = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[-_]+/g, " ");
+  if (ACRONYMS.test(words)) return words.toUpperCase();
+  const lower = words.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 /** Pages in one directory, newest first. */

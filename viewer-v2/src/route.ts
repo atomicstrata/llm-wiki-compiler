@@ -10,8 +10,9 @@
  * `#/pipeline`. A profile's typed list lives at `#/_type/<entity-type>`, so a
  * type sharing a name with one of those screens still opens its own pages.
  * `#/_search?q=`, the pages carrying a tag at `#/_tag/<tag>`, and a run's
- * journey at `#/_journey/<workflow>/<run>` are the routes only this client has. Reserved segments start with an underscore,
- * which no page directory can.
+ * journey at `#/_journey/<workflow>/<run>` are the routes only this client
+ * has. Reserved segments start with an underscore, which no page directory
+ * can.
  */
 
 /** The three lists of a default project. */

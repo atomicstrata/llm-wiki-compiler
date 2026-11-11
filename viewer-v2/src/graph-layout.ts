@@ -120,15 +120,14 @@ function createSimulation(data: GraphData, canvas: Canvas, compact: boolean): { 
   const nodes: SimNode[] = data.nodes.map((node) => ({ ...node }));
   const links: SimLink[] = data.edges.map((edge) => ({ source: edge.source, target: edge.target }));
   const forces = forcesFor(compact, canvas.width, canvas.height, nodes.length);
+  const gravity = compact ? GRAVITY.compact : GRAVITY.full;
   const simulation = forceSimulation(nodes)
     .force("link", forceLink<SimNode, SimLink>(links).id((node) => node.id).distance(forces.linkDistance))
     .force("charge", forceManyBody().strength(forces.charge))
     .force("center", forceCenter(canvas.width / 2, canvas.height / 2))
-    .stop();
-  const gravity = compact ? GRAVITY.compact : GRAVITY.full;
-  simulation
     .force("x", forceX<SimNode>(canvas.width / 2).strength(gravity))
-    .force("y", forceY<SimNode>(canvas.height / 2).strength(gravity));
+    .force("y", forceY<SimNode>(canvas.height / 2).strength(gravity))
+    .stop();
   return { simulation, nodes, links };
 }
 

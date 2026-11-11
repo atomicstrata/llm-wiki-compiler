@@ -10,7 +10,7 @@ import { Badge, Card, ROW_LINK, RowList, Screen } from "./components";
 import { pageIdHref } from "./route";
 import { plainSnippet, resultKind } from "./search";
 import { useAsync } from "./use-async";
-import { plural, typeLabel } from "./wiki-model";
+import { humanLabel, plural } from "./wiki-model";
 
 /** Load and list the pages matching `query`. */
 export function SearchView({ query }: { query: string }): ReactNode {
@@ -28,7 +28,7 @@ export function SearchView({ query }: { query: string }): ReactNode {
                     className={`block ${ROW_LINK}`}>
                     <span className="flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{result.title || result.id}</span>
-                      <Badge>{typeLabel(resultKind(result))}</Badge>
+                      <Badge>{humanLabel(resultKind(result))}</Badge>
                     </span>
                     {result.matchedIn === "body" && <span className="mt-0.5 line-clamp-2 block text-xs text-zinc-500 dark:text-zinc-400">{plainSnippet(result.snippet)}</span>}
                   </a>

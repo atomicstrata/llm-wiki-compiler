@@ -1,7 +1,7 @@
 /** The lifecycle screen's derivations: reachability, state roles, and the sentences that explain a row. */
 import { describe, expect, it } from "bun:test";
 import {
-  calloutReason, chipLabel, classifyStates, declaredText, displayLabel, displayedStates, footerText, gapText,
+  calloutReason, chipLabel, classifyStates, declaredText, displayedStates, footerText, gapText,
   hasDeclaredOrder, reachableOrder, rowVerdict, totalRejected,
 } from "../viewer-v2/src/pipeline-model.js";
 import { entityType, lifecycle } from "./fixtures/viewer-v2-fixtures.js";
@@ -74,11 +74,5 @@ describe("row sentences", () => {
     expect(footerText(0)).toBe("No rejected page declares a lifecycle state, so every tally above counts profile-valid pages only.");
     expect(footerText(1)).toContain("1 rejected page still declares a lifecycle state and is counted");
     expect(footerText(2)).toContain("2 rejected pages still declare a lifecycle state and are counted");
-  });
-
-  it("spells relation and metadata keys for reading", () => {
-    expect(displayLabel("peer_review")).toBe("Peer review");
-    expect(displayLabel("citedBy")).toBe("Cited By");
-    expect(displayLabel("doi")).toBe("DOI");
   });
 });

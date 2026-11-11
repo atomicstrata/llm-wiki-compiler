@@ -15,7 +15,7 @@ import { AsyncView } from "./async-view";
 import { Badge, Card, Notice, Screen, TextLink, type Tone } from "./components";
 import { StageFacts } from "./stage-facts";
 import { useAsync } from "./use-async";
-import { typeLabel } from "./wiki-model";
+import { humanLabel } from "./wiki-model";
 import { RUN_CLASSIFICATION_LABELS } from "./workflows-view";
 
 const GATE_STATE_TEXT: Record<StageGate["state"], string> = {
@@ -73,7 +73,7 @@ function gateByline(gate: StageGate): string {
 
 /** The gate guarding a stage; a human gate is named distinctly from agent and trust gates. */
 function GateCallout({ gate }: { gate: StageGate }): ReactNode {
-  const kind = gate.gateKind === "human" ? "Human approval" : `${typeLabel(gate.gateKind)} gate`;
+  const kind = gate.gateKind === "human" ? "Human approval" : `${humanLabel(gate.gateKind)} gate`;
   const byline = gateByline(gate);
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">

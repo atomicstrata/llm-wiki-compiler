@@ -7,7 +7,6 @@
  */
 import { useEffect, type ReactNode } from "react";
 import { stampVisit } from "./activity-model";
-import { safeLocalStorage } from "./storage";
 import type { HealthPayload, PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { CommandPalette } from "./command-palette";
@@ -19,6 +18,8 @@ import { HoverPreviews } from "./hover-preview";
 import { IndexView } from "./index-view";
 import { JourneyView } from "./journey-view";
 import { ConceptsList, QueriesList, SourcesList, TagList, TypeList } from "./lists";
+import { useLiveBootstrap, type Bootstrap } from "./live-bootstrap";
+import { Sidebar } from "./nav";
 import { PageView } from "./page-view";
 import { PipelineView } from "./pipeline-view";
 import { RecentView } from "./recent-view";
@@ -26,10 +27,9 @@ import { ReviewsView } from "./reviews-view";
 import type { Route } from "./route";
 import { SearchView } from "./search-view";
 import { KeyboardShortcuts } from "./shortcuts";
-import { useLiveBootstrap, type Bootstrap } from "./live-bootstrap";
-import { Sidebar } from "./nav";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
+import { safeLocalStorage } from "./storage";
 import { useRoute } from "./use-route";
 import { WorkflowsView } from "./workflows-view";
 
@@ -91,7 +91,7 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
           <RouteView route={route} wiki={wiki} health={health} />
         </main>
       </div>
-      <HoverPreviews pages={wiki.pages} />
+      <HoverPreviews wiki={wiki} />
       <CommandPalette wiki={wiki} health={health} />
       <KeyboardShortcuts />
     </>

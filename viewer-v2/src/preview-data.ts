@@ -1,16 +1,13 @@
 /**
  * Data behind the hover previews: what a wikilink or citation chip points at,
- * and the text to show for it. Page openings and source files are fetched at
- * most once per session and kept in memory, because the source route serves
- * whole files with `no-store` and the page route re-renders on every call; a
- * reader hovering the same chip twice should not pay for it twice. Everything
- * here except the two loaders is pure so it can be tested without a browser.
+ * and the text to show for it. Everything here except the cached loaders at
+ * the end is pure, so it is tested without a browser.
  */
 import { fetchPage, fetchSourceText, type PageRow } from "./api";
 import { closestElement } from "./dom";
 import { htmlText } from "./page-model";
 import { lineRange } from "./route";
-import { typeLabel } from "./wiki-model";
+import { humanLabel } from "./wiki-model";
 
 /** A span of a source file; no lines means the citation names the whole file. */
 export interface CitationTarget {
@@ -56,7 +53,7 @@ export function isTracked(trigger: HTMLElement | null, ...tracked: (HTMLElement 
 
 /** The small label above a page card's title: its profile type or directory. */
 export function pageKindLabel(id: string, row: PageRow | undefined): string {
-  return typeLabel(row?.entityType ?? row?.pageDirectory ?? id.split("/")[0]);
+  return humanLabel(row?.entityType ?? row?.pageDirectory ?? id.split("/")[0]);
 }
 
 /** Read what a trigger element previews; a citation's lines follow the same rules as a source link's. */
@@ -82,42 +79,41 @@ export function plainOpening(html: string, maxChars = OPENING_MAX_CHARS): string
   const paragraph = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(html)?.[1] ?? "";
   const text = htmlText(paragraph.replace(/<span[^>]*class="citation-chip"[^>]*>[\s\S]*?<\/span>/g, "")).replace(/\s+/g, " ");
   if (text.length <= maxChars) return text;
-  const cut = text.slice(0, maxChars);
-  return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : maxChars)}…`;
+  const lastSpace = text.lastIndexOf(" ", maxChars);
+  return `${text.slice(0, lastSpace > 0 ? lastSpace : maxChars)}…`;
 }
 
-const sourceTexts = new Map<string, Promise<string>>();
-const pageOpenings = new Map<string, Promise<string>>();
+/**
+ * Texts fetched for previews, kept for one wiki snapshot. The source route
+ * serves whole files with `no-store` and the page route re-renders on every
+ * call, so hovering the same chip twice should not fetch twice; but after a
+ * compile the live shell holds a new snapshot, and stale texts are dropped.
+ */
+const previewTexts = { snapshot: "", texts: new Map<string, Promise<string>>() };
 
-/** Memoize a loader by key, forgetting a failure so a later hover can retry. */
-function cached<T>(cache: Map<string, Promise<T>>, key: string, load: () => Promise<T>): Promise<T> {
-  const hit = cache.get(key);
+/** The text under `key` for `snapshot`, loaded once; a failure is forgotten so a later hover can retry. */
+function cached(snapshot: string, key: string, load: () => Promise<string>): Promise<string> {
+  if (previewTexts.snapshot !== snapshot) previewTexts.texts = new Map();
+  previewTexts.snapshot = snapshot;
+  const hit = previewTexts.texts.get(key);
   if (hit) return hit;
   const pending = load().catch((error: unknown) => {
-    cache.delete(key);
+    previewTexts.texts.delete(key);
     throw error;
   });
-  cache.set(key, pending);
+  previewTexts.texts.set(key, pending);
   return pending;
 }
 
-/** A source file's full text, fetched once. */
-function loadSourceText(file: string): Promise<string> {
-  return cached(sourceTexts, file, () => fetchSourceText(file));
-}
-
-/** A page card's text: the row's summary when it has one, else the page's fetched opening. */
-export function pageBlurb(id: string, row: PageRow | undefined): Promise<string> {
-  return row?.summary ? Promise.resolve(row.summary) : loadPageOpening(id);
+/** A page card's text: the row's summary when it has one, else the page's opening paragraph. */
+export function pageBlurb(id: string, row: PageRow | undefined, snapshot: string): Promise<string> {
+  if (row?.summary) return Promise.resolve(row.summary);
+  const slash = id.indexOf("/");
+  return cached(snapshot, `page:${id}`, async () => plainOpening((await fetchPage(id.slice(0, slash), id.slice(slash + 1))).html));
 }
 
 /** The text a citation card excerpts; a citation whose file is missing has none to fetch. */
-export function citedSourceText(target: CitationTarget): Promise<string> {
-  return target.resolved ? loadSourceText(target.file) : Promise.reject(new Error(`Source not found: ${target.file}`));
-}
-
-/** A page's opening paragraph, fetched once; used when its row has no summary. */
-function loadPageOpening(id: string): Promise<string> {
-  const slash = id.indexOf("/");
-  return cached(pageOpenings, id, async () => plainOpening((await fetchPage(id.slice(0, slash), id.slice(slash + 1))).html));
+export function citedSourceText(target: CitationTarget, snapshot: string): Promise<string> {
+  if (!target.resolved) return Promise.reject(new Error(`Source not found: ${target.file}`));
+  return cached(snapshot, `source:${target.file}`, () => fetchSourceText(target.file));
 }

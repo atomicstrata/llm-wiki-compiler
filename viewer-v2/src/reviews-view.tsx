@@ -5,7 +5,7 @@
  * `/api/reviews` on every visit. Rows are informational only: the viewer has
  * no write path, so the CLI approves or rejects.
  */
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { fetchReviews, type HeldReason, type ReviewCandidate, type ReviewsEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Badge, Card, Code, EmptyState, RowList, Screen, TextLink } from "./components";
@@ -64,7 +64,7 @@ function ReviewRow({ review, now }: { review: ReviewCandidate; now: Date }): Rea
 
 /** The queue as served; the caption names both numbers when the endpoint's cap bit. */
 export function ReviewsList({ payload }: { payload: ReviewsEnvelope }): ReactNode {
-  const now = useMemo(() => new Date(), [payload]);
+  const now = new Date();
   const shown = payload.reviews.length;
   return (
     <Screen title="Reviews">

@@ -4,12 +4,12 @@
  * loaded envelope and adds a title filter, so a wiki with thousands of pages
  * narrows instantly without another request.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
 import { Badge, Card, EmptyState, Row, RowList, Screen, SelectField, TextField } from "./components";
 import { relativeAge } from "./recency";
 import { pageHref, sourceHref } from "./route";
-import { entityTypes, isProfileProject, isWarnFreshness, pagesIn, plural, typeLabel } from "./wiki-model";
+import { entityTypes, humanLabel, isProfileProject, isWarnFreshness, pagesIn, plural } from "./wiki-model";
 
 const FRESHNESS_FILTERS = [
   { value: "all", label: "All" },
@@ -66,7 +66,7 @@ interface PageListProps {
 function PageList({ heading, pages, whenEmpty, freshnessFilter = false }: PageListProps): ReactNode {
   const [title, setTitle] = useState("");
   const [freshness, setFreshness] = useState<FreshnessFilter>("all");
-  const now = useMemo(() => new Date(), [pages]);
+  const now = new Date();
   const shown = matchesTitle(pages, title).filter((page) => passesFreshness(page, freshness));
   return (
     <Screen title={heading} description={plural(pages.length, "page")}>
@@ -108,7 +108,7 @@ export function TypeList({ wiki, type }: { wiki: PagesEnvelope; type: string }):
   const declared = entityTypes(wiki).find((row) => row.type === type);
   const where = declared ? `under ${declared.directory}/` : "in this category’s configured folder";
   return (
-    <PageList heading={typeLabel(type)} pages={pagesIn(wiki, type)}
+    <PageList heading={humanLabel(type)} pages={pagesIn(wiki, type)}
       whenEmpty={<EmptyState title={`No ${type} yet`} body={`Add a Markdown record ${where} to include it in this list. This viewer is read-only; create or import records outside the viewer.`} />} />
   );
 }

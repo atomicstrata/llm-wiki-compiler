@@ -6,9 +6,9 @@
  */
 import type { ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
-import { groupByRecency } from "./recency";
 import { Badge, Card, EmptyState, RowList, Screen } from "./components";
 import { PageRowItem } from "./lists";
+import { groupByRecency } from "./recency";
 import { plural } from "./wiki-model";
 
 /** Whether the page's last write created it. */

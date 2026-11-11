@@ -1,12 +1,12 @@
 /**
- * The top bar: project title with the whole-wiki verdict pill and the button
- * that opens the command palette. The pill and meta line need both bootstrap payloads;
- * a failed health fetch leaves lint "never run", which the verdict reports
- * rather than hiding.
+ * The top bar: the project title, the whole-wiki verdict pill, and the button
+ * that opens the command palette. The pill and the title's tooltip need both
+ * bootstrap payloads; a failed health fetch leaves lint "never run", which the
+ * verdict reports rather than hiding.
  */
+import { Search } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
-import { Search } from "lucide-react";
 import { openPalette } from "./command-palette";
 import { Badge, type Tone } from "./components";
 import { formatUtcTimestamp, wikiVerdict, type Verdict } from "./wiki-model";
@@ -52,7 +52,7 @@ export function Header({ wiki, health }: HeaderProps): ReactNode {
         </span>
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold text-zinc-950 dark:text-white">{title}</span>
-          <span className="hidden text-xs text-zinc-500 sm:block dark:text-zinc-400">Local · read only</span>
+          <span className="hidden text-xs text-zinc-500 sm:block dark:text-zinc-400">Read only</span>
         </span>
       </a>
       <span title={meta} className="hidden sm:inline-flex"><Badge tone={VERDICT_TONE[verdict.tone]}>{verdict.text}</Badge></span>
