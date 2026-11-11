@@ -2,10 +2,12 @@
  * Shared no-follow inventory primitives. Store-specific classification, traversal
  * limits and policy remain with each scanner; this module grants no authority.
  */
+import type { Dir, Dirent } from "node:fs";
 import { opendir } from "node:fs/promises";
 import path from "node:path";
 import { lstat, realpath } from "./fs-metadata.js";
 import { expectedRealMatching, openConfinedLeaf } from "./confined-read.js";
+import { runContinues, type LeafReadAhead } from "./inventory-leaf-read-ahead.js";
 import type { ScannedLeafBytes } from "./scanned-leaf-bytes.js";
 
 /** Reject unbounded or fractional scan requests before any traversal. */
@@ -71,30 +73,71 @@ function inventoryLeafMetadata(
   };
 }
 
+/** What a directory visit hands its caller, one entry at a time. */
+interface InventoryVisitor { take(): boolean; inspect(entry: Dirent): Promise<void> }
+
+/** One listed directory: the root it is confined under, its path, and its open listing. */
+interface OpenedInventoryListing { root: string; directory: string; entries: Dir }
+
+/**
+ * The next run of entries: one entry, or with a read-ahead, consecutive regular
+ * files up to its bound plus the entry that ended them. Empty at the end.
+ * `progress.seen` turns true with the first entry obtained.
+ */
+async function nextEntryRun(
+  entries: AsyncIterator<Dirent>, progress: { seen: boolean }, readingAhead: boolean,
+): Promise<Dirent[]> {
+  const run: Dirent[] = [];
+  do {
+    const next = await entries.next();
+    if (next.done === true) return run;
+    progress.seen = true;
+    run.push(next.value);
+  } while (readingAhead && runContinues(run));
+  return run;
+}
+
+/** Deliver one run in order under the caller's budget; false once `take()` refuses. Closes each leaf opened ahead and not observed. */
+async function deliverRun(run: readonly Dirent[], directory: string, visitor: InventoryVisitor, ahead?: LeafReadAhead): Promise<boolean> {
+  for (const entry of run) {
+    if (!visitor.take()) return false;
+    try {
+      await visitor.inspect(entry);
+    } finally {
+      await ahead?.release(path.join(directory, entry.name));
+    }
+  }
+  return true;
+}
+
 /**
  * Traverse an open directory while the caller's store-specific budget permits.
+ * With a read-ahead, each run of regular files is opened, and its directory
+ * proved once, before the run is delivered (`inventory-leaf-read-ahead.ts`);
+ * `take()` is still asked once per delivered entry, in listing order.
  *
  * Bun opens a directory lazily on Linux: `opendir` succeeds on a directory the
  * process may not list, and the refusal (`EACCES`) arrives with the first read.
  * A failure before any entry is seen is therefore the same refusal a failed open
  * is, and is answered the same way; a failure after an entry was seen rejects.
  */
-async function walkInventoryEntries<T>(
-  entries: AsyncIterable<T> & { close(): Promise<void> }, take: () => boolean, inspect: (entry: T) => Promise<void>,
+async function walkInventoryEntries(
+  listing: OpenedInventoryListing, visitor: InventoryVisitor, ahead?: LeafReadAhead,
 ): Promise<"visited" | InventoryDirectoryRefusal> {
-  let seen = false;
+  const progress = { seen: false }, entries = listing.entries[Symbol.asyncIterator]();
   try {
-    for await (const entry of entries) {
-      seen = true;
-      if (!take()) break;
-      await inspect(entry);
+    for (let run = await nextEntryRun(entries, progress, ahead !== undefined); run.length > 0;
+      run = await nextEntryRun(entries, progress, ahead !== undefined)) {
+      await ahead?.openRun(listing.root, listing.directory, run);
+      if (!(await deliverRun(run, listing.directory, visitor, ahead))) break;
     }
     return "visited";
   } catch (error) {
-    if (seen) throw error;
+    if (progress.seen) throw error;
     return listingRefusal(error as NodeJS.ErrnoException);
   } finally {
-    await entries.close().catch(() => {});
+    await ahead?.releaseAll();
+    await listing.entries.close().catch(() => {});
   }
 }
 
@@ -111,12 +154,11 @@ function listingRefusal(error: NodeJS.ErrnoException): InventoryDirectoryRefusal
  * failure after an entry was seen rejects.
  */
 export async function visitInventoryDirectory(
-  root: string, directory: string,
-  visitor: { take(): boolean; inspect(entry: import("node:fs").Dirent): Promise<void> },
+  root: string, directory: string, visitor: InventoryVisitor, ahead?: LeafReadAhead,
 ): Promise<"visited" | InventoryDirectoryRefusal> {
   const opened = await openConfinedDirectory({ root }, directory);
   if (typeof opened === "string") return opened;
-  return walkInventoryEntries(opened, visitor.take, visitor.inspect);
+  return walkInventoryEntries({ root, directory, entries: opened }, visitor, ahead);
 }
 
 /** One leaf's size and identity as its opened handle reported them, or why it could not be opened. */
@@ -169,7 +211,10 @@ async function readForHolder(opened: ConfirmedInventoryLeaf): Promise<Buffer | n
 /**
  * Observe one leaf through the no-follow confined open ({@link openConfinedLeaf}),
  * copy its size and identity FROM THE HANDLE, and close the handle before
- * answering. Nothing stays open on any path.
+ * answering. Nothing stays open on any path. A leaf its visit already opened
+ * ahead (`ahead`) is claimed instead of opened again: its directory was proved
+ * after that open, and its canonical identity is checked now, so the proof is
+ * the confined open's own in the same order.
  *
  * With `retain`, a leaf within `retain.maxBytes` that still fits the holder is
  * also read from that same handle ({@link readForHolder}) and its bytes held
@@ -177,9 +222,9 @@ async function readForHolder(opened: ConfirmedInventoryLeaf): Promise<Buffer | n
  * never changes the observation: a failed read only means nothing is held.
  */
 export async function observeInventoryLeaf(
-  root: string, file: string, parent: string, retain?: InventoryLeafRetention,
+  root: string, file: string, parent: string, retain?: InventoryLeafRetention, ahead?: LeafReadAhead,
 ): Promise<InventoryLeafObservation> {
-  const opened = await openConfinedLeaf(root, file, parent);
+  const opened = (await ahead?.claim(file, parent)) ?? await openConfinedLeaf(root, file, parent);
   if (opened.kind !== "confirmed") return opened;
   const observation = { kind: "confirmed" as const, size: opened.size, dev: opened.dev, ino: opened.ino };
   if (retain === undefined || opened.size > retain.maxBytes || !retain.into.hasRoomFor(opened.size)) {

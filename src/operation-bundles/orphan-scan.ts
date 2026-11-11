@@ -137,7 +137,8 @@ export interface OperationStoreEntry {
 export interface OperationStoreWalkReads {
   /**
    * Visit one directory: obtain an entry, THEN call `take()`; if it is false
-   * deliver nothing more, otherwise await `inspect(entry)` before the next.
+   * deliver nothing more, otherwise await `inspect(entry)` before the next
+   * (a provider may obtain a bounded run ahead and deliver it in order).
    * Answer `absent`, `unavailable` or `unlistable` ONLY before any entry was
    * delivered; a failure after that REJECTS. Each name is one path segment.
    */
