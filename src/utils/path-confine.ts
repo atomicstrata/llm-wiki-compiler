@@ -8,7 +8,7 @@
  * `confinedRegularFile` — the single definition of "a source file" used by
  * the scan, list, get, and delete paths to stay in agreement.
  */
-import { lstat } from "fs/promises";
+import { lstat } from "./fs-metadata.js";
 import path from "path";
 import { SOURCES_DIR } from "./constants.js";
 import { portableRealpath } from "./portable-realpath.js";

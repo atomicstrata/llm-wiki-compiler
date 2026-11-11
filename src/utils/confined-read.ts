@@ -23,7 +23,7 @@
 
 import { constants as fsConstants } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { stat, realpath, lstat } from "fs/promises";
+import { stat, realpath, lstat } from "./fs-metadata.js";
 import { NoFollowOpenError, openFileNoFollow } from "./no-follow-open.js";
 import path from "path";
 import { safeRealpath, isInsideDir, type StrictIoOptions } from "./path-confine.js";

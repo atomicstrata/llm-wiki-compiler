@@ -11,7 +11,8 @@
  * the resulting identity.
  */
 
-import { lstat, mkdir, realpath } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import { lstat, realpath } from "../../utils/fs-metadata.js";
 import { portableRealpath } from "../../utils/portable-realpath.js";
 import type { Stats } from "node:fs";
 import path from "node:path";

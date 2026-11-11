@@ -16,7 +16,7 @@
  * candidates.
  */
 
-import { lstat, realpath, stat } from "node:fs/promises";
+import { lstat, realpath, stat } from "../utils/fs-metadata.js";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isInsideDir } from "../utils/path-confine.js";

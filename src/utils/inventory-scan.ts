@@ -2,7 +2,8 @@
  * Shared no-follow inventory primitives. Store-specific classification, traversal
  * limits and policy remain with each scanner; this module grants no authority.
  */
-import { lstat, realpath, opendir } from "node:fs/promises";
+import { opendir } from "node:fs/promises";
+import { lstat, realpath } from "./fs-metadata.js";
 import { openConfinedLeaf, resolveExpectedReal } from "./confined-read.js";
 
 /** Reject unbounded or fractional scan requests before any traversal. */

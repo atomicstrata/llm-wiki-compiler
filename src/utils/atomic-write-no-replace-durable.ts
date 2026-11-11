@@ -5,7 +5,8 @@
  * the public error types re-exported by `atomic-write.ts`.
  */
 
-import { link, lstat, open, unlink } from "fs/promises";
+import { link, open, unlink } from "fs/promises";
+import { lstat } from "./fs-metadata.js";
 import { constants as fsConstants, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";

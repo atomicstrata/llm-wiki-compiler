@@ -9,7 +9,8 @@
  * native Windows filesystem behavior.
  */
 import { constants, type BigIntStats } from "node:fs";
-import { lstat, open } from "fs/promises";
+import { open } from "fs/promises";
+import { lstat } from "./fs-metadata.js";
 import type { FileHandle } from "node:fs/promises";
 
 /** Human-readable refusal reasons; callers surface these messages directly. */

@@ -7,7 +7,8 @@
  * module's established public surface.
  */
 
-import { lstat, open, realpath } from "fs/promises";
+import { open } from "fs/promises";
+import { lstat, realpath } from "./fs-metadata.js";
 import { constants as fsConstants } from "node:fs";
 import path from "path";
 import { isInsideDir } from "./path-confine.js";

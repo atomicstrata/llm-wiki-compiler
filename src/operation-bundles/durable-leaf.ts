@@ -6,7 +6,7 @@
  */
 
 import type { Stats } from "node:fs";
-import { lstat } from "node:fs/promises";
+import { lstat } from "../utils/fs-metadata.js";
 import {
   openConfinedLeaf, readConfirmedBufferOrElse,
   type CappedLeafRead, type CappedLeafReadBuffer, type ConfinedLeafOpen,

@@ -6,7 +6,8 @@
  */
 import path from "node:path";
 import { constants as fsConstants } from "node:fs";
-import { chmod, lstat, mkdir, open, realpath, stat } from "node:fs/promises";
+import { chmod, mkdir, open } from "node:fs/promises";
+import { lstat, realpath, stat } from "../../utils/fs-metadata.js";
 import { resolveLlmwikiOperatorRoots } from "../../operator-state/paths.js";
 
 declare const authorizedProviderPathsBrand: unique symbol;
