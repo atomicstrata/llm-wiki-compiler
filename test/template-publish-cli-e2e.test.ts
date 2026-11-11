@@ -16,9 +16,8 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 

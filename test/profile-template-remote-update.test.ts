@@ -25,10 +25,9 @@ import {
   removeRemoteUpdateRoots,
   TARGET_COORDINATE,
 } from "./fixtures/template-remote-update.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
 const roots: string[] = [];
-const CLI = path.resolve("dist/cli.js");
 
 afterEach(async () => removeRemoteUpdateRoots(roots));
 

@@ -155,16 +155,14 @@ describe("operation key epoch", () => {
     // publishes only once the first has finished. Publishing at the same instant
     // would race on the shared temp names, which the caller's project lock rules
     // out in real use, so it is not the collision this case pins.
-    let bothRead!: () => void;
-    const bothReadAbsent = new Promise<void>((resolve) => { bothRead = resolve; });
-    const first = createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, { beforePublishForTest: () => bothReadAbsent });
+    const bothRead = Promise.withResolvers<void>();
+    const first = createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, { beforePublishForTest: () => bothRead.promise });
     const second = createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, {
-      beforePublishForTest: async () => { bothRead(); await first.catch(() => {}); },
+      beforePublishForTest: async () => { bothRead.resolve(); await first.catch(() => {}); },
     });
-    const results = await Promise.allSettled([first, second]);
-    expect(results[1]).toMatchObject({ status: "rejected", reason: { message: expect.stringMatching(/collision/) } });
-    expect(results.filter((item) => item.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((item) => item.status === "rejected")).toHaveLength(1);
+    const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+    expect(firstResult.status).toBe("fulfilled");
+    expect(secondResult).toMatchObject({ status: "rejected", reason: { message: expect.stringMatching(/collision/) } });
     const keyFile = path.join(root, ".llmwiki", "operation-bundles.runkey");
     await chmod(keyFile, 0o644);
     expect(await readOperationKey(root)).toEqual({ status: "unavailable" });

@@ -9,9 +9,8 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { PROFILE_FILE } from "../src/utils/constants.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
-import { stripAnsi } from "./fixtures/cli-runner.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
-import { runCLI } from "./fixtures/run-cli.js";
+import { runCLI, stripAnsi } from "./fixtures/run-cli.js";
 
 const ISSUE_PATH = "wiki/issues/explain-first-profile.md";
 const ISSUE_BODY = `---

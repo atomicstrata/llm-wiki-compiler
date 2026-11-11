@@ -12,9 +12,8 @@ import { resolveRemotePackage } from "../src/profile/templates/taps/package.js";
 import { resolveTapPaths } from "../src/profile/templates/taps/paths.js";
 import { refreshTap } from "../src/profile/templates/taps/refresh.js";
 import { servesTemplateBytes, templateRegistryFixture, TAP_KEY } from "./fixtures/template-tap-runtime.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const COORDINATE = "official/atomicstrata/team@1.0.0";
 const roots: string[] = [];
 

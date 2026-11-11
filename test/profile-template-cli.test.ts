@@ -11,9 +11,8 @@ import path from "node:path";
 import { describe, expect, it } from "bun:test";
 import { AUTOSCI_TEMPLATE } from "../src/profile/templates/builtin/autosci.js";
 import { getBuiltinTemplate } from "../src/profile/templates/registry.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 
 function run(cwd: string, args: string[]) {
   return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], { cwd, encoding: "utf8" });

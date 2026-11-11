@@ -22,7 +22,7 @@ jobs:
   # NOT by CI. Restoring this leg means fixing those 64 failures first — worth
   # doing as its own change, and not free.
   #
-  # The suite is split across TEST_SHARDS jobs by `bun test --shard`, each on
+  # The suite is split across the matrix's jobs by `bun test --shard`, each on
   # its own runner. One job ran it in about six minutes; split this way the
   # slowest shard sets the wall time instead. Shards build without type
   # declarations (seconds instead of most of a minute). Tests that pack or
@@ -32,7 +32,7 @@ jobs:
   # `--timings` splits the files by their recorded durations instead of by
   # count, so no shard draws a run of slow files. A file missing from
   # test-timings.json still runs; it just gets no weight. Refresh the file with
-  # `bun run build && bun scripts/run-tests.mjs --timings=test-timings.json --update-timings`.
+  # `bun run test:timings`.
   test:
     runs-on: ubuntu-latest
     # A shard takes under a minute; a hung test would otherwise hold it for six hours.
@@ -42,7 +42,6 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
     env:
-      TEST_SHARDS: 18
       LLMWIKI_TEST_TRACE: /tmp/llmwiki-test-trace
       LLMWIKI_SKIP_DTS: "1"
     steps:
@@ -68,10 +67,13 @@ jobs:
       - run: bunx tsup
       # Pull requests run only the affected test files; pushes to main run all.
       # On a hang, snapshot the live processes at 200s, then fail at 240s.
-      - run: >-
+      # Ignore patterns given here replace bunfig's list rather than adding to
+      # it, so the two packing tests bunfig ignores are named again.
+      - name: Run this shard's tests
+        run: >-
           mkdir -p "$LLMWIKI_TEST_TRACE" &&
           (sleep 200 && bash .github/ci/hang-snapshot.sh) &
-          timeout 240 bash scripts/ci-test.sh "$BASE_SHA" --shard=${{ matrix.shard }}/${{ env.TEST_SHARDS }}
+          timeout 240 bash scripts/ci-test.sh "$BASE_SHA" --shard=${{ matrix.shard }}/${{ strategy.job-total }}
           --timings=test-timings.json
           --path-ignore-patterns=test/sdk/packaging.test.ts
           --path-ignore-patterns=test/products/private-packages-pack.test.ts

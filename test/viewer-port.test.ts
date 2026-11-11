@@ -10,7 +10,6 @@
 
 import { afterEach, describe, expect, it } from "bun:test";
 import net from "net";
-import path from "path";
 import { exec as execCb } from "child_process";
 import { promisify } from "util";
 import { resolveBindConfig } from "../src/commands/view.js";
@@ -21,10 +20,9 @@ import {
   startViewerCLI,
   type ViewerProcessHandle,
 } from "./fixtures/run-cli-server.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
 const exec = promisify(execCb);
-const CLI = path.resolve("dist/cli.js");
 const CLI_TIMEOUT_MS = 30_000;
 
 /** Allocate an unused TCP port on loopback and immediately close it. */

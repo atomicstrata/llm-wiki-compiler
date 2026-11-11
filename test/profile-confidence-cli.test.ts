@@ -8,8 +8,7 @@ import { readFile, realpath } from "node:fs/promises";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { writeMarkdownPage, writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { buildParityCorpus } from "./fixtures/parity-corpus.js";
-import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
-import { stripAnsi } from "./fixtures/cli-runner.js";
+import { runCLI, expectCLIExit, stripAnsi } from "./fixtures/run-cli.js";
 
 const env = useLintTempRoot("profile-confidence-cli");
 const NO_CREDENTIALS = {

@@ -31,6 +31,7 @@
     "test": "bun run build && bun scripts/run-tests.mjs",
     "test:watch": "bun test --watch",
     "test:profile": "bun run build && bun scripts/test-profile.ts",
+    "test:timings": "bun run build && bun scripts/run-tests.mjs --timings=test-timings.json --update-timings",
     "typecheck:tests": "bun scripts/typecheck-tests.ts",
     "typecheck:tests:update": "bun scripts/typecheck-tests.ts --update",
     "fallow:ci": "bash scripts/fallow-ci.sh",

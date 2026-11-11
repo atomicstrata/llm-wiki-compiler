@@ -45,10 +45,9 @@ import { describe, it, expect } from "bun:test";
 import { writeFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { exec, CLI, stripAnsi } from "../fixtures/cli-runner.js";
 import { makeEmptyRmProject, twoSourceRmProject, twoSourceRmProjectWithProfile } from "../fixtures/rm-project.js";
 import type { WikiState } from "../../src/utils/types.js";
-import { CLI_RUNTIME_FLAGS } from "../fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, exec, CLI, stripAnsi } from "../fixtures/run-cli.js";
 
 /** A project with one source owning one concept page. */
 async function oneSourceProject(): Promise<string> {

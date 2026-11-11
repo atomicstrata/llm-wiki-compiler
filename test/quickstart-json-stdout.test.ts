@@ -11,8 +11,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import { runCLI, expectCLIExit, type CLIResult } from "./fixtures/run-cli.js";
-import { stripAnsi } from "./fixtures/cli-runner.js";
+import { runCLI, expectCLIExit, type CLIResult, stripAnsi } from "./fixtures/run-cli.js";
 
 const INVALID_WARNING = (value: string): string =>
   `--concurrency value "${value}" is not a positive integer; ignoring it.`;

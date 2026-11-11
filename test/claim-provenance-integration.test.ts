@@ -13,8 +13,7 @@ import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
-import { exec, CLI, stripAnsi } from "./fixtures/cli-runner.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, exec, CLI, stripAnsi } from "./fixtures/run-cli.js";
 
 /** Set up a minimal llmwiki project root with wiki/concepts, wiki/queries, sources. */
 async function createWikiRoot(suffix: string): Promise<string> {

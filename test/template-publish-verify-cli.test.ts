@@ -26,9 +26,8 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const fixtures: PublishDistribution[] = [];
 const HUMAN_SUCCESS_OUTPUT = [
   "Verified template publisher distribution.",

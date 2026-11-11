@@ -26,10 +26,9 @@ import {
   startViewerCLI,
   useViewerProcessLifecycle,
 } from "./fixtures/run-cli-server.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
 const exec = promisify(execCb);
-const CLI = path.resolve("dist/cli.js");
 const CLI_REJECTION_TIMEOUT_MS = 30_000;
 
 let ipv6Available = false;

@@ -2,8 +2,7 @@ import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";
-import { exec, CLI } from "./fixtures/cli-runner.js";
-import { CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
+import { CLI_RUNTIME_FLAGS, exec, CLI } from "./fixtures/run-cli.js";
 
 async function cleanupDirectory(directory: string): Promise<void> {
   await rm(directory, { recursive: true, force: true });
