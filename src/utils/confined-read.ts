@@ -314,7 +314,18 @@ async function existingRealpath(lexical: string): Promise<string | "missing" | "
 }
 
 
-/** Read at most one byte beyond the cap, including when the inode grows mid-read. */
+/**
+ * Read at most one byte beyond the cap, including when the inode grows mid-read.
+ *
+ * A read that fills less than its buffer ends the loop: on a regular file a
+ * short read is end of file at that moment, so a further read could only see
+ * bytes appended since. The caller's post-read check requires the leaf's size to
+ * equal the open's size and the bytes read to equal it, so a leaf still grown
+ * is refused either way; one grown and cut back before that check is the
+ * same run as a write landing just after a confirming empty read, which the
+ * extra read would have accepted too. A spurious short read mid-file leaves
+ * fewer bytes than the open's size and is refused.
+ */
 async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let length = 0;
@@ -322,9 +333,9 @@ async function readBoundedBytes(handle: FileHandle, maxBytes: number): Promise<B
   while (length <= maxBytes) {
     const chunk = Buffer.alloc(Math.min(chunkBytes, maxBytes + 1 - length));
     const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
-    if (bytesRead === 0) break;
     chunks.push(chunk.subarray(0, bytesRead));
     length += bytesRead;
+    if (bytesRead < chunk.length) break;
   }
   return Buffer.concat(chunks, length);
 }
