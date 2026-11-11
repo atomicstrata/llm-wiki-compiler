@@ -11,12 +11,8 @@ import path from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { readPageRecord } from "../src/pages/read.js";
 import { writePage } from "./fixtures/write-page.js";
-import {
-  buildServer as buildSharedServer,
-  callTool as callSharedTool,
-  snapshotWorkspace,
-  useMcpRoot,
-} from "./fixtures/mcp-test-env.js";
+import { snapshotWorkspace, useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { buildServer as buildSharedServer, callTool as callSharedTool } from "./fixtures/mcp-test-server.js";
 import { appendHistory } from "../src/eval/stats.js";
 import { makeEvalReport } from "./fixtures/eval-report.js";
 

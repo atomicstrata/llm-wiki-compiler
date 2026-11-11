@@ -37,7 +37,7 @@ import { writePage } from "./fixtures/write-page.js";
 import { writeProfileFile } from "./fixtures/profile-fixtures.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { mockQueryVector, PAPERS_PROFILE, chunkOf } from "./fixtures/typed-grounding.js";
-import { buildServer, callTool } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { migrateEmbeddingStore, type EligibleLivePage } from "../src/utils/embeddings-migrate.js";
 import { buildEmbeddingText } from "../src/utils/embeddings-pages.js";
 import { hashChunkText } from "../src/utils/retrieval.js";
@@ -218,7 +218,7 @@ describe("v2→v3 ranking parity — pillar 2: collision classes disambiguated",
 });
 
 /** Decode the `search_pages` envelope into its pages + refs payload. */
-function parseSearchResult(envelope: import("./fixtures/mcp-test-env.js").McpToolEnvelope): {
+function parseSearchResult(envelope: import("./fixtures/mcp-test-server.js").McpToolEnvelope): {
   pages: PageRecord[];
   refs: Array<{ pageId: string }>;
 } {

@@ -35,7 +35,8 @@ import {
   resolveProductAction, resolveProductActionWith, type ProductActionSteps,
 } from "../../src/products/action-resolve.js";
 import type { ProductPackageManifestV1 } from "../../src/products/types.js";
-import { activatedProject, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID } from "../products/product-vertical-fixture.js";
+import { activatedProject } from "../products/product-vertical-fixture.js";
+import { VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID } from "../products/product-vertical-package.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

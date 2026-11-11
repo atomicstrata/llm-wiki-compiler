@@ -18,7 +18,7 @@ import path from "node:path";
 import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES, LOCK_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
-import { appendRelation, updateRelation, compactRelations, seedThreeVersionRelation, assertCompactionShrankTo3 } from "./fixtures/profile-fixtures.js";
+import { appendRelation, updateRelation, compactRelations, seedThreeVersionRelation, assertCompactionShrankTo3 } from "./fixtures/relation-fixtures.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { validateRelationAgainstProfile } from "../src/relations/relation-contract.js";
 import { RelationStoreFullError } from "../src/relations/types.js";
