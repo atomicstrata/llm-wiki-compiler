@@ -20,31 +20,15 @@ const DAY_EXCERPT_BUDGET = 60_000;
 /** The marker the model's first line must start with. */
 const SUMMARY_PREFIX = "SUMMARY:";
 
-const CITATION_RULES = [
-  "Cite every paragraph and every list item: end it with ^[filename.md:START-END] using the",
-  "line numbers shown (e.g. ' 42 | text' is line 42). Several sources: ^[a.md:1-5, b.md:10-12].",
-  "Never invent a line number. Do not cite a heading.",
-].join("\n");
+const DAILY_SYSTEM = `Summarize what happened on this day, from the records below, for a personal memory.
+First line: "${SUMMARY_PREFIX} " and one sentence.
+Then short "## " sections of bullets. End each bullet with its citation, ^[file.md:START-END], using the line numbers shown.
+Only what the records say. No title.`;
 
-const DAILY_SYSTEM = [
-  "You keep a personal memory: one page per day of what happened, written from the raw records of that day.",
-  "Write in the third person about the people involved, plainly and factually, in past tense.",
-  "Lead with what mattered most: decisions, plans, commitments, changes, events, and who was involved.",
-  "Skip pleasantries, logistics that led nowhere, and anything not supported by the lines shown.",
-  "Group related items under short `## ` headings when there are several topics; otherwise write a few short paragraphs.",
-  "Do not repeat the date as a heading. Do not add frontmatter or a list of related pages; one is added for you.",
-  CITATION_RULES,
-  `Your FIRST line must be "${SUMMARY_PREFIX} " followed by one sentence summarising the day, without citations.`,
-].join("\n");
-
-const WEEKLY_SYSTEM = [
-  "You keep a personal memory: one page per week, written from that week's daily pages.",
-  "Synthesise rather than list day by day: what moved forward, what was decided, what changed, recurring people and threads, and what is still open.",
-  "Write plainly and factually, in past tense.",
-  "Keep the citations: every paragraph and list item ends with ^[...] markers copied exactly from the daily pages it draws on.",
-  "Never invent a citation. Do not add frontmatter or a title heading.",
-  `Your FIRST line must be "${SUMMARY_PREFIX} " followed by one sentence summarising the week, without citations.`,
-].join("\n");
+const WEEKLY_SYSTEM = `Summarize this week, from its daily pages below, for a personal memory.
+First line: "${SUMMARY_PREFIX} " and one sentence.
+Then short "## " sections by theme, not by day. End each bullet with the citations it draws on, copied exactly from the daily pages.
+No title.`;
 
 /** One completion request for a timeline page. */
 export interface TimelineRequest {
