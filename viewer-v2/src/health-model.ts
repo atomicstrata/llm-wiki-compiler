@@ -5,7 +5,7 @@
  * profile project. Pure functions so the screen stays declarative and each
  * rule is tested once. Health counts come from `/api/health`; per-page
  * freshness and citation totals come from `/api/pages`, so the Freshness
- * panel's badge, bars and sentence all read the same rows and cannot disagree.
+ * panel's badge and sentence both read the same rows and cannot disagree.
  */
 import type { HealthPayload, LintRule, PageRow, PagesEnvelope } from "./api";
 import { relativeAge } from "./recency";
@@ -127,9 +127,8 @@ export function lintFooter(rules: LintRule[], total: number, pageIndex: Set<stri
   return { insight: `${dominant.count} of ${total} problems come from ${dominant.rule}.`, action: footerAction(dominant, pageIndex) };
 }
 
-/** The Freshness panel: a bar per concept page, a badge, and a sentence. */
+/** The Freshness panel: a badge and a sentence. */
 export interface FreshnessSummary {
-  bars: string[];
   badge: { text: string; tone: "ok" | "warn" | "unknown" };
   note: string;
 }
@@ -157,12 +156,11 @@ function freshnessNote(total: number, stale: number, orphaned: number, unverifie
 /** The Freshness panel's facts, all derived from the concept rows. */
 export function freshnessSummary(conceptPages: PageRow[]): FreshnessSummary {
   const statuses = conceptPages.map((page) => page.freshness.freshnessStatus);
-  const bars = statuses.map((status) => (RESOLVED_FRESHNESS.has(status) ? status : "unverified"));
   const stale = statuses.filter((status) => status === "stale").length;
   const orphaned = statuses.filter((status) => status === "orphaned").length;
-  const unverified = bars.filter((status) => status === "unverified").length;
-  const whollyUnverified = bars.length > 0 && unverified === bars.length;
-  return { bars, badge: freshnessBadge(stale, orphaned, whollyUnverified), note: freshnessNote(bars.length, stale, orphaned, unverified) };
+  const unverified = statuses.filter((status) => !RESOLVED_FRESHNESS.has(status)).length;
+  const whollyUnverified = statuses.length > 0 && unverified === statuses.length;
+  return { badge: freshnessBadge(stale, orphaned, whollyUnverified), note: freshnessNote(statuses.length, stale, orphaned, unverified) };
 }
 
 /** The Traceability panel: the share of citations that resolve to a real source span. */

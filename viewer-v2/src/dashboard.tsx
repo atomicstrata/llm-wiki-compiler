@@ -42,14 +42,14 @@ function Hero({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const pages = vocabulary ? vocabulary.pageCount : wiki.counts.concepts;
   const citations = vocabulary ? vocabulary.citationCount : citationTotals(wiki.pages).total;
   return (
-    <div className="hero">
+    <div>
       <div>
         <strong>Your knowledge base is ready.</strong>
         <p>{plural(pages, "page")}, {plural(citations, "citation")} traced to source spans.</p>
       </div>
-      <div className="hero-actions">
-        {wiki.index.available && <a className="button button-primary" href="#/index">Browse compiled index →</a>}
-        <a className="button" href="#/graph">Explore graph</a>
+      <div>
+        {wiki.index.available && <a href="#/index">Browse compiled index →</a>}{" "}
+        <a href="#/graph">Explore graph</a>
       </div>
     </div>
   );
@@ -60,11 +60,11 @@ function RecentRow({ recent, wiki, now }: { recent: RecentPage; wiki: PagesEnvel
   const page = wiki.pages.find((row) => row.id === recent.id);
   const status = page?.freshness.freshnessStatus ?? "unverified";
   return (
-    <li className="page-row">
-      <span className={`dot ${isWarnFreshness(status) ? "is-warn" : "is-ok"}`} title={status} aria-label={status} />
-      <a className="page-row-title" href={pageHref(recent.pageDirectory, recent.slug)}>{recent.title || recent.slug}</a>
-      <span className="chip">{page?.citationCount ?? 0}</span>
-      <span className="age">{relativeAge(recent.updatedAt, now)}</span>
+    <li>
+      {isWarnFreshness(status) && <span>{status}</span>}{" "}
+      <a href={pageHref(recent.pageDirectory, recent.slug)}>{recent.title || recent.slug}</a>{" "}
+      <span>{page?.citationCount ?? 0}</span>{" "}
+      <span>{relativeAge(recent.updatedAt, now)}</span>
     </li>
   );
 }
@@ -73,14 +73,14 @@ function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = useMemo(() => new Date(), [wiki]);
   const profile = profileVocabulary(wiki) !== null;
   return (
-    <section className="panel">
-      <div className="panel-head"><span className="panel-title">{profile ? "Recently updated" : "Recently compiled"}</span><a href="#/recent">View all</a></div>
+    <section>
+      <div><span>{profile ? "Recently updated" : "Recently compiled"}</span>{" "}<a href="#/recent">View all</a></div>
       {wiki.recentPages.length === 0 ? (
-        <p className="status">{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
+        <p>{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
       ) : (
-        <ul className="page-list">{wiki.recentPages.map((recent) => <RecentRow key={recent.id} recent={recent} wiki={wiki} now={now} />)}</ul>
+        <ul>{wiki.recentPages.map((recent) => <RecentRow key={recent.id} recent={recent} wiki={wiki} now={now} />)}</ul>
       )}
-      <div className="panel-foot"><span>cited pages, most recent first</span><a href="#/recent">All {plural(wiki.pages.length, "page")} →</a></div>
+      <div><span>cited pages, most recent first</span>{" "}<a href="#/recent">All {plural(wiki.pages.length, "page")} →</a></div>
     </section>
   );
 }
@@ -90,18 +90,18 @@ function GraphPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [controls, setControls] = useState<GraphControls | null>(null);
   const { nodeCount, edgeCount, danglingCount } = wiki.graph;
   return (
-    <section className="panel graph-panel">
-      <div className="panel-head">
-        <span className="panel-title">Knowledge graph</span>
-        <span className="panel-controls">
-          <button type="button" className="panel-chip" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
+    <section>
+      <div>
+        <span>Knowledge graph</span>{" "}
+        <span>
+          <button type="button" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
           <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer">⤢</a>
         </span>
       </div>
-      <p className="panel-caption">{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
+      <p>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
       <GraphLegend compact />
-      <div className="graph-panel-surface"><GraphCanvas wiki={wiki} compact onSettled={setControls} /></div>
-      <div className="panel-foot"><span>hover a node to inspect</span><span className={danglingCount > 0 ? "is-warn" : ""}>{plural(danglingCount, "dangling target")}</span></div>
+      <div><GraphCanvas wiki={wiki} compact onSettled={setControls} /></div>
+      <div><span>hover a node to inspect</span>{" "}<span>{plural(danglingCount, "dangling target")}</span></div>
     </section>
   );
 }
@@ -119,13 +119,13 @@ function Receipt({ wiki, health, totals }: { wiki: PagesEnvelope; health: Health
     ["Lint", lint === null ? "never run" : plural(lint, "finding")],
   ];
   return (
-    <section className="panel">
-      <div className="panel-head"><span className="panel-title">Compile receipt</span></div>
-      <dl className="receipt">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-      <div className="meter">
-        <div className="meter-head"><span>Citations resolved</span><span>{percent}%</span></div>
-        <div className="meter-track"><div className="meter-fill" style={{ width: `${percent}%` }} /></div>
-        <p className="panel-caption">{resolved} of {totals.total} citations resolve to a source file</p>
+    <section>
+      <div><span>Compile receipt</span></div>
+      <dl>{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      <div>
+        <div><span>Citations resolved</span>{" "}<span>{percent}%</span></div>
+        <meter min={0} max={100} value={percent} />
+        <p>{resolved} of {totals.total} citations resolve to a source file</p>
       </div>
     </section>
   );
@@ -146,31 +146,31 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
   const totals = citationTotals(wiki.pages);
   const dangling = wiki.graph.danglingCount;
   return (
-    <div className="dashboard">
-      <div className="stat-grid">
+    <div>
+      <div>
         {statCards(wiki, dangling, totals.unresolved).map((card) => (
-          <div key={card.key} className={`stat-card${card.tone ? ` is-${card.tone}` : ""}`} data-stat={card.key}>
-            <div className="stat-head"><span>{card.label}</span><span className="stat-badge">{card.badge}</span></div>
-            <strong className="stat-value">{card.value}</strong>
-            <span className="stat-sub">{card.sub}</span>
+          <div key={card.key} data-stat={card.key}>
+            <div><span>{card.label}</span>{" "}<span>{card.badge}</span></div>
+            <strong>{card.value}</strong>{" "}
+            <span>{card.sub}</span>
           </div>
         ))}
       </div>
       <Hero wiki={wiki} />
-      <div className="dashboard-split">
+      <div>
         <RecentPanel wiki={wiki} />
         <GraphPanel wiki={wiki} />
       </div>
-      <div className="dashboard-split">
+      <div>
         <Receipt wiki={wiki} health={health} totals={totals} />
-        <section className="panel">
-          <div className="panel-head"><span className="panel-title">Next actions</span></div>
-          <ul className="actions">
+        <section>
+          <div><span>Next actions</span></div>
+          <ul>
             {nextActions(wiki, health, dangling).map((row) => (
-              <li key={row.title}><span className="action-glyph">{row.glyph}</span><span><strong>{row.title}</strong><span className="action-hint">{row.hint}</span></span></li>
+              <li key={row.title}><span>{row.glyph}</span>{" "}<span><strong>{row.title}</strong>{" "}<span>{row.hint}</span></span></li>
             ))}
           </ul>
-          <p className="panel-caption">The viewer rereads the wiki from disk every few seconds, so a compile shows up without a restart.</p>
+          <p>The viewer rereads the wiki from disk every few seconds, so a compile shows up without a restart.</p>
         </section>
       </div>
     </div>

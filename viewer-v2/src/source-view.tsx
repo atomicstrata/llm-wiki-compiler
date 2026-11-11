@@ -34,11 +34,11 @@ function SourceLines({ text, lineStart, lineEnd }: { text: string; lineStart?: n
   const isCited = (line: number): boolean =>
     lineStart !== undefined && line >= lineStart && line <= (lineEnd ?? lineStart);
   return (
-    <ol className="source-lines">
+    <ol>
       {text.split(/\r?\n/).map((line, index) => {
         const number = index + 1;
         return (
-          <li key={number} ref={number === lineStart ? firstCited : undefined} className={isCited(number) ? "cited" : undefined}>
+          <li key={number} ref={number === lineStart ? firstCited : undefined}>
             {line}
           </li>
         );
@@ -55,8 +55,8 @@ export function SourceView({ id, lineStart, lineEnd }: SourceViewProps): ReactNo
       {({ meta, text }) => (
         <article>
           <h1>{meta.title ?? id}</h1>
-          <p className="page-meta">
-            <span>{id}</span>
+          <p>
+            <span>{id}</span>{" "}
             {meta.locator && <a href={meta.locator} target="_blank" rel="noreferrer">Original</a>}
           </p>
           {(meta.images ?? []).map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}

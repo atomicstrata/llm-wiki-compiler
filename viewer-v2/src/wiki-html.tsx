@@ -2,9 +2,10 @@
  * Displays HTML the server rendered from wiki Markdown.
  *
  * The server sanitizes the HTML and renders each citation as a
- * `span.citation-chip` carrying the cited file and line range. This component
- * makes those chips keyboard-reachable and opens the cited source when one is
- * activated. Wikilinks are plain `#/...` anchors and need no handling.
+ * `span.citation-chip` carrying the cited file and line range, with adjacent
+ * chips touching. This component separates them with a space, makes them
+ * keyboard-reachable, and opens the cited source when one is activated.
+ * Wikilinks are plain `#/...` anchors and need no handling.
  */
 import { useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { citationHref } from "./route";
@@ -30,6 +31,7 @@ export function WikiHtml({ html }: { html: string }): ReactNode {
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
     for (const chip of container.current?.querySelectorAll<HTMLElement>(CHIP_SELECTOR) ?? []) {
+      chip.before(" ");
       chip.tabIndex = 0;
       chip.setAttribute("role", "link");
     }
@@ -41,7 +43,7 @@ export function WikiHtml({ html }: { html: string }): ReactNode {
   return (
     <div
       ref={container}
-      className="wiki-html"
+
       onClick={onClick}
       onKeyDown={onKeyDown}
       dangerouslySetInnerHTML={{ __html: html }}

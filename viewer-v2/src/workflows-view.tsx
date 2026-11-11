@@ -82,10 +82,7 @@ function RunFlags({ run }: { run: WorkflowRunRow }): ReactNode {
   const parked = parkLabels(run);
   if (parked.length === 0 && classification === undefined) return null;
   return (
-    <div className="run-flags">
-      {parked.map((label) => <span key={label} className="chip is-warn">{label}</span>)}
-      {classification && <span className="chip">{classification}</span>}
-    </div>
+    <div>{[...parked, ...(classification ? [classification] : [])].join(" · ")}</div>
   );
 }
 
@@ -94,15 +91,15 @@ function RunRow({ run }: { run: WorkflowRunRow }): ReactNode {
   const workflow = run.workflow?.trim() ?? "";
   const stage = run.currentStage?.trim() ?? "";
   return (
-    <li className={`run-row${isParked(run) ? " is-parked" : ""}`}>
-      <div className="run-head">
-        {workflow ? <a className="run-title" href={journeyHref(workflow, run.runId)}>{workflow}</a> : <span className="run-title">Unknown workflow</span>}
-        <span className="run-id">{run.runId}</span>
+    <li>
+      <div>
+        {workflow ? <a href={journeyHref(workflow, run.runId)}>{workflow}</a> : <span>Unknown workflow</span>}{" "}
+        <span>{run.runId}</span>
       </div>
-      <p className="run-meta">{run.status || "unknown"} · {stage || NO_STAGE}</p>
+      <p>{run.status || "unknown"} · {stage || NO_STAGE}</p>
       <RunFlags run={run} />
-      {run.awaitingTrustGate === true && <p className="run-note">{TRUST_GATE_NOTE}</p>}
-      {nextCommands(run).map((command) => <p key={command} className="run-next"><code>{command}</code></p>)}
+      {run.awaitingTrustGate === true && <p>{TRUST_GATE_NOTE}</p>}
+      {nextCommands(run).map((command) => <p key={command}><code>{command}</code></p>)}
     </li>
   );
 }
@@ -110,12 +107,12 @@ function RunRow({ run }: { run: WorkflowRunRow }): ReactNode {
 /** An unreadable run or store: what the trouble is attributed to, and why. */
 function ProblemRow({ run }: { run: WorkflowRunRow }): ReactNode {
   return (
-    <li className="run-row is-problem">
-      <div className="run-head">
-        <span className="run-title">{run.runId || "Unknown run"}</span>
-        <span className="chip is-warn">Problem</span>
+    <li>
+      <div>
+        <span>{run.runId || "Unknown run"}</span>{" "}
+        <span>Problem</span>
       </div>
-      <p className="run-problem">{run.problem}</p>
+      <p>{run.problem}</p>
     </li>
   );
 }
@@ -123,7 +120,7 @@ function ProblemRow({ run }: { run: WorkflowRunRow }): ReactNode {
 /** The run list for a loaded envelope. */
 export function WorkflowRuns({ payload }: { payload: WorkflowRunsEnvelope }): ReactNode {
   return (
-    <section className="list-screen">
+    <section>
       <h1>Workflows</h1>
       {payload.runs.length === 0 ? (
         <EmptyState
@@ -132,7 +129,7 @@ export function WorkflowRuns({ payload }: { payload: WorkflowRunsEnvelope }): Re
           command="$ llmwiki workflow list"
         />
       ) : (
-        <ul className="run-list">
+        <ul>
           {payload.runs.map((run) => (run.problem ? <ProblemRow key={run.runId} run={run} /> : <RunRow key={run.runId} run={run} />))}
         </ul>
       )}

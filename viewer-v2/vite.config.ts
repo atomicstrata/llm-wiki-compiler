@@ -10,6 +10,7 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 const DEFAULT_API_ORIGIN = "http://127.0.0.1:18881";
 const BUILT_BASE_PATH = "/assets/v2/";
@@ -17,7 +18,7 @@ const BUILT_BASE_PATH = "/assets/v2/";
 export default defineConfig(({ command }) => ({
   root: fileURLToPath(new URL(".", import.meta.url)),
   base: command === "build" ? BUILT_BASE_PATH : "/",
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     proxy: {
       "/api": { target: process.env.LLMWIKI_VIEW_API ?? DEFAULT_API_ORIGIN, changeOrigin: true },

@@ -1,0 +1,5 @@
+/* Tailwind entry and the client's only stylesheet: it loads Tailwind, scanning only this client, and the typography plugin, whose defaults style the wiki content. */
+@import "tailwindcss" source(none);
+@source "./";
+@source "../index.html";
+@plugin "@tailwindcss/typography";

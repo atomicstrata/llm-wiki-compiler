@@ -28,7 +28,7 @@ async function loadSourceImages(sourceIds: string[]): Promise<SourceImage[]> {
 /** One image with a caption linking to the source it came from. */
 export function SourceImageFigure({ sourceId, file }: SourceImage): ReactNode {
   return (
-    <figure className="source-image">
+    <figure>
       <a href={sourceImageUrl(sourceId, file)} target="_blank" rel="noreferrer">
         <img src={sourceImageUrl(sourceId, file)} alt={`Original image from ${sourceId}`} loading="lazy" />
       </a>
@@ -47,7 +47,7 @@ export function SourceImages({ sourceIds }: { sourceIds: string[] }): ReactNode 
   return (
     <AsyncView state={state}>
       {(images) => images.length > 0 && (
-        <section className="source-images" aria-label="Images from cited sources">
+        <section aria-label="Images from cited sources">
           <h2>Images</h2>
           {images.map((image) => <SourceImageFigure key={`${image.sourceId}/${image.file}`} {...image} />)}
         </section>

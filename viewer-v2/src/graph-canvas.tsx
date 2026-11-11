@@ -13,7 +13,7 @@ import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type Reac
 import { fetchGraph, type GraphData, type GraphEdge, type GraphNode, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { mountGraph, type GraphControls } from "./graph-layout";
-import { EDGE_LEGEND, HALO_MARGIN, maxDegree, NODE_LEGEND, nodeHref, nodeKind, nodeMeta, nodeRadius, nodeStrokeWidth, staleIds } from "./graph-model";
+import { EDGE_LEGEND, KIND_COLOR, maxDegree, NODE_LEGEND, nodeHref, nodeKind, nodeMeta, nodeRadius, nodeStrokeWidth, staleIds, type NodeKind } from "./graph-model";
 import { useAsync } from "./use-async";
 
 /** Hand back `fit` once the layout settled, and null when the drawing leaves. */
@@ -33,39 +33,28 @@ const TOOLTIP_EDGE_GAP = 8;
 /** The legend: node colours, then in the explorer edge kinds and the size rule. */
 export function GraphLegend({ compact }: { compact: boolean }): ReactNode {
   const nodeRows = NODE_LEGEND.map((row) => (
-    <span key={row.kind} className="graph-legend-item"><i className={`graph-legend-dot graph-legend-dot--${row.kind}`} />{row.label}</span>
+    <span key={row.kind}><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{" "}{row.label}{" "}</span>
   ));
-  if (compact) return <div className="graph-legend graph-legend-compact">{nodeRows}<span className="graph-legend-note">size = degree</span></div>;
+  if (compact) return <div>{nodeRows}<span>size = degree</span></div>;
   return (
-    <div className="graph-legend">
-      <div className="graph-legend-heading">Node kind</div>
+    <div>
+      <div>Node kind</div>
       {nodeRows}
-      <div className="graph-legend-heading">Edge kind</div>
+      <div>Edge kind</div>
       {EDGE_LEGEND.map((row) => (
-        <span key={row.kind} className="graph-legend-item"><i className={`graph-legend-edge graph-legend-edge--${row.kind}`} />{row.label}</span>
+        <span key={row.kind}>{row.kind === "relation" ? "╌ " : "─ "}{row.label} </span>
       ))}
-      <div className="graph-legend-heading">Node size</div>
-      <span className="graph-legend-item">larger = more connections</span>
+      <div>Node size</div>
+      <span>larger = more connections</span>
     </div>
   );
 }
 
-/** Whether an edge touches the hovered node. */
-function touches(edge: GraphEdge, hoveredId: string | null): boolean {
-  return edge.source === hoveredId || edge.target === hoveredId;
-}
-
-/** `is-hot` on what the hover singles out, `is-dimmed` on the rest, nothing at rest. */
-function hoverClass(isHot: boolean, hoveredId: string | null): string {
-  if (hoveredId === null) return "";
-  return isHot ? " is-hot" : " is-dimmed";
-}
-
-function EdgeLine({ edge, hoveredId, markerId }: { edge: GraphEdge; hoveredId: string | null; markerId: string }): ReactNode {
+function EdgeLine({ edge, markerId }: { edge: GraphEdge; markerId: string }): ReactNode {
   const relation = edge.edgeKind === "relation";
-  const className = `graph-edge${relation ? " graph-edge--relation" : ""}${hoverClass(touches(edge, hoveredId), hoveredId)}`;
   return (
-    <line className={className} markerEnd={edge.direction === "symmetric" ? undefined : `url(#${markerId})`}>
+    <line stroke="currentColor" strokeOpacity={0.3} strokeDasharray={relation ? "5 3" : undefined}
+      markerEnd={edge.direction === "symmetric" ? undefined : `url(#${markerId})`}>
       {relation && edge.relationType && <title>{edge.relationType}</title>}
     </line>
   );
@@ -73,26 +62,21 @@ function EdgeLine({ edge, hoveredId, markerId }: { edge: GraphEdge; hoveredId: s
 
 interface NodeProps {
   node: GraphNode;
-  kind: string;
+  kind: NodeKind;
   radius: number;
-  hoveredId: string | null;
   onHover: (node: GraphNode | null, event?: MouseEvent) => void;
   onMove: (event: MouseEvent) => void;
 }
 
 /** A halo behind the node, the node itself, and a link when the node has a page. */
-function NodeGroup({ node, kind, radius, hoveredId, onHover, onMove }: NodeProps): ReactNode {
+function NodeGroup({ node, kind, radius, onHover, onMove }: NodeProps): ReactNode {
   const href = nodeHref(node);
-  const isHot = hoveredId === node.id;
   const circles = (
-    <>
-      <circle className={`graph-halo${isHot ? " is-hot" : ""}`} r={radius + HALO_MARGIN} />
-      <circle className={`graph-node graph-node--${kind}${hoverClass(isHot, hoveredId)}`} r={radius}
-        strokeWidth={nodeStrokeWidth(node.degree)} strokeDasharray={node.isDangling ? "3,2" : undefined} />
-    </>
+    <circle r={radius} fill="currentColor" stroke="currentColor"
+      strokeWidth={nodeStrokeWidth(node.degree)} strokeDasharray={node.isDangling ? "3,2" : undefined} />
   );
   return (
-    <g data-node="" onMouseEnter={(event) => onHover(node, event)} onMouseMove={onMove} onMouseLeave={() => onHover(null)}>
+    <g data-node="" className={KIND_COLOR[kind]} onMouseEnter={(event) => onHover(node, event)} onMouseMove={onMove} onMouseLeave={() => onHover(null)}>
       {href === null ? circles : <a href={href} aria-label={node.title}>{circles}</a>}
     </g>
   );
@@ -142,7 +126,7 @@ function Arrowhead({ id }: { id: string }): ReactNode {
   return (
     <defs>
       <marker id={id} viewBox="0 -4 8 8" refX={8} refY={0} markerWidth={6} markerHeight={6} orient="auto">
-        <path className="graph-arrowhead" d="M0,-4L8,0L0,4" />
+        <path d="M0,-4L8,0L0,4" fill="currentColor" fillOpacity={0.3} />
       </marker>
     </defs>
   );
@@ -151,12 +135,12 @@ function Arrowhead({ id }: { id: string }): ReactNode {
 /** Title, kind and degree of the hovered node; the hint only when a click goes somewhere. */
 function Tooltip({ node, tooltipRef }: { node: GraphNode | null; tooltipRef: RefObject<HTMLDivElement | null> }): ReactNode {
   return (
-    <div ref={tooltipRef} className="graph-tooltip" hidden={node === null}>
+    <div ref={tooltipRef} hidden={node === null} className="pointer-events-none absolute border bg-white p-2 text-sm dark:bg-black">
       {node && (
         <>
-          <div className="tip-title">{node.title}</div>
-          <div className="tip-meta">{nodeMeta(node)}</div>
-          {!node.isDangling && <div className="tip-hint">Click to open page</div>}
+          <div>{node.title}</div>
+          <div>{nodeMeta(node)}</div>
+          {!node.isDangling && <div>Click to open page</div>}
         </>
       )}
     </div>
@@ -177,24 +161,23 @@ function Drawing({ data, stale, compact, onSettled }: SurfaceProps): ReactNode {
     setHovered(node);
     if (event) onMove(event);
   };
-  const hoveredId = hovered?.id ?? null;
   return (
-    <>
-      {!settled && <p className="status" role="status">Arranging graph…</p>}
-      <svg ref={svgRef} className="graph-svg" data-settled={settled} data-compact={compact}>
+    <div className="relative">
+      {!settled && <p role="status">Arranging graph…</p>}
+      <svg ref={svgRef} data-settled={settled} data-compact={compact} className={compact ? "h-72 w-full" : "h-[70vh] w-full"}>
         <Arrowhead id={markerId} />
         <g ref={viewportRef}>
-          <g>{data.edges.map((edge, index) => <EdgeLine key={`${edge.source}|${edge.target}|${index}`} edge={edge} hoveredId={hoveredId} markerId={markerId} />)}</g>
+          <g>{data.edges.map((edge, index) => <EdgeLine key={`${edge.source}|${edge.target}|${index}`} edge={edge} markerId={markerId} />)}</g>
           <g>
             {data.nodes.map((node) => (
               <NodeGroup key={node.id} node={node} kind={nodeKind(node, stale)} radius={nodeRadius(node.degree, largest, compact)}
-                hoveredId={hoveredId} onHover={onHover} onMove={onMove} />
+                onHover={onHover} onMove={onMove} />
             ))}
           </g>
         </g>
       </svg>
       <Tooltip node={hovered} tooltipRef={tooltipRef} />
-    </>
+    </div>
   );
 }
 
@@ -202,7 +185,7 @@ function Drawing({ data, stale, compact, onSettled }: SurfaceProps): ReactNode {
 export function GraphSurface(props: SurfaceProps): ReactNode {
   if (props.data.nodes.length === 0) {
     return (
-      <div className="empty-state">
+      <div>
         <strong>Nothing to graph yet</strong>
         <p>The graph draws links between compiled pages. Compile at least two pages that reference each other to see structure here.</p>
         <code>$ llmwiki compile</code>

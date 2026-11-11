@@ -34,11 +34,11 @@ function isDisplayableRow(row: FactRow): boolean {
 function FactPanel({ panel }: { panel: VerifiedStage["factPanel"] }): ReactNode {
   if (!panel || panel.title.length === 0 || panel.rows.length === 0 || !panel.rows.every(isDisplayableRow)) return null;
   return (
-    <section className="fact-panel">
+    <section>
       <h4>{panel.title}</h4>
-      <dl className="fact-list">
+      <dl>
         {panel.rows.map((row) => (
-          <div key={row.label} className={`fact-row fact-tone-${row.tone}`}>
+          <div key={row.label}>
             <dt>{row.label}</dt>
             <dd>{row.value}</dd>
           </div>
@@ -53,14 +53,14 @@ function Provenance({ stage }: { stage: VerifiedStage }): ReactNode {
   const edges = stageEdges(stage);
   const digests = [...stage.evidenceDigests, ...(stage.groundedRefs ?? [])];
   return (
-    <div className="stage-provenance">
-      <span className="stage-caption">What happened</span>
-      {stage.summary && <p className="stage-summary">{stage.summary}</p>}
+    <div>
+      <span>What happened</span>{" "}
+      {stage.summary && <p>{stage.summary}</p>}
       {stage.appliedTargets.length > 0 && (
-        <ul className="stage-chips">{stage.appliedTargets.map((target) => <li key={target} className="chip">{target}</li>)}</ul>
+        <ul>{stage.appliedTargets.map((target) => <li key={target}>{target}</li>)}</ul>
       )}
       {edges.length > 0 && (
-        <div className="stage-edges">
+        <div>
           <h4>Graph edges</h4>
           <ul>
             {edges.map((edge) => <li key={`${edge.kind}:${edge.value}`} data-edge-kind={edge.kind}>{stage.stageId} → {edge.label}: {edge.value}</li>)}
@@ -68,7 +68,7 @@ function Provenance({ stage }: { stage: VerifiedStage }): ReactNode {
         </div>
       )}
       {digests.length > 0 && (
-        <details className="stage-digests">
+        <details>
           <summary>Evidence digests</summary>
           <ul>{digests.map((digest) => <li key={digest}>{digest}</li>)}</ul>
         </details>

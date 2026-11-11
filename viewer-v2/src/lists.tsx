@@ -38,7 +38,7 @@ export function matchesTitle(pages: PageRow[], filter: string): PageRow[] {
 /** A short explanation shown when a list is empty. */
 export function EmptyState({ title, body, command }: { title: string; body: string; command?: string }): ReactNode {
   return (
-    <div className="empty-state">
+    <div>
       <strong>{title}</strong>
       <p>{body}</p>
       {command && <code>{command}</code>}
@@ -51,13 +51,13 @@ export function PageRowItem({ page, now, trailing }: { page: PageRow; now: Date;
   const status = page.freshness.freshnessStatus;
   const warnCitations = page.unresolvedCitationCount > 0;
   return (
-    <li className="page-row">
-      <span className={`dot ${isWarnFreshness(status) ? "is-warn" : "is-ok"}`} title={status} aria-label={status} />
-      <a className="page-row-title" href={pageHref(page.pageDirectory, page.slug)}>{page.title || page.slug}</a>
-      <span className={`chip${warnCitations ? " is-warn" : ""}`} title={warnCitations ? `${page.unresolvedCitationCount} unresolved` : "citations"}>
+    <li>
+      {isWarnFreshness(status) && <span>{status}</span>}{" "}
+      <a href={pageHref(page.pageDirectory, page.slug)}>{page.title || page.slug}</a>{" "}
+      <span title={warnCitations ? `${page.unresolvedCitationCount} unresolved` : "citations"}>
         {page.citationCount}
-      </span>
-      <span className="age">{relativeAge(page.updatedAt, now)}</span>
+      </span>{" "}
+      <span>{relativeAge(page.updatedAt, now)}</span>{" "}
       {trailing}
     </li>
   );
@@ -77,11 +77,11 @@ function PageList({ heading, pages, whenEmpty, freshnessFilter = false }: PageLi
   const now = useMemo(() => new Date(), [pages]);
   const shown = matchesTitle(pages, title).filter((page) => passesFreshness(page, freshness));
   return (
-    <section className="list-screen">
+    <section>
       <h1>{heading}</h1>
       {pages.length === 0 ? whenEmpty : (
         <>
-          <div className="list-filters">
+          <div>
             <input type="search" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Filter by title" aria-label="Filter by title" />
             {freshnessFilter && (
               <label>Freshness
@@ -90,10 +90,10 @@ function PageList({ heading, pages, whenEmpty, freshnessFilter = false }: PageLi
                 </select>
               </label>
             )}
-            <span className="list-count">{shown.length === pages.length ? plural(pages.length, "page") : `${shown.length} of ${pages.length}`}</span>
+            <span>{shown.length === pages.length ? plural(pages.length, "page") : `${shown.length} of ${pages.length}`}</span>
           </div>
-          {shown.length === 0 && <p className="status">No pages match this filter.</p>}
-          <ul className="page-list">{shown.map((page) => <PageRowItem key={page.id} page={page} now={now} />)}</ul>
+          {shown.length === 0 && <p>No pages match this filter.</p>}
+          <ul>{shown.map((page) => <PageRowItem key={page.id} page={page} now={now} />)}</ul>
         </>
       )}
     </section>
@@ -129,18 +129,18 @@ export function SourcesList({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [filter, setFilter] = useState("");
   const names = wiki.sourceFilenames.filter((name) => name.toLowerCase().includes(filter.toLowerCase()));
   return (
-    <section className="list-screen">
+    <section>
       <h1>{isProfileProject(wiki) ? "Raw sources" : "Sources"}</h1>
-      <p className="list-caption">{wiki.counts.compiledSources} compiled · {wiki.counts.sourceFiles} on disk</p>
+      <p>{wiki.counts.compiledSources} compiled · {wiki.counts.sourceFiles} on disk</p>
       {wiki.sourceFilenames.length === 0 ? (
         <EmptyState title="No sources yet" body="Sources are the raw files the compiler reads. Every claim on a page traces back to a span in one of them." command="$ llmwiki ingest <source>" />
       ) : (
         <>
-          <div className="list-filters">
+          <div>
             <input type="search" value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filter by file name" aria-label="Filter by file name" />
           </div>
-          <ul className="page-list">
-            {names.map((name) => <li key={name} className="page-row"><a className="page-row-title" href={sourceHref(name)}>{name}</a></li>)}
+          <ul>
+            {names.map((name) => <li key={name}><a href={sourceHref(name)}>{name}</a></li>)}
           </ul>
         </>
       )}

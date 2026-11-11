@@ -42,7 +42,7 @@ export function targetDirectoryOf(review: ReviewCandidate): string {
 
 /** The chip reads as human wording; the structured detail explains the hold on hover. */
 function ReasonChip({ reason }: { reason: HeldReason }): ReactNode {
-  return <span className="chip" title={reason.detail || undefined}>{HELD_REASON_LABELS[reason.code] ?? reason.code}</span>;
+  return <span title={reason.detail || undefined}>{HELD_REASON_LABELS[reason.code] ?? reason.code}</span>;
 }
 
 /** The title is plain text, not a link: the page does not exist in `wiki/` yet. */
@@ -50,11 +50,11 @@ function ReviewRow({ review, now }: { review: ReviewCandidate; now: Date }): Rea
   const summary = review.summary.trim();
   const from = review.sources.length > 0 ? review.sources.join(" · ") : "No sources recorded";
   return (
-    <li className="review-row">
-      <div className="review-head"><strong>{review.title || review.slug}</strong><span className="age">{relativeAge(review.generatedAt, now)}</span></div>
-      <p className="review-summary">{summary.length > 0 ? summary : "No summary recorded."}</p>
-      <p className="review-sources">{from} → wiki/{targetDirectoryOf(review)}/</p>
-      <div className="review-reasons">{review.heldReasons.map((reason, index) => <ReasonChip key={index} reason={reason} />)}</div>
+    <li>
+      <div><strong>{review.title || review.slug}</strong>{" "}<span>{relativeAge(review.generatedAt, now)}</span></div>
+      <p>{summary.length > 0 ? summary : "No summary recorded."}</p>
+      <p>{from} → wiki/{targetDirectoryOf(review)}/</p>
+      <div>{review.heldReasons.map((reason, index) => <ReasonChip key={index} reason={reason} />)}</div>
     </li>
   );
 }
@@ -64,15 +64,15 @@ export function ReviewsList({ payload }: { payload: ReviewsEnvelope }): ReactNod
   const now = useMemo(() => new Date(), [payload]);
   const shown = payload.reviews.length;
   return (
-    <section className="list-screen">
+    <section>
       <h1>Reviews</h1>
-      {payload.sourceChanges === true && <p className="list-caption"><a href="#/source-changes">Compare changed sources and proposed wiki updates</a></p>}
-      {payload.total > shown && <p className="list-caption">Showing {shown} of {plural(payload.total, "pending candidate")} · {FULL_QUEUE_COMMAND} shows the whole queue</p>}
+      {payload.sourceChanges === true && <p><a href="#/source-changes">Compare changed sources and proposed wiki updates</a></p>}
+      {payload.total > shown && <p>Showing {shown} of {plural(payload.total, "pending candidate")} · {FULL_QUEUE_COMMAND} shows the whole queue</p>}
       {shown === 0 ? (
         <EmptyState title="Nothing awaiting review" command="$ llmwiki compile --review"
           body="Review candidates are pages the compiler held back instead of writing live. Approve one with the CLI and it becomes a wiki page." />
       ) : (
-        <ul className="page-list">{payload.reviews.map((review) => <ReviewRow key={review.id} review={review} now={now} />)}</ul>
+        <ul>{payload.reviews.map((review) => <ReviewRow key={review.id} review={review} now={now} />)}</ul>
       )}
     </section>
   );

@@ -13,8 +13,8 @@ export function SearchView({ query }: { query: string }): ReactNode {
       {({ results }) => (
         <section>
           <h1>Search: {query}</h1>
-          {results.length === 0 && <p className="status">No pages match.</p>}
-          <ul className="result-list">
+          {results.length === 0 && <p>No pages match.</p>}
+          <ul>
             {results.map((result) => (
               <li key={result.id}>
                 <a href={pageIdHref(result.id)}>{result.title}</a>

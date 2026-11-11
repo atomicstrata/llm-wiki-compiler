@@ -24,16 +24,16 @@ describe("reachability", () => {
 });
 
 describe("classifyStates", () => {
-  it("orders by the chain, names terminal and unreachable states, and fades along the chain", () => {
+  it("orders by the chain and names terminal and unreachable states", () => {
     const states = classifyStates(lifecycle(), { published: 2, draft: 3, limbo: 1, review: 0 });
-    expect(states.map((state) => [state.state, state.role, state.alpha])).toEqual([
-      ["draft", "flight", 1], ["published", "terminal", 1], ["limbo", "unreachable", 0.55],
+    expect(states.map((state) => [state.state, state.role])).toEqual([
+      ["draft", "flight"], ["published", "terminal"], ["limbo", "unreachable"],
     ]);
   });
 
   it("keeps every state of an orderless type in flight, biggest pile first", () => {
     const states = classifyStates(ORDERLESS, { open: 1, closed: 4 });
-    expect(states.map((state) => [state.state, state.role, state.alpha])).toEqual([["closed", "flight", 1], ["open", "flight", 0.45]]);
+    expect(states.map((state) => [state.state, state.role])).toEqual([["closed", "flight"], ["open", "flight"]]);
   });
 
   it("adds declared and reachable states at zero without inventing warnings", () => {

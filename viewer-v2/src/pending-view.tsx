@@ -11,7 +11,7 @@ export function PendingView({ route }: { route: Route }): ReactNode {
   return (
     <section>
       <h1>Not available</h1>
-      <p className="status">This client has no screen for <code>{route.view}</code>. Open it with <code>llmwiki view</code> at the same address.</p>
+      <p>This client has no screen for <code>{route.view}</code>. Open it with <code>llmwiki view</code> at the same address.</p>
     </section>
   );
 }

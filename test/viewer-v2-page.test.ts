@@ -74,11 +74,11 @@ describe("PageHeader and PageBody", () => {
 describe("PageRail", () => {
   it("shows metadata with the list's freshness dot and the list row's counts", () => {
     const html = rail(PAGE, { status: "ready", data: GRAPH });
-    expect(html).toContain('class="dot is-warn" title="stale"');
+    expect(html).toContain("<dt>Freshness</dt><dd>stale · contradicted</dd>");
     expect(html).toContain("stale · contradicted");
     expect(html).toContain("<dt>Kind</dt><dd>concept</dd>");
     expect(html).toContain("<dt>Citations</dt><dd>2</dd>");
-    expect(html).toContain('<dt>Unresolved</dt><dd><span class="is-warn">1</span></dd>');
+    expect(html).toContain("<dt>Unresolved</dt><dd><span>1</span></dd>");
     expect(html).toContain("<dd>2026-11-10 12:00</dd>");
   });
 
@@ -86,7 +86,7 @@ describe("PageRail", () => {
     const html = rail(PAGE, { status: "ready", data: GRAPH });
     expect(html.match(/notes\.md:12-15/g)?.length).toBe(1);
     expect(html).toContain('href="#/_source/notes.md?start=12&amp;end=15"');
-    expect(html).toContain('data-resolved="false">gone.md <span class="rail-note">not found</span>');
+    expect(html).toContain('data-resolved="false">gone.md <span>not found</span>');
     expect(html).toContain('<h3>Links out</h3><ul><li><a href="#/concepts/beta">Beta</a></li></ul>');
     expect(html).toContain('<h3>Backlinks</h3><ul><li><a href="#/concepts/beta">Beta</a></li><li><a href="#/concepts/gamma">Gamma</a></li></ul>');
   });
@@ -104,8 +104,8 @@ describe("PageRail", () => {
   it("groups a typed page's relations by type and direction and shows the connector", () => {
     const typed = pagePayload({ id: "papers/p1", entityType: "papers", entityContext: ENTITY_CONTEXT });
     const html = rail(typed, { status: "loading" });
-    expect(html).toContain('<h3>Cites <span class="rail-note">outgoing</span></h3><ul><li title="cites · outgoing · papers/p2"><a href="#/papers/p2">Paper two</a></li>');
-    expect(html).toContain('papers/p3 <span class="rail-note">not found</span>');
+    expect(html).toContain('<h3>Cites <span>outgoing</span></h3><ul><li title="cites · outgoing · papers/p2"><a href="#/papers/p2">Paper two</a></li>');
+    expect(html).toContain("papers/p3 <span>not found</span>");
     expect(html).toContain('href="#/_source/notes.md?start=1&amp;end=2"');
     expect(html).toContain("Imported from Crossref on 2026-11-01 10:00.");
     expect(html).toContain('href="https://api.example.org/works/1"');

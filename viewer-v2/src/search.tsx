@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type R
 import { fetchSearch, type SearchResult } from "./api";
 import { pageIdHref, searchHref } from "./route";
 
+
 const DEBOUNCE_MS = 200;
 
 /** The kind chip of a hit: its entity type, or query, or concept. */
@@ -84,20 +85,20 @@ export function SearchBox({ initialQuery }: { initialQuery: string }): ReactNode
   };
   const showList = open && query.trim().length > 0;
   return (
-    <form className="search-form" role="search" onSubmit={onSubmit} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <form className="relative" role="search" onSubmit={onSubmit} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
       <input ref={input} type="search" value={query} placeholder="Search…" aria-label="Search wiki"
         onChange={(event) => { setQuery(event.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onInputKey} />
-      <span className="search-kbd" aria-hidden="true">⌘K</span>
+      <span aria-hidden="true">⌘K</span>{" "}
       {showList && (
-        <ul ref={list} className="search-results" role="listbox" aria-label="Search results" onKeyDown={(event) => onResultKey(event, input.current)}>
-          {error !== null && <li className="search-note">Search failed: {error}</li>}
-          {error === null && results.length === 0 && <li className="search-note">No matches.</li>}
+        <ul ref={list} className="absolute z-10 border bg-white p-2 dark:bg-black" role="listbox" aria-label="Search results" onKeyDown={(event) => onResultKey(event, input.current)}>
+          {error !== null && <li>Search failed: {error}</li>}
+          {error === null && results.length === 0 && <li>No matches.</li>}
           {results.map((result) => (
             <li key={result.id} role="option">
               <a href={pageIdHref(result.id)} onClick={() => { setQuery(""); setOpen(false); }}>
-                <span className="result-kind">{resultKind(result)}</span>
-                <span className="result-title">{result.title || result.id}</span>
-                {result.matchedIn === "body" && <span className="result-snippet">{plainSnippet(result.snippet)}</span>}
+                <span>{resultKind(result)}</span>{" "}
+                <span>{result.title || result.id}</span>{" "}
+                {result.matchedIn === "body" && <span>{plainSnippet(result.snippet)}</span>}
               </a>
             </li>
           ))}
