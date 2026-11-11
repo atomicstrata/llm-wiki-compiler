@@ -45,10 +45,10 @@ import { countCandidatesFrom } from "../compiler/candidate-read.js";
 import { readStateClassifiedFrom, isPlainObject } from "../utils/state.js";
 import { readCappedNoFollow } from "../utils/confined-read.js";
 import type { ClassifiedState } from "../utils/state.js";
-import { collectViewerPagesFrom, decorateEntityPages, resolveBareSlugList } from "./collect.js";
+import { collectViewerPagesFrom, decorateEntityPages, linkPages, resolveWikilinkTargets } from "./collect.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { isMalformedCitationEntry, splitCitationMarker } from "../utils/markdown.js";
-import { buildGraphData } from "./graph.js";
+import { buildGraphData, type GraphBuildOptions } from "./graph.js";
 import { pageTimestamp } from "./page-fields.js";
 import { buildFreshnessSnapshotFrom, computeFreshness, diskSourceFreshnessSources } from "../freshness/index.js";
 import type { SourceFreshnessSources } from "../freshness/index.js";
@@ -208,8 +208,12 @@ export async function buildViewerSnapshotFrom(sources: ViewerSnapshotSources): P
     ]);
   const freshnessSnapshot = await buildFreshnessSnapshotFrom(bindings.freshness, classified);
   const decorate = buildPageDecorator(sourceFilenames, freshnessSnapshot);
+  const typedPages = decorateEntityPages(typed?.pages ?? []);
+  const linkable = [...defaultPages, ...typedPages];
+  // Typed pages link, and are linked to by qualified links, only once both lists exist.
+  if (typedPages.length > 0) linkPages(linkable);
   const annotatedDefault = defaultPages.map(decorate);
-  const annotatedTyped = decorateEntityPages(typed?.pages ?? [], defaultPages).map(decorate);
+  const annotatedTyped = typedPages.map(decorate);
   const pages = attachEntityContexts([...annotatedDefault, ...annotatedTyped], typed?.graph.relations ?? [], sourceFilenames);
   // Surface a pending/unavailable compile journal so the viewer never renders
   // partial post-crash or tampered state as silently healthy. ABSENT when the
@@ -225,14 +229,15 @@ export async function buildViewerSnapshotFrom(sources: ViewerSnapshotSources): P
     stateStatus: classified.status,
     project: buildProject(root),
     counts: buildCounts(annotatedDefault, sourceFilenames, pendingReviews, countableState(classified)),
-    index: buildFullIndex(index, defaultPages),
+    index: buildFullIndex(index, linkable),
     recentPages: buildRecentPages(pages.filter(isKnowledgePage)),
     pages,
     sourceFilenames,
     // Typed pages reach the graph through `typed.graph` as entity nodes and
     // relation edges, NOT through this page list — passing them both ways would
-    // mint two nodes for one page under the same id.
-    graph: buildGraphData(annotatedDefault.filter(isKnowledgePage), typed?.graph),
+    // mint two nodes for one page under the same id. Their wikilinks ride on
+    // those entity nodes.
+    graph: buildGraphData(annotatedDefault.filter(isKnowledgePage), typed && withEntityLinks(typed.graph, typedPages)),
     ...(journalWarning ? { warnings: [journalWarning] } : {}),
     ...(profile ? { profile } : {}),
     ...(typed ? { entityTypes: typed.entityTypes, pipeline: typed.pipeline, artifactDefinitions: typed.artifactDefinitions } : {}),
@@ -264,17 +269,24 @@ function countableState(classified: ClassifiedState): { sources: Record<string, 
   return classified.status === "ok" ? classified.state : { sources: {} };
 }
 
-/** The captured `wiki/index.md` state plus its wikilinks resolved against the default pages. */
+/** The captured `wiki/index.md` state plus its wikilinks resolved against every page. */
 function buildFullIndex(
   index: { available: boolean; body: string },
-  defaultPages: DefaultViewerPage[],
+  pages: ViewerPage[],
 ): ViewerIndex {
   return {
     available: index.available,
     href: INDEX_HREF,
     body: index.body,
-    outgoingLinks: resolveBareSlugList(extractWikilinkSlugs(index.body), defaultPages),
+    outgoingLinks: resolveWikilinkTargets(extractWikilinkSlugs(index.body), pages),
   };
+}
+
+/** The typed graph inputs, each entity node carrying its page's resolved wikilinks. */
+function withEntityLinks(graph: GraphBuildOptions, typedPages: ViewerPage[]): GraphBuildOptions {
+  const linksById = new Map(typedPages.map((page) => [page.id, page.outgoingLinks]));
+  const entityPages = graph.entityPages?.map((node) => ({ ...node, outgoingLinks: linksById.get(node.id) ?? [] }));
+  return entityPages ? { ...graph, entityPages } : graph;
 }
 
 /**

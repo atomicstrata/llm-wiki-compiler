@@ -77,12 +77,12 @@ describe("stepping through time", () => {
   });
 
   it("calls a timeline page a day or a week, and leaves out freshness", () => {
-    const rail = (slug: string) => text(renderToStaticMarkup(createElement(PageRail, { page: pagePayload({ id: `timeline/${slug}` }), wiki: envelope({ pages: DAYS }), graph: { status: "loading" } })));
+    const rail = (slug: string) => text(renderToStaticMarkup(createElement(PageRail, { page: pagePayload({ id: `timeline/${slug}` }), wiki: envelope({ pages: DAYS }) })));
     expect(rail("2026-05-04")).toMatch(/Kind day/);
     expect(rail("2026-W20")).toMatch(/Kind week/);
     expect(rail("2026-05-04")).not.toContain("Freshness");
     // Controls: a concept page keeps freshness, and a stray file in the directory is not a day.
-    const concept = text(renderToStaticMarkup(createElement(PageRail, { page: pagePayload(), wiki: envelope({ pages: DAYS }), graph: { status: "loading" } })));
+    const concept = text(renderToStaticMarkup(createElement(PageRail, { page: pagePayload(), wiki: envelope({ pages: DAYS }) })));
     expect(concept).toMatch(/Kind concept Freshness fresh/);
     expect(rail("notes")).toContain("Freshness");
   });

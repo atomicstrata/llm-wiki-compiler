@@ -11,7 +11,7 @@ import type { CompilePageWrite } from "../src/compiler/compile-write.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
 import { dayExcerpt, splitAnswer, type TimelineRequest } from "../src/timeline/prompts.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
-import { citationsOutside, withRelated } from "../src/timeline/pages.js";
+import { citationsOutside, withDaySections } from "../src/timeline/pages.js";
 
 const CONFIG = { enabled: true, timeZone: "UTC" };
 const CHAT = ["# Chat", "- 2026-05-04 09:00 A: plan the trip", "- 2026-05-05 10:00 B: booked it"].join("\n");
@@ -34,6 +34,7 @@ function memorySteps(sources: Record<string, string>, failOn: string[] = []) {
     listTimelineSlugs: async () => [...pages.keys()],
     readTimelinePage: async (slug) => pages.get(slug) ?? "",
     listConceptPages: async () => [{ slug: "trip", title: "Trip", body: "Booked. ^[chat.md:3-3]" }],
+    listPeople: async () => [],
     complete: async (request) => {
       requests.push(request);
       const period = /for (\S+)\.$/.exec(request.messages[0].content)![1];
@@ -139,11 +140,24 @@ describe("generateTimelineWith", () => {
     expect(day.trimEnd().endsWith("- [[trip-plan|Trip plan]]")).toBe(true);
   });
 
-  it("hides its section marker from readers and rewrites a page that used the old HTML-comment marker once", () => {
+  it("hides its section marker from readers and rewrites a page that used an older marker once", () => {
     const old = "---\ntitle: Day\n---\n\nBody.\n\n<!-- llmwiki:timeline-related -->\n## Pages from this day\n\n- [[a|A]]\n";
-    const fresh = withRelated(old, [{ slug: "b", title: "B", body: "" }]);
-    expect(fresh).toBe("---\ntitle: Day\n---\n\nBody.\n\n[//]: # (llmwiki-timeline-related)\n## Pages from this day\n\n- [[b|B]]\n");
-    expect(withRelated(fresh, [{ slug: "b", title: "B", body: "" }])).toBe(fresh);
+    const fresh = withDaySections(old, [{ slug: "b", title: "B", body: "" }]);
+    expect(fresh).toBe("---\ntitle: Day\n---\n\nBody.\n\n[//]: # (llmwiki-generated)\n## Pages from this day\n\n- [[b|B]]\n");
+    expect(withDaySections(fresh, [{ slug: "b", title: "B", body: "" }])).toBe(fresh);
+  });
+
+  it("lists a person on the day whose lines mention them", async () => {
+    const memory = memorySteps({ "chat.md": CHAT });
+    memory.steps.listPeople = async () => [{ target: "person/ana", title: "Ana", spans: [{ file: "chat.md", lines: { start: 2, end: 2 } }] }];
+    await generateTimelineWith(memory.steps, CONFIG, 1);
+    expect(memory.pages.get("2026-05-04")).toContain("## People this day\n\n- [[person/ana|Ana]]");
+    expect([...memory.pages].filter(([slug]) => slug !== "2026-05-04").some(([, text]) => text.includes("person/ana"))).toBe(false);
+  });
+
+  it("lists the people on a day's lines under the pages, linked by folder", () => {
+    const fresh = withDaySections("Body.\n", [], [{ target: "person/alex-kim", title: "Alex Kim" }]);
+    expect(fresh).toBe("Body.\n\n[//]: # (llmwiki-generated)\n## People this day\n\n- [[person/alex-kim|Alex Kim]]\n");
   });
 
   it("does nothing at all when the timeline is off", async () => {
@@ -160,7 +174,7 @@ describe("timeline prompts", () => {
     const excerpt = dayExcerpt(day, new Map([["big.md", long]])).text;
     expect(excerpt.length).toBeLessThan(61_000);
     expect(excerpt).toMatch(/^--- SOURCE: big\.md ---\n\n {3}1 \| /);
-    expect(excerpt).toMatch(/\(\d+ more lines from this day not shown: over the excerpt budget\. Do not cite them\.\)$/);
+    expect(excerpt).toMatch(/\(\d+ more lines not shown: over the excerpt budget\. Do not cite them\.\)$/);
   });
 
   it("shares the budget so a long chat cannot crowd out a short note, and reports the lines it did not show", () => {

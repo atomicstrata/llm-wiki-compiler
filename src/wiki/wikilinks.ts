@@ -6,6 +6,7 @@
  * destinations, autolinks and reference definitions is not a link. Lint, lint
  * fix plans, the link graph, schema link counts, the `rm` plan, link repair
  * and OKF export all read links here, so they agree about which links exist.
+ * What a link's target NAMES is decided in `wikilink-target.ts`.
  */
 
 import { locateWikilinks } from "./wikilink-locate.js";

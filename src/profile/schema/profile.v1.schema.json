@@ -301,6 +301,20 @@
           "type": "object",
           "additionalProperties": false,
           "properties": { "okfType": { "type": "string" } }
+        },
+        "extract": {
+          "type": "object",
+          "required": ["description"],
+          "additionalProperties": false,
+          "description": "Opt this type into compile's entity extraction: every source is read for records of this type, and one page per record is written under the type's directory.",
+          "properties": {
+            "description": { "type": "string", "minLength": 1, "description": "What counts as a record of this type, for the extraction prompt." },
+            "fields": {
+              "type": "object",
+              "additionalProperties": { "type": "string", "minLength": 1 },
+              "description": "Per-field guidance for the extraction prompt, keyed by declared field name."
+            }
+          }
         }
       }
     },

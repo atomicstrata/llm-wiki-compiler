@@ -189,6 +189,15 @@ describe("/api/pages — profilePipeline on a profile project", () => {
     expect(pipeline.artifactTypes?.map((row) => row.type) ?? []).toEqual(declared);
   });
 
+  // The client offers its workflows screen only when there is a workflow to show.
+  it("carries declared workflow ids, and omits the key for a profile with none", () => {
+    const summary = { profileId: "p", entityCounts: {}, relationCounts: {}, lifecycleStates: {} } as never;
+    const withWorkflow = { ...PIPELINE_PROFILE, workflows: { review: { stages: [] } } } as unknown as ProfilePack;
+    expect(buildPipelineEnvelope(buildPipelineDefinitions(withWorkflow), summary)?.workflows).toEqual(["review"]);
+    const without = { ...PIPELINE_PROFILE, workflows: undefined } as unknown as ProfilePack;
+    expect(buildPipelineEnvelope(buildPipelineDefinitions(without), summary)).not.toHaveProperty("workflows");
+  });
+
   it("carries relation endpoints and direction from the profile", async () => {
     const pipeline = await pipelineEnvelope();
     expect(pipeline.relationTypes).toEqual([

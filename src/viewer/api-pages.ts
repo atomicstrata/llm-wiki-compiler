@@ -20,7 +20,7 @@ import { buildPipelineEnvelope } from "./pipeline.js";
 import { assertSafeSlug, PathSafetyError } from "./path-safety.js";
 import { tryRenderBody, writeJson, writeJsonError, writeRenderFailed } from "./respond.js";
 import { UNRESOLVED_CITATION_CODE } from "./types.js";
-import type { ViewerPage, ViewerPageDirectory, ViewerSnapshot } from "./types.js";
+import type { ViewerPage, ViewerPageDirectory, ViewerPageId, ViewerSnapshot } from "./types.js";
 import type { PageDirectory } from "../export/types.js";
 
 /** Profile id reported when the project runs the built-in default profile. */
@@ -259,6 +259,16 @@ function isSafeSlug(value: string): boolean {
   }
 }
 
+/**
+ * The ids of every other page whose wikilinks name `pageId`, in snapshot order.
+ * Read from each page's own `outgoingLinks` rather than from the graph, so a
+ * timeline day (kept out of the graph) and a typed page (whose graph node is
+ * built separately) count as backlinks like any concept.
+ */
+function backlinksTo(pageId: ViewerPageId, pages: readonly ViewerPage[]): ViewerPageId[] {
+  return pages.filter((other) => other.id !== pageId && other.outgoingLinks.includes(pageId)).map((other) => other.id);
+}
+
 /** Build the JSON payload for `/api/page/:dir/:slug`. */
 function pagePayload(
   page: ViewerPage,
@@ -273,6 +283,7 @@ function pagePayload(
     html: renderedHtml,
     citations: page.citations,
     outgoingLinks: page.outgoingLinks,
+    backlinks: backlinksTo(page.id, snapshot.pages),
     frontmatter: page.frontmatter,
     warnings: page.warnings,
     freshness: page.freshness,

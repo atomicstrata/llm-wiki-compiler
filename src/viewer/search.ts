@@ -21,7 +21,8 @@
  */
 
 import type { ViewerPage, ViewerPageDirectory, ViewerPageId, ViewerSnapshot } from "./types.js";
-import { TIMELINE_NAMESPACE, withoutRelated } from "../timeline/pages.js";
+import { TIMELINE_NAMESPACE } from "../timeline/pages.js";
+import { withoutGenerated } from "../wiki/generated-section.js";
 
 const MAX_QUERY_LENGTH = 200;
 const MAX_RESULTS = 50;
@@ -108,7 +109,7 @@ function matchPage(page: ViewerPage, tokens: string[]): SearchResult | null {
  * should match on its own events, not on every concept it links to.
  */
 function searchableBody(page: ViewerPage): string {
-  return page.pageDirectory === TIMELINE_NAMESPACE ? withoutRelated(page.body) : page.body;
+  return page.pageDirectory === TIMELINE_NAMESPACE ? withoutGenerated(page.body) : page.body;
 }
 
 /** Assemble a SearchResult from a page + computed snippet. */

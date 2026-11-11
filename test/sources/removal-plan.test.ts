@@ -102,6 +102,14 @@ describe("computeRemovalPlan", () => {
     expect(plan.brokenLinks).toEqual([]);
   });
 
+  it("matches a qualified link by its exact directory and slug", () => {
+    const plan = planFor({
+      pages: [{ filePath: "wiki/timeline/2026-11-05.md", content: "[[concepts/junk|Junk]], [[person/junk]], [[timeline/junk]]" }],
+    });
+    // Only the concepts link names the doomed concept; a person or day of the same slug is another page.
+    expect(plan.brokenLinks).toEqual([{ file: "wiki/timeline/2026-11-05.md", target: "junk" }]);
+  });
+
   it("reports pending candidates that reference the removed source", () => {
     const candidate = { id: "c1", sources: ["bad.md"] } as ReviewCandidate;
     const other = { id: "c2", sources: ["good.md"] } as ReviewCandidate;

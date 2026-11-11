@@ -18,6 +18,8 @@ import { CONCEPT_EXTRACTION_TOOL } from "../src/compiler/prompts.js";
 import { RULE_EXTRACTION_TOOL } from "../src/compiler/rule-prompts.js";
 import { JUDGE_TOOL } from "../src/eval/citation-support.js";
 import { CodexAgentProvider } from "../src/providers/codex-agent.js";
+import { extractableTypes, extractionTool } from "../src/entities/schema.js";
+import type { ProfilePack } from "../src/profile/types.js";
 import { dropNullOptionals, toStrictSchema } from "../src/providers/codex-strict-schema.js";
 import type { LLMTool } from "../src/utils/provider.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
@@ -40,6 +42,15 @@ const PRODUCTION_TOOLS: Record<string, Schema> = {
   "src/compiler/prompts.ts": CONCEPT_EXTRACTION_TOOL.input_schema,
   "src/compiler/rule-prompts.ts": RULE_EXTRACTION_TOOL.input_schema,
   "src/eval/citation-support.ts": JUDGE_TOOL.input_schema,
+};
+
+/** Tool schemas built strict from the start (every property required, unknowns as null), so they need no conversion. */
+const STRICT_TOOLS: Record<string, Schema> = {
+  "src/entities/schema.ts": extractionTool(extractableTypes({
+    entities: { person: { directory: "wiki/person", extract: { description: "A person" }, fields: {
+      relationship: { type: "enum", enum: ["friend", "family"] }, aliases: { type: "string[]" }, age: { type: "integer" },
+    } } },
+  } as unknown as ProfilePack)).input_schema,
 };
 
 /** Source modules that declare a tool schema literal (`input_schema: {`). */
@@ -99,7 +110,12 @@ async function useFake(options: Parameters<typeof installFakeCodex>[0]): Promise
 
 describe("strict schemas for Codex structured output", () => {
   it("covers every tool schema declared in src", async () => {
-    expect(await modulesDeclaringToolSchemas()).toEqual(Object.keys(PRODUCTION_TOOLS).sort());
+    expect(await modulesDeclaringToolSchemas()).toEqual([...Object.keys(PRODUCTION_TOOLS), ...Object.keys(STRICT_TOOLS)].sort());
+  });
+
+  it.each(Object.entries(STRICT_TOOLS))("is strict as declared, and compiles: %s", (_label, schema) => {
+    expect(strictViolations(schema)).toEqual([]);
+    expect(() => new Ajv().compile(schema)).not.toThrow();
   });
 
   it.each([...Object.entries(PRODUCTION_TOOLS), ["a mixed schema", MIXED] as const])(

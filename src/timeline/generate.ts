@@ -21,10 +21,12 @@
 
 import pLimit from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
-import type { CompilePageWrite, SkippedWrite } from "../compiler/compile-write.js";
+import type { CompilePageWrite } from "../compiler/compile-write.js";
 import { dayBuckets, weekBuckets, type DayBucket, type WeekBucket } from "./buckets.js";
 import { dailyRequest, splitAnswer, weeklyRequest, type TimelineRequest } from "./prompts.js";
-import { citationsOutside, pagesCitingDay, timelinePage, TIMELINE_NAMESPACE, withoutRelated, withRelated, type CitingPage } from "./pages.js";
+import { citationsOutside, pagesCitingDay, peopleInDay, timelinePage, TIMELINE_NAMESPACE, withDaySections, type CitingPage, type DayPerson, type PersonMentions } from "./pages.js";
+import { withoutGenerated } from "../wiki/generated-section.js";
+import { applyWrites, type DerivedSteps } from "../compiler/derived-steps.js";
 
 /** How the timeline is configured for a project. */
 export interface TimelineConfig {
@@ -34,25 +36,17 @@ export interface TimelineConfig {
 }
 
 /** The reads, model call and write a timeline pass composes. */
-export interface TimelineSteps {
-  /** Every compiled source with its content hash. */
-  listSources(): Promise<{ file: string; hash: string }[]>;
-  /** A source's whole text. */
-  readSource(file: string): Promise<string>;
+export interface TimelineSteps extends DerivedSteps {
   /** Slugs of the pages already in `wiki/timeline/`. */
   listTimelineSlugs(): Promise<string[]>;
   /** A timeline page's text, or `""` when absent. */
   readTimelinePage(slug: string): Promise<string>;
   /** The concept pages, for each day's "Pages from this day" section. */
   listConceptPages(): Promise<CitingPage[]>;
+  /** The people with the lines they are mentioned on, for each day's "People this day" section. */
+  listPeople(): Promise<PersonMentions[]>;
   /** One model completion. */
   complete(request: TimelineRequest): Promise<string>;
-  /** Apply the writes as one batch under compile's held lock. */
-  writePages(writes: CompilePageWrite[]): Promise<{ skipped: SkippedWrite[] }>;
-  /** Provenance stamped into each page's frontmatter (model, prompt version). */
-  provenance(): Record<string, unknown>;
-  /** The current time, as an ISO string. */
-  now(): string;
 }
 
 /** What a timeline pass did. */
@@ -130,8 +124,9 @@ function isWritable(period: string, foreign: ReadonlySet<string>, result: Timeli
 }
 
 /**
- * Write every day whose inputs changed, and refresh the "Pages from this day"
- * section of every other day whose concept pages moved, without a model call.
+ * Write every day whose inputs changed, and refresh the generated tail ("Pages
+ * from this day", "People this day") of every other day whose concept or person
+ * pages moved, without a model call.
  * @returns Day → page body of the days written, for the weekly pass.
  */
 async function writeDays(
@@ -139,24 +134,25 @@ async function writeDays(
   limit: ReturnType<typeof pLimit>, result: TimelineResult,
 ): Promise<Map<string, string>> {
   if (days.length === 0) return new Map();
-  const conceptPages = await steps.listConceptPages();
+  const [conceptPages, people] = await Promise.all([steps.listConceptPages(), steps.listPeople()]);
   const singleDayFiles = singleDaySources(days);
   const writes = await Promise.all(days.map((day) => limit(async () => {
     const related = pagesCitingDay(day, conceptPages, singleDayFiles);
+    const dayPeople = peopleInDay(day, people);
     const page = existing.get(day.day);
-    if (page && page.signature === day.signature) return refreshedRelated(page.text, day.day, related);
+    if (page && page.signature === day.signature) return refreshedSections(page.text, day.day, related, dayPeople);
     const { request, shown } = dailyRequest(day, texts);
     const answer = await completeOrRecord(steps, request, day.day, result);
     if (answer === null) return null;
     reportStrayCitations(answer, day.day, [shown], result);
-    return pageWrite(steps, existing, { kind: "daily", period: day.day, sources: day.sources.map((s) => s.file), signature: day.signature }, answer, related);
+    return pageWrite(steps, existing, { kind: "daily", period: day.day, sources: day.sources.map((s) => s.file), signature: day.signature }, answer, related, dayPeople);
   })));
   return commit(steps, writes, result);
 }
 
-/** A rewrite of a current day page whose related section is out of date, or null when it is up to date. */
-function refreshedRelated(text: string, day: string, related: CitingPage[]): (CompilePageWrite & { pageBody: string }) | null {
-  const updated = withRelated(text, related);
+/** A rewrite of a current day page whose generated tail is out of date, or null when it is up to date. */
+function refreshedSections(text: string, day: string, related: CitingPage[], people: DayPerson[]): (CompilePageWrite & { pageBody: string }) | null {
+  const updated = withDaySections(text, related, people);
   if (updated === text) return null;
   return { namespace: TIMELINE_NAMESPACE, slug: day, body: updated, pageBody: "" };
 }
@@ -184,25 +180,21 @@ async function deleteOrphans(steps: TimelineSteps, days: DayBucket[], weeks: Wee
   const live = new Set([...days.map((day) => day.day), ...weeks.map((week) => week.week)]);
   const writes = [...existing].filter(([slug]) => !live.has(slug))
     .map(([slug, page]): CompilePageWrite => ({ namespace: TIMELINE_NAMESPACE, slug, body: page.text, deleting: true }));
-  if (writes.length === 0) return;
-  const { skipped } = await steps.writePages(writes);
-  const blocked = new Set(skipped.map((skip) => skip.item.slug));
-  for (const write of writes) {
-    if (blocked.has(write.slug)) result.errors.push(`Timeline page "${write.slug}" not removed`);
-    else result.deleted.push(write.slug);
-  }
+  const { landed, blocked } = await applyWrites(steps, writes);
+  for (const write of blocked) result.errors.push(`Timeline page "${write.slug}" not removed`);
+  result.deleted.push(...landed.map((write) => write.slug));
 }
 
 /** A day or week page write, keeping the page's original creation time. */
 function pageWrite(
   steps: TimelineSteps, existing: ExistingPages,
   page: { kind: "daily" | "weekly"; period: string; sources: string[]; signature: string },
-  answer: string, related: CitingPage[] = [],
+  answer: string, related: CitingPage[] = [], people: DayPerson[] = [],
 ): CompilePageWrite & { pageBody: string } {
   const { summary, body } = splitAnswer(answer);
   const now = steps.now();
   const createdAt = existing.get(page.period)?.createdAt || now;
-  const text = timelinePage({ ...page, summary, createdAt, updatedAt: now, provenance: steps.provenance() }, body, related);
+  const text = timelinePage({ ...page, summary, createdAt, updatedAt: now, provenance: steps.provenance() }, body, related, people);
   return { namespace: TIMELINE_NAMESPACE, slug: page.period, body: text, pageBody: body };
 }
 
@@ -227,18 +219,11 @@ async function completeOrRecord(steps: TimelineSteps, request: TimelineRequest, 
 /** Apply the successful writes; returns slug → body of the regenerated pages that landed (a refreshed related section carries none). */
 async function commit(steps: TimelineSteps, writes: ((CompilePageWrite & { pageBody: string }) | null)[], result: TimelineResult): Promise<Map<string, string>> {
   const ready = writes.filter((write): write is CompilePageWrite & { pageBody: string } => write !== null);
-  if (ready.length === 0) return new Map();
-  const { skipped } = await steps.writePages(ready.map(({ pageBody: _body, ...write }) => write));
-  const blocked = new Set(skipped.map((skip) => skip.item.slug));
-  const landed = new Map<string, string>();
-  for (const write of ready) {
-    if (blocked.has(write.slug)) result.errors.push(`Timeline page "${write.slug}" skipped by the write floor`);
-    else {
-      result.written.push(write.slug);
-      if (write.pageBody) landed.set(write.slug, write.pageBody);
-    }
-  }
-  return landed;
+  const bodies = new Map(ready.map((write) => [write.slug, write.pageBody]));
+  const { landed, blocked } = await applyWrites(steps, ready.map(({ pageBody: _body, ...write }) => write));
+  for (const write of blocked) result.errors.push(`Timeline page "${write.slug}" skipped by the write floor`);
+  result.written.push(...landed.map((write) => write.slug));
+  return new Map(landed.flatMap((write): [string, string][] => (bodies.get(write.slug) ? [[write.slug, bodies.get(write.slug)!]] : [])));
 }
 
 /** Files whose dated content falls on exactly one day, so a whole-file citation of them belongs to that day. */
@@ -255,5 +240,5 @@ function singleDaySources(days: DayBucket[]): Set<string> {
 function currentBody(existing: ExistingPages, day: DayBucket): string {
   const page = existing.get(day.day);
   if (!page || page.signature !== day.signature) return "";
-  return withoutRelated(parseFrontmatter(page.text).body).trim();
+  return withoutGenerated(parseFrontmatter(page.text).body).trim();
 }

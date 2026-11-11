@@ -315,6 +315,90 @@ instructions.
 }
 ```
 
+## Extracted records (people pages)
+
+Add `extract` to an entity type and compile writes one page per record of
+that type it finds in your sources, in the type's directory, which must be
+`wiki/<type>`. `description` says what counts as a record; `fields` gives
+optional guidance per declared field. Both are prompt text only.
+
+```json
+{
+  "entities": {
+    "person": {
+      "directory": "wiki/person",
+      "titleField": "title",
+      "fields": {
+        "title": { "type": "string" },
+        "relationship": { "type": "enum", "enum": ["partner", "family", "friend", "coworker", "professional", "acquaintance", "unknown"] },
+        "organization": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "extract": {
+        "description": "A real person the sources name",
+        "fields": { "relationship": "How the owner knows them" }
+      }
+    }
+  }
+}
+```
+
+Each source is read once for records of every opted-in type: the name as
+written, the declared fields, and the line numbers that mention the record.
+A long source is read in chunks of about 60,000 characters. Answers are kept
+in `.llmwiki/entities.json`, per chunk, keyed by the chunk's text and the types'
+structure (type names, field names, field types, enum values). A compile
+re-reads only chunks that changed, so a chat export that grows at its end
+re-reads only its last chunk. Adding a type or a field re-reads every source
+once; rewording `description` or field guidance does not. When a read fails,
+the source keeps its previous answers and is retried on the next compile, so a
+failed call never removes a page.
+
+Every record gets a page, `wiki/<type>/<id>.md`:
+
+- **Frontmatter**: the name (under `title`, and under the type's `titleField`
+  too), every other name it went by (`aliases`), each declared field's most
+  common value across its mentions (a list field gets every value), and the
+  sources it appears in. A page that would break the type's field contract,
+  such as a required field no source states, is not written, costs no model
+  call, and compile says why.
+- **Body**: written by the model from the lines that mention the record (with
+  two lines of context), every claim cited to those lines.
+- **Days**: when the timeline is on, the days the record is mentioned on.
+- **Might be the same as**: records sharing a first name with it.
+
+A page is regenerated only when what the model would be shown changes. The
+**Days** and **Might be the same as** lists are refreshed on every compile
+without a model call. Pages for records no source names any more are removed.
+Pages without `entitySignature` in their frontmatter were not written by
+compile and are never replaced or removed.
+
+### Who is who: `.llmwiki/aliases.json`
+
+Names that differ only in case, accents or spacing are one record. Any other
+two names are two records until you say otherwise; compile never guesses. Two
+names that make the same id (`Anne-Marie` and `Anne Marie`) stay two records,
+the second with a numbered id (`anne-marie-2`). List
+the names that are one record under one id, and name the owner of the memory:
+
+```json
+{
+  "owner": { "type": "person", "names": ["Sam", "Sam Rivera"] },
+  "entities": {
+    "person": { "alex-kim": ["Alex Kim", "Alex"] }
+  }
+}
+```
+
+The first name listed is the one the page shows. The owner's names are never a
+record. Instead the owner gets a hub page, `wiki/<type>/<owner>.md` (or
+`<owner>-owner.md` when a record is registered under that id), built without a
+model call, that lists every record of that type grouped by the first enum
+field the type declares (here, relationship), each with its summary.
+
+With the timeline on, each day's page lists the `person` records mentioned on
+its lines under **People this day**, linked as `[[person/<id>|Name]]`.
+
 ## Default behavior
 
 Projects without `.llmwiki/profile.json` keep the default behavior. Profile

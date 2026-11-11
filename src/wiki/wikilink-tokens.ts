@@ -8,10 +8,10 @@
 import type MarkdownIt from "markdown-it";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
-import { slugify } from "../utils/markdown.js";
 import { requireOnUse } from "../utils/require-on-use.js";
 import { shouldDeferInlineRule } from "../viewer/markdown-it-helpers.js";
 import { registerCitationTokens } from "./citation-tokens.js";
+import { wikilinkKey } from "./wikilink-target.js";
 
 const OPEN = "[";
 const CHAR_OPEN_BRACKET = 0x5b; // "["
@@ -69,7 +69,8 @@ function parseWikilink(state: StateInline, silent: boolean, observe?: WikilinkOb
   // Markdown convention: forbid newlines inside a single wikilink span.
   if (inner.includes("\n") || inner.includes(OPEN)) return false;
   const { rawTarget, display } = splitTargetAndAlias(inner);
-  const slug = slugify(rawTarget.trim());
+  // A bare target's slug, or a qualified target's exact `dir/slug`.
+  const slug = wikilinkKey(rawTarget);
   const token = state.push("wikilink", "", 0);
   token.meta = { slug, display };
   observe?.(token, state, state.pos, closeAt + 2);

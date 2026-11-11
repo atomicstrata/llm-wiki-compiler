@@ -4,8 +4,9 @@
  * Consumes the structural records produced by `src/wiki/collect.ts` and
  * decorates each one with the fields the HTTP server needs:
  *   - namespaced `id` (`concepts/<slug>` or `queries/<slug>`)
- *   - `outgoingLinks` resolved against the in-memory page list using the
- *     bare-slug precedence rule (concepts win over queries)
+ *   - `outgoingLinks` resolved against the in-memory page list: a bare slug by
+ *     the precedence rule (concepts win over queries), a folder-qualified
+ *     `dir/slug` by exact id (see {@link resolveWikilinkTarget})
  *   - `citations` extracted via `extractClaimCitations`
  *   - stable `ViewerWarning` objects derived from `parseStatus` flags
  *
@@ -24,16 +25,18 @@ import type { RawWikiPage } from "../wiki/collect.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans } from "../storage/legacy-local-reads.js";
 import { extractClaimCitations, slugify } from "../utils/markdown.js";
+import { isQualifiedKey } from "../wiki/wikilink-target.js";
 import type { DefaultViewerPage, PageId, ViewerPage, ViewerPageId, ViewerWarning } from "./types.js";
 import type { PageDirectory } from "../export/types.js";
 import type { EntityPage } from "../profile/types.js";
 import type { PageFreshness } from "../freshness/types.js";
 
 /**
- * Minimal page shape `resolveBareSlug` needs to find a target. Accepts the
- * widened `ViewerPageId`/directory so the whole snapshot page list can be passed
- * without filtering; only `concepts`/`queries` entries are ever matched, and
- * {@link defaultPageId} re-narrows a match to its concrete `PageId`.
+ * Minimal page shape the resolvers need to find a target. Accepts the widened
+ * `ViewerPageId`/directory so the whole snapshot page list can be passed without
+ * filtering. A bare slug matches `concepts`/`queries` entries only, and
+ * {@link defaultPageId} re-narrows such a match to its concrete `PageId`; a
+ * qualified `dir/slug` matches any entry by its exact id.
  */
 type PageIndexEntry = {
   id: ViewerPageId;
@@ -66,24 +69,30 @@ export async function collectViewerPagesFrom(scans: LegacyLocalEntityScans): Pro
  * filtered to the profile-VALID pages by the caller) — this layer adds only the
  * decoration, never a second read of disk.
  *
- * Outgoing wikilinks resolve against `defaultPages` alone, which is complete
- * rather than a shortcut: {@link resolveBareSlug} matches `concepts`/`queries`
- * targets only, so a typed page can never BE a wikilink target and widening the
- * index would resolve nothing extra.
+ * Outgoing links start empty: a typed page's links, and a default page's
+ * qualified link TO a typed page, resolve only against default and typed pages
+ * together, so the caller runs {@link linkPages} over that combined list.
  *
  * @param entityPages - Profile-valid typed entity pages, with their content.
- * @param defaultPages - The default page list, used as the wikilink index.
  * @returns One decorated `ViewerPage` per typed entity page, in input order.
  */
-export function decorateEntityPages(
-  entityPages: ReadonlyArray<EntityPage>,
-  defaultPages: ReadonlyArray<PageIndexEntry>,
-): ViewerPage[] {
-  return entityPages.map((entity) => {
-    const page = buildEntityPageShell(entity);
-    page.outgoingLinks = resolveBareSlugList(extractWikilinkSlugs(page.body), defaultPages);
-    return page;
-  });
+export function decorateEntityPages(entityPages: ReadonlyArray<EntityPage>): ViewerPage[] {
+  return entityPages.map(buildEntityPageShell);
+}
+
+/**
+ * Resolve a wikilink key (see `wikilinkKey`) to the id of the page it names: a
+ * qualified `dir/slug` to the page with exactly that id, whatever its directory
+ * (concepts, queries, the timeline, or a typed entity page); a bare slug by
+ * {@link resolveBareSlug}, unchanged. Null when nothing matches, which the
+ * renderer and the graph treat as a dangling link either way.
+ */
+export function resolveWikilinkTarget<E extends PageIndexEntry>(
+  key: string,
+  pages: ReadonlyArray<E>,
+): PageId | E["id"] | null {
+  if (!isQualifiedKey(key)) return resolveBareSlug(key, pages);
+  return (slugIndexFor(pages).byId.get(key)?.id as E["id"] | undefined) ?? null;
 }
 
 /**
@@ -123,8 +132,9 @@ export function resolveBareSlug(
   return null;
 }
 
-/** Four first-wins lookup tables covering the resolution precedence rule. */
+/** Four first-wins lookup tables covering the bare-slug precedence rule, and every page by id. */
 interface PageSlugIndex {
+  byId: Map<string, PageIndexEntry>;
   conceptBySlug: Map<string, PageIndexEntry>;
   queryBySlug: Map<string, PageIndexEntry>;
   conceptByAlias: Map<string, PageIndexEntry>;
@@ -146,17 +156,19 @@ function claim(table: Map<string, PageIndexEntry>, key: string, entry: PageIndex
   if (key.length > 0 && !table.has(key)) table.set(key, entry);
 }
 
-/** Build the four lookup tables in one pass over the page list. */
+/** Build the lookup tables in one pass over the page list. */
 function buildSlugIndex(pages: ReadonlyArray<PageIndexEntry>): PageSlugIndex {
   const index: PageSlugIndex = {
+    byId: new Map(),
     conceptBySlug: new Map(),
     queryBySlug: new Map(),
     conceptByAlias: new Map(),
     queryByAlias: new Map(),
   };
   for (const page of pages) {
+    claim(index.byId, page.id, page);
     const buckets = bucketsFor(index, page.pageDirectory);
-    // Typed entity pages share the snapshot list but are never wikilink targets.
+    // Timeline and typed pages are reached by a qualified link only, never a bare slug.
     if (!buckets) continue;
     claim(buckets.bySlug, page.slug, page);
     for (const alias of page.aliases ?? []) claim(buckets.byAlias, slugify(alias), page);
@@ -195,18 +207,18 @@ function defaultPageId(directory: PageDirectory, entry: PageIndexEntry): PageId 
 }
 
 /**
- * Resolve a list of bare-slug wikilink targets against an in-memory page
- * index and deduplicate the resulting `PageId`s while preserving first-
- * occurrence order. Unresolved targets are dropped.
+ * Resolve a list of wikilink keys against an in-memory page index and
+ * deduplicate the resulting ids while preserving first-occurrence order.
+ * Unresolved targets are dropped.
  */
-export function resolveBareSlugList(
+export function resolveWikilinkTargets(
   targets: string[],
   pages: ReadonlyArray<PageIndexEntry>,
-): PageId[] {
-  const seen = new Set<PageId>();
-  const ordered: PageId[] = [];
+): ViewerPageId[] {
+  const seen = new Set<ViewerPageId>();
+  const ordered: ViewerPageId[] = [];
   for (const target of targets) {
-    const resolved = resolveBareSlug(target, pages);
+    const resolved = resolveWikilinkTarget(target, pages);
     if (resolved && !seen.has(resolved)) {
       seen.add(resolved);
       ordered.push(resolved);
@@ -223,18 +235,26 @@ export function resolveBareSlugList(
  */
 function decoratePages(raw: RawWikiPage[]): DefaultViewerPage[] {
   const shells = raw.map(buildPageShell);
-  for (const page of shells) {
-    const slugTargets = extractWikilinkSlugs(page.body);
-    const richTargets = extractWikilinkTargets(page.body);
-    page.outgoingLinks = resolveBareSlugList(slugTargets, shells);
-    page.danglingLinks = collectDanglingLinks(richTargets, shells);
-  }
+  linkPages(shells);
   return shells;
 }
 
 /**
- * Return targets from `targets` that `resolveBareSlug` could not find,
- * deduplicated by slug and in first-occurrence order.
+ * Set every page's `outgoingLinks` and `danglingLinks` against `pages` itself,
+ * which must be the complete list a link may name. The snapshot runs it again
+ * over default and typed pages together, so a default page's qualified link to
+ * a typed page resolves instead of dangling.
+ */
+export function linkPages(pages: ReadonlyArray<ViewerPage>): void {
+  for (const page of pages) {
+    page.outgoingLinks = resolveWikilinkTargets(extractWikilinkSlugs(page.body), pages);
+    page.danglingLinks = collectDanglingLinks(extractWikilinkTargets(page.body), pages);
+  }
+}
+
+/**
+ * Return targets from `targets` that {@link resolveWikilinkTarget} could not
+ * find, deduplicated by slug and in first-occurrence order.
  */
 function collectDanglingLinks(
   targets: { slug: string; display: string }[],
@@ -243,7 +263,7 @@ function collectDanglingLinks(
   const seen = new Set<string>();
   const dangling: { slug: string; display: string }[] = [];
   for (const t of targets) {
-    if (resolveBareSlug(t.slug, pages) === null && !seen.has(t.slug)) {
+    if (resolveWikilinkTarget(t.slug, pages) === null && !seen.has(t.slug)) {
       seen.add(t.slug);
       dangling.push(t);
     }
@@ -277,15 +297,16 @@ function buildPageShell(page: RawWikiPage): DefaultViewerPage {
 
 /**
  * Build the `ViewerPage` shell for one typed entity page. `outgoingLinks` starts
- * empty and is filled by {@link decorateEntityPages} once the index is known.
+ * empty and is filled by {@link linkPages} once the index is known.
  *
  * Three decorations a default page gets are deliberately NOT emitted here, in
  * each case because the underlying signal does not exist for a typed page rather
  * than because it was overlooked:
  *
- *   - `aliases` — a typed page is never a wikilink resolution target (see
- *     {@link resolveBareSlug}), so declaring aliases on it would resolve
- *     nothing; emitting the field would imply a path that does not exist.
+ *   - `aliases` — a typed page is reached only by a qualified `dir/slug` link,
+ *     never by a bare slug or alias (see {@link resolveBareSlug}), so declaring
+ *     aliases on it would resolve nothing; emitting the field would imply a
+ *     path that does not exist.
  *   - `warnings` from `parseStatus` — `missing_frontmatter` / `missing_title`
  *     ask whether the page met the DEFAULT profile's frontmatter expectations.
  *     A typed page is bound by its profile's declared field contract instead,
@@ -296,8 +317,9 @@ function buildPageShell(page: RawWikiPage): DefaultViewerPage {
  *     those are contract-independent. The starting list is empty rather than
  *     absent so every page carries the same array shape.
  *   - `danglingLinks` — that field exists only to synthesise wikilink ghost
- *     nodes, and typed pages reach the graph as typed nodes/relation edges, not
- *     through the wikilink graph.
+ *     nodes, and only default pages' dangling links become ghosts. (When the
+ *     snapshot re-links both lists through {@link linkPages} it is filled in
+ *     anyway; nothing reads it.)
  */
 function buildEntityPageShell(page: EntityPage): ViewerPage {
   return {

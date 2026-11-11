@@ -5,7 +5,7 @@
  * cannot easily reach: symlinked `wiki/index.md` (must be treated as
  * unavailable, not served), a named pipe at `wiki/index.md` (must not
  * block the build), and the index outgoing-link resolution that
- * Slice 2 wires through `resolveBareSlugList`.
+ * Slice 2 wires through `resolveWikilinkTargets`.
  */
 
 import { describe, it, expect } from "bun:test";

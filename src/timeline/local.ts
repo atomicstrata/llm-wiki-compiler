@@ -10,40 +10,35 @@
  * writes go through the lock-free executor core.
  */
 
-import path from "path";
 import { callClaude } from "../utils/llm.js";
-import { readState } from "../utils/state.js";
-import { SOURCES_DIR, TIMELINE_DIR } from "../utils/constants.js";
+import { TIMELINE_DIR } from "../utils/constants.js";
 import { diskLocalEntityScans, diskLocalReads } from "../storage/disk-local-reads.js";
 import { collectRawWikiPagesFrom } from "../wiki/collect.js";
 import { readWikiPageContentOrWarnFrom } from "../compiler/confined-wiki-read.js";
-import { applyCompilePageWritesLocked } from "../compiler/compile-write.js";
-import { addModelProvenanceMeta } from "../compiler/provenance.js";
+import { localDerivedSteps } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import * as output from "../utils/output.js";
+import { listRecordMentions } from "../entities/local.js";
 import type { TimelineSchema } from "../schema/types.js";
 import { generateTimelineWith, type TimelineResult, type TimelineSteps } from "./generate.js";
+
+/** The entity type whose records a day lists under "People this day". */
+const PEOPLE_TYPE = "person";
 
 /** The timeline steps over the local project at `root`. */
 function localTimelineSteps(root: string): TimelineSteps {
   const reads = diskLocalReads(root);
   return {
-    listSources: async () => Object.entries((await readState(root)).sources).map(([file, state]) => ({ file, hash: state.hash })),
-    readSource: (file) => reads.readText(path.join(SOURCES_DIR, file)),
+    ...localDerivedSteps(root),
     listTimelineSlugs: async () => (await reads.listNames(TIMELINE_DIR).catch(() => []))
       .filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length)),
     readTimelinePage: (slug) => readWikiPageContentOrWarnFrom(reads, TIMELINE_DIR, slug, false),
     listConceptPages: async () => (await collectRawWikiPagesFrom(diskLocalEntityScans(root)))
       .filter((page) => page.pageDirectory === "concepts")
       .map((page) => ({ slug: page.slug, title: page.title ?? page.slug, body: page.body })),
+    // The entity step has already reported an unreadable registry; a day still gets its page.
+    listPeople: () => listRecordMentions(root, PEOPLE_TYPE).catch(() => []),
     complete: (request) => callClaude(request),
-    writePages: (writes) => applyCompilePageWritesLocked(root, writes),
-    provenance: () => {
-      const fields: Record<string, unknown> = {};
-      addModelProvenanceMeta(fields);
-      return fields;
-    },
-    now: () => new Date().toISOString(),
   };
 }
 

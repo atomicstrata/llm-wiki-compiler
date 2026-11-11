@@ -182,6 +182,20 @@ function validateArtifactTypesScope(entityType: string, def: EntityTypeDef, decl
   }
 }
 
+/**
+ * An extraction opt-in must name only declared fields, and its type must live
+ * at `wiki/<type>`: compile writes extracted records through the planner's typed
+ * target, which always places a page at `wiki/<entityType>/`, so any other
+ * directory would write pages the type's own scans never read.
+ */
+function validateExtract(entityType: string, def: EntityTypeDef, canonicalDirectory: string): void {
+  if (!def.extract) return;
+  for (const name of Object.keys(def.extract.fields ?? {})) {
+    assert(def.fields?.[name] !== undefined, `entity '${entityType}' extract.fields entry '${name}' is not a declared field`);
+  }
+  assert(canonicalDirectory === `wiki/${entityType}`, `entity '${entityType}' with extract must use directory 'wiki/${entityType}'`);
+}
+
 /** Every requiredFields entry must reference a declared field. */
 function validateRequiredFields(entityType: string, def: EntityTypeDef): void {
   for (const name of def.requiredFields ?? []) {
@@ -405,6 +419,7 @@ function validateEntity(entityType: string, def: EntityTypeDef, declaredArtifact
   validateTitleField(entityType, def);
   validateFieldFormats(entityType, def);
   validateContentTiers(entityType, def);
+  validateExtract(entityType, def, canonicalDirectory);
   const warnings = def.lifecycle ? validateLifecycle(entityType, def.lifecycle, def.fields) : [];
   return { canonicalDirectory, warnings };
 }

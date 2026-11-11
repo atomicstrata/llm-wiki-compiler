@@ -24,7 +24,6 @@ import path from "path";
 import {
   parseFrontmatter,
   parseProvenanceMetadata,
-  slugify,
 } from "../utils/markdown.js";
 import {
   LOW_CONFIDENCE_THRESHOLD,
@@ -36,6 +35,7 @@ import type { FreshnessSnapshot } from "../freshness/types.js";
 import { listLinkResolvablePendingSlugsFrom } from "../compiler/candidate-read.js";
 import {
   CITATION_PATTERN,
+  classifyLinkTarget,
   collectAllPagesFrom,
   diskLintLinkSources,
   diskLintPageSources,
@@ -92,13 +92,14 @@ export async function checkBrokenWikilinksFrom(sources: LintLinkSources, scope: 
   const pages = await collectAllPagesFrom(sources.pages, scope);
   const existingSlugs = buildPageSlugSet(pages);
   const pendingSlugs = await listLinkResolvablePendingSlugsFrom(sources.candidates);
+  const known = { existing: existingSlugs, pending: pendingSlugs };
   const results: LintResult[] = [];
 
   for (const page of pages) {
     // Links inside code are text, not links: link repair and publication skip them too.
     for (const { inner: captured, target: linkTarget, line } of findWikilinks(page.content)) {
-      const linkSlug = slugify(linkTarget);
-      if (!existingSlugs.has(linkSlug) && pendingSlugs.has(linkSlug)) {
+      const status = await classifyLinkTarget(linkTarget, known, sources.pages);
+      if (status === "pending") {
         results.push({
           rule: "pending-target",
           severity: "info",
@@ -106,7 +107,7 @@ export async function checkBrokenWikilinksFrom(sources: LintLinkSources, scope: 
           message: `Wikilink [[${captured}]] points to a page awaiting review`,
           line,
         });
-      } else if (!existingSlugs.has(linkSlug)) {
+      } else if (status === "broken") {
         results.push({
           rule: "broken-wikilink",
           severity: "error",

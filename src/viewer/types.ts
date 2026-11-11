@@ -120,8 +120,11 @@ export interface ViewerPage {
   aliases?: string[];
   /** Markdown body with the frontmatter block stripped. Needed by Slice 4. */
   body: string;
-  /** Outgoing wikilink targets resolved to namespaced IDs. */
-  outgoingLinks: PageId[];
+  /**
+   * Outgoing wikilink targets resolved to namespaced IDs. A bare slug resolves
+   * to a concept or query; a qualified `dir/slug` to any page, typed or timeline.
+   */
+  outgoingLinks: ViewerPageId[];
   /** Wikilink targets from this page's body that could not be resolved to any existing page.
    *  `slug` is the slugified form used to build the ghost node ID; `display` is the original
    *  human-typed text used as the node label. */
@@ -139,11 +142,11 @@ export interface ViewerPage {
  * directories, narrowing {@link ViewerPage}'s widened id/directory back to the
  * concrete `PageId`/`PageDirectory` and pinning `entityType` absent.
  *
- * The wikilink graph, the concept/query counts, and bare-slug link resolution
- * are all defined over exactly these pages — a typed entity page is never a
- * wikilink target and never enters the wikilink graph (it reaches the graph as
- * a typed node via `GraphBuildOptions` instead). Keeping the narrow type is what
- * lets those surfaces stay `PageId`-keyed without a cast.
+ * The concept/query counts and bare-slug link resolution are defined over
+ * exactly these pages — a typed entity page is reached only by a qualified
+ * `dir/slug` link and reaches the graph as a typed node via `GraphBuildOptions`
+ * rather than as a page node. Keeping the narrow type is what lets those
+ * surfaces stay `PageId`-keyed without a cast.
  */
 export interface DefaultViewerPage extends ViewerPage {
   id: PageId;
@@ -186,7 +189,7 @@ export interface ViewerIndex {
   available: boolean;
   href: string;
   body: string;
-  outgoingLinks: PageId[];
+  outgoingLinks: ViewerPageId[];
 }
 
 /**

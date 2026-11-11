@@ -1,5 +1,7 @@
 /**
- * Regression tests: typed entity pages are never wikilink targets.
+ * Regression tests: typed entity pages are never BARE-slug wikilink targets.
+ * (A folder-qualified `[[papers/slug]]` names one exactly; that is pinned in
+ * viewer-qualified-wikilinks.test.ts.)
  *
  * A non-default profile's snapshot page list holds typed entity pages
  * (`papers/…`, `ideas/…`) next to concept and query pages, and the viewer

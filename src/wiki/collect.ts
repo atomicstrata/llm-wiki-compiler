@@ -38,6 +38,7 @@ import type { PageDirectory } from "../export/types.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans, LocalEntityDirectory } from "../storage/legacy-local-reads.js";
 import { findWikilinks } from "./wikilinks.js";
+import { wikilinkKey } from "./wikilink-target.js";
 
 
 /**
@@ -77,13 +78,14 @@ export interface RawWikiPage {
 }
 
 /**
- * Extract the slugs of all pages linked via `[[wikilinks]]` in the body.
- * Wikilink targets ARE slugified — the human-typed link text may not match
+ * Extract the keys of all pages linked via `[[wikilinks]]` in the body.
+ * Bare targets ARE slugified — the human-typed link text may not match
  * the on-disk filename verbatim, so we normalize to the same shape `slugify`
- * produces. Returns deduplicated targets.
+ * produces. A folder-qualified target keeps its exact `dir/slug` (see
+ * {@link wikilinkKey}). Returns deduplicated keys.
  */
 export function extractWikilinkSlugs(body: string): string[] {
-  return [...new Set(findWikilinks(body).map(link => slugify(link.target)))];
+  return [...new Set(findWikilinks(body).map(link => wikilinkKey(link.target)))];
 }
 
 /**
@@ -95,7 +97,7 @@ export function extractWikilinkTargets(body: string): { slug: string; display: s
   const seen = new Set<string>();
   const targets: { slug: string; display: string }[] = [];
   for (const { target, label } of findWikilinks(body)) {
-    const slug = slugify(target);
+    const slug = wikilinkKey(target);
     const display = label ?? target;
     if (!seen.has(slug)) {
       seen.add(slug);

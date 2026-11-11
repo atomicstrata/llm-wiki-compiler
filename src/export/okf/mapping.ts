@@ -9,6 +9,7 @@ import type { OkfFrontmatter, XLlmwiki, LinkResolver } from "./types.js";
 import { slugify } from "../../utils/markdown.js";
 import { isLiteralMarkdown } from "../../compiler/link-repair-code.js";
 import { rewriteWikilinks } from "../../wiki/wikilinks.js";
+import { parseQualifiedTarget } from "../../wiki/wikilink-target.js";
 
 const DERIVED_CITATIONS = /\n+#\s+Citations\b[\s\S]*$/;
 
@@ -148,10 +149,13 @@ const OKF_LINK = /\[([^\]]+)\]\(\/([^)]+?)\.md\)/g;
 /**
  * Forward: rewrite resolvable [[slug]]/[[slug|disp]] to OKF links. Only text the
  * renderer reads as a link is rewritten; code, escaped brackets and link text
- * stay verbatim, matching link repair and publication.
+ * stay verbatim, matching link repair and publication. A folder-qualified
+ * `[[dir/slug]]` stays verbatim too: the resolver is keyed by bare slug, and
+ * slugifying `dir/slug` would name a different page.
  */
 export function wikilinksToOkf(body: string, resolve: LinkResolver): string {
-  return rewriteWikilinks(body, ({ inner }) => {
+  return rewriteWikilinks(body, ({ inner, target: linkTarget }) => {
+    if (parseQualifiedTarget(linkTarget)) return undefined;
     const bar = inner.indexOf("|");
     const disp = bar < 0 ? undefined : inner.slice(bar + 1) || undefined;
     const target = resolve(slugify(bar < 0 ? inner : inner.slice(0, bar)));

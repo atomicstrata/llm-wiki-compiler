@@ -104,11 +104,13 @@ export interface ArtifactTypeDef {
   metadata?: PipelineFieldDef[];
 }
 
-/** The profile's vocabulary: its entity, relation and artifact types. */
+/** The profile's vocabulary: its entity, relation and artifact types, and the workflows it declares. */
 export interface PipelineEnvelope {
   entityTypes: EntityTypeRow[];
   relationTypes?: RelationTypeRow[];
   artifactTypes?: ArtifactTypeDef[];
+  /** Declared workflow ids; absent when the profile declares none. */
+  workflows?: string[];
 }
 
 /** A problem with a profile project's records. */
@@ -225,7 +227,10 @@ export interface PagePayload {
   warnings: PageWarning[];
   freshness: PageFreshness;
   outgoingLinks: string[];
-  frontmatter: { tags?: unknown; sources?: unknown; kind?: unknown; type?: unknown };
+  /** Every other page whose wikilinks name this one: concepts, queries, timeline days and typed pages. */
+  backlinks: string[];
+  /** The page's raw frontmatter; a typed page's declared fields are read from it. */
+  frontmatter: Record<string, unknown>;
   entityType?: string;
   entityContext?: EntityContext;
 }

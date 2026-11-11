@@ -12,6 +12,7 @@
 
 import {
   applyCompilePageWritesLocked,
+  compileWriteDirectory,
   type BeforeCompilePageWrites,
   type CompilePageWrite,
   type SkippedWrite,
@@ -42,9 +43,9 @@ export async function applyCompilePageWritesWithIdsWith(
   beforeApply?: (pageIds: PageId[]) => Promise<void>,
 ): Promise<PageId[]> {
   const options = beforeApply ? {
-    beforeApply: (allowed: CompilePageWrite[]) => beforeApply(allowed.map(item => qualifiedPageId(item.namespace, item.slug))),
+    beforeApply: (allowed: CompilePageWrite[]) => beforeApply(allowed.map(item => qualifiedPageId(compileWriteDirectory(item), item.slug))),
   } : undefined;
   const { skipped } = await writePages(root, items, options);
   const blocked = new Set(skipped.map(({ item }) => item));
-  return items.filter(item => !blocked.has(item)).map(item => qualifiedPageId(item.namespace, item.slug));
+  return items.filter(item => !blocked.has(item)).map(item => qualifiedPageId(compileWriteDirectory(item), item.slug));
 }

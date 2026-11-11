@@ -21,10 +21,10 @@
 
 import type MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
-import { resolveBareSlug } from "./collect.js";
+import { resolveWikilinkTarget } from "./collect.js";
 import { registerWikilinkTokens } from "../wiki/wikilink-tokens.js";
 import { escapeHtml } from "./markdown-it-helpers.js";
-import type { PageId, ViewerPage } from "./types.js";
+import type { ViewerPageId, ViewerPage } from "./types.js";
 
 /** Internal context the parser and renderer share for a single render call. */
 interface WikilinkContext {
@@ -55,7 +55,7 @@ export function registerWikilink(md: MarkdownIt, context: WikilinkContext): void
 function resolveWikilinkTokens(tokens: Token[], context: WikilinkContext): void {
   for (const token of tokens) {
     if (token.type === "wikilink") {
-      token.meta.resolved = resolveBareSlug(token.meta.slug, context.pages);
+      token.meta.resolved = resolveWikilinkTarget(token.meta.slug, context.pages);
     }
     if (token.children) resolveWikilinkTokens(token.children, context);
   }
@@ -63,7 +63,7 @@ function resolveWikilinkTokens(tokens: Token[], context: WikilinkContext): void 
 
 /** Render a wikilink token as either an anchor or a missing-link span. */
 function renderWikilinkToken(token: Token): string {
-  const meta = token.meta as { resolved: PageId | null; slug: string; display: string };
+  const meta = token.meta as { resolved: ViewerPageId | null; slug: string; display: string };
   const display = escapeHtml(meta.display || meta.slug);
   if (!meta.resolved) {
     return `<span data-missing="true">[[${display}]]</span>`;
@@ -72,8 +72,8 @@ function renderWikilinkToken(token: Token): string {
   return `<a class="wikilink" data-page-id="${escapeHtml(meta.resolved)}" href="${escapeHtml(href)}">${display}</a>`;
 }
 
-/** Encode a `concepts/<slug>` PageId into the URI form used by the hash router. */
-function encodeUriSegment(id: PageId): string {
+/** Encode a `<directory>/<slug>` page id into the URI form used by the hash router. */
+function encodeUriSegment(id: ViewerPageId): string {
   const [directory, slug] = id.split("/");
   return `${encodeURIComponent(directory)}/${encodeURIComponent(slug)}`;
 }
