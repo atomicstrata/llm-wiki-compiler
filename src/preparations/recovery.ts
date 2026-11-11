@@ -49,7 +49,7 @@ import type { LifecyclePendingUnitV1 } from "./lifecycle-snapshot/compat.js";
 import { upsertPhaseSummary } from "./attempts/start.js";
 import { ownerFencesAttempt } from "./attempts/lease.js";
 import { scanPreparationInventory } from "./capacity.js";
-import { withPreparationLifecycleRead } from "./lifecycle-snapshot/read.js";
+import { perBorrowLifecycleReads, type PreparationLifecycleReads } from "./lifecycle-snapshot/read.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
 import type { PreparationInventory } from "./capacity.js";
 import { assertBundleId, assertOperationRunId } from "../operation-bundles/ids.js";
@@ -617,12 +617,23 @@ export async function settlePreparationHandoffsWith(steps: HandoffSettlementStep
  * earlier. `settleRun` is the per-run settlement body over this root's
  * {@link localRunSettlementSteps}. Internal; in no package index.
  */
-export function localHandoffSettlementSteps(root: string): HandoffSettlementSteps {
+export function localHandoffSettlementSteps(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): HandoffSettlementSteps {
   // One pass: the inventory, the key and every run are read before anything is
   // settled, so the scan and the settlement share one set of reads.
-  const pass = preparationPassReads(root);
+  const pass = preparationPassReads(root, lifecycle);
   return {
-    scanInventory: () => scanPreparationInventory(root, {}, pass),
+    // The lifecycle read is the scan's alone, so the pass's lifecycle sharing
+    // ends with the scan: nothing is written while it is open, and no later step
+    // can be lent a read taken before this settlement writes.
+    scanInventory: async () => {
+      try {
+        return await scanPreparationInventory(root, {}, pass);
+      } finally {
+        lifecycle.close();
+      }
+    },
     readKeyEpoch: pass.readKeyEpoch,
     readRun: pass.readRun,
     settleRun: (binding, run, at) => settleRunRecoveryWith(localRunSettlementSteps(root), binding, run, at),
@@ -647,12 +658,15 @@ export function localHandoffSettlementSteps(root: string): HandoffSettlementStep
  * what it can) so the iteration always reaches the runs behind a run it could not
  * advance.
  *
- * THE PASS ITSELF is {@link settlePreparationHandoffsWith}; this production entry keeps its signature and delegates over
- * {@link localHandoffSettlementSteps}. Its production caller is the mutation
+ * THE PASS ITSELF is {@link settlePreparationHandoffsWith}; this production entry delegates over
+ * {@link localHandoffSettlementSteps}. The gate hands in its pass's `lifecycle`,
+ * so the inventory scan is lent the capture the lifecycle leg already took. Its production caller is the mutation
  * recovery gate (`lock-gate.ts`, `settleHandoffs`), which still owns when it runs.
  */
-export async function settlePreparationHandoffsLocked(root: string): Promise<void> {
-  return settlePreparationHandoffsWith(localHandoffSettlementSteps(root));
+export async function settlePreparationHandoffsLocked(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): Promise<void> {
+  return settlePreparationHandoffsWith(localHandoffSettlementSteps(root, lifecycle));
 }
 
 // Reported inside the state below, so a consumer must be able to name what it
@@ -712,9 +726,12 @@ export type PreparationLifecyclePendingState =
  *
  * The joined STATUS consumer named above still does not exist: nothing under
  * `src/commands/` renders this projection, and wiring that surface is remaining
- * Task 10 work. Only the gate consumer is real today.
+ * Task 10 work. Only the gate consumer is real today. The gate lends it its
+ * pass's `lifecycle`, so one capture serves this decision and the settlement scan.
  */
-export async function resolvePreparationLifecyclePending(root: string): Promise<PreparationLifecyclePendingState> {
+export async function resolvePreparationLifecyclePending(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): Promise<PreparationLifecyclePendingState> {
   try {
     // One callback-scoped capture delegating to a pure projector: the projector
     // performs no scan of its own, so this decision cannot observe two states.
@@ -722,7 +739,7 @@ export async function resolvePreparationLifecyclePending(root: string): Promise<
     // snapshot cannot attribute the fault to one registry, so the origin is
     // unknown rather than confined. Naming a registry here would be a guess that
     // a consumer could act on.
-    return await withPreparationLifecycleRead(root, (read) => (read.status === "unavailable"
+    return await lifecycle.borrow((read) => (read.status === "unavailable"
       ? { status: "unavailable" as const, detail: read.detail, registries: [] }
       : projectLifecyclePending(read.snapshot)));
   } catch (error) {

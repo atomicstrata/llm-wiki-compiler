@@ -48,6 +48,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { readKernelStartSeconds } from "./kernel-start-time.js";
 
 /**
  * The inclusive upper bound Node accepts before `process.kill` rejects the
@@ -262,6 +263,12 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  * Read a live PID's process START INSTANT as a timezone- and locale-invariant
  * identity, `unix:<epochSeconds>`.
  *
+ * THE KERNEL RECORD IS READ DIRECTLY WHERE THAT IS PROVABLY THE SAME NUMBER `ps`
+ * WOULD GIVE (see `kernel-start-time.ts`): one in-process `sysctl` instead of a
+ * fork per lock acquisition. Elsewhere, and whenever that read is in any doubt,
+ * this falls through to `ps` below unchanged — so a writer and a reader on one
+ * host always hold the identity in the same form whichever route each took.
+ *
  * WHY THE PREVIOUS FORMAT WAS A DEFECT AND NOT A STYLE CHOICE. It stored what
  * `ps -o lstart=` printed, which libc renders in the AMBIENT timezone — so one
  * live process yields different identities to different readers:
@@ -296,6 +303,8 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  * unavailable/unparseable — so liveness degrades rather than failing.
  */
 export function readProcessStartTime(pid: number): string | null {
+  const kernelSeconds = readKernelStartSeconds(pid);
+  if (kernelSeconds !== undefined) return `${IDENTITY_PREFIX}${kernelSeconds}`;
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],

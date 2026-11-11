@@ -34,6 +34,7 @@
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import { genesisCollisionMessage, publishRunGenesis, readAuthenticatedRunFrom, replaceRunLeaf } from "../utils/run-store-io.js";
 import { readDurableOperationLeaf } from "../operation-bundles/durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import type { CappedLeafRead } from "../utils/confined-read.js";
 import { MAX_PREPARATION_RUN_BYTES } from "./constants.js";
 import { readPreparationEvidence, type PreparationEvidenceLocation, type PreparationEvidenceRead } from "./evidence-store.js";
@@ -97,9 +98,9 @@ export interface HandoffPreparationRunInput {
 }
 
 /** Read one exact workspace run leaf before consulting any project key. */
-async function readRunLeaf(root: string, binding: PreparationRunBinding, maxBytes: number) {
+async function readRunLeaf(root: string, binding: PreparationRunBinding, maxBytes: number, scanned?: ScannedLeafBytes) {
   const paths = preparationPaths(root, binding.workspaceId);
-  return readDurableOperationLeaf(root, paths.runFile(binding.runId), paths.runsRoot, maxBytes);
+  return readDurableOperationLeaf(root, paths.runFile(binding.runId), paths.runsRoot, maxBytes, scanned);
 }
 
 /**
@@ -126,9 +127,9 @@ export interface PreparationRunLeafReads {
  * calls the incumbent's function when it is asked. Exported for the store's
  * leaf composition (`store-leaf-reads.ts`) only; in no package index.
  */
-export function diskPreparationRunLeafReads(root: string): PreparationRunLeafReads {
+export function diskPreparationRunLeafReads(root: string, scanned?: ScannedLeafBytes): PreparationRunLeafReads {
   return {
-    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes),
+    readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned),
     readKey: () => readPreparationKey(root),
   };
 }

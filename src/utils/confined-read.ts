@@ -200,7 +200,7 @@ export async function expectedRealMatching(root: string, lexicalPath: string, ob
 /** A confirmed-in-root, confirmed-regular open handle, or the absent/unavailable outcome that stopped short of one. */
 export type ConfinedLeafOpen = { kind: "absent" } | { kind: "unavailable" } | {
   kind: "confirmed"; handle: FileHandle; size: number; dev: number; ino: number; mode: number; uid: number; nlink: number;
-  leaf: string; expectedReal: string; canonicalLeaf: string;
+  mtimeMs: number; ctimeMs: number; leaf: string; expectedReal: string; canonicalLeaf: string;
   beforePostReadCheckForTest?: () => Promise<void>;
 };
 
@@ -242,7 +242,7 @@ export async function openConfinedLeaf(root: string, leaf: string, expectedDir: 
     const canonicalLeaf = path.join(expectedReal, path.basename(leaf));
     if (!(await isCanonicalLeafOf(canonicalLeaf, opened))) return await closeReturning(handle, { kind: "unavailable" });
     return { kind: "confirmed", handle, size: opened.size, dev: opened.dev, ino: opened.ino,
-      mode: opened.mode, uid: opened.uid, nlink: opened.nlink, leaf, expectedReal, canonicalLeaf,
+      mode: opened.mode, uid: opened.uid, nlink: opened.nlink, mtimeMs: opened.mtimeMs, ctimeMs: opened.ctimeMs, leaf, expectedReal, canonicalLeaf,
       beforePostReadCheckForTest: opts.beforePostReadCheckForTest };
   } catch {
     return await closeReturning(handle, { kind: "unavailable" });

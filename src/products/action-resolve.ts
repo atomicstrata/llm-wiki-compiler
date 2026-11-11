@@ -79,7 +79,6 @@ import type { ActiveProductBindingV1 } from "./binding/types.js";
 import {
   MAX_COMPOSITION_LOCK_BYTES, MAX_ROOT_OPERATIONS_PACK_BYTES, PRODUCT_SAFETY_FLOOR_DIGEST,
 } from "./constants.js";
-import { readInstalledProductPackage, readInstalledProductPackageFrom, type InstalledPackageRead } from "./packages/store.js";
 import type { PackageMemberRefV1, ProductPackageManifestV1 } from "./types.js";
 
 /** The active-product resolution arm that carries a usable binding. */
@@ -125,15 +124,13 @@ interface PackAuthorityV1 {
 
 /** The caller's action input, as each capture takes and returns it. */
 type ActionInput = Readonly<Record<string, PackActionInputValueV2>>;
-/** The installed package's digest, as the package and member readers take it. */
-type PackageDigest = Parameters<typeof readInstalledProductPackage>[1];
+/** The installed package's digest, as the member reader takes it. */
+type PackageDigest = ProductPackageManifestV1["packageDigest"];
 
 /** The reads one resolution makes, in order. No member takes a project root. */
 export interface ProductActionSteps {
-  /** The ONE active-product resolution. */
+  /** The ONE active-product resolution; in product mode it carries the verified package manifest. */
   resolveActive(): Promise<ActiveProductResolution>;
-  /** The installed package, verified. */
-  readPackage(packageDigest: PackageDigest): Promise<InstalledPackageRead>;
   /** One installed member as strict UTF-8 text, re-verified against its reference. */
   readMember(packageDigest: PackageDigest, member: PackageMemberRefV1, maxBytes: number): Promise<string>;
   /** Host-side source-evidence capture. */
@@ -148,7 +145,6 @@ export interface ProductActionSteps {
 function diskProductActionSteps(root: string): ProductActionSteps {
   return {
     resolveActive: () => resolveActiveProduct(root),
-    readPackage: (packageDigest) => readInstalledProductPackage(root, packageDigest),
     readMember: (packageDigest, member, maxBytes) => readStoredMemberText(root, packageDigest, member, maxBytes),
     captureSource: (pack, actionId, input) => captureSourceEvidenceInput(root, pack, actionId, input),
     captureArtifact: (pack, actionId, input) => captureArtifactEvidenceInput(root, pack, actionId, input),
@@ -167,7 +163,6 @@ export function productActionStepsOver(sources: {
 }): ProductActionSteps {
   return {
     resolveActive: () => resolveActiveProductFrom(sources.product),
-    readPackage: (packageDigest) => readInstalledProductPackageFrom(sources.product.packages, packageDigest),
     readMember: (packageDigest, member, maxBytes) => readStoredMemberTextFrom(sources.product.packages, packageDigest, member, maxBytes),
     captureSource: (pack, actionId, input) => captureSourceEvidenceInputFrom(sources.sourceLeaves, pack, actionId, input),
     captureArtifact: (pack, actionId, input) => captureArtifactEvidenceInputFrom(sources.pages, pack, actionId, input),
@@ -344,10 +339,8 @@ export async function resolveActiveWorkspaceContractWith(
 ): Promise<ActiveWorkspaceContractV1> {
   const resolution = await steps.resolveActive();
   if (resolution.mode !== "product") return { status: "refused", reason: modeRefusal(resolution) };
-  const pkg = await steps.readPackage(resolution.binding.packageDigest);
-  if (pkg.status !== "ok") return { status: "refused", reason: `the installed product package is ${pkg.status}` };
   try {
-    const authority = await readPackAuthority(steps, pkg.manifest);
+    const authority = await readPackAuthority(steps, resolution.manifest);
     return {
       status: "ok", contract: authority.pack.workspaceContract, packId: authority.pack.packId,
       providerRequirements: authority.pack.providerRequirements,
@@ -370,10 +363,8 @@ export async function resolveProductActionWith(
 ): Promise<ProductActionResolutionV1> {
   const resolution = await steps.resolveActive();
   if (resolution.mode !== "product") return refused(modeRefusal(resolution));
-  const pkg = await steps.readPackage(resolution.binding.packageDigest);
-  if (pkg.status !== "ok") return refused(`the installed product package is ${pkg.status}`);
   try {
-    return await compileResolved(steps, request, resolution, pkg.manifest);
+    return await compileResolved(steps, request, resolution, resolution.manifest);
   } catch (error) {
     if (!RESOLUTION_REFUSALS.some((klass) => error instanceof klass)) throw error;
     return refused(`the product action could not be compiled: ${(error as Error).message}`);

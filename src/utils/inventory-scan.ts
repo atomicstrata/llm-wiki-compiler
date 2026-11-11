@@ -6,6 +6,7 @@ import { opendir } from "node:fs/promises";
 import path from "node:path";
 import { lstat, realpath } from "./fs-metadata.js";
 import { expectedRealMatching, openConfinedLeaf } from "./confined-read.js";
+import type { ScannedLeafBytes } from "./scanned-leaf-bytes.js";
 
 /** Reject unbounded or fractional scan requests before any traversal. */
 export function positiveScanEntryLimit(requested: number, store: string): number {
@@ -108,15 +109,78 @@ type InventoryLeafObservation =
   | { kind: "unavailable" };
 
 /**
+ * How a store's walk observes one leaf: its size and identity from the opened
+ * leaf, nothing open afterwards. `retainUpToBytes` is passed only for a leaf
+ * the inventory goes on to read: the provider MAY keep that leaf's verified
+ * bytes, within that cap, for its own reader later in the pass. The answer is
+ * the same either way.
+ */
+export type InventoryLeafObserver = (file: string, parent: string, retainUpToBytes?: number) => Promise<InventoryLeafObservation>;
+
+/** Where an observation may leave the leaf's bytes, and the most it may read. */
+interface InventoryLeafRetention { into: ScannedLeafBytes; maxBytes: number }
+
+/** A confined open the walk confirmed, still holding its handle. */
+type ConfirmedInventoryLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
+
+/** Whether the handle's `fstat` after the read still shows the file the open's `fstat` saw, version included. */
+function handleUnchanged(opened: ConfirmedInventoryLeaf, after: import("node:fs").Stats): boolean {
+  return after.isFile() && after.dev === opened.dev && after.ino === opened.ino && after.nlink === opened.nlink
+    && after.size === opened.size && after.mtimeMs === opened.mtimeMs && after.ctimeMs === opened.ctimeMs;
+}
+
+/**
+ * Read a confirmed leaf's bytes for the pass's holder, or null, and close the
+ * handle. ONE read of one byte more than the handle's size: a leaf that grew
+ * returns too many and is not held, and the handle's `fstat` afterwards must
+ * show the same file, version included. The PATH half of the post-read checks
+ * (parent realpath, canonical identity) is NOT asked here: no held byte is
+ * returned to anyone until the reader asks exactly those of the leaf, against
+ * this open's identity and version (`durable-leaf.ts`), so asking them here too
+ * would only repeat them.
+ */
+async function readForHolder(opened: ConfirmedInventoryLeaf): Promise<Buffer | null> {
+  try {
+    const buffer = Buffer.alloc(opened.size + 1);
+    const { bytesRead } = await opened.handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead !== opened.size || !handleUnchanged(opened, await opened.handle.stat())) return null;
+    return buffer.subarray(0, bytesRead);
+  } catch {
+    return null;
+  } finally {
+    await opened.handle.close().catch(() => {});
+  }
+}
+
+/**
  * Observe one leaf through the no-follow confined open ({@link openConfinedLeaf}),
  * copy its size and identity FROM THE HANDLE, and close the handle before
  * answering. Nothing stays open on any path.
+ *
+ * With `retain`, a leaf within `retain.maxBytes` that still fits the holder is
+ * also read from that same handle ({@link readForHolder}) and its bytes held
+ * with the identity, version and canonical paths the open proved. Reading
+ * never changes the observation: a failed read only means nothing is held.
  */
-export async function observeInventoryLeaf(root: string, file: string, parent: string): Promise<InventoryLeafObservation> {
+export async function observeInventoryLeaf(
+  root: string, file: string, parent: string, retain?: InventoryLeafRetention,
+): Promise<InventoryLeafObservation> {
   const opened = await openConfinedLeaf(root, file, parent);
   if (opened.kind !== "confirmed") return opened;
-  await opened.handle.close().catch(() => {});
-  return { kind: "confirmed", size: opened.size, dev: opened.dev, ino: opened.ino };
+  const observation = { kind: "confirmed" as const, size: opened.size, dev: opened.dev, ino: opened.ino };
+  if (retain === undefined || opened.size > retain.maxBytes || !retain.into.hasRoomFor(opened.size)) {
+    await opened.handle.close().catch(() => {});
+    return observation;
+  }
+  const body = await readForHolder(opened);
+  if (body !== null) {
+    retain.into.hold({
+      root: path.resolve(root), leaf: file, ownedDirectory: path.resolve(parent), expectedReal: opened.expectedReal,
+      canonicalLeaf: opened.canonicalLeaf, dev: opened.dev, ino: opened.ino, nlink: opened.nlink,
+      size: opened.size, mtimeMs: opened.mtimeMs, ctimeMs: opened.ctimeMs, body,
+    });
+  }
+  return observation;
 }
 
 /** The two stores that walk an inventory tree; the label is the first word of every problem they record. */
@@ -179,23 +243,32 @@ export interface InventoryLeafPolicy<C extends { kind: string; protocolAlias?: "
   noteCap(kind: C["kind"], bytes: number, file: string): void;
   /** Keep the classified observation. */
   record(leaf: C & ReturnType<typeof inventoryLeafMetadata>): void;
+  /**
+   * The cap under which the walk may keep this leaf's bytes for the pass's later
+   * authenticated read of it, or undefined to keep none. Only leaves a scan
+   * goes on to read are worth keeping.
+   */
+  retainUpTo?(classified: C): number | undefined;
 }
 
 /**
- * THE leaf capture both stores share: observe (an unconfirmed leaf is a
- * `leaf-unavailable` problem and nothing else), classify, the optional pre-cap
- * check, the cap, keep the observation, then an `unknown` kind is a problem.
+ * THE leaf capture both stores share: classify (from the path alone), observe
+ * (an unconfirmed leaf is a `leaf-unavailable` problem and nothing else), the
+ * optional pre-cap check, the cap, keep the observation, then an `unknown` kind
+ * is a problem. The observer is asked to keep the bytes only of a leaf the
+ * policy names, so every other leaf is observed exactly as before.
  */
 export async function captureInventoryLeaf<C extends { kind: string; protocolAlias?: "writing" | "tmp" }>(
-  observeLeaf: (file: string, parent: string) => Promise<InventoryLeafObservation>,
+  observeLeaf: InventoryLeafObserver,
   file: string, parent: string, policy: InventoryLeafPolicy<C>,
 ): Promise<void> {
-  const observed = await observeLeaf(file, parent);
+  const classified = policy.classify(file);
+  const retainUpToBytes = policy.retainUpTo?.(classified);
+  const observed = await (retainUpToBytes === undefined ? observeLeaf(file, parent) : observeLeaf(file, parent, retainUpToBytes));
   if (observed.kind !== "confirmed") {
     policy.problem("leaf-unavailable", `${policy.label} leaf is ${observed.kind}`, file);
     return;
   }
-  const classified = policy.classify(file);
   policy.beforeCap?.(file);
   policy.noteCap(classified.kind, observed.size, file);
   policy.record({ ...classified, ...inventoryLeafMetadata(file, classified.protocolAlias, observed) });

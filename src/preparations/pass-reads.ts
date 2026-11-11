@@ -29,6 +29,8 @@ import type { PreparationId } from "./ids.js";
 import { diskPreparationRunLeafReads, readPreparationRunFrom, type PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding } from "./run-types.js";
 import { epochOnly, once, oncePer } from "../utils/pass-memo.js";
+import { scannedLeafBytes, type ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
+import { perBorrowLifecycleReads, type PreparationLifecycleReads } from "./lifecycle-snapshot/read.js";
 
 /** The questions a pass asks of one preparation store. */
 export interface PreparationPassReads {
@@ -40,22 +42,39 @@ export interface PreparationPassReads {
   readManifest(workspaceId: string, preparationId: PreparationId): Promise<PreparationManifestRead>;
   /** One run by its binding, authenticated under the pass's one key read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
+  /**
+   * The leaf bytes this pass's inventory walk read, which the manifest and run
+   * reads above consume once each has proved the leaf still that version. Hand
+   * it to the walk (`scanActivePreparationStore`); it holds nothing else.
+   */
+  scannedLeaves: ScannedLeafBytes;
+  /** The pass's lifecycle reads: a fresh capture per borrow unless the pass was given a shared one. */
+  readonly lifecycle: PreparationLifecycleReads;
 }
 
-/** The local-disk reads for one pass over the store under `root`. */
-export function preparationPassReads(root: string): PreparationPassReads {
+/**
+ * The local-disk reads for one pass over the store under `root`. `lifecycle`
+ * is a pass-scoped lifecycle read (`preparationLifecycleReadPass`) when the
+ * pass's caller shares one capture across its legs and closes it before writing.
+ */
+export function preparationPassReads(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): PreparationPassReads {
   const readKey = once(() => readPreparationKey(root));
-  const runLeaves = { readRunLeaf: diskPreparationRunLeafReads(root).readRunLeaf, readKey };
+  const scannedLeaves = scannedLeafBytes();
+  const runLeaves = { readRunLeaf: diskPreparationRunLeafReads(root, scannedLeaves).readRunLeaf, readKey };
   return {
+    lifecycle,
     readKey,
     readKeyEpoch: epochOnly(readKey),
     readManifest: oncePer(
       (workspaceId, preparationId) => `${workspaceId}\0${preparationId}`,
-      (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
+      (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId, scannedLeaves),
     ),
     readRun: oncePer(
       (binding) => [binding.workspaceId, binding.preparationId, binding.runId, binding.manifestDigest, binding.keyEpochId].join("\0"),
       (binding) => readPreparationRunFrom(runLeaves, binding),
     ),
+    scannedLeaves,
   };
 }

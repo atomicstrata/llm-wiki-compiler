@@ -26,9 +26,13 @@ import {
 } from "../src/utils/lock-owner.js";
 import type { LockOwner, OwnerLiveness } from "../src/utils/lock-owner.js";
 
-// Snapshot the real module before mock.module replaces it for this file.
+// Snapshot the real modules before mock.module replaces them for this file.
 const realChildProcess = { ...(await import("node:child_process")) };
-/** While set, `ps` is unavailable to every lock-owner instance in this file. */
+const realKernelStartTime = { ...(await import("../src/utils/kernel-start-time.js")) };
+/**
+ * While set, NEITHER start-time source answers for any lock-owner instance in
+ * this file: `ps` throws and the in-process kernel read defers to it.
+ */
 const psProbe = { unavailable: false };
 let freshImports = 0;
 vi.mock("node:child_process", () => ({
@@ -37,6 +41,10 @@ vi.mock("node:child_process", () => ({
     if (psProbe.unavailable) throw new Error("ps unavailable");
     return realChildProcess.execFileSync(...args);
   }) as typeof realChildProcess.execFileSync,
+}));
+vi.mock("../src/utils/kernel-start-time.js", () => ({
+  readKernelStartSeconds: (pid: number) =>
+    psProbe.unavailable ? undefined : realKernelStartTime.readKernelStartSeconds(pid),
 }));
 
 /** A pid no host assigns, so the signal probe reports it GONE. */

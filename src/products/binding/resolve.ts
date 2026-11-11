@@ -37,12 +37,15 @@ import type { ActiveProductBindingV1 } from "./types.js";
 /**
  * The classified runtime mode (design section 8.2). `legacy` means run the
  * existing profile loader unchanged; `product` carries the resolved binding and
- * effective profile; `conflict` means a binding and a legacy `profile.json`
- * coexist; `unavailable` carries a fail-closed reason and never degrades to legacy.
+ * effective profile, and the installed package's manifest exactly as this
+ * resolution read and verified it, so a caller needing the manifest does not
+ * read and re-verify the same content-addressed package a second time; `conflict`
+ * means a binding and a legacy `profile.json` coexist; `unavailable` carries a
+ * fail-closed reason and never degrades to legacy.
  */
 export type ActiveProductResolution =
   | { mode: "legacy" }
-  | { mode: "product"; binding: ActiveProductBindingV1; loaded: LoadedProfile }
+  | { mode: "product"; binding: ActiveProductBindingV1; loaded: LoadedProfile; manifest: ProductPackageManifestV1 }
   | { mode: "conflict" }
   | { mode: "unavailable"; detail: string };
 
@@ -95,7 +98,7 @@ async function resolveProductMode(
   if (mismatch !== null) return { mode: "unavailable", detail: `component-mismatch:${mismatch}` };
   try {
     const loaded = await loadProductProfile(sources, binding, pkg.manifest);
-    return { mode: "product", binding, loaded };
+    return { mode: "product", binding, loaded, manifest: pkg.manifest };
   } catch (error) {
     return { mode: "unavailable", detail: error instanceof Error ? error.message : "knowledge-profile" };
   }
