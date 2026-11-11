@@ -18,7 +18,7 @@
  * read.
  *
  * TO ADD A READ: add the question to {@link PreparationPassReads} and one
- * `once` or `oncePer` line below. A step takes the questions it asks as its
+ * `once` or `oncePer` line below (`utils/pass-memo.ts`). A step takes the questions it asks as its
  * collaborator type, as every `…With(steps)` body in this store already does,
  * so a step never learns whether an answer was shared.
  */
@@ -28,6 +28,7 @@ import { readPreparationManifest, type PreparationManifestRead } from "./manifes
 import type { PreparationId } from "./ids.js";
 import { diskPreparationRunLeafReads, readPreparationRunFrom, type PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding } from "./run-types.js";
+import { epochOnly, once, oncePer } from "../utils/pass-memo.js";
 
 /** The questions a pass asks of one preparation store. */
 export interface PreparationPassReads {
@@ -41,33 +42,13 @@ export interface PreparationPassReads {
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
 }
 
-/** Ask `read` at most once; every caller shares the one answer. */
-function once<R>(read: () => Promise<R>): () => Promise<R> {
-  let answer: Promise<R> | undefined;
-  return () => (answer ??= read());
-}
-
-/** Ask `read` at most once per distinct `key`; callers with the same key share the answer. */
-function oncePer<A extends unknown[], R>(key: (...args: A) => string, read: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
-  const answers = new Map<string, Promise<R>>();
-  return (...args) => {
-    const id = key(...args);
-    let answer = answers.get(id);
-    if (answer === undefined) answers.set(id, answer = read(...args));
-    return answer;
-  };
-}
-
 /** The local-disk reads for one pass over the store under `root`. */
 export function preparationPassReads(root: string): PreparationPassReads {
   const readKey = once(() => readPreparationKey(root));
   const runLeaves = { readRunLeaf: diskPreparationRunLeafReads(root).readRunLeaf, readKey };
   return {
     readKey,
-    readKeyEpoch: async () => {
-      const key = await readKey();
-      return key.status === "ok" ? { status: "ok", keyEpochId: key.keyEpochId } : key;
-    },
+    readKeyEpoch: epochOnly(readKey),
     readManifest: oncePer(
       (workspaceId, preparationId) => `${workspaceId}\0${preparationId}`,
       (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),

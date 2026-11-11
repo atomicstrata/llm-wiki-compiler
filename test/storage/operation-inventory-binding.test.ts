@@ -249,8 +249,8 @@ describe("the operation inventory scan: one body over its own reads", () => {
     const answers = await snapshot();
     const spies = [
       vi.spyOn(orphanScan, "scanOperationOrphans"), vi.spyOn(inventoryScan, "visitInventoryDirectory"), vi.spyOn(inventoryScan, "observeInventoryLeaf"),
-      vi.spyOn(inventoryAuthority, "verifyInventoryAuthorities"), vi.spyOn(manifestStore, "readOperationManifest"), vi.spyOn(durableLeaf, "readDurableOperationLeafBuffer"),
-      vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRun"), vi.spyOn(catalogStore, "readCatalogStore"),
+      vi.spyOn(inventoryAuthority, "verifyInventoryAuthoritiesFrom"), vi.spyOn(manifestStore, "readOperationManifest"), vi.spyOn(durableLeaf, "readDurableOperationLeafBuffer"),
+      vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRunFrom"), vi.spyOn(catalogStore, "readCatalogStore"),
     ];
     await scanOperationInventoryFrom(memoryInventory(answers, []));
     await scanOperationOrphansFrom(memoryWalk({ [WORKSPACE]: "dir" }, {}));

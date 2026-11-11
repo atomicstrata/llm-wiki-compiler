@@ -72,14 +72,17 @@ function authorityLeafPaths(root: string, leaf: InventoryAuthorityLeaf): { file:
   }
 }
 
-/** The local-disk authority reads for one root, built per call. In no package index. */
-function diskInventoryAuthorityReads(root: string): InventoryAuthorityReads {
+/**
+ * The local-disk authority reads for one root, built per call. A pass that has
+ * already read the key hands in its `readKey`. In no package index.
+ */
+export function diskInventoryAuthorityReads(root: string, readKey: () => Promise<OperationKeyRead> = () => readOperationKey(root)): InventoryAuthorityReads {
   return {
     readLeaf: (leaf, maxBytes) => {
       const { file, parent } = authorityLeafPaths(root, leaf);
       return readDurableOperationLeafBuffer(root, file, parent, maxBytes);
     },
-    readKey: () => readOperationKey(root),
+    readKey,
   };
 }
 
@@ -260,16 +263,11 @@ function runRecordAuthentic(
   }
 }
 
-/** Verify founding-store leaves before their bytes contribute healthy capacity. */
-export async function verifyInventoryAuthorities(
-  root: string,
-  leaves: readonly OperationLeafObservation[],
-  problems: OperationInventoryProblem[],
-): Promise<void> {
-  await verifyInventoryAuthoritiesFrom(diskInventoryAuthorityReads(root), leaves, problems);
-}
-
-/** {@link verifyInventoryAuthorities} over the authority reads: the one body, in the incumbent store order. */
+/**
+ * Verify founding-store leaves before their bytes contribute healthy capacity,
+ * over the authority reads ({@link diskInventoryAuthorityReads} on disk): the
+ * one body, in the incumbent store order.
+ */
 export async function verifyInventoryAuthoritiesFrom(
   reads: InventoryAuthorityReads,
   leaves: readonly OperationLeafObservation[],

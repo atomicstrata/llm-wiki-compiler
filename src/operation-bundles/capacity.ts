@@ -28,22 +28,22 @@ import {
   MAX_WORKSPACE_RETAINED_SOURCE_BYTES,
 } from "./constants.js";
 import type { BundleId, OperationRunId } from "./ids.js";
-import { verifyInventoryAuthorities } from "./inventory-authority.js";
+import { diskInventoryAuthorityReads, verifyInventoryAuthoritiesFrom } from "./inventory-authority.js";
 import { graphNodes, payloadDigestsByBundle } from "./inventory-indexes.js";
 import type {
   OperationEpochInventory, OperationEpochInventoryEntry,
 } from "./key-epoch.js";
-import { readOperationKey } from "./key-epoch.js";
 import { readDurableOperationLeafBuffer } from "./durable-leaf.js";
 import { operationManifestDigest } from "./manifest-parse.js";
-import { manifestPayloadClaims, readOperationManifest, type OperationManifestRead } from "./manifest-store.js";
+import { manifestPayloadClaims, type OperationManifestRead } from "./manifest-store.js";
 import {
   scanOperationOrphans, type OperationInventoryProblem,
   type OperationLeafObservation, type OperationOrphanScan, type OperationScanOptions,
 } from "./orphan-scan.js";
-import { readOperationRun, type OperationRunRead } from "./run-store.js";
+import type { OperationRunRead } from "./run-store.js";
 import type { OperationRunBinding } from "./run-types.js";
 import { operationPaths } from "./paths.js";
+import { operationPassReads, type OperationPassReads } from "./pass-reads.js";
 import type {
   BundleGraphNode, OperationBundleManifest, OperationDigest,
 } from "./types.js";
@@ -127,21 +127,18 @@ function readDiskPayloadLeaf(root: string, workspaceId: string, bundleId: Bundle
  * the imported root-taking function when it is asked, never earlier. In no
  * package index.
  */
-export function diskOperationInventoryReads(root: string): OperationInventoryReads {
+export function diskOperationInventoryReads(root: string, pass: OperationPassReads = operationPassReads(root)): OperationInventoryReads {
   return {
     scanStore: (options) => scanOperationOrphans(root, options),
     verifyAuthorities: async (leaves) => {
       const problems: OperationInventoryProblem[] = [];
-      await verifyInventoryAuthorities(root, leaves, problems);
+      await verifyInventoryAuthoritiesFrom(diskInventoryAuthorityReads(root, pass.readKey), leaves, problems);
       return problems;
     },
-    readManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
+    readManifest: pass.readManifest,
     readPayloadLeaf: (workspaceId, bundleId, digest, maxBytes) => readDiskPayloadLeaf(root, workspaceId, bundleId, digest, maxBytes),
-    readKeyEpoch: async () => {
-      const read = await readOperationKey(root);
-      return read.status === "ok" ? { status: "ok", keyEpochId: read.keyEpochId } : read;
-    },
-    readRun: (binding) => readOperationRun(root, binding),
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
     readCatalog: (workspaceId) => readCatalogStore(root, workspaceId),
   };
 }
@@ -350,8 +347,9 @@ async function classifyBundles(
 export async function scanOperationInventory(
   root: string,
   options: OperationScanOptions = {},
+  pass: OperationPassReads = operationPassReads(root),
 ): Promise<OperationInventory> {
-  return scanOperationInventoryFrom(diskOperationInventoryReads(root), options);
+  return scanOperationInventoryFrom(diskOperationInventoryReads(root, pass), options);
 }
 
 /** {@link scanOperationInventory} over the scan's own reads: the one body. */

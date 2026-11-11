@@ -86,6 +86,7 @@ import { readOperationRun, type OperationRunRead } from "./run-store.js";
 import type { OperationRunBinding } from "./run-types.js";
 import { UNSETTLED_RUN_STATES } from "./run-validation.js";
 import type { OperationBundleManifest } from "./types.js";
+import { operationPassReads } from "./pass-reads.js";
 import { portableGateBlock, PortableRecoveryBlockingError } from "../portable/host/pending-gate.js";
 
 /**
@@ -701,10 +702,12 @@ export interface OperationRecoveryReads {
 
 /** LOCAL-DISK ADAPTER. The incumbent reads for the project at `root`, each called at call time; building it does no I/O. In no package index. */
 export function diskOperationRecoveryReads(root: string): OperationRecoveryReads {
+  // One read-only pass: the inventory, the key and the runs it classifies.
+  const pass = operationPassReads(root);
   return {
-    scanInventory: () => scanOperationInventory(root),
-    readKey: () => readOperationKey(root),
-    readRun: (binding) => readOperationRun(root, binding),
+    scanInventory: () => scanOperationInventory(root, {}, pass),
+    readKey: pass.readKey,
+    readRun: pass.readRun,
   };
 }
 
