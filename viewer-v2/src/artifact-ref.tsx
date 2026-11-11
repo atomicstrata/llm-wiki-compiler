@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { artifactDownloadUrl, artifactRef, fetchArtifact, type ArtifactMetadata, type ArtifactPin } from "./api-workflows";
 import { AsyncView } from "./async-view";
+import { Code, DefinitionRows, TextLink } from "./components";
 import { displayLabel } from "./pipeline-model";
 import { useAsync } from "./use-async";
 
@@ -27,35 +28,32 @@ const LOOPBACK_NOTE = "To preview files, run the viewer bound to localhost on th
 function FileMetadata({ metadata }: { metadata: Record<string, unknown> }): ReactNode {
   const entries = Object.entries(metadata);
   if (entries.length === 0) return null;
-  return (
-    <dl>
-      {entries.map(([key, value]) => (
-        <div key={key}>
-          <dt>{displayLabel(key)}</dt>
-          <dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd>
-        </div>
-      ))}
-    </dl>
-  );
+  const rows = entries.map(([key, value]): [string, ReactNode] => [displayLabel(key), typeof value === "object" ? JSON.stringify(value) : String(value)]);
+  return <div className="mt-2 border-t border-zinc-950/5 pt-2 dark:border-white/10"><DefinitionRows rows={rows} /></div>;
+}
+
+/** The file check, and the manifest's size and write time when there is one. */
+function checkRows(metadata: ArtifactMetadata): [string, ReactNode][] {
+  const rows: [string, ReactNode][] = [["File check", FILE_HEALTH_LABELS[metadata.health] ?? "File could not be verified"]];
+  if (metadata.manifest) {
+    rows.push(["Size", `${metadata.manifest.bytes} bytes · ${metadata.manifest.contentKind}`], ["Written", metadata.manifest.writtenAt]);
+  }
+  return rows;
 }
 
 /** The resolved artifact: name, file check, metadata, and the download when allowed. */
 export function ArtifactDetail({ metadata }: { metadata: ArtifactMetadata }): ReactNode {
   const isOk = metadata.health === "ok";
   return (
-    <div>
-      <strong>{metadata.fileName ?? "Attached file"}</strong>
-      <dl>
-        <div><dt>File check</dt><dd>{FILE_HEALTH_LABELS[metadata.health] ?? "File could not be verified"}</dd></div>
-        {metadata.manifest && <div><dt>Size</dt><dd>{metadata.manifest.bytes} bytes · {metadata.manifest.contentKind}</dd></div>}
-        {metadata.manifest && <div><dt>Written</dt><dd>{metadata.manifest.writtenAt}</dd></div>}
-      </dl>
+    <div className="mt-4 rounded-lg bg-zinc-50 p-3 ring-1 ring-zinc-950/5 dark:bg-white/5 dark:ring-white/10">
+      <strong className="mb-2 block text-sm font-semibold text-zinc-950 dark:text-white">{metadata.fileName ?? "Attached file"}</strong>
+      <DefinitionRows rows={checkRows(metadata)} />
       {metadata.metadata && <FileMetadata metadata={metadata.metadata} />}
-      {isOk && metadata.contentAccess === "available" && <a href={artifactDownloadUrl(metadata.ref)}>Download</a>}
-      {isOk && metadata.contentAccess === "loopback-only" && <p>{LOOPBACK_NOTE}</p>}
-      <details>
-        <summary>File reference</summary>
-        <code>{metadata.ref}</code>
+      {isOk && metadata.contentAccess === "available" && <p className="mt-3"><TextLink href={artifactDownloadUrl(metadata.ref)}>Download</TextLink></p>}
+      {isOk && metadata.contentAccess === "loopback-only" && <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{LOOPBACK_NOTE}</p>}
+      <details className="mt-3 text-xs">
+        <summary className="cursor-pointer font-medium text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">File reference</summary>
+        <div className="mt-1 break-all"><Code>{metadata.ref}</Code></div>
       </details>
     </div>
   );
@@ -65,6 +63,6 @@ export function ArtifactDetail({ metadata }: { metadata: ArtifactMetadata }): Re
 export function ArtifactRef({ pin }: { pin: ArtifactPin }): ReactNode {
   const ref = artifactRef(pin);
   const state = useAsync(() => fetchArtifact(ref), ref);
-  if (state.status === "error") return <p>File could not be checked. Try reopening this record.</p>;
+  if (state.status === "error") return <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">File could not be checked. Try reopening this record.</p>;
   return <AsyncView state={state}>{(metadata) => <ArtifactDetail metadata={metadata} />}</AsyncView>;
 }

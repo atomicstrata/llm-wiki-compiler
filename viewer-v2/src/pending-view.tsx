@@ -4,14 +4,14 @@
  * added without a view.
  */
 import type { ReactNode } from "react";
+import { Code, EmptyState, Screen } from "./components";
 import type { Route } from "./route";
 
 /** Name the route and point at the original client. */
 export function PendingView({ route }: { route: Route }): ReactNode {
   return (
-    <section>
-      <h1>Not available</h1>
-      <p>This client has no screen for <code>{route.view}</code>. Open it with <code>llmwiki view</code> at the same address.</p>
-    </section>
+    <Screen title="Not available" description={<>This client has no screen for <Code>{route.view}</Code>.</>}>
+      <EmptyState title="Open it in the original viewer" body="Run llmwiki view at the same address to reach this screen." command="$ llmwiki view" />
+    </Screen>
   );
 }

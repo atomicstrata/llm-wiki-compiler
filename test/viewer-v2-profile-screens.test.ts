@@ -10,7 +10,7 @@ import { ArtifactDetail } from "../viewer-v2/src/artifact-ref.js";
 import { Journey } from "../viewer-v2/src/journey-view.js";
 import { PipelineView } from "../viewer-v2/src/pipeline-view.js";
 import { nextCommands, WorkflowRuns } from "../viewer-v2/src/workflows-view.js";
-import { artifactMetadata, entityType, envelope, lifecycle, recordedStage, verifiedStage, workflowRun } from "./fixtures/viewer-v2-fixtures.js";
+import { artifactMetadata, entityType, envelope, lifecycle, recordedStage, verifiedStage, text, workflowRun } from "./fixtures/viewer-v2-fixtures.js";
 
 const IDS = { workflowId: "review", runId: "run-1" };
 
@@ -37,24 +37,26 @@ describe("PipelineView", () => {
 
   it("lays out each type's chain, chips, callout and verdict", () => {
     const html = renderToStaticMarkup(createElement(PipelineView, { wiki: PROFILE }));
-    expect(html).toContain("<h1>Lifecycle status</h1><span>AUTOSCI</span>");
+    expect(text(html)).toContain("Lifecycle status AUTOSCI");
     expect(html).toContain("draft → review → published");
     expect(html).toContain("wiki/papers");
     expect(html).toContain("2 published · terminal");
     expect(html).toContain("1 limbo · unreachable");
     expect(html).toContain("1 page sits in limbo — not a declared `status` value at all, so the configured transitions cannot reach it.");
     expect(html).toContain("1 rejected page counted here");
-    expect(html).toContain("<div>—</div><div>No stages configured");
+    expect(text(html)).toContain("— No stages configured");
   });
 
   it("lists relation and artifact types, the validation warnings, and the lint footer", () => {
     const html = renderToStaticMarkup(createElement(PipelineView, { wiki: PROFILE }));
-    expect(html).toContain("<td>Cites</td><td>Papers<span> → </span>Papers</td><td>3 recorded links</td>");
-    expect(html).toContain("<td>Report</td><td><code>report.json</code></td><td>json</td><td>pages</td>");
-    expect(html).toContain("<code>field-violation</code>");
+    expect(text(html)).toContain("Cites Papers → Papers 3 recorded links");
+    expect(text(html)).toContain("Report report.json json pages");
+    expect(html).toMatch(/<code[^>]*>report\.json<\/code>/);
+    expect(html).toMatch(/<code[^>]*>field-violation<\/code>/);
     expect(html).toContain("status is not a declared value");
     expect(html).toContain("1 rejected page still declares a lifecycle state and is counted");
-    expect(html).toContain('href="#/health">See all 2 problems in Lint →');
+    expect(html).toContain('href="#/health"');
+    expect(text(html)).toContain("See all 2 problems in Lint →");
   });
 });
 
@@ -68,13 +70,14 @@ describe("WorkflowRuns", () => {
   it("links each run to its journey and names what a parked run waits on, in clearing order", () => {
     const parked = workflowRun({ awaitingOutput: true, nextSubmitEntityType: "papers", awaitingGate: "gate-1" });
     const html = renderToStaticMarkup(createElement(WorkflowRuns, { payload: { runs: [parked, workflowRun({ runId: "run-2", classification: "historical", status: "completed", currentStage: null })] } }));
-    expect(html).toContain('<a href="#/_journey/review/run-1">review</a> <span>run-1</span>');
+    expect(html).toContain('href="#/_journey/review/run-1"');
+    expect(text(html)).toContain("review run-1");
     expect(html).toContain("running · draft");
-    expect(html).toContain("Waiting for results · Waiting for approval · gate-1");
+    expect(text(html)).toContain("Waiting for results Waiting for approval · gate-1");
     expect(html).toContain("$ llmwiki workflow submit run-1 --kind page --entity-type papers --slug &lt;slug&gt; --body-file &lt;path&gt;");
     expect(html).toContain("$ llmwiki workflow gate approve run-1 gate-1");
     expect(html).toContain("completed · no active step");
-    expect(html).toContain("<div>History</div>");
+    expect(text(html)).toContain("completed · no active step History");
   });
 
   it("sends a trust gate to a re-submit, never to gate approve, and shows a broken store as a problem", () => {
@@ -83,7 +86,7 @@ describe("WorkflowRuns", () => {
     expect(html).toContain("Write permission required · trust:papers");
     expect(html).toContain("Set LLMWIKI_TRUSTED_WRITE to grant this profile&#x27;s writes, then re-submit.");
     expect(html).not.toContain("gate approve");
-    expect(html).toContain("<span>(store)</span> <span>Problem</span>");
+    expect(text(html)).toContain("(store) Problem");
     expect(html).toContain("run store unreadable");
     expect(nextCommands(workflowRun({ awaitingOutput: true, nextSubmitArtifactType: "report" }))).toEqual([
       "$ llmwiki workflow submit run-1 --kind artifact --artifact-type report --slug <slug> --body-file <path>",
@@ -94,7 +97,8 @@ describe("WorkflowRuns", () => {
 describe("Journey", () => {
   it("shows a problem envelope as a visible error", () => {
     const html = renderToStaticMarkup(createElement(Journey, { body: { ...IDS, problem: "run is not readable" }, ids: IDS }));
-    expect(html).toContain('role="alert">This run could not be projected: run is not readable');
+    expect(html).toContain('role="alert"');
+    expect(text(html)).toContain("This run could not be projected: run is not readable");
   });
 
   it("renders each stage's gate, verification, facts, output and PDF links", () => {
@@ -109,28 +113,31 @@ describe("Journey", () => {
     const html = renderToStaticMarkup(createElement(Journey, { body, ids: IDS }));
     expect(html).toContain("Run status: Current");
     expect(html).toContain("Live verification was unavailable");
-    expect(html).toContain("<span>Human approval — awaiting approval</span>");
-    expect(html).toContain("Recorded · not verified</span> <span>Stale or invalid · pin-mismatch");
-    expect(html).toContain('href="/api/workflows/review/runs/run-1/stage/draft/output" download="">Download report');
-    expect(html).toContain("What happened</span> <p>Rendered the report.");
-    expect(html).toContain('data-edge-kind="target">render → target: papers/alpha');
-    expect(html).toContain("<div><dt>Verdict</dt><dd>supports</dd>");
-    expect(html).toContain("Final PDF — pinned by render, verified");
-    expect(html).toContain('href="/api/workflows/review/runs/run-1/pdf" target="_blank" rel="noopener">Open final PDF (final.pdf)');
+    const visible = text(html);
+    expect(visible).toContain("Human approval — awaiting approval");
+    expect(visible).toContain("Recorded · not verified Stale or invalid · pin-mismatch");
+    expect(html).toContain('href="/api/workflows/review/runs/run-1/stage/draft/output" download=""');
+    expect(visible).toContain("Download report");
+    expect(visible).toContain("What happened Rendered the report.");
+    expect(html).toMatch(/data-edge-kind="target"[^>]*>render → target: papers\/alpha</);
+    expect(visible).toContain("Verdict supports");
+    expect(visible).toContain("Final PDF — pinned by render, verified");
+    expect(html).toContain('href="/api/workflows/review/runs/run-1/pdf" target="_blank" rel="noopener"');
+    expect(visible).toContain("Open final PDF (final.pdf)");
   });
 });
 
 describe("ArtifactDetail", () => {
   it("offers a download only for a passed check with content here, and explains the rest", () => {
     const ok = renderToStaticMarkup(createElement(ArtifactDetail, { metadata: artifactMetadata() }));
-    expect(ok).toContain("<strong>report.json</strong>");
-    expect(ok).toContain("<dt>File check</dt><dd>Passed</dd>");
-    expect(ok).toContain(`href="/api/artifact/content?ref=${encodeURIComponent(artifactMetadata().ref)}&amp;download=1">Download`);
+    expect(ok).toMatch(/<strong[^>]*>report\.json<\/strong>/);
+    expect(text(ok)).toContain("File check Passed");
+    expect(ok).toMatch(new RegExp(`href="/api/artifact/content\\?ref=${encodeURIComponent(artifactMetadata().ref)}&amp;download=1"[^>]*>Download<`));
     const lan = renderToStaticMarkup(createElement(ArtifactDetail, { metadata: artifactMetadata({ contentAccess: "loopback-only" }) }));
     expect(lan).toContain("run the viewer bound to localhost");
     expect(lan).not.toContain("Download");
     const dangling = renderToStaticMarkup(createElement(ArtifactDetail, { metadata: artifactMetadata({ health: "artifact-dangling", fileName: undefined, manifest: undefined }) }));
-    expect(dangling).toContain("<strong>Attached file</strong>");
+    expect(dangling).toMatch(/<strong[^>]*>Attached file<\/strong>/);
     expect(dangling).toContain("Attached file not found");
     expect(dangling).not.toContain("Download");
   });

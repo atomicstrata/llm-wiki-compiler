@@ -109,11 +109,11 @@ describe("graph markup", () => {
     const explorer = renderToStaticMarkup(createElement(GraphView, { wiki: envelope({ graph: { nodeCount: 3, edgeCount: 2, danglingCount: 1 } }) }));
     expect(explorer).toContain("Graph explorer");
     expect(explorer).toContain("3 nodes · 2 edges · ");
-    expect(explorer).toContain('disabled="">Fit</button>');
+    expect(explorer).toMatch(/disabled=""[^>]*>Fit<\/button>/);
     expect(explorer).toContain("Loading…");
     const dashboard = renderToStaticMarkup(createElement(Dashboard, { wiki: WIKI, health: null }));
-    expect(dashboard).toContain('disabled="">Fit</button>');
-    expect(dashboard).toContain('aria-label="Open the full graph explorer">⤢</a>');
+    expect(dashboard).toMatch(/disabled=""[^>]*>Fit<\/button>/);
+    expect(dashboard).toMatch(/aria-label="Open the full graph explorer"[^>]*>⤢<\/a>/);
     expect(dashboard).toContain("size = degree");
     expect(dashboard).toContain("hover a node to inspect");
   });

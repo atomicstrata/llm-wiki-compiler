@@ -92,12 +92,18 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
   const warning = STATE_WARNINGS[wiki.stateStatus];
   return (
     <>
-      {warning && <p role="alert">{warning}</p>}
+      {warning && <p role="alert" className="bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{warning}</p>}
       <Header wiki={wiki} health={health} initialQuery={route.view === "search" ? route.query : ""} />
-      {/* Sidebar beside main on wide screens, above it on narrow ones; prose styles every screen. */}
-      <div className="md:flex">
+      {/* Narrow screens open the navigation from a disclosure; it resets on every route so it closes after a choice. */}
+      <details key={JSON.stringify(route)} className="border-b border-zinc-950/5 bg-white md:hidden dark:border-white/10 dark:bg-zinc-900">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Menu</summary>
         <Sidebar wiki={wiki} health={health} route={route} />
-        <main className="prose min-w-0 flex-1 p-4 dark:prose-invert">
+      </details>
+      <div className="md:flex">
+        <aside className="hidden w-64 shrink-0 border-r border-zinc-950/5 md:sticky md:top-14 md:block md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto dark:border-white/10">
+          <Sidebar wiki={wiki} health={health} route={route} />
+        </aside>
+        <main className="min-w-0 flex-1 px-4 py-8 sm:px-8 lg:px-12">
           <RouteView route={route} wiki={wiki} health={health} />
         </main>
       </div>

@@ -11,7 +11,7 @@ import {
   contentsColumns, countFigure, freshnessSummary, lintFooter, lintRuleRows, lintRunCaption, problemsSummary, traceability,
 } from "../viewer-v2/src/health-model.js";
 import { HealthView } from "../viewer-v2/src/health-view.js";
-import { envelope, healthWith, lintRule, page } from "./fixtures/viewer-v2-fixtures.js";
+import { envelope, healthWith, lintRule, page, text } from "./fixtures/viewer-v2-fixtures.js";
 
 const NOW = new Date("2026-11-10T14:00:00.000Z");
 const PAGES = new Set(["concepts/alpha", "queries/q"]);
@@ -105,7 +105,8 @@ describe("HealthView", () => {
     expect(html).toContain("No cached lint summary yet");
     expect(html).toContain('data-contents="reviews"');
     expect(html).not.toContain("Record problems");
-    expect(html.match(/<span>—<\/span>/g)?.length).toBe(5);
+    expect(html.match(/data-contents="/g)?.length).toBe(5);
+    expect(html.match(/>—</g)?.length).toBe(5);
   });
 
   it("renders the lint table with a page link, the freshness badge, and the record problems", () => {
@@ -113,9 +114,9 @@ describe("HealthView", () => {
     const wiki = envelope({ pages: [page({ citationCount: 2 })], profileProblems: [{ kind: "slug-mismatch", path: "wiki/papers/b.md", message: "slug differs" }] });
     const html = renderToStaticMarkup(createElement(HealthView, { wiki, health }));
     expect(html).toContain("4 PROBLEMS");
-    expect(html).toContain('<td><a href="#/concepts/alpha">view →</a></td>');
+    expect(html).toMatch(/<td[^>]*><a href="#\/concepts\/alpha"[^>]*>view →<\/a><\/td>/);
     expect(html).toContain("4 of 4 problems come from broken-wikilink.");
-    expect(html).toContain("<span>Freshness</span> <span>IN SYNC</span>");
+    expect(text(html)).toContain("Freshness IN SYNC");
     expect(html).toContain("1 PROBLEM<");
     expect(html).toContain("Slug mismatch");
     expect(html).toContain("2 / 2 citations");

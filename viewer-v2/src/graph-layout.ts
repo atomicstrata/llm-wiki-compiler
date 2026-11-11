@@ -10,7 +10,7 @@
 // Named imports from `d3` tree-shake to the force, selection, zoom, drag and
 // transition modules; the vendored IIFE the original client loads is not used.
 import {
-  drag, forceCenter, forceLink, forceManyBody, forceSimulation, select, zoom, zoomIdentity,
+  drag, forceCenter, forceLink, forceManyBody, forceSimulation, forceX, forceY, select, zoom, zoomIdentity,
   type Simulation, type SimulationLinkDatum, type SimulationNodeDatum, type ZoomBehavior,
 } from "d3";
 import type { GraphData, GraphNode } from "./api";
@@ -50,6 +50,12 @@ const LAYOUT_BATCH_MS = 8;
 const FIT_TRANSITION_MS = 750;
 /** Alpha a drag keeps the simulation at, so neighbours follow the dragged node. */
 const DRAG_ALPHA_TARGET = 0.3;
+/**
+ * Pull toward the centre in the explorer. Without it, repulsion pushes every
+ * unlinked node outward until Fit shrinks the whole graph below a pixel; the
+ * compact panel's size-derived forces are calibrated without it.
+ */
+const EXPLORER_GRAVITY = 0.3;
 
 /** Measure the SVG and collect its elements; the viewBox matches the measured size. */
 function readCanvas(svg: SVGSVGElement, viewport: SVGGElement): Canvas {
@@ -95,6 +101,11 @@ function createSimulation(data: GraphData, canvas: Canvas, compact: boolean): { 
     .force("charge", forceManyBody().strength(forces.charge))
     .force("center", forceCenter(canvas.width / 2, canvas.height / 2))
     .stop();
+  if (!compact) {
+    simulation
+      .force("x", forceX<SimNode>(canvas.width / 2).strength(EXPLORER_GRAVITY))
+      .force("y", forceY<SimNode>(canvas.height / 2).strength(EXPLORER_GRAVITY));
+  }
   return { simulation, nodes, links };
 }
 

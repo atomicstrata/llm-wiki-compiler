@@ -12,7 +12,7 @@ import { activeNavRoute, Sidebar } from "../viewer-v2/src/nav.js";
 import { isNewPage, RecentView } from "../viewer-v2/src/recent-view.js";
 import { parseRoute } from "../viewer-v2/src/route.js";
 import { plainSnippet, resultKind } from "../viewer-v2/src/search.js";
-import { envelope, healthWith, page } from "./fixtures/viewer-v2-fixtures.js";
+import { envelope, healthWith, page, text } from "./fixtures/viewer-v2-fixtures.js";
 
 const WIKI = envelope({
   counts: { concepts: 2, queries: 0, sourceFiles: 3, pendingReviews: 0, compiledSources: 3, stale: 1, orphaned: 0 },
@@ -30,7 +30,7 @@ describe("Sidebar", () => {
     expect(html).toContain('data-route="queries"');
     expect(html).toContain("—");
     // Asserted on structure and text, not utility classes, so restyling cannot break it.
-    expect(html).toMatch(/data-route="reviews"[^>]*><span>Reviews<\/span> <span>0<\/span>/);
+    expect(html).toMatch(/data-route="reviews"[^>]*><span[^>]*>Reviews<\/span> <span[^>]*>0<\/span>/);
     expect(html).toContain('data-route="concepts" aria-current="page"');
     expect(html).not.toContain("Workflows");
   });
@@ -51,7 +51,7 @@ describe("Dashboard", () => {
     expect(html).toContain("Resolve 2 dangling links");
     expect(html).toContain("Recompile 1 stale page");
     expect(html).toContain("Run lint");
-    expect(html).toContain('href="#/recent">View all');
+    expect(html).toMatch(/href="#\/recent"[^>]*>View all/);
     expect(html).toContain("67%");
   });
 });
@@ -62,7 +62,7 @@ describe("RecentView and search helpers", () => {
     expect(isNewPage(WIKI.pages[1])).toBe(false);
     const html = renderToStaticMarkup(createElement(RecentView, { wiki: WIKI }));
     expect(html).toContain("2 pages, newest first");
-    expect(html.match(/<span>new<\/span>/g)?.length).toBe(1);
+    expect(html.match(/>new<\/span>/g)?.length).toBe(1);
   });
 
   it("filters titles by every word and labels hits by kind", () => {

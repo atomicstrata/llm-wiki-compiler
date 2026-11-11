@@ -170,3 +170,8 @@ export function artifactMetadata(overrides: Partial<ArtifactMetadata> = {}): Art
     ...overrides,
   };
 }
+
+/** The visible text of rendered markup: tags become spaces and whitespace collapses, so assertions survive restyling. */
+export function text(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, " ").trim();
+}

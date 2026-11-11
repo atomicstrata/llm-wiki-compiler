@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ReviewsList, targetDirectoryOf } from "../viewer-v2/src/reviews-view.js";
 import { metadataBlock, reviewCommand, reviewMessage } from "../viewer-v2/src/source-changes-model.js";
 import { SourceCockpit } from "../viewer-v2/src/source-changes-view.js";
-import { reviewCandidate, reviewsEnvelope, sourceChangePage, sourceChangesReport } from "./fixtures/viewer-v2-fixtures.js";
+import { reviewCandidate, reviewsEnvelope, sourceChangePage, sourceChangesReport, text } from "./fixtures/viewer-v2-fixtures.js";
 
 describe("ReviewsList", () => {
   it("shows the teaching empty state when nothing is pending", () => {
@@ -24,14 +24,15 @@ describe("ReviewsList", () => {
     const typed = reviewCandidate({ id: "c2", title: "", slug: "beta", summary: "  A summary ", sources: ["a.md", "b.md"], targetEntityType: "papers", heldReasons: [{ code: "mystery" }] });
     const payload = reviewsEnvelope([reviewCandidate(), typed], { total: 5, sourceChanges: true });
     const html = renderToStaticMarkup(createElement(ReviewsList, { payload }));
-    expect(html).toContain("Showing 2 of 5 pending candidates · llmwiki review list shows the whole queue");
-    expect(html).toContain('href="#/source-changes">Compare changed sources and proposed wiki updates');
-    expect(html).toContain("No summary recorded.");
-    expect(html).toContain("No sources recorded → wiki/concepts/");
-    expect(html).toContain("a.md · b.md → wiki/papers/");
-    expect(html).toContain('title="confidence 0.4 &lt; 0.6">Low confidence');
+    const visible = text(html);
+    expect(visible).toContain("Showing 2 of 5 pending candidates · llmwiki review list shows the whole queue");
+    expect(html).toMatch(/href="#\/source-changes"[^>]*>Compare changed sources and proposed wiki updates</);
+    expect(visible).toContain("No summary recorded.");
+    expect(visible).toContain("No sources recorded → wiki/concepts/");
+    expect(visible).toContain("a.md · b.md → wiki/papers/");
+    expect(html).toMatch(/title="confidence 0\.4 &lt; 0\.6"[^>]*>(?:<[^>]*>)*Low confidence</);
     expect(html).toContain(">mystery<");
-    expect(html).toContain("<strong>beta</strong>");
+    expect(html).toMatch(/<strong[^>]*>beta<\/strong>/);
   });
 
   it("routes approval on the entity type before the directory", () => {
@@ -71,20 +72,20 @@ describe("SourceCockpit", () => {
     expect(html).toContain("No supported affected pages or proposals found in this bounded observation.");
     expect(html).toContain("Compilation state is unavailable. No freshness conclusion can be drawn.");
     expect(html).toContain("Showing 0 of 3 pages; 0 supported proposals from 0 pending records.");
-    expect(html).not.toContain("sc-next");
+    expect(html).not.toContain("Next: ");
   });
 
   it("selects the first page, opens changed excerpts, and compares the first proposal", () => {
     const candidate = { id: "p1", generatedAt: "", body: "---\ntitle: New\n---\nProposed", truncated: true, checks: { target: "matches", sources: "matches" }, reasons: [] };
     const report = sourceChangesReport([sourceChangePage({ candidates: [candidate] }), sourceChangePage({ slug: "beta", title: "Beta" })], { candidateTotal: 1, candidateShown: 1 });
     const html = renderToStaticMarkup(createElement(SourceCockpit, { report }));
-    expect(html).toContain('aria-pressed="true"><strong>Alpha</strong>');
-    expect(html).toContain('aria-pressed="false"><strong>Beta</strong>');
+    expect(html).toMatch(/aria-pressed="true"[^>]*><strong[^>]*>Alpha<\/strong>/);
+    expect(html).toMatch(/aria-pressed="false"[^>]*><strong[^>]*>Beta<\/strong>/);
     expect(html).toContain("Next: review the proposed changes");
     expect(html).toContain("Proposal ID: p1");
-    expect(html).toContain("<details open=\"\"><summary>alpha.md · changed</summary>");
+    expect(html).toMatch(/<details\b[^>]*\bopen=""[^>]*><summary[^>]*>alpha\.md · changed<\/summary>/);
     expect(html).toContain("This proposal changes page metadata.");
     expect(html).toContain("Proposal shortened. Inspect its full body before review.");
-    expect(html).toContain("<strong>1</strong> <span>Without a proposal</span>");
+    expect(text(html)).toContain("Without a proposal 1");
   });
 });
