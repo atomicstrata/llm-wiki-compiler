@@ -26,6 +26,8 @@ export interface FileCallCounts {
   file: string;
   ops: Record<string, number>;
   sites?: Record<string, number>;
+  /** CPU milliseconds (user + system), by where they were spent: `self` (the test file's process) or `child` (a CLI it spawned). */
+  cpu?: Record<string, number>;
 }
 
 const SPAWN_FUNCTIONS = ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"];
@@ -39,6 +41,8 @@ const recordSites = process.env.LLMWIKI_CALL_SITES === "1";
 // A site looks past the primitives' own frames, so it needs a deeper stack.
 if (recordSites) Error.stackTraceLimit = 40;
 const appendFileSync = fs.appendFileSync;
+/** This process's CPU use when counting began: a test file's preload, or a spawned CLI's start. */
+const cpuAtStart = process.cpuUsage();
 /** True while a counted call is running its original; see {@link counted}. */
 let nested = false;
 
@@ -131,9 +135,14 @@ export async function installCallCounting(prefix: string): Promise<void> {
   wrap(Bun as unknown as Record<string, unknown>, ["spawn", "spawnSync"], () => spawnName);
 }
 
-/** Append this process's counts so far, attributed to the test `file`. */
-export function recordCallCounts(file: string): void {
-  const line: FileCallCounts = { file, ops: Object.fromEntries(ops) };
+/**
+ * Append this process's counts so far, attributed to the test `file`, with the
+ * CPU it used since counting began recorded under `cpuLabel`. A test worker runs
+ * its files one after another, so that span is this file's own CPU.
+ */
+export function recordCallCounts(file: string, cpuLabel: "self" | "child"): void {
+  const used = process.cpuUsage(cpuAtStart);
+  const line: FileCallCounts = { file, ops: Object.fromEntries(ops), cpu: { [cpuLabel]: (used.user + used.system) / 1000 } };
   if (recordSites) line.sites = Object.fromEntries(sites);
   appendFileSync(path.join(process.env.LLMWIKI_CALL_COUNTS!, `${process.pid}.jsonl`), `${JSON.stringify(line)}\n`);
 }

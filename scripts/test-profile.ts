@@ -89,10 +89,23 @@ function printOps(counts: readonly FileCallCounts[]): void {
   console.log(`Spawns: ${opsLine(spawns, 8)}`);
 }
 
+/** CPU seconds spent in test files' own processes and in the CLIs they spawned, and the costliest files. */
+function printCpu(counts: readonly FileCallCounts[]): void {
+  const cpuOf = (item: FileCallCounts) => (item.cpu?.self ?? 0) + (item.cpu?.child ?? 0);
+  const self = counts.reduce((sum, item) => sum + (item.cpu?.self ?? 0), 0) / 1000;
+  const child = counts.reduce((sum, item) => sum + (item.cpu?.child ?? 0), 0) / 1000;
+  console.log(`CPU: ${self.toFixed(1)} s in test processes, ${child.toFixed(1)} s in spawned CLIs (not counted: other programs such as ps)`);
+  console.log("Most CPU:");
+  for (const item of [...counts].sort((a, b) => cpuOf(b) - cpuOf(a)).slice(0, TOP_FILES)) {
+    console.log(`  ${(cpuOf(item) / 1000).toFixed(2).padStart(7)} s  ${item.file}  (self ${((item.cpu?.self ?? 0) / 1000).toFixed(2)} s, CLIs ${((item.cpu?.child ?? 0) / 1000).toFixed(2)} s)`);
+  }
+}
+
 /** Print totals, the heaviest files, and per-file detail for a small selection. */
 function printReport(counts: readonly FileCallCounts[], totals: Record<string, FileTotals>, baseline: Baseline | null): void {
   printTotals(totals, baseline);
   printOps(counts);
+  printCpu(counts);
   console.log("Most filesystem calls:");
   for (const item of [...counts].sort((a, b) => totals[b.file]!.fs - totals[a.file]!.fs).slice(0, TOP_FILES)) {
     console.log(`  ${n(totals[item.file]!.fs).padStart(9)}  ${item.file}  (${opsLine(item.ops, 4)})`);

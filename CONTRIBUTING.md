@@ -68,7 +68,8 @@ processes it starts. Counts do not move with machine load the way wall time
 does, so `test-call-counts.json` holds every file to its count: a file that
 makes more calls than its baseline fails the run. After making code cheaper,
 run `bun run test:profile --update` and commit the lower baseline; raising a
-file's count is a deliberate edit to the JSON. To see where
+file's count is a deliberate edit to the JSON. The report also shows CPU per test file, split between the file's own process
+and the CLI processes it spawns. To see where
 one file's calls come from, run
 `bun run test:profile --sites test/preparations/pack-journeys.test.ts`.
 

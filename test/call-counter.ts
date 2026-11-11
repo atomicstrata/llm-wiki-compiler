@@ -21,4 +21,4 @@ if (!process.env.BUN_OPTIONS?.includes(childPreload)) {
 }
 
 await installCallCounting("");
-afterAll(() => recordCallCounts(file));
+afterAll(() => recordCallCounts(file, "self"));

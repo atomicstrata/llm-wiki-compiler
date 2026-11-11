@@ -8,4 +8,4 @@
 import { installCallCounting, recordCallCounts } from "./call-counting.ts";
 
 await installCallCounting("child.");
-process.on("exit", () => recordCallCounts(process.env.LLMWIKI_CALL_COUNTS_FILE ?? "unknown"));
+process.on("exit", () => recordCallCounts(process.env.LLMWIKI_CALL_COUNTS_FILE ?? "unknown", "child"));

@@ -73,9 +73,10 @@ export function mergeByFile(counts: readonly FileCallCounts[]): FileCallCounts[]
     for (const [key, count] of Object.entries(from)) into[key] = (into[key] ?? 0) + count;
   };
   for (const item of counts) {
-    const entry = merged.get(item.file) ?? { file: item.file, ops: {}, sites: {} };
+    const entry = merged.get(item.file) ?? { file: item.file, ops: {}, sites: {}, cpu: {} };
     add(entry.ops, item.ops);
     add(entry.sites!, item.sites);
+    add(entry.cpu!, item.cpu);
     merged.set(item.file, entry);
   }
   return [...merged.values()];
