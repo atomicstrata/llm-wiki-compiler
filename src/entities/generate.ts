@@ -29,7 +29,7 @@ import { refreshExtractions, type ExtractionCache, type ExtractSteps } from "./e
 import { displayName, hubId, possibleDuplicates, resolveRecords, type AliasRegistry, type Mention, type ResolvedRecord } from "./identity.js";
 import type { ExtractableType } from "./schema.js";
 import {
-  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources,
+  agreedFields, hubBody, hubPage, hubSignature, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
   type HubEntry, type PageLink, type RecordPageMeta,
 } from "./pages.js";
 
@@ -163,7 +163,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, page: Existi
   const maybeSame: PageLink[] = sameIds.map((id) => ({ target: `${ctx.type.type}/${id}`, title: titles.get(id) ?? id }));
   const draft: RecordDraft = { record, title, fields, excerpt, signature: recordSignature(title, fields, excerpt.text), tail: recordTail(recordDays(record, ctx.days), maybeSame) };
   if (page?.signature !== draft.signature) return regenerate(ctx, draft, page);
-  const text = withGenerated(page.text, draft.tail);
+  const text = withGenerated(withAliases(page.text, aliasesOf(record, title, fields)), draft.tail);
   return { id: record.id, summary: page.summary, write: text === page.text ? null : entityWrite(ctx, record.id, text) };
 }
 
@@ -204,10 +204,10 @@ function reportStrayCitations(ctx: TypeContext, id: string, body: string, draft:
   if (stray > 0) ctx.result.errors.push(`Page "${ctx.type.type}/${id}" cites ${stray} span(s) outside the lines it was written from`);
 }
 
-/** Every other name the record went by, with any `aliases` the sources gave. */
+/** Every other name the record went by, how the sources wrote it, and any `aliases` the sources gave. */
 function aliasesOf(record: ResolvedRecord, title: string, fields: Record<string, unknown>): string[] {
   const given = Array.isArray(fields.aliases) ? fields.aliases as string[] : [];
-  return [...new Set([...record.names, ...given])].filter((name) => name !== title);
+  return [...new Set([...record.names, ...record.writtenAs, ...given])].filter((name) => name !== title);
 }
 
 /** The agreed fields without `aliases`, which the page carries from {@link aliasesOf}. */

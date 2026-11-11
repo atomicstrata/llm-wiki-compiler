@@ -35,12 +35,36 @@ describe("extractable types and the structural digest", () => {
   it("answers in a closed schema: nullable enum fields and line ranges, all required", () => {
     const schema = extractionTool(extractableTypes(personProfile())).input_schema as { properties: { person: { items: { required: string[]; properties: Record<string, unknown> } } } };
     const record = schema.properties.person.items;
-    expect(record.required).toEqual(["name", "aliases", "organization", "relationship", "lines"]);
+    expect(record.required).toEqual(["name", "writtenAs", "aliases", "organization", "relationship", "lines"]);
     expect(record.properties.relationship).toEqual({ type: ["string", "null"], enum: ["friend", "family", "unknown", null] });
   });
 });
 
 describe("identity", () => {
+  it("groups by who a mention is, and keeps how the sources wrote it", () => {
+    const records = resolveRecords("person", [
+      { ...mention("Alex Kim"), writtenAs: ["Alexx"] },
+      { ...mention("Alex Kim"), writtenAs: ["alex", "Alex Kim"] },
+      { ...mention("Sam's mother"), writtenAs: ["mama"] },
+      { ...mention("Sam's mother"), writtenAs: ["Mom"] },
+    ], { entities: {} });
+    expect(records.map((record) => [record.names, record.writtenAs])).toEqual([[["Alex Kim"], ["Alexx", "alex"]], [["Sam's mother"], ["mama", "Mom"]]]);
+  });
+
+  it("never merges or excludes by spelling: a registered or excluded spelling only flags a possible duplicate", () => {
+    const registry = parseRegistry(JSON.stringify({ entities: { person: { "tom-baker": ["Tom Baker", "Tom"] } }, exclude: { person: ["Tom Hanks"] } }));
+    const records = resolveRecords("person", [
+      { ...mention("Tom Hanks"), writtenAs: ["Tom"] }, { ...mention("Alex Chen"), writtenAs: ["Tom"] }, mention("Tom Baker"),
+    ], registry);
+    expect(records.map((record) => [record.id, record.names])).toEqual([["alex-chen", ["Alex Chen"]], ["tom-baker", ["Tom Baker"]]]);
+    expect(possibleDuplicates(records).get("alex-chen")).toEqual(["tom-baker"]);
+  });
+
+  it("does not flag relation names by their first word", () => {
+    const records = resolveRecords("person", [mention("Sam's mother"), mention("Sam's brother"), mention("Sam Lee")], { entities: {} });
+    expect(possibleDuplicates(records).size).toBe(0);
+  });
+
   it("joins names that normalize the same, keeps other names apart, and drops the owner", () => {
     const registry = parseRegistry(JSON.stringify({ owner: { type: "person", names: ["Sam"] } }));
     const records = resolveRecords("person", [mention("Alex"), mention("alex "), mention("Alex Kim"), mention("SAM")], registry);
@@ -103,17 +127,18 @@ describe("reading an extraction answer", () => {
 
   it("keeps named records with lines inside the file and nulls missing fields", () => {
     const answer = JSON.stringify({ person: [
-      { name: " Ana ", relationship: "friend", lines: [{ start: 2, end: 3 }, { start: 9, end: 12 }] },
+      { name: " Ana ", writtenAs: ["ana", " ana", 3, "Ana’s", "ana@example.com"], relationship: "friend", lines: [{ start: 2, end: 3 }, { start: 9, end: 12 }] },
       { name: "", lines: [{ start: 1, end: 1 }] },
       { name: "Ghost", lines: [{ start: 0, end: 1 }] },
     ] });
     expect(parseRecords(answer, types, 10).person).toEqual([
-      { name: "Ana", fields: { aliases: null, organization: null, relationship: "friend" }, lines: [{ start: 2, end: 3 }] },
+      { name: "Ana", writtenAs: ["ana", "Ana"], fields: { aliases: null, organization: null, relationship: "friend" }, lines: [{ start: 2, end: 3 }] },
     ]);
   });
 
-  it("asks without the owner and with each field's guidance", () => {
+  it("asks without the owner, with each field's guidance, and names a relation from the owner", () => {
     const { system } = extractionRequest(types, "chat.md", "1 | hi", ["Sam", "Sam R"]);
+    expect(system).toContain('"Sam\'s mother"');
     expect(system).toContain("never list the owner");
     expect(system).toContain("Sam / Sam R");
     expect(system).toContain("  - relationship: How the owner knows them");

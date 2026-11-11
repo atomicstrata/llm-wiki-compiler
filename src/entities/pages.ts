@@ -18,7 +18,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { buildFrontmatter } from "../utils/markdown.js";
+import { buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
 import { withGenerated } from "../wiki/generated-section.js";
 import { overlaps } from "../timeline/pages.js";
@@ -149,6 +149,22 @@ function namedBy(titleField: string | undefined, title: string): Record<string, 
 /** The full markdown of a record page. */
 export function recordPage(meta: RecordPageMeta, body: string, tail: string): string {
   return withGenerated(`${buildFrontmatter(recordFrontmatter(meta))}\n\n${body.trim()}\n`, tail);
+}
+
+/**
+ * A record page with its `aliases` set to `aliases`, everything else unchanged.
+ * Aliases come from how the sources wrote the record, not from what the model
+ * was shown, so a change to them is applied here without regenerating the page.
+ */
+export function withAliases(text: string, aliases: string[]): string {
+  const { meta } = parseFrontmatter(text);
+  const current = Array.isArray(meta.aliases) ? meta.aliases : [];
+  const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
+  if (end === -1 || JSON.stringify(current) === JSON.stringify(aliases)) return text;
+  const entries = Object.entries(meta).filter(([key]) => key !== "aliases");
+  const at = Object.keys(meta).includes("aliases") ? Object.keys(meta).indexOf("aliases") : entries.findIndex(([key]) => key === "summary") + 1;
+  if (aliases.length > 0) entries.splice(at, 0, ["aliases", aliases]);
+  return buildFrontmatter(Object.fromEntries(entries)) + text.slice(end + "\n---".length);
 }
 
 /** The timeline days a record is mentioned on, oldest first, as links to their pages. */

@@ -6,8 +6,8 @@
  * type's declared fields, and the line ranges that mention it), and the
  * structural digest the extraction cache is keyed on.
  *
- * The digest covers only structure: type names, field names, field types and
- * enum values. A type's `description` and per-field guidance are prompt text, so
+ * The digest covers only structure: the record shape every type shares, type
+ * names, field names, field types and enum values. A type's `description` and per-field guidance are prompt text, so
  * rewording them never invalidates cached extractions; adding a type or a field
  * does, because the cached answers cannot contain it.
  *
@@ -20,6 +20,9 @@ import type { EntityTypeDef, FieldDef, ProfilePack } from "../profile/types.js";
 
 /** Field types extraction can fill from text; references and artifacts are not read from sources. */
 const EXTRACTABLE_FIELD_TYPES = new Set(["string", "slug", "date", "enum", "string[]", "number", "integer", "boolean"]);
+
+/** The version of the record shape every type shares (`name`, `writtenAs`, `lines`); part of the digest. */
+const RECORD_SHAPE_VERSION = 2;
 
 /** An entity type opted into extraction, with the fields extraction fills. */
 export interface ExtractableType {
@@ -46,7 +49,7 @@ export function extractableTypes(profile: ProfilePack): ExtractableType[] {
 /** The digest of what extraction's answers can contain; equal digests mean cached answers still fit. */
 export function structuralDigest(types: ExtractableType[]): string {
   const structure = types.map(({ type, fields }) => [type, fields.map(([name, field]) => [name, field.type, [...(field.enum ?? [])].sort()])]);
-  return createHash("sha256").update(JSON.stringify(structure)).digest("hex").slice(0, 16);
+  return createHash("sha256").update(JSON.stringify([RECORD_SHAPE_VERSION, structure])).digest("hex").slice(0, 16);
 }
 
 /** The JSON schema of one field's answer: nullable, and closed for an enum. */
@@ -65,9 +68,9 @@ const LINE_RANGE_SCHEMA = {
   properties: { start: { type: "integer" }, end: { type: "integer" } },
 };
 
-/** The schema of one record of `type`: its name, its fields, and the lines that mention it. */
+/** The schema of one record of `type`: who it is, how the source writes it, its fields, and the lines that mention it. */
 function recordSchema({ fields }: ExtractableType): Record<string, unknown> {
-  const properties: Record<string, unknown> = { name: { type: "string" } };
+  const properties: Record<string, unknown> = { name: { type: "string" }, writtenAs: { type: "array", items: { type: "string" } } };
   for (const [name, field] of fields) properties[name] = fieldSchema(field);
   properties.lines = { type: "array", items: LINE_RANGE_SCHEMA };
   return { type: "object", additionalProperties: false, required: Object.keys(properties), properties };
@@ -78,7 +81,7 @@ export function extractionTool(types: ExtractableType[]): { name: string; descri
   const properties = Object.fromEntries(types.map((type) => [type.type, { type: "array", items: recordSchema(type) }]));
   return {
     name: "extract_records",
-    description: "List the records of each type that a source names, with the lines that mention them",
+    description: "List the records of each type that a source names: who each is, how the source writes them, and the lines that mention them",
     input_schema: { type: "object", additionalProperties: false, required: types.map(({ type }) => type), properties },
   };
 }

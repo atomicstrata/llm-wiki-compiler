@@ -343,8 +343,12 @@ optional guidance per declared field. Both are prompt text only.
 }
 ```
 
-Each source is read once for records of every opted-in type: the name as
-written, the declared fields, and the line numbers that mention the record.
+Each source is read once for records of every opted-in type. For each record
+the model answers who it is (`name`: the fullest correctly spelled name the
+source supports, or a relation such as "Sam's mother" for someone called only
+"mama"), how the source writes it (`writtenAs`: "Tommmy", "mama"), the declared
+fields, and the line numbers that mention it. A type with `extract` cannot
+declare fields named `name`, `writtenAs` or `lines`.
 A long source is read in chunks of about 60,000 characters. Answers are kept
 in `.llmwiki/entities.json`, per chunk, keyed by the chunk's text and the types'
 structure (type names, field names, field types, enum values). A compile
@@ -375,6 +379,11 @@ compile and are never replaced or removed.
 
 ### Who is who: `.llmwiki/aliases.json`
 
+Records are grouped by `name`, so a misspelling, a nickname or a relation the
+source makes clear joins the right record, and every spelling becomes one of
+its `aliases` (refreshed without a model call). The registry, `exclude` and the
+owner's names all match `name`, never a spelling, so a spelling can flag two
+records as possibly the same but never merges or removes one.
 Names that differ only in case, accents or spacing are one record. Any other
 two names are two records until you say otherwise; compile never guesses. Two
 names that make the same id (`Anne-Marie` and `Anne Marie`) stay two records,
@@ -393,10 +402,11 @@ the names that are one record under one id, and name the owner of the memory:
 The first name listed is the one the page shows. Names under `exclude` are not
 records of that type, so they get no page and no place in a day's People list:
 people only mentioned in passing, such as public figures, or names the model
-took for a person that are not one. A name is matched exactly, ignoring only
-case, accents, punctuation and spacing, in every source: excluding `Thomas`
-excludes everyone written just "Thomas", so prefer full names, and list each
-spelling (`Trump`, `Donald Trump`) you want gone. A name cannot be both
+took for a person that are not one. A name is matched against each record's
+`name`, exactly, ignoring only case, accents, punctuation and spacing, in every
+source: excluding `Thomas` excludes every record whose name is just "Thomas", so
+prefer full names, and list each name a record may get (`Trump`, `Donald
+Trump`). A name cannot be both
 excluded and registered under an id; compile refuses the registry and says
 which name. Excluding a name needs no model call; to
 keep such names out of future extractions too, say so in the type's

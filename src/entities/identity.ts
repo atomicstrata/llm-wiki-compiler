@@ -3,6 +3,12 @@
  * @description Which extracted names are the same record. Wrong merges are
  * worse than duplicates, so nothing here guesses:
  *
+ *  - Extraction answers WHO each mention is (`name`, the fullest correct name the
+ *    source supports, or a relation such as "Sam's mother") separately from how
+ *    the source writes it (`writtenAs`: "Tommmy", "mama"). Records are grouped by
+ *    `name`, and the registry, `exclude` and the owner check all match `name`;
+ *    the spellings become the page's aliases and feed the possible-duplicate
+ *    flags, but never merge or exclude anything.
  *  - The registry, `.llmwiki/aliases.json`, is the owner's word. Every name it
  *    lists under a record id is that record, and the owner's own names are never
  *    a record at all:
@@ -36,15 +42,20 @@ export interface AliasRegistry {
 /** One record as one source names it. */
 export interface Mention {
   file: string;
+  /** Who it is. */
   name: string;
+  /** How the source writes it, as written. */
+  writtenAs?: string[];
   fields: Record<string, unknown>;
   lines: LineRange[];
 }
 
-/** One record after identity: its id, every name it went by, and every mention. */
+/** One record after identity: its id, every name it went by, how the sources wrote it, and every mention. */
 export interface ResolvedRecord {
   id: string;
   names: string[];
+  /** Spellings the sources used that are not among `names`. */
+  writtenAs: string[];
   mentions: Mention[];
 }
 
@@ -135,7 +146,7 @@ export function resolveRecords(type: string, mentions: Mention[], registry: Alia
   return [...groupMentions(type, mentions, registry)].sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => ({ group, id: group.registered ?? uniqueId(recordId(group.names[0]), taken) }))
     .filter(({ group }) => !group.excluded)
-    .map(({ group, id }) => ({ id, names: group.names, mentions: group.mentions }))
+    .map(({ group, id }) => ({ id, names: group.names, writtenAs: spellingsOf(group), mentions: group.mentions }))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -157,6 +168,15 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
     groups.set(groupKey, group);
   }
   return groups;
+}
+
+/** The spellings a group's mentions used that are not among its names. */
+function spellingsOf(group: MentionGroup): string[] {
+  const names = new Set(group.names.map(normalizeName));
+  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).filter((form) => !names.has(normalizeName(form)));
+  const first = new Map<string, string>();
+  for (const form of forms) if (!first.has(normalizeName(form))) first.set(normalizeName(form), form);
+  return [...first.values()];
 }
 
 /** The registry for one type, by normalized name: the owner's names, the excluded names, and each registered name's id. */
@@ -192,19 +212,31 @@ export function displayName(record: ResolvedRecord, registered: string[] | undef
   return capitalized(chosen) ? chosen : chosen.replace(/(^|\s)(\p{Ll})/gu, (_match, space: string, letter: string) => space + letter.toUpperCase());
 }
 
-/** Record id → ids of records that might be the same one: a shared first name, or one name being another's first name. */
+/**
+ * Record id → ids of records that might be the same one: a name or spelling of
+ * one is another's first name, or two share a first name. A relation name ("Sam's
+ * mother") is not indexed by its first word, which names someone else.
+ */
 export function possibleDuplicates(records: ResolvedRecord[]): Map<string, string[]> {
-  const firstNames = new Map<string, Set<string>>();
-  for (const record of records) {
-    for (const name of record.names) {
-      const first = normalizeName(name).split(" ")[0];
-      if (first) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
-    }
-  }
   const flags = new Map<string, string[]>();
-  for (const ids of firstNames.values()) {
+  for (const ids of firstNameIndex(records).values()) {
     if (ids.size < 2) continue;
     for (const id of ids) flags.set(id, [...new Set([...(flags.get(id) ?? []), ...[...ids].filter((other) => other !== id)])].sort());
   }
   return flags;
 }
+
+/** First word → ids of the records with a name or spelling starting with it; relation names are left out. */
+function firstNameIndex(records: ResolvedRecord[]): Map<string, Set<string>> {
+  const firstNames = new Map<string, Set<string>>();
+  for (const record of records) {
+    for (const name of [...record.names, ...record.writtenAs].filter((candidate) => !RELATION_NAME.test(candidate))) {
+      const first = normalizeName(name).split(" ")[0];
+      if (first) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
+    }
+  }
+  return firstNames;
+}
+
+/** A name formed as a relation to someone ("Sam's mother"). */
+const RELATION_NAME = /\S['’]s\s/;

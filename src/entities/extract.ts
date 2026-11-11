@@ -27,7 +27,10 @@ const EXTRACTION_MAX_TOKENS = 16_000;
 
 /** One record as one source names it. */
 export interface ExtractedRecord {
+  /** Who the record is: the fullest correct name the source supports. */
   name: string;
+  /** Every way the source writes it (nicknames, misspellings, "mama"), as written. */
+  writtenAs?: string[];
   fields: Record<string, unknown>;
   lines: LineRange[];
 }
@@ -149,14 +152,20 @@ function numberedChunks(lines: string[]): string[] {
   return chunks;
 }
 
-/** The request for one chunk: what to list, the owner to leave out, and the numbered text. */
+/** The request for one chunk: what to list, how to name it, the owner to leave out, and the numbered text. */
 export function extractionRequest(types: ExtractableType[], file: string, chunk: string, ownerNames: string[]): ExtractRequest {
   const kinds = types.map(({ type, def, fields }) => {
     const guidance = fields.map(([name]) => def.extract?.fields?.[name] ? `  - ${name}: ${def.extract.fields[name]}` : "").filter(Boolean);
     return [`- ${type}: ${def.extract!.description}`, ...guidance].join("\n");
   }).join("\n");
+  const ownerName = ownerNames[0] ?? "the owner";
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
-  const system = `List every record of each kind below that the source names.\n${kinds}\nGive each name exactly as written. Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
+  const system = `List every record of each kind below that the source names.
+${kinds}
+One record per person. name: who it is. Use a fuller or corrected name only when the source itself makes clear who it is; if unsure, keep the name as written.
+List someone the source does not name only when a family relation identifies them (mama, my brother), named by that relation to the person it belongs to, e.g. "${ownerName}'s mother" or "Alex's brother". Skip other unnamed people.
+writtenAs: every way the source writes their name, exactly as written.
+Use null for anything the source does not say. For lines, give the line numbers shown where the record is mentioned or described.${owner}`;
   return { system, messages: [{ role: "user", content: `--- SOURCE: ${file} ---\n\n${chunk}` }], tools: [extractionTool(types)], maxTokens: EXTRACTION_MAX_TOKENS };
 }
 
@@ -170,8 +179,22 @@ export function parseRecords(answer: string, types: ExtractableType[], lineCount
       const lines = (Array.isArray(item.lines) ? item.lines as LineRange[] : [])
         .filter((range) => Number.isInteger(range?.start) && Number.isInteger(range?.end) && range.start >= 1 && range.start <= range.end && range.end <= lineCount);
       if (!name || lines.length === 0) return [];
-      return [{ name, fields: Object.fromEntries(fields.map(([field]) => [field, item[field] ?? null])), lines }];
+      const writtenAs = spellings(item.writtenAs);
+      return [{ name, writtenAs, fields: Object.fromEntries(fields.map(([field]) => [field, item[field] ?? null])), lines }];
     });
     return [type, records];
   }));
+}
+
+/** An address rather than a name, which is never kept as a spelling. */
+const ADDRESS = /@|:\/\//;
+/** A possessive ending ("Ben’s"), which is not part of the name. */
+const POSSESSIVE = /['’]s$/i;
+
+/** The distinct names in a `writtenAs` answer: trimmed, without possessive endings, and without addresses. */
+function spellings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const forms = value.filter((form): form is string => typeof form === "string" && !ADDRESS.test(form))
+    .map((form) => form.trim().replace(POSSESSIVE, "").trim()).filter(Boolean);
+  return [...new Set(forms)];
 }
