@@ -140,28 +140,25 @@ interface InventoryLeafRetention { into: ScannedLeafBytes; maxBytes: number }
 /** A confined open the walk confirmed, still holding its handle. */
 type ConfirmedInventoryLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
 
-/** Whether the handle's `fstat` after the read still shows the file the open's `fstat` saw, version included. */
-function handleUnchanged(opened: ConfirmedInventoryLeaf, after: import("node:fs").Stats): boolean {
-  return after.isFile() && after.dev === opened.dev && after.ino === opened.ino && after.nlink === opened.nlink
-    && after.size === opened.size && after.mtimeMs === opened.mtimeMs && after.ctimeMs === opened.ctimeMs;
-}
-
 /**
  * Read a confirmed leaf's bytes for the pass's holder, or null, and close the
  * handle. ONE read of one byte more than the handle's size: a leaf that grew
- * returns too many and is not held, and the handle's `fstat` afterwards must
- * show the same file, version included. The PATH half of the post-read checks
- * (parent realpath, canonical identity) is NOT asked here: no held byte is
- * returned to anyone until the reader asks exactly those of the leaf, against
- * this open's identity and version (`durable-leaf.ts`), so asking them here too
- * would only repeat them.
+ * returns too many and is not held.
+ *
+ * NO CHECK FOLLOWS THE READ HERE. Every question a post-read check could ask
+ * (the parent's realpath, the canonical leaf's identity, and the version: link
+ * count, size, modification and change times) is asked by the only consumer of
+ * held bytes, `heldLeafIsCurrent` in `durable-leaf.ts`, against this open's
+ * values and strictly later, before any held byte is returned. A write to the
+ * inode at any moment after the open, during this read included, moves its
+ * change time, which that later comparison sees; a handle `fstat` here would
+ * compare the same fields earlier and so could refuse nothing it lets through.
  */
 async function readForHolder(opened: ConfirmedInventoryLeaf): Promise<Buffer | null> {
   try {
     const buffer = Buffer.alloc(opened.size + 1);
     const { bytesRead } = await opened.handle.read(buffer, 0, buffer.length, 0);
-    if (bytesRead !== opened.size || !handleUnchanged(opened, await opened.handle.stat())) return null;
-    return buffer.subarray(0, bytesRead);
+    return bytesRead === opened.size ? buffer.subarray(0, bytesRead) : null;
   } catch {
     return null;
   } finally {
