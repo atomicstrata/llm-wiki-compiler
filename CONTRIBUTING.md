@@ -67,7 +67,8 @@ unaffected. Arguments pass through to `bun test`:
 After `bun install`, husky wires up hooks that run automatically:
 
 - **pre-commit** — `fallow` (codebase health) and `bunx tsc --noEmit` (type check)
-- **pre-push** — `bun run build` and `bun run test`
+
+The full test suite runs in CI on every pull request rather than in a hook.
 
 If a hook fails, fix the underlying issue rather than bypassing with `--no-verify`. Use `fallow fix --yes` to auto-fix unused exports, then address remaining issues manually.
 
