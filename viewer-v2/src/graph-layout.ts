@@ -5,12 +5,14 @@
  * elements by index so a layout of hundreds of nodes never re-renders React.
  * The layout settles off screen in short batches before the first frame, so
  * the initial Fit frames the final shape rather than the seed positions, and
- * a slow layout never blocks navigation.
+ * a slow layout never blocks navigation. Every zoom also publishes its scale
+ * to the SVG as `--graph-k` and `data-zoomed`, so labels can keep a constant
+ * on-screen size and appear only once the reader has zoomed in.
  */
 // Named imports from `d3` tree-shake to the force, selection, zoom, drag and
 // transition modules; the vendored IIFE the original client loads is not used.
 import {
-  drag, forceCenter, forceLink, forceManyBody, forceSimulation, forceX, forceY, select, zoom, zoomIdentity,
+  drag, forceCenter, forceLink, forceManyBody, forceSimulation, forceX, forceY, select, zoom, zoomIdentity, zoomTransform,
   type Simulation, type SimulationLinkDatum, type SimulationNodeDatum, type ZoomBehavior,
 } from "d3";
 import type { GraphData, GraphNode } from "./api";
@@ -23,6 +25,8 @@ type SimLink = SimulationLinkDatum<SimNode>;
 export interface GraphControls {
   /** Re-frame the current positions in the viewport. */
   fit: () => void;
+  /** Centre one node and zoom in far enough to read its neighbours. */
+  focus: (id: string) => void;
 }
 
 /** A graph bound to its SVG; `dispose` stops everything when the SVG leaves. */
@@ -30,6 +34,7 @@ export interface MountedGraph {
   /** Resolves true once the layout settled, false if the graph was disposed first. */
   settle: () => Promise<boolean>;
   fit: (animate: boolean) => void;
+  focus: (id: string) => void;
   dispose: () => void;
 }
 
@@ -50,12 +55,20 @@ const LAYOUT_BATCH_MS = 8;
 const FIT_TRANSITION_MS = 750;
 /** Alpha a drag keeps the simulation at, so neighbours follow the dragged node. */
 const DRAG_ALPHA_TARGET = 0.3;
+/** Labels show from this scale; below it they would overlap into noise. */
+const LABEL_SCALE = 1.4;
+/** Focusing a node zooms to at least this scale. */
+const FOCUS_SCALE = 2;
 /**
- * Pull toward the centre in the explorer. Without it, repulsion pushes every
- * unlinked node outward until Fit shrinks the whole graph below a pixel; the
- * compact panel's size-derived forces are calibrated without it.
+ * Pull toward the centre. Without it, repulsion pushes every unlinked node
+ * or small component outward until Fit shrinks the drawing below legibility:
+ * a few hundred nodes in the explorer, or the rail's loosely joined
+ * neighbourhood. The dashboard panel's size-derived forces were tuned for the
+ * whole graph without a pull, and a pull crushes them into one blob, so a
+ * compact drawing gets one only when it is small.
  */
-const EXPLORER_GRAVITY = 0.3;
+const GRAVITY = { full: 0.3, compact: 0.15 } as const;
+const SMALL_COMPACT_GRAPH = 40;
 
 /** Measure the SVG and collect its elements; the viewBox matches the measured size. */
 function readCanvas(svg: SVGSVGElement, viewport: SVGGElement): Canvas {
@@ -101,11 +114,10 @@ function createSimulation(data: GraphData, canvas: Canvas, compact: boolean): { 
     .force("charge", forceManyBody().strength(forces.charge))
     .force("center", forceCenter(canvas.width / 2, canvas.height / 2))
     .stop();
-  if (!compact) {
-    simulation
-      .force("x", forceX<SimNode>(canvas.width / 2).strength(EXPLORER_GRAVITY))
-      .force("y", forceY<SimNode>(canvas.height / 2).strength(EXPLORER_GRAVITY));
-  }
+  const gravity = !compact ? GRAVITY.full : nodes.length <= SMALL_COMPACT_GRAPH ? GRAVITY.compact : 0;
+  if (gravity > 0) simulation
+    .force("x", forceX<SimNode>(canvas.width / 2).strength(gravity))
+    .force("y", forceY<SimNode>(canvas.height / 2).strength(gravity));
   return { simulation, nodes, links };
 }
 
@@ -113,7 +125,11 @@ function createSimulation(data: GraphData, canvas: Canvas, compact: boolean): { 
 function attachZoom(canvas: Canvas): ZoomBehavior<SVGSVGElement, unknown> {
   const behaviour = zoom<SVGSVGElement, unknown>()
     .scaleExtent([...ZOOM_SCALE_EXTENT])
-    .on("zoom", (event) => canvas.viewport.setAttribute("transform", String(event.transform)));
+    .on("zoom", (event) => {
+      canvas.viewport.setAttribute("transform", String(event.transform));
+      canvas.svg.style.setProperty("--graph-k", String(event.transform.k));
+      canvas.svg.dataset.zoomed = String(event.transform.k >= LABEL_SCALE);
+    });
   select(canvas.svg).call(behaviour);
   return behaviour;
 }
@@ -170,6 +186,17 @@ function fitView(canvas: Canvas, behaviour: ZoomBehavior<SVGSVGElement, unknown>
   else svg.call(behaviour.transform, transform);
 }
 
+/** Glide to centre `id` at a readable scale; a node that is not drawn leaves the view alone. */
+function focusNode(canvas: Canvas, behaviour: ZoomBehavior<SVGSVGElement, unknown>, nodes: SimNode[], id: string): void {
+  const node = nodes.find((candidate) => candidate.id === id);
+  if (node?.x === undefined || node.y === undefined) return;
+  const k = Math.max(FOCUS_SCALE, zoomTransform(canvas.svg).k);
+  const transform = zoomIdentity.translate(canvas.width / 2 - k * node.x, canvas.height / 2 - k * node.y).scale(k);
+  const svg = select(canvas.svg);
+  if (prefersReducedMotion()) svg.call(behaviour.transform, transform);
+  else svg.transition().duration(FIT_TRANSITION_MS).call(behaviour.transform, transform);
+}
+
 /** Bind the simulation, zoom, and (in the explorer) drag to an SVG React has drawn. */
 export function mountGraph(svg: SVGSVGElement, viewport: SVGGElement, data: GraphData, compact: boolean): MountedGraph {
   const canvas = readCanvas(svg, viewport);
@@ -185,6 +212,7 @@ export function mountGraph(svg: SVGSVGElement, viewport: SVGGElement, data: Grap
       return settled;
     },
     fit: (animate) => fitView(canvas, behaviour, nodes, animate),
+    focus: (id) => focusNode(canvas, behaviour, nodes, id),
     dispose: () => {
       live = false;
       simulation.stop();

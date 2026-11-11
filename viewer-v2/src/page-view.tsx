@@ -11,6 +11,7 @@ import { Badge } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { rememberPage } from "./palette-model";
 import { pageTitle, stripLeadingHeading } from "./page-model";
+import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
 import { SourceImages } from "./source-images-view";
 import { useAsync } from "./use-async";
@@ -89,6 +90,7 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
           </article>
           <div className="space-y-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
             <Outline items={outline} />
+            <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />
             <PageRail page={page} wiki={wiki} graph={graph} />
           </div>
         </div>

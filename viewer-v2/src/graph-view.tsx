@@ -1,27 +1,67 @@
 /**
  * The graph explorer at `#/graph`: the full-size drawing with drag, the
- * legend overlay, and a Fit control that re-frames wherever the layout and
- * any dragging have left the nodes. The counts come from the envelope the
- * shell already holds, so the heading reads correctly before the graph loads.
+ * legend overlay, and a toolbar. **Find** takes a page title, with the
+ * browser's own suggestions from a `<datalist>`, then centres that page and
+ * keeps its neighbourhood emphasised until the box is cleared. **Colour**
+ * switches between node kind and link community. **Fit** re-frames wherever
+ * the layout and any dragging have left the nodes. The counts come from the
+ * envelope the shell already holds, so the heading reads correctly before
+ * the graph loads.
  */
-import { useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 import type { PagesEnvelope } from "./api";
-import { Button, Screen } from "./components";
-import { GraphCanvas, GraphLegend } from "./graph-canvas";
+import { Button, Screen, SelectField } from "./components";
+import { GraphCanvas, GraphLegend, type ColorBy } from "./graph-canvas";
 import type { GraphControls } from "./graph-layout";
 import { plural } from "./wiki-model";
+
+/** The page id whose title is exactly `title`, ignoring case and outer spaces. */
+export function pageIdForTitle(wiki: PagesEnvelope, title: string): string | null {
+  const wanted = title.trim().toLowerCase();
+  if (wanted.length === 0) return null;
+  return wiki.pages.find((page) => page.title.toLowerCase() === wanted)?.id ?? null;
+}
+
+/** The find box: a page title with suggestions; reports the matching page, or null. */
+function FindPage({ wiki, onFind }: { wiki: PagesEnvelope; onFind: (id: string | null) => void }): ReactNode {
+  const listId = useId();
+  const titles = useMemo(() => [...new Set(wiki.pages.map((page) => page.title).filter((title) => title.length > 0))].sort(), [wiki.pages]);
+  return (
+    <>
+      <input type="search" list={listId} placeholder="Find a page…" aria-label="Find a page in the graph"
+        onChange={(event) => onFind(pageIdForTitle(wiki, event.target.value))}
+        className="w-56 rounded-md bg-white px-3 py-1.5 text-sm text-zinc-900 shadow-xs ring-1 ring-zinc-950/10 ring-inset placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/10" />
+      <datalist id={listId}>{titles.map((title) => <option key={title} value={title} />)}</datalist>
+    </>
+  );
+}
 
 /** The explorer screen. */
 export function GraphView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [controls, setControls] = useState<GraphControls | null>(null);
+  const [colorBy, setColorBy] = useState<ColorBy>("community");
+  const [found, setFound] = useState<string | null>(null);
   const { nodeCount, edgeCount, danglingCount } = wiki.graph;
+  const onFind = (id: string | null): void => {
+    setFound(id);
+    if (id !== null) controls?.focus(id);
+  };
+  const actions = (
+    <>
+      <FindPage wiki={wiki} onFind={onFind} />
+      <SelectField value={colorBy} onChange={(value) => setColorBy(value as ColorBy)} label="Colour nodes by">
+        <option value="community">Colour: clusters</option>
+        <option value="kind">Colour: kind</option>
+      </SelectField>
+      <Button disabled={controls === null} onClick={() => controls?.fit()}>Fit</Button>
+    </>
+  );
   return (
-    <Screen wide title="Graph explorer"
-      description={<>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span>{plural(danglingCount, "dangling target")}</span></>}
-      actions={<Button disabled={controls === null} onClick={() => controls?.fit()}>Fit</Button>}>
+    <Screen wide title="Graph explorer" actions={actions}
+      description={<>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span>{plural(danglingCount, "dangling target")}</span></>}>
       <div className="relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
-        <GraphCanvas wiki={wiki} compact={false} onSettled={setControls} />
-        <GraphLegend compact={false} />
+        <GraphCanvas wiki={wiki} compact={false} onSettled={setControls} colorBy={colorBy} highlightId={found} />
+        <GraphLegend compact={false} colorBy={colorBy} />
       </div>
     </Screen>
   );

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The `llmwiki view-v2` graph shows neighbourhoods and clusters.** Each page's rail draws its neighbourhood graph. In the explorer, pointing at a page dims everything outside its neighbourhood and labels it, zooming in labels every page, **Find a page** centres a page by title, and nodes are coloured by link cluster or by kind.
 - **`llmwiki view-v2` has a command palette and keyboard shortcuts.** ⌘K, Ctrl+K or `/` opens a palette that ranks page titles and summaries as you type, lists matching screens and full-text hits, and remembers recently opened pages in this browser. `j` and `k` move through list rows, `g` then a letter jumps to a screen, and `?` lists the shortcuts. The header search box is now a button that opens the palette. The full-text results screen shows each hit's kind and cleaned-up snippet, and the sidebar and dashboard use icons.
 - **`llmwiki view-v2` previews links and citations in place.** Pointing at or focusing a wikilink shows the linked page's title and summary. Pointing at a citation chip shows the cited source lines, numbered. Links in the page rail preview too.
 - **`llmwiki view-v2` pages gain an outline and a reading layout.** A page with two or more sections shows an **On this page** outline that highlights the current section. Body text is limited to a readable line length, and the client ships Inter as its typeface.
