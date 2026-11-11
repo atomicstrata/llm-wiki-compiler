@@ -11,7 +11,7 @@ import type { CompilePageWrite } from "../src/compiler/compile-write.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
 import { dayExcerpt, splitAnswer, type TimelineRequest } from "../src/timeline/prompts.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
-import { citationsOutside } from "../src/timeline/pages.js";
+import { citationsOutside, withRelated } from "../src/timeline/pages.js";
 
 const CONFIG = { enabled: true, timeZone: "UTC" };
 const CHAT = ["# Chat", "- 2026-05-04 09:00 A: plan the trip", "- 2026-05-05 10:00 B: booked it"].join("\n");
@@ -137,6 +137,13 @@ describe("generateTimelineWith", () => {
     const day = memory.pages.get("2026-05-04")!;
     expect(day).toContain("Kept. ^[chat.md:2-2]");
     expect(day.trimEnd().endsWith("- [[trip-plan|Trip plan]]")).toBe(true);
+  });
+
+  it("hides its section marker from readers and rewrites a page that used the old HTML-comment marker once", () => {
+    const old = "---\ntitle: Day\n---\n\nBody.\n\n<!-- llmwiki:timeline-related -->\n## Pages from this day\n\n- [[a|A]]\n";
+    const fresh = withRelated(old, [{ slug: "b", title: "B", body: "" }]);
+    expect(fresh).toBe("---\ntitle: Day\n---\n\nBody.\n\n[//]: # (llmwiki-timeline-related)\n## Pages from this day\n\n- [[b|B]]\n");
+    expect(withRelated(fresh, [{ slug: "b", title: "B", body: "" }])).toBe(fresh);
   });
 
   it("does nothing at all when the timeline is off", async () => {

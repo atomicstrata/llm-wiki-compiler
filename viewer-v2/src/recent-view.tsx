@@ -10,7 +10,7 @@ import type { PageRow, PagesEnvelope } from "./api";
 import { Badge, Card, EmptyState, RowList, Screen } from "./components";
 import { PageRowItem } from "./lists";
 import { groupByRecency } from "./recency";
-import { TIMELINE_DIRECTORY } from "./timeline-model";
+import { withoutTimeline } from "./timeline-model";
 import { plural } from "./wiki-model";
 
 /** Whether the page's last write created it. */
@@ -21,7 +21,7 @@ export function isNewPage(page: PageRow): boolean {
 /** The grouped recency screen. */
 export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = new Date();
-  const pages = wiki.pages.filter((page) => page.pageDirectory !== TIMELINE_DIRECTORY);
+  const pages = withoutTimeline(wiki.pages);
   const groups = groupByRecency(pages, (page) => page.updatedAt, now);
   return (
     <Screen title="Recently updated" description={`${plural(pages.length, "page")}, newest first`}>

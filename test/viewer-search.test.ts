@@ -4,7 +4,8 @@
  * Covers the spec's §Slice 5 "Search semantics" block: case-insensitive,
  * whitespace-tokenized, multi-token AND, title-before-body ranking,
  * 200-char query cap, 50-result cap, concept and query pages only
- * (no `wiki/index.md`), and the body-snippet shape.
+ * (no `wiki/index.md`), the body-snippet shape, and timeline days matched on
+ * their own events with clean snippets.
  */
 
 import { describe, it, expect } from "bun:test";
@@ -19,7 +20,7 @@ function buildPage(
   slug: string,
   title: string,
   body: string,
-  pageDirectory: "concepts" | "queries" = "concepts",
+  pageDirectory: "concepts" | "queries" | "timeline" = "concepts",
 ): ViewerPage {
   return {
     id: `${pageDirectory}/${slug}` as PageId,
@@ -229,3 +230,39 @@ describe("searchPages — scope", () => {
     expect(results.map((r) => r.id).sort()).toEqual(["concepts/c", "queries/q"]);
   });
 });
+
+describe("timeline pages and snippet noise", () => {
+  const related = "\n\n[//]: # (llmwiki-timeline-related)\n## Pages from this day\n\n- [[planned-breitenbush-retreat|Planned Breitenbush Retreat]]\n";
+
+  it("matches a day on what happened, not on the pages its related list links", () => {
+    const linked = buildPage("2026-11-09", "Monday, November 9, 2026", `Karl said hi. ^[chat.md:1-2]${related}`, "timeline");
+    const happened = buildPage("2026-11-08", "Sunday, November 8, 2026", "## Breitenbush\n\n- Noah invited Karl to Breitenbush. ^[chat.md:124-142]", "timeline");
+    const ids = searchPages(buildSnapshot([linked, happened]), "breitenbush").results.map((row) => row.id);
+    expect(ids).toEqual(["timeline/2026-11-08"]);
+  });
+
+  it("drops citation markers, heading markers and half-cut wikilinks from snippets", () => {
+    const body = `${"x".repeat(70)} ^[2026-11-01-chat.md:121-133]\n\n## Breitenbush\n\n- Noah invited Karl to Breitenbush. ^[2026-11-01-chat.md:124-142]`;
+    const [hit] = searchPages(buildSnapshot([buildPage("2026-11-08", "Sunday", body, "timeline")]), "breitenbush").results;
+    expect(hit.snippet).not.toMatch(/\^\[|\.md|##/);
+    expect(hit.snippet).toContain("Breitenbush - Noah invited Karl to Breitenbush.");
+    // The window opens inside the link's slug, leaving only "…slug|Label]]" of it.
+    const cut = buildPage("trip", "Trip", "[[a-very-long-slug-name-that-goes-on-and-on-for-ever|Breitenbush Retreat]] notes");
+    expect(searchPages(buildSnapshot([cut]), "notes").results[0].snippet).toBe("…Breitenbush Retreat notes");
+  });
+
+  it("leaves text that only looks like cut markup alone when the window cut nothing", () => {
+    const snippet = (body: string) => searchPages(buildSnapshot([buildPage("p", "P", body)]), "zebra").results[0].snippet;
+    expect(snippet("Option A | option B, see [[guide|The Guide]] for zebra")).toBe("Option A | option B, see The Guide for zebra");
+    expect(snippet("| Alice | [[bob|Bob Smith]] | zebra |")).toBe("| Alice | Bob Smith | zebra |");
+    expect(snippet("renamed.md, see [[guide|Guide]] and zebra")).toBe("renamed.md, see Guide and zebra");
+    expect(snippet("Match capitals with `^[A-Z]+$` like a zebra")).toBe("Match capitals with ^[A-Z]+$ like a zebra");
+  });
+
+  it("drops the tail of a cut citation to any source file type", () => {
+    // The window opens 13 characters into the marker, inside "notes.txt:1-2".
+    const body = `^[notes.txt:1-2, log.md:3-4]${" ".repeat(45)}zebra stripes`;
+    expect(searchPages(buildSnapshot([buildPage("p", "P", body)]), "stripes").results[0].snippet).toBe("…zebra stripes");
+  });
+});
+

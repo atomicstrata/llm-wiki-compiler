@@ -12,6 +12,7 @@ import type { HealthPayload, PagesEnvelope } from "./api";
 import { Badge, ButtonLink, Card, DefinitionRows, RowList, Stat, SURFACE, TextLink, type Tone } from "./components";
 import { ActivityCard, SinceLastVisit, TopicsCard, usePreviousVisit } from "./dashboard-panels";
 import { PageRowItem } from "./lists";
+import { withoutTimeline } from "./timeline-model";
 import { citationTotals, lintTotal, plural, profileVocabulary } from "./wiki-model";
 
 interface StatCard {
@@ -66,7 +67,7 @@ function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const recent = wiki.recentPages.flatMap((entry) => rows.get(entry.id) ?? []);
   return (
     <Card flush title={profile ? "Recently updated" : "Recently compiled"} action={<TextLink href="#/recent">View all</TextLink>}
-      footer={<><span>Cited pages, most recent first</span><TextLink href="#/recent">All {plural(wiki.pages.length, "page")} →</TextLink></>}>
+      footer={<><span>Cited pages, most recent first</span><TextLink href="#/recent">All {plural(withoutTimeline(wiki.pages).length, "page")} →</TextLink></>}>
       {recent.length === 0 ? (
         <p className="p-4 text-sm text-zinc-500">{profile ? "Nothing authored yet." : "Nothing compiled yet. Compiled pages appear here newest first."}</p>
       ) : (

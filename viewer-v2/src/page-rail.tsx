@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 import type { ConnectorProvenance, EntityContext, EntityRelation, GraphData, PagePayload, PagesEnvelope, SourceSpan } from "./api";
 import { AsyncView } from "./async-view";
 import { Badge, DefinitionRows, RangeChip, SURFACE } from "./components";
-import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
+import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, isTimelinePage, pageCitationCounts, pageKind, rangeLabel, spanLabel } from "./page-model";
 import { pageIdHref, sourceHref } from "./route";
 import type { AsyncState } from "./use-async";
 import { formatUtcTimestamp, humanLabel } from "./wiki-model";
@@ -30,9 +30,10 @@ function freshnessText({ freshnessStatus, contradicted, archived }: PagePayload[
 
 function MetadataSection({ page }: { page: PagePayload }): ReactNode {
   const counts = pageCitationCounts(page);
+  // A timeline page is regenerated from its sources on every compile, so "fresh" or "stale" says nothing about it.
   const rows: [string, ReactNode][] = [
     ["Kind", pageKind(page)],
-    ["Freshness", freshnessText(page.freshness)],
+    ...(isTimelinePage(page) ? [] : [["Freshness", freshnessText(page.freshness)] as [string, ReactNode]]),
     ["Created", formatUtcTimestamp(page.createdAt)],
     ["Updated", formatUtcTimestamp(page.updatedAt)],
     ["Citations", counts.total],

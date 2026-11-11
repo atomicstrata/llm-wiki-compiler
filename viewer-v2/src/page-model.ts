@@ -6,6 +6,7 @@
  * fetch or a DOM.
  */
 import type { ClaimCitation, EntityRelation, GraphData, PagePayload, SourceSpan } from "./api";
+import { TIMELINE_DIRECTORY, timelinePeriod } from "./timeline-model";
 import { plural } from "./wiki-model";
 
 /** The warning code the server attaches to each citation whose file is missing. */
@@ -21,8 +22,14 @@ export function pageTitle(page: PagePayload): string {
   return page.title || page.slug;
 }
 
-/** The display kind: frontmatter `kind`, else the saved-query `type`, else the entity type, else concept. */
+/** Whether a page is a generated timeline day or week, written by compile from the sources' dates. */
+export function isTimelinePage(page: Pick<PagePayload, "pageDirectory" | "slug">): boolean {
+  return page.pageDirectory === TIMELINE_DIRECTORY && timelinePeriod(page.slug) !== null;
+}
+
+/** The display kind: day or week for a timeline page, else frontmatter `kind`, the saved-query `type`, the entity type, or concept. */
 export function pageKind(page: PagePayload): string {
+  if (isTimelinePage(page)) return timelinePeriod(page.slug)!;
   const { kind, type } = page.frontmatter;
   if (typeof kind === "string" && kind.length > 0) return kind;
   if (typeof type === "string" && type.length > 0) return type;

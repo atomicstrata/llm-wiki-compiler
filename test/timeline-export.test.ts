@@ -1,13 +1,17 @@
 /**
- * Timeline pages in exports: the JSON export carries them at their real
- * `wiki/timeline/` path, and the OKF bundle, which holds knowledge to carry
- * between projects, leaves these regenerated pages out.
+ * Timeline pages outside compile: the JSON export carries them at their real
+ * `wiki/timeline/` path, the OKF bundle, which holds knowledge to carry
+ * between projects, leaves these regenerated pages out, and the viewer renders
+ * a day without showing the marker that delimits its related list.
  */
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdir, readdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { collectExportPages } from "../src/export/collect.js";
 import { runOkfExport } from "../src/export/okf/run.js";
+import { withRelated } from "../src/timeline/pages.js";
+import { renderPageHtml } from "../src/viewer/render.js";
+import type { ViewerSnapshot } from "../src/viewer/types.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 
 const CONCEPT = "---\ntitle: Kiln\nsummary: A kiln.\nsources: []\n---\n\nA kiln.\n";
@@ -36,3 +40,15 @@ describe("timeline pages in exports", () => {
     expect(files.some((file) => String(file).includes("2026-05-04"))).toBe(false);
   });
 });
+
+describe("rendering a day", () => {
+  it("shows the related list without its marker, after a paragraph or a list", () => {
+    const snapshot = { pages: [], sourceFilenames: [] } as unknown as ViewerSnapshot;
+    for (const body of ["Fired the kiln. ^[log.md:1-2]", "## Kiln\n\n- Fired it. ^[log.md:1-2]"]) {
+      const html = renderPageHtml(withRelated(body, [{ slug: "kiln", title: "Kiln", body: "" }]), snapshot, { isLoopback: true }).html;
+      expect(html).toContain("Pages from this day");
+      expect(html).not.toMatch(/llmwiki-timeline-related|\[\/\/\]/);
+    }
+  });
+});
+

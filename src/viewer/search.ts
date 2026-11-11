@@ -12,6 +12,8 @@
  *     already filtered to the profile-VALID ones. `wiki/index.md` is
  *     excluded by construction (it never lives in `snapshot.pages`)
  *   - no fuzzy matching, stemming, regex, or client-side search
+ *   - a timeline day is matched without its generated "Pages from this day"
+ *     list, so it matches on what happened rather than on what it links
  *
  * The search reads from the snapshot exclusively — no per-request disk
  * I/O — so it inherits the same "frozen at startup, restart to refresh"
@@ -19,6 +21,7 @@
  */
 
 import type { ViewerPage, ViewerPageDirectory, ViewerPageId, ViewerSnapshot } from "./types.js";
+import { TIMELINE_NAMESPACE, withoutRelated } from "../timeline/pages.js";
 
 const MAX_QUERY_LENGTH = 200;
 const MAX_RESULTS = 50;
@@ -87,15 +90,25 @@ function collectMatches(pages: ReadonlyArray<ViewerPage>, tokens: string[]): Sea
  * hit, which then ranks below title hits.
  */
 function matchPage(page: ViewerPage, tokens: string[]): SearchResult | null {
+  const body = searchableBody(page);
   const titleLower = page.title.toLowerCase();
-  const bodyLower = page.body.toLowerCase();
+  const bodyLower = body.toLowerCase();
   for (const token of tokens) {
     if (!titleLower.includes(token) && !bodyLower.includes(token)) return null;
   }
   const allInTitle = tokens.every((t) => titleLower.includes(t));
   if (allInTitle) return rowFromPage(page, page.title, "title");
-  const snippet = buildBodySnippet(page.body, bodyLower, tokens);
+  const snippet = buildBodySnippet(body, bodyLower, tokens);
   return rowFromPage(page, snippet, "body");
+}
+
+/**
+ * The text a page is searched by. A timeline day's generated "Pages from this
+ * day" list names other pages, not what happened, so it is left out: a day
+ * should match on its own events, not on every concept it links to.
+ */
+function searchableBody(page: ViewerPage): string {
+  return page.pageDirectory === TIMELINE_NAMESPACE ? withoutRelated(page.body) : page.body;
 }
 
 /** Assemble a SearchResult from a page + computed snippet. */
@@ -120,24 +133,47 @@ function buildBodySnippet(body: string, bodyLower: string, tokens: string[]): st
   const matchPos = earliestTokenPosition(bodyLower, tokens);
   const start = Math.max(0, matchPos - SNIPPET_RADIUS);
   const end = Math.min(body.length, matchPos + SNIPPET_RADIUS);
-  const cleaned = stripInlineMarkdownNoise(body.slice(start, end))
+  const cut = { start: start > 0, end: end < body.length };
+  const cleaned = stripInlineMarkdownNoise(stripCutMarkup(body.slice(start, end), cut))
     .replace(/\s+/g, " ")
     .trim();
-  const prefix = start > 0 ? SNIPPET_ELLIPSIS : "";
-  const suffix = end < body.length ? SNIPPET_ELLIPSIS : "";
-  return `${prefix}${cleaned}${suffix}`;
+  return `${cut.start ? SNIPPET_ELLIPSIS : ""}${cleaned}${cut.end ? SNIPPET_ELLIPSIS : ""}`;
+}
+
+/** A citation's file entry: a name with an extension and an optional line range. */
+const CITATION_FILE = String.raw`[^\s[\]]+\.[A-Za-z0-9]+(?::[\d-]+)?`;
+/** A whole citation marker, `^[a.md:1-2, b.txt]`, or one the window cut off at its end. */
+const CITATION_MARKER = new RegExp(String.raw`\^\[${CITATION_FILE}(?:,\s*[^[\]\n]*)?(?:\]|$)`, "g");
+/** The tail of a citation marker the window cut off at its start: it runs, bracket-free, to a `file.ext:lines]`. */
+const CUT_CITATION_TAIL = /^[^[\]\n]*\.[A-Za-z0-9]+(?::[\d-]+)?\]/;
+
+/**
+ * Remove the halves of markup the snippet window cut through: a citation or a
+ * wikilink begun before the window opened, or one still open when it closed.
+ * Only an edge that was actually cut is touched, so text that merely looks like
+ * a fragment (a `|` before a `]]`, a body ending in `[[`) is left alone.
+ */
+function stripCutMarkup(text: string, cut: { start: boolean; end: boolean }): string {
+  let result = text;
+  if (cut.start) {
+    result = result.replace(CUT_CITATION_TAIL, "").replace(/^[^[\]\n]*\|([^[\]\n]*)\]\]/, "$1").replace(/^[^[\]\n|]*\]\]/, "");
+  }
+  if (cut.end) {
+    result = result.replace(/\^\[[^\]\n]*$/, "").replace(/\[\[[^\]|\n]*\|([^\]\n]*)$/, "$1").replace(/\[\[([^\]|\n]*)$/, "$1");
+  }
+  return result;
 }
 
 /**
  * Strip common inline-markdown markers from a snippet so the search
  * results panel shows readable prose rather than `**keyword**` and
- * `[label](url)` noise. Intentionally narrow: only handles the
- * inline-marker forms a reader would mistake for typos. Block-level
- * markers (`#` headings, `>` blockquotes) are left alone — they sit at
- * the start of a line and rarely land inside a ±60-char window.
+ * `[label](url)` noise: emphasis, links, wikilinks, citation markers (a `^[`
+ * followed by a file name, so `^[A-Z]` in a regex survives) and heading markers.
  */
 function stripInlineMarkdownNoise(text: string): string {
   return text
+    .replace(CITATION_MARKER, "")
+    .replace(/(^|\n)\s*#{1,6}\s+/g, "$1")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\[\[([^\]|\n]+)\|([^\]\n]+)\]\]/g, "$2")
