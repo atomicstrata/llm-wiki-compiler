@@ -70,7 +70,7 @@ describe("freshness, traceability and record problems", () => {
   it("badges the actionable counts, or UNVERIFIED when nothing could be checked", () => {
     const stale = page({ id: "concepts/s", freshness: { freshnessStatus: "stale", contradicted: false, archived: false } });
     const unverified = page({ id: "concepts/u", freshness: { freshnessStatus: "unverified", contradicted: false, archived: false } });
-    expect(freshnessSummary([])).toEqual({ bars: [], badge: { text: "IN SYNC", tone: "ok" }, note: "No concept pages yet." });
+    expect(freshnessSummary([])).toEqual({ badge: { text: "IN SYNC", tone: "ok" }, note: "No concept pages yet." });
     expect(freshnessSummary([page(), stale]).badge).toEqual({ text: "1 STALE", tone: "warn" });
     expect(freshnessSummary([page(), stale]).note).toBe("1 page stale and 0 pages orphaned out of 2.");
     expect(freshnessSummary([unverified]).badge).toEqual({ text: "UNVERIFIED", tone: "unknown" });
@@ -105,7 +105,7 @@ describe("HealthView", () => {
     expect(html).toContain("No cached lint summary yet");
     expect(html).toContain('data-contents="reviews"');
     expect(html).not.toContain("Record problems");
-    expect(html.match(/is-zero/g)?.length).toBe(5);
+    expect(html.match(/<span>—<\/span>/g)?.length).toBe(5);
   });
 
   it("renders the lint table with a page link, the freshness badge, and the record problems", () => {
@@ -113,9 +113,9 @@ describe("HealthView", () => {
     const wiki = envelope({ pages: [page({ citationCount: 2 })], profileProblems: [{ kind: "slug-mismatch", path: "wiki/papers/b.md", message: "slug differs" }] });
     const html = renderToStaticMarkup(createElement(HealthView, { wiki, health }));
     expect(html).toContain("4 PROBLEMS");
-    expect(html).toContain('<a class="lint-fix" href="#/concepts/alpha">view →</a>');
+    expect(html).toContain('<td><a href="#/concepts/alpha">view →</a></td>');
     expect(html).toContain("4 of 4 problems come from broken-wikilink.");
-    expect(html).toContain('class="pill is-ok">IN SYNC');
+    expect(html).toContain("<span>Freshness</span> <span>IN SYNC</span>");
     expect(html).toContain("1 PROBLEM<");
     expect(html).toContain("Slug mismatch");
     expect(html).toContain("2 / 2 citations");

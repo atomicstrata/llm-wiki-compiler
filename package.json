@@ -106,6 +106,8 @@
     "@fontsource/nunito": "5.2.7",
     "@fontsource/space-grotesk": "^5.3.0",
     "@smithy/node-http-handler": "^4.12.1",
+    "@tailwindcss/typography": "^0.5.20",
+    "@tailwindcss/vite": "^4.3.5",
     "@types/bun": "^1.4.4",
     "@types/d3": "^7.4.3",
     "@types/js-yaml": "^4.0.9",
@@ -123,6 +125,7 @@
     "madge": "^8.0.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "tailwindcss": "^4.3.5",
     "tsup": "^8.0.0",
     "typescript": "5.9.3",
     "vite": "7.3.6"

@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { GraphNode } from "../viewer-v2/src/api.js";
 import { Dashboard } from "../viewer-v2/src/dashboard.js";
 import { GraphLegend, GraphSurface } from "../viewer-v2/src/graph-canvas.js";
-import { forcesFor, frameFor, nodeHref, nodeKind, nodeMeta, nodeRadius, staleIds } from "../viewer-v2/src/graph-model.js";
+import { forcesFor, frameFor, KIND_COLOR, nodeHref, nodeKind, nodeMeta, nodeRadius, staleIds } from "../viewer-v2/src/graph-model.js";
 import { GraphView } from "../viewer-v2/src/graph-view.js";
 import { envelope, page } from "./fixtures/viewer-v2-fixtures.js";
 
@@ -75,9 +75,11 @@ describe("graph model", () => {
 describe("graph markup", () => {
   it("lists every node kind, both edge kinds, and the size rule in the full legend", () => {
     const html = renderToStaticMarkup(createElement(GraphLegend, { compact: false }));
-    for (const kind of ["concept", "entity", "stale", "dangling"]) expect(html).toContain(`graph-legend-dot--${kind}`);
-    expect(html).toContain("graph-legend-edge--wikilink");
-    expect(html).toContain("graph-legend-edge--relation");
+    for (const kind of ["concept", "entity", "stale", "dangling"] as const) {
+      expect(html).toContain(`<span class="${KIND_COLOR[kind]}" aria-hidden="true">●</span> ${kind}`);
+    }
+    expect(html).toContain("─ wikilink");
+    expect(html).toContain("╌ relation");
     expect(html).toContain("larger = more connections");
     expect(renderToStaticMarkup(createElement(GraphLegend, { compact: true }))).toContain("size = degree");
   });
@@ -96,11 +98,11 @@ describe("graph markup", () => {
     expect(html).toContain('href="#/concepts/alpha"');
     expect(html).toContain('href="#/articles/deal"');
     expect(html).not.toContain('href="#/concepts/missing"');
-    expect(html).toContain("graph-node graph-node--stale");
-    expect(html).toContain("graph-node graph-node--entity");
-    expect(html).toContain('graph-node graph-node--dangling" r="8" stroke-width="2" stroke-dasharray="3,2"');
-    expect(html).toContain('<line class="graph-edge" marker-end="url(#');
-    expect(html).toContain('<line class="graph-edge graph-edge--relation"><title>mentions</title>');
+    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.stale}">`);
+    expect(html).toContain(`<g data-node="" class="${KIND_COLOR.entity}">`);
+    expect(html).toContain('r="8" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-dasharray="3,2"');
+    expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" marker-end="url(#');
+    expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="5 3"><title>mentions</title>');
   });
 
   it("keeps Fit disabled on both screens until a layout reports back", () => {
@@ -110,7 +112,7 @@ describe("graph markup", () => {
     expect(explorer).toContain('disabled="">Fit</button>');
     expect(explorer).toContain("Loading…");
     const dashboard = renderToStaticMarkup(createElement(Dashboard, { wiki: WIKI, health: null }));
-    expect(dashboard).toContain('class="panel-chip" disabled="">Fit</button>');
+    expect(dashboard).toContain('disabled="">Fit</button>');
     expect(dashboard).toContain('aria-label="Open the full graph explorer">⤢</a>');
     expect(dashboard).toContain("size = degree");
     expect(dashboard).toContain("hover a node to inspect");

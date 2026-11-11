@@ -73,22 +73,22 @@ function GateCallout({ gate }: { gate: StageGate }): ReactNode {
   const kind = gate.gateKind === "human" ? "Human approval" : `${gate.gateKind.charAt(0).toUpperCase()}${gate.gateKind.slice(1)} gate`;
   const byline = gateByline(gate);
   return (
-    <div className={`stage-gate gate-${gate.state}${gate.gateKind === "human" ? " gate-human" : ""}`}>
-      <span className="stage-gate-label">{kind} — {GATE_STATE_TEXT[gate.state] ?? gate.state}</span>
-      {byline && <span className="stage-gate-byline">{byline}</span>}
+    <div>
+      <span>{kind} — {GATE_STATE_TEXT[gate.state] ?? gate.state}</span>{" "}
+      {byline && <span>{byline}</span>}
     </div>
   );
 }
 
 /** The verification badge, and the stable reason when a stage is only recorded. */
 function Verification({ stage }: { stage: StageProjection }): ReactNode {
-  if (stage.verification === "verified") return <span className="verification is-verified">Verified</span>;
+  if (stage.verification === "verified") return <span>Verified</span>;
   const reason = stage.verificationReason;
   const label = reason && VERIFICATION_REASON_LABELS[reason.category];
   return (
     <>
-      <span className="verification is-recorded">Recorded · not verified</span>
-      {label && <span className="verification-reason">{label} · {reason.code}</span>}
+      <span>Recorded · not verified</span>{" "}
+      {label && <span>{label} · {reason.code}</span>}
     </>
   );
 }
@@ -98,7 +98,7 @@ function PdfPanel({ stage, ids }: { stage: StageProjection; ids: RunIds }): Reac
   if (stage.verification !== "verified" || !stage.pdfRef || !SHA256_DIGEST.test(stage.pdfRef.sha256)) return null;
   const url = runPdfUrl(ids.workflowId, ids.runId);
   return (
-    <section className="stage-pdf">
+    <section>
       <h4>Final PDF — pinned by {stage.stageId}, verified</h4>
       <a href={url} target="_blank" rel="noopener">Open final PDF ({stage.pdfRef.member})</a>
       <iframe src={url} title="Final PDF" />
@@ -110,17 +110,17 @@ function PdfPanel({ stage, ids }: { stage: StageProjection; ids: RunIds }): Reac
 function StageItem({ stage, ids }: { stage: StageProjection; ids: RunIds }): ReactNode {
   const pins = [stage.outputRef, stage.verification === "verified" ? stage.pdfRef : undefined];
   return (
-    <li className="stage" data-stage-id={stage.stageId}>
+    <li data-stage-id={stage.stageId}>
       {stage.gate && <GateCallout gate={stage.gate} />}
-      <div className="stage-head">
-        <span className="stage-id">{stage.stageId || "(unnamed stage)"}</span>
-        <span className="chip">{stage.status || "unknown"}</span>
+      <div>
+        <span>{stage.stageId || "(unnamed stage)"}</span>{" "}
+        <span>{stage.status || "unknown"}</span>
         <Verification stage={stage} />
       </div>
       <StageFacts stage={stage} />
       {stage.outputRef && (
-        <p className="stage-output">
-          <a className="button" href={stageOutputUrl(ids.workflowId, ids.runId, stage.stageId)} download="">Download {stage.outputRef.artifactType || "artifact"}</a>
+        <p>
+          <a href={stageOutputUrl(ids.workflowId, ids.runId, stage.stageId)} download="">Download {stage.outputRef.artifactType || "artifact"}</a>
         </p>
       )}
       {pins.map((pin) => pin && <ArtifactRef key={`${pin.artifactType}/${pin.slug}`} pin={pin} />)}
@@ -135,9 +135,9 @@ function Projection({ projection, ids }: { projection: WorkflowRunProjection; id
   return (
     <>
       <h1>Run {projection.runId || ids.runId}</h1>
-      <p className={`journey-classification is-${projection.classification}`}>Run status: {CLASSIFICATION_LABELS[projection.classification] ?? projection.classification}</p>
-      {notice && <p className="journey-live-notice">{notice}</p>}
-      <ol className="journey-timeline">
+      <p>Run status: {CLASSIFICATION_LABELS[projection.classification] ?? projection.classification}</p>
+      {notice && <p>{notice}</p>}
+      <ol>
         {projection.stages.map((stage, index) => <StageItem key={`${stage.stageId}#${index}`} stage={stage} ids={ids} />)}
       </ol>
     </>
@@ -147,9 +147,9 @@ function Projection({ projection, ids }: { projection: WorkflowRunProjection; id
 /** A run's journey, or the server's problem with projecting it. */
 export function Journey({ body, ids }: { body: WorkflowRunResponse; ids: RunIds }): ReactNode {
   return (
-    <section className="journey">
+    <section>
       {"problem" in body
-        ? <p className="status status-error" role="alert">This run could not be projected: {body.problem}</p>
+        ? <p role="alert">This run could not be projected: {body.problem}</p>
         : <Projection projection={body} ids={ids} />}
     </section>
   );
@@ -158,6 +158,6 @@ export function Journey({ body, ids }: { body: WorkflowRunResponse; ids: RunIds 
 /** Fetch the run on every visit and show its journey. */
 export function JourneyView({ workflowId, runId }: RunIds): ReactNode {
   const state = useAsync(() => fetchWorkflowRun(workflowId, runId), `${workflowId}\n${runId}`);
-  if (state.status === "loading") return <p className="status" role="status">Verifying retained workflow records…</p>;
+  if (state.status === "loading") return <p role="status">Verifying retained workflow records…</p>;
   return <AsyncView state={state}>{(body) => <Journey body={body} ids={{ workflowId, runId }} />}</AsyncView>;
 }

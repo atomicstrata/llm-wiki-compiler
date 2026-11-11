@@ -12,7 +12,7 @@ interface AsyncViewProps<T> {
 
 /** Show a status line until `state` is ready, then render `children`. */
 export function AsyncView<T>({ state, children }: AsyncViewProps<T>): ReactNode {
-  if (state.status === "loading") return <p className="status">Loading…</p>;
-  if (state.status === "error") return <p className="status status-error" role="alert">{state.message}</p>;
+  if (state.status === "loading") return <p>Loading…</p>;
+  if (state.status === "error") return <p role="alert">{state.message}</p>;
   return children(state.data);
 }

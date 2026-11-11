@@ -29,7 +29,8 @@ describe("Sidebar", () => {
     const html = renderToStaticMarkup(createElement(Sidebar, { wiki: WIKI, health: null, route: parseRoute("#/concepts/alpha") }));
     expect(html).toContain('data-route="queries"');
     expect(html).toContain("—");
-    expect(html).toContain('data-route="reviews" title="Reviews"><span class="nav-label">Reviews</span><span class="nav-count nav-count-zero">0</span>');
+    // Asserted on structure and text, not utility classes, so restyling cannot break it.
+    expect(html).toMatch(/data-route="reviews"[^>]*><span>Reviews<\/span> <span>0<\/span>/);
     expect(html).toContain('data-route="concepts" aria-current="page"');
     expect(html).not.toContain("Workflows");
   });
@@ -61,7 +62,7 @@ describe("RecentView and search helpers", () => {
     expect(isNewPage(WIKI.pages[1])).toBe(false);
     const html = renderToStaticMarkup(createElement(RecentView, { wiki: WIKI }));
     expect(html).toContain("2 pages, newest first");
-    expect(html.match(/badge-new/g)?.length).toBe(1);
+    expect(html.match(/<span>new<\/span>/g)?.length).toBe(1);
   });
 
   it("filters titles by every word and labels hits by kind", () => {

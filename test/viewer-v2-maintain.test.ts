@@ -85,6 +85,6 @@ describe("SourceCockpit", () => {
     expect(html).toContain("<details open=\"\"><summary>alpha.md · changed</summary>");
     expect(html).toContain("This proposal changes page metadata.");
     expect(html).toContain("Proposal shortened. Inspect its full body before review.");
-    expect(html).toContain("<strong class=\"stat-value\">1</strong><span class=\"stat-sub\">Without a proposal</span>");
+    expect(html).toContain("<strong>1</strong> <span>Without a proposal</span>");
   });
 });

@@ -3,7 +3,7 @@
  * current hash route. `/api/pages` and `/api/health` load once in parallel; a
  * failed health fetch only degrades the surfaces that need it.
  */
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { Dashboard } from "./dashboard";
@@ -89,18 +89,19 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
 
 /** Header, navigation, and current view for a loaded wiki. */
 function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode {
-  const [navOpen, setNavOpen] = useState(false);
   const warning = STATE_WARNINGS[wiki.stateStatus];
   return (
-    <div className="shell" data-nav-open={navOpen}>
-      {warning && <p className="state-banner" role="alert">{warning}</p>}
-      <Header wiki={wiki} health={health} initialQuery={route.view === "search" ? route.query : ""}
-        navOpen={navOpen} onToggleNav={() => setNavOpen(!navOpen)} />
-      <Sidebar wiki={wiki} health={health} route={route} />
-      <main onClick={() => setNavOpen(false)}>
-        <RouteView route={route} wiki={wiki} health={health} />
-      </main>
-    </div>
+    <>
+      {warning && <p role="alert">{warning}</p>}
+      <Header wiki={wiki} health={health} initialQuery={route.view === "search" ? route.query : ""} />
+      {/* Sidebar beside main on wide screens, above it on narrow ones; prose styles every screen. */}
+      <div className="md:flex">
+        <Sidebar wiki={wiki} health={health} route={route} />
+        <main className="prose min-w-0 flex-1 p-4 dark:prose-invert">
+          <RouteView route={route} wiki={wiki} health={health} />
+        </main>
+      </div>
+    </>
   );
 }
 

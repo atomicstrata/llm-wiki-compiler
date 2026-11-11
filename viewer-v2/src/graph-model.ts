@@ -12,7 +12,15 @@ import { plural } from "./wiki-model";
 /** The four node colours, in the order the legend lists them. */
 export type NodeKind = "concept" | "entity" | "stale" | "dangling";
 
-/** Legend rows for node colours; the class suffix is the kind itself. */
+/** One default-palette colour per node kind; the node fills with `currentColor`, so this is all it takes. */
+export const KIND_COLOR: Record<NodeKind, string> = {
+  concept: "text-indigo-500",
+  entity: "text-green-600",
+  stale: "text-amber-500",
+  dangling: "text-red-500",
+};
+
+/** Legend rows for node colours. */
 export const NODE_LEGEND: readonly { kind: NodeKind; label: string }[] = [
   { kind: "concept", label: "concept" },
   { kind: "entity", label: "entity" },
@@ -51,8 +59,6 @@ export function nodeRadius(degree: number, maxDegree: number, compact: boolean):
   return min + (degree / maxDegree) * (max - min);
 }
 
-/** Halo ring drawn behind a hovered node, this much wider than the node. */
-export const HALO_MARGIN = 9;
 const HIGH_DEGREE = 5;
 
 /** A thicker outline marks hubs; an isolated node gets the thinnest. */

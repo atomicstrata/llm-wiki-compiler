@@ -15,17 +15,17 @@ export function GraphView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [controls, setControls] = useState<GraphControls | null>(null);
   const { nodeCount, edgeCount, danglingCount } = wiki.graph;
   return (
-    <section className="graph-screen">
-      <div className="graph-head">
+    <section>
+      <div>
         <div>
           <h1>Graph explorer</h1>
-          <p className="list-caption">
-            {plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span className={danglingCount > 0 ? "is-warn" : ""}>{plural(danglingCount, "dangling target")}</span>
+          <p>
+            {plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span>{plural(danglingCount, "dangling target")}</span>
           </p>
         </div>
-        <button type="button" className="button" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
+        <button type="button" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
       </div>
-      <div className="graph-pane">
+      <div>
         <GraphCanvas wiki={wiki} compact={false} onSettled={setControls} />
         <GraphLegend compact={false} />
       </div>

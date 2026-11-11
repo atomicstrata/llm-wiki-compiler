@@ -10,7 +10,11 @@ export function IndexView({ hasIndex }: { hasIndex: boolean }): ReactNode {
   const state = useAsync(() => (hasIndex ? fetchIndex() : Promise.resolve({ html: "" })), String(hasIndex));
   return (
     <AsyncView state={state}>
-      {({ html }) => (html ? <WikiHtml html={html} /> : <p className="status">wiki/index.md is not available. Run `llmwiki compile`.</p>)}
+      {({ html }) => (
+        <div>
+          {html ? <WikiHtml html={html} /> : <p>wiki/index.md is not available. Run `llmwiki compile`.</p>}
+        </div>
+      )}
     </AsyncView>
   );
 }

@@ -28,7 +28,7 @@ function FileMetadata({ metadata }: { metadata: Record<string, unknown> }): Reac
   const entries = Object.entries(metadata);
   if (entries.length === 0) return null;
   return (
-    <dl className="artifact-metadata">
+    <dl>
       {entries.map(([key, value]) => (
         <div key={key}>
           <dt>{displayLabel(key)}</dt>
@@ -43,17 +43,17 @@ function FileMetadata({ metadata }: { metadata: Record<string, unknown> }): Reac
 export function ArtifactDetail({ metadata }: { metadata: ArtifactMetadata }): ReactNode {
   const isOk = metadata.health === "ok";
   return (
-    <div className="artifact-detail">
+    <div>
       <strong>{metadata.fileName ?? "Attached file"}</strong>
-      <dl className="artifact-metadata">
+      <dl>
         <div><dt>File check</dt><dd>{FILE_HEALTH_LABELS[metadata.health] ?? "File could not be verified"}</dd></div>
         {metadata.manifest && <div><dt>Size</dt><dd>{metadata.manifest.bytes} bytes · {metadata.manifest.contentKind}</dd></div>}
         {metadata.manifest && <div><dt>Written</dt><dd>{metadata.manifest.writtenAt}</dd></div>}
       </dl>
       {metadata.metadata && <FileMetadata metadata={metadata.metadata} />}
-      {isOk && metadata.contentAccess === "available" && <a className="button" href={artifactDownloadUrl(metadata.ref)}>Download</a>}
-      {isOk && metadata.contentAccess === "loopback-only" && <p className="artifact-note">{LOOPBACK_NOTE}</p>}
-      <details className="artifact-technical">
+      {isOk && metadata.contentAccess === "available" && <a href={artifactDownloadUrl(metadata.ref)}>Download</a>}
+      {isOk && metadata.contentAccess === "loopback-only" && <p>{LOOPBACK_NOTE}</p>}
+      <details>
         <summary>File reference</summary>
         <code>{metadata.ref}</code>
       </details>
@@ -65,6 +65,6 @@ export function ArtifactDetail({ metadata }: { metadata: ArtifactMetadata }): Re
 export function ArtifactRef({ pin }: { pin: ArtifactPin }): ReactNode {
   const ref = artifactRef(pin);
   const state = useAsync(() => fetchArtifact(ref), ref);
-  if (state.status === "error") return <p className="artifact-note">File could not be checked. Try reopening this record.</p>;
+  if (state.status === "error") return <p>File could not be checked. Try reopening this record.</p>;
   return <AsyncView state={state}>{(metadata) => <ArtifactDetail metadata={metadata} />}</AsyncView>;
 }

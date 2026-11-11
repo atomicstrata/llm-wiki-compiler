@@ -22,16 +22,7 @@ export interface StateTally {
   state: string;
   count: number;
   role: StateRole;
-  /** Swatch opacity: fading along an ordered chain, full for the other roles. */
-  alpha: number;
 }
-
-/** Opacity stops along an ordered chain; a long chain holds at the last stop. */
-const ORDERED_RAMP = [1, 0.55, 0.4, 0.3];
-/** Flatter stops for states with no order: they are segments, not a sequence. */
-const NEUTRAL_RAMP = [1, 0.45, 0.35, 0.3];
-const UNREACHABLE_ALPHA = 0.55;
-const FULL_ALPHA = 1;
 
 /** Whether the lifecycle declares anything that puts its states in an order. */
 export function hasDeclaredOrder(lifecycle: PipelineLifecycle | undefined): boolean {
@@ -79,26 +70,17 @@ function sortTallied(tallied: [string, number][], chain: string[]): [string, num
 /** Classify and order every tallied state of one entity type; zero counts are left out. */
 export function classifyStates(lifecycle: PipelineLifecycle | undefined, stateCounts: Record<string, number> | undefined): StateTally[] {
   const ordered = hasDeclaredOrder(lifecycle);
-  const ramp = ordered ? ORDERED_RAMP : NEUTRAL_RAMP;
   // Walked once and used for both the role and the reading position, which must agree.
   const chain = ordered ? reachableOrder(lifecycle) : [];
   const withPages = Object.entries(stateCounts ?? {}).filter(([, count]) => count > 0);
-  let step = 0;
-  return sortTallied(withPages, chain).map(([state, count]) => {
-    const role = roleOf(state, lifecycle, chain, ordered);
-    if (role === "unreachable") return { state, count, role, alpha: UNREACHABLE_ALPHA };
-    if (role === "terminal") return { state, count, role, alpha: FULL_ALPHA };
-    const alpha = ramp[Math.min(step, ramp.length - 1)];
-    step += 1;
-    return { state, count, role, alpha };
-  });
+  return sortTallied(withPages, chain).map(([state, count]) => ({ state, count, role: roleOf(state, lifecycle, chain, ordered) }));
 }
 
 /** The tallied states plus every declared or reachable state with no pages, at zero. */
 export function displayedStates(lifecycle: PipelineLifecycle | undefined, states: StateTally[]): StateTally[] {
   const names = new Set([...reachableOrder(lifecycle), ...(lifecycle?.declaredStates ?? []), ...states.map((entry) => entry.state)]);
   const tallied = new Map(states.map((entry) => [entry.state, entry]));
-  return [...names].map((state) => tallied.get(state) ?? { state, count: 0, role: "empty", alpha: 0 });
+  return [...names].map((state) => tallied.get(state) ?? { state, count: 0, role: "empty" });
 }
 
 /** A chip's text; unreachable and terminal name their role in words, not only in colour. */

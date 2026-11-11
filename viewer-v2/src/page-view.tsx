@@ -29,28 +29,24 @@ export function PageHeader({ page }: { page: PagePayload }): ReactNode {
   return (
     <>
       <h1>{title}</h1>
-      {page.pageDirectory === "queries" && <p className="query-question">Question: {title}</p>}
+      {page.pageDirectory === "queries" && <p>Question: {title}</p>}
       {page.warnings.map((warning, index) => (
-        <div key={index} className="warning-banner" role="alert" data-code={warning.code}>{warning.message || warning.code}</div>
+        <div key={index} role="alert" data-code={warning.code}>{warning.message || warning.code}</div>
       ))}
     </>
   );
 }
 
-/** Tags and last-updated date; renders empty (and hidden) when the page has neither. */
+/** Tags and last-updated date on one line; nothing when the page has neither. */
 function PageMeta({ page }: { page: PagePayload }): ReactNode {
   const updated = formatDate(page.updatedAt);
-  return (
-    <p className="page-meta">
-      {stringList(page.frontmatter.tags).map((tag) => <span key={tag} className="tag">{tag}</span>)}
-      {updated && <span>Updated {updated}</span>}
-    </p>
-  );
+  const parts = [...stringList(page.frontmatter.tags), ...(updated ? [`Updated ${updated}`] : [])];
+  return parts.length > 0 ? <p>{parts.join(" · ")}</p> : null;
 }
 
 /** The rendered body minus a heading that repeats the title, or a note when the page has no body. */
 export function PageBody({ page }: { page: PagePayload }): ReactNode {
-  if (page.html.length === 0) return <p className="status">No rendered content.</p>;
+  if (page.html.length === 0) return <p>No rendered content.</p>;
   return <WikiHtml html={stripLeadingHeading(page.html, pageTitle(page))} />;
 }
 
@@ -67,7 +63,7 @@ export function PageView({ directory, slug, wiki }: PageViewProps): ReactNode {
   return (
     <AsyncView state={state}>
       {(page) => (
-        <div className="page-layout">
+        <div>
           <article>
             <PageHeader page={page} />
             <PageMeta page={page} />

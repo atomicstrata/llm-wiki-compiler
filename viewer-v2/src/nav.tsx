@@ -14,6 +14,7 @@ import type { Route } from "./route";
 import { typeListHref } from "./route";
 import { entityTypes, isProfileProject, lintTotal, typeLabel } from "./wiki-model";
 
+
 /** How a zero count is written in a section. */
 type ZeroDisplay = "dash" | "digit";
 
@@ -99,9 +100,9 @@ function NavRow({ item, zero, active, label }: { item: NavItem; zero: ZeroDispla
   const count = countText(item, zero);
   return (
     <li>
-      <a href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}>
-        <span className="nav-label">{label}</span>
-        {count !== null && <span className={`nav-count${count === "—" || count === "0" ? " nav-count-zero" : ""}`}>{count}</span>}
+      <a className="aria-[current=page]:font-bold" href={item.href} data-route={item.route} aria-current={active ? "page" : undefined} title={label}>
+        <span>{label}</span>{" "}
+        {count !== null && <span>{count}</span>}
       </a>
     </li>
   );
@@ -119,24 +120,24 @@ export function Sidebar({ wiki, health, route }: SidebarProps): ReactNode {
   const profile = isProfileProject(wiki);
   const typeLabels = new Set(browseItems(wiki).map((item) => item.label));
   return (
-    <nav className="sidebar" aria-label="Wiki navigation">
-      <div className="project-block">
-        <span className="project-label">PROJECT</span>
-        <strong className="project-name">{wiki.project.title || "llmwiki"}</strong>
-        <span className="project-status">LOCAL · READ ONLY</span>
+    <nav aria-label="Wiki navigation" className="p-4">
+      <div>
+        <span>PROJECT</span>{" "}
+        <strong>{wiki.project.title || "llmwiki"}</strong>{" "}
+        <span>LOCAL · READ ONLY</span>
       </div>
-      <ul className="nav-list">
+      <ul>
         <NavRow item={{ route: "home", href: "#/", label: "Dashboard" }} zero="dash" active={active === "home"} label="Dashboard" />
       </ul>
       {sections(wiki, health).map((section) => (
-        <section key={section.label} className="nav-section">
-          <h2 className="nav-section-label">
+        <section key={section.label}>
+          <h2>
             {section.label}
             {section.label === "CATEGORIES" && (
-              <span className="nav-section-meta">{entityTypes(wiki).length > MANY_TYPES ? `${wiki.profileId} · ${entityTypes(wiki).length}` : wiki.profileId}</span>
+              <span>{entityTypes(wiki).length > MANY_TYPES ? `${wiki.profileId} · ${entityTypes(wiki).length}` : wiki.profileId}</span>
             )}
           </h2>
-          <ul className="nav-list">
+          <ul>
             {section.items
               .filter((item) => !item.profileOnly || profile)
               .map((item) => (

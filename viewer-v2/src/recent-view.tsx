@@ -20,16 +20,16 @@ export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = useMemo(() => new Date(), [wiki]);
   const groups = useMemo(() => groupByRecency(wiki.pages, (page) => page.updatedAt, now), [wiki, now]);
   return (
-    <section className="list-screen">
+    <section>
       <h1>Recent</h1>
-      <p className="list-caption">{plural(wiki.pages.length, "page")}, newest first</p>
-      {groups.length === 0 && <p className="status">Nothing compiled yet.</p>}
+      <p>{plural(wiki.pages.length, "page")}, newest first</p>
+      {groups.length === 0 && <p>Nothing compiled yet.</p>}
       {groups.map((group) => (
-        <div key={group.label} className="recency-group">
-          <h2>{group.label} <span className="list-count">{group.items.length}</span></h2>
-          <ul className="page-list">
+        <div key={group.label}>
+          <h2>{group.label} <span>{group.items.length}</span></h2>
+          <ul>
             {group.items.map((page) => (
-              <PageRowItem key={page.id} page={page} now={now} trailing={isNewPage(page) ? <span className="badge-new">new</span> : null} />
+              <PageRowItem key={page.id} page={page} now={now} trailing={isNewPage(page) ? <span>new</span> : null} />
             ))}
           </ul>
         </div>

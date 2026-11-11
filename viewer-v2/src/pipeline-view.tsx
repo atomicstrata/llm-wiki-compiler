@@ -24,14 +24,14 @@ const LINT_HREF = "#/health";
 function TypeCell({ row }: { row: EntityTypeRow }): ReactNode {
   const chain = reachableOrder(row.lifecycle);
   return (
-    <div className="pipeline-type">
-      <div className="pipeline-type-head">
-        <span className="pipeline-type-name">{typeLabel(row.type)}</span>
-        <span className="pipeline-type-count">{row.pageCount}</span>
+    <div>
+      <div>
+        <span>{typeLabel(row.type)}</span>{" "}
+        <span>{row.pageCount}</span>
       </div>
-      <div className="pipeline-directory">{row.directory}</div>
-      {hasDeclaredOrder(row.lifecycle) && chain.length > 1 && <div className="pipeline-chain">{chain.join(" → ")}</div>}
-      <div className="pipeline-declared">{declaredText(row.lifecycle)}</div>
+      <div>{row.directory}</div>
+      {hasDeclaredOrder(row.lifecycle) && chain.length > 1 && <div>{chain.join(" → ")}</div>}
+      <div>{declaredText(row.lifecycle)}</div>
     </div>
   );
 }
@@ -39,8 +39,7 @@ function TypeCell({ row }: { row: EntityTypeRow }): ReactNode {
 /** One state chip: swatch, count, name, and the role when it matters. */
 function Chip({ state }: { state: StateTally }): ReactNode {
   return (
-    <span className={`pipeline-chip is-${state.role}`} data-state={state.state}>
-      {state.count > 0 && <span className={`pipeline-swatch is-${state.role}`} style={{ opacity: state.alpha }} />}
+    <span data-state={state.state}>
       <span>{chipLabel(state)}</span>
     </span>
   );
@@ -50,13 +49,13 @@ function Chip({ state }: { state: StateTally }): ReactNode {
 function TallyCell({ row, states }: { row: EntityTypeRow; states: StateTally[] }): ReactNode {
   const unreachable = states.filter((entry) => entry.role === "unreachable");
   return (
-    <div className="pipeline-tally">
-      {states.length === 0 && <div className="pipeline-none">{row.pageCount > 0 ? "No records have a recorded state" : "No records"}</div>}
-      <div className="pipeline-chips">
+    <div>
+      {states.length === 0 && <div>{row.pageCount > 0 ? "No records have a recorded state" : "No records"}</div>}
+      <div>
         {displayedStates(row.lifecycle, states).map((state) => <Chip key={state.state} state={state} />)}
       </div>
       {unreachable.map((state) => (
-        <div key={state.state} className="pipeline-callout">{calloutText(state, row.lifecycle as PipelineLifecycle)}</div>
+        <div key={state.state}>{calloutText(state, row.lifecycle as PipelineLifecycle)}</div>
       ))}
     </div>
   );
@@ -66,17 +65,17 @@ function TallyCell({ row, states }: { row: EntityTypeRow; states: StateTally[] }
 function VerdictCell({ row }: { row: EntityTypeRow }): ReactNode {
   if (!row.lifecycle) {
     return (
-      <div className="pipeline-verdict">
-        <div className="pipeline-sum is-empty">—</div>
-        <div className="pipeline-gap is-clean">No stages configured</div>
+      <div>
+        <div>—</div>
+        <div>No stages configured</div>
       </div>
     );
   }
   const verdict = rowVerdict(row);
   return (
-    <div className="pipeline-verdict">
-      <div className="pipeline-sum">{verdict.sum}</div>
-      <div className={`pipeline-gap${verdict.rejected > 0 ? "" : " is-clean"}`}>{gapText(verdict)}</div>
+    <div>
+      <div>{verdict.sum}</div>
+      <div>{gapText(verdict)}</div>
     </div>
   );
 }
@@ -84,7 +83,7 @@ function VerdictCell({ row }: { row: EntityTypeRow }): ReactNode {
 function TypeRow({ row }: { row: EntityTypeRow }): ReactNode {
   const states = classifyStates(row.lifecycle, row.stateCounts);
   return (
-    <div className="pipeline-columns pipeline-row" data-entity-type={row.type}>
+    <div data-entity-type={row.type}>
       <TypeCell row={row} />
       <TallyCell row={row} states={states} />
       <VerdictCell row={row} />
@@ -95,17 +94,17 @@ function TypeRow({ row }: { row: EntityTypeRow }): ReactNode {
 /** The relation types the profile declares, with how many links each has recorded. */
 function Connections({ relations }: { relations: RelationTypeRow[] }): ReactNode {
   return (
-    <details className="pipeline-relations">
+    <details>
       <summary>How records connect</summary>
-      <p className="pipeline-note">These are the connections this project supports. Counts show links currently recorded.</p>
-      {relations.length === 0 ? <p className="pipeline-note">No connection types configured.</p> : (
-        <table className="pipeline-table">
+      <p>These are the connections this project supports. Counts show links currently recorded.</p>
+      {relations.length === 0 ? <p>No connection types configured.</p> : (
+        <table>
           <thead><tr><th scope="col">Relationship</th><th scope="col">Connects</th><th scope="col">Recorded links</th></tr></thead>
           <tbody>
             {relations.map((relation) => (
               <tr key={relation.type} title={relation.type}>
                 <td>{displayLabel(relation.type)}</td>
-                <td>{relation.from.map(displayLabel).join(" or ")}<span className="pipeline-arrow">{relation.direction === "symmetric" ? " ↔ " : " → "}</span>{relation.to.map(displayLabel).join(" or ")}</td>
+                <td>{relation.from.map(displayLabel).join(" or ")}<span>{relation.direction === "symmetric" ? " ↔ " : " → "}</span>{relation.to.map(displayLabel).join(" or ")}</td>
                 <td>{relation.count > 0 ? `${relation.count} recorded ${relation.count === 1 ? "link" : "links"}` : "No links yet"}</td>
               </tr>
             ))}
@@ -120,9 +119,9 @@ function Connections({ relations }: { relations: RelationTypeRow[] }): ReactNode
 function ArtifactTypes({ types }: { types: ArtifactTypeDef[] }): ReactNode {
   if (types.length === 0) return null;
   return (
-    <details className="pipeline-relations">
+    <details>
       <summary>Attached file types</summary>
-      <table className="pipeline-table">
+      <table>
         <thead><tr><th scope="col">File type</th><th scope="col">File name</th><th scope="col">Content</th><th scope="col">Metadata fields</th></tr></thead>
         <tbody>
           {types.map((type) => (
@@ -144,14 +143,14 @@ function ProfileProblems({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const problems = wiki.profileProblems ?? [];
   if (problems.length === 0) return null;
   return (
-    <section className="pipeline-problems" aria-label="Validation warnings">
+    <section aria-label="Validation warnings">
       <h2>Validation warnings</h2>
       <ul>
         {problems.map((problem, index) => (
           <li key={index}>
-            <code>{problem.kind}</code>
-            {problem.entityType && <span className="chip">{problem.entityType}</span>}
-            {problem.path && <span className="pipeline-path">{problem.path}</span>}
+            <code>{problem.kind}</code>{" "}
+            {problem.entityType && <span>{problem.entityType}</span>}
+            {problem.path && <span>{problem.path}</span>}{" "}
             <span>{problem.message}</span>
           </li>
         ))}
@@ -165,8 +164,8 @@ function Footer({ wiki, rejected }: { wiki: PagesEnvelope; rejected: number }): 
   const problems = wiki.profileProblemTotal ?? 0;
   if (rejected + problems === 0) return null;
   return (
-    <div className="pipeline-footer">
-      <span>{footerText(rejected)}</span>
+    <div>
+      <span>{footerText(rejected)}</span>{" "}
       <a href={LINT_HREF}>See all {plural(problems, "problem")} in Lint →</a>
     </div>
   );
@@ -177,21 +176,21 @@ export function PipelineView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const pipeline = wiki.profilePipeline;
   if (!pipeline || pipeline.entityTypes.length === 0) {
     return (
-      <section className="list-screen">
+      <section>
         <h1>Lifecycle status</h1>
         <EmptyState title="No record stages configured" body="This project does not define categories with tracked stages. You can still browse its pages and source files." command="$ llmwiki template init" />
       </section>
     );
   }
   return (
-    <section className="pipeline">
-      <div className="pipeline-head">
+    <section>
+      <div>
         <h1>Lifecycle status</h1>
-        <span className="pipeline-profile-badge">{wiki.profileId.toUpperCase()}</span>
+        <span>{wiki.profileId.toUpperCase()}</span>
       </div>
-      <p className="pipeline-note">Current record counts, not completion percentages or workflow execution. Terminal means an ending state, not necessarily success. Records missing a state are not included in these counts; see Health &amp; lint for validation problems.</p>
-      <div className="pipeline-columns pipeline-column-head">
-        <span>{COLUMN_HEADS[0]}</span><span>{COLUMN_HEADS[1]}</span><span className="pipeline-col-right">{COLUMN_HEADS[2]}</span>
+      <p>Current record counts, not completion percentages or workflow execution. Terminal means an ending state, not necessarily success. Records missing a state are not included in these counts; see Health &amp; lint for validation problems.</p>
+      <div>
+        <span>{COLUMN_HEADS[0]}</span>{" "}<span>{COLUMN_HEADS[1]}</span>{" "}<span>{COLUMN_HEADS[2]}</span>
       </div>
       {pipeline.entityTypes.map((row) => <TypeRow key={row.type} row={row} />)}
       <Connections relations={pipeline.relationTypes ?? []} />

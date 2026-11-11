@@ -2,7 +2,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
-import "./styles.css";
+import "./tailwind.css";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("Viewer shell is missing its #root element.");

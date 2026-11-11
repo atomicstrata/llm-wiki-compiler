@@ -32,7 +32,7 @@ Press `Ctrl+C` to stop the server.
 llmwiki view-v2 --open
 ```
 
-The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, a theme control, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
+The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
 
 It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
 
@@ -41,6 +41,8 @@ It also has the maintenance screens: `#/health` with the lint caption, the CONTE
 On a profile project it also has the lifecycle status at `#/pipeline` (each type's declared lifecycle, its pages by state, and the validation problems), the workflow runs at `#/workflows` with the runs parked on an approval or a submission, and each run's journey at `#/_journey/<workflow>/<run>` with its stages, their facts, output and artifact links, and the final PDF.
 
 Every screen of `llmwiki view` is now in the v2 client.
+
+The v2 client is styled by Tailwind's defaults and its typography plugin, with no stylesheet of its own. It follows the system's light or dark setting; there is no theme control.
 
 ### Source images
 
