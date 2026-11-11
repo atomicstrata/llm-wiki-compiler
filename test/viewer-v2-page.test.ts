@@ -102,8 +102,9 @@ describe("PageRail", () => {
   it("groups a typed page's relations by type and direction and shows the connector", () => {
     const typed = pagePayload({ id: "papers/p1", entityType: "papers", entityContext: ENTITY_CONTEXT });
     const html = rail(typed, { status: "loading" });
-    expect(html).toContain('<h3>Cites <span>outgoing</span></h3><ul><li title="cites · outgoing · papers/p2"><a href="#/papers/p2" data-page-id="papers/p2">Paper two</a></li>');
-    expect(html).toContain("papers/p3 <span>not found</span>");
+    const shown = text(html);
+    expect(shown).toContain("Cites outgoing Paper two Paper four Cites incoming papers/p3 not found");
+    expect(html).toMatch(/<li title="cites · outgoing · papers\/p2"><a href="#\/papers\/p2" data-page-id="papers\/p2"[^>]*>Paper two<\/a><\/li>/);
     expect(html).toContain('href="#/_source/notes.md?start=1&amp;end=2"');
     expect(html).toContain("Imported from Crossref on 2026-11-01 10:00.");
     expect(html).toContain('href="https://api.example.org/works/1"');

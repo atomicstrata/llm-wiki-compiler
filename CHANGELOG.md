@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`llmwiki view-v2` polish.** Screens cross-fade on navigation where the browser supports view transitions, except with reduced motion. Every focusable element without its own focus style gets a visible focus ring. On narrow screens a page's rail opens as a **Page details** bottom sheet. A typed page's connected records, evidence and import details are styled like the rest of the rail.
 - **The `llmwiki view-v2` dashboard is live.** It refreshes while its tab is visible, shows the pages changed since your last visit, a topic map of the most used tags, and an activity calendar; the static graph panel is replaced, with the explorer one click away. Tags on the dashboard and on every page open `#/_tag/<tag>`.
 - **Sources list the pages that cite them.** `GET /api/source/<file>/cited-by` returns each citing page and the line ranges it cites, answered from the in-memory snapshot without reading the source. `llmwiki view-v2` shows it on every source as **Cited by**.
 - **`/api/pages` rows carry `tags`.** Each row lists the page's frontmatter tags; a page without tags has an empty list.

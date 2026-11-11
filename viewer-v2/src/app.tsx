@@ -5,7 +5,7 @@
  * surfaces that need it. Hover previews, the command palette and the
  * keyboard shortcuts mount once here, so they work from every view.
  */
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { CommandPalette } from "./command-palette";
@@ -22,32 +22,15 @@ import { PendingView } from "./pending-view";
 import { PipelineView } from "./pipeline-view";
 import { RecentView } from "./recent-view";
 import { ReviewsView } from "./reviews-view";
-import { parseRoute, type Route } from "./route";
+import type { Route } from "./route";
 import { SearchView } from "./search-view";
 import { KeyboardShortcuts } from "./shortcuts";
 import { useLiveBootstrap, type Bootstrap } from "./live-bootstrap";
 import { Sidebar } from "./nav";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
+import { useRoute } from "./use-route";
 import { WorkflowsView } from "./workflows-view";
-
-/** Subscribe to hash changes for `useSyncExternalStore`. */
-function subscribeToHash(onChange: () => void): () => void {
-  window.addEventListener("hashchange", onChange);
-  return () => window.removeEventListener("hashchange", onChange);
-}
-
-/** The current route, updated whenever the hash changes. */
-function useRoute(): Route {
-  const hash = useSyncExternalStore(subscribeToHash, () => window.location.hash);
-  useEffect(() => {
-    // Braces matter: newer browsers return a Promise from scrollTo, and an
-    // effect must return nothing or a cleanup function.
-    window.scrollTo(0, 0);
-  }, [hash]);
-  return parseRoute(hash);
-}
-
 
 const STATE_WARNINGS: Partial<Record<PagesEnvelope["stateStatus"], string>> = {
   corrupt: "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.",
