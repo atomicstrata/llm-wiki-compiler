@@ -27,23 +27,38 @@ function writePage(root: string, slug: string): void {
   writeFileSync(path.join(root, "wiki", "concepts", `${slug}.md`), `# ${slug}\n`);
 }
 
+/** A project with pages a, b and c, and how many times `run` resolves its root. */
+async function rootLookupsDuring(run: (reads: ReturnType<typeof diskLocalReads>) => Promise<void>): Promise<number> {
+  const root = scratch();
+  for (const slug of ["a", "b", "c"]) writePage(root, slug);
+  const reads = diskLocalReads(root);
+  const realpath = spyOn(fs, "realpathSync");
+  try {
+    await run(reads);
+    return realpath.mock.calls.filter(([target]: unknown[]) => String(target) === root).length;
+  } finally {
+    realpath.mockRestore();
+  }
+}
+
 afterEach(() => {
   for (const dir of roots.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
 describe("diskLocalReads root lookup", () => {
   it("resolves the root once across many confined reads", async () => {
-    const root = scratch();
-    for (const slug of ["a", "b", "c"]) writePage(root, slug);
-    const reads = diskLocalReads(root);
-    const realpath = spyOn(fs, "realpathSync");
-    try {
+    const lookups = await rootLookupsDuring(async (reads) => {
       for (const slug of ["a", "b", "c"]) expect(await reads.readConfinedPage("wiki/concepts", slug)).toEqual({ content: `# ${slug}\n` });
       expect(await reads.readConfinedFile("wiki/concepts/a.md")).toEqual({ content: "# a\n" });
-      expect(realpath.mock.calls.filter(([target]) => String(target) === root)).toHaveLength(1);
-    } finally {
-      realpath.mockRestore();
-    }
+    });
+    expect(lookups).toBe(1);
+  });
+
+  it("resolves the root once when the first reads run at the same time", async () => {
+    const lookups = await rootLookupsDuring(async (reads) => {
+      await Promise.all(["a", "b", "c"].map((slug) => reads.readConfinedPage("wiki/concepts", slug)));
+    });
+    expect(lookups).toBe(1);
   });
 
   it("looks a root that did not resolve up again on the next read", async () => {

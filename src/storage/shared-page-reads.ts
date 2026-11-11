@@ -30,7 +30,7 @@
  *
  * Only a direct, successful read carries an identity. A dropped read, or a
  * page read through an in-directory link, is never reused; it is read again on
- * every ask. Outside a window every ask reads, exactly as before.
+ * every ask. Outside a window every ask reads.
  *
  * The walks also parse each page's frontmatter. {@link frontmatterOfRead}
  * keys that parse on the read's result object, so asks answered by the same
@@ -111,15 +111,15 @@ export async function sharedConfinedRead(
   file: string,
   read: () => Promise<IdentifiedRead>,
 ): Promise<ConfinedReadResult> {
-  const window = sharedReads.getStore();
-  if (!window) return (await read()).result;
+  const shared = sharedReads.getStore();
+  if (!shared) return (await read()).result;
   const key = `${expectedDir}\0${file}`;
-  const earlier = window.get(key);
+  const earlier = shared.get(key);
   const reused = earlier ? reusable(await settledRead(earlier), file) : null;
   if (reused) return reused;
   const entry: SharedEntry = { pending: read() };
   entry.pending.then((settled) => { entry.settled = settled; }, () => {});
-  window.set(key, entry);
+  shared.set(key, entry);
   return (await entry.pending).result;
 }
 

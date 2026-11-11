@@ -30,7 +30,7 @@ import path from "path";
 import { leafPresent } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads, readConfinedExactFile } from "../storage/disk-local-reads.js";
 import type { ConfinedReadResult, LegacyLocalReads } from "../storage/legacy-local-reads.js";
-import { safeRealpath } from "../utils/path-confine.js";
+import { realpathOnce } from "../utils/path-confine.js";
 import * as output from "../utils/output.js";
 
 export type { ConfinedReadResult };
@@ -169,7 +169,7 @@ async function readWikiPageOrWarn(
 /**
  * LOCAL DISK. A page reader confined to the EXACT absolute directory
  * `absScanDir` (the directory itself is the confinement boundary). The
- * directory's real path is looked up once, on the first read, and every read
+ * directory's real path is looked up once ({@link realpathOnce}), and every read
  * of `<slug>.md` under it then goes through the shared realpath + isInsideDir
  * + handle-bound read flow. A directory that does not resolve is
  * `{dropped: "no-root"}`.
@@ -193,9 +193,9 @@ async function readWikiPageOrWarn(
  * @returns A reader of `<slug>.md` under `absScanDir`, emitting no warning.
  */
 export function wikiPageReaderInDir(absScanDir: string): (slug: string) => Promise<ConfinedReadResult> {
-  let canonicalDir: Promise<string | null> | undefined;
+  const canonicalDir = realpathOnce(absScanDir);
   return async (slug) => {
-    const dir = await (canonicalDir ??= safeRealpath(absScanDir));
+    const dir = await canonicalDir();
     if (!dir) return { dropped: "no-root" };
     return readConfinedExactFile(dir, path.join(dir, `${slug}.md`));
   };

@@ -184,7 +184,7 @@ async function canonicalLeafOf(canonicalLeaf: string, opened: { dev: number; ino
  * them, since `lexicalPath` must lie lexically inside it — resolved to
  * itself in that same lookup, and `realpath(root)` would have rebuilt exactly
  * `lexicalPath`. Only a root given in another form (`/var` for `/private/var`)
- * is resolved, and then compared exactly as before.
+ * is resolved, and then compared.
  */
 export async function expectedRealMatching(root: string, lexicalPath: string, observedReal: string | null): Promise<string | null> {
   if (observedReal === null || !isInsideDir(lexicalPath, path.resolve(root))) return null;
@@ -449,7 +449,7 @@ export async function readConfinedPageWith<T>(
 ): Promise<{ kind: "ok"; value: T } | Exclude<ConfinedPageRead, { kind: "ok" }>> {
   // No realpath before the open: O_NOFOLLOW refuses a symlinked leaf, and the
   // post-open check below re-resolves the path and binds it to the opened inode,
-  // which is the proof that counts. A pre-open lookup only repeated it.
+  // which is the proof that counts.
   if (!isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
   let handle: FileHandle, opened: Stats;
   try {

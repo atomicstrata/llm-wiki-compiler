@@ -6,8 +6,8 @@
  * steps, so a sequential loop pays every read's full syscall latency in turn.
  * {@link prefetchInOrder} starts every read up front, a bounded number at a
  * time, and hands back their promises in input order. A caller that awaits
- * them in order sees each result, and the first failure, exactly where its
- * sequential loop did, so its own warnings and early returns are unchanged.
+ * them in order sees each result, and the first failure, at that item's place
+ * in the order, so its warnings and early returns follow input order.
  * Use it only where the reads have no side effects and depend on nothing the
  * loop does between them.
  */

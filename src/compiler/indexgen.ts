@@ -9,9 +9,9 @@
  * project only through {@link IndexGenerationSources}, five operations this
  * module names itself, the last of which publishes the finished index.
  * `generateIndex(root)` is a delegate over a private binding built per call,
- * whose members call the same readers and the same atomic writer as before, at
- * the same points. Naming the operations selects no backend and rules on no
- * mechanism; every member of the local binding is still local disk.
+ * whose members call the local readers and atomic writer. Naming the
+ * operations selects no backend and rules on no mechanism; every member of
+ * the local binding is local disk.
  */
 
 import path from "path";
@@ -44,7 +44,7 @@ export interface IndexGenerationSources {
   collectEntityPages(loaded: LoadedProfile): Promise<{ pages: EntityPage[] }>;
   /**
    * LAST. Replace the project's index with `content`, the whole finished text.
-   * On local disk this is the incumbent confined atomic replacement of
+   * On local disk this is the confined atomic replacement of
    * `wiki/index.md`. What a reader sees meanwhile, durability, locking and
    * recovery are the implementation's and are NOT promised by this member.
    */

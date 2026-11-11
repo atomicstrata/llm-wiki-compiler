@@ -32,6 +32,24 @@ export async function safeRealpath(p: string, opts: StrictIoOptions = {}): Promi
 }
 
 /**
+ * {@link safeRealpath} of `p`, looked up on the first call and kept for every
+ * later one, concurrent calls included. A path that does not resolve is not
+ * kept, so it is looked up again on the next call. For a directory that one
+ * operation reads many files under: keeping its real path is safe where each
+ * file read re-resolves the file and checks it is inside that directory.
+ */
+export function realpathOnce(p: string): () => Promise<string | null> {
+  let lookup: Promise<string | null> | undefined;
+  return () => {
+    lookup ??= safeRealpath(p).then((real) => {
+      if (real === null) lookup = undefined;
+      return real;
+    });
+    return lookup;
+  };
+}
+
+/**
  * True when `child` equals `dir` or sits beneath it.
  *
  * Takes NATIVE paths — absolute realpaths — and so compares with `path.sep`.
