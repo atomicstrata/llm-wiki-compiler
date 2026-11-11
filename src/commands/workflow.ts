@@ -1,17 +1,18 @@
 /**
  * @file src/commands/workflow.ts
  * @description Commander actions for the core `llmwiki workflow` lifecycle group:
- * `list`, `start`, `status`, `advance`, `gate approve`, `cancel`, `resume`, and
+ * `list`, `show`, `events`, `start`, `status`, `cancel`, `fail`, `resume`, and
  * `submit` over a profile's declared workflows.
  *
  * Each action resolves `process.cwd()`, calls the matching core workflow
  * operation, and prints human-readable output. `list` and `status` are read-only;
  * the lifecycle ops take the project lock inside the core operation. The `adapt`
- * and `project` commands live in `./workflow-adapt.js`; the `action` discovery +
- * run commands live in `./workflow-action.js`; the shared input parsers + run
- * renderers live in `./workflow-shared.js`. The moved command functions (and the
- * `parseJsonObject` helper) are RE-EXPORTED here so `cli.ts` and the existing
- * tests keep importing them from `./commands/workflow.js` unchanged.
+ * and `project` commands live in `./workflow-adapt.js`; `advance` lives in
+ * `./workflow-advance.js`; `gate approve` in `./workflow-gate.js`; the `action`
+ * discovery + run commands live in `./workflow-action.js`; the shared input parsers + run
+ * renderers live in `./workflow-shared.js`. The CLI imports each of those
+ * modules itself, when its subcommand runs, so this module re-exports only the
+ * `parseJsonObject` helper its existing tests import from here.
  *
  * Exit semantics: `list` always returns 0; `status` returns a NON-zero code when
  * ANY result carries a `problem` or is `blocked-by-config`, so a malformed or
@@ -20,16 +21,15 @@
  * and exits 1 itself only on a malformed `--input` pair.
  */
 
-import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { MAX_WORKFLOW_SUBMIT_FILE_BYTES } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { readCappedNoFollow } from "@atomicstrata/llmwiki-core/compiler-cli";
+import * as output from "@atomicstrata/llmwiki-core/modules/utils/output";
+import { MAX_WORKFLOW_SUBMIT_FILE_BYTES } from "@atomicstrata/llmwiki-core/modules/utils/constants";
+import { readCappedNoFollow } from "@atomicstrata/llmwiki-core/modules/utils/confined-read";
 import { assertInputDepthWithinBounds, WorkflowInputBoundsError } from "../workflows/input-bounds.js";
 import { listWorkflows } from "../workflows/list.js";
 import { showWorkflow, type WorkflowStageDetail } from "../workflows/show.js";
 import { listRunEvents } from "../workflows/run-events.js";
 import { startWorkflow } from "../workflows/start.js";
-import { workflowStatus } from "../workflows/status.js";
-import { advanceWorkflow } from "../workflows/advance.js";
+import { workflowStatus } from "@atomicstrata/llmwiki-core/modules/workflow-history/status";
 import { cancelWorkflow } from "../workflows/cancel.js";
 import { failWorkflow } from "../workflows/fail.js";
 import { resumeWorkflow } from "../workflows/resume.js";
@@ -47,13 +47,6 @@ import type { AppendRelationInput } from "@atomicstrata/llmwiki-core/compiler-cl
 
 export { parseJsonObject } from "./workflow-shared.js";
 export type { WorkflowStartOptions };
-export { workflowAdaptCommand, workflowProjectCommand } from "./workflow-adapt.js";
-export { workflowGateApproveCommand } from "./workflow-gate.js";
-export {
-  workflowActionListCommand,
-  workflowActionShowCommand,
-  workflowActionRunCommand,
-} from "./workflow-action.js";
 
 /** The `--kind` values `workflow submit` accepts, for fail-closed validation. */
 const STAGE_OUTPUT_KINDS: ReadonlySet<string> = new Set(["page", "relation", "lifecycle-transition", "artifact", "human-input"]);
@@ -193,21 +186,6 @@ export async function workflowStatusCommand(runId: string | undefined): Promise<
   output.header("Workflow runs");
   for (const status of statuses) printRunStatus(status);
   return statuses.some(isProblematic) ? 1 : 0;
-}
-
-/**
- * Advance an active run by one stage, printing the outcome + new position. The
- * typed lifecycle errors (`RunNotActiveError`/`RunUnavailableError`/`LockBusyError`)
- * propagate to the cli.ts action wrapper.
- *
- * @param runId - The run id to advance.
- * @returns The process exit code (always 0; failures throw).
- */
-export async function workflowAdvanceCommand(runId: string): Promise<number> {
-  const { run, outcome } = await advanceWorkflow(process.cwd(), runId);
-  output.status("→", output.info(`outcome: ${outcome}`));
-  printRunPosition(run);
-  return 0;
 }
 
 /**

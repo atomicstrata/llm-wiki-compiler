@@ -9,19 +9,18 @@
 import { createRequire } from "module";
 import { Command } from "commander";
 import { loadCliEnvironment } from "./cli/environment.js";
+import { declareLazyCommands, type LazyCommand } from "./cli/lazy-commands.js";
 
 loadCliEnvironment();
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
-type Configure = (command: Command) => void;
-
 /**
  * Every top-level command in help order: its usage as help prints it, its
  * description, and the module that adds its options, action and subcommands.
  */
-const COMMANDS: [usage: string, description: string, load: () => Promise<Configure>][] = [
+const COMMANDS: LazyCommand[] = [
   ["ingest [options] <source>", "Ingest a URL or local file into sources/",
     () => import("./cli/ingest-command.js").then((m) => m.registerIngestCommand)],
   ["ingest-session [options] <path>", "Ingest a coding-agent session export (Claude, Codex, Cursor) into sources/",
@@ -79,9 +78,9 @@ const COMMANDS: [usage: string, description: string, load: () => Promise<Configu
   ["import [options]", "Import an OKF bundle as review candidates (default) or live pages (--trusted)",
     () => import("./cli/import-command.js").then((m) => m.registerImportCommand)],
   ["next [options]", "Show the recommended next action for this llmwiki project (read-only)",
-    () => import("./cli/context-commands.js").then((m) => m.registerNextCommand)],
+    () => import("./cli/next-command.js").then((m) => m.registerNextCommand)],
   ["context [options] <prompt>", "Build an agent-ready evidence pack for <prompt> from the compiled wiki (read-only; provider credentials optional — semantic retrieval is used when available and falls back to lexical otherwise)",
-    () => import("./cli/context-commands.js").then((m) => m.registerContextCommand)],
+    () => import("./cli/context-command.js").then((m) => m.registerContextCommand)],
   ["quickstart [options] <source>", "Ingest a source and compile it into a wiki in one step. Recommends the next action when finished.",
     () => import("./cli/quickstart-command.js").then((m) => m.registerQuickstartCommand)],
   ["serve [options]", "Start an MCP server exposing wiki tools and resources over stdio",
@@ -95,40 +94,6 @@ program
   .description("The knowledge compiler — raw sources in, interlinked wiki out")
   .version(version);
 
-// Declare each command with its name and arguments only, so help needs no
-// command module. Commander lists `[options]` only for a command that has
-// options, and these have none until their module loads, so the usage text
-// from the table is what the command list prints.
-const OPTIONS_MARKER = " [options]";
-const listed = new Map<Command, { usage: string; load: () => Promise<Configure> }>();
-for (const [usage, description, load] of COMMANDS) {
-  listed.set(program.command(usage.replace(OPTIONS_MARKER, "")).description(description), { usage, load });
-}
-
-const help = program.createHelp();
-program.configureHelp({ subcommandTerm: (command) => listed.get(command)?.usage ?? help.subcommandTerm(command) });
-
-/** Add a listed command's options, action and subcommands from its module. */
-async function configure(command: Command): Promise<void> {
-  const entry = listed.get(command);
-  if (entry) (await entry.load())(command);
-}
-
-program.hook("preSubcommand", (_program, command) => configure(command));
-
-// Commander's own `help <command>` prints the declared command without running
-// the hook, so this one configures the command before printing its help.
-program.helpCommand(false);
-program
-  .command("help [command]")
-  .description("display help for command")
-  .helpOption(false)
-  .allowExcessArguments()
-  .action(async (name?: string) => {
-    const command = name === undefined ? program : program.commands.find((candidate) => candidate.name() === name);
-    if (command === undefined) return program.help({ error: true });
-    await configure(command);
-    command.help();
-  });
+declareLazyCommands(program, COMMANDS);
 
 await program.parseAsync();

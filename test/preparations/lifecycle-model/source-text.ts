@@ -20,11 +20,65 @@
  * identifiers are.
  */
 
+import path from "node:path";
 import ts from "typescript";
 
-/** Parse once per source text; the controls re-ask about the same files. */
-function parse(source: string): ts.SourceFile {
-  return ts.createSourceFile("probe.ts", source, ts.ScriptTarget.Latest, true);
+/**
+ * Everything these controls ask of one source text, answered from ONE parse.
+ *
+ * The controls re-ask about the same files from many tests and helpers, and
+ * each question used to re-parse: one structural suite spent nearly all of its
+ * CPU in the compiler's parser. The answers are kept rather than the syntax
+ * tree, because a tree is roughly forty times its source and these controls
+ * read all of `src/` twice over (raw and comment-stripped).
+ *
+ * Keyed by the text itself plus the part of the file name the parser reads, so
+ * no file change can hide behind a memo: different bytes are a different key
+ * and are parsed afresh.
+ */
+interface SourceFacts {
+  readonly stripped: string;
+  readonly identifiers: ReadonlySet<string>;
+  readonly declared: ReadonlySet<string>;
+  readonly staticSpecifiers: readonly string[];
+  readonly dynamicSpecifiers: readonly string[];
+}
+
+const factsBySource = new Map<string, SourceFacts>();
+
+/**
+ * The name the parser actually sees: only a file name's suffix steers a parse
+ * (script kind from the extension, ambient context from `.d.ts`), so every
+ * name sharing that suffix parses a given text identically.
+ */
+function parseName(fileName: string): string {
+  const base = path.basename(fileName);
+  const dot = base.indexOf(".");
+  return dot < 0 ? "probe" : `probe${base.slice(dot)}`;
+}
+
+/** The memoized facts of one text, parsing it the first time it is asked about. */
+function factsOf(fileName: string, source: string): SourceFacts {
+  const name = parseName(fileName);
+  const key = `${name}\0${source}`;
+  let facts = factsBySource.get(key);
+  if (facts === undefined) {
+    facts = computeFacts(ts.createSourceFile(name, source, ts.ScriptTarget.Latest, true), source);
+    factsBySource.set(key, facts);
+  }
+  return facts;
+}
+
+/** Every fact, from one tree that is dropped afterwards. */
+function computeFacts(parsed: ts.SourceFile, source: string): SourceFacts {
+  const { identifiers, dynamicSpecifiers } = walkExpressions(parsed);
+  return {
+    stripped: blankComments(parsed, source),
+    identifiers,
+    declared: new Set(parsed.statements.flatMap(declaredNames)),
+    staticSpecifiers: staticSpecifiersOf(parsed),
+    dynamicSpecifiers,
+  };
 }
 
 /**
@@ -52,6 +106,15 @@ function parse(source: string): ts.SourceFile {
  * lines.
  */
 export function withoutComments(source: string): string {
+  return factsOf("probe.ts", source).stripped;
+}
+
+/** {@link withoutComments} over an already-parsed text. */
+function blankComments(parsed: ts.SourceFile, source: string): string {
+  // Every comment the parser reports starts with `//` or `/*`, so a text with
+  // neither has nothing to blank — the comment-stripped texts the controls
+  // re-parse are mostly this case, and the token walk below is the costly part.
+  if (!source.includes("//") && !source.includes("/*")) return source;
   const ranges: ts.CommentRange[] = [];
   const collect = (node: ts.Node): void => {
     for (const range of ts.getLeadingCommentRanges(source, node.pos) ?? []) ranges.push(range);
@@ -63,7 +126,7 @@ export function withoutComments(source: string): string {
     // returned the cry-wolf failure through a fourth door.
     for (const child of node.getChildren()) collect(child);
   };
-  collect(parse(source));
+  collect(parsed);
   const blanked = source.split("");
   for (const range of ranges) {
     for (let index = range.pos; index < range.end; index += 1) {
@@ -81,7 +144,7 @@ export function withoutComments(source: string): string {
  * unrelated function, which is not the seam a row means.
  */
 export function declaresSymbol(source: string, symbol: string): boolean {
-  return parse(source).statements.some((statement) => declaredNames(statement).includes(symbol));
+  return factsOf("probe.ts", source).declared.has(symbol);
 }
 
 /** The top-level names one statement introduces. */
@@ -108,20 +171,30 @@ function declaredNames(statement: ts.Statement): string[] {
  * cannot satisfy this and cannot falsely trip it either.
  */
 export function referencesSymbol(source: string, symbol: string): boolean {
-  let found = false;
-  // `forEachChild` here is CORRECT and should stay, unlike in the comment-range
-  // walk above. It skips punctuation and keyword tokens, but an identifier is
-  // always reachable as a named semantic child, so none is missed. The token gap
-  // only ever mattered for comment RANGES, which attach to positions rather than
-  // nodes. Noted so a later sweep for "forEachChild considered harmful" does not
-  // churn it.
+  return factsOf("probe.ts", source).identifiers.has(symbol);
+}
+
+/**
+ * Every identifier in code, and every dynamic-import specifier, in one walk.
+ *
+ * `forEachChild` here is CORRECT and should stay, unlike in the comment-range
+ * walk above. It skips punctuation and keyword tokens, but an identifier is
+ * always reachable as a named semantic child, so none is missed. The token gap
+ * only ever mattered for comment RANGES, which attach to positions rather than
+ * nodes. Noted so a later sweep for "forEachChild considered harmful" does not
+ * churn it.
+ */
+function walkExpressions(parsed: ts.SourceFile): { identifiers: Set<string>; dynamicSpecifiers: string[] } {
+  const identifiers = new Set<string>();
+  const dynamicSpecifiers: string[] = [];
   const visit = (node: ts.Node): void => {
-    if (found) return;
-    if (ts.isIdentifier(node) && node.text === symbol) { found = true; return; }
+    if (ts.isIdentifier(node)) identifiers.add(node.text);
+    const specifier = dynamicImportSpecifierOf(node);
+    if (specifier !== undefined) dynamicSpecifiers.push(specifier);
     ts.forEachChild(node, visit);
   };
-  visit(parse(source));
-  return found;
+  visit(parsed);
+  return { identifiers, dynamicSpecifiers };
 }
 
 /**
@@ -147,7 +220,12 @@ export function referencesSymbol(source: string, symbol: string): boolean {
  * for dynamic-import call expressions with a string-literal argument.
  */
 export function importedSpecifiers(fileName: string, source: string): string[] {
-  const parsed = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true);
+  const facts = factsOf(fileName, source);
+  return [...facts.staticSpecifiers, ...facts.dynamicSpecifiers];
+}
+
+/** The specifiers of top-level `import` and `export … from` statements, in order. */
+function staticSpecifiersOf(parsed: ts.SourceFile): string[] {
   const specifiers: string[] = [];
   for (const statement of parsed.statements) {
     const clause = ts.isImportDeclaration(statement)
@@ -155,7 +233,6 @@ export function importedSpecifiers(fileName: string, source: string): string[] {
       : ts.isExportDeclaration(statement) ? statement.moduleSpecifier : undefined;
     if (clause !== undefined && ts.isStringLiteral(clause)) specifiers.push(clause.text);
   }
-  for (const specifier of collectDynamicImports(parsed)) specifiers.push(specifier);
   return specifiers;
 }
 
@@ -168,23 +245,16 @@ export function importedSpecifiers(fileName: string, source: string): string[] {
  * this module CALL" has to be able to ask for the dynamic ones alone.
  */
 export function dynamicImportSpecifiers(fileName: string, source: string): string[] {
-  return collectDynamicImports(ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true));
+  return [...factsOf(fileName, source).dynamicSpecifiers];
 }
 
-/** Every dynamic-import call specifier anywhere in the tree. */
-function collectDynamicImports(parsed: ts.SourceFile): string[] {
-  const specifiers: string[] = [];
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-      const [argument] = node.arguments;
-      // A non-literal argument is a specifier nothing static can resolve; it is
-      // out of scope rather than silently treated as absent.
-      if (argument !== undefined && ts.isStringLiteral(argument)) specifiers.push(argument.text);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(parsed);
-  return specifiers;
+/** The specifier of one dynamic-import call, when `node` is one with a literal argument. */
+function dynamicImportSpecifierOf(node: ts.Node): string | undefined {
+  if (!ts.isCallExpression(node) || node.expression.kind !== ts.SyntaxKind.ImportKeyword) return undefined;
+  const [argument] = node.arguments;
+  // A non-literal argument is a specifier nothing static can resolve; it is
+  // out of scope rather than silently treated as absent.
+  return argument !== undefined && ts.isStringLiteral(argument) ? argument.text : undefined;
 }
 
 /** Whether a module statically imports Node's filesystem API, in ANY spelling. */

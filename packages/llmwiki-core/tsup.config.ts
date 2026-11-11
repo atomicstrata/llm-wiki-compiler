@@ -11,14 +11,19 @@ const SRC = path.resolve("../../src");
 
 /**
  * Every module the CLI imports by its own path
- * (`@atomicstrata/llmwiki-core/modules/commands/ingest`), read from the CLI's
- * import statements so the built entries cannot drift from what it uses. The
- * CLI loads a command's module when that command runs, so starting it does
- * not load every command.
+ * (`@atomicstrata/llmwiki-core/modules/commands/ingest`), read from the import
+ * statements of the CLI's own files (`src/cli/` and the `workflow` command
+ * modules in `src/commands/`) so the built entries cannot drift from what it
+ * uses. The CLI loads a command's module when that command runs, so starting
+ * it does not load every command.
  */
-const CLI_DIR = path.join(SRC, "cli");
-const moduleNames = new Set(readdirSync(CLI_DIR).flatMap((file) =>
-  [...readFileSync(path.join(CLI_DIR, file), "utf8").matchAll(/"@atomicstrata\/llmwiki-core\/modules\/([^"]+)"/g)]
+const COMMANDS_DIR = path.join(SRC, "commands");
+const cliFiles = [
+  ...readdirSync(path.join(SRC, "cli")).map((file) => path.join(SRC, "cli", file)),
+  ...readdirSync(COMMANDS_DIR).filter((file) => /^workflow.*\.ts$/.test(file)).map((file) => path.join(COMMANDS_DIR, file)),
+];
+const moduleNames = new Set(cliFiles.flatMap((file) =>
+  [...readFileSync(file, "utf8").matchAll(/"@atomicstrata\/llmwiki-core\/modules\/([^"]+)"/g)]
     .map((match) => match[1])));
 
 const moduleEntries = Object.fromEntries(

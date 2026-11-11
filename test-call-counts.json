@@ -90,7 +90,7 @@
       "spawn": 1
     },
     "test/artifact-precondition-seam-invariant.test.ts": {
-      "fs": 1263,
+      "fs": 1286,
       "spawn": 0
     },
     "test/artifact-requirement-lint.test.ts": {
@@ -570,7 +570,7 @@
       "spawn": 5
     },
     "test/codex-agent-interrupt.test.ts": {
-      "fs": 729,
+      "fs": 841,
       "spawn": 16
     },
     "test/codex-agent-preservation.test.ts": {
@@ -578,7 +578,7 @@
       "spawn": 0
     },
     "test/codex-strict-schema.test.ts": {
-      "fs": 1201,
+      "fs": 1224,
       "spawn": 2
     },
     "test/commands/ingest-status.test.ts": {
@@ -682,7 +682,7 @@
       "spawn": 27
     },
     "test/compile-reroute-generation.test.ts": {
-      "fs": 1064,
+      "fs": 1065,
       "spawn": 1
     },
     "test/compile-reroute-phases.test.ts": {
@@ -1230,7 +1230,7 @@
       "spawn": 1
     },
     "test/exclusive-lock.test.ts": {
-      "fs": 77,
+      "fs": 80,
       "spawn": 1
     },
     "test/export-freshness.test.ts": {
@@ -1266,7 +1266,7 @@
       "spawn": 0
     },
     "test/extraction-reuse.test.ts": {
-      "fs": 10175,
+      "fs": 10196,
       "spawn": 1
     },
     "test/extraction-snapshot.test.ts": {
@@ -1554,7 +1554,7 @@
       "spawn": 0
     },
     "test/lock-pid-reuse.test.ts": {
-      "fs": 662,
+      "fs": 680,
       "spawn": 1
     },
     "test/lock-private-dir-confine.test.ts": {
@@ -1650,7 +1650,7 @@
       "spawn": 0
     },
     "test/no-research-branch-in-core.test.ts": {
-      "fs": 1180,
+      "fs": 1203,
       "spawn": 0
     },
     "test/obsidian.test.ts": {
@@ -2230,7 +2230,7 @@
       "spawn": 0
     },
     "test/operations-packs/artifact-evidence-runner.test.ts": {
-      "fs": 6820,
+      "fs": 6822,
       "spawn": 2
     },
     "test/operations-packs/artifact-evidence.test.ts": {
@@ -2890,7 +2890,7 @@
       "spawn": 1
     },
     "test/preparations/capture-catch-ledger.test.ts": {
-      "fs": 1266,
+      "fs": 1289,
       "spawn": 0
     },
     "test/preparations/capture-fault-classification.test.ts": {
@@ -3070,7 +3070,7 @@
       "spawn": 0
     },
     "test/preparations/lifecycle-model/structural-controls.test.ts": {
-      "fs": 1272,
+      "fs": 1295,
       "spawn": 0
     },
     "test/preparations/lifecycle-model/unit-shape.test.ts": {
@@ -3642,7 +3642,7 @@
       "spawn": 1
     },
     "test/profile-template-genericity.test.ts": {
-      "fs": 1343,
+      "fs": 1366,
       "spawn": 1
     },
     "test/profile-template-install.test.ts": {
@@ -3814,7 +3814,7 @@
       "spawn": 3
     },
     "test/provider-codex-agent.test.ts": {
-      "fs": 331,
+      "fs": 337,
       "spawn": 32
     },
     "test/provider-converse.test.ts": {
@@ -4086,11 +4086,11 @@
       "spawn": 1
     },
     "test/relation-store-audit.test.ts": {
-      "fs": 5549,
+      "fs": 5513,
       "spawn": 1
     },
     "test/relation-store-concurrent.test.ts": {
-      "fs": 4493,
+      "fs": 4667,
       "spawn": 6
     },
     "test/relation-store-leaf-symlink.test.ts": {
@@ -4190,7 +4190,7 @@
       "spawn": 1
     },
     "test/review-approve-keeps-extraction.test.ts": {
-      "fs": 7336,
+      "fs": 7273,
       "spawn": 1
     },
     "test/review-approve-planner.test.ts": {
@@ -4206,7 +4206,7 @@
       "spawn": 21
     },
     "test/review-batch-embedding-recovery.test.ts": {
-      "fs": 18460,
+      "fs": 18457,
       "spawn": 1
     },
     "test/review-batch-input.test.ts": {
@@ -4286,7 +4286,7 @@
       "spawn": 12
     },
     "test/review-policy-compile.test.ts": {
-      "fs": 6920,
+      "fs": 6921,
       "spawn": 1
     },
     "test/review-policy-source-state.test.ts": {
@@ -4414,7 +4414,7 @@
       "spawn": 0
     },
     "test/sdk/staging.test.ts": {
-      "fs": 622,
+      "fs": 616,
       "spawn": 1
     },
     "test/sdk/workflow-action-run-sdk.test.ts": {
@@ -5346,7 +5346,7 @@
       "spawn": 0
     },
     "test/storage/project-lock-binding.test.ts": {
-      "fs": 416,
+      "fs": 392,
       "spawn": 1
     },
     "test/storage/project-state-binding.test.ts": {
@@ -6342,7 +6342,7 @@
       "spawn": 1
     },
     "test/workflow-advance.test.ts": {
-      "fs": 4470,
+      "fs": 4476,
       "spawn": 1
     },
     "test/workflow-artifact-immutable.test.ts": {
@@ -6378,7 +6378,7 @@
       "spawn": 1
     },
     "test/workflow-gate.test.ts": {
-      "fs": 3561,
+      "fs": 3573,
       "spawn": 1
     },
     "test/workflow-gates.test.ts": {
@@ -6530,7 +6530,7 @@
       "spawn": 1
     },
     "test/workflow-start-status.test.ts": {
-      "fs": 1470,
+      "fs": 1482,
       "spawn": 1
     },
     "test/workflow-status-artifact-hint.test.ts": {

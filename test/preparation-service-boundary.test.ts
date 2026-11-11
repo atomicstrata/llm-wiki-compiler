@@ -135,7 +135,11 @@ function isValueImportClause(clause: ts.ImportClause | undefined): boolean {
  * dynamic import is ALWAYS a value reach: there is no type-only form of it.
  */
 function valueImportsOf(module: string, source: string): string[] {
-  const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+  return moduleEdgesOf(module, source).valueImports;
+}
+
+/** {@link valueImportsOf} over an already-parsed module. */
+function parsedValueImports(module: string, parsed: ts.SourceFile, source: string): string[] {
   const reached: string[] = [];
   for (const statement of parsed.statements) {
     const specifier = valueSpecifierOf(statement);
@@ -292,7 +296,34 @@ interface ReExportEdge {
 
 /** Every value-carrying `export … from` edge one module declares. */
 function reExportEdges(module: string, source: string): ReExportEdge[] {
-  const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+  return moduleEdgesOf(module, source).reExports;
+}
+
+/**
+ * Both edge sets of one module, from ONE parse of its text.
+ *
+ * The graph walks revisit the same modules from every test, and re-parsing them
+ * on each visit was nearly all of this file's CPU. Keyed by the module AND its
+ * exact text: edges resolve against the module's path, and different bytes are
+ * a different key, so a changed file is parsed afresh rather than answered from
+ * memory.
+ */
+const edgesBySource = new Map<string, { valueImports: string[]; reExports: ReExportEdge[] }>();
+
+/** The memoized value-import and re-export edges of one module text. */
+function moduleEdgesOf(module: string, source: string): { valueImports: string[]; reExports: ReExportEdge[] } {
+  const key = `${module}\0${source}`;
+  let edges = edgesBySource.get(key);
+  if (edges === undefined) {
+    const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+    edges = { valueImports: parsedValueImports(module, parsed, source), reExports: parsedReExports(module, parsed) };
+    edgesBySource.set(key, edges);
+  }
+  return edges;
+}
+
+/** {@link reExportEdges} over an already-parsed module. */
+function parsedReExports(module: string, parsed: ts.SourceFile): ReExportEdge[] {
   const edges: ReExportEdge[] = [];
   for (const statement of parsed.statements) {
     if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;
