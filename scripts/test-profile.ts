@@ -89,15 +89,21 @@ function printOps(counts: readonly FileCallCounts[]): void {
   console.log(`Spawns: ${opsLine(spawns, 8)}`);
 }
 
+/** A file's CPU seconds in its own process and in the CLIs it spawned. */
+function cpuSeconds(item: FileCallCounts): { self: number; child: number; total: number } {
+  const { self = 0, child = 0 } = item.cpu ?? {};
+  return { self: self / 1000, child: child / 1000, total: (self + child) / 1000 };
+}
+
 /** CPU seconds spent in test files' own processes and in the CLIs they spawned, and the costliest files. */
 function printCpu(counts: readonly FileCallCounts[]): void {
-  const cpuOf = (item: FileCallCounts) => (item.cpu?.self ?? 0) + (item.cpu?.child ?? 0);
-  const self = counts.reduce((sum, item) => sum + (item.cpu?.self ?? 0), 0) / 1000;
-  const child = counts.reduce((sum, item) => sum + (item.cpu?.child ?? 0), 0) / 1000;
+  const all = counts.map(cpuSeconds);
+  const self = all.reduce((sum, cpu) => sum + cpu.self, 0), child = all.reduce((sum, cpu) => sum + cpu.child, 0);
   console.log(`CPU: ${self.toFixed(1)} s in test processes, ${child.toFixed(1)} s in spawned CLIs (not counted: other programs such as ps)`);
   console.log("Most CPU:");
-  for (const item of [...counts].sort((a, b) => cpuOf(b) - cpuOf(a)).slice(0, TOP_FILES)) {
-    console.log(`  ${(cpuOf(item) / 1000).toFixed(2).padStart(7)} s  ${item.file}  (self ${((item.cpu?.self ?? 0) / 1000).toFixed(2)} s, CLIs ${((item.cpu?.child ?? 0) / 1000).toFixed(2)} s)`);
+  for (const item of [...counts].sort((a, b) => cpuSeconds(b).total - cpuSeconds(a).total).slice(0, TOP_FILES)) {
+    const cpu = cpuSeconds(item);
+    console.log(`  ${cpu.total.toFixed(2).padStart(7)} s  ${item.file}  (self ${cpu.self.toFixed(2)} s, CLIs ${cpu.child.toFixed(2)} s)`);
   }
 }
 
