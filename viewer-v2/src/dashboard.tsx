@@ -1,11 +1,12 @@
 /**
  * The dashboard: stat cards, a hero with calls to action, the recently
- * compiled panel, a compile receipt, and the next actions the CLI offers. The
- * graph panel shows its counts and links to the explorer; the live graph
- * arrives with the explorer itself.
+ * compiled panel, the compact live graph, a compile receipt, and the next
+ * actions the CLI offers.
  */
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope, RecentPage } from "./api";
+import { GraphCanvas, GraphLegend } from "./graph-canvas";
+import type { GraphControls } from "./graph-layout";
 import { relativeAge } from "./recency";
 import { pageHref } from "./route";
 import { citationTotals, isWarnFreshness, lintTotal, plural, profileVocabulary } from "./wiki-model";
@@ -84,12 +85,22 @@ function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   );
 }
 
+/** The compact live graph; Fit stays disabled until the layout has settled. */
 function GraphPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
+  const [controls, setControls] = useState<GraphControls | null>(null);
   const { nodeCount, edgeCount, danglingCount } = wiki.graph;
   return (
-    <section className="panel">
-      <div className="panel-head"><span className="panel-title">Knowledge graph</span><a href="#/graph" title="Open the full graph explorer">⤢</a></div>
+    <section className="panel graph-panel">
+      <div className="panel-head">
+        <span className="panel-title">Knowledge graph</span>
+        <span className="panel-controls">
+          <button type="button" className="panel-chip" disabled={controls === null} onClick={() => controls?.fit()}>Fit</button>
+          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer">⤢</a>
+        </span>
+      </div>
       <p className="panel-caption">{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
+      <GraphLegend compact />
+      <div className="graph-panel-surface"><GraphCanvas wiki={wiki} compact onSettled={setControls} /></div>
       <div className="panel-foot"><span>hover a node to inspect</span><span className={danglingCount > 0 ? "is-warn" : ""}>{plural(danglingCount, "dangling target")}</span></div>
     </section>
   );

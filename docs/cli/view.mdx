@@ -32,13 +32,13 @@ Press `Ctrl+C` to stop the server.
 llmwiki view-v2 --open
 ```
 
-The v2 client has the dashboard, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, a theme control, the concepts, queries, sources and profile-type lists with title and freshness filters, each page with its citation chips, and each source with numbered lines. Beside each page, a support rail shows its metadata, its citations grouped by source file, its links out and backlinks, and, on a typed page, its connected records and import provenance. Selecting a citation chip opens the source at the cited lines.
+The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, live search with ⌘K, a theme control, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
 
 It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
 
 It also has the maintenance screens: `#/health` with the lint caption, the CONTENTS strip, the lint panel with its rule table, freshness, traceability, and a profile project's record problems; `#/reviews` with the held candidates, their provenance and the reasons they are held; and `#/source-changes`, the read-only source review cockpit, which says so when source comparison is not enabled. Health and reviews are re-read on every visit, so a new lint run or candidate shows up on reload.
 
-The graph explorer, workflows, and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
+The workflows and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
 
 ### Source images
 

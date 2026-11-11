@@ -187,6 +187,7 @@ export interface GraphNode {
   kind: string;
   degree: number;
   isDangling?: true;
+  nodeKind?: "entity";
   entityType?: string;
 }
 
@@ -337,6 +338,7 @@ export function fetchIndex(): Promise<{ html: string }> {
 export function fetchSearch(query: string): Promise<{ results: SearchResult[] }> {
   return getJson(`/api/search?q=${encodeURIComponent(query)}`);
 }
+
 
 /** Metadata of one source. */
 export function fetchSourceMeta(id: string): Promise<SourceMeta> {
