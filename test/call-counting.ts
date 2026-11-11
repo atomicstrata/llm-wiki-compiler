@@ -48,7 +48,8 @@ const appendFileSync = fs.appendFileSync;
 function count(op: string): void {
   ops.set(op, (ops.get(op) ?? 0) + 1);
   if (!recordSites) return;
-  const frames = (new Error().stack ?? "").split("\n").filter((line) => line.includes("/src/"))
+  // `utils/fs-metadata.ts` only forwards to `fs`; the call site is its caller.
+  const frames = (new Error().stack ?? "").split("\n").filter((line) => line.includes("/src/") && !line.includes("/src/utils/fs-metadata."))
     .map((line) => line.replace(/^.*\/src\//u, "").replace(/\)$/u, "").replace(/:\d+$/u, ""));
   const callers = frames.slice(1).filter((frame) => !PRIMITIVE_DIRECTORIES.some((dir) => frame.startsWith(dir)));
   const site = `${op} <- ${[frames[0], ...callers.slice(0, SITE_FRAMES - 1)].filter(Boolean).join(" < ") || "(test code)"}`;
