@@ -93,8 +93,11 @@ export interface PreparationStoreWalkReads {
    *  - ORDER: obtain an entry, THEN call `take()`. Never call `take()` when no
    *    entry is in hand, so never at the end of a directory. If `take()` is
    *    false, deliver nothing more from this visit; otherwise await
-   *    `inspect(entry)` before obtaining the next. An entry may have been
-   *    obtained and not delivered; nothing here bounds what the store reads.
+   *    `inspect(entry)` before obtaining the next — except that a provider
+   *    may obtain a bounded run of entries ahead and deliver them in order
+   *    (the disk walk reads ahead consecutive files to prove their directory
+   *    once). An entry may have been obtained and not delivered; nothing here
+   *    bounds what the store reads.
    *  - REFUSALS: answer `absent`, `unavailable` or `unlistable` ONLY when
    *    neither `take` nor `inspect` was called. A failure after that REJECTS.
    *  - NAMES: each name is one non-empty path segment, not `.` or `..`, with no
