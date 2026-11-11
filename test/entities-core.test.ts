@@ -62,6 +62,13 @@ describe("identity", () => {
     expect(flags.has("ana")).toBe(false);
   });
 
+  it("shows a name written only in lowercase capitalized, and prefers a capitalized spelling", () => {
+    const [lower] = resolveRecords("person", [mention("elon musk")], { entities: {} });
+    expect(displayName(lower, undefined)).toBe("Elon Musk");
+    const [mixed] = resolveRecords("person", [mention("lori"), mention("lori"), mention("Lori")], { entities: {} });
+    expect(displayName(mixed, undefined)).toBe("Lori");
+  });
+
   it("gives a slug-safe id to any name", () => {
     expect(recordId("José Núñez")).toBe("jose-nunez");
     expect(recordId("李雷")).toMatch(/^record-[a-z0-9]+$/);

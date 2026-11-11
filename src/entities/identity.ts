@@ -86,12 +86,20 @@ export function resolveRecords(type: string, mentions: Mention[], registry: Alia
   return [...records.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** The name a record is shown under: the registry's first name for it, else its most-used full name. */
+/**
+ * The name a record is shown under: the registry's first name for it, else its
+ * fullest, most-used name, preferring one written with capitals. A name only ever
+ * written in lowercase (common in chats) is shown with each word capitalized; the
+ * spellings as written stay in the record's names.
+ */
 export function displayName(record: ResolvedRecord, registered: string[] | undefined): string {
   if (registered?.[0]) return registered[0];
   const uses = new Map<string, number>();
   for (const mention of record.mentions) uses.set(mention.name.trim(), (uses.get(mention.name.trim()) ?? 0) + 1);
-  return [...uses].sort(([a, x], [b, y]) => b.split(" ").length - a.split(" ").length || y - x || a.localeCompare(b))[0][0];
+  const capitalized = (name: string): number => (name === name.toLowerCase() ? 0 : 1);
+  const [chosen] = [...uses].sort(([a, x], [b, y]) =>
+    b.split(" ").length - a.split(" ").length || capitalized(b) - capitalized(a) || y - x || a.localeCompare(b))[0];
+  return capitalized(chosen) ? chosen : chosen.replace(/(^|\s)(\p{Ll})/gu, (_match, space: string, letter: string) => space + letter.toUpperCase());
 }
 
 /** Record id → ids of records that might be the same one: a shared first name, or one name being another's first name. */
