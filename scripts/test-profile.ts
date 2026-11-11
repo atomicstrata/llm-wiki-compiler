@@ -15,8 +15,10 @@
  *                                              also name the src/ code making the calls
  *   bun run test:profile --update              rewrite the baseline from this run
  *
- * A file whose counts rise above its baseline fails the run. `--update` refuses
- * when any test failed, and a run over some files updates only those files.
+ * A file whose counts rise above its baseline fails the run. `--update` lowers
+ * the baseline and refuses when any test failed or any file rose: raising a
+ * count is a deliberate edit to the JSON. A run over some files updates only
+ * those files.
  */
 
 import { spawnSync } from "node:child_process";
@@ -96,7 +98,20 @@ function writeBaseline(totals: Record<string, FileTotals>, baseline: Baseline | 
   console.log(`Wrote ${BASELINE_FILE} (${n(Object.keys(files).length)} files).`);
 }
 
-/** Run, report, then update or check the baseline; the exit code is the result. */
+/** Check the baseline, and with `update` lower it when nothing rose; the exit code is the result. */
+function settleBaseline(totals: Record<string, FileTotals>, baseline: Baseline | null, update: boolean, partial: boolean): number {
+  const regressed = checkBaseline(totals, baseline);
+  if (!update) return regressed;
+  // A ratchet only lowers: a real increase is a deliberate edit to the JSON.
+  if (regressed !== 0) {
+    console.error(`\nNot updating ${BASELINE_FILE}: raising a file's count is a deliberate edit to that file.`);
+    return regressed;
+  }
+  writeBaseline(totals, baseline, partial);
+  return 0;
+}
+
+/** Run, report, then check or lower the baseline; the exit code is the result. */
 function main(): number {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
     update: { type: "boolean" }, sites: { type: "boolean" },
@@ -105,15 +120,9 @@ function main(): number {
   const totals = summarize(counts);
   const baseline = existsSync(BASELINE_FILE) ? readBaseline(readFileSync(BASELINE_FILE, "utf8")) : null;
   printReport(counts, totals, baseline);
-  if (exitCode !== 0) {
-    console.error("\nSome tests failed; their counts are not comparable and the baseline is unchanged.");
-    return exitCode;
-  }
-  if (values.update) {
-    writeBaseline(totals, baseline, positionals.length > 0);
-    return 0;
-  }
-  return checkBaseline(totals, baseline);
+  if (exitCode === 0) return settleBaseline(totals, baseline, values.update === true, positionals.length > 0);
+  console.error("\nSome tests failed; their counts are not comparable and the baseline is unchanged.");
+  return exitCode;
 }
 
 /** Report each file against the baseline; fail when any file makes more calls. */

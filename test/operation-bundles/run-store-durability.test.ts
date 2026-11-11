@@ -294,12 +294,14 @@ describe("operation run durable store", () => {
     expect(swapped).toEqual({ kind: "unavailable" });
   });
 
-  it("strict create-only durability syncs every parent and propagates unsupported sync", async () => {
+  it("strict create-only durability syncs every parent once and propagates unsupported sync", async () => {
     const synced: string[] = [];
     const target = path.join(root, "a", "b", "record");
     await atomicWriteNoReplaceDurable(target, "body", { confineRoot: root, exactParent: true, beforeDirectorySyncForTest: async (dir) => { synced.push(dir); } });
-    const chain = [path.join(root, "a", "b"), path.join(root, "a"), root];
-    expect(synced).toEqual([...chain, ...chain, ...chain]);
+    const leaf = path.join(root, "a", "b");
+    // The first pass makes every new entry up to the root durable; the two later
+    // passes change only the leaf directory, so they sync only the leaf.
+    expect(synced).toEqual([leaf, path.join(root, "a"), root, leaf, leaf]);
     const failure = Object.assign(new Error("unsupported fsync"), { code: "ENOTSUP" });
     await expect(atomicWriteNoReplaceDurable(path.join(root, "failed"), "body", {
       confineRoot: root, exactParent: true, beforeDirectorySyncForTest: async () => { throw failure; },

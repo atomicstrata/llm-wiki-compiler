@@ -31,6 +31,36 @@ interface DirectoryBinding {
   realDir: string;
   dev: number;
   ino: number;
+  /** One directory object for its whole life: device, inode and birth time. */
+  identity: string;
+}
+
+/**
+ * Directory entries this process has already made durable, as
+ * `parent identity > child identity`.
+ *
+ * A write changes one directory: the leaf's parent. That directory is always
+ * synced. An ancestor's entry for the directory below it changes only when
+ * that directory is created, and once the ancestor has been synced with the
+ * child in place, the entry stays durable for as long as both objects live.
+ * So the walk up the chain stops at the first ancestor already known to hold
+ * its child durably, instead of re-syncing every directory up to the project
+ * root on every write.
+ *
+ * IDENTITY, NOT PATH. A directory swapped for another, or deleted and
+ * recreated, is a different object and is synced again.
+ */
+const durableEntries = new Set<string>();
+
+/** One directory object's identity; the birth time tells a reused inode apart. */
+function directoryIdentity(stat: { dev: number; ino: number; birthtimeMs: number }): string {
+  return `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+}
+
+/** Whether `ancestor` is already known to hold `child`'s entry durably. */
+async function holdsDurably(ancestor: string, child: string): Promise<boolean> {
+  const stat = await lstat(ancestor).catch(() => null);
+  return stat !== null && durableEntries.has(`${directoryIdentity(stat)}>${child}`);
 }
 
 /** Test-only observation or failure seam before a strict directory fsync. */
@@ -43,7 +73,10 @@ export async function fsyncDirectory(dir: string): Promise<void> {
   await fsyncBoundDirectory(await captureDirectoryBinding(dir));
 }
 
-/** Persist every directory entry from the leaf parent through the project root. */
+/**
+ * Persist the leaf parent's directory entry, then every ancestor entry up to
+ * the project root that is not already durable (see {@link durableEntries}).
+ */
 export async function fsyncDirectoryChain(
   dir: string,
   parent?: ParentBinding,
@@ -51,11 +84,15 @@ export async function fsyncDirectoryChain(
 ): Promise<void> {
   const boundary = path.resolve(parent?.lexicalRoot ?? dir);
   let current = path.resolve(dir);
+  let below: string | undefined;
   for (;;) {
-    await fsyncDirectoryChainEntry(canonicalSyncPath(current, parent), current, parent, beforeSync);
+    const synced = await fsyncDirectoryChainEntry(canonicalSyncPath(current, parent), current, parent, beforeSync);
+    if (below !== undefined) durableEntries.add(`${synced}>${below}`);
     if (current === boundary) return;
     const ancestor = nextDirectoryInChain(current, boundary);
     if (ancestor === null) return;
+    if (await holdsDurably(canonicalSyncPath(ancestor, parent), synced)) return;
+    below = synced;
     current = ancestor;
   }
 }
@@ -79,13 +116,14 @@ async function fsyncDirectoryChainEntry(
   displayPath: string,
   parent?: ParentBinding,
   beforeSync?: BeforeDirectorySync,
-): Promise<void> {
+): Promise<string> {
   await recheckWriteParent(parent);
   const binding = await captureDirectoryBinding(current);
   await recheckWriteParent(parent);
   await beforeSync?.(displayPath);
   await fsyncBoundDirectory(binding);
   await recheckWriteParent(parent);
+  return binding.identity;
 }
 
 /** Map a lexical project directory onto the already-bound canonical root. */
@@ -112,7 +150,7 @@ async function captureDirectoryBinding(dir: string): Promise<DirectoryBinding> {
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
     throw new Error(`refusing to sync a redirected directory: ${resolved}`);
   }
-  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino };
+  return { dir: resolved, realDir: await realpath(resolved), dev: stat.dev, ino: stat.ino, identity: directoryIdentity(stat) };
 }
 
 /** Sync only the exact directory inode captured for this pathname. */

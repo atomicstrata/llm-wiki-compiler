@@ -36,6 +36,7 @@ const TIMING_DEPENDENT = new Set([
   "test/codex-agent-interrupt.test.ts",
   "test/provider-codex-agent.test.ts",
   "test/relation-store-concurrent.test.ts",
+  "test/storage/project-lock-binding.test.ts",
 ]);
 
 /** Whether one stored entry is a pair of whole counts. */
