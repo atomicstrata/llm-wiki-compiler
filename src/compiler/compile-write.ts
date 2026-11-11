@@ -68,16 +68,29 @@ import { COMPILE_ORIGIN } from "../trust/checks.js";
  */
 export type CompilePageNamespace = "concepts" | "queries" | "timeline";
 
-/** One compiled page to write: its namespace, slug stem, and full markdown body. */
-export interface CompilePageWrite {
-  /** The bare wiki namespace (`concepts`, `queries` or `timeline`). */
-  namespace: CompilePageNamespace;
+/** What every compiled page write carries: its slug stem and its bytes. */
+interface CompileWriteBase {
   /** The page's raw slug stem (no extension, no directory). */
   slug: string;
   /** The full markdown body (frontmatter + prose) to write, or, when deleting, the bytes being removed. */
   body: string;
   /** Remove the page instead of writing it; the floor still checks `body`. */
   deleting?: boolean;
+}
+
+/**
+ * One compiled page to write: a default page under its bare wiki `namespace`
+ * (`concepts`, `queries` or `timeline`), or a profile-typed record under its
+ * `entityType`, which the planner places at `wiki/<entityType>/` with a typed id.
+ */
+export type CompilePageWrite = CompileWriteBase & (
+  | { namespace: CompilePageNamespace; entityType?: never }
+  | { entityType: string; namespace?: never }
+);
+
+/** The wiki directory a write lands in: its namespace, or for a typed record its entity type. */
+export function compileWriteDirectory(item: CompilePageWrite): string {
+  return item.entityType ?? item.namespace;
 }
 
 /** A page the planner BLOCKED at the floor, returned (not thrown) so compile continues. */
@@ -135,7 +148,9 @@ async function planCompilePageWrites(
   for (const it of items) {
     const r = await steps.plan({
       root,
-      target: { kind: "raw", directory: it.namespace, slug: it.slug },
+      target: it.entityType !== undefined
+        ? { kind: "entity", entityType: it.entityType, slug: it.slug }
+        : { kind: "raw", directory: it.namespace, slug: it.slug },
       body: it.body,
       origin: COMPILE_ORIGIN,
       reviewRouted: false,

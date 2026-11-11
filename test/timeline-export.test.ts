@@ -9,7 +9,7 @@ import { mkdir, readdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { collectExportPages } from "../src/export/collect.js";
 import { runOkfExport } from "../src/export/okf/run.js";
-import { withRelated } from "../src/timeline/pages.js";
+import { withDaySections } from "../src/timeline/pages.js";
 import { renderPageHtml } from "../src/viewer/render.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -45,9 +45,9 @@ describe("rendering a day", () => {
   it("shows the related list without its marker, after a paragraph or a list", () => {
     const snapshot = { pages: [], sourceFilenames: [] } as unknown as ViewerSnapshot;
     for (const body of ["Fired the kiln. ^[log.md:1-2]", "## Kiln\n\n- Fired it. ^[log.md:1-2]"]) {
-      const html = renderPageHtml(withRelated(body, [{ slug: "kiln", title: "Kiln", body: "" }]), snapshot, { isLoopback: true }).html;
+      const html = renderPageHtml(withDaySections(body, [{ slug: "kiln", title: "Kiln", body: "" }]), snapshot, { isLoopback: true }).html;
       expect(html).toContain("Pages from this day");
-      expect(html).not.toMatch(/llmwiki-timeline-related|\[\/\/\]/);
+      expect(html).not.toMatch(/llmwiki-generated|\[\/\/\]/);
     }
   });
 });

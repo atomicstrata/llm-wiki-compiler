@@ -379,6 +379,23 @@ export interface EntityTypeDef {
    */
   contentTiers?: string[];
   export?: { okfType?: string };
+  /**
+   * Optional opt-in to compile's entity extraction (`src/entities/`). When set,
+   * compile reads every source for records of this type and writes one page per
+   * record under the type's directory, each claim cited to source lines.
+   * `description` says what counts as a record and `fields` gives per-field
+   * guidance, both prompt text only: editing them does not invalidate the
+   * extraction cache, which keys on type and field NAMES. OMITTED-for-default.
+   */
+  extract?: EntityExtractDef;
+}
+
+/** How compile's entity extraction reads sources for one entity type. */
+export interface EntityExtractDef {
+  /** What counts as a record of this type, for the extraction prompt. */
+  description: string;
+  /** Per-field guidance for the extraction prompt, keyed by declared field name. */
+  fields?: Record<string, string>;
 }
 
 /** A profile-declared artifact type: a typed, content-addressed leaf file. */

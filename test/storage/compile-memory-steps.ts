@@ -175,6 +175,7 @@ export function memoryFinalizeSteps(held: Held, write: CompilePageWriteSteps, op
     })),
     generateMOC: () => step("moc", () => generateMOCFrom({ listConceptNames: () => reads.listNames(CONCEPTS_DIR), readConceptPage: (slug) => reads.readConfinedPage(CONCEPTS_DIR, slug), publishMoc: async (text) => { put(held, MOC_FILE, text); } })),
     refreshEmbeddings: (_root, ids) => step(`embeddings ${ids.join(",")}`, async () => {}),
+    updateEntities: (_root, _timeline, concurrency) => step(concurrency === undefined ? "entities" : `entities x${concurrency}`, async () => {}),
     updateTimeline: (_root, _timeline, concurrency) => step(concurrency === undefined ? "timeline" : `timeline x${concurrency}`, async () => {}),
   };
 }

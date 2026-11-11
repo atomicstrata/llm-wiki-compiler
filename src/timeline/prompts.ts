@@ -83,12 +83,22 @@ interface SourceRows {
  * what the model saw.
  */
 export function dayExcerpt(bucket: DayBucket, texts: Map<string, string>): { text: string; shown: DayBucket } {
-  const sources = bucket.sources.map((source) => sourceRows(source.file, source.ranges, texts.get(source.file) ?? ""));
-  const allowances = fairShares(sources.map((source) => source.size), DAY_EXCERPT_BUDGET);
-  const rendered = sources.map((source, index) => renderSource(source, allowances[index]));
+  const { text, shown } = sourcesExcerpt(bucket.sources, texts);
+  return { text, shown: { ...bucket, sources: shown } };
+}
+
+/**
+ * Any set of source line ranges as a numbered excerpt within the budget, shared
+ * fairly as {@link dayExcerpt} describes; `shown` narrows each source's ranges to
+ * the rows actually shown. Person pages use it for the lines that mention them.
+ */
+export function sourcesExcerpt<T extends { file: string; ranges: LineRange[] }>(sources: T[], texts: Map<string, string>): { text: string; shown: T[] } {
+  const rows = sources.map((source) => sourceRows(source.file, source.ranges, texts.get(source.file) ?? ""));
+  const allowances = fairShares(rows.map((source) => source.size), DAY_EXCERPT_BUDGET);
+  const rendered = rows.map((source, index) => renderSource(source, allowances[index]));
   return {
     text: rendered.map((source) => source.text).join("\n\n"),
-    shown: { ...bucket, sources: bucket.sources.map((source, index) => ({ ...source, ranges: rendered[index].ranges })) },
+    shown: sources.map((source, index) => ({ ...source, ranges: rendered[index].ranges })),
   };
 }
 
@@ -131,7 +141,7 @@ function renderSource(source: SourceRows, allowance: number): { text: string; ra
     shownRows++;
   }
   const cut = source.rows.length - shownRows;
-  if (cut > 0) out.push(`(${cut} more line${cut === 1 ? "" : "s"} from this day not shown: over the excerpt budget. Do not cite them.)`);
+  if (cut > 0) out.push(`(${cut} more line${cut === 1 ? "" : "s"} not shown: over the excerpt budget. Do not cite them.)`);
   return { text: `--- SOURCE: ${source.file} ---\n\n${out.join("\n")}`, ranges };
 }
 
