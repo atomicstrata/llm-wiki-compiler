@@ -15,6 +15,7 @@ import {
   type ParentBinding,
 } from "./atomic-write-durability.js";
 import {
+  assertPathNamesInode,
   assertPublishedDestination,
   assertSettledDestination,
   assertTempPathBound,
@@ -264,8 +265,8 @@ async function writeStreamedBoundTemp(
     await assertTempHandleBound(handle, tmpPath, binding);
     const byteCount = await produce(handle);
     await handle.sync();
-    const stat = await assertTempHandleBound(handle, tmpPath, binding);
-    return { bound: { tmpPath, handle, stat }, byteCount };
+    // The caller's commit step verifies the parent and path before linking.
+    return { bound: { tmpPath, handle, stat: await handle.stat() }, byteCount };
   } catch (error) {
     await handle.close().catch(() => {});
     await unlink(tmpPath).catch(() => {});
@@ -398,7 +399,7 @@ async function writeViaTempNoReplaceDurable(
   const readyPath = durableTempPath(filePath);
   const prepared = await writeBoundTemp(filePath, content, opts?.mode, binding, true, writingPath);
   try {
-    await commitBoundTemp(prepared, binding, (scratch) => linkWritingAsReady(scratch, readyPath, binding, prepared.stat));
+    await commitBoundTemp(prepared, binding, (scratch) => linkWritingAsReady(scratch, readyPath));
     await fsyncDirectoryChain(path.dirname(filePath), binding, opts?.beforeDirectorySyncForTest);
     await removeCommittedTemp(writingPath, binding, prepared.stat);
     const promoted = await recoverDurableTemp(filePath, Buffer.from(content), {
@@ -444,7 +445,13 @@ interface BoundTemp { tmpPath: string; handle: FileHandle; stat: Stats }
 /** Published destination handle plus any test-hook fault retained after cleanup. */
 interface LinkedTemp { handle: FileHandle; stat: Stats; hookError?: unknown }
 
-/** Write and optionally sync one temp while its handle remains parent-bound. */
+/**
+ * Write and optionally sync one temp while its handle remains parent-bound.
+ * The temp is checked once after it is created, before any bytes go in. Every
+ * caller passes the result straight to {@link commitBoundTemp}, which checks
+ * the parent and path again right before publishing, so no check runs between
+ * the write and that one.
+ */
 async function writeBoundTemp(filePath: string, content: string | Uint8Array, mode: number | undefined, binding: ParentBinding | undefined, durable: boolean, preparedPath?: string): Promise<BoundTemp> {
   const tmpPath = preparedPath ?? `${filePath}.${randomBytes(TEMP_SUFFIX_BYTES).toString("hex")}.tmp`;
   const handle = mode === undefined ? await open(tmpPath, "wx") : await open(tmpPath, "wx", mode);
@@ -452,7 +459,7 @@ async function writeBoundTemp(filePath: string, content: string | Uint8Array, mo
     await assertTempHandleBound(handle, tmpPath, binding);
     await handle.writeFile(content);
     if (durable) await handle.sync();
-    return { tmpPath, handle, stat: await assertTempHandleBound(handle, tmpPath, binding) };
+    return { tmpPath, handle, stat: await handle.stat() };
   } catch (error) {
     await handle.close().catch(() => {});
     await unlink(tmpPath).catch(() => {});
@@ -487,14 +494,16 @@ async function writeViaTempNoReplace(
   }
 }
 
-/** Verify the open temp handle and temp path resolve to the same file. */
+/**
+ * Verify the parent, then that the open temp handle and temp path resolve to
+ * the same file. Only an fstat separates the parent check from the path
+ * check, so the path check does not repeat it.
+ */
 async function assertTempHandleBound(
   handle: FileHandle,
   tmpPath: string,
   binding: ParentBinding | undefined,
-): Promise<Stats> {
+): Promise<void> {
   if (binding !== undefined) await assertCurrentParent(binding);
-  const handleStat = await handle.stat();
-  await assertTempPathBound(tmpPath, binding, handleStat);
-  return handleStat;
+  await assertPathNamesInode(tmpPath, await handle.stat());
 }
