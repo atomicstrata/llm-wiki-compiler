@@ -83,6 +83,7 @@ export function activeNavRoute(route: Route): string | null {
   if (route.view === "list") return route.kind;
   if (route.view === "typeList" || route.view === "page") return route.view === "typeList" ? route.type : route.directory;
   if (route.view === "sourceChanges") return "source-changes";
+  if (route.view === "journey") return "workflows";
   if (route.view === "search" || route.view === "source") return null;
   return route.view;
 }

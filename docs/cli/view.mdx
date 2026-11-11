@@ -38,7 +38,9 @@ It adds one screen the original client lacks: `#/recent` lists every page newest
 
 It also has the maintenance screens: `#/health` with the lint caption, the CONTENTS strip, the lint panel with its rule table, freshness, traceability, and a profile project's record problems; `#/reviews` with the held candidates, their provenance and the reasons they are held; and `#/source-changes`, the read-only source review cockpit, which says so when source comparison is not enabled. Health and reviews are re-read on every visit, so a new lint run or candidate shows up on reload.
 
-The workflows and lifecycle screens are not in the v2 client yet; their routes show a note, and `llmwiki view` has them.
+On a profile project it also has the lifecycle status at `#/pipeline` (each type's declared lifecycle, its pages by state, and the validation problems), the workflow runs at `#/workflows` with the runs parked on an approval or a submission, and each run's journey at `#/_journey/<workflow>/<run>` with its stages, their facts, output and artifact links, and the final PDF.
+
+Every screen of `llmwiki view` is now in the v2 client.
 
 ### Source images
 

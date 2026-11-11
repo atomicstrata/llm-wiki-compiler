@@ -11,9 +11,11 @@ import { GraphView } from "./graph-view";
 import { Header } from "./header";
 import { HealthView } from "./health-view";
 import { IndexView } from "./index-view";
+import { JourneyView } from "./journey-view";
 import { ConceptsList, QueriesList, SourcesList, TypeList } from "./lists";
 import { PageView } from "./page-view";
 import { PendingView } from "./pending-view";
+import { PipelineView } from "./pipeline-view";
 import { RecentView } from "./recent-view";
 import { ReviewsView } from "./reviews-view";
 import { parseRoute, type Route } from "./route";
@@ -22,6 +24,7 @@ import { Sidebar } from "./nav";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
 import { useAsync } from "./use-async";
+import { WorkflowsView } from "./workflows-view";
 
 /** Subscribe to hash changes for `useSyncExternalStore`. */
 function subscribeToHash(onChange: () => void): () => void {
@@ -73,6 +76,9 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "graph": return <GraphView wiki={wiki} />;
     case "list": { const List = LISTS[route.kind]; return <List wiki={wiki} />; }
     case "typeList": return <TypeList wiki={wiki} type={route.type} />;
+    case "pipeline": return <PipelineView wiki={wiki} />;
+    case "workflows": return <WorkflowsView />;
+    case "journey": return <JourneyView workflowId={route.workflowId} runId={route.runId} />;
     case "home": return <Dashboard wiki={wiki} health={health} />;
     case "health": return <HealthView wiki={wiki} health={health} />;
     case "reviews": return <ReviewsView />;

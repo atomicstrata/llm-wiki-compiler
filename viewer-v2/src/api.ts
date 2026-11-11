@@ -52,11 +52,62 @@ export interface RecentPage {
   entityType?: string;
 }
 
-/** One entity type a profile declares, with its page count. */
+/** One field a profile declares on an entity or artifact type. */
+export interface PipelineFieldDef {
+  name: string;
+  type: string;
+  required?: boolean;
+  enum?: string[];
+  artifactTypes?: string[];
+  format?: string;
+}
+
+/** The lifecycle a profile declares for an entity type. */
+export interface PipelineLifecycle {
+  field: string;
+  initial: string;
+  terminal: string[];
+  transitions: Record<string, string[]>;
+  /** The lifecycle field's enum, when the profile declares one. */
+  declaredStates?: string[];
+}
+
+/** One entity type a profile declares, with its page count and per-state tally. */
 export interface EntityTypeRow {
   type: string;
+  /** The declared project-relative directory, printed verbatim. */
   directory: string;
+  titleField?: string;
+  fields?: PipelineFieldDef[];
+  lifecycle?: PipelineLifecycle;
+  /** Pages of this type that pass validation. */
   pageCount: number;
+  /** Unfiltered tally of lifecycle states; absent when no page records one. */
+  stateCounts?: Record<string, number>;
+}
+
+/** One relation type a profile declares, with its live count. */
+export interface RelationTypeRow {
+  type: string;
+  from: string[];
+  to: string[];
+  direction: "directed" | "symmetric";
+  count: number;
+}
+
+/** One artifact type a profile declares. */
+export interface ArtifactTypeDef {
+  type: string;
+  fileName: string;
+  contentKind: "json" | "text";
+  metadata?: PipelineFieldDef[];
+}
+
+/** The profile's vocabulary: its entity, relation and artifact types. */
+export interface PipelineEnvelope {
+  entityTypes: EntityTypeRow[];
+  relationTypes?: RelationTypeRow[];
+  artifactTypes?: ArtifactTypeDef[];
 }
 
 /** A problem with a profile project's records. */
@@ -89,7 +140,7 @@ export interface PagesEnvelope {
   updatedAt: string;
   profileProblems?: ProfileProblem[];
   profileProblemTotal?: number;
-  profilePipeline?: { entityTypes: EntityTypeRow[] };
+  profilePipeline?: PipelineEnvelope;
 }
 
 /** One rule's findings in the last lint run; `topFile` is root-relative. */
@@ -303,7 +354,7 @@ export interface SourceChangesReport {
 }
 
 /** Read a JSON route, failing on any non-2xx status. */
-async function getJson<T>(path: string): Promise<T> {
+export async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`Request failed (${response.status}): ${path}`);
   return (await response.json()) as T;
