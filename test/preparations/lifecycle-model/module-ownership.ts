@@ -261,6 +261,8 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/utils/run-history-projection.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/run-store-io.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/runtime-capture.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // Holds the leaf bytes one pass's inventory walk read, for that pass's readers; no I/O of its own.
+  { path: "src/utils/scanned-leaf-bytes.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/stream-digest.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/well-formed-unicode.ts", role: "shared-primitive", rawFilesystemAccess: false },
 ];
@@ -435,6 +437,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/run-history-projection.ts :: shared-primitive",
   "src/utils/run-store-io.ts :: shared-primitive",
   "src/utils/runtime-capture.ts :: shared-primitive",
+  "src/utils/scanned-leaf-bytes.ts :: shared-primitive",
   "src/utils/stream-digest.ts :: shared-primitive",
   "src/utils/well-formed-unicode.ts :: shared-primitive",
 ] as const;

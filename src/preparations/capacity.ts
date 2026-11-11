@@ -213,7 +213,8 @@ export interface PreparationInventoryLifecycleReads extends PreparationInventory
 function diskPreparationInventoryReads(root: string, pass: PreparationPassReads): PreparationInventoryReads {
   return {
     assertLifecycleRead: (read) => assertPreparationLifecycleRead(root, read),
-    scanActiveStore: (options) => scanActivePreparationStore(root, options),
+    // The walk leaves the manifest and run bytes it reads with the pass, whose readers below consume them.
+    scanActiveStore: (options) => scanActivePreparationStore(root, options, pass.scannedLeaves),
     readManifest: pass.readManifest,
     readKeyEpoch: pass.readKeyEpoch,
     readRun: pass.readRun,
