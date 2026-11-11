@@ -86,6 +86,12 @@ function binding(
  * Bind a confined candidate directory, optionally requiring literal components.
  * Inspect each component with lstat before resolving aliases, so broken links
  * cannot collapse into apparent absence and outside-root targets are rejected.
+ *
+ * Only a symlinked component and the last one are realpath'd. An intermediate
+ * literal directory resolves to its parent's canonical path plus its own name,
+ * which is already confined, and the last component's realpath re-resolves
+ * every component above it: a component swapped for an escaping or (in strict
+ * mode) any redirect after its lstat still fails that final check.
  */
 export async function captureCandidateDirectoryBinding(
   root: string,
@@ -102,6 +108,11 @@ export async function captureCandidateDirectoryBinding(
     lexical = path.join(lexical, segments[index]!);
     finalInfo = await inspectComponent(lexical);
     if (finalInfo === null) return null;
+    const isLast = index === segments.length - 1;
+    if (finalInfo.isDirectory() && !isLast) {
+      realDir = path.join(realDir, segments[index]!);
+      continue;
+    }
     const expected = path.join(realRoot, ...segments.slice(0, index + 1));
     const observed = await resolveComponent(lexical, realRoot, requireLiteral ? expected : undefined, finalInfo);
     if (finalInfo.isSymbolicLink()) finalInfo = await stat(observed);
