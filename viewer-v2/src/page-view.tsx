@@ -10,7 +10,7 @@ import { AsyncView } from "./async-view";
 import { Badge, Notice } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { useMediaQuery } from "./media";
-import { pageTitle, sourceFileTally, sourceFilesLabel, stripLeadingHeading } from "./page-model";
+import { isTimelinePage, pageTitle, sourceFileTally, sourceFilesLabel, stripLeadingHeading } from "./page-model";
 import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
 import { rememberPage } from "./palette-model";
@@ -18,6 +18,7 @@ import { RailSheet } from "./rail-sheet";
 import { tagHref } from "./route";
 import { SourceImages } from "./source-images-view";
 import { safeLocalStorage } from "./storage";
+import { TimelineNav } from "./timeline-view";
 import { useAsync, type AsyncState } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
@@ -76,12 +77,17 @@ interface PageViewProps {
   wiki: PagesEnvelope;
 }
 
-/** The rail's sections: the outline, the neighbourhood graph, then metadata, citations and connections. */
+/**
+ * The rail's sections: the outline, the neighbourhood graph, then metadata,
+ * citations and connections. A timeline page is not in the graph, and its own
+ * "Pages from this day" list already shows what it links to, so it has no
+ * neighbourhood.
+ */
 function Rail({ page, wiki, graph, outline }: { page: PagePayload; wiki: PagesEnvelope; graph: AsyncState<GraphData>; outline: OutlineItem[] }): ReactNode {
   return (
     <>
       <Outline items={outline} />
-      <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />
+      {!isTimelinePage(page) && <NeighbourhoodSection pageId={page.id} wiki={wiki} graph={graph} />}
       <PageRail page={page} wiki={wiki} graph={graph} />
     </>
   );
@@ -98,9 +104,11 @@ function LoadedPage({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvel
         <header className="mb-8 border-b border-zinc-950/5 pb-6 dark:border-white/10">
           <PageHeader page={page} />
           <PageMeta page={page} sourceFilenames={wiki.sourceFilenames} />
+          {isTimelinePage(page) && <TimelineNav slug={page.slug} wiki={wiki} />}
         </header>
         <PageBody page={page} onRender={(container) => setOutline(assignHeadingIds(container))} />
-        <SourceImages sourceIds={stringList(page.frontmatter.sources)} />
+        {/* A timeline page cites whole multi-day sources, so their images are not that day's. */}
+        {!isTimelinePage(page) && <SourceImages sourceIds={stringList(page.frontmatter.sources)} />}
       </article>
       {wide
         ? <aside aria-label="Page details" className="sticky top-20 max-h-[calc(100dvh-6rem)] w-72 shrink-0 space-y-4 overflow-y-auto">{rail}</aside>

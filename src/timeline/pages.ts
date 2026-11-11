@@ -19,11 +19,14 @@ export const TIMELINE_NAMESPACE = "timeline";
 /** The generated section linking a day to the concept pages built from it. */
 const RELATED_HEADING = "## Pages from this day";
 /**
- * Where the generated section starts. An HTML comment renders as nothing, and
- * unlike the heading it cannot appear in what the model writes, so the section
- * is found by its LAST marker and the model's text above it is never cut.
+ * Where the generated section starts: a markdown comment, which renders as
+ * nothing (the viewer escapes raw HTML, so an HTML comment would show) and
+ * cannot appear in what the model writes. The section is found by its LAST
+ * marker, so the model's text above it is never cut.
  */
-const RELATED_MARKER = "<!-- llmwiki:timeline-related -->";
+const RELATED_MARKER = "[//]: # (llmwiki-timeline-related)";
+/** The marker pages written before the markdown comment used; recognised so they are rewritten once. */
+const LEGACY_RELATED_MARKER = "<!-- llmwiki:timeline-related -->";
 
 /** A concept page, as the related-pages section needs it. */
 export interface CitingPage {
@@ -91,7 +94,7 @@ export function withRelated(text: string, related: CitingPage[]): string {
 
 /** Text with the generated section, from its last marker to the end, removed. */
 export function withoutRelated(text: string): string {
-  const marker = text.lastIndexOf(RELATED_MARKER);
+  const marker = Math.max(text.lastIndexOf(RELATED_MARKER), text.lastIndexOf(LEGACY_RELATED_MARKER));
   return marker === -1 ? text : text.slice(0, marker);
 }
 

@@ -20,12 +20,12 @@ const DAY_EXCERPT_BUDGET = 60_000;
 /** The marker the model's first line must start with. */
 const SUMMARY_PREFIX = "SUMMARY:";
 
-const DAILY_SYSTEM = `Summarize what happened on this day, from the records below, for a personal memory.
+const DAILY_SYSTEM = `Summarize what happened on this day, from the records below, for a personal memory, in the third person.
 First line: "${SUMMARY_PREFIX} " and one sentence.
 Then short "## " sections of bullets. End each bullet with its citation, ^[file.md:START-END], using the line numbers shown.
 Only what the records say. No title.`;
 
-const WEEKLY_SYSTEM = `Summarize this week, from its daily pages below, for a personal memory.
+const WEEKLY_SYSTEM = `Summarize this week, from its daily pages below, for a personal memory, in the third person.
 First line: "${SUMMARY_PREFIX} " and one sentence.
 Then short "## " sections by theme, not by day. End each bullet with the citations it draws on, copied exactly from the daily pages.
 No title.`;

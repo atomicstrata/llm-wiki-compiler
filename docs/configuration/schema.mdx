@@ -112,6 +112,8 @@ Each compile then writes `wiki/timeline/`:
 - **One page per day** your sources cover, named `YYYY-MM-DD.md`. The model writes it from that day's source lines only, and cites them with the same `^[file.md:START-END]` line citations as concept pages. A **Pages from this day** list links the concept pages that cite those lines.
 - **One page per ISO week**, named `YYYY-Www.md`, written from that week's daily pages and keeping their citations.
 
+In `llmwiki view-v2`, a day page links the previous and next day and its week, and a week page links the previous and next week and its days.
+
 How a source is dated:
 
 - A chat or log export whose lines start with timestamps (`- 2026-05-04 12:33 …`) is split by line when the stamps cover more than one day, and either the source has no other date or it has at least three stamps in time order (oldest or newest first). A line without a stamp stays with the entry above it. Stamps inside fenced code blocks don't count. This keeps a dated note that mentions a couple of dated items in one piece.

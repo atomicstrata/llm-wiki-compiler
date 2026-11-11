@@ -19,6 +19,7 @@
  */
 
 import type { ViewerPage, ViewerPageDirectory, ViewerPageId, ViewerSnapshot } from "./types.js";
+import { withoutRelated } from "../timeline/pages.js";
 
 const MAX_QUERY_LENGTH = 200;
 const MAX_RESULTS = 50;
@@ -87,15 +88,25 @@ function collectMatches(pages: ReadonlyArray<ViewerPage>, tokens: string[]): Sea
  * hit, which then ranks below title hits.
  */
 function matchPage(page: ViewerPage, tokens: string[]): SearchResult | null {
+  const body = searchableBody(page);
   const titleLower = page.title.toLowerCase();
-  const bodyLower = page.body.toLowerCase();
+  const bodyLower = body.toLowerCase();
   for (const token of tokens) {
     if (!titleLower.includes(token) && !bodyLower.includes(token)) return null;
   }
   const allInTitle = tokens.every((t) => titleLower.includes(t));
   if (allInTitle) return rowFromPage(page, page.title, "title");
-  const snippet = buildBodySnippet(page.body, bodyLower, tokens);
+  const snippet = buildBodySnippet(body, bodyLower, tokens);
   return rowFromPage(page, snippet, "body");
+}
+
+/**
+ * The text a page is searched by. A timeline day's generated "Pages from this
+ * day" list names other pages, not what happened, so it is left out: a day
+ * should match on its own events, not on every concept it links to.
+ */
+function searchableBody(page: ViewerPage): string {
+  return page.pageDirectory === "timeline" ? withoutRelated(page.body) : page.body;
 }
 
 /** Assemble a SearchResult from a page + computed snippet. */
@@ -131,13 +142,18 @@ function buildBodySnippet(body: string, bodyLower: string, tokens: string[]): st
 /**
  * Strip common inline-markdown markers from a snippet so the search
  * results panel shows readable prose rather than `**keyword**` and
- * `[label](url)` noise. Intentionally narrow: only handles the
- * inline-marker forms a reader would mistake for typos. Block-level
- * markers (`#` headings, `>` blockquotes) are left alone — they sit at
- * the start of a line and rarely land inside a ±60-char window.
+ * `[label](url)` noise: emphasis, links, wikilinks (including one the
+ * window cut in half), citation markers and heading markers.
  */
 function stripInlineMarkdownNoise(text: string): string {
   return text
+    .replace(/\^\[[^\]\n]*(?:\]|$)/g, "")
+    .replace(/^[^\s[\]]*\.md(?::[\d-]+)?(?:,\s*[^\]\n]*)?\]/, "")
+    .replace(/^[^[\]\n]*\|([^\]\n]*)\]\]/, "$1")
+    .replace(/^[^[\]\n|]*\]\]/, "")
+    .replace(/\[\[[^\]|\n]*\|([^\]\n]*)$/, "$1")
+    .replace(/\[\[([^\]|\n]*)$/, "$1")
+    .replace(/(^|\n)\s*#{1,6}\s+/g, "$1")
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/\[\[([^\]|\n]+)\|([^\]\n]+)\]\]/g, "$2")

@@ -4,13 +4,14 @@
  * The pages themselves open as ordinary wiki pages with their citations.
  *
  * A wiki compiled without the timeline has no such pages, and the screen says
- * how to turn it on.
+ * how to turn it on. {@link TimelineNav} sits on each timeline page and steps
+ * through time: the previous and next day or week, a day's week, a week's days.
  */
 import type { ReactNode } from "react";
-import type { PagesEnvelope } from "./api";
+import type { PageRow, PagesEnvelope } from "./api";
 import { Card, EmptyState, Row, RowList, Screen, TextLink } from "./components";
 import { pageHref } from "./route";
-import { timelineWeeks, type TimelineWeek } from "./timeline-model";
+import { timelineLinks, timelineWeeks, type TimelineWeek } from "./timeline-model";
 import { plural } from "./wiki-model";
 
 /** One week: its summary as the card header, its days as rows. */
@@ -47,5 +48,35 @@ export function TimelineView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
         <div className="space-y-8">{weeks.map((week) => <WeekCard key={week.week} week={week} />)}</div>
       )}
     </Screen>
+  );
+}
+
+/** A link to a timeline page, with `children` as its text. */
+function PageLink({ page, children }: { page: PageRow; children: ReactNode }): ReactNode {
+  return <TextLink href={pageHref(page.pageDirectory, page.slug)}>{children}</TextLink>;
+}
+
+/** A day's title without its year, `Thursday, November 5`, for the step links. */
+function shortTitle(page: PageRow): string {
+  return (page.title || page.slug).replace(/, \d{4}$/, "");
+}
+
+/** Steps through time from a timeline page: previous and next, up to the week, and a week's days. */
+export function TimelineNav({ slug, wiki }: { slug: string; wiki: PagesEnvelope }): ReactNode {
+  const links = timelineLinks(wiki.pages, slug);
+  return (
+    <nav aria-label="Timeline" className="mt-4 space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <span className="min-w-0">{links.previous && <PageLink page={links.previous}>← {shortTitle(links.previous)}</PageLink>}</span>
+        {links.week ? <PageLink page={links.week}>{links.week.title}</PageLink> : <TextLink href="#/timeline">Timeline</TextLink>}
+        <span className="min-w-0 text-right">{links.next && <PageLink page={links.next}>{shortTitle(links.next)} →</PageLink>}</span>
+      </div>
+      {links.days.length > 0 && (
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+          <span className="text-zinc-500 dark:text-zinc-400">Days</span>
+          {links.days.map((day) => <PageLink key={day.id} page={day}>{shortTitle(day).split(",")[0]}</PageLink>)}
+        </p>
+      )}
+    </nav>
   );
 }
