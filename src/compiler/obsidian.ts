@@ -25,7 +25,7 @@
 import path from "path";
 import { slugify, parseFrontmatter } from "../utils/markdown.js";
 import { listDirectoryNames, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
-import { readWikiPageInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
+import { wikiPageReaderInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
 import type { ConfinedReadResult } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR, MOC_FILE } from "../utils/constants.js";
 
@@ -161,7 +161,7 @@ function diskMocGenerationSources(root: string): MocGenerationSources {
   const conceptsPath = path.join(root, CONCEPTS_DIR);
   return {
     listConceptNames: () => listDirectoryNames(conceptsPath),
-    readConceptPage: (slug) => readWikiPageInDir(conceptsPath, slug),
+    readConceptPage: wikiPageReaderInDir(conceptsPath),
     publishMoc: (content) => replaceLeafAtomicWithin(root, path.join(root, MOC_FILE), content),
   };
 }

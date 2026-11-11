@@ -417,8 +417,10 @@ export async function readConfinedPageWith<T>(
   read: (handle: FileHandle) => Promise<T>,
   opts: ReadConfinedPageOptions = {},
 ): Promise<{ kind: "ok"; value: T } | Exclude<ConfinedPageRead, { kind: "ok" }>> {
-  const precheck = await safeRealpath(capturedRealpath, opts);
-  if (precheck !== capturedRealpath || !isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
+  // No realpath before the open: O_NOFOLLOW refuses a symlinked leaf, and the
+  // post-open check below re-resolves the path and binds it to the opened inode,
+  // which is the proof that counts. A pre-open lookup only repeated it.
+  if (!isInsideDir(capturedRealpath, expectedCanonicalDir)) return { kind: "absent" };
   let handle: FileHandle, opened: Stats;
   try {
     ({ handle, stat: opened } = await openRegularNoFollow(capturedRealpath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
