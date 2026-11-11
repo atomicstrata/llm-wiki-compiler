@@ -92,11 +92,46 @@ Every field is optional - you only need to specify what you want to override. Mi
 | `summary` | No | One-line summary written into frontmatter |
 | `relatedSlugs` | No | For `overview` and `comparison` kinds - slugs of pages the compiler should weave together as source material |
 
+## Timeline
+
+`timeline` turns on generated pages that record what happened when, by the dates in your sources. It is off by default because it adds model calls.
+
+```json .llmwiki/schema.json
+{
+  "timeline": { "enabled": true, "timeZone": "America/New_York" }
+}
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `enabled` | No | `true` to write timeline pages. Any other value leaves the timeline off. Default: `false` |
+| `timeZone` | No | IANA time zone that decides which day a timestamp with an offset falls on. Default: this machine's zone. An unknown zone stops the compile with an error |
+
+Each compile then writes `wiki/timeline/`:
+
+- **One page per day** your sources cover, named `YYYY-MM-DD.md`. The model writes it from that day's source lines only, and cites them with the same `^[file.md:START-END]` line citations as concept pages. A **Pages from this day** list links the concept pages that cite those lines.
+- **One page per ISO week**, named `YYYY-Www.md`, written from that week's daily pages and keeping their citations.
+
+How a source is dated:
+
+- A chat or log export whose lines start with timestamps (`- 2026-05-04 12:33 …`) is split by line when the stamps cover more than one day, and either the source has no other date or it has at least three stamps in time order (oldest or newest first). A line without a stamp stays with the entry above it. Stamps inside fenced code blocks don't count. This keeps a dated note that mentions a couple of dated items in one piece.
+- Any other source belongs to one day: frontmatter `date`, then `created_at` or `createdAt`, then a `YYYY-MM-DD` filename prefix, then the one day its stamped lines name. A source with no date stays off the timeline.
+- A timestamp with an offset (`Z`, `-04:00`, `-0400`) is converted to `timeZone`. A timestamp without one is taken as written.
+
+Timeline pages are incremental. A page is rewritten only when the source lines it was built from change, and a week waits until all its days have current pages. The **Pages from this day** list is refreshed on every compile without a model call. Pages for days that no longer have any source are removed. Only pages the compiler generated are touched, so other files you keep in `wiki/timeline/` stay as they are. If one of your files has a day's or week's name, compile leaves it alone, skips that page and its week, and prints a warning.
+
+A day with more source text than fits in one prompt is cut at a line, and the model is told which lines it was not shown. If a page cites lines outside the ones it was written from, compile prints a warning naming the page.
+
+<Note>
+Timeline pages are left out of `llmwiki export --format okf`, the graph, and the viewer's **Recently updated** list. They appear on the viewer's **Timeline** screen, in the viewer's search, in JSON export, and through the MCP `read_page` tool. A failure while updating the timeline is reported as a warning and doesn't fail the compile; the next compile retries it. A profile can't declare an entity directory at `wiki/timeline` or an entity type named `timeline`.
+</Note>
+
 ## How the schema affects compile
 
 When you run `llmwiki compile`:
 
 - **Seed pages** declared in `seedPages` are materialized automatically. For `overview` and `comparison` seeds with `relatedSlugs`, the compiler passes the named pages as the source material.
+- **Timeline pages** are brought up to date at the end of the compile when `timeline.enabled` is `true`. A `--review` compile leaves the timeline alone.
 - Pages without an explicit `kind` in frontmatter are assigned `defaultKind` (default: `concept`).
 
 ## How the schema affects lint

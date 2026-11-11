@@ -41,13 +41,15 @@ describe("Sidebar", () => {
       const html = renderToStaticMarkup(createElement(Sidebar, { wiki: { ...WIKI, index: { available } }, health: null, route: parseRoute("#/") }));
       return [...html.matchAll(/data-route="(\w+)"/g)].slice(0, 3).map((match) => match[1]);
     };
-    expect(firstRows(true)).toEqual(["home", "index", "recent"]);
-    expect(firstRows(false)).toEqual(["home", "recent", "concepts"]);
+    expect(firstRows(true)).toEqual(["home", "index", "timeline"]);
+    expect(firstRows(false)).toEqual(["home", "timeline", "concepts"]);
   });
 
   it("maps every route to the row it lights", () => {
     expect(activeNavRoute(parseRoute("#/index"))).toBe("index");
     expect(activeNavRoute(parseRoute("#/recent"))).toBe("recent");
+    expect(activeNavRoute(parseRoute("#/timeline"))).toBe("timeline");
+    expect(activeNavRoute(parseRoute("#/timeline/2026-05-04"))).toBe("timeline");
     expect(activeNavRoute(parseRoute("#/_type/papers"))).toBe("papers");
     expect(activeNavRoute(parseRoute("#/source-changes"))).toBe("reviews");
     expect(activeNavRoute(parseRoute("#/_search?q=x"))).toBeNull();
@@ -97,6 +99,7 @@ describe("RecentView and search helpers", () => {
   it("filters titles by every word and labels hits by kind", () => {
     expect(matchesTitle(WIKI.pages, "al").map((row) => row.id)).toEqual(["concepts/alpha"]);
     expect(resultKind({ id: "queries/q", pageDirectory: "queries", title: "", snippet: "", matchedIn: "title" })).toBe("query");
+    expect(resultKind({ id: "timeline/2026-05-04", pageDirectory: "timeline", title: "", snippet: "", matchedIn: "body" })).toBe("timeline");
     expect(plainSnippet("see [[a|b]] and [[c]]")).toBe("see b and c");
   });
 });

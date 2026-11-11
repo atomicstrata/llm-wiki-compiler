@@ -2,7 +2,7 @@
  * The sidebar: navigation with counts.
  *
  * Reading comes first: the dashboard, the compiled overview when the wiki
- * has one, and the timeline of compiles. Browse holds the default project's
+ * has one, and the timeline of what happened when. Browse holds the default project's
  * Concepts and Queries, or a profile's declared types in their place.
  * Explore and Maintain are fixed. A zero count reads as an em dash under
  * Browse and Explore (nothing to browse) and as a literal 0 under Maintain (a
@@ -11,7 +11,7 @@
  * collision label so the two stay distinct. The same rows, flattened, are the
  * palette's "Go to" destinations.
  */
-import { Activity, BookOpen, CalendarClock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
+import { Activity, BookOpen, CalendarClock, Clock, FileText, Folder, Inbox, LayoutDashboard, Lightbulb, ListChecks, MessageCircleQuestion, Network, Workflow, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope } from "./api";
 import { typeListHref, type Route } from "./route";
@@ -68,6 +68,7 @@ function sections(wiki: PagesEnvelope, health: HealthPayload | null): NavSection
       label: "Explore",
       zero: "dash",
       items: [
+        { route: "recent", href: "#/recent", label: "Recently updated", icon: Clock },
         { route: "sources", href: "#/sources", label: "Sources", icon: FileText, collisionLabel: "Source files", count: wiki.counts.sourceFiles },
         { route: "graph", href: "#/graph", label: "Graph explorer", icon: Network },
       ],
@@ -90,7 +91,7 @@ function readingItems(wiki: PagesEnvelope): NavItem[] {
   return [
     { route: "home", href: "#/", label: "Dashboard", icon: LayoutDashboard },
     ...(wiki.index.available ? [{ route: "index", href: "#/index", label: "Overview", icon: BookOpen }] : []),
-    { route: "recent", href: "#/recent", label: "Timeline", icon: CalendarClock },
+    { route: "timeline", href: "#/timeline", label: "Timeline", icon: CalendarClock },
   ];
 }
 

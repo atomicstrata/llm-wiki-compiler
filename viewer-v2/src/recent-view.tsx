@@ -1,14 +1,16 @@
 /**
- * Every page newest first, grouped by when it was last compiled: today,
+ * Every knowledge page newest first, grouped by when it was last compiled: today,
  * yesterday, earlier this week, last week, earlier this month, then by month.
  * A page whose created and updated times match was created in that compile,
- * and says so with a visible "new" word rather than colour alone.
+ * and says so with a visible "new" word rather than colour alone. The generated
+ * day and week pages have their own screen, the timeline, so they are left out.
  */
 import type { ReactNode } from "react";
 import type { PageRow, PagesEnvelope } from "./api";
 import { Badge, Card, EmptyState, RowList, Screen } from "./components";
 import { PageRowItem } from "./lists";
 import { groupByRecency } from "./recency";
+import { TIMELINE_DIRECTORY } from "./timeline-model";
 import { plural } from "./wiki-model";
 
 /** Whether the page's last write created it. */
@@ -19,9 +21,10 @@ export function isNewPage(page: PageRow): boolean {
 /** The grouped recency screen. */
 export function RecentView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const now = new Date();
-  const groups = groupByRecency(wiki.pages, (page) => page.updatedAt, now);
+  const pages = wiki.pages.filter((page) => page.pageDirectory !== TIMELINE_DIRECTORY);
+  const groups = groupByRecency(pages, (page) => page.updatedAt, now);
   return (
-    <Screen title="Timeline" description={`${plural(wiki.pages.length, "page")}, newest first`}>
+    <Screen title="Recently updated" description={`${plural(pages.length, "page")}, newest first`}>
       {groups.length === 0 ? <EmptyState title="Nothing compiled yet" body="Compiled pages appear here, newest first." command="$ llmwiki compile" /> : (
       <div className="space-y-8">
         {groups.map((group) => (

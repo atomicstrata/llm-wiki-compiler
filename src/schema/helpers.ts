@@ -49,6 +49,7 @@ export function serializeSchemaToYaml(schema: SchemaConfig): string {
     defaultKind: schema.defaultKind,
     kinds: schema.kinds,
     seedPages: schema.seedPages,
+    timeline: schema.timeline,
   };
   return dumpYaml(serializable);
 }

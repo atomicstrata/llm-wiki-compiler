@@ -2,6 +2,7 @@
  * @file Types for the OKF v0.1 export. `x-llmwiki` is llmwiki's producer
  * namespace (OKF allows producer keys; consumers preserve them).
  */
+import type { PageDirectory } from "../types.js";
 import type { FlatCitation } from "../../context/provenance.js";
 
 /** llmwiki compiler provenance carried losslessly inside OKF frontmatter. */
@@ -10,7 +11,7 @@ export interface XLlmwiki {
   /** sha256 of the CANONICAL body (= body minus derived `# Citations`); see mapping.hashCanonicalBody. */
   contentHash: string;
   /** Source page directory — the unambiguous signal import uses for `targetDirectory`. */
-  pageDirectory: "concepts" | "queries";
+  pageDirectory: PageDirectory;
   sources?: string[];
   confidence?: number;
   provenanceState?: string;

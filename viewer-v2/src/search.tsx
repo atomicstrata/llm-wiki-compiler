@@ -9,11 +9,13 @@ import { fetchSearch, type SearchResult } from "./api";
 
 const DEBOUNCE_MS = 200;
 
-/** The kind chip of a hit: its entity type, or query, or concept. */
+/** The kind chip of a hit: its entity type, or query, timeline or concept. */
 export function resultKind(result: SearchResult): string {
-  if (result.entityType) return result.entityType;
-  return result.pageDirectory === "queries" ? "query" : "concept";
+  return result.entityType || (DIRECTORY_KINDS[result.pageDirectory] ?? "concept");
 }
+
+/** The kind chip of a default page by its directory; anything else reads as a concept. */
+const DIRECTORY_KINDS: Partial<Record<string, string>> = { queries: "query", timeline: "timeline" };
 
 /** Leftover wikilink syntax in a snippet reads as its label. */
 export function plainSnippet(snippet: string): string {

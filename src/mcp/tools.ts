@@ -149,7 +149,7 @@ function registerReadTool(server: McpServer, root: string): void {
     {
       title: "Read Wiki Page",
       description:
-        "Read a single wiki page by slug. Searches concepts/ first, then queries/. " +
+        "Read a single wiki page by slug. Searches concepts/ first, then queries/, then timeline/ (day `YYYY-MM-DD` and week `YYYY-Www` pages). " +
         "Returns the parsed frontmatter and body. No LLM call required.",
       inputSchema: {
         slug: z.string().describe("Page slug, without .md extension."),

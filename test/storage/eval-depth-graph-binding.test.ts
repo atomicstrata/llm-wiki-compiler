@@ -35,7 +35,7 @@ import { evaluateCitationDepth, evaluateCitationDepthFrom } from "../../src/eval
 import { evaluateGraphHealth, evaluateGraphHealthFrom } from "../../src/eval/graph-health.js";
 import type { CitationDepthResult, GraphHealthResult } from "../../src/eval/types.js";
 import type { LegacyLocalEntityScans } from "../../src/storage/legacy-local-reads.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../../src/utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR } from "../../src/utils/constants.js";
 import { tempRootTracker } from "../temp-roots.js";
 import { countOf, entityScansOf, expectRemovedDefaultCopies, mintCopied, mintOnceThenRemove, writeFiles, type Minted } from "./copied-project.js";
 import { lintSourcesOver, NO_ENTITIES, type CopiedLintProject } from "./lint-sources-doubles.js";
@@ -120,7 +120,7 @@ describe("graph health over the same copy", () => {
     const events: string[] = [];
     const graph = await evaluateGraphHealthFrom(scansOver(project, events));
     expect(graph).toEqual(project.onDisk.graph);
-    expect(events.filter((event) => event.startsWith("open "))).toEqual([`open ${CONCEPTS_DIR}`, `open ${QUERIES_DIR}`]);
+    expect(events.filter((event) => event.startsWith("open "))).toEqual([`open ${CONCEPTS_DIR}`, `open ${QUERIES_DIR}`, `open ${TIMELINE_DIR}`]);
     expect([countOf(events, `read ${BETA}`), events.filter((event) => event.startsWith("read ")).length]).toEqual([1, 5]);
   });
 

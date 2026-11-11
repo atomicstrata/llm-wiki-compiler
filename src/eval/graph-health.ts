@@ -130,7 +130,9 @@ export async function evaluateGraphHealth(
 /**
  * {@link evaluateGraphHealth} over {@link LegacyLocalEntityScans}: THE ONE
  * BODY. The viewer's page collection, then the viewer's graph, then the
- * metrics. A page that cannot be read is left out by the collector, as it
+ * metrics. The generated timeline pages are left out, as the viewer's graph
+ * leaves them out: nothing links to a day, so every day would read as an
+ * unreferenced page. A page that cannot be read is left out by the collector, as it
  * always was. A directory the scans report as missing or invalid is read as
  * empty, as it always was; an `openEntityDirectory` call that itself rejects
  * passes its error on unchanged.
@@ -139,7 +141,7 @@ export async function evaluateGraphHealth(
  * @returns The metrics, or null when there are no wiki pages.
  */
 export async function evaluateGraphHealthFrom(scans: LegacyLocalEntityScans): Promise<GraphHealthResult | null> {
-  const pages = await collectViewerPagesFrom(scans);
+  const pages = (await collectViewerPagesFrom(scans)).filter((page) => page.pageDirectory !== "timeline");
   if (pages.length === 0) return null;
 
   const graph = buildGraphData(pages);

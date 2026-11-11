@@ -28,6 +28,7 @@ export type TimedStage =
   | "compile.page-generation"
   | "compile.finalize"
   | "compile.embeddings"
+  | "compile.timeline"
   | "query.retrieval"
   | "query.answer";
 

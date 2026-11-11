@@ -23,12 +23,15 @@
  */
 
 import { parseFrontmatter } from "../utils/markdown.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR } from "../utils/constants.js";
 import { readConfinedWikiPage } from "../compiler/confined-wiki-read.js";
 import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
 
-/** Directories searched (in priority order) when resolving a page slug. */
-const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR];
+/**
+ * Directories searched (in priority order) when resolving a page slug. The
+ * timeline is last: its `YYYY-MM-DD` and `YYYY-Www` slugs do not shadow a page.
+ */
+const PAGE_DIRS = [CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR];
 
 /** The one read a page read takes: a page's text confined to its directory. No member takes a project root. */
 export type PageContentReads = Pick<LegacyLocalReads, "readConfinedPage">;

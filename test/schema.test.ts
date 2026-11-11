@@ -59,6 +59,18 @@ describe("loadSchema", () => {
     const schema = await loadSchema(tmpDir);
     expect(schema.loadedFrom).toBeNull();
     expect(schema.defaultKind).toBe("concept");
+    expect(schema.timeline.enabled).toBe(false);
+  });
+
+  it("turns the timeline on only when enabled is true, and rejects an unknown time zone", async () => {
+    await mkdir(path.join(tmpDir, ".llmwiki"), { recursive: true });
+    const write = (timeline: unknown) => writeFile(path.join(tmpDir, ".llmwiki/schema.json"), JSON.stringify({ timeline }));
+    await write({ enabled: true, timeZone: "America/New_York" });
+    expect((await loadSchema(tmpDir)).timeline).toEqual({ enabled: true, timeZone: "America/New_York" });
+    await write({ enabled: "yes" });
+    expect((await loadSchema(tmpDir)).timeline.enabled).toBe(false);
+    await write({ enabled: true, timeZone: "Mars/Olympus" });
+    await expect(loadSchema(tmpDir)).rejects.toThrow('timeline.timeZone "Mars/Olympus" is not a known IANA time zone');
   });
 
   it("loads a JSON schema from .llmwiki/schema.json", async () => {

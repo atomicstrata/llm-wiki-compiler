@@ -60,21 +60,24 @@ import {
 import { COMPILE_ORIGIN } from "../trust/checks.js";
 
 /**
- * The two DEFAULT wiki page namespaces `compile` writes into. These are the BARE
- * namespace stems (`concepts`/`queries`) the raw planner expects — it builds the
+ * The wiki page namespaces `compile` writes into: the default pages
+ * (`concepts`/`queries`) and the generated `timeline`. These are the BARE
+ * namespace stems the raw planner expects — it builds the
  * full `wiki/<namespace>/<slug>.md` path itself, so the `wiki/` prefix is NOT
  * included here (passing the `CONCEPTS_DIR` constant would double the prefix).
  */
-export type CompilePageNamespace = "concepts" | "queries";
+export type CompilePageNamespace = "concepts" | "queries" | "timeline";
 
 /** One compiled page to write: its namespace, slug stem, and full markdown body. */
 export interface CompilePageWrite {
-  /** The bare wiki namespace (`concepts` or `queries`). */
+  /** The bare wiki namespace (`concepts`, `queries` or `timeline`). */
   namespace: CompilePageNamespace;
   /** The page's raw slug stem (no extension, no directory). */
   slug: string;
-  /** The full markdown body (frontmatter + prose) to write. */
+  /** The full markdown body (frontmatter + prose) to write, or, when deleting, the bytes being removed. */
   body: string;
+  /** Remove the page instead of writing it; the floor still checks `body`. */
+  deleting?: boolean;
 }
 
 /** A page the planner BLOCKED at the floor, returned (not thrown) so compile continues. */
@@ -137,6 +140,7 @@ async function planCompilePageWrites(
       origin: COMPILE_ORIGIN,
       reviewRouted: false,
       allowOverwrite: true,
+      deleting: it.deleting,
     });
     if (r.planned.length === 0) {
       skipped.push({ item: it, reason: `floor:${r.decision}` });

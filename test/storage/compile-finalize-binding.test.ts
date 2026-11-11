@@ -185,13 +185,13 @@ describe("compile's tail over one copied project, with the minting directory gon
 });
 
 describe("the tail's order and flags over the bound steps (memory only)", () => {
-  it("F3 runs seed, resolve, repair, flush, index, MOC, then embeddings over the concept page ids; skips embeddings when off and seeding when told", async () => {
+  it("F3 runs seed, resolve, repair, flush, index, MOC, embeddings over the concept page ids, then the timeline; skips embeddings when off and seeding when told", async () => {
     const log: string[] = [];
     const side = memorySide(log);
     vi.spyOn(output, "status").mockImplementation(() => {});
     await side.seedThenFinalize(generation(["beta"]), {}, await side.load());
     await side.seedThenFinalize(generation([]), { skipSeedPages: true, embeddings: false }, null);
-    expect(log).toEqual(["seed", "resolve", "repair", "flush", "index", "moc", "embeddings concepts/beta,concepts/overview", "index", "moc"]);
+    expect(log).toEqual(["seed", "resolve", "repair", "flush", "index", "moc", "embeddings concepts/beta,concepts/overview", "timeline", "index", "moc", "timeline"]);
   });
 
   it("F4 leaves the state record untouched and the index unbuilt when resolution fails before the flush", async () => {

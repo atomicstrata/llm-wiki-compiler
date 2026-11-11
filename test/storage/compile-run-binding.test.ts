@@ -204,7 +204,7 @@ describe("the bound run's refusals, order, review delegation, and no ambient cal
     const { log, side } = memorySide("fresh");
     await runScenario(side, new HeadingsProvider());
     expect(log).toEqual([...GATE, "recover", "access", "draft", "list wiki/concepts", "list wiki/queries", "commit-live",
-      "finalize", "seed", "resolve", "repair", "flush", "index", "moc", "log", "release"]);
+      "finalize", "seed", "resolve", "repair", "flush", "index", "moc", "timeline", "log", "release"]);
     expect(log.filter((entry) => entry === "journal" || entry === "recover")).toEqual(["journal", "recover"]);
   });
 

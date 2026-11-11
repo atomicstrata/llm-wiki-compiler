@@ -33,7 +33,7 @@
  */
 
 import { parseFrontmatterStatus, slugify } from "../utils/markdown.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR } from "../utils/constants.js";
 import type { PageDirectory } from "../export/types.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans, LocalEntityDirectory } from "../storage/legacy-local-reads.js";
@@ -360,10 +360,11 @@ function scanToRawWikiPage(scan: RawEntityScan, pageDirectory: PageDirectory): R
 }
 
 /**
- * Collect all readable wiki pages from `wiki/concepts/` and `wiki/queries/`.
- * Entries dropped for path-safety reasons (see `scanEntityDir`) are silently
- * excluded. Pages are returned in filesystem order within each directory, with
- * concepts before queries; callers that need a stable total order should sort.
+ * Collect all readable wiki pages from `wiki/concepts/`, `wiki/queries/` and the
+ * generated `wiki/timeline/`. Entries dropped for path-safety reasons (see
+ * `scanEntityDir`) are silently excluded. Pages are returned in filesystem order
+ * within each directory, concepts first, then queries, then timeline; callers
+ * that need a stable total order should sort.
  *
  * Slug values are the raw filename stems VERBATIM — this path never calls
  * `entityId()` or `slugify()`.
@@ -374,17 +375,19 @@ export function collectRawWikiPages(root: string): Promise<RawWikiPage[]> {
 
 /**
  * {@link collectRawWikiPages} over a read binding in place of a project root.
- * Both directory scans start together on the ONE binding, concepts first.
+ * The directory scans start together on the ONE binding, concepts first.
  */
 export async function collectRawWikiPagesFrom(scans: LegacyLocalEntityScans): Promise<RawWikiPage[]> {
-  const [concepts, queries] = await Promise.all([
+  const [concepts, queries, timeline] = await Promise.all([
     scanEntityDirFrom(scans, CONCEPTS_DIR),
     scanEntityDirFrom(scans, QUERIES_DIR),
+    scanEntityDirFrom(scans, TIMELINE_DIR),
   ]);
   // The default path ignores dirStatus: a missing OR invalid dir is treated as
   // empty, exactly as before the refactor (the parity golden proves this).
   return [
     ...concepts.scans.map((s) => scanToRawWikiPage(s, "concepts")),
     ...queries.scans.map((s) => scanToRawWikiPage(s, "queries")),
+    ...timeline.scans.map((s) => scanToRawWikiPage(s, "timeline")),
   ];
 }

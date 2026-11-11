@@ -46,7 +46,7 @@ export interface XOkfSnapshot {
  * a semantic typology. Renaming avoids field collision when JSON export and
  * schema metadata are consumed by the same downstream tooling.
  */
-export type PageDirectory = "concepts" | "queries";
+export type PageDirectory = "concepts" | "queries" | "timeline";
 
 /** A fully-resolved wiki page ready for export serialisation. */
 export interface ExportPage {
@@ -54,7 +54,7 @@ export interface ExportPage {
   title: string;
   /** Filesystem slug (filename without .md). */
   slug: string;
-  /** Whether this page came from wiki/concepts or wiki/queries. */
+  /** Whether this page came from wiki/concepts, wiki/queries or the generated wiki/timeline. */
   pageDirectory: PageDirectory;
   /**
    * Project-relative path to the source markdown file, e.g.
