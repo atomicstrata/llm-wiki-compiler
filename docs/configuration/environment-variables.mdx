@@ -325,6 +325,14 @@ Non-numeric, zero, or negative values are silently ignored and the next source i
 
 ---
 
+## Ingest
+
+| Variable | Default | Description |
+|---|---|---|
+| `LLMWIKI_MAX_SOURCE_CHARS` | `100000` | Characters of a source kept before truncation. Raise it to keep a long PDF or transcript whole; the saved file still records `truncated: true` and `originalChars` when the extract runs past the limit, and the warning names how many characters were dropped. Must be an integer of at least `50`; anything else stops the ingest with an error naming the variable |
+
+---
+
 ## Compile
 
 | Variable | Default | Description |

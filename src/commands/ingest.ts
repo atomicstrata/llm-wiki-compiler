@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { saveSourceUnderProjectGate } from "../operation-bundles/registered-project-lock.js";
 import { appendLog } from "../utils/activity-log.js";
-import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS } from "../utils/constants.js";
+import { MAX_SOURCE_CHARS, MIN_SOURCE_CHARS, SOURCES_DIR, IMAGE_EXTENSIONS, TRANSCRIPT_EXTENSIONS, resolveMaxSourceChars } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import { verbose } from "../utils/output.js";
 import ingestWeb from "../ingest/web.js";
@@ -148,20 +148,28 @@ interface TruncateResult {
   originalChars: number;
 }
 
-/** Truncate content if it exceeds the character limit, logging a warning. */
-export function enforceCharLimit(content: string): TruncateResult {
-  if (content.length <= MAX_SOURCE_CHARS) {
+/**
+ * Truncate content that exceeds the character limit, logging a warning that
+ * names how much was dropped. The limit comes from `LLMWIKI_MAX_SOURCE_CHARS`
+ * when it is set, so a long document can be kept whole.
+ */
+export function enforceCharLimit(
+  content: string,
+  maxChars: number = resolveMaxSourceChars()
+): TruncateResult {
+  if (content.length <= maxChars) {
     return { content, truncated: false, originalChars: content.length };
   }
 
+  const omitted = content.length - maxChars;
   output.status(
     "!",
     output.warn(
-      `Content truncated from ${content.length.toLocaleString()} to ${MAX_SOURCE_CHARS.toLocaleString()} characters.`
+      `Content truncated from ${content.length.toLocaleString()} to ${maxChars.toLocaleString()} characters (${omitted.toLocaleString()} omitted).`
     )
   );
   return {
-    content: content.slice(0, MAX_SOURCE_CHARS),
+    content: content.slice(0, maxChars),
     truncated: true,
     originalChars: content.length,
   };

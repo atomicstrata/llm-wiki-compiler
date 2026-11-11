@@ -7,6 +7,26 @@
 export const MAX_SOURCE_CHARS = 100_000;
 
 /**
+ * Ingest-time override for {@link MAX_SOURCE_CHARS}, read from
+ * `LLMWIKI_MAX_SOURCE_CHARS`.
+ *
+ * A long PDF keeps its full text instead of being cut at the default. An
+ * unusable value throws rather than silently falling back, so a typo cannot
+ * look like a limit that was applied.
+ */
+export function resolveMaxSourceChars(): number {
+  const raw = process.env.LLMWIKI_MAX_SOURCE_CHARS?.trim();
+  if (!raw) return MAX_SOURCE_CHARS;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < MIN_SOURCE_CHARS) {
+    throw new Error(
+      `LLMWIKI_MAX_SOURCE_CHARS must be an integer of at least ${MIN_SOURCE_CHARS}`
+    );
+  }
+  return value;
+}
+
+/**
  * Absolute body-size guardrail for COMPILE-GENERATED page writes (`origin:"compile"`).
  *
  * The mandatory trust floor's resource-limit caps a page body at

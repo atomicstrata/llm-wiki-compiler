@@ -31,7 +31,7 @@ Fetches `<url>` or reads `<file>` from disk, converts the content to Markdown, e
 | **Transcript** | Local `.vtt`, `.srt`, or `.txt` files that contain speaker-tag or timestamp patterns | Transcript formatted as Markdown |
 | **Markdown / text** | Any other local file (`.md`, `.txt`, `.rst`, …) | File content verbatim |
 
-Content longer than 100,000 characters is truncated. The saved file records `truncated: true` and `originalChars: <n>` in its frontmatter so downstream tooling knows the source is partial.
+Content longer than 100,000 characters is truncated. The saved file records `truncated: true` and `originalChars: <n>` in its frontmatter so downstream tooling knows the source is partial, and the ingest warning names how many characters were dropped. Set `LLMWIKI_MAX_SOURCE_CHARS` to keep more of a long document - a PDF whose text runs past 100k characters, for example - before truncation applies.
 
 ### Flags
 
