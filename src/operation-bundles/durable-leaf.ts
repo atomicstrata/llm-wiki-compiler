@@ -68,9 +68,10 @@ async function reservedLinksAreExact(opened: LinkedLeaf): Promise<boolean> {
  * confined path: the parent's realpath is the canonical directory the walk's
  * open proved, and the canonical leaf, not followed, is a regular file with
  * that handle's identity, link count, size and modification and change times.
- * These are the path half of the post-read checks of
- * {@link readConfirmedBufferOrElse}, which the walk's read deliberately left
- * to this moment, and a version check besides.
+ * These are the post-read checks of {@link readConfirmedBufferOrElse}, which
+ * the walk's read deliberately left to this moment: the version comparison,
+ * taken after the walk's read ended, refuses any write to the inode since the
+ * open, because every such write moves its change time.
  */
 async function heldLeafIsCurrent(held: HeldLeaf): Promise<boolean> {
   const parentReal = await realpath(path.dirname(held.leaf)).catch(() => null);
@@ -84,9 +85,8 @@ async function heldLeafIsCurrent(held: HeldLeaf): Promise<boolean> {
  * The bytes the pass's walk read from this exact leaf, when the leaf is still
  * that version and its reserved links are exact; otherwise undefined, and the
  * caller reads the disk. The walk read them through the same confined open,
- * within this cap, and found its handle unchanged after the read
- * (`inventory-scan.ts`); the path checks are asked here, before any byte is
- * returned.
+ * within this cap (`inventory-scan.ts`); every post-read check is asked here,
+ * before any byte is returned.
  */
 async function currentHeldBytes(
   scanned: ScannedLeafBytes | undefined, root: string, file: string, ownedRoot: string, maxBytes: number,

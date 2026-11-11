@@ -8,11 +8,10 @@
  * durable-leaf reader, which opens each one AGAIN and re-proves the same
  * confinement. For a leaf the scan goes on to read, the walk now reads the
  * bytes while its confined handle is open, under the leaf kind's own cap, and
- * leaves them here once the handle's `fstat` shows the file unchanged. The
- * durable reader consumes them only after asking the path half of the
- * post-read checks (parent realpath, canonical identity) and proving the leaf
- * is STILL that version (`durable-leaf.ts`); on any difference it reads the
- * disk as before.
+ * leaves them here when the read returned exactly the size the open saw. The
+ * durable reader consumes them only after asking the post-read checks (parent
+ * realpath, canonical identity) and proving the leaf is STILL the version the
+ * open saw (`durable-leaf.ts`); on any difference it reads the disk as before.
  *
  * WHAT IS HELD. A held leaf carries the identity, version and confinement its
  * handle proved: the lexical leaf and owned directory it was asked under, the
