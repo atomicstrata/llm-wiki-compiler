@@ -85,6 +85,6 @@ describe("drawings", () => {
   });
 
   it("explains community colours in the legend", () => {
-    expect(text(renderToStaticMarkup(createElement(GraphLegend, { compact: false, colorBy: "community" })))).toContain("Each colour marks a cluster");
+    expect(text(renderToStaticMarkup(createElement(GraphLegend, { colorBy: "community" })))).toContain("Each colour marks a cluster");
   });
 });

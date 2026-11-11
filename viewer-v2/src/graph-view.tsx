@@ -61,7 +61,7 @@ export function GraphView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
       description={<>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span>{plural(danglingCount, "dangling target")}</span></>}>
       <div className="relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
         <GraphCanvas wiki={wiki} compact={false} onSettled={setControls} colorBy={colorBy} highlightId={found} />
-        <GraphLegend compact={false} colorBy={colorBy} />
+        <GraphLegend colorBy={colorBy} />
       </div>
     </Screen>
   );

@@ -1,11 +1,12 @@
 /**
  * The v2 viewer shell: header, navigation sidebar, and the view for the
- * current hash route. `/api/pages` and `/api/health` load once in parallel; a
- * failed health fetch only degrades the surfaces that need it. Hover previews
- * mount once here so every wikilink and citation chip in any view gets one.
+ * current hash route. `/api/pages` and `/api/health` load in parallel and
+ * stay live while the tab is visible; a failed health fetch only degrades the
+ * surfaces that need it. Hover previews, the command palette and the
+ * keyboard shortcuts mount once here, so they work from every view.
  */
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
-import { fetchHealth, fetchPages, type HealthPayload, type PagesEnvelope } from "./api";
+import type { HealthPayload, PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { CommandPalette } from "./command-palette";
 import { Dashboard } from "./dashboard";
@@ -15,7 +16,7 @@ import { HealthView } from "./health-view";
 import { HoverPreviews } from "./hover-preview";
 import { IndexView } from "./index-view";
 import { JourneyView } from "./journey-view";
-import { ConceptsList, QueriesList, SourcesList, TypeList } from "./lists";
+import { ConceptsList, QueriesList, SourcesList, TagList, TypeList } from "./lists";
 import { PageView } from "./page-view";
 import { PendingView } from "./pending-view";
 import { PipelineView } from "./pipeline-view";
@@ -24,10 +25,10 @@ import { ReviewsView } from "./reviews-view";
 import { parseRoute, type Route } from "./route";
 import { SearchView } from "./search-view";
 import { KeyboardShortcuts } from "./shortcuts";
+import { useLiveBootstrap, type Bootstrap } from "./live-bootstrap";
 import { Sidebar } from "./nav";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
-import { useAsync } from "./use-async";
 import { WorkflowsView } from "./workflows-view";
 
 /** Subscribe to hash changes for `useSyncExternalStore`. */
@@ -47,16 +48,6 @@ function useRoute(): Route {
   return parseRoute(hash);
 }
 
-/** The bootstrap payloads; health is null when its fetch fails. */
-interface Bootstrap {
-  wiki: PagesEnvelope;
-  health: HealthPayload | null;
-}
-
-async function loadBootstrap(): Promise<Bootstrap> {
-  const [wiki, health] = await Promise.all([fetchPages(), fetchHealth().catch(() => null)]);
-  return { wiki, health };
-}
 
 const STATE_WARNINGS: Partial<Record<PagesEnvelope["stateStatus"], string>> = {
   corrupt: "Warning: state.json is corrupt. Freshness data is unavailable. Re-run `llmwiki compile` to restore.",
@@ -80,6 +71,7 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "graph": return <GraphView wiki={wiki} />;
     case "list": { const List = LISTS[route.kind]; return <List wiki={wiki} />; }
     case "typeList": return <TypeList wiki={wiki} type={route.type} />;
+    case "tag": return <TagList wiki={wiki} tag={route.tag} />;
     case "pipeline": return <PipelineView wiki={wiki} />;
     case "workflows": return <WorkflowsView />;
     case "journey": return <JourneyView workflowId={route.workflowId} runId={route.runId} />;
@@ -121,6 +113,6 @@ function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode
 /** Load the bootstrap payloads once, then render the shell for the current route. */
 export function App(): ReactNode {
   const route = useRoute();
-  const bootstrap = useAsync(loadBootstrap, "bootstrap");
+  const bootstrap = useLiveBootstrap();
   return <AsyncView state={bootstrap}>{(loaded) => <Shell wiki={loaded.wiki} health={loaded.health} route={route} />}</AsyncView>;
 }

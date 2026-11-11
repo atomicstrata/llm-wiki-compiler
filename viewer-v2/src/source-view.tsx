@@ -1,10 +1,12 @@
 /**
- * One ingested source: the images it declares and its full text with line numbers, so a
- * citation such as `notes.md:12-15` can be checked against the exact lines.
+ * One ingested source: the pages that cite it, the images it declares, and its
+ * full text with line numbers, so a citation such as `notes.md:12-15` can be
+ * checked against the exact lines.
  */
 import { useEffect, useRef, type ReactNode } from "react";
 import { fetchSourceMeta, fetchSourceText, type SourceMeta } from "./api";
 import { AsyncView } from "./async-view";
+import { CitedByCard } from "./cited-by";
 import { Card, Screen } from "./components";
 import { SourceImageFigure } from "./source-images-view";
 import { useAsync } from "./use-async";
@@ -73,6 +75,7 @@ function SourceDocument({ id, source, lineStart, lineEnd }: { id: string; source
   return (
     <Screen title={meta.title ?? id} description={<span className="font-mono text-xs break-all">{id}</span>} actions={<OriginalLink locator={meta.locator} />}>
       <div className="space-y-6">
+        <CitedByCard id={id} />
         <SourceImageGrid id={id} images={meta.images ?? []} />
         <SourceLines text={text} lineStart={lineStart} lineEnd={lineEnd} />
       </div>

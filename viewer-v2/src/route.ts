@@ -9,8 +9,8 @@
  * `#/graph`, `#/health`, `#/reviews`, `#/source-changes`, `#/workflows` and
  * `#/pipeline`. A profile's typed list lives at `#/_type/<entity-type>`, so a
  * type sharing a name with one of those screens still opens its own pages.
- * `#/_search?q=` and a run's journey at `#/_journey/<workflow>/<run>` are the
- * routes only this client has. Reserved segments start with an underscore,
+ * `#/_search?q=`, the pages carrying a tag at `#/_tag/<tag>`, and a run's
+ * journey at `#/_journey/<workflow>/<run>` are the routes only this client has. Reserved segments start with an underscore,
  * which no page directory can.
  */
 
@@ -33,13 +33,15 @@ export type Route =
   | { view: "journey"; workflowId: string; runId: string }
   | { view: "page"; directory: string; slug: string }
   | { view: "source"; id: string; lineStart?: number; lineEnd?: number }
-  | { view: "search"; query: string };
+  | { view: "search"; query: string }
+  | { view: "tag"; tag: string };
 
 const HOME: Route = { view: "home" };
 const SOURCE_SEGMENT = "_source";
 const TYPE_SEGMENT = "_type";
 const SEARCH_SEGMENT = "_search";
 const JOURNEY_SEGMENT = "_journey";
+const TAG_SEGMENT = "_tag";
 const WHOLE_NUMBER = /^\d+$/;
 
 /** Single-segment hashes that name a screen outright. */
@@ -70,10 +72,16 @@ export function parseRoute(hash: string): Route {
   }
   if (segments.length !== 2) return HOME;
   if (segments[0] === TYPE_SEGMENT) return { view: "typeList", type: segments[1] };
+  if (segments[0] === TAG_SEGMENT) return { view: "tag", tag: segments[1] };
   if (segments[0] === SOURCE_SEGMENT) {
     return { view: "source", id: segments[1], ...lineRange(params.get("start"), params.get("end")) };
   }
   return { view: "page", directory: segments[0], slug: segments[1] };
+}
+
+/** Hash for the pages carrying `tag`. */
+export function tagHref(tag: string): string {
+  return `#/${TAG_SEGMENT}/${encodeURIComponent(tag)}`;
 }
 
 /** Hash for a wiki page, matching the links the server renders. */

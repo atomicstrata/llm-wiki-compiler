@@ -7,7 +7,6 @@ import { describe, expect, it } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { GraphNode } from "../viewer-v2/src/api.js";
-import { Dashboard } from "../viewer-v2/src/dashboard.js";
 import { GraphLegend, GraphSurface } from "../viewer-v2/src/graph-canvas.js";
 import { forcesFor, frameFor, KIND_COLOR, nodeHref, nodeKind, nodeMeta, nodeRadius, staleIds } from "../viewer-v2/src/graph-model.js";
 import { GraphView } from "../viewer-v2/src/graph-view.js";
@@ -74,14 +73,13 @@ describe("graph model", () => {
 
 describe("graph markup", () => {
   it("lists every node kind, both edge kinds, and the size rule in the full legend", () => {
-    const html = renderToStaticMarkup(createElement(GraphLegend, { compact: false }));
+    const html = renderToStaticMarkup(createElement(GraphLegend, {}));
     for (const kind of ["concept", "entity", "stale", "dangling"] as const) {
       expect(html).toContain(`<span class="${KIND_COLOR[kind]}" aria-hidden="true">●</span> ${kind}`);
     }
     expect(html).toContain("─ wikilink");
     expect(html).toContain("╌ relation");
     expect(html).toContain("larger = more connections");
-    expect(renderToStaticMarkup(createElement(GraphLegend, { compact: true }))).toContain("size = degree");
   });
 
   it("shows the empty state when the graph has no nodes", () => {
@@ -105,16 +103,11 @@ describe("graph markup", () => {
     expect(html).toContain('<line stroke="currentColor" stroke-opacity="0.3" stroke-dasharray="5 3"><title>mentions</title>');
   });
 
-  it("keeps Fit disabled on both screens until a layout reports back", () => {
+  it("keeps the explorer's Fit disabled until a layout reports back", () => {
     const explorer = renderToStaticMarkup(createElement(GraphView, { wiki: envelope({ graph: { nodeCount: 3, edgeCount: 2, danglingCount: 1 } }) }));
     expect(explorer).toContain("Graph explorer");
     expect(explorer).toContain("3 nodes · 2 edges · ");
     expect(explorer).toMatch(/disabled=""[^>]*>Fit<\/button>/);
     expect(explorer).toContain("Loading…");
-    const dashboard = renderToStaticMarkup(createElement(Dashboard, { wiki: WIKI, health: null }));
-    expect(dashboard).toMatch(/disabled=""[^>]*>Fit<\/button>/);
-    expect(dashboard).toMatch(/aria-label="Open the full graph explorer"[^>]*><svg/);
-    expect(dashboard).toContain("size = degree");
-    expect(dashboard).toContain("hover a node to inspect");
   });
 });

@@ -33,6 +33,7 @@ export interface PageRow {
   title: string;
   kind: string;
   summary: string;
+  tags: string[];
   updatedAt: string;
   createdAt: string;
   warnings: PageWarning[];

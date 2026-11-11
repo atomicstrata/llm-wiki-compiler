@@ -113,6 +113,11 @@ function countWarnings(page: ViewerPage, code: string): number {
   return page.warnings.filter((warning) => warning.code === code).length;
 }
 
+/** A frontmatter `tags` value as a list of non-empty strings; anything else is no tags. */
+function stringTags(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((tag): tag is string => typeof tag === "string" && tag.trim().length > 0) : [];
+}
+
 /** Per-page row shape returned in `/api/pages.pages`. */
 function pageListRow(page: ViewerPage): Record<string, unknown> {
   return {
@@ -122,6 +127,7 @@ function pageListRow(page: ViewerPage): Record<string, unknown> {
     title: page.title,
     kind: viewerPageKind(page),
     summary: typeof page.frontmatter.summary === "string" ? page.frontmatter.summary : "",
+    tags: stringTags(page.frontmatter.tags),
     updatedAt: pageTimestamp(page.frontmatter),
     // The raw field, never the updatedAt fallback: a client compares the two
     // to tell a page created by the last compile from one it merely updated.

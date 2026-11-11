@@ -58,15 +58,12 @@ const TOOLTIP_OFFSET = { x: 14, y: -50 };
 const TOOLTIP_EDGE_GAP = 8;
 
 /** The legend: node colours, then in the explorer edge kinds and the size rule. */
-export function GraphLegend({ compact, colorBy = "kind" }: { compact: boolean; colorBy?: ColorBy }): ReactNode {
+export function GraphLegend({ colorBy = "kind" }: { colorBy?: ColorBy }): ReactNode {
   const nodeRows = colorBy === "community"
     ? [<span key="community" className="block max-w-44">Each colour marks a cluster of pages that link to each other; colours repeat for distant clusters. Grey pages stand alone.</span>]
     : NODE_LEGEND.map((row) => (
       <span key={row.kind} className="inline-flex items-center gap-1"><span className={KIND_COLOR[row.kind]} aria-hidden="true">●</span>{" "}{row.label}{" "}</span>
     ));
-  if (compact) {
-    return <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">{nodeRows}<span className="ml-auto">size = degree</span></div>;
-  }
   return (
     <div className="absolute top-3 right-3 space-y-1 rounded-lg bg-white/90 p-3 text-xs text-zinc-600 shadow-sm ring-1 ring-zinc-950/5 backdrop-blur dark:bg-zinc-900/90 dark:text-zinc-400 dark:ring-white/10">
       <div className="font-medium text-zinc-900 dark:text-zinc-100">{colorBy === "community" ? "Colour" : "Node kind"}</div>

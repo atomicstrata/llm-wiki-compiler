@@ -32,7 +32,17 @@ Press `Ctrl+C` to stop the server.
 llmwiki view-v2 --open
 ```
 
-The v2 client has the dashboard with its live compact graph, the navigation sidebar with counts, the whole-wiki verdict pill, a command palette, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph behaves as in `llmwiki view`: a label-free canvas, a tooltip with each node's title, kind and connection count, a click to open the page, colour by dangling, stale, concept or entity, size by degree, zoom and pan, node drag in the explorer, and **Fit** to re-frame the settled layout.
+The v2 client has the dashboard, the navigation sidebar with counts, the whole-wiki verdict pill, a command palette, the concepts, queries, sources and profile-type lists with title and freshness filters, the graph explorer at `#/graph`, each page with its citation chips, and each source with numbered lines. Selecting a citation chip opens the source at the cited lines. The graph explorer behaves as in `llmwiki view`, with a tooltip with each node's title, kind and connection count, a click to open the page, size by degree, zoom and pan, node drag, and **Fit** to re-frame the settled layout, and adds the features under [The graph](#the-graph).
+
+The client stays current while its tab is visible: it reloads the page list and health every 30 seconds, and again when you return to the tab, so a compile, a lint run or a new review candidate appears without a reload. It re-renders only when something it shows has changed.
+
+### Dashboard
+
+The dashboard shows the four headline counts and, when you have visited before in this browser, the pages that changed since your last visit. A visit starts when more than half an hour has passed since the last one, so reloading the page does not reset it. Below that are the recently compiled pages, a topic map of the most used tags sized by how many pages carry them, an activity calendar of pages updated per day over the last 16 weeks, the compile receipt, and the next CLI actions. Select a tag, here or on any page, to open `#/_tag/<tag>`, which lists the pages carrying it.
+
+### Cited by
+
+Each source at `#/_source/<file>` lists the pages that cite it, with the line ranges each page cites. Select a range to highlight those lines in the source. The list comes from `GET /api/source/<file>/cited-by`, which answers from the viewer's in-memory snapshot and returns page titles and line numbers but no source text, so it works on any bind address. The source text itself still needs a loopback bind.
 
 It adds one screen the original client lacks: `#/recent` lists every page newest first, grouped by when it was compiled (today, yesterday, earlier this week, last week, earlier this month, then by month), and marks pages the last compile created with a "new" badge. The dashboard's "View all" opens it.
 
