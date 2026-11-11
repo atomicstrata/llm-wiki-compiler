@@ -52,8 +52,7 @@ async function openConfinedDirectory(state: { root: string }, dir: string) {
   const confined = await directoryIsConfined(state, dir);
   if (confined === "absent") return "absent" as const;
   if (!confined) return "unavailable" as const;
-  // A confined path that is not a directory is unavailable, as before; any other failure to list is unlistable.
-  return opendir(dir).catch((error: NodeJS.ErrnoException) => error.code === "ENOTDIR" ? "unavailable" as const : "unlistable" as const);
+  return opendir(dir).catch(listingRefusal);
 }
 
 /**
@@ -72,25 +71,44 @@ function inventoryLeafMetadata(
   };
 }
 
-/** Traverse an open directory while the caller's store-specific budget permits. */
+/**
+ * Traverse an open directory while the caller's store-specific budget permits.
+ *
+ * Bun opens a directory lazily on Linux: `opendir` succeeds on a directory the
+ * process may not list, and the refusal (`EACCES`) arrives with the first read.
+ * A failure before any entry is seen is therefore the same refusal a failed open
+ * is, and is answered the same way; a failure after an entry was seen rejects.
+ */
 async function walkInventoryEntries<T>(
   entries: AsyncIterable<T> & { close(): Promise<void> }, take: () => boolean, inspect: (entry: T) => Promise<void>,
-): Promise<void> {
+): Promise<"visited" | InventoryDirectoryRefusal> {
+  let seen = false;
   try {
     for await (const entry of entries) {
+      seen = true;
       if (!take()) break;
       await inspect(entry);
     }
+    return "visited";
+  } catch (error) {
+    if (seen) throw error;
+    return listingRefusal(error as NodeJS.ErrnoException);
   } finally {
     await entries.close().catch(() => {});
   }
+}
+
+/** A confined path that is not a directory is unavailable; any other failure to list is unlistable. */
+function listingRefusal(error: NodeJS.ErrnoException): InventoryDirectoryRefusal {
+  return error.code === "ENOTDIR" ? "unavailable" : "unlistable";
 }
 
 /**
  * Visit one confined directory under the caller's visitor, or say why it was
  * not opened: the confined opener, then the bounded entry loop. It names no
  * store: the caller words its own problem. A refusal is returned
- * only before any entry is seen; a failure during iteration rejects.
+ * only before any entry is seen (including a lazy open's first read); a
+ * failure after an entry was seen rejects.
  */
 export async function visitInventoryDirectory(
   root: string, directory: string,
@@ -98,8 +116,7 @@ export async function visitInventoryDirectory(
 ): Promise<"visited" | InventoryDirectoryRefusal> {
   const opened = await openConfinedDirectory({ root }, directory);
   if (typeof opened === "string") return opened;
-  await walkInventoryEntries(opened, visitor.take, visitor.inspect);
-  return "visited";
+  return walkInventoryEntries(opened, visitor.take, visitor.inspect);
 }
 
 /** One leaf's size and identity as its opened handle reported them, or why it could not be opened. */
