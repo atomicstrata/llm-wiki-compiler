@@ -39,7 +39,9 @@ export function diskOkfExportSources(root: string): OkfExportSources {
  */
 export async function runOkfExportFrom(sources: OkfExportSources, root: string, opts: { out?: string } = {}): Promise<OkfExportReport> {
   const outDir = opts.out ?? path.join(root, EXPORT_DIR, "okf");
-  const pages = await collectExportPagesFrom(sources.pages);
+  // Timeline pages are regenerated from the sources' dates on every compile, so
+  // they are not knowledge to carry between projects; the bundle holds concepts and queries.
+  const pages = (await collectExportPagesFrom(sources.pages)).filter((page) => page.pageDirectory !== "timeline");
   const warnings: string[] = [];
   // Surface a pending/unavailable compile journal so an OKF-bundle consumer never
   // imports partial post-crash or tampered page bodies as a clean export. The

@@ -51,7 +51,7 @@ import {
 import { EntityCollectError } from "../../src/profile/collect.js";
 import { DEFAULT_PROFILE } from "../../src/profile/default.js";
 import { journalHealthWarningFrom } from "../../src/trust/journal-health-warning.js";
-import { CONCEPTS_DIR, PROFILE_FILE, QUERIES_DIR } from "../../src/utils/constants.js";
+import { CONCEPTS_DIR, PROFILE_FILE, QUERIES_DIR, TIMELINE_DIR } from "../../src/utils/constants.js";
 import { PathSafetyError } from "../../src/viewer/path-safety.js";
 import { SAMPLE_PROFILE } from "../fixtures/profile-fixtures.js";
 import { tempRootTracker } from "../temp-roots.js";
@@ -64,7 +64,7 @@ const PREFIX = "page-read-";
 /** The path the typed project's doubles give as the project's real root; entry locators and problem paths are made from it. */
 const REAL_ROOT = "/copied/project";
 const NOTES_DIR = "wiki/notes";
-const RELATIVE: Record<PageDirectory, string> = { concepts: CONCEPTS_DIR, queries: QUERIES_DIR };
+const RELATIVE: Record<PageDirectory, string> = { concepts: CONCEPTS_DIR, queries: QUERIES_DIR, timeline: TIMELINE_DIR };
 const page = (frontmatter: string, body: string): string => `---\n${frontmatter}\n---\n\n${body}\n`;
 
 /** The listings asked of the disk and then of the copy, in this order. */
@@ -226,8 +226,9 @@ describe("the reads the page functions make over a copy", () => {
   it("P9 scans then re-reads each directory in turn, then the profile, then the journal", async () => {
     const log: string[] = [];
     await listPagesFrom(pageReadsOf(wiki.copy, log));
-    expect(stepsOf(log)).toEqual(["scan", "text", "scan", "text", "profile", "journal"]);
-    expect([countOf(log, `scan:list ${CONCEPTS_DIR}`), countOf(log, `scan:list ${QUERIES_DIR}`), countOf(log, "journal:journal.open")]).toEqual([1, 1, 1]);
+    // The timeline directory is scanned last and is empty here, so it adds a scan and no re-reads.
+    expect(stepsOf(log)).toEqual(["scan", "text", "scan", "text", "scan", "profile", "journal"]);
+    expect([CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR, "journal"].map((dir) => countOf(log, dir === "journal" ? "journal:journal.open" : `scan:list ${dir}`))).toEqual([1, 1, 1, 1]);
   });
 
   it("P10 re-reads every scanned page once for its body, the filtered-out pages included, with bodies not asked for", async () => {
@@ -244,7 +245,7 @@ describe("the reads the page functions make over a copy", () => {
     expect(one).toEqual(["text:concepts/alpha"]);
     const bad: string[] = [];
     await expect(listPagesFrom(pageReadsOf(wiki.copy, bad), { cursor: "x" })).rejects.toThrow("invalid listPages cursor: x");
-    expect(stepsOf(bad)).toEqual(["scan", "text", "scan", "text"]);
+    expect(stepsOf(bad)).toEqual(["scan", "text", "scan", "text", "scan"]);
   });
 });
 

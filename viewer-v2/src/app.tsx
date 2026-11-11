@@ -29,6 +29,7 @@ import { SearchView } from "./search-view";
 import { KeyboardShortcuts } from "./shortcuts";
 import { SourceChangesView } from "./source-changes-view";
 import { SourceView } from "./source-view";
+import { TimelineView } from "./timeline-view";
 import { safeLocalStorage } from "./storage";
 import { useRoute } from "./use-route";
 import { WorkflowsView } from "./workflows-view";
@@ -52,6 +53,7 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "search": return <SearchView query={route.query} />;
     case "index": return <IndexView hasIndex={wiki.index.available} />;
     case "recent": return <RecentView wiki={wiki} />;
+    case "timeline": return <TimelineView wiki={wiki} />;
     case "graph": return <GraphView wiki={wiki} />;
     case "list": { const List = LISTS[route.kind]; return <List wiki={wiki} />; }
     // Keyed so the title and freshness filters start fresh on each list.

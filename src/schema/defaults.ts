@@ -48,6 +48,12 @@ export function buildDefaultSchema(): SchemaConfig {
     defaultKind: "concept",
     kinds: buildDefaultKindRules(),
     seedPages: [],
+    timeline: { enabled: false, timeZone: machineTimeZone() },
     loadedFrom: null,
   };
+}
+
+/** The zone this machine runs in, which is the timeline's default. */
+function machineTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }

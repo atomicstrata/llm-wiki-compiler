@@ -44,6 +44,16 @@ export interface SeedPage {
   relatedSlugs?: string[];
 }
 
+/**
+ * Generated daily and weekly pages of what happened when (`wiki/timeline/`).
+ * Off by default: it adds a model call per changed day and week.
+ */
+export interface TimelineSchema {
+  enabled: boolean;
+  /** IANA zone deciding which day a timestamp with an offset falls on. Defaults to the machine's zone. */
+  timeZone: string;
+}
+
 /** Resolved schema config the rest of the compiler reads. */
 export interface SchemaConfig {
   /** Schema format version. Currently always `1`. */
@@ -54,6 +64,8 @@ export interface SchemaConfig {
   kinds: Record<PageKind, PageKindRule>;
   /** Optional seed pages the compiler should materialise on each run. */
   seedPages: SeedPage[];
+  /** The generated timeline. */
+  timeline: TimelineSchema;
   /** Path the schema was loaded from, or `null` when defaults are used. */
   loadedFrom: string | null;
 }
@@ -64,4 +76,5 @@ export interface PartialSchemaFile {
   defaultKind?: string;
   kinds?: Partial<Record<string, Partial<PageKindRule>>>;
   seedPages?: Array<Partial<SeedPage>>;
+  timeline?: Partial<TimelineSchema>;
 }

@@ -1,8 +1,9 @@
 /**
  * @file src/compiler/compile-finalize.ts
  * @description Compile's TAIL: seed pages, then interlink resolution and repair,
- * the SINGLE durable state flush, the index and MOC, and the optional embeddings
- * refresh — on both the changed route and the no-source-changes route.
+ * the SINGLE durable state flush, the index and MOC, the optional embeddings
+ * refresh, and the timeline — on both the changed route and the
+ * no-source-changes route.
  *
  * ONE BODY, EXPLICIT STEPS. {@link seedThenFinalizeWith} and
  * {@link finalizeUnchangedCompileWith} are the bodies. They are handed
@@ -33,6 +34,8 @@ import { qualifiedPageId, type PageId } from "../utils/page-id.js";
 import { refreshEmbeddingsDrainingPending } from "../utils/embeddings-refresh.js";
 import { emptyCompileResult, type CompilePreparation } from "./compile-phases.js";
 import { generateSeedPages } from "./seed-pages.js";
+import { generateTimeline } from "../timeline/local.js";
+import type { TimelineSchema } from "../schema/types.js";
 import * as output from "../utils/output.js";
 import { CONCEPTS_DIR } from "../utils/constants.js";
 import type { MergedConcept, PageGenerationResult } from "./types.js";
@@ -57,6 +60,8 @@ export interface CompileFinalizeSteps {
   generateMOC(root: string): Promise<void>;
   /** Drain and refresh embeddings for `changedPageIds`. Local: `refreshEmbeddingsDrainingPending(root, changedPageIds)`. */
   refreshEmbeddings(root: string, changedPageIds: PageId[]): Promise<void>;
+  /** Bring `wiki/timeline/` up to date with the sources. Local: `generateTimeline(root, timeline)`. */
+  updateTimeline(root: string, timeline: TimelineSchema): Promise<unknown>;
 }
 
 /** LOCAL. The incumbent steps, called at call time with their old arguments; frozen. In no package index. */
@@ -69,6 +74,7 @@ const localCompileFinalizeSteps: CompileFinalizeSteps = Object.freeze({
   generateIndex: (root: string) => generateIndex(root),
   generateMOC: (root: string) => generateMOC(root),
   refreshEmbeddings: (root: string, changedPageIds: PageId[]) => refreshEmbeddingsDrainingPending(root, changedPageIds),
+  updateTimeline: (root: string, timeline: TimelineSchema) => generateTimeline(root, timeline),
 });
 
 /**
@@ -117,7 +123,12 @@ export async function seedThenFinalize(
   return seedThenFinalizeWith(localCompileFinalizeSteps, root, schema, generation, options, draft);
 }
 
-/** THE ONE BODY of {@link seedThenFinalize}: seed pages unless reviewing or told to skip them, then finalize. */
+/**
+ * THE ONE BODY of {@link seedThenFinalize}: seed pages unless reviewing or told
+ * to skip them, then finalize, then the timeline. The timeline runs last because
+ * it reads the state this compile flushed and links days to the concept pages
+ * just written; a review run holds pages back, so it leaves the timeline alone.
+ */
 export async function seedThenFinalizeWith(
   steps: CompileFinalizeSteps,
   root: string,
@@ -133,6 +144,20 @@ export async function seedThenFinalizeWith(
     scoped: options.changeFilter !== undefined,
     embeddings: options.embeddings !== false,
   });
+  if (!options.review) await timeStage("compile.timeline", () => updateTimelineOrWarn(steps, root, schema.timeline));
+}
+
+/**
+ * Run the timeline step, reporting a failure instead of throwing it. By now the
+ * compile's pages and state are committed; the timeline is derived from them and
+ * the next compile retries it, so a failure here must not fail the compile.
+ */
+async function updateTimelineOrWarn(steps: CompileFinalizeSteps, root: string, timeline: TimelineSchema): Promise<void> {
+  try {
+    await steps.updateTimeline(root, timeline);
+  } catch (error) {
+    output.status("!", output.warn(`Timeline not updated: ${error instanceof Error ? error.message : String(error)}`));
+  }
 }
 
 /** The parts of the preparation the no-source-changes branch reads. */

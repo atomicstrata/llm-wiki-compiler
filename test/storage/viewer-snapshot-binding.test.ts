@@ -231,11 +231,11 @@ function sourcesOf(over: Overrides = {}) {
 }
 
 const STARTS = [
-  "scans open wiki/concepts", "scans open wiki/queries", "records exists .llmwiki/state.json",
+  "scans open wiki/concepts", "scans open wiki/queries", "scans open wiki/timeline", "records exists .llmwiki/state.json",
   "candidates directory .llmwiki/candidates", "reads readText .llmwiki/config.json", "index readIndexText", "typed binding.readBindingLeaf max=65536",
 ];
 const MIDDLE = [
-  "scans list wiki/concepts", "scans list wiki/queries", "scans read mem:wiki/concepts/alpha.md", "scans read mem:wiki/concepts/untitled.md",
+  "scans list wiki/concepts", "scans list wiki/queries", "scans list wiki/timeline", "scans read mem:wiki/concepts/alpha.md", "scans read mem:wiki/concepts/untitled.md",
   "scans read mem:wiki/queries/question.md", "records read .llmwiki/state.json", "candidates read good.json", "candidates read malformed.json",
   "candidates read broken.json", "reads realDirectory sources", 'reads list ""', 'reads list "deep"',
 ];
@@ -282,7 +282,7 @@ describe("the viewer snapshot over its sources", () => {
     expect(["profile", "entityTypes", "pipeline", "artifactDefinitions"].filter((key) => key in built)).toEqual([]);
   });
 
-  it("S3 starts the six reads together in order, then runs freshness, journal and the profile summary one after another", async () => {
+  it("S3 starts the seven reads together in order, then runs freshness, journal and the profile summary one after another", async () => {
     vi.spyOn(output, "note").mockImplementation(() => {});
     const { sources, log } = sourcesOf();
     await buildViewerSnapshotFrom(sources);

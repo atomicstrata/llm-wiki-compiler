@@ -226,13 +226,13 @@ export async function buildViewerSnapshotFrom(sources: ViewerSnapshotSources): P
     project: buildProject(root),
     counts: buildCounts(annotatedDefault, sourceFilenames, pendingReviews, countableState(classified)),
     index: buildFullIndex(index, defaultPages),
-    recentPages: buildRecentPages(pages),
+    recentPages: buildRecentPages(pages.filter(isKnowledgePage)),
     pages,
     sourceFilenames,
     // Typed pages reach the graph through `typed.graph` as entity nodes and
     // relation edges, NOT through this page list — passing them both ways would
     // mint two nodes for one page under the same id.
-    graph: buildGraphData(annotatedDefault, typed?.graph),
+    graph: buildGraphData(annotatedDefault.filter(isKnowledgePage), typed?.graph),
     ...(journalWarning ? { warnings: [journalWarning] } : {}),
     ...(profile ? { profile } : {}),
     ...(typed ? { entityTypes: typed.entityTypes, pipeline: typed.pipeline, artifactDefinitions: typed.artifactDefinitions } : {}),
@@ -438,6 +438,16 @@ async function readDiskIndexText(root: string): Promise<string | null> {
   if (resolved !== expectedIndex) return null;
   const read = await readCappedNoFollow(resolved, Number.POSITIVE_INFINITY);
   return read.kind === "ok" ? read.body : null;
+}
+
+/**
+ * Whether a page is knowledge rather than the generated timeline. Day and week
+ * pages have their own screen; in "recently updated" a re-dated week would crowd
+ * out the pages a compile actually learned, and in the graph every day would be
+ * a hub tying together unrelated pages that merely happened the same day.
+ */
+function isKnowledgePage(page: ViewerPage): boolean {
+  return page.pageDirectory !== "timeline";
 }
 
 /**

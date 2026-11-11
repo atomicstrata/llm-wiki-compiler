@@ -29,7 +29,7 @@ import { extractClaimCitations } from "../utils/markdown.js";
 import { flattenCitations } from "../context/provenance.js";
 import type { PageKind } from "../schema/types.js";
 import type { ProvenanceState, ContradictionRef } from "../utils/types.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR } from "../utils/constants.js";
 import { readStateClassifiedFrom } from "../utils/state.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import { diskLocalRecords } from "../storage/disk-local-records.js";
@@ -45,10 +45,12 @@ import type { ExportPage, PageDirectory, XOkfSnapshot } from "./types.js";
 
 export { extractWikilinkSlugs };
 
+/** Each page directory's project-relative path; keyed by `PageDirectory`, so a new member must be added here. */
+const PAGE_DIRECTORY_PATHS: Record<PageDirectory, string> = { concepts: CONCEPTS_DIR, queries: QUERIES_DIR, timeline: TIMELINE_DIR };
+
 /** Resolve the project-relative path for a wiki page (e.g. `wiki/concepts/retrieval.md`). */
 function buildPagePath(pageDirectory: PageDirectory, slug: string): string {
-  const dir = pageDirectory === "concepts" ? CONCEPTS_DIR : QUERIES_DIR;
-  return path.posix.join(dir, `${slug}.md`);
+  return path.posix.join(PAGE_DIRECTORY_PATHS[pageDirectory], `${slug}.md`);
 }
 
 /** Pull a typed string array out of frontmatter or return `[]` for missing/malformed input. */

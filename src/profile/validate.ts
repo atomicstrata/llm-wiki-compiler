@@ -54,7 +54,7 @@ import { assertArtifactRequirementsDeclared, collectArtifactOrderingWarnings } f
 import { validateEntityDirectory, isInsidePosixDir } from "./paths.js";
 import { assertStructurallyValid } from "./schema-validator.js";
 import { ProfileValidationError } from "./errors.js";
-import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR, CONCEPTS_DIR, QUERIES_DIR, WORKFLOW_PROJECTION_DIR } from "../utils/constants.js";
+import { SOURCES_DIR, LLMWIKI_DIR, EXPORT_DIR, CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR, WORKFLOW_PROJECTION_DIR } from "../utils/constants.js";
 import { isValidArtifactFileName, MAX_ARTIFACT_BYTES } from "../artifacts/name.js";
 import { getConnectorDef } from "../connectors/registry.js";
 import { assertMembersDef } from "./validate-artifact-members.js";
@@ -74,14 +74,15 @@ export { ProfileValidationError } from "./errors.js";
 const RESERVED_PROFILE_IDS = new Set(["default"]);
 
 /**
- * Entity directories reserved for the built-in DEFAULT profile. A disk profile
- * may not declare an entity at either, otherwise one physical file would carry
- * two identities — a legacy `pages: concepts/<slug>` AND a
- * `profile.entityPages: <type>/<slug>`. `DEFAULT_PROFILE` legitimately uses
- * these, so this gate lives in `validateProfile` (disk) only, NOT
- * `validateProfileShape`.
+ * Entity directories reserved for the built-in DEFAULT profile and for the
+ * compiler's generated timeline. A disk profile may not declare an entity at
+ * any of them, otherwise one physical file would carry two identities — a
+ * legacy `pages: concepts/<slug>` AND a `profile.entityPages: <type>/<slug>`,
+ * or a typed record that the next compile's timeline step overwrites or
+ * deletes. `DEFAULT_PROFILE` legitimately uses the first two, so this gate
+ * lives in `validateProfile` (disk) only, NOT `validateProfileShape`.
  */
-const RESERVED_DEFAULT_DIRS = new Set([CONCEPTS_DIR, QUERIES_DIR]);
+const RESERVED_DEFAULT_DIRS = new Set([CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR]);
 
 /** Repo-relative roots an entity directory may not overlap. */
 const RESERVED_ROOTS = [
@@ -713,7 +714,7 @@ function rejectReservedDefaultDirs(profile: ProfilePack): void {
 
 /**
  * The basename set of directories reserved for the default profile, used to
- * guard entity TYPE NAMES. An entity type named `concepts` or `queries` would
+ * guard entity TYPE NAMES. An entity type named `concepts`, `queries` or `timeline` would
  * mint `EntityId "concepts/<slug>"` which collides with the legacy
  * `PageId "concepts/<slug>"` — corrupting the viewer graph and ranking map.
  * Derived from `RESERVED_DEFAULT_DIRS` so no strings are hard-coded here.

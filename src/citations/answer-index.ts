@@ -17,7 +17,6 @@
  */
 import path from "path";
 import type { AnswerCitationIndex, RetainedCitationTarget } from "./answer-types.js";
-import type { PageDirectory } from "../export/types.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { isInsideDir, safeRealpath } from "../utils/path-confine.js";
 import { listDirectoryNames } from "../storage/disk-guarded-leaves.js";
@@ -75,7 +74,7 @@ export interface AnswerCitationSources {
 }
 
 /** Preserve collector order, filename identity, and string-only viewer aliases. */
-async function collectRetainedDirectory(project: CitationProject, dir: string, pageDirectory: PageDirectory): Promise<RetainedCitationTarget[]> {
+async function collectRetainedDirectory(project: CitationProject, dir: string, pageDirectory: RetainedCitationTarget["pageDirectory"]): Promise<RetainedCitationTarget[]> {
   const directory = await project.openPageDirectory(dir);
   if (!directory) return [];
   const retained: RetainedCitationTarget[] = [];

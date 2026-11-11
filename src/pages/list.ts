@@ -32,7 +32,7 @@ import type { ScannedPage } from "../compiler/indexgen.js";
 import { safeReadFile, parseFrontmatter } from "../utils/markdown.js";
 import { extractWikilinkSlugs } from "../wiki/collect.js";
 import { assertSafeSlug } from "../viewer/path-safety.js";
-import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
+import { CONCEPTS_DIR, QUERIES_DIR, TIMELINE_DIR } from "../utils/constants.js";
 import { loadNonDefaultProfile, collectEntityPagesWithMessages } from "../profile/block.js";
 import { journalHealthWarning } from "../trust/journal-health-warning.js";
 import type { JournalWarning } from "../trust/journal-health-warning.js";
@@ -172,10 +172,11 @@ export interface ListPagesWarning {
 const DIR_NAMES: Record<PageDirectory, string> = {
   concepts: CONCEPTS_DIR,
   queries: QUERIES_DIR,
+  timeline: TIMELINE_DIR,
 };
 
 /** All page directories in listing order. */
-const PAGE_DIRECTORIES: PageDirectory[] = ["concepts", "queries"];
+const PAGE_DIRECTORIES: PageDirectory[] = ["concepts", "queries", "timeline"];
 
 /**
  * Every read the two page functions make. `getPageFrom` asks only

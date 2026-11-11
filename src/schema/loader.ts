@@ -16,6 +16,7 @@ import type {
   PartialSchemaFile,
   SchemaConfig,
   SeedPage,
+  TimelineSchema,
 } from "./types.js";
 import { PAGE_KINDS } from "./types.js";
 import { buildDefaultSchema } from "./defaults.js";
@@ -98,6 +99,30 @@ function normalizeSeedPages(entries: PartialSchemaFile["seedPages"]): SeedPage[]
     .filter((entry): entry is SeedPage => entry !== null);
 }
 
+/**
+ * The timeline settings: `enabled` only when literally true. An unknown zone is
+ * an error rather than a silent fallback, because it would put events on the
+ * wrong day without anyone noticing.
+ */
+function normalizeTimeline(defaults: TimelineSchema, entry: PartialSchemaFile["timeline"]): TimelineSchema {
+  if (!entry || typeof entry !== "object") return defaults;
+  const zone = entry.timeZone;
+  if (zone !== undefined && (typeof zone !== "string" || !isKnownTimeZone(zone))) {
+    throw new Error(`schema timeline.timeZone ${JSON.stringify(zone)} is not a known IANA time zone (e.g. "America/New_York")`);
+  }
+  return { enabled: entry.enabled === true, timeZone: zone ?? defaults.timeZone };
+}
+
+/** Whether the runtime recognises an IANA zone name. */
+function isKnownTimeZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Apply a parsed partial-schema onto the defaults, returning the resolved config. */
 function applyOverrides(
   defaults: SchemaConfig,
@@ -112,6 +137,7 @@ function applyOverrides(
     defaultKind,
     kinds: mergeKinds(defaults.kinds, overrides.kinds),
     seedPages: normalizeSeedPages(overrides.seedPages),
+    timeline: normalizeTimeline(defaults.timeline, overrides.timeline),
     loadedFrom,
   };
 }

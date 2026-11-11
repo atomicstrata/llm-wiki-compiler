@@ -183,8 +183,11 @@ function renderSearchResults(rows, results) {
  */
 function resultKindLabel(row) {
   if (typeof row.entityType === "string" && row.entityType.length > 0) return row.entityType;
-  return row.pageDirectory === "queries" ? "query" : "concept";
+  return DIRECTORY_KIND_LABELS[row.pageDirectory] ?? "concept";
 }
+
+/** The kind tag of a default page by its directory; anything else reads as a concept. */
+const DIRECTORY_KIND_LABELS = { queries: "query", timeline: "timeline" };
 
 /** Build one search-result <li> with anchor + kind tag + snippet. */
 function buildSearchResultRow(row) {

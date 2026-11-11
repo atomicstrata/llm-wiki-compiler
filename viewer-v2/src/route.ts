@@ -7,7 +7,8 @@
  * `?start=12&end=15`. The screens of the original client keep their hashes
  * too: `#/index`, `#/recent`, `#/concepts`, `#/queries`, `#/sources`,
  * `#/graph`, `#/health`, `#/reviews`, `#/source-changes`, `#/workflows` and
- * `#/pipeline`. A profile's typed list lives at `#/_type/<entity-type>`, so a
+ * `#/pipeline`. `#/timeline` lists the generated day and week pages, which open
+ * as ordinary pages at `#/timeline/<day-or-week>`. A profile's typed list lives at `#/_type/<entity-type>`, so a
  * type sharing a name with one of those screens still opens its own pages.
  * `#/_search?q=`, the pages carrying a tag at `#/_tag/<tag>`, and a run's
  * journey at `#/_journey/<workflow>/<run>` are the routes only this client
@@ -23,6 +24,7 @@ export type Route =
   | { view: "home" }
   | { view: "index" }
   | { view: "recent" }
+  | { view: "timeline" }
   | { view: "list"; kind: ListKind }
   | { view: "typeList"; type: string }
   | { view: "graph" }
@@ -49,6 +51,7 @@ const WHOLE_NUMBER = /^\d+$/;
 const STATIC_ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
   ["index", { view: "index" }],
   ["recent", { view: "recent" }],
+  ["timeline", { view: "timeline" }],
   ["concepts", { view: "list", kind: "concepts" }],
   ["queries", { view: "list", kind: "queries" }],
   ["sources", { view: "list", kind: "sources" }],

@@ -27,11 +27,13 @@ import type { PageDirectory } from "../export/types.js";
 const DEFAULT_PROFILE_ID = "default";
 
 /**
- * The two directories every project can address, whatever profile it runs.
- * Typed as `PageDirectory` so widening that shared union without revisiting this
- * allowlist is a compile error rather than a silently unreachable directory.
+ * The directories every project can address, whatever profile it runs: the
+ * default pages and the generated timeline. Keyed by `PageDirectory`, so widening
+ * that shared union without adding the new member here is a compile error rather
+ * than a silently unreachable directory.
  */
-const DEFAULT_DIRECTORIES: readonly PageDirectory[] = ["concepts", "queries"];
+const ADDRESSABLE: Record<PageDirectory, true> = { concepts: true, queries: true, timeline: true };
+const DEFAULT_DIRECTORIES: readonly PageDirectory[] = Object.keys(ADDRESSABLE) as PageDirectory[];
 
 /** `/api/pages` — the full bootstrap envelope: project/profile identity, stateStatus, counts, graph summary, recent pages, and the page list. */
 export function handleApiPages(res: ServerResponse, snapshot: ViewerSnapshot): void {

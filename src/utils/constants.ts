@@ -169,6 +169,8 @@ export const EXPORT_DIR = "dist/exports";
 export const SOURCES_DIR = "sources";
 export const CONCEPTS_DIR = "wiki/concepts";
 export const QUERIES_DIR = "wiki/queries";
+/** Generated daily and weekly pages: what happened when, built from the sources' own dates. */
+export const TIMELINE_DIR = "wiki/timeline";
 
 /**
  * The reserved subtree workflow-run markdown PROJECTIONS must live under. A
