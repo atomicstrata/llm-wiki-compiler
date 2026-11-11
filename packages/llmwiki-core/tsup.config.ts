@@ -49,7 +49,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   // Only the CLI bundle imports the per-module entries, and it type-checks against src.
-  dts: { entry: typedEntries, compilerOptions: { rootDir: SRC } },
+  dts: process.env.LLMWIKI_SKIP_DTS === "1" ? false : { entry: typedEntries, compilerOptions: { rootDir: SRC } },
   tsconfig: "../../tsconfig.json",
   onSuccess: async () => {
     execFileSync(process.execPath, [path.resolve("../../scripts/copy-viewer-assets.mjs"), "packages/llmwiki-core/dist"]);

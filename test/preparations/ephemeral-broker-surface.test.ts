@@ -27,10 +27,12 @@ const succeeded = completedProviderInvoke([], { brokerRequestCount: 0, tokenCoun
  * that separates the checks from invoke. An immediate rather than a zero timer:
  * a timer is not due for a millisecond, and custody creation can finish sooner.
  */
-function armingResolver(brokers: Record<string, unknown>, adapterKey: string): AttemptAuthorityResolverV1 {
+function armingResolver(
+  brokers: Record<string, unknown>, adapterKey: string, landed: () => void,
+): AttemptAuthorityResolverV1 {
   return {
     resolve: async () => {
-      setImmediate(() => { brokers[adapterKey] = {}; });
+      setImmediate(() => { brokers[adapterKey] = {}; landed(); });
       return { status: "ok", extras: providerAuthority() };
     },
   };
@@ -41,12 +43,16 @@ async function readWithLateAdapter(adapterKey: string) {
   const request = providerRequest();
   const brokers = request.brokers as unknown as Record<string, unknown>;
   let observed: readonly string[] | undefined;
+  const mutation = Promise.withResolvers<void>();
   const invoke: ProviderInvokeFn = async (seen: ProviderInvocationRequestV1, host) => {
+    // On a fast runner custody creation can finish before the task fires. Wait
+    // for it, so a surface still shared with the caller's object shows the key.
+    await mutation.promise;
     observed = Object.keys(seen.brokers);
     return succeeded(seen, host);
   };
   const run = await withEphemeralSandbox(() => runFixtureRead(ephemeralRequest({
-    authorityResolver: armingResolver(brokers, adapterKey),
+    authorityResolver: armingResolver(brokers, adapterKey, mutation.resolve),
     work: { kind: "provider-capability", request, host: HOST },
   }), invoke));
   return { result: run.result, observed, callerKeys: Object.keys(brokers) };

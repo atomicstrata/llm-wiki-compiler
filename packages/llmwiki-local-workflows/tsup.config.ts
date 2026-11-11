@@ -13,7 +13,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  dts: { compilerOptions: {
+  dts: process.env.LLMWIKI_SKIP_DTS === "1" ? false : { compilerOptions: {
     rootDir: path.resolve("../../src"),
     paths: { "@atomicstrata/llmwiki-core/local-workflow-contracts": [path.resolve("../../src/local-workflow-host/shared-contracts.ts")] },
   } },

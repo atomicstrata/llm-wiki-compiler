@@ -143,7 +143,8 @@ an explicit baseline migration and review; routine updates do not accept them.
 `--init` is only for initial baseline creation, not for clearing failures.
 
 `test-typecheck` is required by main's branch protection, alongside
-`codebase-health` and `build-and-test (24)`. Branches must be up to date before
+`codebase-health` and `build-and-test`, which passes only when every test shard
+and package leg in CI passed. Branches must be up to date before
 merging. Workflow changes must preserve the required check name or update
 branch protection in the same rollout.
 
