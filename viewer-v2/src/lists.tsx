@@ -36,12 +36,12 @@ export function matchesTitle(pages: PageRow[], filter: string): PageRow[] {
   return pages.filter((page) => words.every((word) => page.title.toLowerCase().includes(word)));
 }
 
-/** One page row: title, freshness when it needs attention, citation count, age, and anything the screen adds. */
+/** One page row: title over its summary, freshness when it needs attention, citation count, age, and anything the screen adds. */
 export function PageRowItem({ page, now, trailing }: { page: PageRow; now: Date; trailing?: ReactNode }): ReactNode {
   const status = page.freshness.freshnessStatus;
   const warnCitations = page.unresolvedCitationCount > 0;
   return (
-    <Row href={pageHref(page.pageDirectory, page.slug)} title={page.title || page.slug}
+    <Row href={pageHref(page.pageDirectory, page.slug)} title={page.title || page.slug} description={page.summary.trim()}
       trailing={
         <>
           {trailing}

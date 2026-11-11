@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { EntityContext, GraphData, PagePayload, PagesEnvelope } from "../viewer-v2/src/api.js";
 import { backlinksFrom, connectorHref, groupCitationsByFile, groupRelations, pageKind, stripLeadingHeading } from "../viewer-v2/src/page-model.js";
 import { PageRail } from "../viewer-v2/src/page-rail.js";
-import { PageBody, PageHeader } from "../viewer-v2/src/page-view.js";
+import { PageBody, PageHeader, PageMeta } from "../viewer-v2/src/page-view.js";
 import type { AsyncState } from "../viewer-v2/src/use-async.js";
 import { envelope, graph, page, pagePayload, text } from "./fixtures/viewer-v2-fixtures.js";
 
@@ -134,5 +134,24 @@ describe("page model", () => {
     expect(connectorHref("ftp://example.org/x")).toBeNull();
     expect(connectorHref("not a url")).toBeNull();
     expect(connectorHref(undefined)).toBeNull();
+  });
+});
+
+describe("PageMeta", () => {
+  const meta = (page: PagePayload) => text(renderToStaticMarkup(createElement(PageMeta, { page, sourceFilenames: WIKI.sourceFilenames })));
+
+  it("counts each cited source file once beside the update date, and says how many are missing", () => {
+    expect(meta(PAGE)).toBe(`Updated ${new Date(PAGE.updatedAt).toLocaleDateString()} · From 2 source files (1 missing)`);
+  });
+
+  it("counts a typed page's entity sources, and marks a partial list", () => {
+    const sources = [{ file: "notes.md", resolved: true }, { file: "notes.md", lines: { start: 1, end: 2 }, resolved: true }];
+    const context: EntityContext = { relations: [], relationTotal: 0, sources, sourceTotal: 3 };
+    expect(meta(pagePayload({ updatedAt: "", entityContext: context }))).toBe("From 1+ source files");
+    expect(meta(pagePayload({ updatedAt: "", entityContext: { ...context, sourceTotal: 2 } }))).toBe("From 1 source file");
+  });
+
+  it("renders nothing for a page with no tags, date or sources", () => {
+    expect(meta(pagePayload({ updatedAt: "" }))).toBe("");
   });
 });

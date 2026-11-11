@@ -1,10 +1,10 @@
 /**
- * The dashboard: stat cards, a hero with calls to action, what changed since
- * the reader's last visit, the recently compiled panel beside a topic map of
- * tags, then compile activity, the compile receipt, and the next actions the
- * CLI offers. The whole graph lives one click away in the explorer; at a few
- * hundred nodes a dashboard-sized drawing was a cloud of dots that told the
- * reader nothing the counts did not.
+ * The dashboard leads with content: a hero with calls to action, what changed
+ * since the reader's last visit, and the recently compiled pages beside a
+ * topic map of tags. The numbers follow: stat cards, compile activity, the
+ * compile receipt, and the next actions the CLI offers. The whole graph lives
+ * one click away in the explorer; at a few hundred nodes a dashboard-sized
+ * drawing was a cloud of dots that told the reader nothing the counts did not.
  */
 import { Download, Link2Off, ListChecks, RefreshCw, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -52,7 +52,7 @@ function Hero({ wiki }: { wiki: PagesEnvelope }): ReactNode {
         <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{plural(pages, "page")}, {plural(citations, "citation")} traced to source spans.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {wiki.index.available && <ButtonLink href="#/index" primary>Browse compiled index →</ButtonLink>}
+        {wiki.index.available && <ButtonLink href="#/index" primary>Read the overview →</ButtonLink>}
         <ButtonLink href="#/graph">Explore graph</ButtonLink>
       </div>
     </div>
@@ -117,18 +117,18 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
   const previousVisit = usePreviousVisit();
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <Hero wiki={wiki} />
+      <SinceLastVisit pages={wiki.pages} since={previousVisit} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RecentPanel wiki={wiki} />
+        <TopicsCard pages={wiki.pages} />
+      </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {statCards(wiki, dangling, totals.unresolved).map((card) => (
           <div key={card.key} data-stat={card.key}>
             <Stat label={card.label} value={card.value} detail={card.sub} tone={card.tone ?? "neutral"} badge={card.tone && <Badge tone={card.tone}>{card.badge}</Badge>} />
           </div>
         ))}
-      </div>
-      <Hero wiki={wiki} />
-      <SinceLastVisit pages={wiki.pages} since={previousVisit} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <RecentPanel wiki={wiki} />
-        <TopicsCard pages={wiki.pages} />
       </div>
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <ActivityCard pages={wiki.pages} />

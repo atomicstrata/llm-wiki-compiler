@@ -10,7 +10,7 @@ import { AsyncView } from "./async-view";
 import { Badge, Notice } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { useMediaQuery } from "./media";
-import { pageTitle, stripLeadingHeading } from "./page-model";
+import { pageTitle, sourceFileTally, sourceFilesLabel, stripLeadingHeading } from "./page-model";
 import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
 import { rememberPage } from "./palette-model";
@@ -47,15 +47,16 @@ export function PageHeader({ page }: { page: PagePayload }): ReactNode {
   );
 }
 
-/** Tags and last-updated date on one line; nothing when the page has neither. */
-function PageMeta({ page }: { page: PagePayload }): ReactNode {
+/** Tags, last-updated date and how many source files the page draws on, on one line; nothing when it has none of them. */
+export function PageMeta({ page, sourceFilenames }: { page: PagePayload; sourceFilenames: string[] }): ReactNode {
   const updated = formatDate(page.updatedAt);
   const tags = stringList(page.frontmatter.tags);
-  if (tags.length === 0 && !updated) return null;
+  const facts = [updated && `Updated ${updated}`, sourceFilesLabel(sourceFileTally(page, sourceFilenames))].filter(Boolean).join(" · ");
+  if (tags.length === 0 && !facts) return null;
   return (
     <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
       {tags.map((tag) => <a key={tag} href={tagHref(tag)} className="rounded-md hover:ring-2 hover:ring-indigo-600/20"><Badge>{tag}</Badge></a>)}
-      {updated && <span className="ml-1">Updated {updated}</span>}
+      {facts && <span className="ml-1">{facts}</span>}
     </p>
   );
 }
@@ -96,7 +97,7 @@ function LoadedPage({ page, wiki, graph }: { page: PagePayload; wiki: PagesEnvel
       <article className="max-w-[68ch] min-w-0 flex-1">
         <header className="mb-8 border-b border-zinc-950/5 pb-6 dark:border-white/10">
           <PageHeader page={page} />
-          <PageMeta page={page} />
+          <PageMeta page={page} sourceFilenames={wiki.sourceFilenames} />
         </header>
         <PageBody page={page} onRender={(container) => setOutline(assignHeadingIds(container))} />
         <SourceImages sourceIds={stringList(page.frontmatter.sources)} />

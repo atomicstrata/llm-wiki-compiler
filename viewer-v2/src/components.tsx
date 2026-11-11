@@ -113,10 +113,11 @@ export function RowList({ children }: { children: ReactNode }): ReactNode {
 export const ROW_LINK =
   "px-4 py-2.5 text-sm outline-none hover:bg-zinc-50 focus-visible:bg-indigo-50 focus-visible:shadow-[inset_2px_0] focus-visible:shadow-indigo-600 dark:hover:bg-white/5 dark:focus-visible:bg-indigo-500/10 dark:focus-visible:shadow-indigo-400";
 
-/** One clickable row: optional leading mark, a truncating title, then trailing badges and a quiet meta value. */
-export function Row({ href, title, leading, trailing, meta }: {
+/** One clickable row: optional leading mark, a truncating title over an optional one-line description, then trailing badges and a quiet meta value. */
+export function Row({ href, title, description, leading, trailing, meta }: {
   href: string;
   title: ReactNode;
+  description?: ReactNode;
   leading?: ReactNode;
   trailing?: ReactNode;
   meta?: ReactNode;
@@ -125,7 +126,10 @@ export function Row({ href, title, leading, trailing, meta }: {
     <li>
       <a href={href} data-row="" className={`flex items-center gap-3 ${ROW_LINK}`}>
         {leading}
-        <span className="min-w-0 flex-1 truncate font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-zinc-900 dark:text-zinc-100">{title}</span>
+          {description && <span className="mt-0.5 block truncate text-zinc-500 dark:text-zinc-400" title={typeof description === "string" ? description : undefined}>{description}</span>}
+        </span>
         {trailing}
         {meta !== undefined && <span className="w-12 shrink-0 text-right text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{meta}</span>}
       </a>
