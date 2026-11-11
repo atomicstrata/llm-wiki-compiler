@@ -61,7 +61,7 @@ const LISTS = { concepts: ConceptsList, queries: QueriesList, sources: SourcesLi
 // fallow-ignore-next-line complexity
 function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope; health: HealthPayload | null }): ReactNode {
   switch (route.view) {
-    case "page": return <PageView directory={route.directory} slug={route.slug} />;
+    case "page": return <PageView directory={route.directory} slug={route.slug} wiki={wiki} />;
     case "source": return <SourceView id={route.id} lineStart={route.lineStart} lineEnd={route.lineEnd} />;
     case "search": return <SearchView query={route.query} />;
     case "index": return <IndexView hasIndex={wiki.index.available} />;
