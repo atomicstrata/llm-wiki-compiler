@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The `llmwiki view-v2` dashboard is live.** It refreshes while its tab is visible, shows the pages changed since your last visit, a topic map of the most used tags, and an activity calendar; the static graph panel is replaced, with the explorer one click away. Tags on the dashboard and on every page open `#/_tag/<tag>`.
+- **Sources list the pages that cite them.** `GET /api/source/<file>/cited-by` returns each citing page and the line ranges it cites, answered from the in-memory snapshot without reading the source. `llmwiki view-v2` shows it on every source as **Cited by**.
+- **`/api/pages` rows carry `tags`.** Each row lists the page's frontmatter tags; a page without tags has an empty list.
 - **The `llmwiki view-v2` graph shows neighbourhoods and clusters.** Each page's rail draws its neighbourhood graph. In the explorer, pointing at a page dims everything outside its neighbourhood and labels it, zooming in labels every page, **Find a page** centres a page by title, and nodes are coloured by link cluster or by kind.
 - **`llmwiki view-v2` has a command palette and keyboard shortcuts.** ⌘K, Ctrl+K or `/` opens a palette that ranks page titles and summaries as you type, lists matching screens and full-text hits, and remembers recently opened pages in this browser. `j` and `k` move through list rows, `g` then a letter jumps to a screen, and `?` lists the shortcuts. The header search box is now a button that opens the palette. The full-text results screen shows each hit's kind and cleaned-up snippet, and the sidebar and dashboard use icons.
 - **`llmwiki view-v2` previews links and citations in place.** Pointing at or focusing a wikilink shows the linked page's title and summary. Pointing at a citation chip shows the cited source lines, numbered. Links in the page rail preview too.

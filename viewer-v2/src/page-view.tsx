@@ -11,6 +11,7 @@ import { Badge } from "./components";
 import { Outline, assignHeadingIds, type OutlineItem } from "./outline";
 import { rememberPage } from "./palette-model";
 import { pageTitle, stripLeadingHeading } from "./page-model";
+import { tagHref } from "./route";
 import { NeighbourhoodSection } from "./page-neighbourhood";
 import { PageRail } from "./page-rail";
 import { SourceImages } from "./source-images-view";
@@ -51,7 +52,7 @@ function PageMeta({ page }: { page: PagePayload }): ReactNode {
   if (tags.length === 0 && !updated) return null;
   return (
     <p className="mt-3 flex flex-wrap items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-      {tags.map((tag) => <Badge key={tag}>{tag}</Badge>)}{" "}
+      {tags.map((tag) => <a key={tag} href={tagHref(tag)} className="rounded-md hover:ring-2 hover:ring-indigo-600/20"><Badge>{tag}</Badge></a>)}{" "}
       {updated && <span className="ml-1">Updated {updated}</span>}
     </p>
   );

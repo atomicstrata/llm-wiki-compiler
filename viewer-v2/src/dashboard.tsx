@@ -1,14 +1,16 @@
 /**
- * The dashboard: stat cards, a hero with calls to action, the recently
- * compiled panel, the compact live graph, a compile receipt, and the next
- * actions the CLI offers.
+ * The dashboard: stat cards, a hero with calls to action, what changed since
+ * the reader's last visit, the recently compiled panel beside a topic map of
+ * tags, then compile activity, the compile receipt, and the next actions the
+ * CLI offers. The whole graph lives one click away in the explorer; at a few
+ * hundred nodes a dashboard-sized drawing was a cloud of dots that told the
+ * reader nothing the counts did not.
  */
-import { Download, Link2Off, ListChecks, Maximize2, RefreshCw, type LucideIcon } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Download, Link2Off, ListChecks, RefreshCw, type LucideIcon } from "lucide-react";
+import { useMemo, type ReactNode } from "react";
 import type { HealthPayload, PagesEnvelope, RecentPage } from "./api";
-import { Badge, Button, ButtonLink, Card, DefinitionRows, Row, RowList, Stat, TextLink, type Tone } from "./components";
-import { GraphCanvas, GraphLegend } from "./graph-canvas";
-import type { GraphControls } from "./graph-layout";
+import { Badge, ButtonLink, Card, DefinitionRows, Row, RowList, Stat, TextLink, type Tone } from "./components";
+import { ActivityCard, SinceLastVisit, TopicsCard, usePreviousVisit } from "./dashboard-panels";
 import { relativeAge } from "./recency";
 import { pageHref } from "./route";
 import { citationTotals, isWarnFreshness, lintTotal, plural, profileVocabulary } from "./wiki-model";
@@ -85,26 +87,6 @@ function RecentPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   );
 }
 
-/** The compact live graph; Fit stays disabled until the layout has settled. */
-function GraphPanel({ wiki }: { wiki: PagesEnvelope }): ReactNode {
-  const [controls, setControls] = useState<GraphControls | null>(null);
-  const { nodeCount, edgeCount, danglingCount } = wiki.graph;
-  return (
-    <Card title="Knowledge graph"
-      action={
-        <span className="flex items-center gap-2">
-          <Button disabled={controls === null} onClick={() => controls?.fit()}>Fit</Button>
-          <a href="#/graph" title="Open the full graph explorer" aria-label="Open the full graph explorer" className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"><Maximize2 className="size-4" strokeWidth={1.75} /></a>
-        </span>
-      }
-      footer={<><span>hover a node to inspect</span>{" "}<span>{plural(danglingCount, "dangling target")}</span></>}>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">{plural(nodeCount, "node")} · {plural(edgeCount, "edge")}</p>
-      <GraphLegend compact />
-      <GraphCanvas wiki={wiki} compact onSettled={setControls} />
-    </Card>
-  );
-}
-
 /** The compile receipt and the citations-resolved meter. */
 function Receipt({ wiki, health, totals }: { wiki: PagesEnvelope; health: HealthPayload | null; totals: { total: number; unresolved: number } }): ReactNode {
   const lint = lintTotal(health);
@@ -143,6 +125,7 @@ function nextActions(wiki: PagesEnvelope, health: HealthPayload | null, dangling
 export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: HealthPayload | null }): ReactNode {
   const totals = citationTotals(wiki.pages);
   const dangling = wiki.graph.danglingCount;
+  const previousVisit = usePreviousVisit();
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -156,14 +139,16 @@ export function Dashboard({ wiki, health }: { wiki: PagesEnvelope; health: Healt
         })}
       </dl>
       <Hero wiki={wiki} />
+      <SinceLastVisit pages={wiki.pages} since={previousVisit} />
       <div className="grid gap-6 lg:grid-cols-2">
         <RecentPanel wiki={wiki} />
-        <GraphPanel wiki={wiki} />
+        <TopicsCard pages={wiki.pages} />
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <ActivityCard pages={wiki.pages} />
         <Receipt wiki={wiki} health={health} totals={totals} />
         <Card title="Next actions"
-          footer={<span>The viewer rereads the wiki from disk every few seconds, so a compile shows up without a restart.</span>}>
+          footer={<span>This page refreshes while it is open, so a compile shows up without a reload.</span>}>
           <ul role="list" className="space-y-3">
             {nextActions(wiki, health, dangling).map((row) => (
               <li key={row.title} className="flex gap-3 text-sm">

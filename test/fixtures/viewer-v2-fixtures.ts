@@ -21,6 +21,7 @@ export function page(overrides: Partial<PageRow> = {}): PageRow {
     title: titleFromSlug(slug),
     kind: "concept",
     summary: "",
+    tags: [],
     updatedAt: "2026-11-10T12:00:00.000Z",
     createdAt: "2026-11-10T12:00:00.000Z",
     warnings: [],

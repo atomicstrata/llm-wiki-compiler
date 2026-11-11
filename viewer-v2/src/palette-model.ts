@@ -15,6 +15,7 @@
 import type { PageRow, SearchResult } from "./api";
 import { pageIdHref, searchHref } from "./route";
 import { plainSnippet } from "./search";
+import { safeLocalStorage } from "./storage";
 
 /** Score for a query word found at the very start of the text. */
 const START_SCORE = 120;
@@ -165,14 +166,5 @@ export function rememberPage(id: string, store: RecentStore | undefined = safeLo
     store?.setItem(RECENT_KEY, JSON.stringify([id, ...readRecent(store).filter((seen) => seen !== id)].slice(0, RECENT_LIMIT)));
   } catch {
     // Blocked or full storage only costs the recents list.
-  }
-}
-
-/** `localStorage`, or undefined where reading it throws (private modes, sandboxed frames). */
-function safeLocalStorage(): Storage | undefined {
-  try {
-    return typeof localStorage === "undefined" ? undefined : localStorage;
-  } catch {
-    return undefined;
   }
 }

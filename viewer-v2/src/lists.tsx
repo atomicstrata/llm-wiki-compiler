@@ -113,6 +113,14 @@ export function TypeList({ wiki, type }: { wiki: PagesEnvelope; type: string }):
   );
 }
 
+/** The pages carrying one tag, from any directory. */
+export function TagList({ wiki, tag }: { wiki: PagesEnvelope; tag: string }): ReactNode {
+  return (
+    <PageList heading={`#${tag}`} pages={wiki.pages.filter((page) => page.tags.includes(tag))}
+      whenEmpty={<EmptyState title="No pages carry this tag" body="Tags come from each page's frontmatter. The compiler writes them; this tag may have been removed by a later compile." />} />
+  );
+}
+
 /** The source files on disk; each opens its numbered text. */
 export function SourcesList({ wiki }: { wiki: PagesEnvelope }): ReactNode {
   const [filter, setFilter] = useState("");
