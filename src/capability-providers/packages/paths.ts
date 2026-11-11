@@ -173,14 +173,40 @@ export async function bindAuthorizedProviderChildDirectory(
   parent: AuthorizedProviderDirectory,
   target: string,
 ): Promise<AuthorizedProviderDirectory> {
+  const identity = await captureChildDirectory(paths, parent, target);
+  await assertAuthorizedProviderDirectory(paths, parent);
+  return bindDirectory(target, identity);
+}
+
+/**
+ * {@link bindAuthorizedProviderChildDirectory} followed by
+ * {@link authorizedProviderDirectoryRealPath} on the child, with the parent's
+ * and the child's rechecks made under ONE root revalidation: the two checks
+ * were back to back, so the second revalidation of the same roots proved
+ * nothing the first had not.
+ */
+export async function bindAuthorizedProviderChildDirectoryRealPath(
+  paths: AuthorizedProviderPaths,
+  parent: AuthorizedProviderDirectory,
+  target: string,
+): Promise<{ readonly directory: AuthorizedProviderDirectory; readonly realPath: string }> {
+  const identity = await captureChildDirectory(paths, parent, target);
+  const directory = bindDirectory(target, identity);
+  await assertAuthorizedProviderDirectories(paths, parent, directory);
+  return { directory, realPath: identity.path };
+}
+
+/** Capture a direct child's identity below the parent's revalidated, inode-bound real path. */
+async function captureChildDirectory(
+  paths: AuthorizedProviderPaths,
+  parent: AuthorizedProviderDirectory,
+  target: string,
+): Promise<DirectoryIdentity> {
   if (path.dirname(target) !== parent.path) throw rootError();
   // One revalidation, then the parent's inode-bound real path: the same proof
   // `authorizedProviderDirectoryRealPath` makes, without repeating it back to back.
   const parentReal = await authorizedProviderDirectoryRealPath(paths, parent);
-  const expectedReal = path.join(parentReal, path.basename(target));
-  const identity = await captureExactDirectory(target, expectedReal);
-  await assertAuthorizedProviderDirectory(paths, parent);
-  return bindDirectory(target, identity);
+  return captureExactDirectory(target, path.join(parentReal, path.basename(target)));
 }
 
 /** Bind an existing cache directory without creating it during a read operation. */
@@ -223,11 +249,29 @@ export async function assertAuthorizedProviderDirectory(
   paths: AuthorizedProviderPaths,
   directory: AuthorizedProviderDirectory,
 ): Promise<void> {
-  const identity = authorizedDirectories.get(directory);
-  if (!identity || directory.path !== identity.path) throw rootError();
+  await assertAuthorizedProviderDirectories(paths, directory);
+}
+
+/**
+ * Recheck several bound cache directories that are checked back to back: the
+ * roots ONCE, then each directory's inode and confinement, in order. The same
+ * checks as {@link assertAuthorizedProviderDirectory} on each, less the repeat
+ * root revalidations that had no I/O between them.
+ */
+export async function assertAuthorizedProviderDirectories(
+  paths: AuthorizedProviderPaths,
+  ...directories: readonly AuthorizedProviderDirectory[]
+): Promise<void> {
+  const identities = directories.map((directory) => {
+    const identity = authorizedDirectories.get(directory);
+    if (!identity || directory.path !== identity.path) throw rootError();
+    return identity;
+  });
   await assertAuthorizedProviderPaths(paths);
-  await assertIdentity(identity);
-  if (!inside(await realpath(directory.path), paths.providerCacheRoot)) throw rootError();
+  for (const identity of identities) {
+    await assertIdentity(identity);
+    if (!inside(await realpath(identity.path), paths.providerCacheRoot)) throw rootError();
+  }
 }
 
 /** @internal Return the inode-bound canonical path after revalidation. */
@@ -247,17 +291,15 @@ async function authorizeRoots(
   options: Pick<ProviderPathTestInputs, "projectRoot" | "afterAncestorCheckForTest" | "nowForTest"> = {},
 ): Promise<AuthorizedProviderPaths> {
   assertRootStrings(configRoot, cacheRoot, options.projectRoot);
-  await validateAncestorChain(configRoot);
-  await validateAncestorChain(cacheRoot);
-  const configParent = await captureNearestAncestor(configRoot);
-  const cacheParent = await captureNearestAncestor(cacheRoot);
+  const configParent = await validateAncestorChain(configRoot);
+  const cacheParent = await validateAncestorChain(cacheRoot);
   await options.afterAncestorCheckForTest?.();
   await createPrivateRoot(configRoot, configParent);
   await createPrivateRoot(cacheRoot, cacheParent);
-  await validateAncestorChain(configRoot);
-  await validateAncestorChain(cacheRoot);
-  const config = await captureNearestAncestor(await realpath(configRoot));
-  const cache = await captureNearestAncestor(await realpath(cacheRoot));
+  const configChain = await validateAncestorChain(configRoot);
+  const cacheChain = await validateAncestorChain(cacheRoot);
+  const config = await canonicalRootIdentity(configRoot, configChain);
+  const cache = await canonicalRootIdentity(cacheRoot, cacheChain);
   const providerCachePath = path.join(cache.path, "providers");
   await createPrivateRoot(providerCachePath, cache);
   const providerCache = await captureNearestAncestor(await realpath(providerCachePath));
@@ -266,17 +308,36 @@ async function authorizeRoots(
   return paths;
 }
 
-async function validateAncestorChain(target: string): Promise<void> {
+/**
+ * Check every existing component of `target`'s path, root first, stopping at
+ * the first absent one, and return the identity of the deepest one that
+ * exists: the nearest existing ancestor (or `target` itself), from the same
+ * lstat that just checked it rather than a second look.
+ */
+async function validateAncestorChain(target: string): Promise<DirectoryIdentity> {
   const absolute = path.resolve(target);
   const parsed = path.parse(absolute);
   let current = parsed.root;
+  let deepest: DirectoryIdentity | null = null;
   for (const component of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
     current = path.join(current, component);
     const entry = await lstat(current).catch((error) => absentOrThrow(error));
-    if (entry === null) return;
+    if (entry === null) break;
     if (!entry.isDirectory() || entry.isSymbolicLink()) throw rootError();
     assertOwnedDirectory(entry.uid, entry.mode);
+    deepest = { path: current, dev: entry.dev, ino: entry.ino };
   }
+  return deepest ?? captureNearestAncestor(parsed.root);
+}
+
+/**
+ * The identity of a created root at its real path. When the path has no alias,
+ * the chain check just made already lstat'ed that exact directory; otherwise
+ * the real path is captured afresh.
+ */
+async function canonicalRootIdentity(target: string, chain: DirectoryIdentity): Promise<DirectoryIdentity> {
+  const real = await realpath(target);
+  return chain.path === real ? chain : captureNearestAncestor(real);
 }
 
 interface DirectoryIdentity { readonly path: string; readonly dev: number; readonly ino: number }
@@ -420,8 +481,7 @@ function rootError(): Error {
  */
 export async function ensureOwnerPrivateDirectory(target: string): Promise<string> {
   if (!path.isAbsolute(target)) throw rootError();
-  await validateAncestorChain(target);
-  await createPrivateRoot(target, await captureNearestAncestor(target));
+  await createPrivateRoot(target, await validateAncestorChain(target));
   await validateAncestorChain(target);
   return realpath(target);
 }
