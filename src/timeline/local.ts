@@ -51,11 +51,12 @@ function localTimelineSteps(root: string): TimelineSteps {
  * Bring `wiki/timeline/` up to date and report what changed.
  * @param root - Project root; the caller holds its lock.
  * @param timeline - The schema's timeline settings; disabled does nothing.
+ * @param concurrency - The compile's `--concurrency`, if given; otherwise the env var or the default.
  */
-export async function generateTimeline(root: string, timeline: TimelineSchema): Promise<TimelineResult> {
+export async function generateTimeline(root: string, timeline: TimelineSchema, concurrency?: number): Promise<TimelineResult> {
   if (!timeline.enabled) return { written: [], deleted: [], errors: [] };
   output.status("🗓", output.info("Updating the timeline..."));
-  const result = await generateTimelineWith(localTimelineSteps(root), timeline, resolveCompileConcurrency());
+  const result = await generateTimelineWith(localTimelineSteps(root), timeline, resolveCompileConcurrency(concurrency));
   for (const error of result.errors) output.status("!", output.warn(error));
   if (result.written.length + result.deleted.length > 0) {
     output.status("✓", output.success(`Timeline: ${result.written.length} written, ${result.deleted.length} removed.`));

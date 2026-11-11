@@ -60,8 +60,8 @@ export interface CompileFinalizeSteps {
   generateMOC(root: string): Promise<void>;
   /** Drain and refresh embeddings for `changedPageIds`. Local: `refreshEmbeddingsDrainingPending(root, changedPageIds)`. */
   refreshEmbeddings(root: string, changedPageIds: PageId[]): Promise<void>;
-  /** Bring `wiki/timeline/` up to date with the sources. Local: `generateTimeline(root, timeline)`. */
-  updateTimeline(root: string, timeline: TimelineSchema): Promise<unknown>;
+  /** Bring `wiki/timeline/` up to date with the sources, `concurrency` model calls at a time. Local: `generateTimeline(root, timeline, concurrency)`. */
+  updateTimeline(root: string, timeline: TimelineSchema, concurrency?: number): Promise<unknown>;
 }
 
 /** LOCAL. The incumbent steps, called at call time with their old arguments; frozen. In no package index. */
@@ -74,7 +74,7 @@ const localCompileFinalizeSteps: CompileFinalizeSteps = Object.freeze({
   generateIndex: (root: string) => generateIndex(root),
   generateMOC: (root: string) => generateMOC(root),
   refreshEmbeddings: (root: string, changedPageIds: PageId[]) => refreshEmbeddingsDrainingPending(root, changedPageIds),
-  updateTimeline: (root: string, timeline: TimelineSchema) => generateTimeline(root, timeline),
+  updateTimeline: (root: string, timeline: TimelineSchema, concurrency?: number) => generateTimeline(root, timeline, concurrency),
 });
 
 /**
@@ -144,7 +144,7 @@ export async function seedThenFinalizeWith(
     scoped: options.changeFilter !== undefined,
     embeddings: options.embeddings !== false,
   });
-  if (!options.review) await timeStage("compile.timeline", () => updateTimelineOrWarn(steps, root, schema.timeline));
+  if (!options.review) await timeStage("compile.timeline", () => updateTimelineOrWarn(steps, root, schema.timeline, options.concurrency));
 }
 
 /**
@@ -152,9 +152,9 @@ export async function seedThenFinalizeWith(
  * compile's pages and state are committed; the timeline is derived from them and
  * the next compile retries it, so a failure here must not fail the compile.
  */
-async function updateTimelineOrWarn(steps: CompileFinalizeSteps, root: string, timeline: TimelineSchema): Promise<void> {
+async function updateTimelineOrWarn(steps: CompileFinalizeSteps, root: string, timeline: TimelineSchema, concurrency?: number): Promise<void> {
   try {
-    await steps.updateTimeline(root, timeline);
+    await steps.updateTimeline(root, timeline, concurrency);
   } catch (error) {
     output.status("!", output.warn(`Timeline not updated: ${error instanceof Error ? error.message : String(error)}`));
   }
