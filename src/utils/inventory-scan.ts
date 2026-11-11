@@ -3,7 +3,8 @@
  * limits and policy remain with each scanner; this module grants no authority.
  */
 import { lstat, realpath, opendir } from "node:fs/promises";
-import { openConfinedLeaf, resolveExpectedReal } from "./confined-read.js";
+import path from "node:path";
+import { expectedRealMatching, openConfinedLeaf } from "./confined-read.js";
 
 /** Reject unbounded or fractional scan requests before any traversal. */
 export function positiveScanEntryLimit(requested: number, store: string): number {
@@ -31,9 +32,7 @@ async function directoryIsConfined(state: { root: string }, dir: string): Promis
     error.code === "ENOENT" ? null : error);
   if (metadata === null) return "absent";
   if (metadata instanceof Error || !metadata.isDirectory() || metadata.isSymbolicLink()) return false;
-  const expected = await resolveExpectedReal(state.root, dir);
-  if (expected === null) return false;
-  return await realpath(dir).catch(() => null) === expected;
+  return await expectedRealMatching(state.root, path.resolve(dir), await realpath(dir).catch(() => null)) !== null;
 }
 
 /** Why a confined directory was not opened. Each is decided BEFORE any entry is seen. */
