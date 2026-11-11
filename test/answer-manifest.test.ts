@@ -2,7 +2,7 @@
  * Manifest admission tests for normalized PUB01 observations and exact shapes.
  * Audit metadata is structural here; fresh resolution belongs to publication.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readCandidate, writeFreshCandidate } from "../src/compiler/candidates.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { answerDraft, replaceCandidate } from "./fixtures/answer-candidate.js";

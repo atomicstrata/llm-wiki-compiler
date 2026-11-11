@@ -2,7 +2,7 @@
  * Binary container contract: metadata stays separate from vectors, values use
  * explicit little-endian Float32, and malformed lengths never expose records.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { encodeBinaryStore, decodeBinaryStore } from "../src/utils/embeddings-binary.js";
 import { binaryFixture } from "./fixtures/binary-embedding-store.js";
 import { EmbeddingIntegrityError } from "../src/utils/embeddings-validate.js";

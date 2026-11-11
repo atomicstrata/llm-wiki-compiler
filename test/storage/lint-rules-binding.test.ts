@@ -31,7 +31,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import type { FreshnessSnapshot } from "../../src/freshness/types.js";
 import { planLintFixes, planLintFixesFrom, type LintFixPlanV1 } from "../../src/linter/fix-plan.js";

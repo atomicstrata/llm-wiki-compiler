@@ -3,7 +3,7 @@
  * @description Positive parsing coverage for Provider V2's closed, branded,
  * host-owned capability-schema subset.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseClosedProviderSchema } from "../../src/capability-providers/schema/parse.js";
 
 const OBJECT_SCHEMA = {

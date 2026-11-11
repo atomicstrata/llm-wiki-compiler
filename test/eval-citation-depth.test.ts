@@ -2,6 +2,7 @@
  * Tests for src/eval/citation-depth.ts — citation precision metrics.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluateCitationDepth } from "../src/eval/citation-depth.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 

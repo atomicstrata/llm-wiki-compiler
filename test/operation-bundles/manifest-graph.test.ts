@@ -4,7 +4,7 @@
  * from unavailable and rejects cross-workspace, cyclic, forked, or conflicting edges.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   BundleGraphUnavailableError,
   validateBundleGraph,

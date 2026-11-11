@@ -5,7 +5,7 @@
  * closed tones, bounds, anchors, and verification-only placement.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installWorkflowProfile, buildWorkflowProfile } from "./fixtures/workflow-profile.js";
 import { startWorkflow } from "../src/workflows/start.js";

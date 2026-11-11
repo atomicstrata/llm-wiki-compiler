@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, writeFile, stat } from "fs/promises";
 import path from "path";
 import importCommand from "../src/commands/import.js";

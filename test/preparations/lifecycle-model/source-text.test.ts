@@ -32,7 +32,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { declaresSymbol, referencesSymbol, withoutComments } from "./source-text.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../..");

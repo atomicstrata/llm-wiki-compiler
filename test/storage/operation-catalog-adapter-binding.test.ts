@@ -18,7 +18,7 @@
  * `catalog-adapter.test.ts` show that.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";
 import { catalogAdapter, defineCatalogAdapter, type CatalogAdapterStores } from "../../src/operation-bundles/adapters/catalog.js";
 import * as shared from "../../src/operation-bundles/adapters/shared.js";

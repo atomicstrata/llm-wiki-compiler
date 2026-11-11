@@ -6,7 +6,7 @@
  * and the host-minted input ID is a stable slug bound to source identity + digest.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { readPreparationEvidence } from "../../src/preparations/evidence-store.js";
 import { mintPreparationId } from "../../src/preparations/ids.js";

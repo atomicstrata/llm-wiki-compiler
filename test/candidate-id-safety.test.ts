@@ -10,7 +10,7 @@
  *  - no file is ever written outside the candidates dir.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, readdir, readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

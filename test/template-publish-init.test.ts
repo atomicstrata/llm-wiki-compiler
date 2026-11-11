@@ -5,7 +5,7 @@
  */
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { initWorkspace } from "../src/profile/templates/publish/init.js";
 import { resolveWorkspacePaths } from "../src/profile/templates/publish/workspace-paths.js";
 import { readWorkspace } from "../src/profile/templates/publish/workspace-store.js";

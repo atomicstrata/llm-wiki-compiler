@@ -21,7 +21,7 @@
 
 import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI, expectCLIJson } from "./fixtures/run-cli.js";
 import { emptyWorkspace } from "./preparation-cli-fixture.js";
 import { preparationKeyFile } from "../src/preparations/paths.js";

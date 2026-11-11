@@ -21,7 +21,7 @@
  * suites show those. The dry-run preview is `okf-import-binding` P1, P2.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidates from "../../src/compiler/candidates.js";
 import * as bundleBlockRead from "../../src/import/bundle-block-read.js";
 import * as okfImport from "../../src/import/okf-import.js";

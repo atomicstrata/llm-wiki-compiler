@@ -18,7 +18,7 @@
  * that crashes mid-flow and requires the SAME bundle identity back.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import type { HandoffResultV1, PreparationGrant } from "../src/preparations/service.js";
 import { PrincipalAuthorityError } from "../src/preparations/service.js";

@@ -13,7 +13,7 @@
  * `pending-embeddings-lifecycle.test.ts`.
  */
 
-import { describe, it, beforeEach, afterEach, expect, vi } from "vitest";
+import { describe, it, beforeEach, afterEach, expect, vi } from "bun:test";
 import { mkdir, symlink, readFile, writeFile, readdir, chmod } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

@@ -3,7 +3,7 @@
  * pipeline. A removed CLI binding or missing modifier registration must fail
  * these tests even though the prompt helper still passes its unit tests.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { mockClaudeEnv, stubCannedCompile, useAimockLifecycle } from "./fixtures/aimock-helper.js";

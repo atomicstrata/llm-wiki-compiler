@@ -18,7 +18,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { runAttemptLeg, runAttemptLegWith } from "../../src/preparations/attempts/cancel-delivery.js";
 import * as cancellation from "../../src/preparations/cancellation.js";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";

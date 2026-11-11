@@ -17,7 +17,7 @@
  * themselves; the artifact members, apply and resolver suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as resolve from "../../src/artifacts/resolve.js";
 import type { ArtifactStoreReads } from "../../src/artifacts/resolve.js";
 import {

@@ -15,7 +15,7 @@
  * its pre-state, and replay stays idempotent.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { writeFile, readFile, mkdir, symlink, rm, mkdtemp } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

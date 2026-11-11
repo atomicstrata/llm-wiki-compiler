@@ -13,7 +13,7 @@
  * while the project LOCK is held by a live holder refuses cleanly.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

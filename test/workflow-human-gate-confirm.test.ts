@@ -8,7 +8,7 @@
  * token (or EOF) fails closed. The IO is injected so no real terminal is needed.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { confirmHumanGateInteractively, type HumanGateIo } from "../src/workflows/human-gate-confirm.js";
 
 /** A fake terminal IO capturing writes and replying with a caller-chosen answer. */

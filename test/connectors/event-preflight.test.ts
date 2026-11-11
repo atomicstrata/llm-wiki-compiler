@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { describe, expect, it, vi, afterEach } from "bun:test";
 import { listCandidates, writeCandidate } from "../../src/compiler/candidates.js";
 import { connectorEvent, upperBoundConnectorEvent } from "../../src/connectors/audit.js";
 import { MAX_CONNECTOR_URL_BYTES, type ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
@@ -15,8 +15,11 @@ import type { AppendEventInput } from "../../src/events/store.js";
 import { buildNewsroomProject } from "../fixtures/newsroom-profile.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-vi.mock("../../src/utils/constants.js", async (importActual) => {
-  const actual = await importActual<typeof import("../../src/utils/constants.js")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realUtilsConstants = { ...(await import("../../src/utils/constants.js")) };
+
+vi.mock("../../src/utils/constants.js", () => {
+  const actual = realUtilsConstants;
   return { ...actual, MAX_EVENT_STORE_BYTES: 220 };
 });
 

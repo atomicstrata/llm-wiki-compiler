@@ -19,7 +19,7 @@
  * "unchanged" here means genuinely untouched.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   DEFAULT_SEED, chainPlan, expectStoreUnchanged, nested, padTo, planFor,
   projectWith, refusalReason, stage, stagedRunId,

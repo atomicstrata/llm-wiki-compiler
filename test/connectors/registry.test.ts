@@ -2,7 +2,7 @@
  * @file test/connectors/registry.test.ts
  * @description Product-discovery boundaries for compiled-in connectors.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { allConnectors, discoverableConnectors } from "../../src/connectors/registry.js";
 
 describe("connector registry", () => {

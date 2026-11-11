@@ -2,7 +2,7 @@
  * @file test/profile-template-signing-protocol.test.ts
  * @description Adversarial parser and canonicalization tests for signed templates.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalBytes } from "../src/profile/templates/signing/canonical.js";
 import { parseBoundedUniqueJson } from "../src/profile/templates/signing/json.js";
 import { parseSignedPackage, parseSignedTapIndex, parseTemplateCoordinate } from "../src/profile/templates/signing/protocol.js";

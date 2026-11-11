@@ -1,18 +1,19 @@
 /** Gateway body extensions must reach chat requests without replacing compile's contract. */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { OpenAIRequestConfigError } from "../src/providers/openai-request.js";
 
 beforeEach(() => {
-  vi.stubEnv("LLMWIKI_OPENAI_TOKEN_PARAM", undefined);
-  vi.stubEnv("LLMWIKI_OPENAI_REASONING_EFFORT", undefined);
+  stubEnv("LLMWIKI_OPENAI_TOKEN_PARAM", undefined);
+  stubEnv("LLMWIKI_OPENAI_REASONING_EFFORT", undefined);
 });
-afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { restoreEnv(); restoreGlobals(); });
 
 /** Capture the real SDK body at transport, installing the stub before SDK construction. */
 function captureRequests(response: () => Response): Record<string, unknown>[] {
   const bodies: Record<string, unknown>[] = [];
-  vi.stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
+  stubGlobal("fetch", async (_url: unknown, init: RequestInit) => {
     bodies.push(JSON.parse(String(init.body)));
     return response();
   });
@@ -21,7 +22,7 @@ function captureRequests(response: () => Response): Record<string, unknown>[] {
 
 it.each(["complete", "stream"] as const)("forwards extensions through %s and preserves an unset default", async (mode) => {
   for (const setting of [undefined, "  ", '{"thinking":{"type":"disabled"}}']) {
-    vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", setting);
+    stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", setting);
     const bodies = captureRequests(() => mode === "stream"
         ? new Response('data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n\n', {
           headers: { "content-type": "text/event-stream" },
@@ -36,7 +37,7 @@ it.each(["complete", "stream"] as const)("forwards extensions through %s and pre
 });
 
 it("does not apply or validate chat extensions on the embedding path", async () => {
-  vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", "not-chat-json");
+  stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", "not-chat-json");
   const bodies = captureRequests(() => Response.json({ data: [{ index: 0, embedding: [1, 2] }] }));
   const provider = new OpenAIProvider("vendor/model", { apiKey: "test", embeddingModel: "embed-model" });
   expect(await provider.embed("source")).toEqual([1, 2]);
@@ -44,7 +45,7 @@ it("does not apply or validate chat extensions on the embedding path", async () 
 });
 
 it("adds vendor fields while preserving required structured extraction", async () => {
-  vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", '{"thinking":{"type":"disabled"},"temperature":0.2}');
+  stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", '{"thinking":{"type":"disabled"},"temperature":0.2}');
   const bodies = captureRequests(() => Response.json({ choices: [{ message: { tool_calls: [{
       type: "function", function: { name: "extract", arguments: '{"concepts":[]}' },
     }] } }] }));
@@ -61,9 +62,9 @@ it.each(["broken", "null", "[]", "true", "1", '"text"',
   ...["model", "messages", "tools", "tool_choice", "stream", "max_tokens", "max_completion_tokens", "reasoning_effort"]
     .map((field) => JSON.stringify({ [field]: null })),
 ])("rejects unsupported extra body %s before sending", async (value) => {
-  vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", value);
+  stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", value);
   const network = vi.fn(async () => Response.json({ choices: [] }));
-  vi.stubGlobal("fetch", network);
+  stubGlobal("fetch", network);
   const provider = new OpenAIProvider("vendor/model", { apiKey: "test" });
   await expect(provider.complete("s", [], 128)).rejects.toBeInstanceOf(OpenAIRequestConfigError);
   expect(network).not.toHaveBeenCalled();

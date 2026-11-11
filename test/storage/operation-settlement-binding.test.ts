@@ -20,7 +20,7 @@
  * compensation, recovery and recovery-bundle suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { compensateOperationBundleLocked, compensateOperationBundleWith } from "../../src/operation-bundles/compensation.js";
 import {
   planRecoveryBundleLocked, planRecoveryBundleWith, settleOriginalFromRecoveryLocked, settleOriginalFromRecoveryWith,

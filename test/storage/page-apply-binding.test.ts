@@ -27,7 +27,7 @@
 import { createHash } from "node:crypto";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";
 import { applyPageMutationLocked, applyPageMutationLockedFrom, type PageApplyIo, type PreStateRecorder, type WriteOne } from "../../src/trust/page-apply.js";
 import type { PagePlannedMutation } from "../../src/trust/planner.js";

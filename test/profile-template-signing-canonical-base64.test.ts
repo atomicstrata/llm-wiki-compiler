@@ -3,7 +3,7 @@
  * @description Regression coverage for byte-equivalent, non-canonical Base64
  * aliases at the shared signed-template protocol boundary.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   parseSignedPackage,
   parseSignedTapIndex,

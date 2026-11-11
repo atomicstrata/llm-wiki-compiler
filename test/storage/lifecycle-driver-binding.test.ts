@@ -18,7 +18,7 @@
  * themselves; `lifecycle-driver.test.ts` and the custody suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   runLifecycleCustodyOperation, runLifecycleCustodyOperationWith, type LifecycleCustodyAdapter, type LifecycleCustodyPlan,
   type LifecycleCustodyRequest, type LifecycleDriverSteps, type LifecyclePlanKind,

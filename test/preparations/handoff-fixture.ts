@@ -11,7 +11,7 @@
 
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";
 import { readOperationKey } from "../../src/operation-bundles/key-epoch.js";

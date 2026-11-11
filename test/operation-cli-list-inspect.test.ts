@@ -9,7 +9,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { runCLI, type CLIResult } from "./fixtures/run-cli.js";
 import { approveAndApplyOperationBundleLocked } from "../src/operation-bundles/executor.js";
 import { readOperationManifest } from "../src/operation-bundles/manifest-store.js";

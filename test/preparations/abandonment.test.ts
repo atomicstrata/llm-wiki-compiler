@@ -7,7 +7,7 @@
  * transition, and the recompute understates nothing.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import {
   abandonPreparationRunLocked, deriveResidualFindings, PreparationAbandonmentError,

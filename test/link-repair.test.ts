@@ -6,7 +6,7 @@
  * refuse to guess: a slug prefixing two pages or none is left exactly as it is.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { writeFile, mkdir, readFile, symlink } from "fs/promises";
 import path from "path";
 import { execFileSync } from "node:child_process";

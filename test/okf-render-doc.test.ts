@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createHash } from "crypto";
 import { renderOkfDoc } from "../src/export/okf/render-doc.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";

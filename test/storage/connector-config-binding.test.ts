@@ -12,7 +12,7 @@
  */
 
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import {
   loadConnectorConfig, loadConnectorConfigFrom, type ConnectorConfigLeaf, type ConnectorConfigLeafRead,
 } from "../../src/connectors/config.js";

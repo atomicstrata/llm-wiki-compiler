@@ -3,6 +3,7 @@
  * formatHistoryTable, formatCacheShow, formatJudgementsDisplay.
  */
 
+import { describe, it, expect } from "bun:test";
 import {
   formatTerminalReport,
   formatHistoryTable,

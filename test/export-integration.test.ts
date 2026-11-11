@@ -3,8 +3,8 @@
  *
  * Exercises the export command end-to-end through the compiled CLI binary.
  * No LLM calls are made — export is a pure transformation of wiki content
- * on disk. dist/cli.js is built once via vitest globalSetup (see
- * test/global-setup.ts) — per-file beforeAll(npx tsup) calls are absent
+ * on disk. dist/cli.js is built once by `bun run test` before the suite starts —
+ * per-file beforeAll(npx tsup) calls are absent
  * intentionally (see schema-subprocess.test.ts for the canonical pattern).
  *
  * Test coverage:
@@ -21,7 +21,7 @@
  *  - Marp --source filter includes only requested page kind
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, access } from "fs/promises";
 import { readFile } from "fs/promises";

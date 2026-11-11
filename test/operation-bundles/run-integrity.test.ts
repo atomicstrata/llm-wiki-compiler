@@ -4,7 +4,7 @@
  * chain tamper tests for operation-run authority records.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { mintBundleId, mintOperationRunId } from "../../src/operation-bundles/ids.js";
 import { parseOperationRun } from "../../src/operation-bundles/run-parse.js";
 import {

@@ -3,7 +3,7 @@
  * page writes use the existing intent journal; derived artifacts are retried;
  * cleanup happens last and can be partial. Faults never masquerade as validation.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

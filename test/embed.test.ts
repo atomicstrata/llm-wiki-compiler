@@ -7,7 +7,7 @@
  * Anthropic: verify the missing-key error surfaces before any network call.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { EMBEDDING_MODELS } from "../src/utils/constants.js";

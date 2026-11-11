@@ -14,7 +14,7 @@
  *  - a `pendingOutput` intent for the retried stage is cleared by resume.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { startOneStageBuild, experimentPageOutput as pageOutput, readOkRun, expectAdvanceParkedOnRun } from "./fixtures/workflow-profile.js";
 import { advanceWorkflow } from "../src/workflows/advance.js";
 import { submitStageOutput } from "../src/workflows/stage-output.js";

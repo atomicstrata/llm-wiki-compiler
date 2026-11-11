@@ -23,7 +23,7 @@
  * the crash state live in `preparation-stage-residue.test.ts`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   DEFAULT_SEED, KEY_LEAF, controlAllowanceCeiling, expectStoreUnchanged, keyEpochOf,
   leafNames, planFor, projectWith, refusalReason, stage, stagedRunId, storeInventory,

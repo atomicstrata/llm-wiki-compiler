@@ -38,7 +38,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { CandidateStoreWriteReads } from "../../src/compiler/candidate-custody.js";
 import {
   deleteCandidate, deleteCandidateBySlug, deleteCandidateBySlugFrom, deleteCandidateFrom, writeCandidate, writeCandidateFrom,

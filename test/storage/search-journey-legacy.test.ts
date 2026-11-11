@@ -18,7 +18,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { loadSelectedRefs, pickSearchRefs } from "../../src/search/retrieval.js";
 import { resolveEmbeddingModel, type EmbeddingStoreV3 } from "../../src/utils/embeddings-store.js";
 import * as providerMod from "../../src/utils/provider.js";

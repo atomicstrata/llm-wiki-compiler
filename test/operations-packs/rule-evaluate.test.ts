@@ -7,7 +7,7 @@
  * fails closed when the evidence set exceeds the item ceiling.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { evaluateRules } from "../../src/operations-packs/handlers/rule-evaluate.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { PackHostHandlerError } from "../../src/operations-packs/handlers/types.js";

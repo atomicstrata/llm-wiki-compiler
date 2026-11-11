@@ -5,7 +5,7 @@
  * accepts only clean project-relative paths.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { isSafeRelativeEvidencePath } from "../src/utils/evidence-path.js";
 
 describe("isSafeRelativeEvidencePath — rejected paths", () => {

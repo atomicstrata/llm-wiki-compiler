@@ -6,7 +6,7 @@
  * path, proving the slot reconstruction algorithm is correct.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { refreshChunkEmbeddings } from "../src/utils/embeddings-chunks.js";
 import * as providerMod from "../src/utils/provider.js";
 import type { PageRecord } from "../src/utils/embeddings-pages.js";

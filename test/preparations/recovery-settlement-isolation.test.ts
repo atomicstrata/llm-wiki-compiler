@@ -15,7 +15,7 @@ import { chmod, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { acquireMutationLock, acquireMutationLockBlocking } from "../../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../../src/utils/lock.js";
 import { writePreparationCancelLockFree } from "../../src/preparations/cancellation.js";

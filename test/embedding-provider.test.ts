@@ -10,7 +10,7 @@
  * while still catching a missing key for a hosted one.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   getEmbeddingProvider,
   getActiveEmbeddingProviderName,

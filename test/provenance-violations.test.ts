@@ -18,7 +18,7 @@
  *   - reviewShowCommand prints the new block when populated
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { writeFile, mkdir } from "fs/promises";
 import {

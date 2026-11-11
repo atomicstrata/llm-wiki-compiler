@@ -9,7 +9,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { mockClaudeEnv, useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 import { pageEntryOf, writePageStore } from "./fixtures/typed-grounding.js";

@@ -8,7 +8,7 @@
  * carry provenance are not part of this switch.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   applySourcesSectionOption,
   sourcesSectionEnabled,

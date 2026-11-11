@@ -14,7 +14,7 @@
  * the witness cases below. Each probe is well-formed except the property under test.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseOperationsPack } from "../../src/operations-packs/parse.js";
 import { PackDeferredError, PackIdentityError, PackParseError } from "../../src/operations-packs/problems.js";
 import { buildPack, serialize } from "./pack-fixture.js";

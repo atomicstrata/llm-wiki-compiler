@@ -5,7 +5,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { parseConcepts } from "../src/compiler/prompts.js";
 import { mergeExtractions } from "../src/compiler/extraction-merge.js";
 import { renderMergedPageContent } from "../src/compiler/page-renderer.js";

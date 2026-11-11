@@ -6,7 +6,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { listCandidates, writeFreshCandidate } from "../../src/compiler/candidates.js";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
 import { runConnector } from "../../src/connectors/run.js";

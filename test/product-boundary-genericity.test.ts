@@ -19,7 +19,7 @@
  * out of scope by design: tests may import packages freely, and packages ARE
  * product instances.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";

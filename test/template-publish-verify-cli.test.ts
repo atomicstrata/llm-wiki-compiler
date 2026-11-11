@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import {
   COORDINATE,
@@ -26,8 +26,8 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const fixtures: PublishDistribution[] = [];
 const HUMAN_SUCCESS_OUTPUT = [
   "Verified template publisher distribution.",
@@ -212,10 +212,10 @@ describe("template publish verify CLI", () => {
   });
 
   it("distinguishes consumer verification from publisher distribution verification in help", () => {
-    const templateHelp = spawnSync(process.execPath, [CLI, "template", "--help"], {
+    const templateHelp = spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "--help"], {
       encoding: "utf8", timeout: CLI_TIMEOUT_MS,
     });
-    const publishHelp = spawnSync(process.execPath, [CLI, "template", "publish", "--help"], {
+    const publishHelp = spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "publish", "--help"], {
       encoding: "utf8", timeout: CLI_TIMEOUT_MS,
     });
     expect(templateHelp.error).toBeUndefined();

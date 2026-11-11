@@ -23,7 +23,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildFreshnessSnapshotFrom, type SourceFreshnessSources, type SourceLocations } from "../../src/freshness/index.js";
 import type { ClassifiedState, StateStatus } from "../../src/utils/state.js";
 

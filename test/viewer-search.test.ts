@@ -7,7 +7,7 @@
  * (no `wiki/index.md`), and the body-snippet shape.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { searchPages } from "../src/viewer/search.js";
 import type {
   PageId,

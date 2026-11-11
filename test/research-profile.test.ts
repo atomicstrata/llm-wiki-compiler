@@ -14,13 +14,13 @@
  * fixtures + this proof, so the default path is untouched.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { collectStatus } from "../src/status/collect.js";
 import { exportJson } from "../src/commands/export.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { lint } from "../src/linter/index.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { buildContextPack } from "../src/context/build.js";

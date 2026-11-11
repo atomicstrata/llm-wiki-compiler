@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink, realpath } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

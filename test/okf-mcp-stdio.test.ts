@@ -14,7 +14,7 @@
  * zero candidates) therefore never share a root.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { stat, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { useMcpRoot, connectMcpClient } from "./fixtures/mcp-test-env.js";

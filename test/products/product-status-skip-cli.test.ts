@@ -13,7 +13,7 @@
 
 import path from "node:path";
 import { mkdir, realpath } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { runCLI, expectCLIExit } from "../fixtures/run-cli.js";
 import { activatedProject } from "./product-vertical-fixture.js";
 

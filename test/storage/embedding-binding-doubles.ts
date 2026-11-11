@@ -6,7 +6,7 @@
  *
  * - {@link withEmbeddingEnvironment}: the stubbed configuration, frozen clock and
  *   offline provider a refresh or writer step runs under, restored afterwards;
- *   {@link freezeDateDuringSuite} fakes only `Date` for the whole suite, and
+ *   {@link restoreClockAfterSuite} returns the real clock once the suite ends, and
  *   {@link recordingInto} keeps one step's provider calls beside the shared log.
  * - {@link observeStatus}: one step settled once, with the status lines it printed;
  *   {@link expectMarkerParity} requires a memory run to match the disk's.
@@ -24,7 +24,8 @@
 
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, expect, vi } from "vitest";
+import { afterAll, expect, vi, setSystemTime } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "../stubs.js";
 import * as transport from "../../src/utils/embedding-provider.js";
 import type { EmbeddingPageReads } from "../../src/utils/embeddings-pages.js";
 import type { StoredEmbeddingReads, StoredEmbeddingWrites } from "../../src/utils/embeddings-storage.js";
@@ -40,9 +41,9 @@ export interface EmbeddingEnvironment { enabled: boolean; strict: boolean; fail:
 export async function withEmbeddingEnvironment<T>(env: EmbeddingEnvironment, record: (call: string) => void, body: () => Promise<T>): Promise<T> {
   const stubs = { LLMWIKI_EMBEDDINGS: env.enabled ? "on" : "off", LLMWIKI_EMBED_STRICT: env.strict ? "on" : "off", LLMWIKI_PROVIDER: "openai",
     LLMWIKI_EMBEDDING_PROVIDER: "openai", LLMWIKI_EMBEDDING_MODEL: "offline-embed", OPENAI_API_KEY: "test-key", LLMWIKI_BINARY_EMBEDDINGS: "" };
-  for (const [name, value] of Object.entries(stubs)) vi.stubEnv(name, value);
-  vi.stubGlobal("fetch", () => { throw new Error(`network forbidden in the ${env.witness} witness`); });
-  vi.setSystemTime(new Date(env.at));
+  for (const [name, value] of Object.entries(stubs)) stubEnv(name, value);
+  stubGlobal("fetch", () => { throw new Error(`network forbidden in the ${env.witness} witness`); });
+  setSystemTime(new Date(env.at));
   const embedBatch = async (texts: string[]) => {
     record(`embed ${texts.length}`);
     if (env.fail) throw new Error("provider refused");
@@ -50,13 +51,16 @@ export async function withEmbeddingEnvironment<T>(env: EmbeddingEnvironment, rec
   };
   const provider = vi.spyOn(transport, "getEmbeddingProvider").mockReturnValue(
     { embed: async (text: string) => (await embedBatch([text]))[0], embedBatch } as unknown as ReturnType<typeof transport.getEmbeddingProvider>);
-  try { return await body(); } finally { provider.mockRestore(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  try { return await body(); } finally { provider.mockRestore(); restoreGlobals(); restoreEnv(); }
 }
 
-/** Fake only `Date` for the whole suite, registering the two hooks where this is called. */
-export function freezeDateDuringSuite(): void {
-  beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); });
-  afterAll(() => { vi.useRealTimers(); });
+/**
+ * Return the real clock when the suite ends. Each {@link withEmbeddingEnvironment}
+ * pins `Date` with `setSystemTime` (Bun's fake clock needs no fake timers), so
+ * only the suite-wide reset is left to register here.
+ */
+export function restoreClockAfterSuite(): void {
+  afterAll(() => { setSystemTime(); });
 }
 
 /** One step's call record: `record` keeps each call in this step's `calls` and in the suite's shared `log`. */

@@ -10,7 +10,7 @@
  * code that refuses after committing.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import type { PreparationGrant } from "../src/preparations/service.js";
 import type { Wiki } from "../src/sdk/types.js";
 import { emptyWorkspace } from "./preparation-cli-fixture.js";

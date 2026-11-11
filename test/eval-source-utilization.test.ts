@@ -4,6 +4,7 @@
  * citation collection across concept and query pages.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluateSourceUtilization } from "../src/eval/source-utilization.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 

@@ -7,7 +7,7 @@
  * throws a typed `StateTooNewError`. v1/v2/missing/corrupt behavior is unchanged.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";

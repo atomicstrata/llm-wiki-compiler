@@ -19,7 +19,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { MAX_PREPARATION_MANIFEST_BYTES } from "../../src/preparations/constants.js";
 import {

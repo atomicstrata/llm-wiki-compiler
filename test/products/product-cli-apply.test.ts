@@ -20,7 +20,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { runCLI, expectCLIExit, expectCLIFailure } from "../fixtures/run-cli.js";
 import {

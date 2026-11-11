@@ -14,7 +14,7 @@
  * re-parses to EXACTLY the validated value — the splice-vs-validated consistency.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { rebuildLifecycleFrontmatter } from "../src/trust/lifecycle-frontmatter.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 

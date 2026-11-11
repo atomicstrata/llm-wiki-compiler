@@ -31,7 +31,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { createWiki } from "../src/sdk/wiki.js";
 import {
   MUTATING_GRANTS, expectMissingGrant, expectNoGateProof, expectRunFailed, expectStagedBy,

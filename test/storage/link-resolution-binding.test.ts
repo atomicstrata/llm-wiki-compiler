@@ -25,7 +25,7 @@
  * incumbent resolver suites; the output line is ambient and not compared.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { resolveLinks, resolveLinksFrom } from "../../src/compiler/resolver.js";
 import type { LegacyLocalReads } from "../../src/storage/legacy-local-reads.js";
 import { CONCEPTS_DIR } from "../../src/utils/constants.js";

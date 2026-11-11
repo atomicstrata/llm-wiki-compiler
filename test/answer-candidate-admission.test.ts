@@ -2,7 +2,7 @@
  * Fail-closed versioned answer metadata, while retaining tolerant queue reads.
  * These witnesses exercise disk admission rather than only a schema helper.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { readFile } from "fs/promises";
 import { writeCandidate, writeFreshCandidate, readCandidate, listCandidates,
 countCandidates, listCandidatePage, loadCandidateOrFail } from "../src/compiler/candidates.js";

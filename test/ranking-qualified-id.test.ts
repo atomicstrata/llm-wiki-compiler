@@ -6,7 +6,7 @@
  * concepts-over-queries bare-slug guessing).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { findPageByQualifiedId } from "../src/context/ranking.js";
 import type { ViewerPage, ViewerSnapshot } from "../src/viewer/types.js";
 

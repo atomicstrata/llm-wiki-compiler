@@ -15,7 +15,7 @@
  * approved on install would pass every other case here.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import { resolveProviderPin } from "../../src/capability-providers/packages/resolve.js";
 import { installDevProvider } from "../../src/capability-providers/host/install.js";

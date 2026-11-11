@@ -15,7 +15,7 @@
  * bodies themselves; each has its own binding suite.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as execute from "../../src/preparations/attempts/execute.js";
 import * as fanOut from "../../src/preparations/fan-out-driver.js";
 import * as finalization from "../../src/preparations/finalization.js";

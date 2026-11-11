@@ -36,7 +36,7 @@
  * or any authority. Nothing here is a hosted store or `ProjectStore`.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { collectPageSummariesFrom, generateIndexFrom, type IndexGenerationSources } from "../../src/compiler/indexgen.js";
 import { collectEntityPagesWithMessagesFrom, loadNonDefaultProfileFrom } from "../../src/profile/block.js";
 import { CONCEPTS_DIR, PROFILE_FILE, QUERIES_DIR } from "../../src/utils/constants.js";

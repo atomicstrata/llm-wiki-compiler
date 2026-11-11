@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { collectTemplateStatus } from "../src/profile/templates/status.js";
 import { planRemoteTemplateUpdate } from "../src/profile/templates/remote-lifecycle.js";
 import { applyRemoteTemplateUpdate } from "../src/profile/templates/update-apply.js";
@@ -25,9 +25,9 @@ import {
   removeRemoteUpdateRoots,
   TARGET_COORDINATE,
 } from "./fixtures/template-remote-update.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
 const roots: string[] = [];
-const CLI = path.resolve("dist/cli.js");
 
 afterEach(async () => removeRemoteUpdateRoots(roots));
 
@@ -135,7 +135,7 @@ describe("remote template update", () => {
 });
 
 function runCli(root: string, paths: { configRoot: string; cacheRoot: string }, args: string[]) {
-  return spawnSync(process.execPath, [CLI, ...args], {
+  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
     cwd: root,
     encoding: "utf8",
     env: {

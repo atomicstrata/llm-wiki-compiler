@@ -20,11 +20,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { providerInputRecord } from "../../src/capability-providers/host/invocation.js";
 import { createPackAuthorityResolver } from "../../src/operations-packs/runtime/authority-resolver.js";
 import { derivePhaseInstanceId, singleExpansionIdentity } from "../../src/preparations/ids.js";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { assembleRunnerInput } from "../../src/operations-packs/runtime/runner-input.js";
 import type {

@@ -27,7 +27,7 @@
  * one honest-answer control into noise.
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "bun:test";
 import {
   MAX_PREPARATION_LIST_ITEMS, comparePreparationListing, createPreparationService,
 } from "../src/preparations/service.js";

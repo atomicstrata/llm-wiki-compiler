@@ -5,7 +5,7 @@
  * repeated Anthropic and embeddings seams used by the real compile pipeline.
  */
 
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { AnthropicProvider } from "../../src/providers/anthropic.js";
 import * as embeddings from "../../src/utils/embeddings.js";
 

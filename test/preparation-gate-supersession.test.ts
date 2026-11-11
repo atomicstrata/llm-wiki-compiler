@@ -23,7 +23,7 @@
  * permanently unreconstructible from the record.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { findApprovedGateProof } from "../src/preparations/gates.js";
 import type { GateDecision, GateResultV1 } from "../src/preparations/service.js";
 import {

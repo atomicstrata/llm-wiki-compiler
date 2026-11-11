@@ -11,7 +11,7 @@
  * a compiler that ignored its request.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompilePackActionRequestV1 } from "../../src/operations-packs/compiler-types.js";
 import { buildCompileRequest, RECIPE_ID } from "./compile-fixture.js";

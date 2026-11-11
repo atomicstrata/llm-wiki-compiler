@@ -15,7 +15,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as atomicWriteModule from "../../src/utils/atomic-write.js";
 import type { CappedLeafReadBuffer } from "../../src/utils/confined-read.js";
 import * as confinedRead from "../../src/utils/confined-read.js";

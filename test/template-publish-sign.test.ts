@@ -6,7 +6,7 @@
  * implementation of the signed bytes — the divergence that yields signed-but-
  * unverifiable releases. These tests pin producer and consumer to one definition.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalBytes, packageClaim, tapIndexClaim } from "../src/profile/templates/signing/canonical.js";
 import { generateEd25519Keypair, signClaim } from "../src/profile/templates/signing/sign.js";
 import { parseSignedTapIndex } from "../src/profile/templates/signing/protocol.js";

@@ -18,7 +18,7 @@
  * production assembler; this suite only names an action and reads the answer.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import type { OperationMutation } from "../../src/operation-bundles/types.js";
 import { createPreparationService } from "../../src/preparations/service.js";

@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   collectEligibleLivePages, collectEligibleLivePagesFrom, requestedPagesExistence, requestedPagesExistenceFrom,
 } from "../../src/utils/embeddings-collect.js";

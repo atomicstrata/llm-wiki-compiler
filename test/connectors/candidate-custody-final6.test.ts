@@ -16,7 +16,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { archivePath, candidatePath } from "../../src/compiler/candidate-paths.js";
 import {
   MAX_CANDIDATE_RECORD_BYTES,

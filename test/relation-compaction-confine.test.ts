@@ -11,7 +11,7 @@
  * collapses superseded records and shrinks the file.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, symlink, readFile, lstat, writeFile, open } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

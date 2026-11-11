@@ -8,7 +8,7 @@
  * Relies on the existing aimock/runCLI infrastructure to avoid a live LLM.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   mockOpenAIEnv,
   useAimockLifecycle,

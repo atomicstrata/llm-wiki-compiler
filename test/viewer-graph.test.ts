@@ -6,7 +6,7 @@
  * in-memory `ViewerPage` fixtures — no filesystem access required.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { buildGraphData } from "../src/viewer/graph.js";
 import type { EntityPageNode, RelationEdge } from "../src/viewer/graph.js";
 import type { PageId, ViewerPage } from "../src/viewer/types.js";

@@ -19,7 +19,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";
 import { runCLI, expectCLIExit, expectCLIFailure, type CLIResult } from "../fixtures/run-cli.js";
 import { writeSourcePackage, type BuiltProductPackage } from "./product-package-fixture.js";

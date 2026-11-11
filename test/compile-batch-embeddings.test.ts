@@ -7,7 +7,7 @@
  * must carry input.length > 1, exercising the actual batch path end-to-end.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

@@ -10,7 +10,7 @@
  * the src/cli.ts → src/cli/eval-commands.ts extraction.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm } from "fs/promises";
 import { tmpdir } from "os";

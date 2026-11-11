@@ -3,7 +3,7 @@
  * @description Provider V2 identity grammar, duplicate rejection, DTO, and
  * protocol hard-ceiling coverage for the foundational contract layer.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import * as ceilings from "../../src/capability-providers/constants.js";
 import {
   parseBackendId,

@@ -11,7 +11,7 @@
  * a prior gate already filtered has no measured strength of its own.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { resolveActionToken } from "../../src/operations-packs/aliases.js";
 import { composeSingleRoot } from "../../src/operations-packs/composition.js";
 import type {

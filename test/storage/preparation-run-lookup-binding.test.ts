@@ -25,7 +25,7 @@
  * The double is not a hosted store and selects no backend.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { PreparationEvidenceBytesRead } from "../../src/preparations/evidence-store.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "../../src/preparations/manifest-parse.js";
 import type { PreparationInventoryProblem } from "../../src/preparations/orphan-scan.js";

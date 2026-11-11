@@ -20,7 +20,7 @@
  * `desks/metro` page ({@link buildNewsroomProject}) so it does not dangle.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { runCLI, expectCLIExit, type CLIResult } from "./run-cli.js";
 import { startRun, pageSubmitArgs, relationSubmitArgs, driveStage } from "./research-workflow.js";
 

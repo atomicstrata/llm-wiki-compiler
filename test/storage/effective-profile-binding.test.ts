@@ -29,7 +29,7 @@
  * `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { loadNonDefaultProfileFrom } from "../../src/profile/block.js";
 import { DEFAULT_PROFILE } from "../../src/profile/default.js";
 import { profileDigest } from "../../src/profile/digest.js";

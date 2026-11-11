@@ -9,7 +9,7 @@
  * gated mutation acquisition, never by calling the settlement directly.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { acquireMutationLockBlocking } from "../../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../../src/utils/lock.js";
 import { abandonPreparationRunLocked } from "../../src/preparations/abandonment.js";

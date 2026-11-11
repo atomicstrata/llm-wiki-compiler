@@ -10,7 +10,7 @@
  * never trusted-write or satisfy a human gate.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   CAPABILITY_ORDER,
   SURFACE_HARD_CAP,

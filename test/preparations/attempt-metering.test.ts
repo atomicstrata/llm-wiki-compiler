@@ -10,7 +10,7 @@
  */
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { encodeFrame } from "../../src/capability-providers/runtime/framing.js";
 import { PROVIDER_PROTOCOL_VERSION_V1 } from "../../src/capability-providers/runtime/types.js";

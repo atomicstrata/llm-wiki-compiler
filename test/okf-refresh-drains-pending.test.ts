@@ -15,7 +15,7 @@
  * Mirrors `review-approve-drains-pending.test.ts`.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { refreshAfterImport } from "../src/import/okf-refresh.js";
 import {
   writePendingEmbeddings,

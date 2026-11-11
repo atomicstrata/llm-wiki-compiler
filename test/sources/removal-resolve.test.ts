@@ -20,7 +20,7 @@
  * carries an entry for it.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, symlink, rm } from "node:fs/promises";
 import path from "node:path";
 import { planRemoval } from "../../src/sources/removal.js";

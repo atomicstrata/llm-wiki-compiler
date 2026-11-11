@@ -18,7 +18,7 @@
  * custody publication and the cancellation settlement themselves.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as withMutationLock from "../../src/operation-bundles/with-mutation-lock.js";
 import * as cancelSettlement from "../../src/preparations/attempts/cancel-settlement.js";
 import * as custody from "../../src/preparations/attempts/custody.js";

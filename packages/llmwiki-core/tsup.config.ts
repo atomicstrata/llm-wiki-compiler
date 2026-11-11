@@ -21,7 +21,8 @@ export default defineConfig({
   splitting: true,
   sourcemap: true,
   clean: true,
-  dts: { compilerOptions: { rootDir: path.resolve("../../src") } },
+  // Test jobs skip declaration builds: tests import source, never the .d.ts files.
+  dts: process.env.LLMWIKI_SKIP_DTS === "1" ? false : { compilerOptions: { rootDir: path.resolve("../../src") } },
   tsconfig: "../../tsconfig.json",
   onSuccess: async () => {
     execFileSync(process.execPath, [path.resolve("../../scripts/copy-viewer-assets.mjs"), "packages/llmwiki-core/dist"]);

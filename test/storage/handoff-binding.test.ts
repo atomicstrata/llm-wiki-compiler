@@ -22,7 +22,7 @@
  * gate; the handoff, faults, capacity and operation-bundle suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import * as keyEpoch from "../../src/operation-bundles/key-epoch.js";
 import * as opManifests from "../../src/operation-bundles/manifest-store.js";

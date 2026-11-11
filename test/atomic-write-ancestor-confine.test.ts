@@ -9,7 +9,7 @@
  * mkdir if it escapes root. Omitting confineRoot preserves today's behavior.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { symlink, mkdir, readFile, readdir, rename } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

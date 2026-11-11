@@ -45,7 +45,7 @@
 
 import { readFile, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import type { ConfinedReadResult } from "../../src/compiler/confined-wiki-read.js";
 import { generateMOC, generateMOCFrom, type MocGenerationSources } from "../../src/compiler/obsidian.js";
 import { CONCEPTS_DIR, MOC_FILE, QUERIES_DIR } from "../../src/utils/constants.js";

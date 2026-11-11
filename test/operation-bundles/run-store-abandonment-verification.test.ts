@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { MAX_MUTATIONS_PER_BUNDLE, MAX_RUN_EVIDENCE_BLOB_BYTES } from "../../src/operation-bundles/constants.js";
 import { mutationId } from "../../src/operation-bundles/ids.js";
 import { createOperationKeyForEmptyEpochLocked, type OperationEpochInventory } from "../../src/operation-bundles/key-epoch.js";

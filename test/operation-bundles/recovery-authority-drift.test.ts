@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import type { OperationAuthorityProvider } from "../../src/operation-bundles/authority.js";
 import { approveRequest, buildRuntime, fixtureSnapshot, stageSourceBundle } from "./executor-fixtures.js";

@@ -9,7 +9,7 @@
  * pack shipping a broken closed set fails at load, not as runtime behaviour.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseOperationsPack } from "../../src/operations-packs/parse.js";
 import { buildPack, serialize } from "./pack-fixture.js";
 

@@ -3,7 +3,7 @@
  * flag-to-policy binding must fail the prompt and incremental-state assertions;
  * instruction files are never discovered implicitly.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { mockClaudeEnv, stubCannedCompile, useAimockLifecycle } from "./fixtures/aimock-helper.js";

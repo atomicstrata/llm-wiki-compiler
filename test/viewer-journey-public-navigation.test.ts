@@ -2,7 +2,7 @@
  * Public viewer and internal workflow journey coexist through one router.
  * Verifies actual rendered links, deep links, and abandoned live-read responses.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { jsonResponse, mountViewerDom } from "./fixtures/viewer-jsdom.js";
 
 const RUN = { runId: "run-1", workflow: "build", status: "running", classification: "current" };

@@ -15,7 +15,7 @@
  * back as redundant narration beside the button.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   EMPTY_DEMO_ENVELOPE,
   flushMicrotasks,

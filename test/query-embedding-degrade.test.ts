@@ -7,7 +7,7 @@
  * This is the default; `embeddingFailure: "throw"` keeps the strict rejection.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useAlphaPageFixture, mockEmbeddingFailure } from "./fixtures/alpha-page.js";
 import { generateAnswer } from "../src/commands/query.js";
 

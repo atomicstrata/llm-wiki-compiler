@@ -9,7 +9,7 @@
  * without writing a tarball into the working tree.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { npmCommand } from "./fixtures/npm-command.js";

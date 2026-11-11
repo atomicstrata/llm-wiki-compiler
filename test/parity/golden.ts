@@ -21,7 +21,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 
 /** Directory holding the committed golden snapshots. */
 const GOLDEN_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "__golden__");

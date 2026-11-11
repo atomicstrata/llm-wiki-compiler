@@ -2,7 +2,7 @@
  * Invalid metadata stays non-promotable and recoverable by explicit safe id.
  * Rejection preserves original bytes and obeys the existing review lock.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import { readFile, readdir, symlink, unlink, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

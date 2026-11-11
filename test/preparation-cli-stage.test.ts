@@ -8,7 +8,7 @@
  * end-to-end lifecycle, which is where the durable-state assertions live.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import path from "node:path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 import {

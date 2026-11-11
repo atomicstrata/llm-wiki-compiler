@@ -14,7 +14,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import os from "os";
-import { beforeEach, afterEach } from "vitest";
+import { beforeEach, afterEach } from "bun:test";
 
 /** Common shape returned by makeLintTempRoot — root path and writers. */
 export interface LintTempRoot {

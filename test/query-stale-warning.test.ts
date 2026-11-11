@@ -12,7 +12,7 @@
  * forward into `QueryResult.warnings`. A clean store adds no such warning.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import type { EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";
 import {
   chunkOf,

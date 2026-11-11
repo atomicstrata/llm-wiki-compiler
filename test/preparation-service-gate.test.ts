@@ -16,7 +16,7 @@
  * the other by a write that records nothing at all.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { findApprovedGateProof } from "../src/preparations/gates.js";
 import { canonicalDigest } from "../src/profile/templates/signing/canonical.js";
 import { readPreparationManifest } from "../src/preparations/manifest-store.js";

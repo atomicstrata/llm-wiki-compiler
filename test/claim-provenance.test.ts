@@ -4,7 +4,7 @@
  * paragraph-level fallback, and the new malformed-claim-citation lint rule.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, writeFile, rm } from "fs/promises";
 import path from "path";
 import {

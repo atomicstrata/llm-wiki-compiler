@@ -10,7 +10,7 @@
  * envelope's profile fields, not the health counts.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   conceptPage,
   pagesEnvelope,

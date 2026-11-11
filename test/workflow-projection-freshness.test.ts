@@ -5,7 +5,7 @@
  * NEW currentStage, not stale), and a projection-write FAILURE does not fail the op.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

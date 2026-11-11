@@ -3,7 +3,7 @@
  * promotion, on any host filesystem and for both existing and absent targets.
  * Original paths remain unchanged and unrelated namespaces can still proceed.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { readFile, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { listCandidates } from "../src/compiler/candidates.js";

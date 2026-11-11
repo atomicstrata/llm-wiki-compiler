@@ -8,7 +8,7 @@
  * single diff against this file.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import sanitizeHtml from "sanitize-html";
 import { buildSanitizerPolicy, renderPageHtml } from "../src/viewer/render.js";
 import type { ViewerSnapshot } from "../src/viewer/types.js";

@@ -27,7 +27,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readPreparationInitialInput } from "../../src/preparations/service-run-lookup.js";
 import { stagePreparation } from "./lifecycle-fixture.js";
 import { SEED_VALUE } from "./store-fixture.js";

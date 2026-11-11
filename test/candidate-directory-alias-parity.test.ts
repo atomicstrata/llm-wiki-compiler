@@ -4,7 +4,7 @@
  */
 import { rename, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { archiveCandidate, listCandidates, writeCandidate } from "../src/compiler/candidates.js";
 import { selectCandidateEntriesForMutation } from "../src/compiler/candidate-selection.js";
 import { UnsafeCandidateDirError } from "../src/compiler/candidate-store-paths.js";

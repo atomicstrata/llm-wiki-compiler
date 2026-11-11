@@ -18,7 +18,7 @@
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, onTestFinished } from "vitest";
+import { describe, expect, it, onTestFinished } from "bun:test";
 import { copyLocationBytes, locationAccessible, locationByteSize, removeTreeForced } from "../../src/storage/disk-bundle-tree.js";
 
 const ACCENTED = "Zoë — café ✓ 理";

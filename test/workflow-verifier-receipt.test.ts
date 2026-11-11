@@ -5,7 +5,7 @@
  * by an ordinary artifact output even when its JSON looks fully accepted.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 import { useTempRoot } from "./fixtures/temp-root.js";

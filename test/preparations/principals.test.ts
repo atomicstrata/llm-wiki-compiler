@@ -8,7 +8,7 @@
  * authority decision.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   capturePreparationPrincipal, effectivePreparationGrants, PREPARATION_GRANTS,
   PREPARATION_SURFACES, PrincipalAuthorityError, principalHasGrant,

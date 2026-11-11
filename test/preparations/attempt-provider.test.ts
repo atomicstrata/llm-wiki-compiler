@@ -10,7 +10,7 @@
  * fails closed without executing.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import type { PlatformArtifactV1 } from "../../src/capability-providers/packages/protocol.js";
 import { deriveAttemptId } from "../../src/preparations/ids.js";

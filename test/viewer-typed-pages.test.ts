@@ -13,7 +13,7 @@
  * never escape.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { startViewerServer } from "../src/viewer/server.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

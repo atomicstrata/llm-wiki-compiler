@@ -23,7 +23,7 @@
  * still fails here.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { PreparationServiceV1 } from "../src/preparations/service.js";

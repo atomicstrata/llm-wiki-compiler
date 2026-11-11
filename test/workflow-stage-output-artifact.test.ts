@@ -6,7 +6,7 @@
  * hash-pinned ref + a "workflow"-origin event; out-of-scope / no-grant are refused
  * (hard fail). Exercised by BOTH the research AND the newsroom profile.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { researchArtifactProfile, newsroomArtifactProfile, startArtifactRun, resultOutput, grantTrustedWrite, submitGrantedArtifact, expectAppliedArtifactWrite, readArtifactEventOrigin } from "./fixtures/artifact-seam-fixtures.js";
 import { submitStageOutput, type StageOutput } from "../src/workflows/stage-output.js";
 import { StageWriteScopeError, TrustGateRequiresGrantError } from "../src/workflows/errors.js";

@@ -10,7 +10,7 @@
  * the same seed value.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import {
   createHostHandlerRegistry, hostHandlerRefFor, HOST_HANDLER_FAMILY_IDS,

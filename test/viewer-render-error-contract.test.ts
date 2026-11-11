@@ -9,7 +9,7 @@
  * boots the viewer's HTTP server in-process to assert the envelope.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 
 vi.mock("../src/viewer/render.js", () => ({
   renderPageHtml: () => {

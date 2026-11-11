@@ -7,7 +7,7 @@
 
 ## New in 1.5 — Wiki behavior separated from storage.
 
-`1.5.0` is the stable release on npm `latest`: `npm install --global llm-wiki-compiler`.
+`1.5.0` is the stable release on npm `latest`: `bun add --global llm-wiki-compiler`.
 
 - **Same wiki, cleaner foundation.** Compilation, retrieval and review now describe what they need from storage instead of touching files directly. Your existing wiki keeps its layout and works as before, with no migration.
 - **Converse gateways.** Use a bearer-authenticated Converse endpoint as your provider.
@@ -172,7 +172,7 @@ Choose the entry point that matches the task:
 ## Quick start
 
 ```bash
-npm install -g llm-wiki-compiler
+bun add --global llm-wiki-compiler
 
 export ANTHROPIC_API_KEY=sk-...
 # or choose another provider:
@@ -321,7 +321,7 @@ execution methods; the supporting engine dependency remains installed. See
 
 ## Configuration
 
-Minimum requirement: Node.js 24 or newer.
+Minimum requirement: Bun 1.3 or newer.
 
 The default provider is Anthropic:
 
@@ -418,7 +418,7 @@ volta run --node 24 npx mint dev --port 3001
 - **Prompt version `v7`.** Every newly generated page records prompt version `v7`, including pages from default runs. Unchanged sources are not recompiled by upgrading alone.
 
 ```bash
-npm install --global llm-wiki-compiler
+bun add --global llm-wiki-compiler
 ```
 
 The supporting packages are pinned to the same version and install with it. The MCP Registry entry `io.github.atomicstrata/llmwiki` is published for `1.5.0` after the npm release. Existing projects need no migration; read the [upgrade notes](CHANGELOG.md#150---2026-10-19) for the prompt-version change and the opt-in Converse dependencies.
@@ -475,10 +475,10 @@ Contributions are welcome. If llmwiki is missing something you need, open an iss
 Before committing code changes, run:
 
 ```bash
-npx tsc --noEmit
-npm run build
-npm test
-npm run fallow:ci
+bunx tsc --noEmit
+bun run build
+bun run test
+bun run fallow:ci
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).

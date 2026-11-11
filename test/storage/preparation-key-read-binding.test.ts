@@ -26,7 +26,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { MAX_PREPARATION_KEY_FILE_BYTES, MAX_PREPARATION_RUN_BYTES } from "../../src/preparations/constants.js";
 import {
   decodePreparationKey, readPreparationKeyEpochFrom, readPreparationKeyFrom, type PreparationKeyLeafReads,

@@ -3,7 +3,7 @@
  * @description Exhaustive Provider V2 stable-problem serialization, runtime
  * immutability, and hostile bounded-refusal coverage.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import {
   parseProviderProblemCode,
   PROVIDER_PROBLEM_CODES,

@@ -25,7 +25,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scenarioTitleIndex } from "./scenario-index.js";
 import { FROZEN_REGRESSION_IDS } from "./frozen-regressions.js";
 import { LIFECYCLE_COVERAGE_ROWS } from "./coverage-matrix.js";

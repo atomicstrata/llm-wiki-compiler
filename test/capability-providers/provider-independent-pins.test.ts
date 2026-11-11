@@ -3,7 +3,7 @@
  * @description Side-by-side exact-version tests proving one product's local
  * pin does not rewrite or replace another installed provider selection.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { approveLocalProviderExecution } from "../../src/capability-providers/packages/local-install.js";
 import { resolveProviderPin } from "../../src/capability-providers/packages/resolve.js";
 import { installIndependentLocalFixture, installResolutionFixture, removeResolutionFixture, type ResolutionFixture } from "./resolution-fixture.js";

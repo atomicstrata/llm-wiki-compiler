@@ -9,7 +9,7 @@
  * empty/whitespace string, and `[]` must all be REJECTED.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateLifecycleTransition } from "../src/profile/lifecycle.js";
 import type { LifecycleDef } from "../src/profile/types.js";
 

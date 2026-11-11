@@ -23,7 +23,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { cliPreparationService } from "../src/commands/preparation/host.js";
 import { stagedRunIn } from "./preparation-cli-fixture.js";
 import { PARKABLE_RUN_STATES, parkAttemptForRecoveryLocked } from "../src/preparations/recovery.js";

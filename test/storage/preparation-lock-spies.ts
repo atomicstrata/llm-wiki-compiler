@@ -9,7 +9,7 @@
  * arguments and order.
  */
 
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import * as runStore from "../../src/preparations/run-store.js";
 import * as lock from "../../src/utils/lock.js";

@@ -8,7 +8,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { lstat, mkdir, readdir, rename, symlink } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_PROJECTION_BYTES } from "../../src/operation-bundles/constants.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";
 import {

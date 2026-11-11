@@ -12,7 +12,7 @@
  * subsequent `replayJournal` is a clean no-op (nothing to recover).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFile, readdir } from "fs/promises";
 import path from "path";
 import { openBatch, recordPreState, commitBatch, replayJournal } from "../src/trust/journal.js";

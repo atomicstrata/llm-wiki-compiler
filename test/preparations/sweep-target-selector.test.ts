@@ -13,7 +13,7 @@
  * the independence can be shown.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { selectSweepTargetUnit } from "../../src/preparations/lifecycle-snapshot/sweep-target.js";
 import type { LifecyclePendingUnitV1 } from "../../src/preparations/lifecycle-snapshot/compat.js";
 

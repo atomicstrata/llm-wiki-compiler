@@ -2,7 +2,7 @@
  * Tests for page-level batched embedding pass.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { embedPages } from "../src/utils/embeddings-pages.js";
 import * as providerMod from "../src/utils/provider.js";
 import type { PageRecord } from "../src/utils/embeddings-pages.js";

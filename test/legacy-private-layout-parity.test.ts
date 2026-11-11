@@ -4,7 +4,7 @@
  */
 import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { startWorkflow } from "../src/workflows/start.js";
 import { acquireMutationLock, PreparationLifecycleGateError } from "../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../src/utils/lock.js";

@@ -1,5 +1,5 @@
 /** Selected nested sources must appear in status and stale-refresh guidance. */
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it } from "bun:test";
 import { writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { collectStatus } from "../src/status/collect.js";

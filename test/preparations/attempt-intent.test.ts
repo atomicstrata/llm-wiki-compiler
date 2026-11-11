@@ -7,7 +7,7 @@
  * the immutable plan, never the request), and an out-of-bounds index parks.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { deriveAttemptId } from "../../src/preparations/ids.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";

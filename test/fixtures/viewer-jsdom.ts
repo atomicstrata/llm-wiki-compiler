@@ -21,7 +21,7 @@
 import { readFile, readdir } from "fs/promises";
 import path from "path";
 import { JSDOM, VirtualConsole } from "jsdom";
-import { vi } from "vitest";
+import { vi } from "bun:test";
 
 const ASSETS_DIR = path.resolve("src/viewer/assets");
 const SHELL_PATH = path.join(ASSETS_DIR, "index.html");

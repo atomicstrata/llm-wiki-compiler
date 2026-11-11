@@ -1,6 +1,6 @@
 /** @file Stable preparation identities across caller re-entry. Reservations
  * allocate IDs only; they are neither approval nor an authenticated effect receipt. */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readdir, rename } from "node:fs/promises";
 import path from "node:path";
 import { durableWritingPath } from "../../src/utils/atomic-write-no-replace-durable.js";

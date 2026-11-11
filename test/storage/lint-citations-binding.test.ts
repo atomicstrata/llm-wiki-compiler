@@ -33,7 +33,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   checkBrokenCitations, checkBrokenCitationsFrom, checkMalformedClaimCitations, checkMalformedClaimCitationsFrom,
   type CitationLintSources, type CitedSourceReads,

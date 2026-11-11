@@ -4,7 +4,7 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { getConnectorDef } from "../src/connectors/registry.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { deriveTemplateCapabilities } from "../src/profile/templates/capabilities.js";

@@ -16,7 +16,7 @@
  * hand-written, which is the only way the contract is actually asserted.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildPipelineDefinitions, buildPipelineEnvelope } from "../src/viewer/pipeline.js";
 import {
   flushMicrotasks,

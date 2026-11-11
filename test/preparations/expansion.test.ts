@@ -6,7 +6,7 @@
  * counted-as-incomplete against a named class).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   enumerateMapExpansion, repeatIterationDecision,
   type MapExpansionInputV1, type RepeatIterationInputV1,

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Copy the viewer's static assets from src/viewer/assets/ into
  * dist/viewer/assets/ so the published npm package ships the shell

@@ -8,7 +8,7 @@
  * `verify` refusal.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { access, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runCLI, expectCLIExit, expectCLIFailure } from "../fixtures/run-cli.js";

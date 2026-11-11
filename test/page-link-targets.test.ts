@@ -11,7 +11,7 @@
  * there is nothing to offer.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { buildLinkTargets, LINK_TARGET_BUDGET_CHARS } from "../src/compiler/link-targets.js";

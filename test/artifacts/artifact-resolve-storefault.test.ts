@@ -7,7 +7,7 @@
  * `genuine-fault` (a retryable run must PARK). The public ArtifactHealth enum is
  * unchanged — the discriminant rides an additive optional `storeFault` field.
  */
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, writeFile, unlink, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

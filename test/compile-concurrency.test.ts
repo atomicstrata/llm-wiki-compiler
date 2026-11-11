@@ -9,7 +9,7 @@
  *     mergeExtractions' first-seen-wins reconciliation is unchanged.
  */
 
-import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "bun:test";
 import { rm, writeFile, readFile, readdir } from "fs/promises";
 import path from "path";
 import { makeCompileProjectRoot } from "./fixtures/compile-project.js";
@@ -225,9 +225,10 @@ describe("compile extraction concurrency", () => {
 
     await compileAndReport(root, { concurrency: 4 });
 
-    // The compiler processes sources in readdir order; whichever it enumerates
-    // first must own the merged summary regardless of completion timing.
-    const firstFile = (await readdir(path.join(root, "sources"))).filter((f) => f.endsWith(".md"))[0];
+    // The compiler processes sources in sorted listing order (raw readdir order
+    // is platform- and runtime-dependent); whichever sorts first must own the
+    // merged summary regardless of completion timing.
+    const firstFile = (await readdir(path.join(root, "sources"))).filter((f) => f.endsWith(".md")).sort()[0];
     const expected = firstFile === "a.md" ? "from-alpha" : "from-beta";
     const page = await readFile(path.join(root, "wiki", "concepts", "shared.md"), "utf-8");
     expect(parseFrontmatter(page).meta.summary).toBe(expected);

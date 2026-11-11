@@ -5,7 +5,7 @@
  * mutation, and the rendered bytes are identical regardless of criticality.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { projectionCriticality } from "../../src/operation-bundles/adapters/projection.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import type { OperationDigest, ProjectionOperationMutation } from "../../src/operation-bundles/types.js";

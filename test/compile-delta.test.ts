@@ -15,7 +15,7 @@
  * each source maps to a distinct, predictable slug.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { compileDelta } from "../src/compiler/delta.js";

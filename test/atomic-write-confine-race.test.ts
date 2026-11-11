@@ -14,7 +14,7 @@
  * asserts nothing is written outside the project.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, rename, symlink, readdir } from "fs/promises";
 import { existsSync } from "fs";
 import { tmpdir } from "os";

@@ -3,7 +3,7 @@
  * @description Offline signed-index refresh and continuity commit tests.
  */
 import { rm, unlink, writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { addTap } from "../src/profile/templates/taps/manage.js";
 import { removeTap } from "../src/profile/templates/taps/manage.js";
 import { readIndexCache, writeIndexCache } from "../src/profile/templates/taps/cache.js";
@@ -39,7 +39,8 @@ describe("template tap refresh", () => {
     expect(await refreshTap(fixture.paths, "official", servesTemplateBytes(fixture.index))).toEqual({ tap: "official", sequence: 1, packages: 1, warnings: [] });
     const state = await readTapState(fixture.paths);
     expect(state.taps.official.publisherPins.highestSequence).toBe(1);
-    expect(state.taps.official.publisherPins.coordinates).toHaveProperty("official/atomicstrata/team@1.0.0");
+    // Array form: a dotted string is a property PATH in bun:test, and this key contains dots.
+    expect(state.taps.official.publisherPins.coordinates).toHaveProperty(["official/atomicstrata/team@1.0.0"]);
   });
 
   it("refuses tampered signed bytes without advancing state", async () => {

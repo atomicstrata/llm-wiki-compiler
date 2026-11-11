@@ -21,7 +21,7 @@
  * operation reach the second answer and act on it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { REQUEST_CAPTURE_REFUSAL } from "../src/preparations/service-request-capture.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { SEED_GATE_ID, gateServiceOn, gatedRun, readGateRun } from "./preparation-gate-fixture.js";

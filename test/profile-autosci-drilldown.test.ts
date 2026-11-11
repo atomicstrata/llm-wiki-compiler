@@ -1,5 +1,5 @@
 /** AutoSci links must be declarative and leave every prior release unchanged. */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { getBuiltinTemplate, getBuiltinTemplateRelease } from "../src/profile/templates/registry.js";
 
 describe("AutoSci drillable links", () => {

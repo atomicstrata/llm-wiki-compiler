@@ -14,7 +14,7 @@
  * extraction / page-generation calls are deterministic and no real API is hit.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

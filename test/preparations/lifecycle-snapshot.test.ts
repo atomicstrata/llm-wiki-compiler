@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 import { copyFile, mkdir, unlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { buildResetIntent, resetContinuationDigest } from "../../src/preparations/receipts.js";

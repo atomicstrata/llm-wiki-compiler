@@ -3,7 +3,7 @@
  * live effects. Snapshot comparisons include the recovery records and candidate
  * files so a refusal cannot quietly consume either authority or pending work.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { chmod, readFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { existsSync } from "node:fs";

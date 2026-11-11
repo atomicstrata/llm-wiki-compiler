@@ -14,7 +14,7 @@
  *    mixed-language wiki migrates instead of aborting).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { migrateStateToV2 } from "../src/state/migrate.js";
 import type { WikiState } from "../src/utils/types.js";
 

@@ -12,7 +12,7 @@
  * than silently showing the dashboard.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   flushMicrotasks,
   jsonResponse,

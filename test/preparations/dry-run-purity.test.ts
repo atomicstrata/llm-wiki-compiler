@@ -6,7 +6,7 @@
  * tree before and after and asserts equal.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { previewPreparation } from "../../src/preparations/preview.js";
 import { stagePreparationLocked } from "../../src/preparations/stage.js";

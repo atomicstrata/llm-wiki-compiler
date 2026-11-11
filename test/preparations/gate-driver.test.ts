@@ -6,7 +6,7 @@
  * decision (refusing a run not awaiting the gate, or a gate with no decision).
  */
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { blockAtGate, resumeFromGate, type GatePhaseV1 } from "../../src/preparations/gate-driver.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";

@@ -19,7 +19,7 @@
  * themselves; the product, preparation and workflow-parent suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as actionResolve from "../../src/products/action-resolve.js";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";

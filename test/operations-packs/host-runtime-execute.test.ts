@@ -10,7 +10,7 @@
 
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { hostHandlerRefFor } from "../../src/operations-packs/handlers/registry.js";

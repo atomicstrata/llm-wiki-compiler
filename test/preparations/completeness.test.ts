@@ -7,7 +7,7 @@
  * repeat non-convergence, and a changed eligibility universe.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   COMPLETENESS_CATEGORIES, COMPLETION_CLASS_IDENTITY_KEYS, CompletenessAuthorityError,

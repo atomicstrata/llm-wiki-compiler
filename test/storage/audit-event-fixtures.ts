@@ -15,7 +15,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { eventPrevHash } from "../../src/events/event-digest.js";
 import { readEvents, readEventsFrom, readEventsStrict, readEventsStrictFrom, verifyEventChain, type EventReadSources } from "../../src/events/store-read.js";
 import * as eventRecord from "../../src/events/store-record.js";

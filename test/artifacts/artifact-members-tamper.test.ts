@@ -12,7 +12,7 @@
  * the lazy-vs-materializing lister distinction is a resource property no
  * outcome assertion can observe, so no such mutant is claimed.
  */
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import path from "path";
 import { mkdir, rename, rm, symlink, unlink, writeFile } from "fs/promises";
 import {

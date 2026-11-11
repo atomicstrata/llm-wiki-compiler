@@ -13,7 +13,7 @@
  * and the run's empty phase record.
  */
 
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import {
   devProviderInvocation, issueDevProviderGrant, unsandboxedLocalBackend,
 } from "../../packages/llmwiki-dev-backend/src/index.js";

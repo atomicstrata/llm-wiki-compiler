@@ -27,7 +27,7 @@
  * distinguish the fixed facade from the broken one.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { PreparationGrant } from "../src/preparations/service.js";
 import {

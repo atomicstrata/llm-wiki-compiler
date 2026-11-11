@@ -8,7 +8,7 @@
 
 import { access, chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { CodexAgentProvider } from "../src/providers/codex-agent.js";
 import type { LLMTool } from "../src/utils/provider.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
@@ -35,11 +35,15 @@ async function useFake(options: Parameters<typeof installFakeCodex>[0] = {}): Pr
   return fake;
 }
 
-/** Install a PATH node wrapper that proves launcher-added variables cannot cross the boundary. */
-async function installInjectingNodeWrapper(): Promise<string> {
+/**
+ * Install a PATH node wrapper that proves launcher-added variables cannot cross
+ * the boundary. Like a real launcher it execs the real Node; the suite runs on
+ * Bun, so that is the PATH's `node`, not `process.execPath`.
+ */
+async function installInjectingNodeWrapper(realNode: string): Promise<string> {
   const root = await mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "llmwiki-node-wrapper-"));
   tempRoots.push(root);
-  const executable = process.execPath.replaceAll("'", "'\\''");
+  const executable = realNode.replaceAll("'", "'\\''");
   const wrapper = path.join(root, "node");
   await writeFile(
     wrapper,
@@ -83,9 +87,9 @@ async function expectBoundedTimeout(fake: FakeCodex): Promise<void> {
     const outcome = provider.complete("system", [{ role: "user", content: "x" }], 1)
       .then((value) => ({ value }), (error: Error) => ({ error }));
     await fake.ready();
-    await vi.advanceTimersByTimeAsync(400);
+    await vi.advanceTimersByTime(400);
     await fake.waitForSignal("SIGTERM");
-    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTime(100);
     const result = await outcome;
     expect(result).toEqual({
       error: expect.objectContaining({ message: expect.stringMatching(/timed out/i) }),
@@ -144,11 +148,12 @@ describe("CodexAgentProvider process boundary", () => {
     await expect(access(call.cwd)).rejects.toThrow();
   });
 
-  it.runIf(process.platform !== "win32")(
+  const realNode = Bun.which("node");
+  it.if(process.platform !== "win32" && realNode !== null)(
     "bypasses PATH interpreter wrappers that would expand the child environment",
     async () => {
       const fake = await useFake();
-      const wrapperDirectory = await installInjectingNodeWrapper();
+      const wrapperDirectory = await installInjectingNodeWrapper(realNode!);
       process.env.PATH = [fake.binDir, wrapperDirectory, originalEnv.PATH ?? ""]
         .join(path.delimiter);
       await new CodexAgentProvider(undefined, { timeoutMs: 2_000 })

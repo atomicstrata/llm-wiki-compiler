@@ -10,7 +10,7 @@
  * (parity), and a valid typed doc lands at `wiki/papers/<slug>.md` (a path
  * `writeAll` can never write, so only the planner could have produced it).
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, readFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

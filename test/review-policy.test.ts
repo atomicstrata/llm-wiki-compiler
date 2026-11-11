@@ -6,7 +6,7 @@
  * into this function come from the final generated page artifact.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { evaluatePolicy, isPolicyOff, type PolicySignals, type ReviewPolicy } from "../src/review/policy.js";
 import type { LintResult } from "../src/linter/types.js";
 

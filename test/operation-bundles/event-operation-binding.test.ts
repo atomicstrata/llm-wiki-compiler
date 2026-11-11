@@ -9,7 +9,7 @@
 import { mkdtemp, rm, readFile, appendFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { EVENTS_FILE } from "../../src/utils/constants.js";
 import type { OperationBinding } from "../../src/utils/operation-binding.js";
 import { mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";

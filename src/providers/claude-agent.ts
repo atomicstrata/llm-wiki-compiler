@@ -14,10 +14,17 @@
  * mirroring the `anthropic` provider.
  */
 
-import { query, createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { LLMProvider, LLMMessage, LLMTool } from "../utils/provider.js";
 import { VoyageEmbeddingProvider } from "./voyage-embed.js";
-import { jsonSchemaToZodShape } from "./json-schema-to-zod.js";
+
+/**
+ * Load the Agent SDK on first request. It is the largest dependency in the
+ * package and the provider factory imports this module on every CLI start,
+ * so a static import would charge every command for one provider's backend.
+ */
+function loadAgentSdk(): Promise<typeof import("@anthropic-ai/claude-agent-sdk")> {
+  return import("@anthropic-ai/claude-agent-sdk");
+}
 
 /** Name for the throwaway in-process MCP server used to host a tool. */
 const TOOL_SERVER_NAME = "llmwiki";
@@ -146,6 +153,7 @@ export class ClaudeAgentProvider extends VoyageEmbeddingProvider implements LLMP
     prompt: string,
     onToken?: (text: string) => void,
   ): Promise<string> {
+    const { query } = await loadAgentSdk();
     const response = query({
       prompt,
       options: {
@@ -185,6 +193,11 @@ export class ClaudeAgentProvider extends VoyageEmbeddingProvider implements LLMP
   ): Promise<string> {
     const requested = tools[0];
     const qualifiedName = `mcp__${TOOL_SERVER_NAME}__${requested.name}`;
+    // The schema converter pulls in zod, which only this call needs.
+    const [{ query, createSdkMcpServer, tool }, { jsonSchemaToZodShape }] = await Promise.all([
+      loadAgentSdk(),
+      import("./json-schema-to-zod.js"),
+    ]);
     const sdkTool = tool(
       requested.name,
       requested.description,

@@ -6,14 +6,14 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { addTap } from "../src/profile/templates/taps/manage.js";
 import { resolveRemotePackage } from "../src/profile/templates/taps/package.js";
 import { resolveTapPaths } from "../src/profile/templates/taps/paths.js";
 import { refreshTap } from "../src/profile/templates/taps/refresh.js";
 import { servesTemplateBytes, templateRegistryFixture, TAP_KEY } from "./fixtures/template-tap-runtime.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const COORDINATE = "official/atomicstrata/team@1.0.0";
 const roots: string[] = [];
 
@@ -24,7 +24,7 @@ async function root(): Promise<string> {
 }
 
 function run(cwd: string, args: string[]) {
-  return spawnSync(process.execPath, [CLI, ...args], {
+  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
     cwd,
     encoding: "utf8",
     env: {

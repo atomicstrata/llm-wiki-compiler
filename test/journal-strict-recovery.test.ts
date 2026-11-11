@@ -13,7 +13,7 @@
  *                 malformed/unreadable, OR a recorded target escapes root.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { readFile, rm, mkdtemp } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

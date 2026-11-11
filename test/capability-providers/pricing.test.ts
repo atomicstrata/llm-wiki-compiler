@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { rm, symlink, writeFile } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import {
   hostPriceTableDigest, parseHostPriceTable, readHostPriceTable, resolveHostPrice,
   writeOperatorPriceTable,

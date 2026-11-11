@@ -10,7 +10,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { createOperationsAuthorityResolver } from "../../src/operation-bundles/operations-authority-resolver.js";
 import { OPERATION_MUTATION_KINDS } from "../../src/operation-bundles/adapter-registry.js";
 import { OPERATION_AUTHORITY_COMPONENTS, type OperationAuthoritySnapshot } from "../../src/operation-bundles/authority.js";

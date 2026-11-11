@@ -20,7 +20,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import { formatArtifactRef, type ArtifactRef } from "../../src/artifacts/ref.js";
 import * as resolve from "../../src/artifacts/resolve.js";
 import * as store from "../../src/artifacts/store.js";

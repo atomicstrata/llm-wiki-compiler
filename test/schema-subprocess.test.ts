@@ -16,11 +16,11 @@
  * Test 3: `review show` hides violations block when absent — same fixture
  *   without schemaViolations; the block header must not appear in output.
  *
- * dist/cli.js is built once via vitest globalSetup (see test/global-setup.ts).
+ * dist/cli.js is built once by `bun run test` before the suite starts.
  * Per-file beforeAll(npx tsup) calls are intentionally absent — see PR #21.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";

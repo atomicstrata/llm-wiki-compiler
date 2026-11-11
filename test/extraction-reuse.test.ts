@@ -3,7 +3,7 @@
  * without omitting their evidence from shared-page generation. These tests run
  * the real compile pipeline with only the model and embeddings stubbed.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";

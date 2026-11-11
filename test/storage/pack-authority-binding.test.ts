@@ -21,7 +21,7 @@
  * themselves; the preparation and evidence suites show those.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import * as manifestStore from "../../src/preparations/manifest-store.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";

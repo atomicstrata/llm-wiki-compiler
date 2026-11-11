@@ -28,7 +28,7 @@
 
 import { symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as confinedWikiRead from "../../src/compiler/confined-wiki-read.js";
 import type { CompileStateDraft } from "../../src/compiler/compile-state-draft.js";
 import * as compileWrite from "../../src/compiler/compile-write.js";

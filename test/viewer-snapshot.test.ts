@@ -8,7 +8,7 @@
  * Slice 2 wires through `resolveBareSlugList`.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { execFileSync } from "child_process";
 import { mkdir, symlink, writeFile } from "fs/promises";
 import path from "path";

@@ -16,7 +16,7 @@
  * page-evidence capture and synthetic suites show those.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { hashArtifactBody } from "../../src/artifacts/store.js";
 import { captureArtifactDerefFrom, captureRunBindingFrom, type PageEvidenceReads } from "../../src/products/page-evidence-forms.js";
 

@@ -7,7 +7,7 @@
 
 import { readdir, access } from "fs/promises";
 import path from "path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { LLMWIKI_DIR } from "../../src/utils/constants.js";
 
 /**

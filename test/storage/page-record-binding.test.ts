@@ -22,7 +22,7 @@
  * layer and not `ProjectStore`.
  */
 
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as confinedWikiRead from "../../src/compiler/confined-wiki-read.js";
 import { readPageContentFrom, readPageRecord, readPageRecordFrom, type PageContentReads, type PageRecord } from "../../src/pages/read.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../../src/utils/constants.js";

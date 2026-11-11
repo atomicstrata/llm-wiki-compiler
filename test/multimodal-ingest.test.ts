@@ -14,7 +14,7 @@
  * fetches) is intentionally avoided so tests stay deterministic and offline.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, writeFile, rm } from "fs/promises";
 import path from "path";
 import os from "os";

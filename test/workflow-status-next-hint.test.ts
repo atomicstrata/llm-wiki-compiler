@@ -9,7 +9,7 @@
  * is an extra human-readable line.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { startAndParkBuild } from "./fixtures/workflow-profile.js";
 import { workflowStatus, type RunStatus } from "../src/workflows/status.js";
 import { printRunStatus } from "../src/commands/workflow-shared.js";

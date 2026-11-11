@@ -20,7 +20,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { LoadedProfile, ProfilePack } from "../../src/profile/types.js";
 import { diskLocalEntityScans, diskLocalReads } from "../../src/storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans, LegacyLocalReads, LocalEntityDirectory } from "../../src/storage/legacy-local-reads.js";

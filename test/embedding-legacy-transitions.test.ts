@@ -4,7 +4,7 @@
  * make retries unbounded. Real core and marker I/O; only the provider and, where
  * a case needs it, one marker write are stubbed.
  */
-import { beforeEach, expect, it, vi, type MockInstance } from "vitest";
+import { beforeEach, expect, it, vi, type Mock } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { OpenAIProvider } from "../src/providers/openai.js";
@@ -20,7 +20,7 @@ const ctx = useCompileProject({ dirSuffix: "legacy-transitions" });
 const PAGE = "concepts/alpha";
 useEmbeddingRefreshEnvironment();
 
-let provider: MockInstance<OpenAIProvider["embedBatch"]>;
+let provider: Mock<OpenAIProvider["embedBatch"]>;
 beforeEach(async () => {
   await writeEmbeddingTestPage(ctx.dir, "alpha");
   provider = vi.spyOn(OpenAIProvider.prototype, "embedBatch").mockRejectedValue(new Error("rejected input"));

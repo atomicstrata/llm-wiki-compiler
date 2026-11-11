@@ -26,7 +26,7 @@
  * second one is worth anything.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { abandonPreparationRunLocked } from "../../src/preparations/abandonment.js";

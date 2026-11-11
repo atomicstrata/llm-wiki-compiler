@@ -6,14 +6,14 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildNewsroomProject } from "../fixtures/newsroom-profile.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "../fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 
 /** Run the built CLI against a temp project with optional environment overrides. */
 function run(cwd: string, args: string[], env: Record<string, string> = {}) {
-  return spawnSync(process.execPath, [CLI, ...args], {
+  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
     cwd,
     env: { ...process.env, ...env },
     encoding: "utf8",

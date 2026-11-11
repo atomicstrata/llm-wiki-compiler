@@ -14,15 +14,15 @@
 import { spawnSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 
 function run(args: string[]) {
-  return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], { encoding: "utf8" });
 }
 
 describe("publisher CLI end to end", () => {

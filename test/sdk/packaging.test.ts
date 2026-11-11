@@ -18,7 +18,7 @@
  * Run explicitly with: `npm run test:pack`
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

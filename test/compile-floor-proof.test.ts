@@ -22,7 +22,7 @@
  * to return `MAX_SOURCE_CHARS` for the compile origin.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { compileAndReport } from "../src/compiler/index.js";

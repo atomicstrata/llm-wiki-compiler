@@ -13,7 +13,7 @@
  *    FAILS CLOSED ({@link StageOutputPendingError}) — never silently re-applies.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

@@ -23,20 +23,24 @@
  * an ordinary scan never hands a link to that code.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as disk from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** What the mocks recorded, and the one disturbance a test may arm. */
-const seen = vi.hoisted(() => ({
+const seen = {
   log: [] as string[],
   failOn: null as { label: string; error: Error } | null,
   justBefore: null as { label: string; run: () => Promise<void> } | null,
-}));
+};
 
-vi.mock("fs", async (importOriginal) => {
-  const real = await importOriginal<typeof import("fs")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFs = { ...(await import("fs")) };
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs", () => {
+  const real = realFs;
   const existsSync = (target: unknown): boolean => {
     seen.log.push(`existsSync ${String(target)}`);
     return real.existsSync(target as string);
@@ -44,8 +48,8 @@ vi.mock("fs", async (importOriginal) => {
   return { ...real, existsSync, default: { ...real, existsSync } };
 });
 
-vi.mock("fs/promises", async (importOriginal) => {
-  const real = await importOriginal<typeof import("fs/promises")>();
+vi.mock("fs/promises", async () => {
+  const real = realFsPromises;
   const observed = ["mkdir", "appendFile", "readFile", "lstat", "realpath"] as const;
   const wrap = (name: (typeof observed)[number]) => async (...args: unknown[]): Promise<unknown> => {
     const label = `${name} ${String(args[0])}`;

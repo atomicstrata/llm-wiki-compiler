@@ -6,7 +6,7 @@
  * unknown-kind gate is `null`; the `trust:` prefix check matches only trust gates.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { parseGate, isTrustGate, GATE_KINDS } from "../src/workflows/gates.js";
 
 describe("parseGate", () => {

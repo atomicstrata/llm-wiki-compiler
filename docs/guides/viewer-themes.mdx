@@ -44,12 +44,12 @@ Themes cannot add external scripts, styles, or fonts: the viewer serves its bund
 
 ## Fonts and verification
 
-Fonts are vendored with `npm run vendor:fonts`. Add families and weights to `scripts/vendor-fonts.mjs`, pin their development packages, add font-face rules to `viewer-fonts.css`, and preserve their licenses in `THIRD_PARTY_NOTICES.txt`. The build copies nested CSS and font assets into the npm package.
+Fonts are vendored with `bun run vendor:fonts`. Add families and weights to `scripts/vendor-fonts.mjs`, pin their development packages, add font-face rules to `viewer-fonts.css`, and preserve their licenses in `THIRD_PARTY_NOTICES.txt`. The build copies nested CSS and font assets into the npm package.
 
 ```sh
-npx vitest run test/viewer-theme.test.ts test/viewer-theme-css.test.ts test/viewer-theme-contrast.test.ts test/viewer-accessibility.test.ts test/viewer-contrast.test.ts test/viewer-graph-theming.test.ts
-npm run build
-npx vitest run test/viewer-pack.test.ts
+bun test test/viewer-theme.test.ts test/viewer-theme-css.test.ts test/viewer-theme-contrast.test.ts test/viewer-accessibility.test.ts test/viewer-contrast.test.ts test/viewer-graph-theming.test.ts
+bun run build
+bun test test/viewer-pack.test.ts
 ```
 
 Open the built viewer and check keyboard focus, reduced motion, OS light/dark settings, first paint, text contrast, and route state while switching. DOM tests do not calculate browser layout or composited colors.

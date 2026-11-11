@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import { access, chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
 import { CLI, expectCLIFailure, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
@@ -155,7 +155,7 @@ describe("codex-agent through the real llmwiki CLI", () => {
     expect(result.stderr).not.toContain("ANTHROPIC_API_KEY");
   });
 
-  it.runIf(process.platform !== "win32")(
+  it.if(process.platform !== "win32")(
     "never executes a Codex binary beside Node when the caller PATH excludes it",
     async () => {
       const cwd = await aimock.makeWorkspace("# Source\n\nCodex is excluded from PATH.\n");

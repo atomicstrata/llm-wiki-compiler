@@ -34,7 +34,7 @@
 
 import { realpath } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";
 import * as diskLocations from "../../src/storage/disk-locations.js";
 import { replayJournal, replayJournalFrom, type JournalReplayIo } from "../../src/trust/journal.js";

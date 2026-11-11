@@ -10,11 +10,10 @@
  *  - Default export (no flag) still produces a valid envelope without
  *    `projectId`.
  *
- * `dist/cli.js` is built once via vitest globalSetup; see
- * test/global-setup.ts.
+ * `dist/cli.js` is built once by `bun run test` before the suite starts.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { rm, readFile, access } from "fs/promises";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";

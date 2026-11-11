@@ -5,7 +5,7 @@
  * helpers themselves are unit-tested in activity-log.test.ts.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { rm, readFile, writeFile, stat, mkdtemp } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

@@ -3,7 +3,7 @@
  * @description Public compile-option coverage for embedding suppression.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { createWiki } from "../src/sdk/wiki.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import * as embeddings from "../src/utils/embeddings.js";

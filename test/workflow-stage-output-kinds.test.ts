@@ -17,7 +17,7 @@
  * participating entity type.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 import { pageLifecycle, kindsProfile, startKindsRun as startKinds, citesOutput, expectRunFailedNoGate } from "./fixtures/seam-fixtures.js";

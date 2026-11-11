@@ -226,7 +226,7 @@ package compose services without bundling another private copy of core. The sepa
 named `compiler-legacy-workflows` entry preserves the caller-held-lock start
 contract; it does not independently verify that the caller holds the lock.
 
-The build orders core, engine, and standard facade. `npm run dev` explicitly
+The build orders core, engine, and standard facade. `bun run dev` explicitly
 watches shared sources and rebuilds the dependencies before CLI success. Installed
 CLI/SDK and core-only smoke checks are separate from source-boundary checks;
 full product parity and public-release approval remain integration requirements.

@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { archivePath, candidatePath } from "../../src/compiler/candidate-paths.js";
 import {
   moveCandidateWithCustody,

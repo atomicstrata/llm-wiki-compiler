@@ -5,7 +5,8 @@
  * repository snapshot all abort when the host deadline fires and settle as a
  * typed unavailable outcome rather than outliving the invocation.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { waitFor } from "../wait-for.js";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest,
 } from "../../src/capability-providers/brokers/dispatch.js";
@@ -23,7 +24,7 @@ describe("read-only broker deadline in-flight abort", () => {
     const request = vi.fn((req: { readonly signal?: AbortSignal }) => hangUntilAbort(req.signal));
     const { dispatcher, envelope } = await httpsDispatcher(controller.signal, request);
     const pending = dispatchHostBrokerRequest(dispatcher, envelope);
-    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
     controller.abort();
     expect((await pending).status).toBe("unavailable");
   });
@@ -33,7 +34,7 @@ describe("read-only broker deadline in-flight abort", () => {
     const run = vi.fn((req: { readonly signal: AbortSignal }) => hangUntilAbort(req.signal));
     const { dispatcher, envelope } = await commandDispatcher(controller.signal, run);
     const pending = dispatchHostBrokerRequest(dispatcher, envelope);
-    await vi.waitFor(() => expect(run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     controller.abort();
     expect((await pending).status).toBe("unavailable");
   });
@@ -43,7 +44,7 @@ describe("read-only broker deadline in-flight abort", () => {
     const snapshot = vi.fn((_operation: unknown, signal: AbortSignal) => hangUntilAbort(signal));
     const { dispatcher, envelope } = await repositoryDispatcher(controller.signal, snapshot);
     const pending = dispatchHostBrokerRequest(dispatcher, envelope);
-    await vi.waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(snapshot).toHaveBeenCalledTimes(1));
     controller.abort();
     expect((await pending).status).toBe("unavailable");
   });

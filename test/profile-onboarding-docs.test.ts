@@ -5,7 +5,7 @@
 
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalStarterProfileJson } from "../src/profile/scaffold.js";
 
 const DOCS_ROOT = path.join(process.cwd(), "docs");

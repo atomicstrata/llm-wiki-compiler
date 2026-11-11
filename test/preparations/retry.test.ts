@@ -9,7 +9,7 @@
  * exposes already-spent and maximum additional cost.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { deriveAttemptId } from "../../src/preparations/ids.js";
 import {
   classifyRetry, deriveLogicalBrokerEffectId, retryCostPreview, type AttemptPolicyV1, type RetryClassificationInputV1,

@@ -4,7 +4,7 @@
  */
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { compileAndReport } from "../src/compiler/index.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { CandidateRecordMalformedError } from "../src/compiler/candidate-read.js";
