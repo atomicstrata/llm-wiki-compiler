@@ -7,6 +7,7 @@
 [test]
 # Suite-wide hooks (exit-code isolation); see the file's header.
 preload = ["./test/preload.ts"]
-# Fresh-install packaging check runs only via `bun run test:pack`, which
-# replaces these patterns on its command line so the file is not ignored.
-pathIgnorePatterns = ["test/sdk/packaging.test.ts", ".claude/**", ".worktrees/**", "**/dist/**"]
+# The fresh-install packaging checks (`npm pack` + `npm install`, 30-50 s each)
+# run only via `bun run test:pack`, which CI runs as its own step and which
+# replaces these patterns on its command line so the files are not ignored.
+pathIgnorePatterns = ["test/sdk/packaging.test.ts", "test/products/private-packages-pack.test.ts", ".claude/**", ".worktrees/**", "**/dist/**"]

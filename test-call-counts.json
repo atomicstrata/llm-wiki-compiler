@@ -3357,10 +3357,6 @@
       "fs": 40,
       "spawn": 0
     },
-    "test/products/private-packages-pack.test.ts": {
-      "fs": 13,
-      "spawn": 15
-    },
     "test/products/product-activation-faults.test.ts": {
       "fs": 8914,
       "spawn": 1

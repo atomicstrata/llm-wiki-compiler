@@ -36,7 +36,7 @@
     "fallow:ci": "bash scripts/fallow-ci.sh",
     "prepublishOnly": "bun run release:check-docs:current && bun run build && bun pm pack --dry-run --ignore-scripts",
     "prepare": "husky",
-    "test:pack": "bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts"
+    "test:pack": "bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts ./test/products/private-packages-pack.test.ts"
   },
   "keywords": [
     "mcp",
