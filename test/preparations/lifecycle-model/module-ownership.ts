@@ -245,6 +245,7 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   // The no-follow I/O moved here; store classification remains in orphan-scan.
   { path: "src/utils/inventory-scan.ts", role: "shared-primitive", rawFilesystemAccess: true },
   // Key-leaf mode, ownership and link-count health shared by both key epochs.
+  { path: "src/utils/kernel-start-time.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/key-leaf-health.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/keyed-fifo.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/lock-owner.ts", role: "shared-primitive", rawFilesystemAccess: true },
@@ -421,6 +422,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/inventory-arithmetic.ts :: shared-primitive",
   "src/utils/inventory-disk-walk.ts :: shared-primitive",
   "src/utils/inventory-scan.ts :: shared-primitive",
+  "src/utils/kernel-start-time.ts :: shared-primitive",
   "src/utils/key-leaf-health.ts :: shared-primitive",
   "src/utils/keyed-fifo.ts :: shared-primitive",
   "src/utils/lock-owner.ts :: shared-primitive",
