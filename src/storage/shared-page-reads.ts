@@ -15,10 +15,16 @@
  * every ask reads. A shared result passed the full confinement check when it
  * was read. Open a window only around steps that write no page the window
  * reads: a page written inside it would still answer with its first read.
+ *
+ * The walks also parse each page's frontmatter. {@link frontmatterOfRead}
+ * keys that parse on the read's result object, so walks handed the same
+ * shared result parse it once; a read made outside a window is a fresh
+ * object and is parsed afresh. Callers must treat the parse as read-only.
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ConfinedReadResult } from "./legacy-local-reads.js";
+import { parseFrontmatter } from "../utils/markdown.js";
 
 const sharedReads = new AsyncLocalStorage<Map<string, Promise<ConfinedReadResult>>>();
 
@@ -46,4 +52,22 @@ export function sharedPageRead(
     window.set(key, pending);
   }
   return pending;
+}
+
+/** A page read that returned content. */
+type PageContent = Extract<ConfinedReadResult, { content: string }>;
+
+const parsedReads = new WeakMap<PageContent, ReturnType<typeof parseFrontmatter>>();
+
+/**
+ * `parseFrontmatter(read.content)`, parsed once per read result. Shared
+ * results (see the file header) share their parse; treat it as read-only.
+ */
+export function frontmatterOfRead(read: PageContent): ReturnType<typeof parseFrontmatter> {
+  let parsed = parsedReads.get(read);
+  if (!parsed) {
+    parsed = parseFrontmatter(read.content);
+    parsedReads.set(read, parsed);
+  }
+  return parsed;
 }

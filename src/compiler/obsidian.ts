@@ -23,7 +23,8 @@
  */
 
 import path from "path";
-import { slugify, parseFrontmatter } from "../utils/markdown.js";
+import { slugify } from "../utils/markdown.js";
+import { frontmatterOfRead } from "../storage/shared-page-reads.js";
 import { listDirectoryNames, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
 import { wikiPageReaderInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
 import type { ConfinedReadResult } from "./confined-wiki-read.js";
@@ -210,7 +211,7 @@ async function loadConceptPages(sources: MocGenerationSources): Promise<PageInfo
       warnDroppedWikiRead(`${slug}.md`, result.dropped);
       continue;
     }
-    const info = mocPageInfo(slug, result.content);
+    const info = mocPageInfo(slug, result);
     if (info !== null) pages.push(info);
   }
 
@@ -218,9 +219,9 @@ async function loadConceptPages(sources: MocGenerationSources): Promise<PageInfo
 }
 
 /** The MOC entry for one page, or `null` for an empty or orphaned page. */
-function mocPageInfo(slug: string, content: string): PageInfo | null {
-  if (!content) return null;
-  const { meta } = parseFrontmatter(content);
+function mocPageInfo(slug: string, read: { content: string }): PageInfo | null {
+  if (!read.content) return null;
+  const { meta } = frontmatterOfRead(read);
   if (meta.orphaned) return null;
   const title = typeof meta.title === "string" ? meta.title : slug;
   const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];

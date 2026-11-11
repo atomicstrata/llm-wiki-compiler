@@ -137,9 +137,22 @@ export function readConfinedPageText(capturedRealpath: string, expectedCanonical
   return readConfinedPage(capturedRealpath, expectedCanonicalDir);
 }
 
+/**
+ * The project root's real path, looked up once per binding: a binding serves
+ * one operation, and every page read of that operation would otherwise
+ * resolve the same root again. Only a resolved root is kept, so a root that
+ * does not exist yet is looked up again on the next read. Keeping it is safe
+ * for the same reason the scan directories are kept: each read's post-open
+ * check re-resolves the page and requires it inside the directory derived
+ * from this root.
+ */
+function canonicalRootOf(root: string): () => Promise<string | null> {
+  let resolved: string | undefined;
+  return async () => (resolved ??= (await safeRealpath(root)) ?? undefined) ?? null;
+}
+
 /** `<root>/<relDir>/<slug>.md`, confined to `<canonical root>/<relDir>`. */
-async function readDiskConfinedPage(root: string, relDir: string, slug: string): Promise<ConfinedReadResult> {
-  const canonicalRoot = await safeRealpath(root);
+async function readDiskConfinedPage(canonicalRoot: string | null, relDir: string, slug: string): Promise<ConfinedReadResult> {
   if (!canonicalRoot) return { dropped: "no-root" };
   const expectedDir = path.join(canonicalRoot, relDir);
   const filePath = path.join(expectedDir, `${slug}.md`);
@@ -147,8 +160,7 @@ async function readDiskConfinedPage(root: string, relDir: string, slug: string):
 }
 
 /** `<root>/<relPath>`, confined to its own parent directory under the canonical root. */
-async function readDiskConfinedFile(root: string, relPath: string): Promise<ConfinedReadResult> {
-  const canonicalRoot = await safeRealpath(root);
+async function readDiskConfinedFile(canonicalRoot: string | null, relPath: string): Promise<ConfinedReadResult> {
   if (!canonicalRoot) return { dropped: "no-root" };
   const expectedDir = path.join(canonicalRoot, path.dirname(relPath));
   const filePath = path.join(canonicalRoot, relPath);
@@ -176,6 +188,7 @@ function diskDirectory(canonicalDir: string): LocalDirectory {
  */
 export function diskLocalReads(root: string): LegacyLocalReads {
   const locate = (relPath: string): string => path.join(root, relPath);
+  const canonicalRoot = canonicalRootOf(root);
   return {
     readText: (relPath) => readFile(locate(relPath), "utf-8"),
     exists: async (relPath) => existsSync(locate(relPath)),
@@ -185,8 +198,8 @@ export function diskLocalReads(root: string): LegacyLocalReads {
       const canonicalDir = await resolveRealDir(root, relDir);
       return canonicalDir === null ? null : diskDirectory(canonicalDir);
     },
-    readConfinedPage: (relDir, slug) => readDiskConfinedPage(root, relDir, slug),
-    readConfinedFile: (relPath) => readDiskConfinedFile(root, relPath),
+    readConfinedPage: async (relDir, slug) => readDiskConfinedPage(await canonicalRoot(), relDir, slug),
+    readConfinedFile: async (relPath) => readDiskConfinedFile(await canonicalRoot(), relPath),
     locate,
   };
 }

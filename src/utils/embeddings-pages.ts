@@ -6,14 +6,13 @@
 
 import path from "path";
 import { getEmbeddingProvider } from "./embedding-provider.js";
-import { parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
 import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { listDirectoryNames } from "../storage/disk-guarded-leaves.js";
 import { readConfinedExactFile } from "../storage/disk-local-reads.js";
-import { sharedPageRead } from "../storage/shared-page-reads.js";
+import { frontmatterOfRead, sharedPageRead } from "../storage/shared-page-reads.js";
 import { locationIsRegularFile } from "../storage/disk-locations.js";
 import type { ConfinedReadResult } from "../storage/legacy-local-reads.js";
 import type { PageRecord } from "../pages/read.js";
@@ -145,7 +144,7 @@ export async function collectPageRecords(root: string): Promise<PageRecord[]> {
 async function readConfinedPageRecord(reads: EmbeddingPageReads, expectedDir: string, file: string): Promise<PageRecord | null> {
   const read = await reads.readConfinedEntry(expectedDir, file);
   if (!("content" in read)) return null;
-  const { meta, body } = parseFrontmatter(read.content);
+  const { meta, body } = frontmatterOfRead(read);
   if (meta.orphaned || typeof meta.title !== "string") return null;
   return {
     slug: file.replace(/\.md$/, ""),
