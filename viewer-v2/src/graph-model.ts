@@ -2,8 +2,8 @@
  * The rules of the graph that need no DOM: which colour a node takes, how big
  * it is, where a click goes, what the tooltip and legend say, how strong the
  * forces are, and how to frame a settled layout. Pure functions, so the
- * explorer and the dashboard panel share one set of rules and the tests pin
- * them without a browser.
+ * explorer and the page rail's neighbourhood share one set of rules and the
+ * tests pin them without a browser.
  */
 import type { GraphNode, PagesEnvelope } from "./api";
 import { pageHref } from "./route";
@@ -49,7 +49,7 @@ export function nodeKind(node: GraphNode, stale: Set<string>): NodeKind {
   return node.nodeKind === "entity" ? "entity" : "concept";
 }
 
-/** Radius bounds per mode: the dashboard panel is a fraction of the explorer's size. */
+/** Radius bounds per mode: the rail's small drawing uses a fraction of the explorer's size. */
 const RADIUS_BOUNDS = { full: { min: 4, max: 10 }, compact: { min: 2.5, max: 6 } } as const;
 
 /** Radius grows linearly with degree, so the most connected node is always the largest. */
@@ -99,7 +99,9 @@ export interface Forces {
 const FULL_FORCES: Forces = { linkDistance: 80, charge: -200 };
 
 /**
- * Compact forces are derived from the panel's size and the node count. The
+ * Compact forces, used by the rail's neighbourhood, are derived from the
+ * drawing's size and the node count. They were calibrated for a dashboard
+ * panel this viewer no longer has, and still suit the rail. The
  * reference is the demo wiki's 8 nodes in a 443×296 panel, where each node
  * owns a square of side 128; the factors are calibrated there. The falloff
  * exponent shrinks the forces faster than the per-node budget for bigger
@@ -112,7 +114,7 @@ const COMPACT_FALLOFF_EXPONENT = 2.65;
 const COMPACT_LINK_FACTOR = 1.39;
 const COMPACT_CHARGE_FACTOR = 4.69;
 
-/** The forces for one render; the explorer's are fixed, the panel's follow its size. */
+/** The forces for one render; the explorer's are fixed, a compact drawing's follow its size. */
 export function forcesFor(compact: boolean, width: number, height: number, nodeCount: number): Forces {
   if (!compact) return FULL_FORCES;
   const side = Math.sqrt((width * height) / Math.max(1, nodeCount));

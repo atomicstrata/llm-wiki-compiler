@@ -20,23 +20,26 @@ export function plainSnippet(snippet: string): string {
   return snippet.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, "$2").replace(/\[\[([^\]]+)\]\]/g, "$1");
 }
 
-/** Debounced live results for `query`; empty for a blank query. */
-export function useLiveResults(query: string): { results: SearchResult[]; error: string | null } {
-  const [state, setState] = useState<{ results: SearchResult[]; error: string | null }>({ results: [], error: null });
+const NO_RESULTS: SearchResult[] = [];
+
+/**
+ * Debounced live results for `query`; none for a blank query. While a new
+ * query is pending the previous results stay, so the list does not flash
+ * empty between keystrokes; a failed search shows none.
+ */
+export function useLiveResults(query: string): SearchResult[] {
+  const trimmed = query.trim();
+  const [results, setResults] = useState(NO_RESULTS);
   useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length === 0) {
-      setState({ results: [], error: null });
-      return undefined;
-    }
+    if (trimmed.length === 0) return undefined;
     let isCurrent = true;
     const timer = window.setTimeout(() => {
       fetchSearch(trimmed).then(
-        ({ results }) => { if (isCurrent) setState({ results, error: null }); },
-        (error: unknown) => { if (isCurrent) setState({ results: [], error: error instanceof Error ? error.message : String(error) }); },
+        (response) => { if (isCurrent) setResults(response.results); },
+        () => { if (isCurrent) setResults(NO_RESULTS); },
       );
     }, DEBOUNCE_MS);
     return () => { isCurrent = false; window.clearTimeout(timer); };
-  }, [query]);
-  return state;
+  }, [trimmed]);
+  return trimmed.length === 0 ? NO_RESULTS : results;
 }

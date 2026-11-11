@@ -10,6 +10,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { activeHeading, assignHeadingIds, Outline, slugify } from "../viewer-v2/src/outline.js";
 import { HoverPreviews } from "../viewer-v2/src/hover-preview.js";
+import { decorateChip } from "../viewer-v2/src/wiki-html.js";
 import { citedSourceText, findTrigger, isTracked, MAX_EXCERPT_LINES, pageBlurb, pageKindLabel, plainOpening, previewTarget, sliceExcerpt } from "../viewer-v2/src/preview-data.js";
 import { page, text } from "./fixtures/viewer-v2-fixtures.js";
 
@@ -30,7 +31,7 @@ describe("preview targets", () => {
     expect(previewTarget(findTrigger(doc.getElementById("inner"))!)).toEqual({ kind: "page", id: "concepts/alpha" });
     const [chip, gone] = Array.from(doc.querySelectorAll<HTMLElement>(".citation-chip"));
     expect(previewTarget(chip)).toEqual({ kind: "citation", file: "notes.md", lineStart: 3, lineEnd: 5, resolved: true });
-    expect(previewTarget(gone)).toEqual({ kind: "citation", file: "gone.md", lineStart: null, lineEnd: null, resolved: false });
+    expect(previewTarget(gone)).toEqual({ kind: "citation", file: "gone.md", resolved: false });
     expect(findTrigger(doc.getElementById("plain"))).toBeNull();
   });
 });
@@ -41,7 +42,7 @@ describe("preview cards", () => {
     expect(pageKindLabel("concepts/alpha", row)).toBe("Concepts");
     expect(pageKindLabel("papers/p1", undefined)).toBe("Papers");
     expect(await pageBlurb("concepts/alpha", row)).toBe("Alpha in brief.");
-    await expect(citedSourceText({ kind: "citation", file: "gone.md", lineStart: null, lineEnd: null, resolved: false })).rejects.toThrow("gone.md");
+    await expect(citedSourceText({ kind: "citation", file: "gone.md", resolved: false })).rejects.toThrow("gone.md");
   });
 
   it("treats moving within the open or pending trigger as no change", () => {
@@ -58,6 +59,20 @@ describe("preview cards", () => {
   });
 });
 
+describe("citation chips in a page body", () => {
+  it("shorten to their range, name the citation in full, and stay links only when the file exists", () => {
+    const doc = documentWith(`
+      <span class="citation-chip" data-file="notes.md" data-resolved="true" data-line-start="12" data-line-end="15">notes.md:12-15</span>
+      <span class="citation-chip" data-file="notes.md" data-resolved="true" data-line-start="7">notes.md:7</span>
+      <span class="citation-chip" data-file="gone.md" data-resolved="false">gone.md</span>`);
+    const [range, single, gone] = Array.from(doc.querySelectorAll<HTMLElement>(".citation-chip"));
+    for (const chip of [range, single, gone]) { decorateChip(chip); decorateChip(chip); }
+    expect([range.textContent, range.getAttribute("aria-label"), range.getAttribute("role")]).toEqual(["L12–15", "notes.md, lines 12–15", "link"]);
+    expect([single.textContent, single.getAttribute("aria-label")]).toEqual(["L7", "notes.md, line 7"]);
+    expect([gone.textContent, gone.getAttribute("role"), gone.getAttribute("tabindex")]).toEqual(["gone.md", null, null]);
+  });
+});
+
 describe("cited excerpts", () => {
   it("numbers the cited span and caps a long one", () => {
     expect(sliceExcerpt(SOURCE, 3, 5)).toEqual({ lines: [{ number: 3, text: "line 3" }, { number: 4, text: "line 4" }, { number: 5, text: "line 5" }], hiddenCount: 0 });
@@ -69,7 +84,7 @@ describe("cited excerpts", () => {
 
   it("shows one line for a single-line cite, the opening for a whole file, and stops at the file end", () => {
     expect(sliceExcerpt(SOURCE, 7, 7).lines).toEqual([{ number: 7, text: "line 7" }]);
-    expect(sliceExcerpt(SOURCE, null, null).lines.map((line) => line.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(sliceExcerpt(SOURCE).lines.map((line) => line.number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(sliceExcerpt(SOURCE, 29, 40)).toEqual({ lines: [{ number: 29, text: "line 29" }, { number: 30, text: "line 30" }], hiddenCount: 0 });
   });
 });

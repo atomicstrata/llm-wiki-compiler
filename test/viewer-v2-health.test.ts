@@ -1,5 +1,5 @@
 /**
- * The v2 health screen: its pure derivations (lint caption, CONTENTS
+ * The v2 health screen: its pure derivations (lint caption, contents
  * columns, lint rows and footer, freshness, traceability, record problems)
  * and the screen rendered to static markup in its never-linted and
  * populated states.
@@ -16,11 +16,11 @@ import { envelope, healthWith, lintRule, page, text } from "./fixtures/viewer-v2
 const NOW = new Date("2026-11-10T14:00:00.000Z");
 const PAGES = new Set(["concepts/alpha", "queries/q"]);
 
-describe("lintRunCaption and the CONTENTS strip", () => {
+describe("lintRunCaption and the contents strip", () => {
   it("says never run, or when and how long ago, dropping the age when unparseable", () => {
-    expect(lintRunCaption(null, NOW)).toBe("lint has never run");
-    expect(lintRunCaption({ warnings: 0, errors: 0, at: "2026-11-10T12:00:00.000Z" }, NOW)).toBe("lint last run 2026-11-10 12:00Z · 2 h ago");
-    expect(lintRunCaption({ warnings: 0, errors: 0, at: "" }, NOW)).toBe("lint last run unknownZ");
+    expect(lintRunCaption(null, NOW)).toBe("Lint has never run");
+    expect(lintRunCaption({ warnings: 0, errors: 0, at: "2026-11-10T12:00:00.000Z" }, NOW)).toBe("Lint last run 2026-11-10 12:00Z · 2 h ago");
+    expect(lintRunCaption({ warnings: 0, errors: 0, at: "" }, NOW)).toBe("Lint last run at an unknown time");
   });
 
   it("fills five columns from health counts and the envelope's citations, writing zero as a dash", () => {
@@ -47,12 +47,12 @@ describe("lint rows and footer", () => {
       lintRule({ rule: "f", count: 1 }),
     ];
     const rows = lintRuleRows(rules, PAGES);
-    expect(rows.map((row) => [row.rule, row.rank, row.count, row.affected, row.href])).toEqual([
-      ["a", 0, 9, "alpha · 5 of 9", "#/concepts/alpha"],
-      ["b", 1, 4, "4 files", null],
-      ["c", 2, 2, "journal.json", null],
-      ["d", 3, 1, "alpha", "#/concepts/alpha"],
-      ["other", null, 2, "2 rules", null],
+    expect(rows.map((row) => [row.rule, row.count, row.affected, row.href])).toEqual([
+      ["a", 9, "alpha · 5 of 9", "#/concepts/alpha"],
+      ["b", 4, "4 files", null],
+      ["c", 2, "journal.json", null],
+      ["d", 1, "alpha", "#/concepts/alpha"],
+      ["other", 2, "2 rules", null],
     ]);
   });
 
@@ -101,7 +101,7 @@ describe("freshness, traceability and record problems", () => {
 describe("HealthView", () => {
   it("renders the never-run placeholder and dashes on an empty wiki", () => {
     const html = renderToStaticMarkup(createElement(HealthView, { wiki: envelope(), health: null }));
-    expect(html).toContain("lint has never run");
+    expect(html).toContain("Lint has never run");
     expect(html).toContain("No cached lint summary yet");
     expect(html).toContain('data-contents="reviews"');
     expect(html).not.toContain("Record problems");

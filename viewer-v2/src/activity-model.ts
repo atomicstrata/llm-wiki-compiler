@@ -3,52 +3,48 @@
  * changed since the reader's last visit, a calendar of compile activity, and
  * the tag counts the topic map draws.
  *
- * "Last visit" survives reloads: a visit is stamped only when the previous
- * stamp is more than half an hour old, so refreshing the page or coming back
- * from lunch does not reset what counts as new, while the next day's visit
- * does. Stamps live in `localStorage` for this origin; storage that is
- * blocked just means the dashboard has no "since last visit" to show.
+ * A visit ends after half an hour without activity. The shell marks activity
+ * on every screen change, so a reader who keeps reading stays in one visit,
+ * reloads change nothing, and what counts as new is everything since they
+ * were last active before this visit began. Stamps live in `localStorage` for
+ * this origin (see `storage.ts`).
  */
 import type { PageRow } from "./api";
+import { addDays } from "./recency";
+import { readStored, writeStored, type KeyValueStore } from "./storage";
 
-/** A gap longer than this between stamps starts a new visit. */
+/** This long without activity ends a visit. */
 const NEW_VISIT_GAP_MS = 30 * 60 * 1000;
 const VISIT_KEY = "llmwiki.v2.visits";
-const DAY_MS = 24 * 60 * 60 * 1000;
 const DAYS_PER_WEEK = 7;
 export const ACTIVITY_WEEKS = 16;
 const HEAT_LEVELS = 4;
 
-/** Two stamps: when the visit before this one started, and when this one did. */
+/** When the current visit's "since" point is, and when the reader was last active. */
 interface VisitStamps {
-  previous: string | null;
-  current: string;
+  since: string | null;
+  lastSeen: string;
 }
 
-type VisitStore = Pick<Storage, "getItem" | "setItem">;
-
-/** Read the stamps, tolerating junk. */
-function readStamps(store: VisitStore): VisitStamps | null {
-  try {
-    const parsed = JSON.parse(store.getItem(VISIT_KEY) ?? "null") as Partial<VisitStamps> | null;
-    return typeof parsed?.current === "string" ? { previous: typeof parsed.previous === "string" ? parsed.previous : null, current: parsed.current } : null;
-  } catch {
-    return null;
-  }
+/** The stored stamps, or null for a first visit or anything unreadable. */
+function readStamps(store: KeyValueStore | undefined): VisitStamps | null {
+  const stored = readStored(store, VISIT_KEY) as Partial<VisitStamps> | null;
+  if (typeof stored?.lastSeen !== "string") return null;
+  return { since: typeof stored.since === "string" ? stored.since : null, lastSeen: stored.lastSeen };
 }
 
-/** Record this visit and return when the previous one started, or null on a first visit. */
-export function stampVisit(store: VisitStore | undefined, now: Date): string | null {
+/**
+ * Note that the reader is active now, and return what counts as new for this
+ * visit: the moment they were last active before it began, or null on a first
+ * visit or without storage.
+ */
+export function stampVisit(store: KeyValueStore | undefined, now: Date): string | null {
   if (store === undefined) return null;
   const stamps = readStamps(store);
-  const isNewVisit = stamps === null || now.getTime() - Date.parse(stamps.current) > NEW_VISIT_GAP_MS;
-  const next: VisitStamps = isNewVisit ? { previous: stamps?.current ?? null, current: now.toISOString() } : stamps;
-  try {
-    store.setItem(VISIT_KEY, JSON.stringify(next));
-  } catch {
-    // Blocked storage only costs the "since last visit" panel.
-  }
-  return next.previous;
+  const isNewVisit = stamps === null || now.getTime() - Date.parse(stamps.lastSeen) > NEW_VISIT_GAP_MS;
+  const since = isNewVisit ? (stamps?.lastSeen ?? null) : stamps.since;
+  writeStored(store, VISIT_KEY, { since, lastSeen: now.toISOString() });
+  return since;
 }
 
 /** Pages updated after `since`, newest first. */
@@ -77,11 +73,10 @@ export function dailyActivity(pages: PageRow[], now: Date, weeks = ACTIVITY_WEEK
     const updated = new Date(page.updatedAt);
     if (!Number.isNaN(updated.getTime())) counts.set(localDay(updated), (counts.get(localDay(updated)) ?? 0) + 1);
   }
-  const lastSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
-  const start = lastSunday.getTime() - (weeks - 1) * DAYS_PER_WEEK * DAY_MS;
+  const first = addDays(now, -now.getDay() - (weeks - 1) * DAYS_PER_WEEK);
   return Array.from({ length: weeks * DAYS_PER_WEEK }, (_, index) => {
-    const day = new Date(start + index * DAY_MS + DAY_MS / 2);
-    return { date: localDay(day), count: counts.get(localDay(day)) ?? 0 };
+    const day = localDay(addDays(first, index));
+    return { date: day, count: counts.get(day) ?? 0 };
   });
 }
 

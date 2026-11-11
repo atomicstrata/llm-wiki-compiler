@@ -38,7 +38,7 @@ describe("Sidebar", () => {
   it("maps every route to the row it lights", () => {
     expect(activeNavRoute(parseRoute("#/index"))).toBe("home");
     expect(activeNavRoute(parseRoute("#/_type/papers"))).toBe("papers");
-    expect(activeNavRoute(parseRoute("#/source-changes"))).toBe("source-changes");
+    expect(activeNavRoute(parseRoute("#/source-changes"))).toBe("reviews");
     expect(activeNavRoute(parseRoute("#/_search?q=x"))).toBeNull();
   });
 });

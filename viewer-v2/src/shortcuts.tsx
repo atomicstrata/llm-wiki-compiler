@@ -9,10 +9,16 @@
  * swallow text or a browser shortcut. The key handling is a pure function of
  * the key and whether `g` is pending, so it is tested without a browser.
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { openPalette } from "./command-palette";
+import { CENTRED_DIALOG, closeOnBackdrop } from "./components";
+import { closestElement } from "./dom";
 
-/** Where `g` then a letter goes. */
+/**
+ * Where `g` then a letter goes. These are the default project's screens; on a
+ * profile project `g c` and `g q` still open those lists, which the sidebar
+ * replaces with the profile's own categories, so they are simply empty there.
+ */
 const GO_KEYS: Record<string, { href: string; label: string }> = {
   d: { href: "#/", label: "Dashboard" },
   c: { href: "#/concepts", label: "Concepts" },
@@ -28,6 +34,8 @@ const GO_KEYS: Record<string, { href: string; label: string }> = {
 const SEQUENCE_TIMEOUT_MS = 1200;
 /** List rows opt into `j`/`k` with this attribute. */
 const ROW_SELECTOR = "main [data-row]";
+/** What a single key does when no `g` is waiting. */
+const SINGLE_KEYS: Record<string, ShortcutAction> = { "/": { kind: "palette" }, "?": { kind: "help" }, j: { kind: "row", step: 1 }, k: { kind: "row", step: -1 } };
 
 /** What one key press asks for. */
 export type ShortcutAction =
@@ -43,15 +51,12 @@ export function resolveKey(key: string, gPending: boolean): { action: ShortcutAc
     const target = GO_KEYS[key];
     return { action: target ? { kind: "go", href: target.href } : null, gPending: false };
   }
-  const actions: Record<string, ShortcutAction> = { "/": { kind: "palette" }, "?": { kind: "help" }, j: { kind: "row", step: 1 }, k: { kind: "row", step: -1 } };
-  return { action: actions[key] ?? null, gPending: key === "g" };
+  return { action: SINGLE_KEYS[key] ?? null, gPending: key === "g" };
 }
 
 /** Whether the key belongs to whatever has focus: a field, an editable region, or an open dialog. */
 export function isTypingContext(target: EventTarget | null): boolean {
-  const element = target as Partial<HTMLElement> | null;
-  if (typeof element?.closest !== "function") return false;
-  return element.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], dialog[open]") !== null;
+  return closestElement(target, "input, textarea, select, [contenteditable=''], [contenteditable='true'], dialog[open]") !== null;
 }
 
 /** Whether the press is ⌘K or Ctrl+K, which opens the palette even from a field. */
@@ -82,7 +87,7 @@ function perform(action: NonNullable<ShortcutAction>, openHelp: () => void): voi
 }
 
 /** Listen for the shortcuts for as long as the shell is mounted. */
-function useShortcuts(openHelp: () => void): void {
+function useShortcuts(help: RefObject<HTMLDialogElement | null>): void {
   useEffect(() => {
     let gPending = false;
     let timer: number | undefined;
@@ -95,11 +100,11 @@ function useShortcuts(openHelp: () => void): void {
       if (gPending) timer = window.setTimeout(() => { gPending = false; }, SEQUENCE_TIMEOUT_MS);
       if (resolved.action === null) return;
       event.preventDefault();
-      perform(resolved.action, openHelp);
+      perform(resolved.action, () => help.current?.showModal());
     };
     window.addEventListener("keydown", onKeyDown);
     return () => { window.clearTimeout(timer); window.removeEventListener("keydown", onKeyDown); };
-  }, [openHelp]);
+  }, [help]);
 }
 
 /** A key cap. */
@@ -134,13 +139,12 @@ export function ShortcutList(): ReactNode {
 /** Mount once in the shell: the listener and the help dialog it opens. */
 export function KeyboardShortcuts(): ReactNode {
   const dialog = useRef<HTMLDialogElement>(null);
-  const openHelp = useRef(() => dialog.current?.showModal()).current;
-  useShortcuts(openHelp);
+  const titleId = useId();
+  useShortcuts(dialog);
   return (
-    <dialog ref={dialog} aria-labelledby="shortcuts-title" onClick={(event) => { if (event.target === event.currentTarget) dialog.current?.close(); }}
-      className="mx-auto mt-[12vh] w-[calc(100%-2rem)] max-w-md rounded-xl bg-white p-0 shadow-2xl outline-none ring-1 ring-zinc-950/10 backdrop:bg-zinc-950/40 backdrop:backdrop-blur-sm dark:bg-zinc-900 dark:ring-white/10">
+    <dialog ref={dialog} aria-labelledby={titleId} onClick={closeOnBackdrop} className={`${CENTRED_DIALOG} max-w-md`}>
       <div className="p-6">
-        <h2 id="shortcuts-title" className="mb-3 text-base font-semibold text-zinc-950 dark:text-white">Keyboard shortcuts</h2>
+        <h2 id={titleId} className="mb-3 text-base font-semibold text-zinc-950 dark:text-white">Keyboard shortcuts</h2>
         <ShortcutList />
       </div>
     </dialog>

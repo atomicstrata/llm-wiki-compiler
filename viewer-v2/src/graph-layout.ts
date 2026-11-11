@@ -13,10 +13,11 @@
 // transition modules; the vendored IIFE the original client loads is not used.
 import {
   drag, forceCenter, forceLink, forceManyBody, forceSimulation, forceX, forceY, select, zoom, zoomIdentity, zoomTransform,
-  type Simulation, type SimulationLinkDatum, type SimulationNodeDatum, type ZoomBehavior,
+  type Simulation, type SimulationLinkDatum, type SimulationNodeDatum, type ZoomBehavior, type ZoomTransform,
 } from "d3";
 import type { GraphData, GraphNode } from "./api";
-import { forcesFor, frameFor, ZOOM_SCALE_EXTENT } from "./graph-model";
+import { forcesFor, frameFor, maxDegree, nodeRadius, nodeStrokeWidth, ZOOM_SCALE_EXTENT } from "./graph-model";
+import { prefersReducedMotion } from "./media";
 
 type SimNode = GraphNode & SimulationNodeDatum;
 type SimLink = SimulationLinkDatum<SimNode>;
@@ -46,6 +47,8 @@ interface Canvas {
   height: number;
   nodeElements: SVGGElement[];
   lineElements: SVGLineElement[];
+  /** Each node's drawn radius plus half its outline: where an edge stops so its arrowhead shows. */
+  rims: Map<string, number>;
 }
 
 const DEFAULT_WIDTH = 800;
@@ -63,20 +66,24 @@ const FOCUS_SCALE = 2;
  * Pull toward the centre. Without it, repulsion pushes every unlinked node
  * or small component outward until Fit shrinks the drawing below legibility:
  * a few hundred nodes in the explorer, or the rail's loosely joined
- * neighbourhood. The dashboard panel's size-derived forces were tuned for the
- * whole graph without a pull, and a pull crushes them into one blob, so a
- * compact drawing gets one only when it is small.
+ * neighbourhood. The rail's size-derived forces are weaker, so its pull is
+ * too.
  */
 const GRAVITY = { full: 0.3, compact: 0.15 } as const;
-const SMALL_COMPACT_GRAPH = 40;
+
+/** Each node's rim distance from its centre, matching how the canvas draws it. */
+function nodeRims(data: GraphData, compact: boolean): Map<string, number> {
+  const largest = maxDegree(data.nodes);
+  return new Map(data.nodes.map((node) => [node.id, nodeRadius(node.degree, largest, compact) + nodeStrokeWidth(node.degree) / 2]));
+}
 
 /** Measure the SVG and collect its elements; the viewBox matches the measured size. */
-function readCanvas(svg: SVGSVGElement, viewport: SVGGElement): Canvas {
+function readCanvas(svg: SVGSVGElement, viewport: SVGGElement, rims: Map<string, number>): Canvas {
   const width = svg.clientWidth || DEFAULT_WIDTH;
   const height = svg.clientHeight || DEFAULT_HEIGHT;
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   return {
-    svg, viewport, width, height,
+    svg, viewport, width, height, rims,
     nodeElements: Array.from(viewport.querySelectorAll<SVGGElement>("[data-node]")),
     lineElements: Array.from(viewport.querySelectorAll<SVGLineElement>("line")),
   };
@@ -97,10 +104,14 @@ function writePositions(canvas: Canvas, nodes: SimNode[], links: SimLink[]): voi
     if (line === undefined) return;
     const source = endpoint(link.source);
     const target = endpoint(link.target);
-    line.setAttribute("x1", String(source.x ?? 0));
-    line.setAttribute("y1", String(source.y ?? 0));
-    line.setAttribute("x2", String(target.x ?? 0));
-    line.setAttribute("y2", String(target.y ?? 0));
+    const [x1, y1, x2, y2] = [source.x ?? 0, source.y ?? 0, target.x ?? 0, target.y ?? 0];
+    // Stop at the target's rim, not its centre, or the node is drawn over the arrowhead.
+    const length = Math.hypot(x2 - x1, y2 - y1);
+    const back = length > 0 ? Math.min(1, (canvas.rims.get(target.id) ?? 0) / length) : 0;
+    line.setAttribute("x1", String(x1));
+    line.setAttribute("y1", String(y1));
+    line.setAttribute("x2", String(x2 - (x2 - x1) * back));
+    line.setAttribute("y2", String(y2 - (y2 - y1) * back));
   });
 }
 
@@ -114,17 +125,30 @@ function createSimulation(data: GraphData, canvas: Canvas, compact: boolean): { 
     .force("charge", forceManyBody().strength(forces.charge))
     .force("center", forceCenter(canvas.width / 2, canvas.height / 2))
     .stop();
-  const gravity = !compact ? GRAVITY.full : nodes.length <= SMALL_COMPACT_GRAPH ? GRAVITY.compact : 0;
-  if (gravity > 0) simulation
+  const gravity = compact ? GRAVITY.compact : GRAVITY.full;
+  simulation
     .force("x", forceX<SimNode>(canvas.width / 2).strength(gravity))
     .force("y", forceY<SimNode>(canvas.height / 2).strength(gravity));
   return { simulation, nodes, links };
 }
 
+/**
+ * In a small drawing inside a scrolling panel, a plain wheel or one-finger
+ * swipe is the reader scrolling the panel, not zooming the graph; it zooms
+ * with Ctrl or ⌘ held, or a pinch. The explorer takes every gesture.
+ */
+export function zoomsOnGesture(compact: boolean, event: { type: string; ctrlKey?: boolean; metaKey?: boolean; touches?: { length: number } }): boolean {
+  if (!compact) return true;
+  if (event.type === "wheel") return event.ctrlKey === true || event.metaKey === true;
+  return event.touches === undefined || event.touches.length > 1;
+}
+
 /** Wheel zoom and pan on the SVG, applied to the inner group. */
-function attachZoom(canvas: Canvas): ZoomBehavior<SVGSVGElement, unknown> {
+function attachZoom(canvas: Canvas, compact: boolean): ZoomBehavior<SVGSVGElement, unknown> {
   const behaviour = zoom<SVGSVGElement, unknown>()
     .scaleExtent([...ZOOM_SCALE_EXTENT])
+    // d3's own filter (no Ctrl-drag, primary button only), then the panel's scroll rule.
+    .filter((event: MouseEvent & { touches?: TouchList }) => (!event.ctrlKey || event.type === "wheel") && !event.button && zoomsOnGesture(compact, event))
     .on("zoom", (event) => {
       canvas.viewport.setAttribute("transform", String(event.transform));
       canvas.svg.style.setProperty("--graph-k", String(event.transform.k));
@@ -166,11 +190,6 @@ async function settleLayout(simulation: Simulation<SimNode, SimLink>, isLive: ()
   return isLive();
 }
 
-/** True when the system asks for reduced motion; Fit then jumps instead of gliding. */
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
-
 /**
  * Frame the live positions. The transform goes through the zoom behaviour,
  * the same path wheel and drag gestures take, so the next pan continues from
@@ -181,6 +200,11 @@ function fitView(canvas: Canvas, behaviour: ZoomBehavior<SVGSVGElement, unknown>
   const frame = frameFor(points, canvas.width, canvas.height);
   const transform = zoomIdentity.translate(frame.x, frame.y).scale(frame.k);
   behaviour.scaleExtent([Math.min(ZOOM_SCALE_EXTENT[0], frame.k), ZOOM_SCALE_EXTENT[1]]);
+  moveTo(canvas, behaviour, transform, animate);
+}
+
+/** Apply a view transform through the zoom behaviour, gliding unless asked not to or the reader prefers less motion. */
+function moveTo(canvas: Canvas, behaviour: ZoomBehavior<SVGSVGElement, unknown>, transform: ZoomTransform, animate: boolean): void {
   const svg = select(canvas.svg);
   if (animate && !prefersReducedMotion()) svg.transition().duration(FIT_TRANSITION_MS).call(behaviour.transform, transform);
   else svg.call(behaviour.transform, transform);
@@ -191,17 +215,14 @@ function focusNode(canvas: Canvas, behaviour: ZoomBehavior<SVGSVGElement, unknow
   const node = nodes.find((candidate) => candidate.id === id);
   if (node?.x === undefined || node.y === undefined) return;
   const k = Math.max(FOCUS_SCALE, zoomTransform(canvas.svg).k);
-  const transform = zoomIdentity.translate(canvas.width / 2 - k * node.x, canvas.height / 2 - k * node.y).scale(k);
-  const svg = select(canvas.svg);
-  if (prefersReducedMotion()) svg.call(behaviour.transform, transform);
-  else svg.transition().duration(FIT_TRANSITION_MS).call(behaviour.transform, transform);
+  moveTo(canvas, behaviour, zoomIdentity.translate(canvas.width / 2 - k * node.x, canvas.height / 2 - k * node.y).scale(k), true);
 }
 
 /** Bind the simulation, zoom, and (in the explorer) drag to an SVG React has drawn. */
 export function mountGraph(svg: SVGSVGElement, viewport: SVGGElement, data: GraphData, compact: boolean): MountedGraph {
-  const canvas = readCanvas(svg, viewport);
+  const canvas = readCanvas(svg, viewport, nodeRims(data, compact));
   const { simulation, nodes, links } = createSimulation(data, canvas, compact);
-  const behaviour = attachZoom(canvas);
+  const behaviour = attachZoom(canvas, compact);
   if (!compact) attachDrag(canvas, nodes, simulation);
   let live = true;
   simulation.on("tick", () => writePositions(canvas, nodes, links));
@@ -216,7 +237,8 @@ export function mountGraph(svg: SVGSVGElement, viewport: SVGGElement, data: Grap
     dispose: () => {
       live = false;
       simulation.stop();
-      select(svg).on(".zoom", null);
+      // A Fit glide still running would keep writing to an SVG the next drawing reuses.
+      select(svg).interrupt().on(".zoom", null);
     },
   };
 }

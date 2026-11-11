@@ -8,20 +8,15 @@
 import type { ReactNode } from "react";
 import {
   fetchWorkflowRun, runPdfUrl, stageOutputUrl,
-  type LiveOutcome, type RunClassification, type StageGate, type StageProjection, type WorkflowRunProjection, type WorkflowRunResponse,
+  type LiveOutcome, type StageGate, type StageProjection, type WorkflowRunProjection, type WorkflowRunResponse,
 } from "./api-workflows";
 import { ArtifactRef } from "./artifact-ref";
 import { AsyncView } from "./async-view";
-import { Badge, Card, Screen, type Tone } from "./components";
+import { Badge, Card, Notice, Screen, TextLink, type Tone } from "./components";
 import { StageFacts } from "./stage-facts";
 import { useAsync } from "./use-async";
-
-const CLASSIFICATION_LABELS: Record<RunClassification, string> = {
-  current: "Current",
-  "needs-adaptation": "Needs adaptation",
-  "blocked-by-config": "Blocked by config",
-  historical: "Historical",
-};
+import { typeLabel } from "./wiki-model";
+import { RUN_CLASSIFICATION_LABELS } from "./workflows-view";
 
 const GATE_STATE_TEXT: Record<StageGate["state"], string> = {
   "not-reached": "not reached",
@@ -78,11 +73,11 @@ function gateByline(gate: StageGate): string {
 
 /** The gate guarding a stage; a human gate is named distinctly from agent and trust gates. */
 function GateCallout({ gate }: { gate: StageGate }): ReactNode {
-  const kind = gate.gateKind === "human" ? "Human approval" : `${gate.gateKind.charAt(0).toUpperCase()}${gate.gateKind.slice(1)} gate`;
+  const kind = gate.gateKind === "human" ? "Human approval" : `${typeLabel(gate.gateKind)} gate`;
   const byline = gateByline(gate);
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2">
-      <Badge tone={GATE_STATE_TONES[gate.state] ?? "neutral"}>{kind} — {GATE_STATE_TEXT[gate.state] ?? gate.state}</Badge>{" "}
+      <Badge tone={GATE_STATE_TONES[gate.state] ?? "neutral"}>{kind} — {GATE_STATE_TEXT[gate.state] ?? gate.state}</Badge>
       {byline && <span className="text-xs text-zinc-500 dark:text-zinc-400">{byline}</span>}
     </div>
   );
@@ -95,7 +90,7 @@ function Verification({ stage }: { stage: StageProjection }): ReactNode {
   const label = reason && VERIFICATION_REASON_LABELS[reason.category];
   return (
     <>
-      <Badge>Recorded · not verified</Badge>{" "}
+      <Badge>Recorded · not verified</Badge>
       {label && <span className="text-xs text-zinc-500 dark:text-zinc-400">{label} · {reason.code}</span>}
     </>
   );
@@ -107,8 +102,8 @@ function PdfPanel({ stage, ids }: { stage: StageProjection; ids: RunIds }): Reac
   const url = runPdfUrl(ids.workflowId, ids.runId);
   return (
     <section className="mt-4 border-t border-zinc-950/5 pt-4 dark:border-white/10">
-      <h4 className="text-sm font-semibold text-zinc-950 dark:text-white">Final PDF — pinned by {stage.stageId}, verified</h4>
-      <a href={url} target="_blank" rel="noopener" className="mt-1 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Open final PDF ({stage.pdfRef.member})</a>
+      <h3 className="text-sm font-semibold text-zinc-950 dark:text-white">Final PDF — pinned by {stage.stageId}, verified</h3>
+      <p className="mt-1"><TextLink href={url} target="_blank" rel="noopener">Open final PDF ({stage.pdfRef.member})</TextLink></p>
       <iframe src={url} title="Final PDF" className="mt-3 h-96 w-full rounded-lg bg-white ring-1 ring-zinc-950/5 dark:bg-zinc-950 dark:ring-white/10" />
     </section>
   );
@@ -123,15 +118,13 @@ function StageItem({ stage, ids }: { stage: StageProjection; ids: RunIds }): Rea
       {stage.gate && <GateCallout gate={stage.gate} />}
       <Card>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm font-semibold text-zinc-950 dark:text-white">{stage.stageId || "(unnamed stage)"}</span>{" "}
+          <h2 className="font-mono text-sm font-semibold text-zinc-950 dark:text-white">{stage.stageId || "(unnamed stage)"}</h2>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">{stage.status || "unknown"}</span>
           <Verification stage={stage} />
         </div>
         <StageFacts stage={stage} />
         {stage.outputRef && (
-          <p className="mt-4">
-            <a href={stageOutputUrl(ids.workflowId, ids.runId, stage.stageId)} download="" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Download {stage.outputRef.artifactType || "artifact"}</a>
-          </p>
+          <p className="mt-4"><TextLink href={stageOutputUrl(ids.workflowId, ids.runId, stage.stageId)} download="">Download {stage.outputRef.artifactType || "artifact"}</TextLink></p>
         )}
         {pins.map((pin) => pin && <ArtifactRef key={`${pin.artifactType}/${pin.slug}`} pin={pin} />)}
         <PdfPanel stage={stage} ids={ids} />
@@ -145,8 +138,8 @@ function Projection({ projection, ids }: { projection: WorkflowRunProjection; id
   const notice = liveNotice(projection.live);
   return (
     <Screen wide title={`Run ${projection.runId || ids.runId}`}
-      description={`Run status: ${CLASSIFICATION_LABELS[projection.classification] ?? projection.classification}`}>
-      {notice && <p className="mb-6 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">{notice}</p>}
+      description={`Run status: ${RUN_CLASSIFICATION_LABELS[projection.classification] ?? projection.classification}`}>
+      {notice && <div className="mb-6"><Notice>{notice}</Notice></div>}
       <ol className="ml-1.5 space-y-6 border-l border-zinc-200 dark:border-zinc-800">
         {projection.stages.map((stage, index) => <StageItem key={`${stage.stageId}#${index}`} stage={stage} ids={ids} />)}
       </ol>
@@ -159,7 +152,7 @@ export function Journey({ body, ids }: { body: WorkflowRunResponse; ids: RunIds 
   if (!("problem" in body)) return <Projection projection={body} ids={ids} />;
   return (
     <Screen wide title={`Run ${ids.runId}`}>
-      <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 ring-1 ring-red-600/20 dark:bg-red-500/10 dark:text-red-400 dark:ring-red-500/20">This run could not be projected: {body.problem}</p>
+      <Notice tone="red" alert>This run could not be projected: {body.problem}</Notice>
     </Screen>
   );
 }
@@ -167,6 +160,5 @@ export function Journey({ body, ids }: { body: WorkflowRunResponse; ids: RunIds 
 /** Fetch the run on every visit and show its journey. */
 export function JourneyView({ workflowId, runId }: RunIds): ReactNode {
   const state = useAsync(() => fetchWorkflowRun(workflowId, runId), `${workflowId}\n${runId}`);
-  if (state.status === "loading") return <p role="status" className="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">Verifying retained workflow records…</p>;
-  return <AsyncView state={state}>{(body) => <Journey body={body} ids={{ workflowId, runId }} />}</AsyncView>;
+  return <AsyncView state={state} loading="Verifying retained workflow records…">{(body) => <Journey body={body} ids={{ workflowId, runId }} />}</AsyncView>;
 }

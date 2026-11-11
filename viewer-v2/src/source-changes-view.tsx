@@ -8,36 +8,13 @@
  */
 import { useState, type ReactNode } from "react";
 import { fetchSourceChanges, type SourceChangeCandidate, type SourceChangePage, type SourceChangesReport, type SourceExcerpt } from "./api";
-import { Badge, Button, Card, RowList, Screen, SelectField, Stat } from "./components";
+import { AsyncView } from "./async-view";
+import { Badge, Button, Card, CodeBlock, Disclosure, EmptyState, Notice, RowList, Screen, SelectField, Stat } from "./components";
 import { metadataBlock, ownerStatus, reviewCommand, reviewMessage } from "./source-changes-model";
 import { useAsync } from "./use-async";
+import { plural } from "./wiki-model";
 
 const CLIPBOARD_TIMEOUT_MS = 2000;
-const EXCERPT_LIMIT = 20;
-
-/** Disk text, kept verbatim and wrapped so long lines never widen the screen. */
-function Pre({ children }: { children: ReactNode }): ReactNode {
-  return (
-    <pre className="overflow-x-auto rounded-lg bg-zinc-50 p-3 font-mono text-xs whitespace-pre-wrap break-words text-zinc-800 ring-1 ring-zinc-950/5 ring-inset dark:bg-white/5 dark:text-zinc-200 dark:ring-white/10">
-      {children}
-    </pre>
-  );
-}
-
-/** A native disclosure with the screen's summary styling; `open` only sets the initial state. */
-function Disclosure({ summary, open, children }: { summary: ReactNode; open?: boolean; children: ReactNode }): ReactNode {
-  return (
-    <details open={open}>
-      <summary className="cursor-pointer text-sm font-medium text-zinc-700 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white">{summary}</summary>
-      <div className="mt-2 space-y-2">{children}</div>
-    </details>
-  );
-}
-
-/** A caution the reader must not miss. */
-function Notice({ children }: { children: ReactNode }): ReactNode {
-  return <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-600/20 ring-inset dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/20">{children}</p>;
-}
 
 /** A quiet secondary line. */
 function Note({ children }: { children: ReactNode }): ReactNode {
@@ -45,7 +22,7 @@ function Note({ children }: { children: ReactNode }): ReactNode {
 }
 
 function TechnicalDetails({ text }: { text: string }): ReactNode {
-  return <Disclosure summary="Technical details"><Pre>{text}</Pre></Disclosure>;
+  return <Disclosure summary="Technical details"><CodeBlock>{text}</CodeBlock></Disclosure>;
 }
 
 /** The initial metadata block moves into a disclosure; the exact text is retained. */
@@ -53,40 +30,47 @@ function DocumentText({ text, expandMetadata = false }: { text: string; expandMe
   const metadata = metadataBlock(text);
   return (
     <div className="space-y-2">
-      {metadata && <Disclosure summary="Page metadata" open={expandMetadata}><Pre>{metadata}</Pre></Disclosure>}
-      <Pre>{metadata ? text.slice(metadata.length) : text}</Pre>
+      {metadata && <Disclosure summary="Page metadata" open={expandMetadata}><CodeBlock>{metadata}</CodeBlock></Disclosure>}
+      <CodeBlock>{metadata ? text.slice(metadata.length) : text}</CodeBlock>
     </div>
   );
 }
 
-/** Clipboard only; the command never runs from here. */
-function CommandCard({ root, id }: { root: string; id?: string }): ReactNode {
+/** The copyable command, its caveats, and the copy button with its status line. */
+function CopyableCommand({ command }: { command: string }): ReactNode {
   const [status, setStatus] = useState("");
-  const command = reviewCommand(root, id);
   const copy = async (): Promise<void> => {
     setStatus("Copying…");
     const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Clipboard confirmation timed out")), CLIPBOARD_TIMEOUT_MS));
     try {
-      await Promise.race([navigator.clipboard.writeText(command ?? ""), timeout]);
+      await Promise.race([navigator.clipboard.writeText(command), timeout]);
       setStatus("Copied — paste into your terminal. Nothing has run yet.");
     } catch {
       setStatus("Clipboard unavailable. Select and copy the command above manually.");
     }
   };
   return (
+    <>
+      <CodeBlock>{command}</CodeBlock>
+      <Note>For macOS / Linux shells. Requires llmwiki on your PATH.</Note>
+      <div className="flex items-center gap-3">
+        <Button onClick={copy}>Copy terminal command</Button>
+        <span role="status" className="text-xs text-zinc-500 dark:text-zinc-400">{status}</span>
+      </div>
+    </>
+  );
+}
+
+/** Clipboard only; the command never runs from here. */
+function CommandCard({ root, id }: { root: string; id?: string }): ReactNode {
+  const command = reviewCommand(root, id);
+  return (
     <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
       <p>Project directory: <span className="font-mono text-xs break-all">{root || "unavailable"}</span></p>
       {id !== undefined && <p>Proposal ID: {id}</p>}
-      {command === null ? <Notice>A safe copyable command is unavailable. Reload the viewer or inspect this project manually.</Notice> : (
-        <>
-          <Pre>{command}</Pre>
-          <Note>For macOS / Linux shells. Requires llmwiki on your PATH.</Note>
-          <div className="flex items-center gap-3">
-            <Button onClick={copy}>Copy terminal command</Button>
-            <span role="status" className="text-xs text-zinc-500 dark:text-zinc-400">{status}</span>
-          </div>
-        </>
-      )}
+      {command === null
+        ? <Notice>A safe copyable command is unavailable. Reload the viewer or inspect this project manually.</Notice>
+        : <CopyableCommand command={command} />}
     </div>
   );
 }
@@ -95,7 +79,7 @@ function CommandCard({ root, id }: { root: string; id?: string }): ReactNode {
 function NextAction({ page, root, candidate }: { page: SourceChangePage; root: string; candidate?: SourceChangeCandidate }): ReactNode {
   const hasProposal = page.candidates.length > 0;
   return (
-    <aside aria-live="polite">
+    <aside aria-label="Next action">
       <Card title={hasProposal ? "Next: review the proposed changes" : "Next: generate a proposed update"}>
         <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
           <p>Selected page: <span className="font-medium text-zinc-900 dark:text-zinc-100">{page.title}</span></p>
@@ -113,7 +97,7 @@ function NextAction({ page, root, candidate }: { page: SourceChangePage; root: s
 function Excerpt({ excerpt, status }: { excerpt: SourceExcerpt; status: string }): ReactNode {
   return (
     <Disclosure summary={`${excerpt.file} · ${status}`} open={status === "changed"}>
-      <Pre>{excerpt.text ?? `Preview unavailable: ${excerpt.status}`}</Pre>
+      <CodeBlock>{excerpt.text ?? `Preview unavailable: ${excerpt.status}`}</CodeBlock>
       {excerpt.truncated && <Note>Excerpt shortened. Inspect the full source before deciding.</Note>}
     </Disclosure>
   );
@@ -181,7 +165,7 @@ function PageComparison(props: ComparisonProps): ReactNode {
       {page.reconciliationPending && <Notice>Compiler reconciliation marker present; this is not a human edit lock.</Notice>}
       <ComparisonPanel heading="01 · Source evidence" caption="Current excerpts · not a historical diff">
         {page.excerpts.map((excerpt) => <Excerpt key={excerpt.file} excerpt={excerpt} status={ownerStatus(excerpt, page.owners)} />)}
-        {page.excerpts.length < page.owners.length && <Note>Only the first {EXCERPT_LIMIT} contributor previews are shown.</Note>}
+        {page.excerpts.length < page.owners.length && <Note>Only the first {page.excerpts.length} of {page.owners.length} contributor previews are shown.</Note>}
       </ComparisonPanel>
       <ComparisonPanel heading="02 · Current wiki" caption="Saved page · unchanged by this screen">
         <DocumentText text={page.current ?? page.readStatus} expandMetadata={metadataChanged} />
@@ -218,9 +202,9 @@ function ReviewQueue({ report, selected, onSelect }: { report: SourceChangesRepo
             <li key={row.slug}>
               <button type="button" aria-pressed={index === selected} onClick={() => onSelect(index)}
                 className="flex w-full flex-col items-start gap-0.5 px-4 py-3 text-left text-sm hover:bg-zinc-50 aria-pressed:bg-indigo-50 dark:hover:bg-white/5 dark:aria-pressed:bg-indigo-500/10">
-                <strong className="font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong>{" "}
+                <strong className="font-medium text-zinc-900 dark:text-zinc-100">{row.title}</strong>
                 <span className="text-zinc-600 dark:text-zinc-300">{row.impact}</span>
-                <small className="text-xs text-zinc-500 dark:text-zinc-400">{row.candidates.length} proposal(s) · {row.owners.length} source(s)</small>
+                <small className="text-xs text-zinc-500 dark:text-zinc-400">{plural(row.candidates.length, "proposal")} · {plural(row.owners.length, "source")}</small>
               </button>
             </li>
           ))}
@@ -241,7 +225,7 @@ function Workspace({ report }: { report: SourceChangesReport }): ReactNode {
       <div className="grid items-start gap-6 lg:grid-cols-3">
         <ReviewQueue report={report} selected={selected.page} onSelect={(index) => setSelected({ page: index, candidate: 0 })} />
         <div className="lg:col-span-2">
-          {page && <PageComparison page={page} candidate={candidate} onChoose={(index) => setSelected({ ...selected, candidate: index })} />}
+          {page && <PageComparison page={page} candidate={candidate} onChoose={(index) => setSelected((current) => ({ ...current, candidate: index }))} />}
         </div>
       </div>
     </>
@@ -253,32 +237,36 @@ export function SourceCockpit({ report }: { report: SourceChangesReport }): Reac
   return (
     <Screen wide title="Source review cockpit"
       description="Choose a page. Compare its evidence. Decide what needs attention before CLI review."
-      actions={<><Badge tone="indigo">KNOWLEDGE MAINTENANCE · READ-ONLY PREVIEW</Badge><Button onClick={() => window.location.reload()}>Check files again</Button></>}>
+      actions={<><Badge tone="indigo">READ-ONLY PREVIEW</Badge><Button onClick={() => window.location.reload()}>Check files again</Button></>}>
       <div className="space-y-6">
         <Note>Inspection only — proposals are not approved. Content origin is not authenticated by this view; local data may include authored examples.</Note>
         <Metrics report={report} />
         {report.stateStatus !== "ok" && <Notice>Compilation state is unavailable. No freshness conclusion can be drawn.</Notice>}
-        <Workspace report={report} />
-        {report.pages.length === 0 && <p className="text-sm text-zinc-500 dark:text-zinc-400">No supported affected pages or proposals found in this bounded observation.</p>}
+        {report.pages.length === 0
+          ? <EmptyState title="Nothing to review" body="No supported affected pages or proposals found in this bounded observation." />
+          : <Workspace report={report} />}
         <TechnicalDetails text={`Observed ${report.observedAt}. State: ${report.stateStatus}. Showing ${report.pages.length} of ${report.totalPages} pages; ${report.candidateShown} supported proposals from ${report.candidateTotal} pending records.`} />
       </div>
     </Screen>
   );
 }
 
-/** The source-changes screen: loading, not enabled, unavailable, or the cockpit. */
+/** Shown when the server has source comparison switched off. */
+function NotEnabled(): ReactNode {
+  return (
+    <Screen title="Source changes">
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">Source comparison is not enabled on this viewer. It is an opt-in server option that only answers on a loopback address; the Reviews screen links here when it is on.</p>
+    </Screen>
+  );
+}
+
+/** The source-changes screen: loading, unavailable, not enabled, or the cockpit. */
 export function SourceChangesView(): ReactNode {
   const state = useAsync(fetchSourceChanges, "source-changes");
-  if (state.status === "loading") return <p className="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">Reading current sources and proposals…</p>;
-  if (state.status === "error") {
-    return <p role="alert" className="mx-auto max-w-3xl rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-400">Source comparison is unavailable or not enabled. No previous comparison is retained. Reload to retry.</p>;
-  }
-  if (state.data === null) {
-    return (
-      <Screen title="Source changes">
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">Source comparison is not enabled on this viewer. It is an opt-in server option that only answers on a loopback address; the Reviews screen links here when it is on.</p>
-      </Screen>
-    );
-  }
-  return <SourceCockpit report={state.data} />;
+  return (
+    <AsyncView state={state} loading="Reading current sources and proposals…"
+      error="Source comparison is unavailable or not enabled. No previous comparison is retained. Reload to retry.">
+      {(report) => (report === null ? <NotEnabled /> : <SourceCockpit report={report} />)}
+    </AsyncView>
+  );
 }

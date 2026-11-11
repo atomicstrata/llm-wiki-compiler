@@ -13,6 +13,7 @@
  * is the one in view.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { prefersReducedMotion } from "./media";
 import { RailSection } from "./page-rail";
 
 /** One outline entry. */
@@ -94,13 +95,14 @@ function useScrollSpy(items: OutlineItem[]): { active: string | null; pin: (id: 
       if (frame === 0) frame = requestAnimationFrame(measure);
     };
     const release = (): void => { pinned.current = null; };
+    const controller = new AbortController();
+    const options = { passive: true, signal: controller.signal };
     measure();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    for (const type of MANUAL_SCROLL_EVENTS) window.addEventListener(type, release, { passive: true });
+    window.addEventListener("scroll", onScroll, options);
+    for (const type of MANUAL_SCROLL_EVENTS) window.addEventListener(type, release, options);
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-      for (const type of MANUAL_SCROLL_EVENTS) window.removeEventListener(type, release);
+      controller.abort();
     };
   }, [items]);
   const pin = (id: string): void => {
@@ -112,9 +114,8 @@ function useScrollSpy(items: OutlineItem[]): { active: string | null; pin: (id: 
 
 /** Scroll a heading into view, without animation when the reader asked for less motion. */
 function scrollToHeading(id: string): void {
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const heading = document.getElementById(id);
-  heading?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  heading?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
   heading?.setAttribute("tabindex", "-1");
   heading?.focus({ preventScroll: true });
 }

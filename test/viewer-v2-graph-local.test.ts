@@ -9,7 +9,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { GraphEdge } from "../viewer-v2/src/api.js";
 import { GraphLegend, GraphSurface, shortLabel } from "../viewer-v2/src/graph-canvas.js";
-import { communities, communityColor, COMMUNITY_COLORS, localGraph, neighbourIds, UNCLUSTERED_COLOR } from "../viewer-v2/src/graph-neighbourhood.js";
+import { adjacency, communities, communityColor, COMMUNITY_COLORS, localGraph, UNCLUSTERED_COLOR } from "../viewer-v2/src/graph-neighbourhood.js";
+import { zoomsOnGesture } from "../viewer-v2/src/graph-layout.js";
 import { pageIdForTitle } from "../viewer-v2/src/graph-view.js";
 import { NeighbourhoodSection } from "../viewer-v2/src/page-neighbourhood.js";
 import { envelope, graph, page, text } from "./fixtures/viewer-v2-fixtures.js";
@@ -28,8 +29,8 @@ const TWO_CLUSTERS = graph(
 describe("neighbours and local graphs", () => {
   it("finds neighbours in both directions, ignoring self-loops", () => {
     const data = graph(["c/x", "c/y", "c/z"], links(["c/x", "c/y"], ["c/z", "c/x"], ["c/x", "c/x"]));
-    expect([...neighbourIds(data, "c/x")].sort()).toEqual(["c/y", "c/z"]);
-    expect(neighbourIds(data, "c/missing").size).toBe(0);
+    expect([...(adjacency(data).get("c/x") ?? [])].sort()).toEqual(["c/y", "c/z"]);
+    expect(adjacency(data).get("c/missing")).toBeUndefined();
   });
 
   it("keeps the centre, its neighbours, then second-hop nodes up to the limit, with degrees counted inside", () => {
@@ -71,6 +72,17 @@ describe("labels and lookup", () => {
     expect(pageIdForTitle(wiki, "  kiln firing log ")).toBe("concepts/kiln");
     expect(pageIdForTitle(wiki, "Kiln")).toBeNull();
     expect(pageIdForTitle(wiki, "")).toBeNull();
+  });
+});
+
+describe("zoom gestures", () => {
+  it("lets the rail's small graph leave plain scrolling to the page", () => {
+    expect(zoomsOnGesture(false, { type: "wheel" })).toBe(true);
+    expect(zoomsOnGesture(true, { type: "wheel" })).toBe(false);
+    expect(zoomsOnGesture(true, { type: "wheel", ctrlKey: true })).toBe(true);
+    expect(zoomsOnGesture(true, { type: "touchstart", touches: { length: 1 } })).toBe(false);
+    expect(zoomsOnGesture(true, { type: "touchstart", touches: { length: 2 } })).toBe(true);
+    expect(zoomsOnGesture(true, { type: "mousedown" })).toBe(true);
   });
 });
 

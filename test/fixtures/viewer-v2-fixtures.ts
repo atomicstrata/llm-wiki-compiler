@@ -176,3 +176,9 @@ export function artifactMetadata(overrides: Partial<ArtifactMetadata> = {}): Art
 export function text(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/\s+/g, " ").trim();
 }
+
+/** An in-memory stand-in for `localStorage`, for the per-browser conveniences. */
+export function memoryStore(): { getItem: (key: string) => string | null; setItem: (key: string, value: string) => void } {
+  const values = new Map<string, string>();
+  return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => { values.set(key, value); } };
+}

@@ -7,12 +7,22 @@
  * here except the two loaders is pure so it can be tested without a browser.
  */
 import { fetchPage, fetchSourceText, type PageRow } from "./api";
+import { closestElement } from "./dom";
+import { htmlText } from "./page-model";
+import { lineRange } from "./route";
 import { typeLabel } from "./wiki-model";
 
+/** A span of a source file; no lines means the citation names the whole file. */
+export interface CitationTarget {
+  kind: "citation";
+  file: string;
+  lineStart?: number;
+  lineEnd?: number;
+  resolved: boolean;
+}
+
 /** What a hovered element previews: a wiki page by id, or a span of a source file. */
-export type PreviewTarget =
-  | { kind: "page"; id: string }
-  | { kind: "citation"; file: string; lineStart: number | null; lineEnd: number | null; resolved: boolean };
+export type PreviewTarget = { kind: "page"; id: string } | CitationTarget;
 
 /** One numbered line of a cited excerpt. */
 export interface ExcerptLine {
@@ -34,16 +44,9 @@ const OPENING_MAX_CHARS = 280;
 
 const TRIGGER_SELECTOR = "a[data-page-id], .citation-chip[data-file]";
 
-/** A positive line number from a data attribute, or null. */
-function lineNumber(value: string | undefined): number | null {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-/** The nearest preview trigger at or above `node`, if any; text nodes and the window have no `closest`. */
+/** The nearest preview trigger at or above `node`, if any. */
 export function findTrigger(node: EventTarget | null): HTMLElement | null {
-  const element = node as Partial<Element> | null;
-  return typeof element?.closest === "function" ? element.closest<HTMLElement>(TRIGGER_SELECTOR) : null;
+  return closestElement(node, TRIGGER_SELECTOR);
 }
 
 /** Whether `trigger` is the open or about-to-open one, so moving within it changes nothing. */
@@ -56,36 +59,28 @@ export function pageKindLabel(id: string, row: PageRow | undefined): string {
   return typeLabel(row?.entityType ?? row?.pageDirectory ?? id.split("/")[0]);
 }
 
-/** Read what a trigger element previews. */
+/** Read what a trigger element previews; a citation's lines follow the same rules as a source link's. */
 export function previewTarget(trigger: HTMLElement): PreviewTarget | null {
   const { pageId, file, lineStart, lineEnd, resolved } = trigger.dataset;
   if (pageId) return { kind: "page", id: pageId };
   if (!file) return null;
-  const start = lineNumber(lineStart);
-  return { kind: "citation", file, lineStart: start, lineEnd: lineNumber(lineEnd) ?? start, resolved: resolved !== "false" };
+  return { kind: "citation", file, ...lineRange(lineStart, lineEnd), resolved: resolved !== "false" };
 }
 
 /** The cited lines of `text`, numbered from 1; a citation without lines shows the file's opening. */
-export function sliceExcerpt(text: string, lineStart: number | null, lineEnd: number | null): Excerpt {
+export function sliceExcerpt(text: string, lineStart?: number, lineEnd?: number): Excerpt {
   const all = text.split(/\r?\n/);
   const first = lineStart ?? 1;
-  const last = Math.min(lineEnd ?? (lineStart === null ? WHOLE_FILE_LINES : first), all.length);
+  const last = Math.min(lineStart === undefined ? WHOLE_FILE_LINES : (lineEnd ?? first), all.length);
   const shownLast = Math.min(last, first + MAX_EXCERPT_LINES - 1);
   const lines = all.slice(first - 1, shownLast).map((line, index) => ({ number: first + index, text: line }));
   return { lines, hiddenCount: Math.max(0, last - shownLast) };
 }
 
-const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&#x27;": "'", "&nbsp;": " " };
-
 /** The first paragraph of rendered page HTML as plain text, cut at a word near `maxChars`. */
 export function plainOpening(html: string, maxChars = OPENING_MAX_CHARS): string {
   const paragraph = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(html)?.[1] ?? "";
-  const text = paragraph
-    .replace(/<span[^>]*class="citation-chip"[^>]*>[\s\S]*?<\/span>/g, "")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&[#\w]+;/g, (entity) => ENTITIES[entity] ?? entity)
-    .replace(/\s+/g, " ")
-    .trim();
+  const text = htmlText(paragraph.replace(/<span[^>]*class="citation-chip"[^>]*>[\s\S]*?<\/span>/g, "")).replace(/\s+/g, " ");
   if (text.length <= maxChars) return text;
   const cut = text.slice(0, maxChars);
   return `${cut.slice(0, cut.lastIndexOf(" ") > 0 ? cut.lastIndexOf(" ") : maxChars)}…`;
@@ -117,7 +112,7 @@ export function pageBlurb(id: string, row: PageRow | undefined): Promise<string>
 }
 
 /** The text a citation card excerpts; a citation whose file is missing has none to fetch. */
-export function citedSourceText(target: Extract<PreviewTarget, { kind: "citation" }>): Promise<string> {
+export function citedSourceText(target: CitationTarget): Promise<string> {
   return target.resolved ? loadSourceText(target.file) : Promise.reject(new Error(`Source not found: ${target.file}`));
 }
 

@@ -42,18 +42,20 @@ function SearchButton(): ReactNode {
 /** The persistent header. */
 export function Header({ wiki, health }: HeaderProps): ReactNode {
   const verdict = wikiVerdict(wiki, health);
+  const meta = metaLine(wiki);
+  const title = wiki.project.title || "llmwiki";
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-zinc-950/5 bg-white/90 px-4 backdrop-blur dark:border-white/10 dark:bg-zinc-950/90">
-      <a href="#/" className="flex max-w-1/2 shrink-0 items-center gap-2.5" title={metaLine(wiki)}>
+      <a href="#/" className="flex max-w-1/2 shrink-0 items-center gap-2.5" title={meta}>
         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-indigo-600 text-sm font-bold text-white" aria-hidden="true">
-          {(wiki.project.title || "l").charAt(0).toUpperCase()}
+          {title.charAt(0).toUpperCase()}
         </span>
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-zinc-950 dark:text-white">{wiki.project.title || "llmwiki"}</span>
+          <span className="block truncate text-sm font-semibold text-zinc-950 dark:text-white">{title}</span>
           <span className="hidden text-xs text-zinc-500 sm:block dark:text-zinc-400">Local · read only</span>
         </span>
       </a>
-      <span title={metaLine(wiki)} className="hidden sm:inline-flex"><Badge tone={VERDICT_TONE[verdict.tone]}>{verdict.text}</Badge></span>
+      <span title={meta} className="hidden sm:inline-flex"><Badge tone={VERDICT_TONE[verdict.tone]}>{verdict.text}</Badge></span>
       <SearchButton />
     </header>
   );

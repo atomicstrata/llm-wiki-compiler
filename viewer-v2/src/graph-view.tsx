@@ -10,7 +10,7 @@
  */
 import { useId, useMemo, useState, type ReactNode } from "react";
 import type { PagesEnvelope } from "./api";
-import { Button, Screen, SelectField } from "./components";
+import { Button, Screen, SelectField, TextField } from "./components";
 import { GraphCanvas, GraphLegend, type ColorBy } from "./graph-canvas";
 import type { GraphControls } from "./graph-layout";
 import { plural } from "./wiki-model";
@@ -24,15 +24,18 @@ export function pageIdForTitle(wiki: PagesEnvelope, title: string): string | nul
 
 /** The find box: a page title with suggestions; reports the matching page, or null. */
 function FindPage({ wiki, onFind }: { wiki: PagesEnvelope; onFind: (id: string | null) => void }): ReactNode {
+  const [title, setTitle] = useState("");
   const listId = useId();
-  const titles = useMemo(() => [...new Set(wiki.pages.map((page) => page.title).filter((title) => title.length > 0))].sort(), [wiki.pages]);
+  const titles = useMemo(() => [...new Set(wiki.pages.map((page) => page.title).filter((name) => name.length > 0))].sort(), [wiki.pages]);
+  const onChange = (value: string): void => {
+    setTitle(value);
+    onFind(pageIdForTitle(wiki, value));
+  };
   return (
-    <>
-      <input type="search" list={listId} placeholder="Find a page…" aria-label="Find a page in the graph"
-        onChange={(event) => onFind(pageIdForTitle(wiki, event.target.value))}
-        className="w-56 rounded-md bg-white px-3 py-1.5 text-sm text-zinc-900 shadow-xs ring-1 ring-zinc-950/10 ring-inset placeholder:text-zinc-400 focus:ring-2 focus:ring-indigo-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/10" />
-      <datalist id={listId}>{titles.map((title) => <option key={title} value={title} />)}</datalist>
-    </>
+    <div className="w-56">
+      <TextField value={title} onChange={onChange} placeholder="Find a page…" label="Find a page in the graph" list={listId} />
+      <datalist id={listId}>{titles.map((name) => <option key={name} value={name} />)}</datalist>
+    </div>
   );
 }
 
@@ -60,7 +63,7 @@ export function GraphView({ wiki }: { wiki: PagesEnvelope }): ReactNode {
     <Screen wide title="Graph explorer" actions={actions}
       description={<>{plural(nodeCount, "node")} · {plural(edgeCount, "edge")} · <span>{plural(danglingCount, "dangling target")}</span></>}>
       <div className="relative overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-zinc-950/5 dark:bg-zinc-900 dark:ring-white/10">
-        <GraphCanvas wiki={wiki} compact={false} onSettled={setControls} colorBy={colorBy} highlightId={found} />
+        <GraphCanvas wiki={wiki} onSettled={setControls} colorBy={colorBy} highlightId={found} />
         <GraphLegend colorBy={colorBy} />
       </div>
     </Screen>

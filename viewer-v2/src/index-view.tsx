@@ -6,18 +6,18 @@ import { EmptyState, Screen } from "./components";
 import { useAsync } from "./use-async";
 import { WikiHtml } from "./wiki-html";
 
-/** Show `wiki/index.md` when it exists. */
+/** The index once it has loaded. */
+function LoadedIndex(): ReactNode {
+  const state = useAsync(fetchIndex, "index");
+  return <AsyncView state={state}>{({ html }) => <div className="mx-auto max-w-3xl"><WikiHtml html={html} /></div>}</AsyncView>;
+}
+
+/** Show `wiki/index.md` when it exists, and say how to make it when it does not. */
 export function IndexView({ hasIndex }: { hasIndex: boolean }): ReactNode {
-  const state = useAsync(() => (hasIndex ? fetchIndex() : Promise.resolve({ html: "" })), String(hasIndex));
+  if (hasIndex) return <LoadedIndex />;
   return (
-    <AsyncView state={state}>
-      {({ html }) => (
-        html ? <div className="mx-auto max-w-3xl"><WikiHtml html={html} /></div> : (
-          <Screen title="Index">
-            <EmptyState title="No compiled index" body="wiki/index.md is not available yet." command="$ llmwiki compile" />
-          </Screen>
-        )
-      )}
-    </AsyncView>
+    <Screen title="Index">
+      <EmptyState title="No compiled index" body="wiki/index.md is not available yet." command="$ llmwiki compile" />
+    </Screen>
   );
 }

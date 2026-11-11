@@ -5,7 +5,9 @@
  * surfaces that need it. Hover previews, the command palette and the
  * keyboard shortcuts mount once here, so they work from every view.
  */
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { stampVisit } from "./activity-model";
+import { safeLocalStorage } from "./storage";
 import type { HealthPayload, PagesEnvelope } from "./api";
 import { AsyncView } from "./async-view";
 import { CommandPalette } from "./command-palette";
@@ -18,7 +20,6 @@ import { IndexView } from "./index-view";
 import { JourneyView } from "./journey-view";
 import { ConceptsList, QueriesList, SourcesList, TagList, TypeList } from "./lists";
 import { PageView } from "./page-view";
-import { PendingView } from "./pending-view";
 import { PipelineView } from "./pipeline-view";
 import { RecentView } from "./recent-view";
 import { ReviewsView } from "./reviews-view";
@@ -53,8 +54,9 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "recent": return <RecentView wiki={wiki} />;
     case "graph": return <GraphView wiki={wiki} />;
     case "list": { const List = LISTS[route.kind]; return <List wiki={wiki} />; }
-    case "typeList": return <TypeList wiki={wiki} type={route.type} />;
-    case "tag": return <TagList wiki={wiki} tag={route.tag} />;
+    // Keyed so the title and freshness filters start fresh on each list.
+    case "typeList": return <TypeList key={route.type} wiki={wiki} type={route.type} />;
+    case "tag": return <TagList key={route.tag} wiki={wiki} tag={route.tag} />;
     case "pipeline": return <PipelineView wiki={wiki} />;
     case "workflows": return <WorkflowsView />;
     case "journey": return <JourneyView workflowId={route.workflowId} runId={route.runId} />;
@@ -62,19 +64,22 @@ function RouteView({ route, wiki, health }: { route: Route; wiki: PagesEnvelope;
     case "health": return <HealthView wiki={wiki} health={health} />;
     case "reviews": return <ReviewsView />;
     case "sourceChanges": return <SourceChangesView />;
-    default: return <PendingView route={route} />;
+    default: return route satisfies never;
   }
 }
 
 /** Header, navigation, and current view for a loaded wiki. */
 function Shell({ wiki, health, route }: Bootstrap & { route: Route }): ReactNode {
   const warning = STATE_WARNINGS[wiki.stateStatus];
+  const routeKey = JSON.stringify(route);
+  // Every screen change is activity, so a reader who keeps reading stays in one visit.
+  useEffect(() => { stampVisit(safeLocalStorage(), new Date()); }, [routeKey]);
   return (
     <>
       {warning && <p role="alert" className="bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">{warning}</p>}
       <Header wiki={wiki} health={health} />
       {/* Narrow screens open the navigation from a disclosure; it resets on every route so it closes after a choice. */}
-      <details key={JSON.stringify(route)} className="border-b border-zinc-950/5 bg-white md:hidden dark:border-white/10 dark:bg-zinc-900">
+      <details key={routeKey} className="border-b border-zinc-950/5 bg-white md:hidden dark:border-white/10 dark:bg-zinc-900">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium">Menu</summary>
         <Sidebar wiki={wiki} health={health} route={route} />
       </details>

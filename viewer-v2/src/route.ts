@@ -107,13 +107,6 @@ export function sourceHref(id: string, lineStart?: number, lineEnd?: number): st
   return `${base}?start=${lineStart}&end=${lineEnd ?? lineStart}`;
 }
 
-/** Hash for a citation chip's `data-file` / `data-line-start` / `data-line-end`; null without a file. */
-export function citationHref(file: string | undefined, lineStart?: string, lineEnd?: string): string | null {
-  if (!file) return null;
-  const range = lineRange(lineStart, lineEnd);
-  return sourceHref(file, range.lineStart, range.lineEnd);
-}
-
 /** Hash for a search. */
 export function searchHref(query: string): string {
   return `#/${SEARCH_SEGMENT}?q=${encodeURIComponent(query)}`;
@@ -139,7 +132,7 @@ function lineNumber(value: string | null | undefined): number | undefined {
 }
 
 /** A cited line range; the end defaults to the start, and a reversed range is no range. */
-function lineRange(start: string | null | undefined, end: string | null | undefined): { lineStart?: number; lineEnd?: number } {
+export function lineRange(start: string | null | undefined, end: string | null | undefined): { lineStart?: number; lineEnd?: number } {
   const lineStart = lineNumber(start);
   if (lineStart === undefined) return {};
   const lineEnd = lineNumber(end) ?? lineStart;

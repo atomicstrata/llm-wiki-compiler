@@ -5,7 +5,8 @@
  * `data-page-id` (server wikilinks, rail links) or a citation chip's
  * `data-file`. Pointer interest opens a card after a short delay so passing
  * over a link does nothing; keyboard focus opens it at once; leaving, Escape
- * or a navigation closes it. The card is supplemental: everything it shows is
+ * or a navigation closes it. The card is a manual popover, so it renders in
+ * the top layer, above a modal dialog such as the page details sheet. The card is supplemental: everything it shows is
  * one click away, so it is a non-interactive `role="tooltip"` described by its
  * trigger, and it lets the pointer pass through. Floating UI places it, flipping
  * at viewport edges; it writes position through the CSSOM, which the viewer's
@@ -15,9 +16,8 @@
 import { autoUpdate, computePosition, flip, offset, shift, size } from "@floating-ui/dom";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import type { PageRow } from "./api";
-import { citedSourceText, findTrigger, isTracked, pageBlurb, pageKindLabel, previewTarget, sliceExcerpt, type Excerpt, type PreviewTarget } from "./preview-data";
-import type { AsyncState } from "./use-async";
-import { useAsync } from "./use-async";
+import { citedSourceText, findTrigger, isTracked, pageBlurb, pageKindLabel, previewTarget, sliceExcerpt, type CitationTarget, type Excerpt, type PreviewTarget } from "./preview-data";
+import { useAsync, type AsyncState } from "./use-async";
 
 /** Long enough that sweeping the pointer across a paragraph opens nothing. */
 const OPEN_DELAY_MS = 350;
@@ -56,35 +56,35 @@ function usePreviewTrigger(): OpenPreview | null {
       pending = trigger;
       if (trigger !== null) timer = window.setTimeout(() => show(trigger), OPEN_DELAY_MS);
     };
-    const listeners = listenerTable(onOver, show, hide, () => current);
-    for (const [type, listener] of listeners) document.addEventListener(type, listener as EventListener);
-    window.addEventListener("hashchange", hide);
+    const controller = new AbortController();
+    listen(controller.signal, { onOver, show, hide, current: () => current });
     return () => {
       window.clearTimeout(timer);
-      for (const [type, listener] of listeners) document.removeEventListener(type, listener as EventListener);
-      window.removeEventListener("hashchange", hide);
+      controller.abort();
     };
   }, []);
   return open;
 }
 
-/** The remaining listeners: leaving the window, focus in and out, and Escape. */
-function listenerTable(
-  onOver: (event: PointerEvent) => void,
-  show: (trigger: HTMLElement) => void,
-  hide: () => void,
-  current: () => HTMLElement | null,
-): [string, (event: never) => void][] {
-  return [
-    ["pointerover", onOver],
-    ["pointerout", (event: PointerEvent) => { if (event.relatedTarget === null) hide(); }],
-    ["focusin", (event: FocusEvent) => {
-      const trigger = findTrigger(event.target);
-      if (trigger !== null && trigger !== current()) show(trigger);
-    }],
-    ["focusout", (event: FocusEvent) => { if (findTrigger(event.target) === current()) hide(); }],
-    ["keydown", (event: KeyboardEvent) => { if (event.key === "Escape") hide(); }],
-  ];
+interface InterestHandlers {
+  onOver: (event: PointerEvent) => void;
+  show: (trigger: HTMLElement) => void;
+  hide: () => void;
+  current: () => HTMLElement | null;
+}
+
+/** Attach every listener under one signal: pointer interest, keyboard focus, leaving the window, Escape, navigation. */
+function listen(signal: AbortSignal, { onOver, show, hide, current }: InterestHandlers): void {
+  document.addEventListener("pointerover", onOver, { signal });
+  document.addEventListener("pointerout", (event) => { if (event.relatedTarget === null) hide(); }, { signal });
+  document.addEventListener("focusin", (event) => {
+    const trigger = findTrigger(event.target);
+    // Only keyboard focus opens at once; a mouse click focuses a link too, and that is not interest.
+    if (trigger !== null && trigger !== current() && trigger.matches(":focus-visible")) show(trigger);
+  }, { signal });
+  document.addEventListener("focusout", (event) => { if (findTrigger(event.target) === current()) hide(); }, { signal });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") hide(); }, { signal });
+  window.addEventListener("hashchange", hide, { signal });
 }
 
 /** Keep the card beside its trigger, and tie the two together for assistive technology. */
@@ -92,6 +92,8 @@ function usePlacement(card: HTMLDivElement | null, trigger: HTMLElement, id: str
   useEffect(() => {
     if (card === null) return;
     trigger.setAttribute("aria-describedby", id);
+    // The top layer puts the card above a modal dialog's backdrop, such as the page details sheet.
+    card.showPopover?.();
     const place = (): void => {
       void computePosition(trigger, card, {
         strategy: "fixed",
@@ -154,14 +156,14 @@ function ExcerptLines({ excerpt }: { excerpt: Excerpt }): ReactNode {
 }
 
 /** The cited lines once loaded, or why there are none. */
-function CitationBody({ state, target }: { state: AsyncState<string>; target: Extract<PreviewTarget, { kind: "citation" }> }): ReactNode {
+function CitationBody({ state, target }: { state: AsyncState<string>; target: CitationTarget }): ReactNode {
   if (state.status === "loading") return <p className="mt-1.5 text-zinc-500">Loading…</p>;
   if (state.status === "error") return <p className="mt-1.5 text-amber-700 dark:text-amber-400">The cited source is not available.</p>;
   return <ExcerptLines excerpt={sliceExcerpt(state.data, target.lineStart, target.lineEnd)} />;
 }
 
 /** The cited source's name, then its cited lines. */
-function CitationCard({ target }: { target: Extract<PreviewTarget, { kind: "citation" }> }): ReactNode {
+function CitationCard({ target }: { target: CitationTarget }): ReactNode {
   const source = useAsync(() => citedSourceText(target), target.file);
   return (
     <>
@@ -178,8 +180,8 @@ function PreviewCard({ open, rows }: { open: OpenPreview; rows: Map<string, Page
   usePlacement(card, open.trigger, id);
   const { target } = open;
   return (
-    <div ref={setCard} id={id} role="tooltip"
-      className={`pointer-events-none invisible fixed top-0 left-0 z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl ${target.kind === "page" ? "w-96" : "w-[34rem]"} bg-white p-4 text-sm shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:ring-white/10`}>
+    <div ref={setCard} id={id} role="tooltip" popover="manual"
+      className={`pointer-events-none invisible fixed inset-auto z-50 m-0 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border-0 ${target.kind === "page" ? "w-96" : "w-[34rem]"} bg-white p-4 text-sm text-zinc-900 shadow-lg ring-1 ring-zinc-950/10 dark:bg-zinc-800 dark:text-zinc-100 dark:ring-white/10`}>
       {target.kind === "page" ? <PageCard id={target.id} row={rows.get(target.id)} /> : <CitationCard target={target} />}
     </div>
   );

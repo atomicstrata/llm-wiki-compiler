@@ -11,13 +11,10 @@ import type { ViewerPage } from "./types.js";
 /** One cited line range; null when the citation names the whole file. */
 export type CitedLines = { start: number; end: number } | null;
 
-/** One page that cites the source, with every span it cites. */
+/** One page that cites the source, with every span it cites; its id is also its route (`<directory>/<slug>`). */
 export interface CitingPage {
   id: string;
-  pageDirectory: string;
-  slug: string;
   title: string;
-  entityType?: string;
   spans: CitedLines[];
 }
 
@@ -47,8 +44,7 @@ export function citedBy(pages: readonly ViewerPage[], file: string): CitedByPayl
   const citing = pages.flatMap((page): CitingPage[] => {
     const spans = spansCiting(page, file);
     if (spans.length === 0) return [];
-    const row: CitingPage = { id: page.id, pageDirectory: page.pageDirectory, slug: page.slug, title: page.title, spans };
-    return [page.entityType === undefined ? row : { ...row, entityType: page.entityType }];
+    return [{ id: page.id, title: page.title || page.slug, spans }];
   });
   return { source: file, pages: citing.sort((a, b) => a.title.localeCompare(b.title)) };
 }

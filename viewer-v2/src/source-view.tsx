@@ -7,8 +7,8 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { fetchSourceMeta, fetchSourceText, type SourceMeta } from "./api";
 import { AsyncView } from "./async-view";
 import { CitedByCard } from "./cited-by";
-import { Card, Screen } from "./components";
-import { SourceImageFigure } from "./source-images-view";
+import { Card, Screen, TextLink } from "./components";
+import { ImageGrid } from "./source-images-view";
 import { useAsync } from "./use-async";
 
 interface SourceViewProps {
@@ -53,20 +53,9 @@ function SourceLines({ text, lineStart, lineEnd }: { text: string; lineStart?: n
   );
 }
 
-/** The images a source declares, or nothing when it has none. */
-function SourceImageGrid({ id, images }: { id: string; images: string[] }): ReactNode {
-  if (images.length === 0) return null;
-  return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {images.map((file) => <SourceImageFigure key={file} sourceId={id} file={file} />)}
-    </div>
-  );
-}
-
 /** A link to where the source came from, or nothing when it has no locator. */
 function OriginalLink({ locator }: { locator?: string }): ReactNode {
-  if (!locator) return null;
-  return <a href={locator} target="_blank" rel="noreferrer" className="text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">Original</a>;
+  return locator ? <TextLink href={locator} target="_blank" rel="noreferrer">Original</TextLink> : null;
 }
 
 /** A loaded source: its id and original link in the header, then its images and numbered text. */
@@ -76,7 +65,7 @@ function SourceDocument({ id, source, lineStart, lineEnd }: { id: string; source
     <Screen title={meta.title ?? id} description={<span className="font-mono text-xs break-all">{id}</span>} actions={<OriginalLink locator={meta.locator} />}>
       <div className="space-y-6">
         <CitedByCard id={id} />
-        <SourceImageGrid id={id} images={meta.images ?? []} />
+        <ImageGrid images={(meta.images ?? []).map((file) => ({ sourceId: id, file }))} />
         <SourceLines text={text} lineStart={lineStart} lineEnd={lineEnd} />
       </div>
     </Screen>
