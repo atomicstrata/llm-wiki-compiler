@@ -13,9 +13,14 @@ import { preparationKeyEpochId } from "../run-integrity.js";
 import type { PreparationLifecycleNamespaceV1 } from "./types.js";
 import { PreparationLifecycleNamespaceError } from "./namespace.js";
 
-/** Private key observation used only within one scanner invocation. */
+/**
+ * Private key observation used only within one scanner invocation.
+ * `unobserved` is a scan that read no key because it had no unit to
+ * authenticate (`scan.ts`); it authenticates nothing, like every non-`ok` state.
+ */
 export type CapturedLifecycleKey =
   | { readonly status: "absent" }
+  | { readonly status: "unobserved" }
   | { readonly status: "unavailable" }
   | { readonly status: "ok"; readonly key: Buffer; readonly keyEpochId: string };
 

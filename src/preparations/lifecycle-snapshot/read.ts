@@ -20,7 +20,7 @@ import {
 } from "../lifecycle-fs/namespace.js";
 import type { PresentLifecycleDirectoryV1 } from "../lifecycle-fs/types.js";
 import { lifecycleScanBounds } from "../lifecycle-fs/bounds.js";
-import { scanJustOpenedPreparationLifecycle } from "./scan.js";
+import { scanJustOpenedPreparationLifecycle, type LifecycleKeyObservation } from "./scan.js";
 import type { PreparationLifecycleReadV1 } from "./types.js";
 
 /**
@@ -82,13 +82,14 @@ export class PreparationLifecycleReadError extends Error {
 async function capturePreparationLifecycleRead(
   root: string,
   options: PreparationLifecycleReadOptions,
+  keyObservation: LifecycleKeyObservation = "always",
 ): Promise<CapturedRead> {
   try {
     const namespace = await openPreparationLifecycleNamespace(root, "read");
     // Back to back with the open: its final revalidation is the scan's start proof.
     const snapshot = await scanJustOpenedPreparationLifecycle(namespace, {
       maxRegistryEntries: options.maxRegistryEntries,
-    });
+    }, keyObservation);
     const read = Object.freeze({ status: "ok" as const, snapshot });
     const lease = { active: true };
     SUCCESSFUL_READS.set(read, { root: namespace.root, lease });
@@ -153,6 +154,12 @@ function captureCeiling(options: PreparationLifecycleReadOptions): number {
  * itself. An unavailable capture is shared like any other: it is never retried
  * within the pass, as it is never retried within one callback.
  *
+ * THE SHARED CAPTURE READS THE KEY ONLY FOR UNITS (`"for-units"` in
+ * `scan.ts`). The pass's borrowers are the recovery gate's legs, which decide
+ * on pending units and quarantine storage and never on the key state, so a
+ * project with neither registry has its key left unread. A borrow that does
+ * not share the capture reads the key as every other capture does.
+ *
  * THE CALLER OWNS THE PASS'S EXTENT: the pass runs under one hold of the
  * project lock, and the caller closes it before the first write or release that
  * could change what was read, so no borrow after that point shares the capture.
@@ -166,7 +173,7 @@ export function preparationLifecycleReadPass(root: string): PreparationLifecycle
   return {
     async borrow(consume, options = {}) {
       const captured = closed || captureCeiling(options) !== ceiling
-        ? undefined : await (shared ??= capturePreparationLifecycleRead(root, {}));
+        ? undefined : await (shared ??= capturePreparationLifecycleRead(root, {}, "for-units"));
       if (captured === undefined || closed) return fresh.borrow(consume, options);
       lent += 1;
       if (captured.lease !== undefined) captured.lease.active = true;
