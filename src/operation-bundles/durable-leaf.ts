@@ -26,12 +26,6 @@ async function optionalStat(file: string): Promise<Stats | null | undefined> {
   }
 }
 
-/** Confirm the destination still names the handle-opened inode. */
-function destinationMatches(opened: ConfirmedLeaf, destination: Stats): boolean {
-  return destination.dev === opened.dev && destination.ino === opened.ino &&
-    destination.nlink === opened.nlink;
-}
-
 /** Confirm a reserved companion names the same regular-file inode. */
 function aliasMatches(opened: ConfirmedLeaf, alias: Stats): boolean {
   return alias.isFile() && !alias.isSymbolicLink() &&
@@ -45,15 +39,22 @@ function companionLinksMatch(opened: ConfirmedLeaf, present: Stats[]): boolean {
   return aliasMatches(opened, present[0]!);
 }
 
-/** Require the destination plus at most one exact protocol-owned hard link. */
+/**
+ * Require at most one exact protocol-owned hard link beside the destination.
+ *
+ * The destination itself is not looked up again here. Each call directly
+ * follows the confined open's or read's own post-checks, which just proved the
+ * parent's realpath and that the canonical destination names the handle's
+ * inode; `opened.nlink` is the handle's link count, and the post-read `fstat`
+ * requires it unchanged across the read. A second `lstat` of the destination
+ * would re-ask exactly those questions.
+ */
 async function reservedLinksAreExact(opened: ConfirmedLeaf): Promise<boolean> {
-  const destination = await optionalStat(opened.leaf);
   const aliases = await Promise.all([
     optionalStat(durableTempPath(opened.leaf)),
     optionalStat(durableWritingPath(opened.leaf)),
   ]);
-  if (destination === null || destination === undefined || aliases.includes(null)) return false;
-  if (!destinationMatches(opened, destination)) return false;
+  if (aliases.includes(null)) return false;
   const present = aliases.filter((item): item is Stats => item !== undefined);
   return companionLinksMatch(opened, present);
 }
