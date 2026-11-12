@@ -1,0 +1,86 @@
+# Publish each main commit's three packages as assets of the rolling
+# `main-builds` pre-release, named <package>-<short sha>.tgz, for consumers that
+# track main by URL. The knowledge base pins them that way, with bun.lock
+# holding each tarball's sha512, so a published asset must never change: a
+# commit whose facade asset exists is skipped, and the facade uploads last, so
+# its presence means the whole set is there.
+#
+# Only the newest KEEP commits' assets are kept. A consumer pinned to an older
+# commit (more than KEEP merges behind main) can no longer install from scratch.
+name: Main builds
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: main-builds
+  cancel-in-progress: false
+
+env:
+  TAG: main-builds
+  KEEP: 50
+  GH_REPO: ${{ github.repository }}
+  GH_TOKEN: ${{ github.token }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Skip a commit already published
+        id: published
+        run: |
+          short=${GITHUB_SHA:0:7}
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "llm-wiki-compiler-$short.tgz"; then
+            echo "llm-wiki-compiler-$short.tgz is already published"; echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.published.outputs.done != 'true'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: steps.published.outputs.done != 'true'
+        with:
+          bun-version-file: package.json
+      - name: Build
+        if: steps.published.outputs.done != 'true'
+        run: bun install --frozen-lockfile && bun run build
+      - name: Pack
+        if: steps.published.outputs.done != 'true'
+        env:
+          SHORT: ${{ steps.published.outputs.short }}
+        run: |
+          mkdir "$RUNNER_TEMP/packed"
+          for spec in packages/llmwiki-core:atomicstrata-llmwiki-core \
+                      packages/llmwiki-local-workflows:atomicstrata-llmwiki-local-workflows \
+                      .:llm-wiki-compiler; do
+            dir=${spec%%:*} name=${spec#*:}
+            mkdir "$RUNNER_TEMP/$name"
+            (cd "$dir" && bun pm pack --ignore-scripts --quiet --destination "$RUNNER_TEMP/$name" >/dev/null)
+            mv "$RUNNER_TEMP/$name"/*.tgz "$RUNNER_TEMP/packed/$name-$SHORT.tgz"
+          done
+          ls -l "$RUNNER_TEMP/packed"
+      - name: Upload
+        if: steps.published.outputs.done != 'true'
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --prerelease --target "$GITHUB_SHA" --title "Main builds" \
+                 --notes "Packed builds of every recent main commit, as <package>-<short sha>.tgz. Not a release."
+          # A failed run may have left these; nothing pins them until the facade exists.
+          gh release upload "$TAG" --clobber "$RUNNER_TEMP"/packed/atomicstrata-*.tgz
+          gh release upload "$TAG" "$RUNNER_TEMP"/packed/llm-wiki-compiler-*.tgz
+      - name: Prune all but the newest commits
+        run: |
+          id=$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq .id)
+          gh api --paginate "repos/$GH_REPO/releases/$id/assets?per_page=100" --jq '.[] | [.created_at, .id, .name] | @tsv' \
+            | sort -r \
+            | awk -F'\t' -v keep="$KEEP" '{ sha = $3; sub(/.*-/, "", sha); if (!(sha in seen)) { seen[sha] = 1; n++ } if (n > keep) print $2 }' \
+            | while read -r asset; do gh api -X DELETE "repos/$GH_REPO/releases/assets/$asset"; done
