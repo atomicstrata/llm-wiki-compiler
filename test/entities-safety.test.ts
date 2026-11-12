@@ -70,6 +70,20 @@ describe("the alias registry's exclude list", () => {
   });
 });
 
+describe("citations on a page already written", () => {
+  it("fits a citation across a gap to the lines shown, with no model call", async () => {
+    const lines = ["# Notes", ...Array.from({ length: 20 }, (_, index) => `line ${index + 2}`)];
+    const memory = memoryEntitySteps({ "notes.md": lines.join("\n") }, { "notes.md": [{ name: "Ana", line: 3 }, { name: "Ana", line: 16 }] });
+    await generateEntitiesWith(memory.steps, entityConfig({ timeZone: null }));
+    const page = memory.pages.get("person/ana")!;
+    memory.pages.set("person/ana", page.replace(/\^\[notes\.md:\d+-\d+\]/, "^[notes.md:4-15]"));
+    const requests = memory.pageRequests.length;
+    await generateEntitiesWith(memory.steps, entityConfig({ timeZone: null }));
+    expect(memory.pageRequests.length).toBe(requests);
+    expect(memory.pages.get("person/ana")).toContain("^[notes.md:4-5, 14-15]");
+  });
+});
+
 describe("record ids", () => {
   it("never merges a name into a registered record because their slugs match", () => {
     const registry = { entities: { person: { alex: ["Alex Johnson", "AJ"] } } };

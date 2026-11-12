@@ -5,7 +5,7 @@
  * file, source reads, the pages in a wiki directory, compile's locked page
  * writer, model provenance and the clock), and the bookkeeping every such step
  * does the same way: telling its own pages from hand-written ones, asking the
- * model for a page, flagging citations of lines it was not shown, and applying
+ * model for a page, fitting its citations to the lines it was shown, and applying
  * writes and deletes while reporting what landed.
  *
  * PRECONDITION: the caller holds the project lock (compile does), because the
@@ -20,7 +20,7 @@ import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { readWikiPageContentOrWarnFrom } from "./confined-wiki-read.js";
 import { applyCompilePageWritesLocked, type CompilePageWrite, type SkippedWrite } from "./compile-write.js";
 import { addModelProvenanceMeta } from "./provenance.js";
-import { citationsOutside, splitAnswer, type LineRange, type PageRequest } from "./source-excerpt.js";
+import { fitCitations, splitAnswer, type PageRequest, type ShownLines } from "./source-excerpt.js";
 
 /** The reads and writes every derived step composes. */
 export interface DerivedSteps {
@@ -132,10 +132,15 @@ export async function completePage(report: PageReport, complete: (request: PageR
   return null;
 }
 
-/** Report a page body that cites lines outside `shown`, the lines it was written from. The page is still written. */
-export function reportStrayCitations(report: PageReport, slug: string, body: string, shown: { file: string; ranges: LineRange[] }[]): void {
-  const stray = citationsOutside(body, [{ sources: shown }]);
-  if (stray > 0) report.result.errors.push(`${report.label(slug)} cites ${stray} span${stray === 1 ? "" : "s"} outside the lines it was written from`);
+/**
+ * A page body with its citations fitted to `shown`, the lines it was written
+ * from (see {@link fitCitations}); a span that cites no shown line is reported.
+ * The page is still written.
+ */
+export function fitAndReportCitations(report: PageReport, slug: string, body: string, shown: ShownLines[]): string {
+  const fitted = fitCitations(body, shown);
+  if (fitted.outside > 0) report.result.errors.push(`${report.label(slug)} cites ${fitted.outside} span${fitted.outside === 1 ? "" : "s"} outside the lines it was written from`);
+  return fitted.body;
 }
 
 /** Apply `writes`, report the ones the write floor skipped and list the rest as written; returns the writes that landed. */

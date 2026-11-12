@@ -7,8 +7,9 @@
  * Model calls are spent only where inputs changed. Extraction re-reads a source
  * only when its hash or the schema's structure changed (see extract.ts). A record
  * page is regenerated only when its signature, a hash of exactly what the model
- * would be shown, changed; otherwise only its aliases and generated tail (days,
- * possible duplicates) are refreshed, with no model call. The hub has no model
+ * would be shown, changed; otherwise only its aliases, citations (fitted to the
+ * lines shown) and generated tail (days, possible duplicates) are refreshed,
+ * with no model call. The hub has no model
  * call.
  *
  * Pages this step did not write (no `entitySignature`) are never replaced or
@@ -23,10 +24,10 @@ import { validateEntityFields } from "../profile/field-contract.js";
 import { withGenerated, type PageLink } from "../wiki/generated-section.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import {
-  claimable, completePage, deleteAndReport, ownPages, readSources, reportStrayCitations, stringField, writeAndReport,
+  claimable, completePage, deleteAndReport, fitAndReportCitations, ownPages, readSources, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
-import { sourcesExcerpt, splitAnswer } from "../compiler/source-excerpt.js";
+import { fitCitations, sourcesExcerpt, splitAnswer } from "../compiler/source-excerpt.js";
 import { dayBuckets, type DayBucket } from "../timeline/buckets.js";
 import { mentionsOf, refreshExtractions, type ExtractionCache, type ExtractSteps } from "./extract.js";
 import { displayName, hubId, possibleDuplicates, resolveRecords, type AliasRegistry, type ResolvedRecord } from "./identity.js";
@@ -153,7 +154,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: str
   const draft: RecordDraft = { record, title, fields, excerpt, signature: recordSignature(title, fields, excerpt.text), tail: recordTail(recordDays(record, ctx.days), maybeSame) };
   const page = ctx.pages.get(record.id);
   if (!page || stringField(page.meta, "entitySignature") !== draft.signature) return regenerate(ctx, draft, page);
-  const text = withGenerated(withAliases(page.text, aliasesOf(record, title, fields)), draft.tail);
+  const text = withGenerated(withAliases(fitCitations(page.text, excerpt.shown).body, aliasesOf(record, title, fields)), draft.tail);
   return { id: record.id, write: text === page.text ? null : entityWrite(ctx, record.id, text), meta: page.meta };
 }
 
@@ -175,9 +176,9 @@ async function regenerate(ctx: TypeContext, draft: RecordDraft, page: OwnPage | 
   const answer = await completePage(ctx.report, (req) => ctx.steps.complete({ ...req, tools: [] }), request, record.id);
   if (answer === null) return unchanged;
   const { summary, body } = splitAnswer(answer);
-  reportStrayCitations(ctx.report, record.id, body, draft.excerpt.shown);
+  const fitted = fitAndReportCitations(ctx.report, record.id, body, draft.excerpt.shown);
   const written = { ...meta, summary };
-  return { id: record.id, write: entityWrite(ctx, record.id, recordPage(written, body, draft.tail)), meta: recordFrontmatter(written) };
+  return { id: record.id, write: entityWrite(ctx, record.id, recordPage(written, fitted, draft.tail)), meta: recordFrontmatter(written) };
 }
 
 /** A record page's frontmatter fields, with the summary still to come. */

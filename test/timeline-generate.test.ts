@@ -9,7 +9,7 @@ import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
 import { dayExcerpt } from "../src/timeline/prompts.js";
-import { citationsOutside, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
+import { fitCitations, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
 import { withDaySections } from "../src/timeline/pages.js";
 import { memoryDerivedSteps } from "./memory-derived-steps.js";
@@ -182,7 +182,7 @@ describe("timeline prompts", () => {
     const { text, shown } = dayExcerpt(day, new Map([["a-chat.md", chat], ["b-note.md", note]]));
     expect(text).toContain("--- SOURCE: b-note.md ---\n\n4 | Decided to hire.");
     expect(shown.sources.find((source) => source.file === "b-note.md")!.ranges).toEqual([{ start: 4, end: 4 }]);
-    expect(citationsOutside("Late. ^[a-chat.md:2999-2999]", [shown])).toBe(1);
+    expect(fitCitations("Late. ^[a-chat.md:2999-2999]", shown.sources).outside).toBe(1);
   });
 
   it("shows a day's lines under their original numbers, ranges apart", () => {

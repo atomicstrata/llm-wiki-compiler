@@ -9,6 +9,7 @@
  */
 
 import { extractClaimCitations } from "../utils/markdown.js";
+import type { SourceSpan } from "../utils/types.js";
 
 /** An inclusive, 1-based range of source lines. */
 export interface LineRange {
@@ -118,23 +119,70 @@ export function mergeRanges(ranges: LineRange[]): LineRange[] {
   return merged;
 }
 
+/** A source and the line ranges a prompt showed from it. */
+export interface ShownLines {
+  file: string;
+  ranges: LineRange[];
+}
+
+/** A page body with its citations fitted to the shown lines, and how many cited spans still fall outside them. */
+export interface FittedCitations {
+  body: string;
+  outside: number;
+}
+
 /**
- * How many of a page's cited spans fall outside the lines it was written from:
- * a file not among the days' sources, or lines past the days' ranges. The model
- * is shown only those lines, so any such span is a citation it made up.
+ * Fit a page body's citations to the lines its prompt showed. The model may cite
+ * one range across two shown runs (`97-112` when it saw 94–102 and 110–114); the
+ * lines between were never shown, so the span is cut to what was:
+ * `97-102, 110-112`. A span with no shown line, or in a file not shown, is left
+ * as written and counted in `outside`, since it cites lines the model never saw.
+ * Fitting a fitted body changes nothing.
  */
-export function citationsOutside(body: string, days: { sources: { file: string; ranges: LineRange[] }[] }[]): number {
+export function fitCitations(body: string, shown: ShownLines[]): FittedCitations {
   const rangesByFile = new Map<string, LineRange[]>();
-  for (const day of days) for (const source of day.sources) {
-    rangesByFile.set(source.file, [...(rangesByFile.get(source.file) ?? []), ...source.ranges]);
+  for (const source of shown) rangesByFile.set(source.file, mergeRanges([...(rangesByFile.get(source.file) ?? []), ...source.ranges]));
+  let outside = 0;
+  const fitted = body.replace(CITATION_MARKER, (marker) => {
+    const fits = (extractClaimCitations(marker)[0]?.spans ?? []).map((span) => fitSpan(span, rangesByFile.get(span.file)));
+    outside += fits.filter((fit) => fit.outside).length;
+    return fits.some((fit) => fit.changed) ? `^[${formatSpans(fits.flatMap((fit) => fit.spans))}]` : marker;
+  });
+  return { body: fitted, outside };
+}
+
+/** A citation marker, `^[…]`. */
+const CITATION_MARKER = /\^\[[^\]]+\]/g;
+
+/** One cited span after fitting: the spans it becomes, whether it changed, and whether it cites no shown line. */
+interface FittedSpan {
+  spans: SourceSpan[];
+  changed: boolean;
+  outside: boolean;
+}
+
+/** A cited span cut to the shown `ranges` of its file. */
+function fitSpan(span: SourceSpan, ranges: LineRange[] | undefined): FittedSpan {
+  const asWritten = { spans: [span], changed: false };
+  if (!ranges) return { ...asWritten, outside: true };
+  const lines = span.lines;
+  if (!lines || ranges.some((range) => range.start <= lines.start && lines.end <= range.end)) return { ...asWritten, outside: false };
+  const cut = ranges.filter((range) => overlaps(range, lines))
+    .map((range) => ({ start: Math.max(range.start, lines.start), end: Math.min(range.end, lines.end) }));
+  if (cut.length === 0) return { ...asWritten, outside: true };
+  return { spans: cut.map((part) => ({ file: span.file, lines: part })), changed: true, outside: false };
+}
+
+/** Spans as a citation marker's interior: consecutive spans of one file share it (`a.md:1-2, 5-6, b.md:3-3`). */
+function formatSpans(spans: SourceSpan[]): string {
+  const entries: { file: string; ranges: string[] }[] = [];
+  for (const span of spans) {
+    const last = entries.at(-1);
+    const range = span.lines ? `${span.lines.start}-${span.lines.end}` : undefined;
+    if (last && last.file === span.file && range && last.ranges.length > 0) last.ranges.push(range);
+    else entries.push({ file: span.file, ranges: range ? [range] : [] });
   }
-  const spans = extractClaimCitations(body).flatMap((citation) => citation.spans);
-  return spans.filter((span) => {
-    const ranges = rangesByFile.get(span.file);
-    if (!ranges) return true;
-    const lines = span.lines;
-    return lines !== undefined && !ranges.some((range) => range.start <= lines.start && lines.end <= range.end);
-  }).length;
+  return entries.map((entry) => (entry.ranges.length > 0 ? `${entry.file}:${entry.ranges.join(", ")}` : entry.file)).join(", ");
 }
 
 /** Whether two inclusive line ranges share a line. */
