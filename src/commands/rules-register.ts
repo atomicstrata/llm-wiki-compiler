@@ -21,16 +21,10 @@ type RequireProvider = () => void;
 
 /**
  * Register the `rules` command group and its subcommands.
- * @param program - Root Commander program.
+ * @param rulesCommand - The `rules` command to add the verbs to.
  * @param requireProvider - CLI provider guard for extraction.
  */
-export function registerRulesCommand(program: Command, requireProvider: RequireProvider): void {
-  const rulesCommand = program
-    .command("rules")
-    .description(
-      "Extract, review, and export machine-actionable RuleCandidate records for a downstream rule importer",
-    );
-
+export function registerRulesCommand(rulesCommand: Command, requireProvider: RequireProvider): void {
   registerExtract(rulesCommand, requireProvider);
   registerList(rulesCommand);
   registerApprove(rulesCommand);

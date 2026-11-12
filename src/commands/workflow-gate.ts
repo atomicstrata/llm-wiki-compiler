@@ -5,9 +5,9 @@
  * the existing actor validation and direct approval path.
  */
 
-import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import * as output from "@atomicstrata/llmwiki-core/modules/utils/output";
 import { approveGate, resolveGateChallenge } from "../workflows/gate.js";
-import { confirmHumanGateInteractively } from "../workflows/human-gate-confirm.js";
+import { confirmHumanGateInteractively } from "@atomicstrata/llmwiki-core/modules/local-workflow-host/human-gate-confirm";
 import { processHumanGateIo } from "./workflow-shared.js";
 import type { WorkflowActorKind } from "../workflows/types.js";
 

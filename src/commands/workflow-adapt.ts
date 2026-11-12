@@ -11,10 +11,11 @@
  * change) to keep each command module under the file-size budget.
  */
 
-import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import * as output from "@atomicstrata/llmwiki-core/modules/utils/output";
 import { adaptDryRun, adaptApply, type AdaptationPlan } from "../workflows/adapt.js";
 import { AdaptationRequiresConfirmError } from "../workflows/errors.js";
 import { writeProjection } from "../workflows/projection.js";
+import type { WorkflowRun } from "../workflows/types.js";
 
 /**
  * Print the FULL impact of a lossy adapt the operator is being asked to confirm:
@@ -25,16 +26,25 @@ import { writeProjection } from "../workflows/projection.js";
  */
 async function printLossyImpact(runId: string, err: AdaptationRequiresConfirmError): Promise<void> {
   const plan = (await adaptDryRun(process.cwd(), runId)).find((p) => p.runId === runId);
-  const unmappable = plan?.unmappable ?? err.unmappable;
-  const orphaned = plan?.orphanedOutputs ?? err.orphanedOutputs;
   console.error("\x1b[31mError:\x1b[0m lossy adaptation impact:");
-  if (plan !== undefined) {
-    const mapping = plan.stageMapping.map((m) => `${m.from}→${m.to}`).join(", ") || "(none)";
-    console.error(`  mapping:    ${mapping}`);
+  if (plan === undefined) {
+    printLossyLosses(err.unmappable, err.orphanedOutputs);
+  } else {
+    console.error(`  mapping:    ${formatStageMapping(plan)}`);
+    printLossyLosses(plan.unmappable, plan.orphanedOutputs);
   }
+  console.error("re-run with --confirm to apply this lossy adaptation");
+}
+
+/** Print the stages a lossy adapt drops and the wiki pages it would orphan. */
+function printLossyLosses(unmappable: readonly string[], orphaned: readonly string[]): void {
   console.error(`  dropped stage(s): ${unmappable.join(", ")}`);
   if (orphaned.length > 0) console.error(`  ORPHANED wiki page(s): ${orphaned.join(", ")}`);
-  console.error("re-run with --confirm to apply this lossy adaptation");
+}
+
+/** Render a plan's stage mapping as `from→to` pairs, or `(none)`. */
+function formatStageMapping(plan: AdaptationPlan): string {
+  return plan.stageMapping.map((m) => `${m.from}→${m.to}`).join(", ") || "(none)";
 }
 
 /** Options accepted by `workflow adapt` (the dry-run/apply/confirm flags). */
@@ -73,10 +83,9 @@ export async function workflowProjectCommand(runId: string): Promise<number> {
 
 /** Print one read-only adaptation plan (digest drift, mapping, unmappable, lossless/lossy). */
 function printAdaptationPlan(plan: AdaptationPlan): void {
-  const mapping = plan.stageMapping.map((m) => `${m.from}→${m.to}`).join(", ") || "(none)";
   console.log(`${plan.runId}  [${plan.lossless ? "lossless" : "lossy"}]`);
   console.log(`  digest:     ${plan.oldDigest.slice(0, 8)} → ${plan.newDigest.slice(0, 8)}`);
-  console.log(`  mapping:    ${mapping}`);
+  console.log(`  mapping:    ${formatStageMapping(plan)}`);
   if (plan.unmappable.length > 0) console.log(`  unmappable: ${plan.unmappable.join(", ")}`);
 }
 
@@ -100,6 +109,14 @@ async function runAdaptDryRun(runId: string | undefined): Promise<number> {
   return 0;
 }
 
+/** Print a re-anchored run: whether the adaptation was lossless, its new digest and stage. */
+function printAdaptedRun(run: WorkflowRun): void {
+  const lossless = run.events.at(-1)?.decision === "lossless";
+  output.status("+", output.success(`Adapted run ${run.runId} (${lossless ? "lossless" : "lossy"})`));
+  console.log(`workflowDigest: ${run.workflowDigest.slice(0, 8)}`);
+  console.log(`currentStage:   ${run.currentStage ?? "(none)"}`);
+}
+
 /**
  * Re-anchor ONE run to the active def. An `AdaptationRequiresConfirmError` lists
  * the unmappable losses + the re-run hint and exits 1 (fail closed, the run is
@@ -112,11 +129,7 @@ async function runAdaptDryRun(runId: string | undefined): Promise<number> {
  */
 async function runAdaptApply(runId: string, confirm: boolean): Promise<number> {
   try {
-    const run = await adaptApply(process.cwd(), runId, { confirm });
-    const lossless = run.events.at(-1)?.decision === "lossless";
-    output.status("+", output.success(`Adapted run ${run.runId} (${lossless ? "lossless" : "lossy"})`));
-    console.log(`workflowDigest: ${run.workflowDigest.slice(0, 8)}`);
-    console.log(`currentStage:   ${run.currentStage ?? "(none)"}`);
+    printAdaptedRun(await adaptApply(process.cwd(), runId, { confirm }));
     return 0;
   } catch (err) {
     if (!(err instanceof AdaptationRequiresConfirmError)) throw err;
