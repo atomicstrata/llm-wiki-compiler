@@ -432,11 +432,24 @@ once you list their ids together, two or more per set, under `distinct`:
 }
 ```
 
-The owner's names are never a record. Instead the owner gets a hub page,
-`wiki/<type>/<owner>.md` (or
-`<owner>-owner.md` when a record is registered under that id), built without a
-model call, that lists every record of that type grouped by the first enum
-field the type declares (here, relationship), each with its summary.
+### The owner page
+
+The owner's names are never a record. Instead the owner gets the **owner
+page**, `wiki/<type>/<owner>.md` (or `<owner>-owner.md` when a record is
+registered under that id): the page about who they are now. Compile writes it
+after the timeline:
+
+- **Body**: written by the model from the week pages, newest first (as many as
+  fit about 60,000 characters), keeping their citations, so its claims resolve
+  to source lines. It is regenerated only when those week pages change; a
+  change to the owner's names only updates `aliases`. With the timeline off no
+  week pages are read, so the page has no body and costs no model call.
+- **People**: every record of the type, grouped by the first enum field the
+  type declares (here, relationship), each with its summary, rebuilt on every
+  compile without a model call.
+
+Memory only writes the owner page. Whether an agent loads it on every turn is
+up to the agent.
 
 With the timeline on, each day's page lists the `person` records mentioned on
 its lines under **People this day**, linked as `[[person/<id>|Name]]`.

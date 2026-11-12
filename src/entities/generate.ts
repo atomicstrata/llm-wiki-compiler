@@ -2,15 +2,15 @@
  * @file src/entities/generate.ts
  * @description Compile's entity step: extract records of every opted-in entity
  * type from the sources, settle which names are the same record, and keep one
- * page per record in `wiki/<type>/`, plus the owner's hub page.
+ * page per record in `wiki/<type>/`. The owner's own page is written after the
+ * timeline, by owner.ts.
  *
  * Model calls are spent only where inputs changed. Extraction re-reads a source
  * only when its hash or the schema's structure changed (see extract.ts). A record
  * page is regenerated only when its signature, a hash of exactly what the model
  * would be shown, changed; otherwise only its aliases, citations (fitted to the
  * lines shown) and generated tail (days, possible duplicates) are refreshed,
- * with no model call. The hub has no model
- * call.
+ * with no model call.
  *
  * Pages this step did not write (no `entitySignature`) are never replaced or
  * deleted; a record whose page name is taken by one is reported. Generated pages
@@ -30,11 +30,11 @@ import {
 import { sourcesExcerpt, splitAnswer } from "../compiler/source-excerpt.js";
 import { dayBuckets, type DayBucket } from "../timeline/buckets.js";
 import { mentionsOf, refreshExtractions, type ExtractionCache, type ExtractSteps } from "./extract.js";
-import { displayName, hubId, possibleDuplicates, resolveRecords, type AliasRegistry, type ResolvedRecord } from "./identity.js";
+import { displayName, ownerPageId, possibleDuplicates, resolveRecords, type AliasRegistry, type ResolvedRecord } from "./identity.js";
 import type { ExtractableType } from "./schema.js";
 import {
-  agreedFields, hubBody, hubPage, hubSignature, isRecordPage, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
-  type HubEntry, type RecordPageMeta, type ShownSource,
+  agreedFields, isRecordPage, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
+  type RecordPageMeta, type ShownSource,
 } from "./pages.js";
 
 /** The reads, model calls and writes the entity step composes. */
@@ -79,13 +79,6 @@ interface TypeContext extends StepContext {
   report: PageReport;
 }
 
-/** One record's outcome: its id, the write (or none), and the frontmatter its page has after it. */
-interface PlannedWrite {
-  id: string;
-  write: CompilePageWrite | null;
-  meta: Record<string, unknown>;
-}
-
 /** Bring every opted-in type's pages up to date with the sources. */
 export async function generateEntitiesWith(steps: EntitySteps, config: EntityConfig): Promise<EntityResult> {
   const result: EntityResult = { extracted: 0, written: [], deleted: [], errors: [] };
@@ -114,7 +107,7 @@ function unknownExcludeTypes(registry: AliasRegistry, types: ExtractableType[]):
     .map((type) => `.llmwiki/aliases.json excludes names from "${type}", which is not an extracted type; ignored`);
 }
 
-/** Write one type's record pages and hub, and remove its pages for records that are gone. */
+/** Write one type's record pages, and remove its pages for records that are gone (never the owner page). */
 async function writeType(step: StepContext, type: ExtractableType, cache: ExtractionCache): Promise<void> {
   const records = resolveRecords(type.type, mentionsOf(cache, type.type), step.registry);
   const { own: pages, foreign } = ownPages(await step.steps.listPages(type.type), isRecordPage);
@@ -122,16 +115,16 @@ async function writeType(step: StepContext, type: ExtractableType, cache: Extrac
   const ctx: TypeContext = { ...step, type, pages, foreign, titles, report: entityReport(type.type, step.result) };
   const duplicates = possibleDuplicates(records, step.registry.distinct?.[type.type]);
   const writable = records.filter((record) => claimable(ctx.report, record.id, foreign));
-  const planned = await Promise.all(writable.map((record) => ctx.limit(() => planRecord(ctx, record, duplicates.get(record.id) ?? []))));
-  const withPages = await commit(ctx, planned);
-  const hub = await writeHub(ctx, withPages);
-  const live = new Set([...records.map((record) => record.id), ...(hub ? [hub] : [])]);
+  const writes = await Promise.all(writable.map((record) => ctx.limit(() => planRecord(ctx, record, duplicates.get(record.id) ?? []))));
+  await writeAndReport(ctx.report, ctx.steps, writes.filter((write): write is CompilePageWrite => write !== null));
+  const ownerPage = ownerPageId(step.registry, type.type);
+  const live = new Set([...records.map((record) => record.id), ...(ownerPage ? [ownerPage] : [])]);
   await deleteAndReport(ctx.report, ctx.steps, [...pages].filter(([slug]) => !live.has(slug))
     .map(([slug, page]) => ({ ...entityWrite(ctx, slug, page.text), deleting: true })));
 }
 
-/** How the entity step names a type's pages in what it reports. */
-function entityReport(type: string, result: DerivedResult): PageReport {
+/** How compile names a type's pages in what it reports. */
+export function entityReport(type: string, result: DerivedResult): PageReport {
   return { directory: type, writer: "entity extraction", label: (slug) => `Page "${type}/${slug}"`, id: (slug) => `${type}/${slug}`, result };
 }
 
@@ -146,7 +139,7 @@ interface RecordDraft {
 }
 
 /** The write for one record: a regenerated page, a refreshed tail and aliases, or nothing when the page is current. */
-async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: string[]): Promise<PlannedWrite> {
+async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: string[]): Promise<CompilePageWrite | null> {
   const title = ctx.titles.get(record.id)!;
   const fields = agreedFields(ctx.type, record);
   const excerpt = sourcesExcerpt(shownSources(record, ctx.texts), ctx.texts);
@@ -155,7 +148,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: str
   const page = ctx.pages.get(record.id);
   if (!page || stringField(page.meta, "entitySignature") !== draft.signature) return regenerate(ctx, draft, page);
   const text = withGenerated(withAliases(fitPageCitations(page.text, excerpt.shown), aliasesOf(record, title, fields)), draft.tail);
-  return { id: record.id, write: text === page.text ? null : entityWrite(ctx, record.id, text), meta: page.meta };
+  return text === page.text ? null : entityWrite(ctx, record.id, text);
 }
 
 /**
@@ -163,21 +156,19 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: str
  * why. The frontmatter is checked against the type's field contract BEFORE the
  * model call, so a page that cannot be written costs no call.
  */
-async function regenerate(ctx: TypeContext, draft: RecordDraft, page: OwnPage | undefined): Promise<PlannedWrite> {
+async function regenerate(ctx: TypeContext, draft: RecordDraft, page: OwnPage | undefined): Promise<CompilePageWrite | null> {
   const { record } = draft;
-  const unchanged: PlannedWrite = { id: record.id, write: null, meta: page?.meta ?? {} };
   const meta = recordMeta(ctx, draft, page);
   const violations = validateEntityFields(recordFrontmatter(meta), ctx.type.def);
   if (violations.length > 0) {
     ctx.result.errors.push(`${ctx.report.label(record.id)} not written: ${violations.join(" ")}`);
-    return unchanged;
+    return null;
   }
   const request = recordPageRequest(ctx.type.type, draft.title, draft.excerpt.text, ctx.registry.owner?.names ?? []);
   const answer = await completePage(ctx.report, (req) => ctx.steps.complete({ ...req, tools: [] }), request, record.id);
-  if (answer === null) return unchanged;
+  if (answer === null) return null;
   const { summary, body } = splitAnswer(fitAndReportCitations(ctx.report, record.id, answer, draft.excerpt.shown));
-  const written = { ...meta, summary };
-  return { id: record.id, write: entityWrite(ctx, record.id, recordPage(written, body, draft.tail)), meta: recordFrontmatter(written) };
+  return entityWrite(ctx, record.id, recordPage({ ...meta, summary }, body, draft.tail));
 }
 
 /** A record page's frontmatter fields, with the summary still to come. */
@@ -208,44 +199,3 @@ function entityWrite(ctx: TypeContext, id: string, text: string): CompilePageWri
   return { entityType: ctx.type.type, slug: id, body: text };
 }
 
-/**
- * Apply the planned writes; returns the plans whose page exists after them. A
- * plan with no write has a page only when this step wrote one before (foreign
- * names never get a plan); a plan with a write has one unless the floor skipped it.
- */
-async function commit(ctx: TypeContext, planned: PlannedWrite[]): Promise<PlannedWrite[]> {
-  const landed = new Set(await writeAndReport(ctx.report, ctx.steps, planned.flatMap((plan) => (plan.write ? [plan.write] : []))));
-  return planned.filter((plan) => (plan.write ? landed.has(plan.write) : ctx.pages.has(plan.id)));
-}
-
-/** Write the owner's hub when the owner is of this type; returns its id, or null when there is none. */
-async function writeHub(ctx: TypeContext, planned: PlannedWrite[]): Promise<string | null> {
-  const id = hubId(ctx.registry, ctx.type.type);
-  if (!id || !claimable(ctx.report, id, ctx.foreign)) return null;
-  const groupField = Object.entries(ctx.type.def.fields ?? {}).find(([name, def]) => def.type === "enum" && name !== ctx.type.def.titleField);
-  const body = hubBody(hubEntries(ctx, planned, groupField?.[0]), groupField?.[1].enum ?? []);
-  const existing = ctx.pages.get(id);
-  if (!existing || stringField(existing.meta, "entitySignature") !== hubSignature(body)) await writeHubPage(ctx, id, body, planned.length);
-  return id;
-}
-
-/** The hub's entries: each record with a page, its summary, and its value of the grouping field. */
-function hubEntries(ctx: TypeContext, planned: PlannedWrite[], groupField: string | undefined): HubEntry[] {
-  return planned.map((plan) => ({
-    target: `${ctx.type.type}/${plan.id}`, title: ctx.titles.get(plan.id) ?? plan.id, summary: stringField(plan.meta, "summary"),
-    group: groupField ? stringField(plan.meta, groupField) || null : null,
-  }));
-}
-
-/** Write the hub page with `body`, keeping its creation time, unless it would break the type's field contract. */
-async function writeHubPage(ctx: TypeContext, id: string, body: string, count: number): Promise<void> {
-  const names = ctx.registry.owner!.names;
-  const now = ctx.steps.now();
-  const text = hubPage({
-    title: names[0], titleField: ctx.type.def.titleField, aliases: names.slice(1), count, type: ctx.type.type,
-    createdAt: stringField(ctx.pages.get(id)?.meta ?? {}, "createdAt") || now, updatedAt: now,
-  }, body);
-  const violations = validateEntityFields(parseFrontmatter(text).meta, ctx.type.def);
-  if (violations.length > 0) ctx.result.errors.push(`${ctx.report.label(id)} not written: ${violations.join(" ")}`);
-  else await writeAndReport(ctx.report, ctx.steps, [entityWrite(ctx, id, text)]);
-}

@@ -17,7 +17,7 @@ import { readFile } from "fs/promises";
 import { callClaude } from "../utils/llm.js";
 import { atomicWrite } from "../utils/atomic-write.js";
 import { LLMWIKI_DIR } from "../utils/constants.js";
-import { localDerivedSteps, ownPages } from "../compiler/derived-steps.js";
+import { localDerivedSteps, ownPages, type DerivedResult } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import { loadProfile } from "../profile/load.js";
 import * as output from "../utils/output.js";
@@ -28,6 +28,8 @@ import { extractableTypes } from "./schema.js";
 import { displayName, parseRegistry, resolveRecords } from "./identity.js";
 import { generateEntitiesWith, type EntityResult, type EntitySteps } from "./generate.js";
 import { isRecordPage } from "./pages.js";
+import { generateOwnerPageWith } from "./owner.js";
+import type { PageRequest } from "../compiler/source-excerpt.js";
 
 /** The extraction cache, relative to the project root. */
 const CACHE_FILE = path.join(LLMWIKI_DIR, "entities.json");
@@ -96,6 +98,33 @@ export async function generateEntities(root: string, timeline: TimelineSchema, c
     output.status("✓", output.success(`Entities: ${result.extracted} sources read, ${result.written.length} pages written, ${result.deleted.length} removed.`));
   }
   return result;
+}
+
+/**
+ * Bring the owner page up to date, after the timeline it reads, and report what
+ * changed. Does nothing when the profile extracts no records or the alias
+ * registry names no owner of an extracted type.
+ * @param root - Project root; the caller holds its lock.
+ * @param timeline - The schema's timeline settings; with the timeline off, no week pages are read.
+ */
+export async function generateOwnerPage(root: string, timeline: TimelineSchema): Promise<DerivedResult> {
+  const ownerType = parseRegistryOrNone(await readOptional(root, REGISTRY_FILE))?.owner?.type;
+  const type = extractableTypes((await loadProfile(root)).profile).find((candidate) => candidate.type === ownerType);
+  if (!type) return { written: [], deleted: [], errors: [] };
+  const steps = { ...localDerivedSteps(root), readRegistry: () => readRegistry(root), complete: (request: PageRequest) => callClaude(request) };
+  const result = await generateOwnerPageWith(steps, { type, useTimeline: timeline.enabled });
+  for (const error of result.errors) output.status("!", output.warn(error));
+  if (result.written.length > 0) output.status("✓", output.success(`Owner page: ${result.written.join(", ")} written.`));
+  return result;
+}
+
+/** The registry, or undefined when it is missing or malformed (the entity step has already reported a malformed one). */
+function parseRegistryOrNone(text: string | null): ReturnType<typeof parseRegistry> | undefined {
+  try {
+    return text === null ? undefined : parseRegistry(text);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The records of `type` whose page this step wrote, with every source line they are mentioned on. */

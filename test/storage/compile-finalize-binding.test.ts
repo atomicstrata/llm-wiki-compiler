@@ -192,7 +192,7 @@ describe("the tail's order and flags over the bound steps (memory only)", () => 
     await side.seedThenFinalize(generation(["beta"]), {}, await side.load());
     await side.seedThenFinalize(generation([]), { skipSeedPages: true, embeddings: false, concurrency: 20 }, null);
     // The compile's --concurrency reaches the timeline, which makes most of a compile's model calls.
-    expect(log).toEqual(["seed", "resolve", "repair", "flush", "index", "moc", "embeddings concepts/beta,concepts/overview", "entities", "timeline", "index", "moc", "entities x20", "timeline x20"]);
+    expect(log).toEqual(["seed", "resolve", "repair", "flush", "index", "moc", "embeddings concepts/beta,concepts/overview", "entities", "timeline", "owner", "index", "moc", "entities x20", "timeline x20", "owner"]);
   });
 
   it("F4 leaves the state record untouched and the index unbuilt when resolution fails before the flush", async () => {

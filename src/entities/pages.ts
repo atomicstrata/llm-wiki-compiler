@@ -1,7 +1,7 @@
 /**
  * @file src/entities/pages.ts
  * @description Assemble the pages compile writes for extracted records: one
- * page per record, and one hub page for the owner.
+ * page per record (the owner page is in owner.ts).
  *
  * A record page's frontmatter is deterministic: the display name, every other
  * name it went by (`aliases`), the type's declared fields agreed from its
@@ -11,10 +11,6 @@
  * lines. Its generated tail lists the timeline days it appears on and the
  * records it might be the same as; that tail is rebuilt on every compile without
  * a model call.
- *
- * The owner's hub page has no model call at all: it lists every record of the
- * owner's type, grouped by the type's first enum field (a person's relationship),
- * each with its summary.
  */
 
 import { createHash } from "node:crypto";
@@ -91,7 +87,7 @@ function mostFrequent(values: unknown[]): unknown {
   return [...counts.values()].reduce((best, entry) => (entry.count > best.count ? entry : best)).value;
 }
 
-/** Whether a page's frontmatter says this step wrote it (a record page or the hub). */
+/** Whether a page's frontmatter says compile wrote it (a record page or the owner page). */
 export function isRecordPage(meta: Record<string, unknown>): boolean {
   return typeof meta.entitySignature === "string";
 }
@@ -127,7 +123,7 @@ export function recordFrontmatter(meta: RecordPageMeta): Record<string, unknown>
 }
 
 /** The name under the type's own title field, when that field is not `title`. */
-function namedBy(titleField: string | undefined, title: string): Record<string, string> {
+export function namedBy(titleField: string | undefined, title: string): Record<string, string> {
   return titleField && titleField !== "title" ? { [titleField]: title } : {};
 }
 
@@ -167,45 +163,4 @@ export function recordTail(days: PageLink[], maybeSame: PageLink[]): string {
       ? `## Might be the same as\n\n${linkList(maybeSame)}\n\nNot merged. If they are one, list their names under one id in \`.llmwiki/aliases.json\`.`
       : "",
   ].filter(Boolean).join("\n\n");
-}
-
-/** A record as the owner's hub lists it. */
-export interface HubEntry extends PageLink {
-  summary: string;
-  group: string | null;
-}
-
-/**
- * The hub body: every record, grouped by the grouping field's values in declared
- * order, then any other value a page still carries, then those with none.
- */
-export function hubBody(entries: HubEntry[], groupOrder: string[]): string {
-  const others = [...new Set(entries.map((entry) => entry.group).filter((group): group is string => group !== null && !groupOrder.includes(group)))].sort();
-  const groups = [...groupOrder, ...others, null].map((group) => ({
-    group, members: entries.filter((entry) => entry.group === group).sort((a, b) => a.title.localeCompare(b.title)),
-  })).filter(({ members }) => members.length > 0);
-  return groups.map(({ group, members }) => {
-    const heading = group === null ? "Not stated" : group[0].toUpperCase() + group.slice(1);
-    const lines = members.map((entry) => `- [[${entry.target}|${entry.title}]]${entry.summary ? ` — ${entry.summary}` : ""}`);
-    return `## ${heading}\n\n${lines.join("\n")}`;
-  }).join("\n\n");
-}
-
-/** The full markdown of the owner's hub page. Its signature is its body's hash, so an unchanged hub is never rewritten. */
-export function hubPage(meta: { title: string; titleField?: string; aliases: string[]; count: number; type: string; createdAt: string; updatedAt: string }, body: string): string {
-  const frontmatter = buildFrontmatter({
-    title: meta.title,
-    ...namedBy(meta.titleField, meta.title),
-    summary: `The owner of this memory, and the ${meta.count} ${meta.type} record${meta.count === 1 ? "" : "s"} it names.`,
-    ...(meta.aliases.length > 0 ? { aliases: meta.aliases } : {}),
-    entitySignature: hubSignature(body),
-    createdAt: meta.createdAt,
-    updatedAt: meta.updatedAt,
-  });
-  return `${frontmatter}\n\n${body.trim()}\n`;
-}
-
-/** The signature of a hub body. */
-export function hubSignature(body: string): string {
-  return createHash("sha256").update(body.trim()).digest("hex").slice(0, 16);
 }

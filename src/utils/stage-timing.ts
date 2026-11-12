@@ -30,6 +30,7 @@ export type TimedStage =
   | "compile.embeddings"
   | "compile.entities"
   | "compile.timeline"
+  | "compile.owner"
   | "query.retrieval"
   | "query.answer";
 
