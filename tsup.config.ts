@@ -1,6 +1,10 @@
 /**
  * Build the standard distribution as a facade over one core and engine package.
- * Dependency builds finish first; both CLI and SDK externalize the same entries.
+ * Both CLI and SDK externalize the same entries, and every bundle resolves
+ * `@atomicstrata/*` to `src/` for declarations, so no bundle reads another
+ * package's dist. The dependency builds therefore run alongside the facade
+ * build, and the CLI bundle's onSuccess waits for them so the build finishes
+ * (or fails) only once all three packages are built.
  */
 import { execFileSync } from "node:child_process";
 import { defineConfig, type Options } from "tsup";
@@ -18,7 +22,7 @@ const shared = {
 } satisfies Options;
 
 export default defineConfig(async (options) => {
-  await buildCompilerDependencies(process.cwd());
+  const dependencies = buildCompilerDependencies(process.cwd());
   let initialBuild = true;
   return [
   {
@@ -59,6 +63,7 @@ export default defineConfig(async (options) => {
     // and serves /assets/* from this directory. Then shield dist/ from the
     // repository's tsconfig `paths` (see isolateFromSourcePaths).
     onSuccess: async () => {
+      await dependencies;
       execFileSync(process.execPath, ["scripts/copy-viewer-assets.mjs"], { stdio: "inherit" });
       isolateFromSourcePaths("dist");
     },
