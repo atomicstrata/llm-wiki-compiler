@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { neutralisedProviderText, quotedProviderToken } from "./untrusted-text.js";
 import { opendir } from "node:fs/promises";
 import path from "node:path";
-import { openConfinedLeaf } from "../../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen } from "../../utils/confined-read.js";
 import { assertNoCredentialReflection } from "../authority/credentials.js";
 import { parseSha256Digest } from "../ids.js";
 import type { Sha256Digest } from "../types.js";
@@ -227,7 +227,7 @@ const MEDIA_TYPE_MAGIC: ReadonlyMap<string, readonly number[]> = new Map([
 
 async function streamOutput(
   options: StreamingCustodianOptionsV1, now: () => number, state: CustodyState,
-  claim: ClaimV1, opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  claim: ClaimV1, opened: ConfirmedLeafOpen,
   written: EvidenceRefV1[],
 ): Promise<OneOutcome> {
   const isExpired = () => now() - state.start > options.wallTimeMs;
@@ -252,7 +252,7 @@ async function streamOutput(
  * already enforced before this call.
  */
 async function readFully(
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
   isExpired: () => boolean,
 ): Promise<Buffer | "changed" | "expired"> {
   const buffer = Buffer.allocUnsafe(opened.size);

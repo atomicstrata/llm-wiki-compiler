@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "bun:test";
-import { listRuns } from "../src/workflows/store.js";
+import { listRuns } from "../src/workflow-history/store.js";
 import { workflowStatus } from "../src/workflows/status.js";
 import { runCLI } from "./fixtures/run-cli.js";
 import { WORKFLOW_PROFILE } from "./fixtures/workflow-profile.js";

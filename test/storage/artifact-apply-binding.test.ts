@@ -230,7 +230,7 @@ describe("the single-body artifact write under the lock, disk and memory, from t
 });
 
 describe("the bound artifact write's order, its unknown outcomes, the member dispatch, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
   const batch = ".llmwiki/journal/<batch>.json";
   const record = (rel: string) => ["realpath .", `read ${rel}`, `replace ${batch}`];
 

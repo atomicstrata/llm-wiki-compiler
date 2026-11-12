@@ -93,7 +93,8 @@ export interface LockOwner {
 /** This process's start time, populated only when lock behavior first needs it. */
 let cachedSelfStartTime: string | null | undefined;
 
-function selfStartTime(): string | null {
+/** This process's start-time identity. */
+export function selfStartTime(): string | null {
   if (cachedSelfStartTime === undefined) {
     cachedSelfStartTime = readProcessStartTime(process.pid);
   }
@@ -121,13 +122,13 @@ let cachedSelfLegacyStartTime: { env: string; value: string | null } | undefined
 
 /**
  * This process's own ambient rendering. A running process's start time never
- * changes, so one answer per process serves every lock acquisition; the entry is
+ * changes, so one `ps` per process answers every lock acquisition; the entry is
  * reused only while the locale and zone inputs that shape the text are unchanged.
  */
 function selfLegacyStartTime(): string | null {
   const env = AMBIENT_RENDERING_ENV.map((name) => process.env[name] ?? "").join("\0");
   if (cachedSelfLegacyStartTime?.env !== env) {
-    cachedSelfLegacyStartTime = { env, value: renderSelfLstart() ?? spawnLegacyProcessStartTime(process.pid) };
+    cachedSelfLegacyStartTime = { env, value: renderSelfLstart() ?? psLstart(process.pid) };
   }
   return cachedSelfLegacyStartTime.value;
 }
@@ -165,14 +166,14 @@ function renderSelfLstart(): string | null {
 
 /** Read the exact ambient ps rendering used by public lock readers and writers. */
 function readLegacyProcessStartTime(pid: number): string | null {
-  return pid === process.pid ? selfLegacyStartTime() : spawnLegacyProcessStartTime(pid);
+  return pid === process.pid ? selfLegacyStartTime() : psLstart(pid);
 }
 
-/** Ask `ps` for one process's ambient start-time rendering. */
-function spawnLegacyProcessStartTime(pid: number): string | null {
+function psLstart(pid: number, env?: NodeJS.ProcessEnv): string | null {
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],
+      ...(env === undefined ? {} : { env }),
     }).toString().trim();
     return out.length > 0 ? out : null;
   } catch {
@@ -327,17 +328,8 @@ export function readProcessStartTime(pid: number): string | null {
   const kernelSeconds = readKernelStartSeconds(pid);
   if (kernelSeconds === null) return null;
   if (kernelSeconds !== undefined) return `${IDENTITY_PREFIX}${kernelSeconds}`;
-  try {
-    const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-      stdio: ["ignore", "pipe", "ignore"],
-      env: { ...process.env, ...PINNED_TIME_ENV },
-    })
-      .toString()
-      .trim();
-    return out.length > 0 ? identityFromUtcRendering(out) : null;
-  } catch {
-    return null;
-  }
+  const rendered = psLstart(pid, { ...process.env, ...PINNED_TIME_ENV });
+  return rendered === null ? null : identityFromUtcRendering(rendered);
 }
 
 /** Turn a UTC-pinned `lstart` rendering into the versioned epoch identity. */

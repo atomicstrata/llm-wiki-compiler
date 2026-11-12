@@ -21,8 +21,8 @@ import {
 } from "./install-persistence.js";
 import { assertBoundProviderLeaf } from "./leaf-binding.js";
 import {
-  assertAuthorizedProviderDirectory, assertAuthorizedProviderPaths,
-  authorizedProviderDirectoryRealPath, bindAuthorizedProviderChildDirectory,
+  assertAuthorizedProviderDirectories, assertAuthorizedProviderDirectory,
+  authorizedProviderDirectoryRealPath, bindAuthorizedProviderChildDirectory, bindAuthorizedProviderChildDirectoryRealPath,
   ensureAuthorizedProviderDirectory, providerClockNow, setAuthorizedProviderDirectoryMode,
   type AuthorizedProviderDirectory,
   type AuthorizedProviderPaths,
@@ -117,7 +117,6 @@ async function publishPreparedProviderCore(
   request: AuthorizedPreparedPublicationRequest,
   prepareTree: (tree: string, expectedParentReal: string) => Promise<void>,
 ): Promise<InstalledProviderSnapshot> {
-  await assertAuthorizedProviderPaths(paths);
   assertPayloadDigest(request.payload, request.packageDigest);
   const existing = (await readProviderInstallState(paths)).installs[request.packageDigest];
   const proposed = installRecord(request);
@@ -125,7 +124,6 @@ async function publishPreparedProviderCore(
   const destination = packageDirectory(paths, request.packageDigest);
   const packages = await ensureAuthorizedProviderDirectory(paths, paths.packagesRoot);
   await request.afterPackageParentCheckForTest?.(paths.packagesRoot);
-  await assertAuthorizedProviderDirectory(paths, packages);
   const reused = await reuseInstalled(
     paths, packages, destination, request.artifact, request.packageEvidenceText, record,
     request.afterInstallStateCommitForTest,
@@ -152,10 +150,8 @@ async function publishNewSnapshot(
     await prepareTree(path.join(staging, "tree"), stagingReal);
     await assertAuthorizedProviderDirectory(paths, stagingDirectory);
     await writeEvidence(paths, stagingDirectory, request.packageEvidenceText);
-    await assertAuthorizedProviderDirectory(paths, stagingDirectory);
-    await assertAuthorizedProviderDirectory(paths, packages);
+    await assertAuthorizedProviderDirectories(paths, stagingDirectory, packages);
     await publishStaging(staging, destination);
-    await assertAuthorizedProviderDirectory(paths, packages);
     const published = await bindAuthorizedProviderChildDirectory(paths, packages, destination);
     await setAuthorizedProviderDirectoryMode(paths, published, 0o500);
     await request.afterPublicationForTest?.(path.join(published.path, "tree"));
@@ -313,8 +309,7 @@ async function verifyPublishedProvider(
   evidence: string,
 ): Promise<AuthorizedProviderDirectory> {
   const treePath = path.join(directory.path, "tree");
-  const tree = await bindAuthorizedProviderChildDirectory(paths, directory, treePath);
-  const treeReal = await authorizedProviderDirectoryRealPath(paths, tree);
+  const { directory: tree, realPath: treeReal } = await bindAuthorizedProviderChildDirectoryRealPath(paths, directory, treePath);
   await verifyProviderTree(treePath, artifact, {
     expectedRootReal: treeReal,
   });
@@ -326,8 +321,7 @@ async function verifyPublishedProvider(
   if (observed.kind !== "ok" || observed.body !== evidence) {
     throw new Error("provider package evidence differs from verified installation evidence");
   }
-  await assertAuthorizedProviderDirectory(paths, directory);
-  await assertAuthorizedProviderDirectory(paths, tree);
+  await assertAuthorizedProviderDirectories(paths, directory, tree);
   return tree;
 }
 
@@ -338,8 +332,7 @@ async function discardCacheDirectory(
 ): Promise<void> {
   const destination = directory.path;
   if (path.dirname(destination) !== paths.packagesRoot) throw new Error("provider package cache path is invalid");
-  await assertAuthorizedProviderDirectory(paths, directory);
-  await assertAuthorizedProviderDirectory(paths, packages);
+  await assertAuthorizedProviderDirectories(paths, directory, packages);
   await thawDirectories(destination);
   await assertAuthorizedProviderDirectory(paths, packages);
   await rm(destination, { recursive: true, force: true });

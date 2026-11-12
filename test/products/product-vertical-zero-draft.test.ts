@@ -33,8 +33,9 @@ import { describe, expect, it, vi } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import type { ProductInvokeResultV1 } from "../../src/products/service.js";
 import {
-  activatedProject, verticalService, VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID,
+  activatedProject, verticalService,
 } from "./product-vertical-fixture.js";
+import { VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 type IntentModule = typeof import("../../src/operations-packs/handlers/intent-compile.js");
 

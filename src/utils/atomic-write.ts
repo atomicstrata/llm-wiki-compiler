@@ -4,7 +4,7 @@
  * parent-swap defenses for project writes.
  */
 
-import { rename, mkdir, open, unlink } from "fs/promises";
+import { rename, open, unlink } from "fs/promises";
 import { randomBytes } from "node:crypto";
 import type { Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
@@ -16,6 +16,7 @@ import {
   type ParentBinding,
 } from "./atomic-write-durability.js";
 import {
+  assertPathNamesInode,
   assertPublishedDestination,
   assertSettledDestination,
   assertTempPathBound,
@@ -29,9 +30,11 @@ import {
   recoverDurableTemp,
   recoverStreamedDurableTemp,
   removeCommittedTemp,
+  removeCommittedTempAfterPublish,
   syncExistingCollision,
 } from "./atomic-write-no-replace-durable.js";
-import { assertAncestorInRoot, assertParentNotSymlink, bindStreamDestination, prepareNoReplace } from "./atomic-write-parent.js";
+import { prepareParent } from "./atomic-write-parent.js";
+import { forgetLockHeldReads } from "./lock-held-reads.js";
 import type { DirectorySyncScope } from "./directory-sync-scope.js";
 
 /** Bytes of randomness in the per-write temp-file suffix (16 hex chars). */
@@ -155,12 +158,12 @@ export async function atomicWrite(
  */
 export async function atomicWriteStreamed(filePath: string, content: TempContent, opts?: Omit<AtomicWriteOptions, "createOnly">): Promise<void> {
   const o: AtomicWriteOptions = opts ?? {};
-  const dir = path.dirname(filePath);
-  if (o.confineRoot !== undefined) await assertAncestorInRoot(filePath, o.confineRoot, o.exactParent === true);
-  await mkdir(dir, { recursive: true });
-  const binding = await assertParentNotSymlink(dir, o.confineRoot, o.exactParent === true);
-  await o.afterParentCheckForTest?.();
-  await writeViaTemp(filePath, content, o.durable === true, o.strictDurability === true, o.mode, binding, o);
+  try {
+    const { binding } = await prepareParent(filePath, o);
+    await writeViaTemp(filePath, content, o.durable === true, o.strictDurability === true, o.mode, binding, o);
+  } finally {
+    forgetLockHeldReads();
+  }
 }
 
 /** Atomically publish a new file without replacing any destination object. */
@@ -171,8 +174,12 @@ export async function atomicWriteNoReplace(
 ): Promise<void> {
   assertNoReplaceOptions(opts);
   const preparedContent = snapshotContent(content);
-  const { binding } = await prepareNoReplace(filePath, opts);
-  await writeViaTempNoReplace(filePath, preparedContent, opts, binding);
+  try {
+    const { binding } = await prepareParent(filePath, opts);
+    await writeViaTempNoReplace(filePath, preparedContent, opts, binding);
+  } finally {
+    forgetLockHeldReads();
+  }
 }
 
 /** Atomically publish a create-only file with strict file and directory fsync. */
@@ -182,7 +189,7 @@ export async function atomicWriteNoReplaceDurable(
   opts?: AtomicWriteNoReplaceDurableScopedOptions,
 ): Promise<void> {
   const preparedContent = Buffer.from(content);
-  const { dir, binding } = await prepareNoReplace(filePath, opts);
+  const { dir, binding } = await prepareParent(filePath, opts);
   const scope = opts?.directorySyncScope;
   // Bind the scope before any temp exists, so a retired/foreign scope has no effect.
   if (scope !== undefined) requireScopedParent(binding, scope);
@@ -196,16 +203,18 @@ export async function atomicWriteNoReplaceDurable(
     }, binding) ??
       await writeViaTempNoReplaceDurable(filePath, preparedContent, opts, binding);
   } catch (error) {
+    forgetLockHeldReads();
     if (!(error instanceof AtomicWriteCollisionError)) throw error;
     await syncExistingCollision(filePath, preparedContent, opts?.mode, binding, opts?.beforeExistingFileSyncForTest);
-    await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope);
+    await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope, false);
     if (binding !== undefined) await assertCurrentParent(binding);
     throw error;
   }
   try {
-    await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope);
+    await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope, false);
     await assertSettledDestination(filePath, published.handle, binding);
   } finally {
+    forgetLockHeldReads();
     await published.handle.close().catch(() => {});
   }
 }
@@ -251,44 +260,23 @@ export async function atomicStreamCreateOnlyDurable(
 ): Promise<StreamedCasResultV1> {
   assertNoReplaceOptions(opts);
   const filePath = path.join(destinationDir, filename);
-  const binding = await bindStreamDestination(destinationDir, opts);
-  if (opts.confineRoot !== undefined) await assertAncestorInRoot(filePath, opts.confineRoot, opts.exactParent === true);
+  const { dir, binding } = await prepareParent(filePath, opts);
   await recoverStreamedDurableTemp(filePath, binding, opts.beforeDirectorySyncForTest);
-  const temp = await writeStreamedBoundTemp(durableTempPath(filePath), produce, opts.mode, binding);
+  const { bound, filled: byteCount } = await writeBoundTemp(durableTempPath(filePath), produce, opts.mode, binding, true);
   try {
-    await commitBoundTemp(temp.bound, binding, (scratch) => linkTempNoReplace(scratch, filePath));
+    await commitBoundTemp(bound, binding, (scratch) => linkTempNoReplace(scratch, filePath));
     await opts.streamedPostLinkFaultForTest?.("after-link");
-    await fsyncDirectoryChain(destinationDir, binding, opts.beforeDirectorySyncForTest);
+    await fsyncDirectoryChain(dir, binding, opts.beforeDirectorySyncForTest, undefined, false);
     await opts.streamedPostLinkFaultForTest?.("after-parent-fsync");
-    await assertPublishedDestination(filePath, temp.bound.handle, binding);
+    await assertPublishedDestination(filePath, bound.handle, binding);
     await opts.streamedPostLinkFaultForTest?.("after-publish-verify");
-    await removeCommittedTemp(temp.bound.tmpPath, binding, temp.bound.stat);
-    await fsyncDirectoryChain(destinationDir, binding, opts.beforeDirectorySyncForTest);
-    await assertSettledDestination(filePath, temp.bound.handle, binding);
-    return { filename, byteCount: temp.byteCount };
+    await removeCommittedTemp(bound.tmpPath, binding, bound.stat);
+    await fsyncDirectoryChain(dir, binding, opts.beforeDirectorySyncForTest, undefined, false);
+    await assertSettledDestination(filePath, bound.handle, binding);
+    return { filename, byteCount };
   } finally {
-    await temp.bound.handle.close().catch(() => {});
-  }
-}
-
-/** Open the confined deterministic temp, stream the producer's bytes in, and fsync. */
-async function writeStreamedBoundTemp(
-  tmpPath: string,
-  produce: (handle: FileHandle) => Promise<number>,
-  mode: number | undefined,
-  binding: ParentBinding | undefined,
-): Promise<{ bound: BoundTemp; byteCount: number }> {
-  const handle = mode === undefined ? await open(tmpPath, "wx") : await open(tmpPath, "wx", mode);
-  try {
-    await assertTempHandleBound(handle, tmpPath, binding);
-    const byteCount = await produce(handle);
-    await handle.sync();
-    const stat = await assertTempHandleBound(handle, tmpPath, binding);
-    return { bound: { tmpPath, handle, stat }, byteCount };
-  } catch (error) {
-    await handle.close().catch(() => {});
-    await unlink(tmpPath).catch(() => {});
-    throw error;
+    forgetLockHeldReads();
+    await bound.handle.close().catch(() => {});
   }
 }
 
@@ -328,13 +316,13 @@ async function writeViaTemp(
   binding: ParentBinding | undefined,
   hooks: Pick<AtomicWriteOptions, "beforeDirectorySyncForTest" | "beforeReplace">,
 ): Promise<void> {
-  const temp = await writeBoundTemp(filePath, content, mode, binding, durable || strictDurability);
+  const fill = typeof content === "function" ? content : (handle: FileHandle) => handle.writeFile(content);
+  const { bound: temp } = await writeBoundTemp(randomTempPath(filePath), fill, mode, binding, durable || strictDurability);
   let renamed = false;
   try {
     await commitBoundTemp(temp, binding, (tmpPath) => rename(tmpPath, filePath), hooks.beforeReplace);
     renamed = true;
-    await assertCommittedTemp(filePath, temp.handle, binding, strictDurability);
-    if (strictDurability) await fsyncDirectoryChain(path.dirname(filePath), binding, hooks.beforeDirectorySyncForTest);
+    if (strictDurability) await fsyncDirectoryChain(path.dirname(filePath), binding, hooks.beforeDirectorySyncForTest, undefined, false);
     else if (durable) await fsyncDir(path.dirname(filePath));
     await assertCommittedTemp(filePath, temp.handle, binding, strictDurability);
   } catch (error) {
@@ -362,10 +350,10 @@ async function writeViaTempNoReplaceDurable(
 ): Promise<PublishedDurable> {
   const writingPath = durableWritingPath(filePath);
   const readyPath = durableTempPath(filePath);
-  const prepared = await writeBoundTemp(filePath, content, opts?.mode, binding, true, writingPath);
+  const { bound: prepared } = await writeBoundTemp(writingPath, (handle) => handle.writeFile(content), opts?.mode, binding, true);
   try {
-    await commitBoundTemp(prepared, binding, (scratch) => linkWritingAsReady(scratch, readyPath, binding, prepared.stat));
-    await fsyncDirectoryChain(path.dirname(filePath), binding, opts?.beforeDirectorySyncForTest, opts?.directorySyncScope);
+    await commitBoundTemp(prepared, binding, (scratch) => linkWritingAsReady(scratch, readyPath));
+    await fsyncDirectoryChain(path.dirname(filePath), binding, opts?.beforeDirectorySyncForTest, opts?.directorySyncScope, false);
     await removeCommittedTemp(writingPath, binding, prepared.stat);
     const promoted = await recoverDurableTemp(filePath, Buffer.from(content), {
       mode: opts?.mode,
@@ -380,27 +368,24 @@ async function writeViaTempNoReplaceDurable(
   }
 }
 
-/** Write and link a same-directory temp, keeping its handle open to pin the inode. */
 async function linkViaTemp(
   filePath: string,
   content: string | Uint8Array,
   mode: number | undefined,
   binding: ParentBinding | undefined,
-  durable: boolean,
   afterCommit: (() => Promise<void>) | undefined,
-  tmpPath?: string,
 ): Promise<LinkedTemp> {
-  const temp = await writeBoundTemp(filePath, content, mode, binding, durable, tmpPath);
+  const { bound: temp } = await writeBoundTemp(randomTempPath(filePath), (handle) => handle.writeFile(content), mode, binding, false);
   let published = false;
   try {
     await commitBoundTemp(temp, binding, (committedPath) => linkTempNoReplace(committedPath, filePath));
-    let hookError: unknown, destinationError: unknown;
-    try { await afterCommit?.(); } catch (error) { hookError = error; }
+    try { await afterCommit?.(); } catch { /* cannot undo the link */ }
+    let destinationError: unknown;
     try { await assertPublishedDestination(filePath, temp.handle, binding); } catch (error) { destinationError = error; }
-    await removeCommittedTemp(temp.tmpPath, binding, temp.stat);
+    await removeCommittedTempAfterPublish(temp.tmpPath, binding, temp.stat, destinationError === undefined);
     if (destinationError !== undefined) throw destinationError;
     published = true;
-    return { handle: temp.handle, stat: temp.stat, hookError };
+    return { handle: temp.handle, stat: temp.stat };
   } finally {
     if (!published) await temp.handle.close().catch(() => {});
   }
@@ -408,18 +393,22 @@ async function linkViaTemp(
 
 /** Prepared temp identity retained across publication while its handle stays open. */
 interface BoundTemp { tmpPath: string; handle: FileHandle; stat: Stats }
-/** Published destination handle plus any test-hook fault retained after cleanup. */
-interface LinkedTemp { handle: FileHandle; stat: Stats; hookError?: unknown }
+interface LinkedTemp { handle: FileHandle; stat: Stats }
 
-/** Write and optionally sync one temp while its handle remains parent-bound. */
-async function writeBoundTemp(filePath: string, content: TempContent, mode: number | undefined, binding: ParentBinding | undefined, durable: boolean, preparedPath?: string): Promise<BoundTemp> {
-  const tmpPath = preparedPath ?? `${filePath}.${randomBytes(TEMP_SUFFIX_BYTES).toString("hex")}.tmp`;
+function randomTempPath(filePath: string): string {
+  return `${filePath}.${randomBytes(TEMP_SUFFIX_BYTES).toString("hex")}.tmp`;
+}
+
+async function writeBoundTemp<T>(
+  tmpPath: string, fill: (handle: FileHandle) => Promise<T>,
+  mode: number | undefined, binding: ParentBinding | undefined, durable: boolean,
+): Promise<{ bound: BoundTemp; filled: T }> {
   const handle = mode === undefined ? await open(tmpPath, "wx") : await open(tmpPath, "wx", mode);
   try {
     await assertTempHandleBound(handle, tmpPath, binding);
-    await (typeof content === "function" ? content(handle) : handle.writeFile(content));
+    const filled = await fill(handle);
     if (durable) await handle.sync();
-    return { tmpPath, handle, stat: await assertTempHandleBound(handle, tmpPath, binding) };
+    return { bound: { tmpPath, handle, stat: await handle.stat() }, filled };
   } catch (error) {
     await handle.close().catch(() => {});
     await unlink(tmpPath).catch(() => {});
@@ -447,7 +436,7 @@ async function writeViaTempNoReplace(
   opts: AtomicWriteNoReplaceOptions | undefined,
   binding: ParentBinding | undefined,
 ): Promise<void> {
-  const linked = await linkViaTemp(filePath, content, opts?.mode, binding, false, opts?.afterNoReplaceCommitForTest);
+  const linked = await linkViaTemp(filePath, content, opts?.mode, binding, opts?.afterNoReplaceCommitForTest);
   try {
     await assertPublishedDestination(filePath, linked.handle, binding);
   } finally {
@@ -455,14 +444,11 @@ async function writeViaTempNoReplace(
   }
 }
 
-/** Verify the open temp handle and temp path resolve to the same file. */
 async function assertTempHandleBound(
   handle: FileHandle,
   tmpPath: string,
   binding: ParentBinding | undefined,
-): Promise<Stats> {
+): Promise<void> {
   if (binding !== undefined) await assertCurrentParent(binding);
-  const handleStat = await handle.stat();
-  await assertTempPathBound(tmpPath, binding, handleStat);
-  return handleStat;
+  await assertPathNamesInode(tmpPath, await handle.stat());
 }

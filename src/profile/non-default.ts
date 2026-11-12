@@ -11,7 +11,7 @@
 
 import { DEFAULT_PROFILE } from "./default.js";
 import { profileDigest } from "./digest.js";
-import { diskEffectiveProfileSources, loadProfileFrom, type EffectiveProfileSources } from "./load.js";
+import { loadProfile, loadProfileFrom, type EffectiveProfileSources } from "./load.js";
 import type { LoadedProfile } from "./types.js";
 
 /**
@@ -36,15 +36,17 @@ import type { LoadedProfile } from "./types.js";
 export async function loadNonDefaultProfile(
   root: string,
 ): Promise<LoadedProfile | undefined> {
-  // `async` so that a throw while the disk sources are built REJECTS, as this function always did.
-  return loadNonDefaultProfileFrom(diskEffectiveProfileSources(root));
+  return nonDefault(await loadProfile(root));
 }
 
-/** {@link loadNonDefaultProfile} over the profile sources: THE ONE BODY. One load, then the one gate. */
+/** {@link loadNonDefaultProfile} over the profile sources: one load, then the one gate. */
 export async function loadNonDefaultProfileFrom(
   sources: EffectiveProfileSources,
 ): Promise<LoadedProfile | undefined> {
-  const loaded = await loadProfileFrom(sources);
+  return nonDefault(await loadProfileFrom(sources));
+}
+
+function nonDefault(loaded: LoadedProfile): LoadedProfile | undefined {
   const isBuiltInDefault =
     loaded.loadedFrom === null && loaded.digest === profileDigest(DEFAULT_PROFILE);
   return isBuiltInDefault ? undefined : loaded;

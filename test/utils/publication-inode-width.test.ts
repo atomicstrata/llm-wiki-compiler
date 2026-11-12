@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, spyOn } from "bun:test";
 import { removeCommittedTemp } from "../../src/utils/atomic-write-no-replace-durable.js";
+import * as fsMetadata from "../../src/utils/fs-metadata.js";
 
 const HIGH_INODE = 9_007_199_254_740_992n;
 
@@ -42,7 +43,7 @@ describe("committed-temp inode precision", () => {
     expect(expected.ino).toBe(roundedActual.ino);
     const realLstat = fsPromises.lstat;
     // No synthetic answer exists here: the imprecise identity must be refused before ANY lstat.
-    const seam = spyOn(fsPromises, "lstat").mockImplementation(lstatSeam(realLstat, new Map()));
+    const seam = spyOn(fsMetadata, "lstat").mockImplementation(lstatSeam(realLstat, new Map()));
     try {
       await expect(removeCommittedTemp(leaf, undefined, expected)).rejects.toThrow();
       expect(seam).not.toHaveBeenCalled();
@@ -63,7 +64,7 @@ describe("committed-temp inode precision", () => {
     const realLstat = fsPromises.lstat;
     const adjacent = { dev: 1n, ino: HIGH_INODE } as BigIntStats;
     const answers = new Map([[matched, expected], [swapped, adjacent]]);
-    const seam = spyOn(fsPromises, "lstat").mockImplementation(lstatSeam(realLstat, answers));
+    const seam = spyOn(fsMetadata, "lstat").mockImplementation(lstatSeam(realLstat, answers));
     try {
       await removeCommittedTemp(matched, undefined, expected);
       await expect(fsPromises.readFile(matched)).rejects.toMatchObject({ code: "ENOENT" });

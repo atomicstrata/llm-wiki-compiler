@@ -17,7 +17,8 @@ import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun, type WorkflowRunStatus }
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { acquireMutationLockBlocking } from "../../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../../src/utils/lock.js";
-import { activatedProject, buildVerticalProduct, gatedVerticalPack, verticalService, VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID } from "./product-vertical-fixture.js";
+import { activatedProject, verticalService } from "./product-vertical-fixture.js";
+import { buildVerticalProduct, gatedVerticalPack, VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 const PARENT_RUN_ID = "journey-2026-08-29-e2e";
 const WF_DIGEST = "ab".repeat(32);

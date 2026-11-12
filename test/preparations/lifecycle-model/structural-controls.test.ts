@@ -14,6 +14,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "../../fixtures/committed-source.js";
 import path from "node:path";
 import {
   importedSpecifiers, importsNodeFilesystem, referencesSymbol, withoutComments,
@@ -54,7 +55,7 @@ async function discoveredPreparationModules(): Promise<string[]> {
   const queue = [...preparations];
   while (queue.length > 0) {
     const module = queue.pop() as string;
-    const source = await readFile(path.join(REPO_ROOT, module), "utf8");
+    const source = await readCommittedSource(path.join(REPO_ROOT, module));
     for (const raw of importedSpecifiers(module, source)) {
       if (!raw.startsWith(".")) continue;
       const specifier = raw.replace(/\.js$/u, ".ts");
@@ -91,7 +92,7 @@ async function forbiddenFilesystemImports(): Promise<string[]> {
   const declared = new Set(CURRENT_FILESYSTEM_OWNERS);
   const offenders: string[] = [];
   for (const module of await discoveredPreparationModules()) {
-    const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+    const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
     const importsFs = importsNodeFilesystem(module, source);
     if (importsFs && !declared.has(module)) offenders.push(module);
   }
@@ -113,7 +114,7 @@ async function adapterFilesystemBypasses(): Promise<string[]> {
   const bypasses: string[] = [];
   const direct = /(?:from\s+|import\s+|import\s*\()\s*["'](?:node:fs(?:\/promises)?|\.\.\/utils\/[^"']+)["']/u;
   for (const module of adapters) {
-    const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+    const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
     if (direct.test(source)) bypasses.push(module);
   }
   return bypasses;
@@ -162,7 +163,7 @@ async function nonDriverCustodyProtocolImports(): Promise<string[]> {
   const offenders: string[] = [];
   for (const module of await discoveredSourceModules()) {
     if (owners.has(module)) continue;
-    const source = await readFile(path.join(REPO_ROOT, module), "utf8");
+    const source = await readCommittedSource(path.join(REPO_ROOT, module));
     // Any reference, not any braced import. The previous match was
     // `import { … } from "…"` only, so a namespace import and a dynamic import
     // both reached the custody protocol with this control green.
@@ -189,7 +190,7 @@ async function nonDriverPermitMinters(): Promise<string[]> {
   const offenders: string[] = [];
   for (const module of await discoveredSourceModules()) {
     if (drivers.has(module)) continue;
-    const source = await readFile(path.join(REPO_ROOT, module), "utf8");
+    const source = await readCommittedSource(path.join(REPO_ROOT, module));
     // Comment-stripped, like its sibling. Reading raw source made this fire on a
     // docblock that merely NAMED the seam — a control that reddens when someone
     // documents the rule is a control that gets deleted.
@@ -259,7 +260,7 @@ async function rootTakingReachNames(): Promise<string[]> {
   // Follow one hop of re-export aliasing, which is how the public names arise.
   // Split on exported-function boundaries and keep any whose BODY names a wrapper.
   for (const module of ["src/preparations/quarantine-move.ts"]) {
-    const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+    const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
     const blocks = source.split(/(?=export (?:async )?function )/u);
     for (const block of blocks) {
       const declared = /^export (?:async )?function (\w+)/u.exec(block)?.[1];
@@ -375,7 +376,7 @@ describe("lifecycle structural ownership controls", () => {
     const offenders: string[] = [];
     for (const module of await discoveredPreparationModules()) {
       if (isParser(module)) continue;
-      const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+      const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
       for (const match of source.matchAll(/([\w.]+)\.confirmation\b/g)) {
         const receiver = (match[1] as string).split(".")[0] as string;
         if (!callerSupplied.has(receiver)) offenders.push(`${module}: ${match[0]}`);
@@ -412,7 +413,7 @@ describe("lifecycle structural ownership controls", () => {
       // Comment-stripped. Reading raw source made a docblock saying DO NOT call
       // the root-taking variant count as calling it, so documenting the rule
       // turned this control red.
-      const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+      const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
       const captures = source.match(/withPreparationLifecycleRead\s*\(/gu)?.length ?? 0;
       if (captures > 1) offenders.push(`${module}: ${captures} in-module captures`);
       for (const reach of reaches) {
@@ -440,7 +441,7 @@ describe("lifecycle structural ownership controls", () => {
     // inlined the prefix instead is caught by the padStart sweep below.
     const users: string[] = [];
     for (const module of await discoveredSourceModules()) {
-      const source = withoutComments(await readFile(path.join(REPO_ROOT, module), "utf8"));
+      const source = withoutComments(await readCommittedSource(path.join(REPO_ROOT, module)));
       if (referencesSymbol(source, "STAGED_DELETE_PREFIX")) users.push(module);
     }
     // paths.ts alone: it declares the prefix AND derives the name, in the layer

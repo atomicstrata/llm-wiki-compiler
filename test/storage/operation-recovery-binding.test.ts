@@ -170,7 +170,7 @@ describe("the decision order over replayed domain snapshots (memory only, not ph
   });
 
   it("R8 makes no ambient read in the bound bodies, while the ROOT resolver reaches all three incumbent reads at their import sites", async () => {
-    const spies = [vi.spyOn(capacity, "scanOperationInventory"), vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRun")];
+    const spies = [vi.spyOn(capacity, "scanOperationInventory"), vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRunFrom")];
     const { inventory, key, runs } = snapshotOf("parked");
     expect(await resolveOperationRecoveryStateFrom(scripted(inventory, key, runs, []))).toBe("bundle-recovery-required");
     expect(spies.map((spy) => spy.mock.calls.length)).toEqual([0, 0, 0]);

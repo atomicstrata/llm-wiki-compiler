@@ -16,7 +16,7 @@
  * candidates.
  */
 
-import { lstat, realpath, stat } from "node:fs/promises";
+import { lstat, realpath, stat } from "../utils/fs-metadata.js";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isInsideDir } from "../utils/path-confine.js";
@@ -92,9 +92,33 @@ export async function captureCandidateDirectoryBinding(
   dir: string,
   requireLiteral = false,
 ): Promise<CandidateDirectoryBinding | null> {
+  return (await captureCandidateDirectoryUnderRoot(root, dir, requireLiteral)).binding;
+}
+
+/** A directory binding together with the real root it was judged under. */
+export interface RootedCandidateDirectoryBinding {
+  readonly realRoot: string;
+  readonly binding: CandidateDirectoryBinding | null;
+}
+
+/** {@link captureCandidateDirectoryBinding}, also answering the real root it resolved, so a caller confining a leaf below the directory need not resolve the root a second time. */
+export async function captureCandidateDirectoryUnderRoot(
+  root: string,
+  dir: string,
+  requireLiteral = false,
+): Promise<RootedCandidateDirectoryBinding> {
   const segments = ownedSegments(root, dir);
   const realRoot = await realpath(root).catch(() => null);
   if (realRoot === null) throw new UnsafeCandidateDirError();
+  return { realRoot, binding: await bindSegments(root, realRoot, segments, requireLiteral) };
+}
+
+async function bindSegments(
+  root: string,
+  realRoot: string,
+  segments: readonly string[],
+  requireLiteral: boolean,
+): Promise<CandidateDirectoryBinding | null> {
   let lexical = path.resolve(root);
   let finalInfo: Stats | null = null;
   let realDir = realRoot;
@@ -102,6 +126,11 @@ export async function captureCandidateDirectoryBinding(
     lexical = path.join(lexical, segments[index]!);
     finalInfo = await inspectComponent(lexical);
     if (finalInfo === null) return null;
+    const isLast = index === segments.length - 1;
+    if (finalInfo.isDirectory() && !isLast) {
+      realDir = path.join(realDir, segments[index]!);
+      continue;
+    }
     const expected = path.join(realRoot, ...segments.slice(0, index + 1));
     const observed = await resolveComponent(lexical, realRoot, requireLiteral ? expected : undefined, finalInfo);
     if (finalInfo.isSymbolicLink()) finalInfo = await stat(observed);

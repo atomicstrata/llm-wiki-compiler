@@ -18,7 +18,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerWorkflowActionTools } from "../src/mcp/workflow-action-tools.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
-import { callTool as call } from "./fixtures/mcp-test-env.js";
+import { callTool as call } from "./fixtures/mcp-test-server.js";
 
 const ctx = useConfinementRoots("mcp-wf-action");
 
