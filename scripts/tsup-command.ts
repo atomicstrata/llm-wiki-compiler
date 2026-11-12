@@ -19,7 +19,7 @@ const require = createRequire(import.meta.url);
 const exec = promisify(execFile);
 
 /** Resolve the installed CLI from its manifest instead of hardcoding its layout. */
-export function resolveTsupCli(): string {
+function resolveTsupCli(): string {
   const manifestPath = require.resolve("tsup/package.json");
   const { bin } = JSON.parse(readFileSync(manifestPath, "utf8")) as {
     bin: string | Record<string, string>;

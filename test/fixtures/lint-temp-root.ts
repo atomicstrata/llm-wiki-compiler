@@ -6,7 +6,7 @@
  * Two APIs are provided:
  * - `makeLintTempRoot` — async factory returning a fresh root per call;
  *   callers manage their own beforeEach/afterEach lifecycle.
- * - `useLintTempRoot` — vitest lifecycle helper that wires beforeEach /
+ * - `useLintTempRoot` — test lifecycle helper that wires beforeEach /
  *   afterEach automatically; used by schema-lint tests that prefer the
  *   hook-based style.
  */
@@ -63,7 +63,7 @@ export interface HookLintTempRoot {
 }
 
 /**
- * Provision a tmp wiki root and wire vitest before/afterEach hooks so callers
+ * Provision a tmp wiki root and wire before/afterEach hooks so callers
  * just access `env.dir` etc. inside `it` blocks. Eliminates the duplicated
  * lifecycle boilerplate previously copy-pasted across lint test files.
  * @param prefix - Short label for the temp directory name.
@@ -98,7 +98,7 @@ export function useLintTempRoot(prefix: string): HookLintTempRoot {
   return env;
 }
 
-/** Throws if a writer is invoked before vitest has run beforeEach. */
+/** Throws if a writer is invoked before the runner has run beforeEach. */
 function notInitialized(): Promise<void> {
   throw new Error("LintTempRoot used outside of an it() block");
 }
