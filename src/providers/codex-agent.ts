@@ -116,9 +116,8 @@ const NODE_PROBE_TIMEOUT_MS = 5_000;
 
 /**
  * Directory of the real Node binary behind the first `node` on `searchPath`.
- * llmwiki's own executable is Bun under the test runner, so it cannot stand in
- * for Node. A wrapper (`exec node "$@"`) reports the binary it finally runs,
- * not itself.
+ * Used only under Bun, whose executable cannot stand in for Node. A wrapper
+ * (`exec node "$@"`) reports the binary it finally runs, not itself.
  */
 function realNodeDirectory(searchPath: string): string | null {
   try {
@@ -131,9 +130,23 @@ function realNodeDirectory(searchPath: string): string | null {
   }
 }
 
+/** {@link realNodeDirectory} answers by search path, probed once per process. */
+const probedNodeDirectories = new Map<string, string | null>();
+
+/**
+ * Directory of the Node that env-based shebangs should run. Under Node it is
+ * this process's own binary. Under Bun (the test runner) it is probed, once per
+ * search path: the probe is a synchronous spawn, so it stays off every call.
+ */
+function nodeDirectoryFor(searchPath: string): string | null {
+  if (process.versions.bun === undefined) return path.dirname(process.execPath);
+  if (!probedNodeDirectories.has(searchPath)) probedNodeDirectories.set(searchPath, realNodeDirectory(searchPath));
+  return probedNodeDirectories.get(searchPath) ?? null;
+}
+
 /** Keep env-based Node shebangs away from wrappers that synthesize variables. */
 function interpreterSafePath(searchPath: string): string {
-  const nodeDirectory = realNodeDirectory(searchPath);
+  const nodeDirectory = nodeDirectoryFor(searchPath);
   if (nodeDirectory === null) return searchPath;
   const directories = searchPath.split(path.delimiter)
     .filter((directory) => directory && directory !== nodeDirectory);
