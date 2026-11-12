@@ -42,7 +42,7 @@ interface DirectoryBinding {
 
 /**
  * Directory entries this process has already made durable, as
- * `parent identity > child identity`.
+ * `parent identity > child identity@child name`.
  *
  * A write changes one directory: the leaf's parent. That directory is always
  * synced. An ancestor's entry for the directory below it changes only when
@@ -52,8 +52,9 @@ interface DirectoryBinding {
  * its child durably, instead of re-syncing every directory up to the project
  * root on every write.
  *
- * IDENTITY, NOT PATH. A directory swapped for another, or deleted and
- * recreated, is a different object and is synced again.
+ * IDENTITY AND NAME. A directory swapped for another, or deleted and
+ * recreated, is a different object and is synced again; so is one renamed
+ * within the same parent, whose new name is a new entry.
  */
 const durableEntries = new Set<string>();
 
@@ -65,6 +66,15 @@ const durableEntries = new Set<string>();
 function directoryIdentity(stat: { dev: number; ino: number; birthtimeMs: number }): string {
   if (stat.birthtimeMs === 0) return `unidentified:${randomUUID()}`;
   return `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+}
+
+/**
+ * A child directory's entry in its parent: its identity AND its name, so a
+ * directory renamed within the same parent is a new entry whose parent sync
+ * has not happened yet, and is synced again.
+ */
+function childEntry(identity: string, dir: string): string {
+  return `${identity}@${path.basename(dir)}`;
 }
 
 /**
@@ -131,11 +141,11 @@ async function syncChain(
     await beforeSync?.(current);
     const identity = await fsyncBoundDirectory(binding);
     if (below !== undefined) durableEntries.add(`${identity}>${below}`);
-    const next = await nextChainEntry(current, boundary, parent, identity);
+    const next = await nextChainEntry(current, boundary, parent, childEntry(identity, current));
     if (next !== null || checkLast) await recheckWriteParent(parent);
     if (next === null) return;
     binding = await captureDirectoryBinding(canonicalSyncPath(next.dir, parent), next.stat);
-    below = identity;
+    below = childEntry(identity, current);
     current = next.dir;
   }
 }
@@ -145,11 +155,11 @@ async function nextChainEntry(
   current: string,
   boundary: string,
   parent: ParentBinding | undefined,
-  identity: string,
+  entry: string,
 ): Promise<{ dir: string; stat: Stats } | null> {
   const ancestor = current === boundary ? null : nextDirectoryInChain(current, boundary);
   if (ancestor === null) return null;
-  const stat = await ancestorNeedingSync(canonicalSyncPath(ancestor, parent), identity);
+  const stat = await ancestorNeedingSync(canonicalSyncPath(ancestor, parent), entry);
   return stat === null ? null : { dir: ancestor, stat };
 }
 
