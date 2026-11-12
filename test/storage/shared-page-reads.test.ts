@@ -69,7 +69,7 @@ describe("shared confined reads", () => {
       await atomicWrite(page, "other\n");
       // Linux can hand the rewrite the freed inode number with times in the
       // same coarse tick: report the old identity to stand in for that case.
-      const lstat = spyOn(fs, "lstatSync").mockImplementation(() => before);
+      const lstat = spyOn(fs, "lstatSync").mockReturnValue(before);
       try {
         return await read();
       } finally {
