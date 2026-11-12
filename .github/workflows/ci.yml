@@ -77,15 +77,19 @@ jobs:
 
   # Three legs, each building what it reads, so the slowest sets the time.
   package:
+    name: package (${{ matrix.name }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        check:
-          # `bun run test:pack` runs both packing tests; CI gives each its own leg.
-          - bun run release:check-docs && bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts
-          - bun run build && bun test --path-ignore-patterns='**/dist/**' ./test/products/private-packages-pack.test.ts
-          - bun run build && bun test ./test/local-workflow-package-boundary.test.ts && node dist/cli.js --version
+        # `bun run test:pack` runs both packing tests; CI gives each its own leg.
+        include:
+          - name: sdk pack
+            run: bun run release:check-docs && bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts
+          - name: private packages pack
+            run: bun run build && bun test --path-ignore-patterns='**/dist/**' ./test/products/private-packages-pack.test.ts
+          - name: workflow boundary and Node CLI
+            run: bun run build && bun test ./test/local-workflow-package-boundary.test.ts && node dist/cli.js --version
     steps:
       - uses: actions/checkout@v4
         with:
@@ -94,7 +98,7 @@ jobs:
         with:
           bun-version-file: package.json
       # The published package runs on Node: the packing tests import it with
-      # Node, and the second leg starts the built CLI with Node.
+      # Node, and the last leg starts the built CLI with Node.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -107,7 +111,8 @@ jobs:
           restore-keys: npm-pack-
       # Default tests exclude these: the shipped facade, its exact workspace
       # dependencies, and consumer declarations.
-      - run: ${{ matrix.check }}
+      - name: Run ${{ matrix.name }}
+        run: ${{ matrix.run }}
 
   # The one check branch protection requires. It passes only when every shard
   # and package leg passed, so the matrix can change without touching protection.
@@ -116,7 +121,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: '[[ "${{ needs.test.result }}" == success && "${{ needs.package.result }}" == success ]]'
+      - name: Every test and package job passed
+        run: '[[ "${{ needs.test.result }}" == success && "${{ needs.package.result }}" == success ]]'
 
   codebase-health:
     runs-on: ubuntu-latest
