@@ -11,6 +11,7 @@
 
 import { buildFrontmatter, extractClaimCitations } from "../utils/markdown.js";
 import { overlaps, type LineRange } from "../compiler/source-excerpt.js";
+import { ownPages, pageBody, stringField } from "../compiler/derived-steps.js";
 import { linkList, withGenerated, type PageLink } from "../wiki/generated-section.js";
 import type { DayBucket } from "./buckets.js";
 import { weekStart } from "./buckets.js";
@@ -52,7 +53,7 @@ function weekTitle(week: string): string {
 
 /** A day's generated tail: the concept pages built from its lines, and the people in it. */
 export interface DaySections {
-  related: CitingPage[];
+  related: PageLink[];
   people: PageLink[];
 }
 
@@ -77,20 +78,23 @@ export interface PersonMentions extends PageLink {
   spans: { file: string; lines: LineRange }[];
 }
 
+/** Whether any of `lines` in `file` falls on the day. */
+export function dayCovers(bucket: DayBucket, file: string, lines: LineRange): boolean {
+  return bucket.sources.some((source) => source.file === file && source.ranges.some((range) => overlaps(range, lines)));
+}
+
 /** The people mentioned on any of a day's lines, by title. */
 export function peopleInDay(bucket: DayBucket, people: PersonMentions[]): PageLink[] {
-  const rangesByFile = new Map(bucket.sources.map((source) => [source.file, source.ranges]));
   return people
-    .filter((person) => person.spans.some((span) => rangesByFile.get(span.file)?.some((range) => overlaps(range, span.lines))))
+    .filter((person) => person.spans.some((span) => dayCovers(bucket, span.file, span.lines)))
     .map(({ target, title }) => ({ target, title }))
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
 /** A day's generated tail as markdown: the concept pages built from its lines, then the people in it. */
 function daySections({ related, people }: DaySections): string {
-  const pages = related.map((page) => ({ target: page.slug, title: page.title }));
   return [
-    pages.length > 0 ? `## Pages from this day\n\n${linkList(pages)}` : "",
+    related.length > 0 ? `## Pages from this day\n\n${linkList(related)}` : "",
     people.length > 0 ? `## People this day\n\n${linkList(people)}` : "",
   ].filter(Boolean).join("\n\n");
 }
@@ -108,13 +112,23 @@ export function withDaySections(text: string, sections: DaySections): string {
  * The concept pages citing any of the day's lines, by title. A citation of a
  * whole file counts only when that file's content is all on this one day.
  */
-export function pagesCitingDay(bucket: DayBucket, pages: CitingPage[], singleDayFiles: ReadonlySet<string>): CitingPage[] {
-  const rangesByFile = new Map(bucket.sources.map((source) => [source.file, source.ranges]));
+export function pagesCitingDay(bucket: DayBucket, pages: CitingPage[], singleDayFiles: ReadonlySet<string>): PageLink[] {
+  const onDay = (file: string): boolean => bucket.sources.some((source) => source.file === file);
   return pages
-    .filter((page) => extractClaimCitations(page.body).some((citation) => citation.spans.some((span) => {
-      const ranges = rangesByFile.get(span.file);
-      if (!ranges) return false;
-      return span.lines ? ranges.some((range) => overlaps(range, span.lines!)) : singleDayFiles.has(span.file);
-    })))
+    .filter((page) => extractClaimCitations(page.body).some((citation) => citation.spans.some((span) =>
+      (span.lines ? dayCovers(bucket, span.file, span.lines) : singleDayFiles.has(span.file) && onDay(span.file)))))
+    .map((page) => ({ target: page.slug, title: page.title }))
     .sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** Whether a page's frontmatter says the timeline wrote it (a day or a week). */
+export function isTimelinePage(meta: Record<string, unknown>): boolean {
+  return meta.timeline === "daily" || meta.timeline === "weekly";
+}
+
+/** The week pages among the timeline's pages, newest first: each week and its model-written body. */
+export function weekPages(texts: Map<string, string>): { week: string; body: string }[] {
+  const { own } = ownPages(texts, (meta) => meta.timeline === "weekly");
+  return [...own.values()].map((page) => ({ week: stringField(page.meta, "week"), body: pageBody(page.text) }))
+    .filter((week) => week.week && week.body).sort((a, b) => b.week.localeCompare(a.week));
 }

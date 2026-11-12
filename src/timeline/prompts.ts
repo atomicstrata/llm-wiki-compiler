@@ -12,9 +12,8 @@
  * Both answers start with a `SUMMARY:` line that becomes the page's summary.
  */
 
-import type { DayBucket } from "./buckets.js";
+import type { DayBucket, DaySource } from "./buckets.js";
 import { CITED_BULLETS, SUMMARY_PREFIX, sourcesExcerpt, type PageRequest } from "../compiler/source-excerpt.js";
-
 
 const DAILY_SYSTEM = `Summarize what happened on this day, from the records below, for a personal memory, in the third person.
 First line: "${SUMMARY_PREFIX} " and one sentence.
@@ -25,10 +24,10 @@ First line: "${SUMMARY_PREFIX} " and one sentence.
 Then short "## " sections by theme, not by day. End each bullet with the citations it draws on, copied exactly from the daily pages.
 No title.`;
 
-/** A day request, and the day narrowed to the lines the request actually shows. */
+/** A day request, and the day's sources narrowed to the lines the request actually shows. */
 export interface DailyRequest {
   request: PageRequest;
-  shown: DayBucket;
+  shown: DaySource[];
 }
 
 /**
@@ -37,7 +36,7 @@ export interface DailyRequest {
  * @param texts - Source filename → full text, for every source in the bucket.
  */
 export function dailyRequest(bucket: DayBucket, texts: Map<string, string>): DailyRequest {
-  const excerpt = dayExcerpt(bucket, texts);
+  const excerpt = sourcesExcerpt(bucket.sources, texts);
   const content = `Records for ${bucket.day}:\n\n${excerpt.text}\n\nWrite the page for ${bucket.day}.`;
   return { request: { system: DAILY_SYSTEM, messages: [{ role: "user", content }] }, shown: excerpt.shown };
 }
@@ -53,18 +52,4 @@ export function weeklyRequest(week: string, dailyBodies: { day: string; body: st
     system: WEEKLY_SYSTEM,
     messages: [{ role: "user", content: `Daily pages for ${week}:\n\n${pages}\n\nWrite the page for ${week}.` }],
   };
-}
-
-/**
- * The day's lines from every source, numbered as in the source, within
- * {@link DAY_EXCERPT_BUDGET}. The budget is shared fairly: a small source is
- * shown whole and a large one gets what is left, so one long chat cannot crowd
- * out a meeting note on the same day. A source over its share is cut at its
- * first row that does not fit and says how many rows were cut. `shown` is the
- * day narrowed to the rows actually shown, so citations can be checked against
- * what the model saw.
- */
-export function dayExcerpt(bucket: DayBucket, texts: Map<string, string>): { text: string; shown: DayBucket } {
-  const { text, shown } = sourcesExcerpt(bucket.sources, texts);
-  return { text, shown: { ...bucket, sources: shown } };
 }

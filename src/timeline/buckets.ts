@@ -13,6 +13,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { shortDigest } from "../utils/short-digest.js";
 import { sourceDayRanges } from "./event-days.js";
 import type { LineRange } from "../compiler/source-excerpt.js";
 
@@ -104,5 +105,5 @@ export function weekStart(week: string): string {
 
 /** A stable digest of a page's inputs and the page format version. */
 function signatureOf(inputs: unknown): string {
-  return createHash("sha256").update(JSON.stringify([TIMELINE_PAGE_VERSION, inputs])).digest("hex").slice(0, 16);
+  return shortDigest([TIMELINE_PAGE_VERSION, inputs]);
 }

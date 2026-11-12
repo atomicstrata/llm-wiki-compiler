@@ -83,9 +83,6 @@ describe("identity", () => {
     const records = resolveRecords("person", [mention("Ben"), mention("Ben Eggers"), mention("Ben Lee")], registry);
     const flags = possibleDuplicates(records, registry.distinct?.person);
     expect([flags.get("ben"), flags.get("ben-eggers"), flags.get("ben-lee")]).toEqual([["ben-lee"], ["ben-lee"], ["ben", "ben-eggers"]]);
-    expect(() => parseRegistry(JSON.stringify({ distinct: { person: ["ben", "ben-eggers"] } }))).toThrow(/"distinct" must map/);
-    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben"]] } }))).toThrow(/two or more record ids/);
-    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben", "Ben Eggers"]] } }))).toThrow(/two or more record ids/);
   });
 
   it("does not flag relation names by their first word", () => {
@@ -113,6 +110,12 @@ describe("identity", () => {
     const after = resolveRecords("person", names, parseRegistry(JSON.stringify({ exclude: { person: ["Mary Jane"] } })));
     expect(before.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane", "Mary Jane"], ["mary-jane-2", "Mary-Jane"]]);
     expect(after.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane-2", "Mary-Jane"]]);
+  });
+
+  it("refuses a distinct list that is not sets of two or more slug ids", () => {
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: ["ben", "ben-eggers"] } }))).toThrow(/"distinct" must map/);
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben"]] } }))).toThrow(/two or more record ids/);
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben", "Ben Eggers"]] } }))).toThrow(/two or more record ids/);
   });
 
   it("refuses an owner or a record of the wrong shape instead of ignoring it", () => {

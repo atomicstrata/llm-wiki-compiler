@@ -16,6 +16,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { shortDigest } from "../utils/short-digest.js";
 import type { EntityExtractDef, EntityTypeDef, FieldDef, ProfilePack } from "../profile/types.js";
 
 /** Field types extraction can fill from text; references and artifacts are not read from sources. */
@@ -49,7 +50,7 @@ export function extractableTypes(profile: ProfilePack): ExtractableType[] {
 /** The digest of what extraction's answers can contain; equal digests mean cached answers still fit. */
 export function structuralDigest(types: ExtractableType[]): string {
   const structure = types.map(({ type, fields }) => [type, fields.map(([name, field]) => [name, field.type, [...(field.enum ?? [])].sort()])]);
-  return createHash("sha256").update(JSON.stringify([RECORD_SHAPE_VERSION, structure])).digest("hex").slice(0, 16);
+  return shortDigest([RECORD_SHAPE_VERSION, structure]);
 }
 
 /** The JSON schema of one field's answer: nullable, and closed for an enum. */

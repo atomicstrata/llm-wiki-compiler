@@ -45,7 +45,7 @@ describe("rendering a day", () => {
   it("shows the related list without its marker, after a paragraph or a list", () => {
     const snapshot = { pages: [], sourceFilenames: [] } as unknown as ViewerSnapshot;
     for (const body of ["Fired the kiln. ^[log.md:1-2]", "## Kiln\n\n- Fired it. ^[log.md:1-2]"]) {
-      const html = renderPageHtml(withDaySections(body, { related: [{ slug: "kiln", title: "Kiln", body: "" }], people: [] }), snapshot, { isLoopback: true }).html;
+      const html = renderPageHtml(withDaySections(body, { related: [{ target: "kiln", title: "Kiln" }], people: [] }), snapshot, { isLoopback: true }).html;
       expect(html).toContain("Pages from this day");
       expect(html).not.toMatch(/llmwiki-generated|\[\/\/\]/);
     }

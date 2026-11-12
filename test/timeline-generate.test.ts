@@ -8,13 +8,14 @@
 import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
-import { dayExcerpt } from "../src/timeline/prompts.js";
-import { fitCitations, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
+import { fitCitations, sourcesExcerpt, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
 import { withDaySections } from "../src/timeline/pages.js";
 import { memoryDerivedSteps } from "./memory-derived-steps.js";
 
 const CONFIG = { enabled: true, timeZone: "UTC" };
+/** One timeline pass over CONFIG, one model call at a time. */
+const RUN = { ...CONFIG, concurrency: 1 };
 const CHAT = ["# Chat", "- 2026-05-04 09:00 A: plan the trip", "- 2026-05-05 10:00 B: booked it"].join("\n");
 const NOTE = "Decided to hire.";
 
@@ -54,7 +55,7 @@ describe("generateTimelineWith", () => {
 
   it("records what each page covers, keeps creation time, and links the day to concept pages citing its lines", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     const { meta, body } = parseFrontmatter(memory.pages.get("timeline/2026-05-05")!);
     expect(meta).toMatchObject({ title: "Tuesday, May 5, 2026", summary: "About 2026-05-05.", timeline: "daily", date: "2026-05-05", sources: ["chat.md"], modelId: "test-model" });
     expect(body).toContain("## Pages from this day\n\n- [[trip|Trip]]");
@@ -64,36 +65,36 @@ describe("generateTimelineWith", () => {
 
   it("rewrites only the edited source's days and their week", async () => {
     const memory = memorySteps({ "chat.md": CHAT, "2026-05-11-standup.md": NOTE });
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     memory.sources["2026-05-11-standup.md"] = "Decided to hire two.";
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect(result.written.sort()).toEqual(["2026-05-11", "2026-W20"]);
   });
 
   it("holds a week back while one of its days failed, and builds it once the day succeeds", async () => {
     const memory = memorySteps({ "chat.md": CHAT }, ["2026-05-05"]);
-    const failed = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const failed = await generateTimelineWith(memory.steps, RUN);
     expect([failed.written, failed.errors]).toEqual([["2026-05-04"], ['Timeline page "2026-05-05" failed: provider down']]);
     memory.steps.complete = memorySteps({}).steps.complete;
-    const retried = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const retried = await generateTimelineWith(memory.steps, RUN);
     expect(retried.written.sort()).toEqual(["2026-05-05", "2026-W19"]);
   });
 
   it("removes the pages of days and weeks no source covers any more", async () => {
     const memory = memorySteps({ "chat.md": CHAT, "2026-05-11-standup.md": NOTE });
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     delete memory.sources["2026-05-11-standup.md"];
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect([result.deleted.sort(), [...memory.pages.keys()].sort()]).toEqual([["2026-05-11", "2026-W20"], ["timeline/2026-05-04", "timeline/2026-05-05", "timeline/2026-W19"]]);
   });
 
   it("keeps a day's related pages current without asking the model, and never touches hand-written files", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.pages.set("timeline/README", "---\ntitle: Notes\n---\n\nMine.\n");
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     const calls = memory.requests.length;
     memory.steps.listConceptPages = async () => [{ slug: "trip-plan", title: "Trip plan", body: "Planned. ^[chat.md:2-2]" }];
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect([result.written.sort(), memory.requests.length, result.deleted]).toEqual([["2026-05-04", "2026-05-05"], calls, []]);
     expect(memory.pages.get("timeline/2026-05-04")).toContain("- [[trip-plan|Trip plan]]");
     expect(memory.pages.get("timeline/2026-05-05")).not.toContain("Pages from this day");
@@ -103,7 +104,7 @@ describe("generateTimelineWith", () => {
   it("reports a page that cites lines it was not shown, and still writes it", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.complete = async (request) => `SUMMARY: x.\nMade up. ^[chat.md:3-3] ^[other.md:1-1]`.replace("^[chat.md:3-3]", request.messages[0].content.includes("2026-05-05") ? "" : "^[chat.md:3-3]");
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect(result.errors).toContain('Timeline page "2026-05-04" cites 2 spans outside the lines it was written from');
     expect(memory.pages.has("timeline/2026-05-04")).toBe(true);
   });
@@ -112,7 +113,7 @@ describe("generateTimelineWith", () => {
     const memory = memorySteps({ "chat.md": CHAT });
     const mine = "---\ntitle: My notes\n---\n\nMine.\n";
     memory.pages.set("timeline/2026-05-04", mine);
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect(memory.pages.get("timeline/2026-05-04")).toBe(mine);
     expect(result.errors).toContain("wiki/timeline/2026-05-04.md was not written by the timeline; left as it is");
     expect(result.errors).toContain('Timeline week "2026-W19" not written: one of its days is a hand-written page');
@@ -122,9 +123,9 @@ describe("generateTimelineWith", () => {
   it("keeps the model's own text when refreshing related pages, even under a look-alike heading", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.complete = async () => "SUMMARY: x.\nTop. ^[chat.md:2-2]\n\n## Pages from this day\n\nKept. ^[chat.md:2-2]";
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     memory.steps.listConceptPages = async () => [{ slug: "trip-plan", title: "Trip plan", body: "^[chat.md:2-2]" }];
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     const day = memory.pages.get("timeline/2026-05-04")!;
     expect(day).toContain("Kept. ^[chat.md:2-2]");
     expect(day.trimEnd().endsWith("- [[trip-plan|Trip plan]]")).toBe(true);
@@ -132,15 +133,15 @@ describe("generateTimelineWith", () => {
 
   it("hides its section marker from readers and rewrites a page that used an older marker once", () => {
     const old = "---\ntitle: Day\n---\n\nBody.\n\n<!-- llmwiki:timeline-related -->\n## Pages from this day\n\n- [[a|A]]\n";
-    const fresh = withDaySections(old, { related: [{ slug: "b", title: "B", body: "" }], people: [] });
+    const fresh = withDaySections(old, { related: [{ target: "b", title: "B" }], people: [] });
     expect(fresh).toBe("---\ntitle: Day\n---\n\nBody.\n\n[//]: # (llmwiki-generated)\n## Pages from this day\n\n- [[b|B]]\n");
-    expect(withDaySections(fresh, { related: [{ slug: "b", title: "B", body: "" }], people: [] })).toBe(fresh);
+    expect(withDaySections(fresh, { related: [{ target: "b", title: "B" }], people: [] })).toBe(fresh);
   });
 
   it("lists a person on the day whose lines mention them", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.listPeople = async () => [{ target: "person/ana", title: "Ana", spans: [{ file: "chat.md", lines: { start: 2, end: 2 } }] }];
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     expect(memory.pages.get("timeline/2026-05-04")).toContain("## People this day\n\n- [[person/ana|Ana]]");
     expect([...memory.pages].filter(([key]) => key !== "timeline/2026-05-04").some(([, text]) => text.includes("person/ana"))).toBe(false);
   });
@@ -153,17 +154,17 @@ describe("generateTimelineWith", () => {
   it("fits a summary's citation once: the second compile writes nothing", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.complete = async (request) => `SUMMARY: Planned ^[chat.md:1-3].\nDone. ${firstCitation(request.messages[0].content)}`;
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     expect(parseFrontmatter(memory.pages.get("timeline/2026-05-04")!).meta.summary).toBe("Planned ^[chat.md:2-2].");
     const batches = memory.batches.length;
-    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    await generateTimelineWith(memory.steps, RUN);
     expect(memory.batches.length).toBe(batches);
   });
 
   it("treats an empty page as hand-written: never overwritten, never removed", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.pages.set("timeline/2026-05-04", "");
-    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const result = await generateTimelineWith(memory.steps, RUN);
     expect(memory.pages.get("timeline/2026-05-04")).toBe("");
     expect(result.errors).toContain("wiki/timeline/2026-05-04.md was not written by the timeline; left as it is");
   });
@@ -179,7 +180,7 @@ describe("timeline prompts", () => {
   it("cuts a day past the excerpt budget at a line, and says how much was cut", () => {
     const long = Array.from({ length: 3000 }, (_, index) => `- 2026-05-0${index < 2999 ? 4 : 5} 09:00 ${"x".repeat(40)}`).join("\n");
     const [day] = dayBuckets([{ file: "big.md", hash: "h", text: long }], "UTC");
-    const excerpt = dayExcerpt(day, new Map([["big.md", long]])).text;
+    const excerpt = sourcesExcerpt(day.sources, new Map([["big.md", long]])).text;
     expect(excerpt.length).toBeLessThan(61_000);
     expect(excerpt).toMatch(/^--- SOURCE: big\.md ---\n\n {3}1 \| /);
     expect(excerpt).toMatch(/\(\d+ more lines not shown: over the excerpt budget\. Do not cite them\.\)$/);
@@ -189,15 +190,15 @@ describe("timeline prompts", () => {
     const chat = Array.from({ length: 3000 }, (_, index) => `- 2026-05-04 09:${String(index % 60).padStart(2, "0")} ${"x".repeat(40)}`).join("\n");
     const note = "---\ndate: 2026-05-04\n---\nDecided to hire.";
     const [day] = dayBuckets([{ file: "a-chat.md", hash: "1", text: chat }, { file: "b-note.md", hash: "2", text: note }], "UTC");
-    const { text, shown } = dayExcerpt(day, new Map([["a-chat.md", chat], ["b-note.md", note]]));
+    const { text, shown } = sourcesExcerpt(day.sources, new Map([["a-chat.md", chat], ["b-note.md", note]]));
     expect(text).toContain("--- SOURCE: b-note.md ---\n\n4 | Decided to hire.");
-    expect(shown.sources.find((source) => source.file === "b-note.md")!.ranges).toEqual([{ start: 4, end: 4 }]);
-    expect(fitCitations("Late. ^[a-chat.md:2999-2999]", shown.sources).outside).toBe(1);
+    expect(shown.find((source) => source.file === "b-note.md")!.ranges).toEqual([{ start: 4, end: 4 }]);
+    expect(fitCitations("Late. ^[a-chat.md:2999-2999]", shown).outside).toBe(1);
   });
 
   it("shows a day's lines under their original numbers, ranges apart", () => {
     const [, second] = dayBuckets([{ file: "chat.md", hash: "h", text: CHAT }], "UTC");
-    expect(dayExcerpt(second, new Map([["chat.md", CHAT]])).text).toBe("--- SOURCE: chat.md ---\n\n3 | - 2026-05-05 10:00 B: booked it");
+    expect(sourcesExcerpt(second.sources, new Map([["chat.md", CHAT]])).text).toBe("--- SOURCE: chat.md ---\n\n3 | - 2026-05-05 10:00 B: booked it");
   });
 
   it("splits the summary line from the body, and keeps an answer without one whole", () => {

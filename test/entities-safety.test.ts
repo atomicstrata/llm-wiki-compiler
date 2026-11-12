@@ -2,9 +2,9 @@
  * @file test/entities-safety.test.ts
  * @description The entity step under failure and edge cases: a failed read keeps
  * its pages, a page that cannot pass the field contract costs no model call,
- * names that make the same slug stay separate records, the hub's id is its own,
- * ids fit a filename, the hub groups by the first declared enum field, and a
- * source that grows re-reads only its changed chunk.
+ * names that make the same slug stay separate records, the owner page's id is
+ * its own, ids fit a filename, and a source that grows re-reads only its
+ * changed chunk.
  */
 
 import { describe, expect, it } from "bun:test";
@@ -12,9 +12,8 @@ import { parseFrontmatter } from "../src/utils/markdown.js";
 import type { ProfilePack } from "../src/profile/types.js";
 import { generateEntitiesWith } from "../src/entities/generate.js";
 import { ownerPageId, parseRegistry, recordId, resolveRecords } from "../src/entities/identity.js";
-import { entityConfig, memoryEntitySteps, mention, personProfile, type FakePerson } from "./entity-steps.js";
+import { CHAT, entityConfig, memoryEntitySteps, mention, personProfile, type FakePerson } from "./entity-steps.js";
 
-const CHAT = ["# Chat", "- 2026-05-04 09:00 Sam: Ana is coming", "- 2026-05-05 10:00 Ana: hi", "- 2026-05-05 10:01 Alex: hey"].join("\n");
 const PEOPLE: Record<string, FakePerson[]> = { "chat.md": [{ name: "Ana", relationship: "friend", line: 2 }, { name: "Alex", line: 4 }] };
 
 describe("entity pages when things go wrong", () => {

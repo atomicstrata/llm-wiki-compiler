@@ -28,6 +28,9 @@ export function personProfile(description = "A person the owner knows"): Profile
   } as unknown as ProfilePack;
 }
 
+/** A small chat: Sam (the owner) mentions Ana, then Ana and Alex speak, over two days. */
+export const CHAT = ["# Chat", "- 2026-05-04 09:00 Sam: Ana is coming", "- 2026-05-05 10:00 Ana: hi", "- 2026-05-05 10:01 Alex: hey"].join("\n");
+
 /** An extracted person, as the fake model reports one: who, how the source wrote them (default: the name), and where. */
 export interface FakePerson { name: string; writtenAs?: string[]; relationship?: string; line: number }
 

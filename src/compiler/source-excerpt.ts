@@ -17,6 +17,12 @@ export interface LineRange {
   end: number;
 }
 
+/** A source and the line ranges a prompt showed from it. */
+export interface ShownLines {
+  file: string;
+  ranges: LineRange[];
+}
+
 /** One completion request for a page written from source lines. */
 export interface PageRequest {
   system: string;
@@ -39,11 +45,15 @@ interface SourceRows {
 }
 
 /**
- * Any set of source line ranges as a numbered excerpt within the budget, shared
- * fairly as {@link dayExcerpt} describes; `shown` narrows each source's ranges to
- * the rows actually shown. Person pages use it for the lines that mention them.
+ * Source line ranges as a numbered excerpt (each line under its number in the
+ * source) within {@link EXCERPT_BUDGET}. The budget is shared fairly: a small
+ * source is shown whole and a large one gets what is left, so one long chat
+ * cannot crowd out a meeting note. A source over its share is cut at its first
+ * row that does not fit and says how many rows were cut. `shown` narrows each
+ * source's ranges to the rows actually shown, so citations can be fitted to
+ * what the model saw.
  */
-export function sourcesExcerpt<T extends { file: string; ranges: LineRange[] }>(sources: T[], texts: Map<string, string>): { text: string; shown: T[] } {
+export function sourcesExcerpt<T extends ShownLines>(sources: T[], texts: Map<string, string>): { text: string; shown: T[] } {
   const rows = sources.map((source) => sourceRows(source.file, source.ranges, texts.get(source.file) ?? ""));
   const allowances = fairShares(rows.map((source) => source.size), EXCERPT_BUDGET);
   const rendered = rows.map((source, index) => renderSource(source, allowances[index]));
@@ -117,12 +127,6 @@ export function mergeRanges(ranges: LineRange[]): LineRange[] {
     else merged.push({ ...range });
   }
   return merged;
-}
-
-/** A source and the line ranges a prompt showed from it. */
-export interface ShownLines {
-  file: string;
-  ranges: LineRange[];
 }
 
 /** A page body with its citations fitted to the shown lines, and how many cited spans still fall outside them. */

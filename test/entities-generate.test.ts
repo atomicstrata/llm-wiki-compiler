@@ -1,7 +1,7 @@
 /**
  * @file test/entities-generate.test.ts
  * @description Compile's entity step over in-memory steps: one page per record
- * plus the owner's hub, model calls only where inputs changed, the generated tail
+ * (never one for the owner), model calls only where inputs changed, the generated tail
  * refreshed without a call, hand-written pages left alone, and pages for records
  * that are gone removed.
  */
@@ -10,9 +10,8 @@ import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { generateEntitiesWith } from "../src/entities/generate.js";
 import { withAliases } from "../src/entities/pages.js";
-import { entityConfig, memoryEntitySteps, type FakePerson } from "./entity-steps.js";
+import { CHAT, entityConfig, memoryEntitySteps, type FakePerson } from "./entity-steps.js";
 
-const CHAT = ["# Chat", "- 2026-05-04 09:00 Sam: Ana is coming", "- 2026-05-05 10:00 Ana: hi", "- 2026-05-05 10:01 Alex: hey"].join("\n");
 const NOTE = "Alex Kim joined the team.";
 const PEOPLE: Record<string, FakePerson[]> = {
   "chat.md": [{ name: "Ana", relationship: "friend", line: 2 }, { name: "Ana", line: 3 }, { name: "Alex", line: 4 }, { name: "Sam", line: 2 }],
