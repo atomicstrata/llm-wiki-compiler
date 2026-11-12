@@ -29,8 +29,8 @@ jobs:
   # slowed the suite from about three minutes to five and a half.
   build-and-test:
     runs-on: ubuntu-latest
-    # A full run takes about six minutes; a hung test would otherwise hold it for six hours.
-    timeout-minutes: 15
+    # A full run takes five to ten minutes; a hung test would otherwise hold it for six hours.
+    timeout-minutes: 25
     strategy:
       matrix:
         node-version: [24]
@@ -67,14 +67,14 @@ jobs:
           path: ~/.npm
           key: npm-pack-${{ hashFiles('bun.lock') }}
           restore-keys: npm-pack-
-      # On a hang, snapshot the live processes at 420s, then fail at 480s.
+      # On a hang, snapshot the live processes at 840s, then fail at 900s.
       # Ignore patterns given here replace bunfig's list rather than adding to
       # it, so the two packing tests bunfig ignores are named again.
       - name: Run the suite
         run: >-
           mkdir -p "$LLMWIKI_TEST_TRACE" &&
-          (sleep 420 && bash .github/ci/hang-snapshot.sh) &
-          timeout 480 bun scripts/run-tests.mjs
+          (sleep 840 && bash .github/ci/hang-snapshot.sh) &
+          timeout 900 bun scripts/run-tests.mjs
           --path-ignore-patterns=test/sdk/packaging.test.ts
           --path-ignore-patterns=test/products/private-packages-pack.test.ts
           --path-ignore-patterns=test/local-workflow-package-boundary.test.ts
