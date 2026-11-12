@@ -22,6 +22,14 @@
  * writer, this process's or another's, so no write path has to remember to
  * invalidate anything.
  *
+ * The identity cannot see one case: Linux reuses a freed inode number and
+ * stamps times in coarse ticks, so a page read, then rewritten twice within one
+ * tick at the same size, can land back on the read's inode with equal times.
+ * This process's own writes therefore also drop the path's shared read
+ * (`forgetSharedRead` in src/utils/shared-read-window.ts, called by every
+ * `atomicWrite*`), which covers the
+ * compile's own rewrites; the identity check remains for every other writer.
+ *
  * WHY A REUSE IS STILL CONFINED. A reused result is the content of the file
  * that passed the full confinement proof when it was read, and the matching
  * identity says the path still names that same, unchanged file. A path that
@@ -37,9 +45,9 @@
  * reused result parse it once. Callers must treat the parse as read-only.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
 import type { ConfinedReadResult } from "./legacy-local-reads.js";
 import fs from "node:fs";
+import { runInSharedReadWindow, sharedReadEntries, sharedReadKey } from "../utils/shared-read-window.js";
 import { parseFrontmatter } from "../utils/markdown.js";
 
 /** What a file was when it was opened: compared against an `lstat` before any reuse. */
@@ -60,15 +68,15 @@ export interface IdentifiedRead {
 
 /** One file's read in a window: in flight, then settled (kept so a reuse check needs no await). */
 interface SharedEntry {
+  /** The directory the read confined to; a read confined elsewhere does not reuse it. */
+  expectedDir: string;
   pending: Promise<IdentifiedRead>;
   settled?: IdentifiedRead;
 }
 
-const sharedReads = new AsyncLocalStorage<Map<string, SharedEntry>>();
-
 /** Run `steps` with confined reads shared among them. See the file header. */
 export function withSharedPageReads<T>(steps: () => Promise<T>): Promise<T> {
-  return sharedReads.run(new Map(), steps);
+  return runInSharedReadWindow(steps);
 }
 
 /** The identity fields of a stat, for {@link FileIdentity}. */
@@ -102,8 +110,8 @@ function reusable(read: IdentifiedRead | null, file: string): ConfinedReadResult
  * when the file on disk is provably unchanged since (see the file header).
  * Outside a window, `read()` every time.
  *
- * @param expectedDir - The directory the read confines to; part of the key.
- * @param file - The path read; part of the key, and what the reuse check stats.
+ * @param expectedDir - The directory the read confines to; a reuse must match it.
+ * @param file - The path read; the key, and what the reuse check stats.
  * @param read - The full confined read, with the opened file's identity.
  */
 export async function sharedConfinedRead(
@@ -111,13 +119,13 @@ export async function sharedConfinedRead(
   file: string,
   read: () => Promise<IdentifiedRead>,
 ): Promise<ConfinedReadResult> {
-  const shared = sharedReads.getStore();
+  const shared = sharedReadEntries<SharedEntry>();
   if (!shared) return (await read()).result;
-  const key = `${expectedDir}\0${file}`;
+  const key = sharedReadKey(file);
   const earlier = shared.get(key);
-  const reused = earlier ? reusable(await settledRead(earlier), file) : null;
+  const reused = earlier?.expectedDir === expectedDir ? reusable(await settledRead(earlier), file) : null;
   if (reused) return reused;
-  const entry: SharedEntry = { pending: read() };
+  const entry: SharedEntry = { expectedDir, pending: read() };
   entry.pending.then((settled) => { entry.settled = settled; }, () => {});
   shared.set(key, entry);
   return (await entry.pending).result;

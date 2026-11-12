@@ -34,6 +34,7 @@ import {
   syncExistingCollision,
 } from "./atomic-write-no-replace-durable.js";
 import { confineUnderRoot, isInsideDir, safeRealpath } from "./path-confine.js";
+import { forgetSharedRead } from "./shared-read-window.js";
 
 // Reserved for Foundation Task 5 catalog/projection durability.
 // fallow-ignore-next-line unused-export
@@ -127,8 +128,12 @@ export async function atomicWrite(
     await atomicWriteNoReplaceDurable(filePath, preparedContent, opts);
     return;
   }
-  const { binding } = await prepareParent(filePath, opts);
-  await writeViaTemp(filePath, preparedContent, opts?.durable === true, opts?.strictDurability === true, opts?.mode, binding, opts?.beforeDirectorySyncForTest);
+  try {
+    const { binding } = await prepareParent(filePath, opts);
+    await writeViaTemp(filePath, preparedContent, opts?.durable === true, opts?.strictDurability === true, opts?.mode, binding, opts?.beforeDirectorySyncForTest);
+  } finally {
+    forgetSharedRead(filePath);
+  }
 }
 
 /** Atomically publish a new file without replacing any destination object. */
@@ -139,8 +144,12 @@ export async function atomicWriteNoReplace(
 ): Promise<void> {
   assertNoReplaceOptions(opts);
   const preparedContent = snapshotContent(content);
-  const { binding } = await prepareParent(filePath, opts);
-  await writeViaTempNoReplace(filePath, preparedContent, opts, binding);
+  try {
+    const { binding } = await prepareParent(filePath, opts);
+    await writeViaTempNoReplace(filePath, preparedContent, opts, binding);
+  } finally {
+    forgetSharedRead(filePath);
+  }
 }
 
 /** Atomically publish a create-only file with strict file and directory fsync. */
@@ -170,6 +179,7 @@ export async function atomicWriteNoReplaceDurable(
     await fsyncDirectoryChainBeforeParentCheck(dir, binding, opts?.beforeDirectorySyncForTest);
     await assertSettledDestination(filePath, published.handle, binding);
   } finally {
+    forgetSharedRead(filePath);
     await published.handle.close().catch(() => {});
   }
 }
@@ -230,6 +240,7 @@ export async function atomicStreamCreateOnlyDurable(
     await assertSettledDestination(filePath, bound.handle, binding);
     return { filename, byteCount };
   } finally {
+    forgetSharedRead(filePath);
     await bound.handle.close().catch(() => {});
   }
 }

@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 import { readConfinedExactFile } from "../../src/storage/disk-local-reads.js";
 import { withSharedPageReads } from "../../src/storage/shared-page-reads.js";
+import { atomicWrite } from "../../src/utils/atomic-write.js";
 
 let dir: string;
 let page: string;
@@ -58,6 +59,24 @@ describe("shared confined reads", () => {
       return read();
     });
     expect(after).toEqual({ content: "second\n" });
+    expect(fullReads()).toBe(2);
+  });
+
+  it("reads again after this process rewrites the file, even when its identity looks unchanged", async () => {
+    const after = await withSharedPageReads(async () => {
+      await read();
+      const before = fs.lstatSync(page);
+      await atomicWrite(page, "other\n");
+      // Linux can hand the rewrite the freed inode number with times in the
+      // same coarse tick: report the old identity to stand in for that case.
+      const lstat = spyOn(fs, "lstatSync").mockImplementation(() => before);
+      try {
+        return await read();
+      } finally {
+        lstat.mockRestore();
+      }
+    });
+    expect(after).toEqual({ content: "other\n" });
     expect(fullReads()).toBe(2);
   });
 
