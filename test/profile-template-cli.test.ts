@@ -4,7 +4,6 @@
  * so list, inspect, and init behavior stays wired through Commander and the
  * installed dist/cli.js entrypoint instead of only unit-level handlers.
  */
-import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -12,10 +11,11 @@ import { describe, expect, it } from "bun:test";
 import { AUTOSCI_TEMPLATE } from "../src/profile/templates/builtin/autosci.js";
 import { getBuiltinTemplate } from "../src/profile/templates/registry.js";
 import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 
 
 function run(cwd: string, args: string[]) {
-  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], { cwd, encoding: "utf8" });
+  return spawnCaptured(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], { cwd });
 }
 
 async function withRoot(fn: (root: string) => Promise<void>): Promise<void> {
@@ -30,7 +30,7 @@ async function withRoot(fn: (root: string) => Promise<void>): Promise<void> {
 describe("template CLI", () => {
   it("lists default, autosci, and newsroom", async () => {
     await withRoot(async (root) => {
-      const result = run(root, ["template", "list"]);
+      const result = await run(root, ["template", "list"]);
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("default");
       expect(result.stdout).toContain("autosci");
@@ -42,7 +42,7 @@ describe("template CLI", () => {
 
   it("inspects a builtin template", async () => {
     await withRoot(async (root) => {
-      const result = run(root, ["template", "inspect", "autosci"]);
+      const result = await run(root, ["template", "inspect", "autosci"]);
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("templateId: autosci");
       expect(result.stdout).toContain("profileId:  autosci");
@@ -60,7 +60,7 @@ describe("template CLI", () => {
 
   it("inspects default as non-installable", async () => {
     await withRoot(async (root) => {
-      const result = run(root, ["template", "inspect", "default"]);
+      const result = await run(root, ["template", "inspect", "default"]);
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("templateId: default");
       expect(result.stdout).toContain("profileId:  default");
@@ -70,7 +70,7 @@ describe("template CLI", () => {
 
   it("refuses default init without writing", async () => {
     await withRoot(async (root) => {
-      const result = run(root, ["template", "init", "default"]);
+      const result = await run(root, ["template", "init", "default"]);
       expect(result.status).toBe(1);
       expect(result.stdout + result.stderr).toContain("default profile is already active");
       await expect(readFile(path.join(root, ".llmwiki/profile.json"), "utf8")).rejects.toThrow();
@@ -79,7 +79,7 @@ describe("template CLI", () => {
 
   it("installs autosci through the real CLI", async () => {
     await withRoot(async (root) => {
-      const result = run(root, ["template", "init", "autosci"]);
+      const result = await run(root, ["template", "init", "autosci"]);
       expect(result.status).toBe(0);
       // The version is read, not spelled: this test is about the CLI reporting
       // what it installed, not about which release is current. That is pinned
@@ -109,7 +109,7 @@ describe("template CLI", () => {
       const templatePath = path.join(root, "team-template.json");
       await writeFile(templatePath, JSON.stringify(template), "utf8");
 
-      const result = run(root, ["template", "init", "--file", templatePath]);
+      const result = await run(root, ["template", "init", "--file", templatePath]);
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("Installed template 'team' 0.2.0");
     });
@@ -117,17 +117,17 @@ describe("template CLI", () => {
 
   it("requires exactly one init source", async () => {
     await withRoot(async (root) => {
-      expect(run(root, ["template", "init"]).status).toBe(1);
-      expect(run(root, ["template", "init", "autosci", "--file", "x.json"]).status).toBe(1);
+      expect((await run(root, ["template", "init"])).status).toBe(1);
+      expect((await run(root, ["template", "init", "autosci", "--file", "x.json"])).status).toBe(1);
     });
   });
 
   it("reports verified builtin status and previews an update without writes", async () => {
     await withRoot(async (root) => {
-      expect(run(root, ["template", "init", "autosci"]).status).toBe(0);
+      expect((await run(root, ["template", "init", "autosci"])).status).toBe(0);
       const before = await readFile(path.join(root, ".llmwiki/profile.json"), "utf8");
-      const status = run(root, ["template", "status", "--json"]);
-      const update = run(root, ["template", "update", "--dry-run", "--json"]);
+      const status = await run(root, ["template", "status", "--json"]);
+      const update = await run(root, ["template", "update", "--dry-run", "--json"]);
       expect(status.status).toBe(0);
       expect(JSON.parse(status.stdout)).toMatchObject({ status: "installed-clean", templateId: "autosci" });
       expect(update.status).toBe(0);
@@ -138,8 +138,8 @@ describe("template CLI", () => {
 
   it("refuses an update command that omits the dry-run gate", async () => {
     await withRoot(async (root) => {
-      expect(run(root, ["template", "init", "autosci"]).status).toBe(0);
-      const result = run(root, ["template", "update"]);
+      expect((await run(root, ["template", "init", "autosci"])).status).toBe(0);
+      const result = await run(root, ["template", "update"]);
       expect(result.status).toBe(1);
       expect(result.stdout + result.stderr).toContain("pass --dry-run");
     });

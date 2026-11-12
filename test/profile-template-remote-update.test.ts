@@ -3,7 +3,6 @@
  * @description Remote update planning and execution are exact-release,
  * fail-closed, and fully revalidated under the project and tap-state locks.
  */
-import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
@@ -26,6 +25,7 @@ import {
   TARGET_COORDINATE,
 } from "./fixtures/template-remote-update.js";
 import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 
 const roots: string[] = [];
 
@@ -117,7 +117,7 @@ describe("remote template update", () => {
 
   it("refuses non-interactive CLI update without --yes", async () => {
     const fixture = await remoteUpdateFixture(roots);
-    const result = runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0"]);
+    const result = await runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0"]);
     expect(result.status).toBe(1);
     expect(result.stdout + result.stderr).toContain("confirmation or --yes");
     await expect(readLockVersion(fixture.project)).resolves.toBe("1.0.0");
@@ -125,19 +125,18 @@ describe("remote template update", () => {
 
   it("previews and applies through the compiled CLI", async () => {
     const fixture = await remoteUpdateFixture(roots);
-    const preview = runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0", "--dry-run", "--json"]);
+    const preview = await runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0", "--dry-run", "--json"]);
     expect(preview.status).toBe(0);
     expect(JSON.parse(preview.stdout)).toMatchObject({ authority: "advisory", toCoordinate: TARGET_COORDINATE });
-    const apply = runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0", "--yes", "--json"]);
+    const apply = await runCli(fixture.project, fixture.paths, ["template", "update", "--to", "1.1.0", "--yes", "--json"]);
     expect(apply.status).toBe(0);
     expect(JSON.parse(apply.stdout)).toMatchObject({ kind: "updated", toCoordinate: TARGET_COORDINATE });
   });
 });
 
 function runCli(root: string, paths: { configRoot: string; cacheRoot: string }, args: string[]) {
-  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
+  return spawnCaptured(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
     cwd: root,
-    encoding: "utf8",
     env: {
       ...process.env,
       // Prevent ambient Windows roots from shadowing the seeded XDG fixture.

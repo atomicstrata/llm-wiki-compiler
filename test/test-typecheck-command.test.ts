@@ -8,10 +8,11 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "bun:test";
 import { readFile, rm, writeFile } from "node:fs/promises";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createTypecheckProject } from "./fixtures/test-typecheck-project.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 
 const command = fileURLToPath(new URL("../scripts/typecheck-tests.ts", import.meta.url));
 const BASELINE = "test-typecheck-baseline.json";
@@ -24,13 +25,13 @@ let cleanBaseline: string;
 
 /** Invoke the CLI directly, without npm, networking or build output. */
 function run(cwd: string, ...args: string[]) {
-  return spawnSync(process.execPath, [command, ...args], { cwd, encoding: "utf8" });
+  return spawnCaptured(process.execPath, [command, ...args], { cwd });
 }
 
 /** Write the probe and bootstrap the one-time baseline through the real `--init`. */
 async function bootstrap(project: string, body: string): Promise<void> {
   await writeFile(path.join(project, PROBE), body);
-  const result = run(project, "--init");
+  const result = await run(project, "--init");
   expect(result.stderr).toBe("");
   expect(result.status).toBe(0);
 }
@@ -63,20 +64,20 @@ it("bootstraps an empty baseline for a clean project", () => {
 it("fails on a new test error and passes after reverting it", async () => {
   const file = await seedClean();
   await writeFile(file, INVALID);
-  expect(run(root).status).toBe(1);
-  expect(run(root, "--update").status).toBe(1);
+  expect((await run(root)).status).toBe(1);
+  expect((await run(root, "--update")).status).toBe(1);
   await writeFile(file, VALID);
-  expect(run(root).status).toBe(0);
+  expect((await run(root)).status).toBe(0);
 });
 
 it("requires lowering the baseline after fixing its last error", async () => {
   await bootstrap(root, INVALID);
   expect((await readBaseline()).counts).toEqual({ "test/nested/probe.ts": 1 });
   await writeFile(path.join(root, PROBE), VALID);
-  expect(run(root).status).toBe(1);
-  expect(run(root, "--update").status).toBe(0);
+  expect((await run(root)).status).toBe(1);
+  expect((await run(root, "--update")).status).toBe(0);
   expect((await readBaseline()).counts).toEqual({});
-  expect(run(root).status).toBe(0);
+  expect((await run(root)).status).toBe(0);
 });
 
 it("rejects manual baseline increases relative to a PR base", async () => {
@@ -88,12 +89,12 @@ it("rejects manual baseline increases relative to a PR base", async () => {
   const baseline = await readBaseline();
   baseline.counts["test/nested/probe.ts"] = 1;
   await writeFile(path.join(root, BASELINE), JSON.stringify(baseline));
-  expect(run(root, "--base-ref", "HEAD").status).toBe(1);
+  expect((await run(root, "--base-ref", "HEAD")).status).toBe(1);
 });
 
 it("does not overwrite an existing baseline through bootstrap", async () => {
   await seedClean();
-  expect(run(root, "--init").status).toBe(1);
+  expect((await run(root, "--init")).status).toBe(1);
   expect(await readFile(path.join(root, BASELINE), "utf8")).toBe(cleanBaseline);
 });
 
@@ -102,8 +103,8 @@ it.each(["typescript", "configuration"])("refuses a mismatched %s pin", async (f
   const baseline = await readBaseline();
   baseline[field] = "different";
   await writeFile(path.join(root, BASELINE), JSON.stringify(baseline));
-  expect(run(root).status).toBe(1);
-  expect(run(root, "--update").status).toBe(1);
+  expect((await run(root)).status).toBe(1);
+  expect((await run(root, "--update")).status).toBe(1);
 });
 
 it("refuses malformed diagnostic allowances", async () => {
@@ -111,5 +112,5 @@ it("refuses malformed diagnostic allowances", async () => {
   const baseline = await readBaseline();
   baseline.counts["test/nested/probe.ts"] = -1;
   await writeFile(path.join(root, BASELINE), JSON.stringify(baseline));
-  expect(run(root).status).toBe(1);
+  expect((await run(root)).status).toBe(1);
 });

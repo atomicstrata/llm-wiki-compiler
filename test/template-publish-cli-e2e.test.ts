@@ -11,18 +11,18 @@
  * suite runs beside long subprocess e2e suites that sit near the 30s timeout — so the
  * coverage is kept and the process count is not.
  */
-import { spawnSync } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 import { PUBLISHER_TEMPLATE, publisherTempRoots } from "./fixtures/publisher-workspace.js";
 import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 
 const roots = publisherTempRoots();
 afterEach(roots.cleanup);
 
 function run(args: string[]) {
-  return spawnSync(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], { encoding: "utf8" });
+  return spawnCaptured(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args]);
 }
 
 describe("publisher CLI end to end", () => {
@@ -33,10 +33,10 @@ describe("publisher CLI end to end", () => {
     const packageFile = path.join(root, "package.json");
     await writeFile(packageFile, JSON.stringify(PUBLISHER_TEMPLATE), "utf8");
 
-    const init = run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
+    const init = await run(["template", "publish", "init", workspace, "--tap", "community", "--publisher", "acme"]);
     expect(init.status).toBe(0);
 
-    const add = run([
+    const add = await run([
       "template", "publish", "add", packageFile,
       "--workspace", workspace, "--package-version", "1.0.0",
     ]);
@@ -44,7 +44,7 @@ describe("publisher CLI end to end", () => {
     expect(add.stdout).toContain("Recorded signed package");
     expect(add.stdout).toContain("community/acme/incident-response@1.0.0");
 
-    const build = run([
+    const build = await run([
       "template", "publish", "build",
       "--workspace", workspace, "--expires-in", "30d", "--out", out,
     ]);
@@ -58,7 +58,7 @@ describe("publisher CLI end to end", () => {
     const tapKeyId = keys.find((f) => f.startsWith("tap-") && f.endsWith(".pub"))!
       .replace(/^tap-/, "").replace(/\.pub$/, "");
 
-    const verify = run([
+    const verify = await run([
       "template", "publish", "verify", out,
       "--tap", "community", "--key-id", tapKeyId,
       "--key-file", path.join(keysDir, `tap-${tapKeyId}.pub`),
@@ -69,14 +69,14 @@ describe("publisher CLI end to end", () => {
 
     // A no-change rebuild is refused; --refresh renews the same content under a fresh
     // lifetime without the blunt --force override (a boolean flag Commander could mis-parse).
-    const stale = run([
+    const stale = await run([
       "template", "publish", "build",
       "--workspace", workspace, "--expires-in", "30d", "--out", out,
     ]);
     expect(stale.status).not.toBe(0);
     expect(`${stale.stdout}${stale.stderr}`).toMatch(/pass --refresh to renew an expiring index/i);
 
-    const refresh = run([
+    const refresh = await run([
       "template", "publish", "build",
       "--workspace", workspace, "--expires-in", "30d", "--out", out, "--refresh",
     ]);
@@ -99,7 +99,7 @@ describe("publisher CLI end to end", () => {
     }
 
     // And the output may never live inside the workspace, which would publish those keys.
-    const inside = run([
+    const inside = await run([
       "template", "publish", "build",
       "--workspace", workspace, "--expires-in", "30d",
       "--out", path.join(workspace, "dist"),
