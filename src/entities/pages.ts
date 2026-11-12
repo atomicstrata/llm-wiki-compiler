@@ -13,13 +13,16 @@
  * a model call.
  */
 
-import { createHash } from "node:crypto";
+import { frontmatterEnd, type DerivedResult, type PageReport } from "../compiler/derived-steps.js";
+import { validateEntityFields } from "../profile/field-contract.js";
+import type { EntityTypeDef } from "../profile/types.js";
+import { shortDigest } from "../utils/short-digest.js";
 import { buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
 import { linkList, withGenerated, type PageLink } from "../wiki/generated-section.js";
-import { CITED_BULLETS, mergeRanges, overlaps, SUMMARY_PREFIX, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
+import { CITED_BULLETS, mergeRanges, SUMMARY_PREFIX, type LineRange, type PageRequest, type ShownLines } from "../compiler/source-excerpt.js";
 import type { DayBucket } from "../timeline/buckets.js";
-import { formatDay } from "../timeline/pages.js";
+import { dayCovers, formatDay } from "../timeline/pages.js";
 import type { ExtractableType } from "./schema.js";
 import type { ResolvedRecord } from "./identity.js";
 
@@ -27,12 +30,6 @@ import type { ResolvedRecord } from "./identity.js";
 const RECORD_PAGE_VERSION = 1;
 /** Lines of context shown on each side of a mention. */
 const CONTEXT_LINES = 2;
-
-/** A source and the line ranges the model is shown from it. */
-export interface ShownSource {
-  file: string;
-  ranges: LineRange[];
-}
 
 /** What a record page records about itself in frontmatter. */
 export interface RecordPageMeta {
@@ -42,7 +39,8 @@ export interface RecordPageMeta {
   summary: string;
   aliases: string[];
   fields: Record<string, unknown>;
-  sources: string[];
+  /** The source files the page draws on; left out of the frontmatter when undefined. */
+  sources?: string[];
   signature: string;
   createdAt: string;
   updatedAt: string;
@@ -50,7 +48,7 @@ export interface RecordPageMeta {
 }
 
 /** The ranges the model is shown for a record: each mention with {@link CONTEXT_LINES} either side, merged per file. */
-export function shownSources(record: ResolvedRecord, texts: Map<string, string>): ShownSource[] {
+export function shownSources(record: ResolvedRecord, texts: Map<string, string>): ShownLines[] {
   const byFile = new Map<string, LineRange[]>();
   for (const mention of record.mentions) {
     const lineCount = (texts.get(mention.file) ?? "").split("\n").length;
@@ -94,7 +92,7 @@ export function isRecordPage(meta: Record<string, unknown>): boolean {
 
 /** The signature of what a record page is generated from; equal signatures mean the page is current. */
 export function recordSignature(title: string, fields: Record<string, unknown>, excerpt: string): string {
-  return createHash("sha256").update(JSON.stringify([RECORD_PAGE_VERSION, title, fields, excerpt])).digest("hex").slice(0, 16);
+  return shortDigest([RECORD_PAGE_VERSION, title, fields, excerpt]);
 }
 
 /** The request for a record page. */
@@ -107,14 +105,14 @@ ${CITED_BULLETS}`;
 }
 
 /** A record page's frontmatter, as written: deterministic except for the summary and the times. */
-export function recordFrontmatter(meta: RecordPageMeta): Record<string, unknown> {
+function recordFrontmatter(meta: RecordPageMeta): Record<string, unknown> {
   return {
     title: meta.title,
     ...namedBy(meta.titleField, meta.title),
     summary: meta.summary,
     ...(meta.aliases.length > 0 ? { aliases: meta.aliases } : {}),
     ...meta.fields,
-    sources: meta.sources,
+    ...(meta.sources ? { sources: meta.sources } : {}),
     entitySignature: meta.signature,
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,
@@ -122,8 +120,23 @@ export function recordFrontmatter(meta: RecordPageMeta): Record<string, unknown>
   };
 }
 
+/**
+ * Whether a page's frontmatter meets the type's field contract, reporting why
+ * not. Checked before the model call, so a page that cannot be written costs none.
+ */
+export function meetsFieldContract(report: PageReport, id: string, meta: RecordPageMeta, def: EntityTypeDef): boolean {
+  const violations = validateEntityFields(recordFrontmatter(meta), def);
+  if (violations.length > 0) report.result.errors.push(`${report.label(id)} not written: ${violations.join(" ")}`);
+  return violations.length === 0;
+}
+
+/** How compile names a type's pages in what it reports. */
+export function entityReport(type: string, result: DerivedResult): PageReport {
+  return { directory: type, writer: "entity extraction", label: (slug) => `Page "${type}/${slug}"`, id: (slug) => `${type}/${slug}`, result };
+}
+
 /** The name under the type's own title field, when that field is not `title`. */
-export function namedBy(titleField: string | undefined, title: string): Record<string, string> {
+function namedBy(titleField: string | undefined, title: string): Record<string, string> {
   return titleField && titleField !== "title" ? { [titleField]: title } : {};
 }
 
@@ -140,18 +153,17 @@ export function recordPage(meta: RecordPageMeta, body: string, tail: string): st
 export function withAliases(text: string, aliases: string[]): string {
   const { meta } = parseFrontmatter(text);
   const current = Array.isArray(meta.aliases) ? meta.aliases : [];
-  const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
+  const end = frontmatterEnd(text);
   if (end === -1 || JSON.stringify(current) === JSON.stringify(aliases)) return text;
   const entries = Object.entries(meta).filter(([key]) => key !== "aliases");
   const at = Object.keys(meta).includes("aliases") ? Object.keys(meta).indexOf("aliases") : entries.findIndex(([key]) => key === "summary") + 1;
   if (aliases.length > 0) entries.splice(at, 0, ["aliases", aliases]);
-  return buildFrontmatter(Object.fromEntries(entries)) + text.slice(end + "\n---".length);
+  return buildFrontmatter(Object.fromEntries(entries)) + text.slice(end);
 }
 
 /** The timeline days a record is mentioned on, oldest first, as links to their pages. */
 export function recordDays(record: ResolvedRecord, days: DayBucket[]): PageLink[] {
-  return days.filter((day) => day.sources.some((source) => record.mentions.some((mention) =>
-    mention.file === source.file && mention.lines.some((lines) => source.ranges.some((range) => overlaps(range, lines))))))
+  return days.filter((day) => record.mentions.some((mention) => mention.lines.some((lines) => dayCovers(day, mention.file, lines))))
     .map((day) => ({ target: `timeline/${day.day}`, title: formatDay(day.day, false) }));
 }
 

@@ -69,7 +69,7 @@ export interface CompileFinalizeSteps {
   updateOwnerPage(root: string, timeline: TimelineSchema): Promise<unknown>;
 }
 
-/** LOCAL. The incumbent steps, called at call time with their old arguments; frozen. In no package index. */
+/** LOCAL. The steps over the local project, each calling its domain function at call time; frozen. In no package index. */
 const localCompileFinalizeSteps: CompileFinalizeSteps = Object.freeze({
   seedPages: (root: string, schema: SchemaConfig, generation: PageGenerationResult) => generateSeedPages(root, schema, generation),
   orphanFrozen: (root: string, draft: CompileStateDraft, slugs: Set<string>) => orphanUnownedFrozenPages(root, draft, slugs),
@@ -160,10 +160,10 @@ export async function seedThenFinalizeWith(
 }
 
 /**
- * Run a derived step (entity pages, the timeline), reporting a failure instead of
- * throwing it. By now the compile's pages and state are committed; these steps
- * are derived from them and the next compile retries them, so a failure here
- * must not fail the compile.
+ * Run a derived step (entity pages, the timeline, the owner page), reporting a
+ * failure instead of throwing it. By now the compile's pages and state are
+ * committed; these steps are derived from them and the next compile retries
+ * them, so a failure here must not fail the compile.
  */
 async function runOrWarn(name: string, step: () => Promise<unknown>): Promise<void> {
   try {

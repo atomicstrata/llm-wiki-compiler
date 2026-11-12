@@ -92,10 +92,8 @@ export interface ExtractRun {
 export async function refreshExtractions(steps: ExtractSteps, run: ExtractRun): Promise<ExtractResult> {
   const digest = structuralDigest(run.types);
   const result: ExtractResult = { cache: { digest, sources: {} }, extracted: [], errors: [] };
-  const limit = pLimit(Math.max(1, run.concurrency));
-  await Promise.all(run.sources.map((source) => limit(() => refreshSource(steps, {
-    types: run.types, digest, file: source.file, hash: source.hash, ownerNames: run.ownerNames, previous: run.previous,
-  }, result))));
+  const limit = pLimit(run.concurrency);
+  await Promise.all(run.sources.map((source) => limit(() => refreshSource(steps, { ...run, digest, ...source }, result))));
   return result;
 }
 
@@ -120,15 +118,12 @@ function keepAfterFailure(file: string, prior: SourceExtraction | undefined, err
 }
 
 /** What one source's extraction needs besides the steps. */
-interface SourceJob {
-  types: ExtractableType[];
+type SourceJob = Pick<ExtractRun, "types" | "ownerNames" | "previous"> & {
   digest: string;
   file: string;
   /** The source's current hash. */
   hash: string;
-  ownerNames: string[];
-  previous: ExtractionCache | null;
-}
+};
 
 /** Every chunk's answer for one source, reusing `priorChunks` whose hash still matches; and how many calls it took. */
 async function extractSource(steps: ExtractSteps, job: SourceJob, priorChunks: ChunkExtraction[]): Promise<{ chunks: ChunkExtraction[]; calls: number }> {

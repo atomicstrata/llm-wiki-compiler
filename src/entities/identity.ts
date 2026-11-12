@@ -59,6 +59,9 @@ const SLUG = /^[a-z0-9][a-z0-9-]*$/;
 /** Longest record id; a longer one is cut and given a hash so it stays unique and fits a filename. */
 const MAX_ID_LENGTH = 80;
 
+/** What a malformed `owner` is told it must be. */
+const OWNER_SHAPE = '"owner" must be { "type": …, "names": [ … ] }';
+
 /**
  * Read the registry text, or an empty registry when there is none. Malformed
  * JSON, any part of the wrong shape (an owner without a type and a list of
@@ -87,8 +90,8 @@ export function parseRegistry(text: string | null): AliasRegistry {
 /** The owner, or undefined when there is none; an owner without a type and a list of names throws. */
 function parseOwner(value: unknown): AliasRegistry["owner"] {
   if (value === undefined) return undefined;
-  const owner = mapOf(value, '"owner" must be { "type": …, "names": [ … ] }');
-  if (typeof owner.type !== "string" || !Array.isArray(owner.names)) throw new Error('"owner" must be { "type": …, "names": [ … ] }');
+  const owner = mapOf(value, OWNER_SHAPE);
+  if (typeof owner.type !== "string" || !Array.isArray(owner.names)) throw new Error(OWNER_SHAPE);
   return { type: owner.type, names: strings(owner.names) };
 }
 
@@ -131,14 +134,19 @@ function assertNotBoth(entities: AliasRegistry["entities"], exclude: Record<stri
   }
 }
 
+/** A name with its accents removed ("Núñez" → "Nunez"). */
+function withoutAccents(name: string): string {
+  return name.normalize("NFKD").replace(/\p{M}/gu, "");
+}
+
 /** A name compared without case, accents, punctuation or extra spacing. */
 function normalizeName(name: string): string {
-  return name.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, " ").replace(/\s+/g, " ").trim();
+  return withoutAccents(name).toLowerCase().replace(/[^\p{L}\p{N}\s'-]/gu, " ").replace(/\s+/g, " ").trim();
 }
 
 /** A slug-safe id for a name: ASCII-folded and at most {@link MAX_ID_LENGTH} long, or a short hash when nothing slug-safe is left. */
 export function recordId(name: string): string {
-  const folded = slugify(name.normalize("NFKD").replace(/\p{M}/gu, "")).replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "");
+  const folded = slugify(withoutAccents(name)).replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "");
   if (!SLUG.test(folded)) return `record-${nameHash(name)}`;
   return folded.length <= MAX_ID_LENGTH ? folded : `${folded.slice(0, MAX_ID_LENGTH - 8).replace(/-+$/, "")}-${nameHash(name)}`;
 }
@@ -154,12 +162,9 @@ function nameHash(name: string): string {
 export function ownerPageId(registry: AliasRegistry, type: string): string | null {
   const name = registry.owner?.type === type ? registry.owner.names[0] : undefined;
   if (!name) return null;
-  const registered = registry.entities[type] ?? {};
+  const taken = new Set(Object.keys(registry.entities[type] ?? {}));
   const base = recordId(name);
-  if (!registered[base]) return base;
-  let id = `${base}-owner`;
-  for (let suffix = 2; registered[id]; suffix++) id = `${base}-owner-${suffix}`;
-  return id;
+  return taken.has(base) ? uniqueId(`${base}-owner`, taken) : base;
 }
 
 /**
@@ -214,6 +219,9 @@ const RELATION_WORDS = new Set([
   "grandma", "grandmother", "grandpa", "grandfather", "gran", "granny", "nan",
 ]);
 
+/** A name formed as a relation to someone ("Sam's mother"). */
+const RELATION_NAME = /\S['’]s\s/;
+
 /** Whether a normalized first word names a relation: one of {@link RELATION_WORDS}, an in-law, or a step-relation. */
 function isRelationWord(word: string): boolean {
   return RELATION_WORDS.has(word) || word.endsWith("-in-law") || (word.startsWith("step") && RELATION_WORDS.has(word.slice("step".length)));
@@ -227,10 +235,11 @@ function isPronoun(form: string): boolean {
 /** The spellings a group's mentions used that are not among its names, leaving out bare pronouns. */
 function spellingsOf(group: MentionGroup): string[] {
   const names = new Set(group.names.map(normalizeName));
-  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).map(cleanSpelling)
-    .filter((form) => form && !names.has(normalizeName(form)) && !isPronoun(form));
   const first = new Map<string, string>();
-  for (const form of forms) if (!first.has(normalizeName(form))) first.set(normalizeName(form), form);
+  for (const form of group.mentions.flatMap((mention) => mention.writtenAs ?? []).map(cleanSpelling)) {
+    const key = normalizeName(form);
+    if (key && !names.has(key) && !isPronoun(form) && !first.has(key)) first.set(key, form);
+  }
   return [...first.values()];
 }
 
@@ -294,6 +303,3 @@ function firstNameIndex(records: ResolvedRecord[]): Map<string, Set<string>> {
   }
   return firstNames;
 }
-
-/** A name formed as a relation to someone ("Sam's mother"). */
-const RELATION_NAME = /\S['’]s\s/;

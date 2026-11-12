@@ -18,6 +18,8 @@ import { parseFrontmatter } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { readWikiPageContentOrWarnFrom } from "./confined-wiki-read.js";
+import { withoutGenerated } from "../wiki/generated-section.js";
+import * as output from "../utils/output.js";
 import { applyCompilePageWritesLocked, type CompilePageWrite, type SkippedWrite } from "./compile-write.js";
 import { addModelProvenanceMeta } from "./provenance.js";
 import { fitCitations, splitAnswer, type PageRequest, type ShownLines } from "./source-excerpt.js";
@@ -46,7 +48,7 @@ export function localDerivedSteps(root: string): DerivedSteps {
     readSource: (file) => reads.readText(path.join(SOURCES_DIR, file)),
     listPages: async (directory) => {
       const dir = path.join("wiki", directory);
-      const slugs = (await reads.listNames(dir).catch(() => [])).filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length));
+      const slugs = (await reads.listNames(dir).catch(emptyWhenMissing)).filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length));
       const texts = await Promise.all(slugs.map((slug) => readWikiPageContentOrWarnFrom(reads, dir, slug, false)));
       return new Map(slugs.map((slug, index): [string, string] => [slug, texts[index] ?? ""]));
     },
@@ -69,6 +71,37 @@ export async function readSources(steps: Pick<DerivedSteps, "listSources" | "rea
 export function stringField(meta: Record<string, unknown>, key: string): string {
   const value = meta[key];
   return typeof value === "string" ? value : "";
+}
+
+/**
+ * No names for a directory that does not exist yet (a first compile). Any other
+ * failure is thrown: an unreadable directory listed as empty would make its
+ * hand-written pages look absent, and the step could write over them.
+ */
+function emptyWhenMissing(error: unknown): string[] {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+  throw error;
+}
+
+/** Offset just past a page's closing `---`, or -1 when it has no frontmatter. */
+export function frontmatterEnd(text: string): number {
+  const close = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
+  return close === -1 ? -1 : close + "\n---".length;
+}
+
+/** A page's model-written body: after the frontmatter, before the generated tail, trimmed. */
+export function pageBody(text: string): string {
+  return withoutGenerated(parseFrontmatter(text).body).trim();
+}
+
+/** When a page was first written: its `createdAt`, or `now` for a new page. */
+export function createdAtOf(page: OwnPage | undefined, now: string): string {
+  return stringField(page?.meta ?? {}, "createdAt") || now;
+}
+
+/** Print each of a step's errors as a compile warning. */
+export function warnErrors(result: DerivedResult): void {
+  for (const error of result.errors) output.status("!", output.warn(error));
 }
 
 /** A page a step wrote before: its text and parsed frontmatter. */
@@ -149,9 +182,8 @@ export function fitAndReportCitations(report: PageReport, slug: string, answer: 
  * a refresh and a regeneration fit the same text and a second compile writes nothing.
  */
 export function fitPageCitations(text: string, shown: ShownLines[]): string {
-  const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
-  if (end === -1) return fitCitations(text, shown).body;
-  const bodyStart = end + "\n---".length;
+  const bodyStart = frontmatterEnd(text);
+  if (bodyStart === -1) return fitCitations(text, shown).body;
   return text.slice(0, bodyStart) + fitCitations(text.slice(bodyStart), shown).body;
 }
 

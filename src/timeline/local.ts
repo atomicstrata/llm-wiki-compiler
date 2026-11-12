@@ -13,7 +13,7 @@
 import { callClaude } from "../utils/llm.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import { collectRawWikiPagesFrom } from "../wiki/collect.js";
-import { localDerivedSteps, type DerivedResult } from "../compiler/derived-steps.js";
+import { localDerivedSteps, warnErrors, type DerivedResult } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import * as output from "../utils/output.js";
 import { listRecordMentions } from "../entities/local.js";
@@ -46,7 +46,7 @@ export async function generateTimeline(root: string, timeline: TimelineSchema, c
   if (!timeline.enabled) return { written: [], deleted: [], errors: [] };
   output.status("🗓", output.info("Updating the timeline..."));
   const result = await generateTimelineWith(localTimelineSteps(root), { ...timeline, concurrency: resolveCompileConcurrency(concurrency) });
-  for (const error of result.errors) output.status("!", output.warn(error));
+  warnErrors(result);
   if (result.written.length + result.deleted.length > 0) {
     output.status("✓", output.success(`Timeline: ${result.written.length} written, ${result.deleted.length} removed.`));
   }

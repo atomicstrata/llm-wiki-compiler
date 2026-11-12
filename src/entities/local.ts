@@ -17,7 +17,7 @@ import { readFile } from "fs/promises";
 import { callClaude } from "../utils/llm.js";
 import { atomicWrite } from "../utils/atomic-write.js";
 import { LLMWIKI_DIR } from "../utils/constants.js";
-import { localDerivedSteps, ownPages, type DerivedResult } from "../compiler/derived-steps.js";
+import { localDerivedSteps, ownPages, warnErrors, type DerivedResult } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import { loadProfile } from "../profile/load.js";
 import * as output from "../utils/output.js";
@@ -25,11 +25,10 @@ import type { TimelineSchema } from "../schema/types.js";
 import type { PersonMentions } from "../timeline/pages.js";
 import { mentionsOf, type ExtractionCache } from "./extract.js";
 import { extractableTypes } from "./schema.js";
-import { displayName, parseRegistry, resolveRecords } from "./identity.js";
+import { displayName, parseRegistry, resolveRecords, type AliasRegistry } from "./identity.js";
 import { generateEntitiesWith, type EntityResult, type EntitySteps } from "./generate.js";
 import { isRecordPage } from "./pages.js";
 import { generateOwnerPageWith } from "./owner.js";
-import type { PageRequest } from "../compiler/source-excerpt.js";
 
 /** The extraction cache, relative to the project root. */
 const CACHE_FILE = path.join(LLMWIKI_DIR, "entities.json");
@@ -51,17 +50,22 @@ async function readCache(root: string): Promise<ExtractionCache | null> {
   const text = await readOptional(root, CACHE_FILE);
   if (text === null) return null;
   try {
-    const cache = JSON.parse(text) as ExtractionCache;
-    const isCache = typeof cache?.digest === "string" && cache.sources !== null && typeof cache.sources === "object"
-      && Object.values(cache.sources).every((entry) => typeof entry?.hash === "string" && Array.isArray(entry.chunks));
-    return isCache ? cache : null;
+    const cache: unknown = JSON.parse(text);
+    return isExtractionCache(cache) ? cache : null;
   } catch {
     return null;
   }
 }
 
+/** Whether parsed JSON has the extraction cache's shape: a digest, and a hash and chunks per source. */
+function isExtractionCache(value: unknown): value is ExtractionCache {
+  const cache = value as Partial<ExtractionCache> | null;
+  return typeof cache?.digest === "string" && typeof cache.sources === "object" && cache.sources !== null
+    && Object.values(cache.sources).every((entry) => typeof entry?.hash === "string" && Array.isArray(entry.chunks));
+}
+
 /** The registry; a malformed one throws, naming the file, so a typo is not silently ignored. */
-async function readRegistry(root: string): ReturnType<EntitySteps["readRegistry"]> {
+async function readRegistry(root: string): Promise<AliasRegistry> {
   try {
     return parseRegistry(await readOptional(root, REGISTRY_FILE));
   } catch (error) {
@@ -93,7 +97,7 @@ export async function generateEntities(root: string, timeline: TimelineSchema, c
   const result = await generateEntitiesWith(localEntitySteps(root), {
     types, timeZone: timeline.enabled ? timeline.timeZone : null, concurrency: resolveCompileConcurrency(concurrency),
   });
-  for (const error of result.errors) output.status("!", output.warn(error));
+  warnErrors(result);
   if (result.extracted + result.written.length + result.deleted.length > 0) {
     output.status("✓", output.success(`Entities: ${result.extracted} sources read, ${result.written.length} pages written, ${result.deleted.length} removed.`));
   }
@@ -108,23 +112,17 @@ export async function generateEntities(root: string, timeline: TimelineSchema, c
  * @param timeline - The schema's timeline settings; with the timeline off, no week pages are read.
  */
 export async function generateOwnerPage(root: string, timeline: TimelineSchema): Promise<DerivedResult> {
-  const ownerType = parseRegistryOrNone(await readOptional(root, REGISTRY_FILE))?.owner?.type;
-  const type = extractableTypes((await loadProfile(root)).profile).find((candidate) => candidate.type === ownerType);
-  if (!type) return { written: [], deleted: [], errors: [] };
-  const steps = { ...localDerivedSteps(root), readRegistry: () => readRegistry(root), complete: (request: PageRequest) => callClaude(request) };
-  const result = await generateOwnerPageWith(steps, { type, useTimeline: timeline.enabled });
-  for (const error of result.errors) output.status("!", output.warn(error));
+  const types = extractableTypes((await loadProfile(root)).profile);
+  if (types.length === 0) return { written: [], deleted: [], errors: [] };
+  const result = await generateOwnerPageWith({
+    ...localDerivedSteps(root),
+    // A malformed registry was already reported by the entity step; without it there is no owner page to write.
+    readRegistry: () => readRegistry(root).catch((): AliasRegistry => ({ entities: {} })),
+    complete: (request) => callClaude(request),
+  }, { types, useTimeline: timeline.enabled });
+  warnErrors(result);
   if (result.written.length > 0) output.status("✓", output.success(`Owner page: ${result.written.join(", ")} written.`));
   return result;
-}
-
-/** The registry, or undefined when it is missing or malformed (the entity step has already reported a malformed one). */
-function parseRegistryOrNone(text: string | null): ReturnType<typeof parseRegistry> | undefined {
-  try {
-    return text === null ? undefined : parseRegistry(text);
-  } catch {
-    return undefined;
-  }
 }
 
 /** The records of `type` whose page this step wrote, with every source line they are mentioned on. */

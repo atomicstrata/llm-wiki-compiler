@@ -19,22 +19,20 @@
  */
 
 import pLimit, { type LimitFunction } from "p-limit";
-import { parseFrontmatter } from "../utils/markdown.js";
-import { validateEntityFields } from "../profile/field-contract.js";
 import { withGenerated, type PageLink } from "../wiki/generated-section.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import {
-  claimable, completePage, deleteAndReport, fitAndReportCitations, fitPageCitations, ownPages, readSources, stringField, writeAndReport,
+  claimable, completePage, createdAtOf, deleteAndReport, fitAndReportCitations, fitPageCitations, ownPages, readSources, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
-import { sourcesExcerpt, splitAnswer } from "../compiler/source-excerpt.js";
+import { sourcesExcerpt, splitAnswer, type ShownLines } from "../compiler/source-excerpt.js";
 import { dayBuckets, type DayBucket } from "../timeline/buckets.js";
 import { mentionsOf, refreshExtractions, type ExtractionCache, type ExtractSteps } from "./extract.js";
 import { displayName, ownerPageId, possibleDuplicates, resolveRecords, type AliasRegistry, type ResolvedRecord } from "./identity.js";
 import type { ExtractableType } from "./schema.js";
 import {
-  agreedFields, isRecordPage, recordDays, recordFrontmatter, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
-  type RecordPageMeta, type ShownSource,
+  agreedFields, entityReport, isRecordPage, meetsFieldContract, recordDays, recordPage, recordPageRequest, recordSignature, recordTail, shownSources, withAliases,
+  type RecordPageMeta,
 } from "./pages.js";
 
 /** The reads, model calls and writes the entity step composes. */
@@ -52,7 +50,7 @@ export interface EntityConfig {
   concurrency: number;
 }
 
-/** What the step did: the timeline's report, plus how many sources it read. */
+/** What the step did, plus how many sources it read. */
 export interface EntityResult extends DerivedResult {
   extracted: number;
 }
@@ -93,7 +91,7 @@ export async function generateEntitiesWith(steps: EntitySteps, config: EntityCon
   result.errors.push(...extraction.errors);
   await steps.writeCache(extraction.cache);
   const step: StepContext = {
-    steps, registry, result, limit: pLimit(Math.max(1, config.concurrency)),
+    steps, registry, result, limit: pLimit(config.concurrency),
     texts: new Map(read.map((source) => [source.file, source.text])), days: config.timeZone ? dayBuckets(read, config.timeZone) : [],
   };
   for (const type of config.types) await writeType(step, type, extraction.cache);
@@ -123,17 +121,12 @@ async function writeType(step: StepContext, type: ExtractableType, cache: Extrac
     .map(([slug, page]) => ({ ...entityWrite(ctx, slug, page.text), deleting: true })));
 }
 
-/** How compile names a type's pages in what it reports. */
-export function entityReport(type: string, result: DerivedResult): PageReport {
-  return { directory: type, writer: "entity extraction", label: (slug) => `Page "${type}/${slug}"`, id: (slug) => `${type}/${slug}`, result };
-}
-
 /** What a record page is built from, before any model call. */
 interface RecordDraft {
   record: ResolvedRecord;
   title: string;
   fields: Record<string, unknown>;
-  excerpt: { text: string; shown: ShownSource[] };
+  excerpt: { text: string; shown: ShownLines[] };
   signature: string;
   tail: string;
 }
@@ -159,11 +152,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: str
 async function regenerate(ctx: TypeContext, draft: RecordDraft, page: OwnPage | undefined): Promise<CompilePageWrite | null> {
   const { record } = draft;
   const meta = recordMeta(ctx, draft, page);
-  const violations = validateEntityFields(recordFrontmatter(meta), ctx.type.def);
-  if (violations.length > 0) {
-    ctx.result.errors.push(`${ctx.report.label(record.id)} not written: ${violations.join(" ")}`);
-    return null;
-  }
+  if (!meetsFieldContract(ctx.report, record.id, meta, ctx.type.def)) return null;
   const request = recordPageRequest(ctx.type.type, draft.title, draft.excerpt.text, ctx.registry.owner?.names ?? []);
   const answer = await completePage(ctx.report, (req) => ctx.steps.complete({ ...req, tools: [] }), request, record.id);
   if (answer === null) return null;
@@ -178,7 +167,7 @@ function recordMeta(ctx: TypeContext, draft: RecordDraft, page: OwnPage | undefi
   return {
     title, titleField: ctx.type.def.titleField, summary: "", aliases: aliasesOf(record, title, fields), fields: withoutAliases(fields),
     signature: draft.signature, sources: [...new Set(record.mentions.map((mention) => mention.file))].sort(),
-    createdAt: stringField(page?.meta ?? {}, "createdAt") || now, updatedAt: now, provenance: ctx.steps.provenance(),
+    createdAt: createdAtOf(page, now), updatedAt: now, provenance: ctx.steps.provenance(),
   };
 }
 

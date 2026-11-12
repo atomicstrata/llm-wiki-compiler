@@ -6,9 +6,11 @@
  *
  * Its body is written by the model from the timeline's week pages, newest first
  * within a budget, keeping their citations, so its claims resolve to source
- * lines; citations of lines no week cited are fitted or reported like any page's. Below it, a generated "People" section lists every record of the
- * owner's type, grouped by the type's first declared enum field (a person's
- * relationship), built with no model call.
+ * lines; citations of lines no week cited are fitted or reported like any
+ * page's. Its frontmatter is a record page's (no fields). Below the body, a
+ * generated "People" section lists every record of the owner's type, grouped by
+ * the type's first declared enum field (a person's relationship), built with no
+ * model call.
  *
  * It runs after the timeline, which it reads. The body is regenerated only when
  * the weeks it was written from change (its `entitySignature` hashes them);
@@ -17,19 +19,17 @@
  * no call.
  */
 
-import { createHash } from "node:crypto";
-import { buildFrontmatter, extractClaimCitations, parseFrontmatter } from "../utils/markdown.js";
-import { validateEntityFields } from "../profile/field-contract.js";
-import { withGenerated, withoutGenerated, type PageLink } from "../wiki/generated-section.js";
+import { shortDigest } from "../utils/short-digest.js";
+import { extractClaimCitations } from "../utils/markdown.js";
+import { withGenerated, type PageLink } from "../wiki/generated-section.js";
 import {
-  claimable, completePage, fitAndReportCitations, ownPages, stringField, writeAndReport,
+  claimable, completePage, createdAtOf, fitAndReportCitations, ownPages, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
 import { SUMMARY_PREFIX, splitAnswer, type PageRequest, type ShownLines } from "../compiler/source-excerpt.js";
-import { TIMELINE_NAMESPACE } from "../timeline/pages.js";
+import { TIMELINE_NAMESPACE, weekPages } from "../timeline/pages.js";
 import { ownerPageId, type AliasRegistry } from "./identity.js";
-import { entityReport } from "./generate.js";
-import { isRecordPage, namedBy, withAliases } from "./pages.js";
+import { entityReport, isRecordPage, meetsFieldContract, recordPage, withAliases, type RecordPageMeta } from "./pages.js";
 import type { ExtractableType } from "./schema.js";
 
 /** Bump only when the owner page's prompt or layout changes in a way it must pick up; it regenerates the page. */
@@ -64,22 +64,24 @@ interface OwnerDraft {
   signature: string;
 }
 
-/** How the owner page is written: for which type, and whether the timeline (its week pages) is on. */
+/** How the owner page is written: from which types, and whether the timeline (its week pages) is on. */
 export interface OwnerConfig {
-  type: ExtractableType;
+  /** The extracted types; the owner page belongs to the one the registry's owner is of. */
+  types: ExtractableType[];
   /** False when the timeline is off: week pages left from when it was on are not read. */
   useTimeline: boolean;
 }
 
-/** Bring the owner page of `config.type` up to date; does nothing when the registry names no owner of that type. */
+/** Bring the owner page up to date; does nothing when the registry names no owner of an extracted type. */
 export async function generateOwnerPageWith(steps: OwnerSteps, config: OwnerConfig): Promise<DerivedResult> {
-  const { type } = config;
-  const report = entityReport(type.type, { written: [], deleted: [], errors: [] });
+  const result: DerivedResult = { written: [], deleted: [], errors: [] };
   const registry = await steps.readRegistry();
-  const id = ownerPageId(registry, type.type);
-  if (!id) return report.result;
+  const type = config.types.find((candidate) => candidate.type === registry.owner?.type);
+  const id = type ? ownerPageId(registry, type.type) : null;
+  if (!type || !id) return result;
+  const report = entityReport(type.type, result);
   const { own, foreign } = ownPages(await steps.listPages(type.type), isRecordPage);
-  if (!claimable(report, id, foreign)) return report.result;
+  if (!claimable(report, id, foreign)) return result;
   const names = registry.owner!.names;
   const weeks = config.useTimeline ? recentWeeks(await steps.listPages(TIMELINE_NAMESPACE)) : [];
   const draft: OwnerDraft = {
@@ -88,7 +90,7 @@ export async function generateOwnerPageWith(steps: OwnerSteps, config: OwnerConf
   };
   const text = await ownerPageText(draft);
   if (text !== null && text !== draft.page?.text) await writeAndReport(report, steps, [{ entityType: type.type, slug: id, body: text }]);
-  return report.result;
+  return result;
 }
 
 /**
@@ -101,17 +103,24 @@ export async function generateOwnerPageWith(steps: OwnerSteps, config: OwnerConf
 async function ownerPageText(draft: OwnerDraft): Promise<string | null> {
   const { page } = draft;
   if (page && stringField(page.meta, "entitySignature") === draft.signature) return refreshed(draft, page);
-  const blank = ownerPage(draft, OWNER_SUMMARY, "");
-  const violations = validateEntityFields(parseFrontmatter(blank).meta, draft.type.def);
-  if (violations.length > 0) {
-    draft.report.result.errors.push(`${draft.report.label(draft.id)} not written: ${violations.join(" ")}`);
-    return null;
-  }
-  if (draft.weeks.length === 0) return blank;
+  const meta = ownerMeta(draft);
+  if (!meetsFieldContract(draft.report, draft.id, meta, draft.type.def)) return null;
+  if (draft.weeks.length === 0) return recordPage(meta, "", draft.people);
   const answer = await completePage(draft.report, (request) => draft.steps.complete(request), ownerRequest(draft.names[0], draft.weeks), draft.id);
   if (answer === null) return page ? refreshed(draft, page) : null;
-  const { summary, body } = splitAnswer(fitAndReportCitations(draft.report, draft.id, answer, citedLines(draft.weeks)));
-  return ownerPage(draft, summary || OWNER_SUMMARY, body);
+  const shown = citedLines(draft.weeks);
+  const { summary, body } = splitAnswer(fitAndReportCitations(draft.report, draft.id, answer, shown));
+  const sources = [...new Set(shown.map((lines) => lines.file))].sort();
+  return recordPage({ ...meta, summary: summary || OWNER_SUMMARY, sources, provenance: draft.steps.provenance() }, body, draft.people);
+}
+
+/** The owner page's frontmatter before the model writes its summary: a record page with no fields, sources or provenance. */
+function ownerMeta(draft: OwnerDraft): RecordPageMeta {
+  const now = draft.steps.now();
+  return {
+    title: draft.names[0], titleField: draft.type.def.titleField, summary: OWNER_SUMMARY, aliases: draft.names.slice(1), fields: {},
+    signature: draft.signature, createdAt: createdAtOf(draft.page, now), updatedAt: now, provenance: {},
+  };
 }
 
 /** A page on disk with its aliases and People section brought up to date, with no model call. */
@@ -121,12 +130,9 @@ function refreshed(draft: OwnerDraft, page: OwnPage): string {
 
 /** The week pages, newest first, as many as fit the budget (always at least the newest). */
 function recentWeeks(texts: Map<string, string>): WeekInput[] {
-  const { own } = ownPages(texts, (meta) => meta.timeline === "weekly");
-  const weeks = [...own.values()].map((page) => ({ week: stringField(page.meta, "week"), body: withoutGenerated(parseFrontmatter(page.text).body).trim() }))
-    .filter((week) => week.week && week.body).sort((a, b) => b.week.localeCompare(a.week));
   const kept: WeekInput[] = [];
   let used = 0;
-  for (const week of weeks) {
+  for (const week of weekPages(texts)) {
     if (kept.length > 0 && used + week.body.length > OWNER_EXCERPT_BUDGET) break;
     kept.push(week);
     used += week.body.length;
@@ -136,7 +142,7 @@ function recentWeeks(texts: Map<string, string>): WeekInput[] {
 
 /** The signature of what the owner page's body is written from; equal signatures mean the body is current. */
 function ownerSignature(name: string, weeks: WeekInput[]): string {
-  return createHash("sha256").update(JSON.stringify([OWNER_PAGE_VERSION, name, weeks])).digest("hex").slice(0, 16);
+  return shortDigest([OWNER_PAGE_VERSION, name, weeks]);
 }
 
 /** The request for the owner page. */
@@ -153,23 +159,6 @@ Only what the pages say. No title.`;
 function citedLines(weeks: WeekInput[]): ShownLines[] {
   return weeks.flatMap((week) => extractClaimCitations(week.body).flatMap((citation) => citation.spans))
     .map((span) => ({ file: span.file, ranges: span.lines ? [span.lines] : [] }));
-}
-
-/** The full markdown of the owner page. */
-function ownerPage(draft: OwnerDraft, summary: string, body: string): string {
-  const now = draft.steps.now();
-  const frontmatter = buildFrontmatter({
-    title: draft.names[0],
-    ...namedBy(draft.type.def.titleField, draft.names[0]),
-    summary,
-    ...(draft.names.length > 1 ? { aliases: draft.names.slice(1) } : {}),
-    ...(body ? { sources: [...new Set(citedLines(draft.weeks).map((lines) => lines.file))].sort() } : {}),
-    entitySignature: draft.signature,
-    createdAt: stringField(draft.page?.meta ?? {}, "createdAt") || now,
-    updatedAt: now,
-    ...(body ? draft.steps.provenance() : {}),
-  });
-  return withGenerated(`${frontmatter}\n\n${body.trim()}\n`, draft.people);
 }
 
 /** A record as the People section lists it. */
