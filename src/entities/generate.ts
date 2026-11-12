@@ -120,7 +120,7 @@ async function writeType(step: StepContext, type: ExtractableType, cache: Extrac
   const { own: pages, foreign } = ownPages(await step.steps.listPages(type.type), isRecordPage);
   const titles = new Map(records.map((record) => [record.id, displayName(record, step.registry.entities[type.type]?.[record.id])]));
   const ctx: TypeContext = { ...step, type, pages, foreign, titles, report: entityReport(type.type, step.result) };
-  const duplicates = possibleDuplicates(records);
+  const duplicates = possibleDuplicates(records, step.registry.distinct?.[type.type]);
   const writable = records.filter((record) => claimable(ctx.report, record.id, foreign));
   const planned = await Promise.all(writable.map((record) => ctx.limit(() => planRecord(ctx, record, duplicates.get(record.id) ?? []))));
   const withPages = await commit(ctx, planned);
