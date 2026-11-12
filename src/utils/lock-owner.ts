@@ -13,11 +13,9 @@
  * a different start time). Staleness is then: the PID is dead, OR the PID is alive
  * but its CURRENT start time differs from the recorded one (PID was reused).
  *
- * OLDER RECORDS: a leaf written by an older build — a bare numeric PID, or a
- * start time rendered by `ps` in the writer's local zone — carries no comparable
- * identity, so it is reclaimed only once its PID is dead. Older builds reading a
- * current leaf find no `startTime` and likewise judge it by PID alone. The start
- * time is a best-effort signal:
+ * BACKWARD COMPATIBLE: a leaf written by an older build (a bare numeric PID, no
+ * start time) falls back to the prior PID-only liveness — no regression for an
+ * in-flight lock or any other lock user. The start time is a best-effort signal:
  * when it cannot be read (an unsupported platform / `ps` failure) the check
  * degrades to PID-only liveness rather than failing.
  *
@@ -106,17 +104,83 @@ export function selfStartTime(): string | null {
   return cachedSelfStartTime;
 }
 
-/** The owner record for `pid`: its PID and, when readable, its start-time identity. */
+/**
+ * Dual-write the public ambient timestamp and the new epoch identity. Old readers
+ * ignore identity and retain their baseline comparison; new readers prefer it.
+ * Mixed-version readers retain the baseline timezone hazard, not a new format
+ * mismatch. Omitting startTime would disable old readers' PID-reuse recovery.
+ */
 export function serializeOwner(pid: number): string {
   const identity = pid === process.pid ? selfStartTime() : readProcessStartTime(pid);
-  return JSON.stringify({ pid, ...(identity === null ? {} : { identity }) });
+  const startTime = readLegacyProcessStartTime(pid);
+  return JSON.stringify({ pid, ...(startTime === null ? {} : { startTime }),
+    ...(identity === null ? {} : { identity }) });
 }
 
-/** Ask `ps` for one process's `lstart` rendering under `env`, or null when the pid is gone or `ps` fails. */
-function psLstart(pid: number, env: NodeJS.ProcessEnv): string | null {
+/** Environment inputs that change how `ps -o lstart=` renders a start time. */
+const AMBIENT_RENDERING_ENV = ["TZ", "LC_ALL", "LC_TIME", "LANG"] as const;
+
+/** This process's ambient rendering, with the environment it was rendered under. */
+let cachedSelfLegacyStartTime: { env: string; value: string | null } | undefined;
+
+/**
+ * This process's own ambient rendering. A running process's start time never
+ * changes, so one `ps` per process answers every lock acquisition; the entry is
+ * reused only while the locale and zone inputs that shape the text are unchanged.
+ */
+function selfLegacyStartTime(): string | null {
+  const env = AMBIENT_RENDERING_ENV.map((name) => process.env[name] ?? "").join("\0");
+  if (cachedSelfLegacyStartTime?.env !== env) {
+    cachedSelfLegacyStartTime = { env, value: renderSelfLstart() ?? psLstart(process.pid) };
+  }
+  return cachedSelfLegacyStartTime.value;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** Whether the time locale `ps` renders under is the C locale, whose `lstart` text is fixed. */
+function isCTimeLocale(): boolean {
+  const locale = process.env.LC_ALL || process.env.LC_TIME || process.env.LANG || "C";
+  return locale === "C" || locale === "POSIX" || locale.startsWith("C.");
+}
+
+/**
+ * This process's `ps -o lstart=` text, rendered in-process: in the C locale both
+ * procps (`%a %b %e %H:%M:%S %Y`) and macOS `ps` (`%c`) print the start second in
+ * local time with that layout, and with `TZ` set `Date` uses that same zone. Null
+ * without an explicit `TZ`, outside the C locale or without a start second, which
+ * leaves the answer to `ps` itself.
+ * Not forking `ps` here keeps synchronous spawns off the lock path, where Bun can
+ * hang on one (oven-sh/bun#46488).
+ */
+function renderSelfLstart(): string | null {
+  const identity = selfStartTime();
+  // Only an explicit `TZ` is certain to be the zone both `Date` and libc use:
+  // without one, a runtime may keep its own default (`bun test` runs in UTC).
+  const explicitZone = Boolean(process.env.TZ);
+  if (!explicitZone || !isCTimeLocale() || identity === null || !identity.startsWith(IDENTITY_PREFIX)) return null;
+  const at = new Date(Number(identity.slice(IDENTITY_PREFIX.length)) * 1000);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  const day = String(at.getDate()).padStart(2, " ");
+  const clock = `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+  return `${WEEKDAYS[at.getDay()]} ${MONTHS[at.getMonth()]} ${day} ${clock} ${at.getFullYear()}`;
+}
+
+/** Read the exact ambient ps rendering used by public lock readers and writers. */
+function readLegacyProcessStartTime(pid: number): string | null {
+  return pid === process.pid ? selfLegacyStartTime() : psLstart(pid);
+}
+
+/**
+ * Ask `ps` for one process's `lstart` rendering, under `env` when given (else
+ * the ambient environment), or null when the pid is gone or `ps` fails.
+ */
+function psLstart(pid: number, env?: NodeJS.ProcessEnv): string | null {
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-      stdio: ["ignore", "pipe", "ignore"], env,
+      stdio: ["ignore", "pipe", "ignore"],
+      ...(env === undefined ? {} : { env }),
     }).toString().trim();
     return out.length > 0 ? out : null;
   } catch {
@@ -443,4 +507,18 @@ export function classifyOwnerLiveness(owner: LockOwner): OwnerLiveness {
  */
 export function isOwnerStale(owner: LockOwner): boolean {
   return classifyOwnerLiveness(owner) === "stale";
+}
+
+/**
+ * Public lock-file compatibility: old timestamp-only records use the baseline
+ * ambient comparison. Strict runtime lease classification remains epoch-only.
+ * Existing epoch-in-startTime internal records continue through the strict path.
+ */
+export function isLockRecordStale(owner: LockOwner): boolean {
+  if (owner.identity !== undefined || owner.startTime === undefined || owner.startTime.startsWith(IDENTITY_PREFIX)) {
+    return isOwnerStale(owner);
+  }
+  if (!isProcessAlive(owner.pid)) return true;
+  const current = readLegacyProcessStartTime(owner.pid);
+  return current !== null && current !== owner.startTime;
 }
