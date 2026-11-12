@@ -9,15 +9,13 @@
  * reader every other build uses, rather than against a re-derivation.
  */
 
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "bun:test";
 import { readKernelStartSeconds } from "../src/utils/kernel-start-time.js";
+import { psLstart } from "./fixtures/ps-lstart.js";
 
 /** What `readProcessStartTime` derives from `ps` under its pinned zone and locale. */
-function psStartSeconds(pid: number): number {
-  const rendered = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-    env: { ...process.env, TZ: "UTC", LC_ALL: "C" },
-  }).toString().trim();
+async function psStartSeconds(pid: number): Promise<number> {
+  const rendered = await psLstart(pid, { ...process.env, TZ: "UTC", LC_ALL: "C" });
   return Math.floor(Date.parse(`${rendered} UTC`) / 1000);
 }
 
@@ -25,9 +23,9 @@ function psStartSeconds(pid: number): number {
 const isNativePlatform = process.platform === "darwin" || process.platform === "linux";
 
 describe("readKernelStartSeconds", () => {
-  it.skipIf(!isNativePlatform)("equals the ps rendering for own, parent and foreign pids", () => {
+  it.skipIf(!isNativePlatform)("equals the ps rendering for own, parent and foreign pids", async () => {
     for (const pid of [process.pid, process.ppid, 1]) {
-      expect(readKernelStartSeconds(pid)).toBe(psStartSeconds(pid));
+      expect(readKernelStartSeconds(pid)).toBe(await psStartSeconds(pid));
     }
   });
 

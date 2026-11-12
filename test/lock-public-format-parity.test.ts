@@ -2,22 +2,20 @@
  * Mixed-version lock records preserve public timestamp comparison and strict
  * runtime epoch identity. No legacy reader must interpret an epoch as ps text.
  */
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "bun:test";
 import {
   classifyOwnerLiveness, isLockRecordStale, parseOwner, readProcessStartTime, serializeOwner,
 } from "../src/utils/lock-owner.js";
+import { psLstart } from "./fixtures/ps-lstart.js";
 
 /** Exact ambient rendering compared by baseline public lock readers. */
-function legacyStart(): string {
-  return execFileSync("ps", ["-o", "lstart=", "-p", String(process.pid)]).toString().trim();
-}
+const legacyStart = (): Promise<string> => psLstart(process.pid);
 
 describe("public lock record format", () => {
-  it("writes the old reader field plus a preferred epoch for new readers", () => {
+  it("writes the old reader field plus a preferred epoch for new readers", async () => {
     const text = serializeOwner(process.pid);
     const wire = JSON.parse(text);
-    expect(wire.startTime).toBe(legacyStart());
+    expect(wire.startTime).toBe(await legacyStart());
     expect(wire.identity).toBe(readProcessStartTime(process.pid));
     const owner = parseOwner(text)!;
     expect(owner.startTime).toBe(wire.identity);
@@ -25,8 +23,8 @@ describe("public lock record format", () => {
     expect(isLockRecordStale(owner)).toBe(false);
   });
 
-  it("retains baseline reclamation for timestamp-only legacy records", () => {
-    expect(isLockRecordStale({ pid: process.pid, startTime: legacyStart() })).toBe(false);
+  it("retains baseline reclamation for timestamp-only legacy records", async () => {
+    expect(isLockRecordStale({ pid: process.pid, startTime: await legacyStart() })).toBe(false);
     const reused = { pid: process.pid, startTime: "Thu Jan 01 00:00:00 1970" };
     expect(isLockRecordStale(reused)).toBe(true);
     // New lease consumers must not accidentally acquire the legacy comparison.
