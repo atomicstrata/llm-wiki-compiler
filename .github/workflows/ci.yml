@@ -24,12 +24,12 @@ jobs:
   #
   #
   # One job, so branch protection's `build-and-test (24)` is the whole check.
-  # The suite and the packing checks run as parallel steps. The packing checks
-  # rebuild the packages they pack, which would clean `dist/` under the CLI
-  # tests running beside them, so they run in their own copy of the checkout.
+  # The suite and the packing checks run one after the other: run as parallel
+  # steps they share the runner's four cores, and the packing checks' builds
+  # slowed the suite from about three minutes to five and a half.
   build-and-test:
     runs-on: ubuntu-latest
-    # A full run takes about four minutes; a hung test would otherwise hold it for six hours.
+    # A full run takes about six minutes; a hung test would otherwise hold it for six hours.
     timeout-minutes: 15
     strategy:
       matrix:
@@ -67,26 +67,23 @@ jobs:
           path: ~/.npm
           key: npm-pack-${{ hashFiles('bun.lock') }}
           restore-keys: npm-pack-
-      - parallel:
-          # On a hang, snapshot the live processes at 420s, then fail at 480s.
-          # Ignore patterns given here replace bunfig's list rather than adding
-          # to it, so the two packing tests bunfig ignores are named again.
-          - name: Run the suite
-            run: >-
-              mkdir -p "$LLMWIKI_TEST_TRACE" &&
-              (sleep 420 && bash .github/ci/hang-snapshot.sh) &
-              timeout 480 bun scripts/run-tests.mjs
-              --path-ignore-patterns=test/sdk/packaging.test.ts
-              --path-ignore-patterns=test/products/private-packages-pack.test.ts
-              --path-ignore-patterns=test/local-workflow-package-boundary.test.ts
-          # The shipped facade, its exact workspace dependencies, consumer
-          # declarations, and the built CLI started with Node.
-          - name: Packing checks, in a copy of the checkout
-            run: >-
-              cp -a . "$RUNNER_TEMP/pack" && cd "$RUNNER_TEMP/pack" &&
-              bun run test:pack &&
-              bun test ./test/local-workflow-package-boundary.test.ts &&
-              node dist/cli.js --version
+      # On a hang, snapshot the live processes at 420s, then fail at 480s.
+      # Ignore patterns given here replace bunfig's list rather than adding to
+      # it, so the two packing tests bunfig ignores are named again.
+      - name: Run the suite
+        run: >-
+          mkdir -p "$LLMWIKI_TEST_TRACE" &&
+          (sleep 420 && bash .github/ci/hang-snapshot.sh) &
+          timeout 480 bun scripts/run-tests.mjs
+          --path-ignore-patterns=test/sdk/packaging.test.ts
+          --path-ignore-patterns=test/products/private-packages-pack.test.ts
+          --path-ignore-patterns=test/local-workflow-package-boundary.test.ts
+      # The shipped facade, its exact workspace dependencies, consumer
+      # declarations, and the built CLI started with Node. These are
+      # `bun run test:pack` without its build, which the step above did.
+      - name: Packing checks
+        run: bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts ./test/products/private-packages-pack.test.ts
+      - run: bun test ./test/local-workflow-package-boundary.test.ts && node dist/cli.js --version
 
   codebase-health:
     runs-on: ubuntu-latest
