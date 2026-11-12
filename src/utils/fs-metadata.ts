@@ -28,5 +28,10 @@ export const lstat = (async (target: string, options?: { bigint?: boolean }) =>
 export const stat = (async (target: string, options?: { bigint?: boolean }) =>
   fs.statSync(target, options)) as typeof fsPromises.stat;
 
-/** `fs.promises.realpath`, answered in place. */
-export const realpath = (async (target: string) => fs.realpathSync(target)) as typeof fsPromises.realpath;
+/**
+ * `fs.promises.realpath`, answered in place. `.native` is the libc realpath the
+ * promise form uses: Node's plain `realpathSync` resolves in JavaScript and
+ * keeps a path's letter case on case-insensitive volumes, where libc returns
+ * the stored case.
+ */
+export const realpath = (async (target: string) => fs.realpathSync.native(target)) as typeof fsPromises.realpath;

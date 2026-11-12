@@ -28,7 +28,7 @@ beforeEach(() => {
   dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "llmwiki-shared-reads-")));
   page = path.join(dir, "a.md");
   fs.writeFileSync(page, "first\n");
-  realpath = spyOn(fs, "realpathSync");
+  realpath = spyOn(fs.realpathSync, "native");
 });
 
 afterEach(() => {

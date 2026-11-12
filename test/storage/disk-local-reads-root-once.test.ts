@@ -32,7 +32,7 @@ async function rootLookupsDuring(run: (reads: ReturnType<typeof diskLocalReads>)
   const root = scratch();
   for (const slug of ["a", "b", "c"]) writePage(root, slug);
   const reads = diskLocalReads(root);
-  const realpath = spyOn(fs, "realpathSync");
+  const realpath = spyOn(fs.realpathSync, "native");
   try {
     await run(reads);
     return realpath.mock.calls.filter(([target]: unknown[]) => String(target) === root).length;
