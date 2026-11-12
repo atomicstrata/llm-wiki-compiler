@@ -250,6 +250,8 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/utils/kernel-start-time.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/key-leaf-health.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/keyed-fifo.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // The lock-held read memo that atomic-write.ts clears on every write.
+  { path: "src/utils/lock-held-reads.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/lock-owner.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/lock-publication.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/lock.ts", role: "shared-primitive", rawFilesystemAccess: true },
@@ -266,6 +268,8 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/utils/runtime-capture.ts", role: "shared-primitive", rawFilesystemAccess: false },
   // Holds the leaf bytes one pass's inventory walk read, for that pass's readers; no I/O of its own.
   { path: "src/utils/scanned-leaf-bytes.ts", role: "shared-primitive", rawFilesystemAccess: false },
+  // The shared page-read window that atomic-write.ts drops a written path from.
+  { path: "src/utils/shared-read-window.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/stream-digest.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/verified-bytes-memo.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/well-formed-unicode.ts", role: "shared-primitive", rawFilesystemAccess: false },
@@ -429,6 +433,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/kernel-start-time.ts :: shared-primitive",
   "src/utils/key-leaf-health.ts :: shared-primitive",
   "src/utils/keyed-fifo.ts :: shared-primitive",
+  "src/utils/lock-held-reads.ts :: shared-primitive",
   "src/utils/lock-owner.ts :: shared-primitive",
   "src/utils/lock-publication.ts :: shared-primitive",
   "src/utils/lock.ts :: shared-primitive",
@@ -444,6 +449,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/run-store-io.ts :: shared-primitive",
   "src/utils/runtime-capture.ts :: shared-primitive",
   "src/utils/scanned-leaf-bytes.ts :: shared-primitive",
+  "src/utils/shared-read-window.ts :: shared-primitive",
   "src/utils/stream-digest.ts :: shared-primitive",
   "src/utils/verified-bytes-memo.ts :: shared-primitive",
   "src/utils/well-formed-unicode.ts :: shared-primitive",

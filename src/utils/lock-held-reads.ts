@@ -13,8 +13,12 @@
  * THE SCOPE IS THE GUARANTEE. Outside a scope every call reads again, exactly as
  * before. A scope is opened only by the holder of the project lock, after the
  * acquire, and its memo dies with the callback, before the release: a read is
- * never reused across a lock release. A caller that may write what it reads
- * inside the scope must not route that read through here.
+ * never reused across a lock release.
+ *
+ * A WRITE ENDS THE SHARING. The section's callback can be an embedder's (see
+ * local-workflow-host/transactions.ts), which may write what is read here, so
+ * every `atomicWrite*` forgets the section's reads ({@link forgetLockHeldReads}):
+ * reads before a write are shared, none is reused across one.
  *
  * A REJECTED read is forgotten, so the next call reads again and fails (or not)
  * on its own; a value `keep` declines (an absent run key) is forgotten too.
@@ -66,4 +70,9 @@ export function readOncePerLockHold<T>(kind: string, root: string, read: () => P
 /** Whether the caller runs inside a lock-held section. */
 export function inLockHeldSection(): boolean {
   return scope.getStore() !== undefined;
+}
+
+/** Forget every read the current lock-held section shared; this process just wrote a file. */
+export function forgetLockHeldReads(): void {
+  scope.getStore()?.clear();
 }
