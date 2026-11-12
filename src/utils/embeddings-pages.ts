@@ -6,16 +6,17 @@
 
 import path from "path";
 import { getEmbeddingProvider } from "./embedding-provider.js";
-import { parseFrontmatter } from "./markdown.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "./constants.js";
 import { type EmbeddingEntry } from "./embeddings-store.js";
 import { embedTextBatch, enrichEmbedError, makeCountingProvider } from "./embeddings-batch.js";
 import { safeRealpath, isInsideDir } from "./path-confine.js";
 import { listDirectoryNames } from "../storage/disk-guarded-leaves.js";
 import { readConfinedExactFile } from "../storage/disk-local-reads.js";
+import { frontmatterOf } from "./markdown.js";
 import { locationIsRegularFile } from "../storage/disk-locations.js";
 import type { ConfinedReadResult } from "../storage/legacy-local-reads.js";
 import type { PageRecord } from "../pages/read.js";
+import { prefetchInOrder } from "./prefetch-in-order.js";
 
 /** A reserved-namespace page record tagged with the directory it came from. */
 export interface NamespacedPageRecord {
@@ -32,14 +33,14 @@ const RESERVED_DIRS: ReadonlyArray<{ namespace: string; dir: string }> = [
 
 /**
  * The PHYSICAL reads the embedding page collectors run over: the reserved scan
- * and the requested-page existence check. Each member is ONE incumbent
+ * and the requested-page existence check. Each member is ONE disk
  * mechanism; which names are pages, the parse, eligibility, order and what a
  * failure means stay with the collectors. Directory and entry locators are
  * opaque strings (on disk, absolute canonical paths). It is distinct from
  * `LegacyLocalReads`, whose `readConfinedPage` confines to the LEXICAL
  * `<root>/<dir>` and whose `realDirectory` refuses linked directories: this
  * scan confines to the RESOLVED directory, so an in-project linked directory
- * is read, as before. Naming these selects no backend.
+ * is read. Naming these selects no backend.
  */
 export interface EmbeddingPageReads {
   /** MECHANISM. The project's canonical locator, or `null` when it cannot be resolved. Never rejects. */
@@ -58,12 +59,14 @@ export interface EmbeddingPageReads {
    * root natively.
    */
   isRegularFile(relPath: string): Promise<boolean>;
+  listRelativeNames(relDir: string): Promise<string[]>;
 }
 
 /**
- * LOCAL DISK. The incumbent mechanisms for `root`: `safeRealpath`, the
+ * LOCAL DISK. The mechanisms for `root`: `safeRealpath`, the
  * resolved-and-contained directory check, `listDirectoryNames`,
- * `readConfinedExactFile` and `locationIsRegularFile`, with their exact
+ * `readConfinedExactFile`, `locationIsRegularFile` and `listDirectoryNames`
+ * again for a project-relative directory, with their exact
  * arguments. Building it does no I/O. In no package index.
  */
 export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
@@ -76,6 +79,7 @@ export function diskEmbeddingPageReads(root: string): EmbeddingPageReads {
     listNames: (directory) => listDirectoryNames(directory),
     readConfinedEntry: (directory, name) => readConfinedExactFile(directory, path.join(directory, name)),
     isRegularFile: (relPath) => locationIsRegularFile(path.join(root, relPath)),
+    listRelativeNames: (relDir) => listDirectoryNames(path.join(root, relDir)),
   };
 }
 
@@ -113,8 +117,9 @@ export async function collectNamespacedPageRecordsFrom(reads: EmbeddingPageReads
     } catch {
       continue;
     }
-    for (const file of files.filter((f) => f.endsWith(".md"))) {
-      const record = await readConfinedPageRecord(reads, directory, file);
+    const pageFiles = files.filter((f) => f.endsWith(".md"));
+    for (const pending of prefetchInOrder(pageFiles, (file) => readConfinedPageRecord(reads, directory, file))) {
+      const record = await pending;
       if (record) records.push({ namespace, record });
     }
   }
@@ -134,7 +139,7 @@ export async function collectPageRecords(root: string): Promise<PageRecord[]> {
 async function readConfinedPageRecord(reads: EmbeddingPageReads, expectedDir: string, file: string): Promise<PageRecord | null> {
   const read = await reads.readConfinedEntry(expectedDir, file);
   if (!("content" in read)) return null;
-  const { meta, body } = parseFrontmatter(read.content);
+  const { meta, body } = frontmatterOf(read);
   if (meta.orphaned || typeof meta.title !== "string") return null;
   return {
     slug: file.replace(/\.md$/, ""),

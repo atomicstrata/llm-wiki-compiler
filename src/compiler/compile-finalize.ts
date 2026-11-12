@@ -2,8 +2,7 @@
  * @file src/compiler/compile-finalize.ts
  * @description Compile's TAIL: seed pages, then interlink resolution and repair,
  * the SINGLE durable state flush, the index and MOC, and the optional embeddings
- * refresh — on both the changed route and the no-source-changes route. Moved out
- * of `compiler/index.ts` unchanged in behaviour and order.
+ * refresh — on both the changed route and the no-source-changes route.
  *
  * ONE BODY, EXPLICIT STEPS. {@link seedThenFinalizeWith} and
  * {@link finalizeUnchangedCompileWith} are the bodies. They are handed
@@ -11,10 +10,9 @@
  * owner (seed generation, the frozen-orphan pass, resolution, repair, the index,
  * the MOC, the embeddings drain) or the draft's single state write — none is a
  * raw storage port, and composing them does not move compile off disk. The root
- * {@link seedThenFinalize} and {@link finalizeUnchangedCompile} keep their old
- * signatures and pass {@link localCompileFinalizeSteps}, which call the
- * incumbent functions at call time with exactly their old arguments, so every
- * module spy and module mock on them still intercepts. What stays in the bodies:
+ * {@link seedThenFinalize} and {@link finalizeUnchangedCompile} take a root and
+ * pass {@link localCompileFinalizeSteps}, which call the local domain functions
+ * at call time, so every module spy and module mock on them intercepts. What stays in the bodies:
  * the review/skip-seed guard, the changed and new slug sets (seed slugs folded
  * into both), the ordering resolve → repair → flush → index → MOC → embeddings,
  * the scoped-run rule for the prompt-modifier digest, the null-draft no-flush
@@ -80,8 +78,7 @@ const localCompileFinalizeSteps: CompileFinalizeSteps = Object.freeze({
  * INVERT a behaviour: as adjacent positional parameters, transposing two of
  * them type-checks silently and the compile does the opposite of what the
  * caller asked, on paths whose whole point is that they run less than the
- * default. One flag was tolerable; a second one arriving is the signal to name
- * them rather than to add a sixth parameter.
+ * default.
  */
 interface FinalizeFlags {
   /**
