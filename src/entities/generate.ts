@@ -7,8 +7,9 @@
  * Model calls are spent only where inputs changed. Extraction re-reads a source
  * only when its hash or the schema's structure changed (see extract.ts). A record
  * page is regenerated only when its signature, a hash of exactly what the model
- * would be shown, changed; otherwise only its aliases and generated tail (days,
- * possible duplicates) are refreshed, with no model call. The hub has no model
+ * would be shown, changed; otherwise only its aliases, citations (fitted to the
+ * lines shown) and generated tail (days, possible duplicates) are refreshed,
+ * with no model call. The hub has no model
  * call.
  *
  * Pages this step did not write (no `entitySignature`) are never replaced or
@@ -23,7 +24,7 @@ import { validateEntityFields } from "../profile/field-contract.js";
 import { withGenerated, type PageLink } from "../wiki/generated-section.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import {
-  claimable, completePage, deleteAndReport, ownPages, readSources, reportStrayCitations, stringField, writeAndReport,
+  claimable, completePage, deleteAndReport, fitAndReportCitations, fitPageCitations, ownPages, readSources, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
 import { sourcesExcerpt, splitAnswer } from "../compiler/source-excerpt.js";
@@ -119,7 +120,7 @@ async function writeType(step: StepContext, type: ExtractableType, cache: Extrac
   const { own: pages, foreign } = ownPages(await step.steps.listPages(type.type), isRecordPage);
   const titles = new Map(records.map((record) => [record.id, displayName(record, step.registry.entities[type.type]?.[record.id])]));
   const ctx: TypeContext = { ...step, type, pages, foreign, titles, report: entityReport(type.type, step.result) };
-  const duplicates = possibleDuplicates(records);
+  const duplicates = possibleDuplicates(records, step.registry.distinct?.[type.type]);
   const writable = records.filter((record) => claimable(ctx.report, record.id, foreign));
   const planned = await Promise.all(writable.map((record) => ctx.limit(() => planRecord(ctx, record, duplicates.get(record.id) ?? []))));
   const withPages = await commit(ctx, planned);
@@ -153,7 +154,7 @@ async function planRecord(ctx: TypeContext, record: ResolvedRecord, sameIds: str
   const draft: RecordDraft = { record, title, fields, excerpt, signature: recordSignature(title, fields, excerpt.text), tail: recordTail(recordDays(record, ctx.days), maybeSame) };
   const page = ctx.pages.get(record.id);
   if (!page || stringField(page.meta, "entitySignature") !== draft.signature) return regenerate(ctx, draft, page);
-  const text = withGenerated(withAliases(page.text, aliasesOf(record, title, fields)), draft.tail);
+  const text = withGenerated(withAliases(fitPageCitations(page.text, excerpt.shown), aliasesOf(record, title, fields)), draft.tail);
   return { id: record.id, write: text === page.text ? null : entityWrite(ctx, record.id, text), meta: page.meta };
 }
 
@@ -174,8 +175,7 @@ async function regenerate(ctx: TypeContext, draft: RecordDraft, page: OwnPage | 
   const request = recordPageRequest(ctx.type.type, draft.title, draft.excerpt.text, ctx.registry.owner?.names ?? []);
   const answer = await completePage(ctx.report, (req) => ctx.steps.complete({ ...req, tools: [] }), request, record.id);
   if (answer === null) return unchanged;
-  const { summary, body } = splitAnswer(answer);
-  reportStrayCitations(ctx.report, record.id, body, draft.excerpt.shown);
+  const { summary, body } = splitAnswer(fitAndReportCitations(ctx.report, record.id, answer, draft.excerpt.shown));
   const written = { ...meta, summary };
   return { id: record.id, write: entityWrite(ctx, record.id, recordPage(written, body, draft.tail)), meta: recordFrontmatter(written) };
 }

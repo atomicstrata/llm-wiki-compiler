@@ -32,7 +32,7 @@ const CHIP_SELECTOR = ".citation-chip[data-file]";
 const PROSE = [
   "prose prose-zinc max-w-none dark:prose-invert",
   "prose-headings:scroll-mt-20 prose-headings:tracking-tight prose-a:font-medium prose-a:text-indigo-600 prose-a:no-underline hover:prose-a:underline dark:prose-a:text-indigo-400",
-  "[&_.citation-chip]:ml-1 [&_.citation-chip]:cursor-pointer [&_.citation-chip]:rounded [&_.citation-chip]:bg-zinc-100 [&_.citation-chip]:px-1 [&_.citation-chip]:py-0.5",
+  "[&_.citation-chip]:ml-1 [&_.citation-chip]:cursor-pointer [&_.citation-chip]:whitespace-nowrap [&_.citation-chip]:rounded [&_.citation-chip]:bg-zinc-100 [&_.citation-chip]:px-1 [&_.citation-chip]:py-0.5",
   "[&_.citation-chip]:font-mono [&_.citation-chip]:text-[11px] [&_.citation-chip]:text-zinc-500 [&_.citation-chip]:hover:bg-indigo-50 [&_.citation-chip]:hover:text-indigo-700",
   "dark:[&_.citation-chip]:bg-white/5 dark:[&_.citation-chip]:text-zinc-400 dark:[&_.citation-chip]:hover:bg-indigo-500/10 dark:[&_.citation-chip]:hover:text-indigo-300",
   "[&_.citation-chip[data-resolved=false]]:cursor-default [&_.citation-chip[data-resolved=false]]:line-through",

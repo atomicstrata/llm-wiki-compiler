@@ -199,14 +199,19 @@ export function parseRecords(answer: string, types: ExtractableType[], lineCount
 
 /** An address rather than a name, which is never kept as a spelling. */
 const ADDRESS = /@|:\/\//;
-/** A possessive ending ("Ben’s"), which is not part of the name. */
-const POSSESSIVE = /['’]s$/i;
+/** A possessive ending after a lowercase letter ("Ben’s", "parents’"), which is not part of the name; "O'S" is left alone. */
+const POSSESSIVE = /(?<=\p{Ll})['’]s?$/u;
+
+/** A spelling as kept: trimmed, without a possessive ending. */
+export function cleanSpelling(form: string): string {
+  return form.trim().replace(POSSESSIVE, "").trim();
+}
 
 /** The distinct names in a `writtenAs` answer: trimmed, without possessive endings, and without addresses. */
 function spellings(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const forms = value.filter((form): form is string => typeof form === "string" && !ADDRESS.test(form))
-    .map((form) => form.trim().replace(POSSESSIVE, "").trim()).filter(Boolean);
+    .map(cleanSpelling).filter(Boolean);
   return [...new Set(forms)];
 }
 

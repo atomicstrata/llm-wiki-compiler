@@ -60,6 +60,34 @@ describe("identity", () => {
     expect(record.writtenAs).toEqual(["mama", "the parents"]);
   });
 
+  it("does not flag spellings that start with a pronoun or family word, and keeps a possessive off a spelling", () => {
+    const records = resolveRecords("person", [
+      { ...mention("Sam's father"), writtenAs: ["my dad", "parents’"] }, { ...mention("Alex's father"), writtenAs: ["My dad"] }, { ...mention("Mo"), writtenAs: ["mom"] },
+    ], { entities: {} });
+    expect(possibleDuplicates(records).size).toBe(0);
+    expect(records.find((record) => record.id === "sams-father")!.writtenAs).toEqual(["my dad", "parents"]);
+  });
+
+  it("flags names that start with an initial or a short given name, but not mum or an in-law", () => {
+    const flagged = possibleDuplicates(resolveRecords("person", [mention("A.J. Smith"), mention("A.J."), mention("An Nguyen"), mention("An")], { entities: {} }));
+    expect([flagged.get("aj-smith"), flagged.get("an-nguyen")]).toEqual([["aj"], ["an"]]);
+    const relatives = resolveRecords("person", [
+      { ...mention("Sam's mother-in-law"), writtenAs: ["mother-in-law"] }, { ...mention("Alex's mother-in-law"), writtenAs: ["Mother-in-law"] },
+      { ...mention("Sam's mother"), writtenAs: ["mum"] }, { ...mention("Alex's mother"), writtenAs: ["Mum"] }, { ...mention("Alex's stepdad"), writtenAs: ["stepdad"] },
+    ], { entities: {} });
+    expect(possibleDuplicates(relatives).size).toBe(0);
+  });
+
+  it("never flags records the registry settled as different people", () => {
+    const registry = parseRegistry(JSON.stringify({ distinct: { person: [["ben", "ben-eggers"]] } }));
+    const records = resolveRecords("person", [mention("Ben"), mention("Ben Eggers"), mention("Ben Lee")], registry);
+    const flags = possibleDuplicates(records, registry.distinct?.person);
+    expect([flags.get("ben"), flags.get("ben-eggers"), flags.get("ben-lee")]).toEqual([["ben-lee"], ["ben-lee"], ["ben", "ben-eggers"]]);
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: ["ben", "ben-eggers"] } }))).toThrow(/"distinct" must map/);
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben"]] } }))).toThrow(/two or more record ids/);
+    expect(() => parseRegistry(JSON.stringify({ distinct: { person: [["ben", "Ben Eggers"]] } }))).toThrow(/two or more record ids/);
+  });
+
   it("does not flag relation names by their first word", () => {
     const records = resolveRecords("person", [mention("Sam's mother"), mention("Sam's brother"), mention("Sam Lee")], { entities: {} });
     expect(possibleDuplicates(records).size).toBe(0);

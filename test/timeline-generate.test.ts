@@ -9,7 +9,7 @@ import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
 import { dayExcerpt } from "../src/timeline/prompts.js";
-import { citationsOutside, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
+import { fitCitations, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
 import { withDaySections } from "../src/timeline/pages.js";
 import { memoryDerivedSteps } from "./memory-derived-steps.js";
@@ -150,6 +150,16 @@ describe("generateTimelineWith", () => {
     expect(fresh).toBe("Body.\n\n[//]: # (llmwiki-generated)\n## People this day\n\n- [[person/alex-kim|Alex Kim]]\n");
   });
 
+  it("fits a summary's citation once: the second compile writes nothing", async () => {
+    const memory = memorySteps({ "chat.md": CHAT });
+    memory.steps.complete = async (request) => `SUMMARY: Planned ^[chat.md:1-3].\nDone. ${firstCitation(request.messages[0].content)}`;
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(parseFrontmatter(memory.pages.get("timeline/2026-05-04")!).meta.summary).toBe("Planned ^[chat.md:2-2].");
+    const batches = memory.batches.length;
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(memory.batches.length).toBe(batches);
+  });
+
   it("treats an empty page as hand-written: never overwritten, never removed", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.pages.set("timeline/2026-05-04", "");
@@ -182,7 +192,7 @@ describe("timeline prompts", () => {
     const { text, shown } = dayExcerpt(day, new Map([["a-chat.md", chat], ["b-note.md", note]]));
     expect(text).toContain("--- SOURCE: b-note.md ---\n\n4 | Decided to hire.");
     expect(shown.sources.find((source) => source.file === "b-note.md")!.ranges).toEqual([{ start: 4, end: 4 }]);
-    expect(citationsOutside("Late. ^[a-chat.md:2999-2999]", [shown])).toBe(1);
+    expect(fitCitations("Late. ^[a-chat.md:2999-2999]", shown.sources).outside).toBe(1);
   });
 
   it("shows a day's lines under their original numbers, ranges apart", () => {

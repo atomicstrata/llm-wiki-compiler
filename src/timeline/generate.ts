@@ -23,9 +23,9 @@ import pLimit, { type LimitFunction } from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import type { TimelineSchema } from "../schema/types.js";
-import { splitAnswer, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
+import { splitAnswer, type PageRequest, type ShownLines } from "../compiler/source-excerpt.js";
 import {
-  claimable, completePage, deleteAndReport, ownPages, readSources, reportStrayCitations, stringField, writeAndReport,
+  claimable, completePage, deleteAndReport, fitAndReportCitations, fitPageCitations, ownPages, readSources, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
 import { withoutGenerated } from "../wiki/generated-section.js";
@@ -68,8 +68,8 @@ interface PeriodPage {
   period: string;
   sources: string[];
   signature: string;
-  /** The source lines the model was shown, for the stray-citation check. */
-  shown: { file: string; ranges: LineRange[] }[];
+  /** The source lines the model was shown, which its citations are fitted to. */
+  shown: ShownLines[];
 }
 
 /** Bring `wiki/timeline/` up to date with the sources; a disabled timeline does nothing. */
@@ -126,25 +126,32 @@ async function writeDays(pass: TimelinePass, days: DayBucket[], texts: Map<strin
   return commit(pass, planned);
 }
 
-/** A day's write: its page regenerated when its lines changed, else its tail refreshed, else nothing. */
+/** A day's write: its page regenerated when its lines changed, else its citations and tail refreshed, else nothing. */
 async function planDay(pass: TimelinePass, day: DayBucket, texts: Map<string, string>, sections: DaySections): Promise<PeriodWrite | null> {
   const page = pass.existing.get(day.day);
+  const { request, shown } = dailyRequest(day, texts);
   if (page && signatureOf(page) === day.signature) {
-    const updated = withDaySections(page.text, sections);
+    const updated = withDaySections(fitPageCitations(page.text, shown.sources), sections);
     return updated === page.text ? null : { write: timelineWrite(day.day, updated) };
   }
-  const { request, shown } = dailyRequest(day, texts);
   const answer = await completePage(pass.report, (req) => pass.steps.complete(req), request, day.day);
   if (answer === null) return null;
   const sources = day.sources.map((source) => source.file);
   return periodWrite(pass, { kind: "daily", period: day.day, sources, signature: day.signature, shown: shown.sources }, answer, sections);
 }
 
-/** Write every week whose days changed and whose days all have pages. */
+/** Write every week whose days changed and whose days all have pages, and fit the citations of the others. */
 async function writeWeeks(pass: TimelinePass, weeks: WeekBucket[], freshDays: Map<string, string>): Promise<void> {
-  const stale = weeks.filter((week) => signatureOf(pass.existing.get(week.week)) !== week.signature);
-  const planned = await Promise.all(stale.map((week) => pass.limit(() => planWeek(pass, week, freshDays))));
-  await commit(pass, planned);
+  const isCurrent = (week: WeekBucket): boolean => signatureOf(pass.existing.get(week.week)) === week.signature;
+  const planned = await Promise.all(weeks.filter((week) => !isCurrent(week)).map((week) => pass.limit(() => planWeek(pass, week, freshDays))));
+  await commit(pass, [...planned, ...weeks.filter(isCurrent).map((week) => refittedWeek(pass, week))]);
+}
+
+/** A current week page with its citations fitted to its days' lines, or null when they already fit. */
+function refittedWeek(pass: TimelinePass, week: WeekBucket): PeriodWrite | null {
+  const text = pass.existing.get(week.week)!.text;
+  const fitted = fitPageCitations(text, week.days.flatMap((day) => day.sources));
+  return fitted === text ? null : { write: timelineWrite(week.week, fitted) };
 }
 
 /** A week's regenerated page, or null when one of its days has no current page or the model call fails. */
@@ -167,8 +174,7 @@ function orphanDeletes(pass: TimelinePass, days: DayBucket[], weeks: WeekBucket[
 
 /** A regenerated day or week page from the model's answer, keeping the page's original creation time. */
 function periodWrite(pass: TimelinePass, page: PeriodPage, answer: string, sections?: DaySections): PeriodWrite {
-  const { summary, body } = splitAnswer(answer);
-  reportStrayCitations(pass.report, page.period, body, page.shown);
+  const { summary, body } = splitAnswer(fitAndReportCitations(pass.report, page.period, answer, page.shown));
   const now = pass.steps.now();
   const createdAt = stringField(pass.existing.get(page.period)?.meta ?? {}, "createdAt") || now;
   const { shown: _shown, ...meta } = page;

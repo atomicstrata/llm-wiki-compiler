@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`distinct` in `.llmwiki/aliases.json`.** Record ids listed together under `distinct.<type>` (sets of two or more) were settled as different people and are never flagged as possibly the same.
 - **Extracted records separate who from how it was written.** Extraction answers each record's `name` (the fullest correct name the source supports, or a relation such as "Sam's mother" for "mama") and `writtenAs` (every spelling the source used). Records group by `name`, so a typo, nickname or relation the source makes clear joins the right page, and the spellings become its aliases. The registry, `exclude` and the owner check match `name` only; a spelling can flag a possible duplicate but never merges. Types with `extract` cannot declare fields named `name`, `writtenAs` or `lines`. This changes the record shape, so the next compile re-reads every source once.
 - **`exclude` in `.llmwiki/aliases.json`.** Names listed under `exclude.<type>` are not records of that type: no page, no place in a day's **People this day**, and no model call to remove them.
 - **A page for every person (or other record) your sources name.** Add `extract` to a profile entity type and compile reads each source for records of that type and writes one page per record in `wiki/<type>/`: its names, its declared fields agreed across mentions, a body cited to the lines that mention it, the timeline days it appears on, and the records it might be the same as. Extraction is cached in `.llmwiki/entities.json` per source chunk and type structure, so only changed chunks are re-read, a failed read keeps the pages it had, and only pages whose lines changed are rewritten. `.llmwiki/aliases.json` says which names are one record and who the owner is; the owner gets a hub page listing everyone by relationship. Day pages gain **People this day**. Generated sections on timeline pages now sit under `[//]: # (llmwiki-generated)`; pages with the older marker are rewritten once, without a model call.
@@ -36,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Citations fit the lines the model was shown.** A citation written across a gap in the shown lines (`97-112` when lines 94–102 and 110–114 were shown) becomes `97-102, 110-112`, on timeline and person pages, new and existing, with no model call. A span with no shown line, or in a file that was not shown, is left as written and reported.
+- **"Might be the same as" ignores pronouns and family words.** Names and spellings that start with a possessive pronoun or family word ("my dad", "mom", "mother-in-law") no longer flag unrelated relatives as one person, and a possessive ending ("parents’") is dropped from aliases.
+- **Citation chips stay on one line** in `llmwiki view-v2`.
 - **The alias registry refuses anything of the wrong shape.** `.llmwiki/aliases.json` with an `owner` that lacks a type and a list of names, a record id that is not a slug, or a record that is not a list of names stops the entity step with a message naming the problem, instead of being ignored.
 - **A person's aliases leave out bare pronouns** ("they", "his") that extraction listed among how a source wrote them.
 - **Search ignores every generated tail**, not only a timeline day's: a person's **Days** and **Might be the same as** lists no longer make the page match.

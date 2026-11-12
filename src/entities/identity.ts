@@ -28,7 +28,7 @@
  */
 
 import { slugify } from "../utils/markdown.js";
-import type { ExtractedRecord } from "./extract.js";
+import { cleanSpelling, type ExtractedRecord } from "./extract.js";
 
 /** The owner's alias registry. */
 export interface AliasRegistry {
@@ -37,6 +37,8 @@ export interface AliasRegistry {
   entities: Record<string, Record<string, string[]>>;
   /** Entity type → names that are not records of that type. */
   exclude?: Record<string, string[]>;
+  /** Entity type → sets of record ids the owner settled as different people, never flagged as possibly the same. */
+  distinct?: Record<string, string[][]>;
 }
 
 /** One record as one source names it: an extracted record and the file it came from. */
@@ -75,7 +77,11 @@ export function parseRegistry(text: string | null): AliasRegistry {
   }
   const exclude = listsByKey(raw.exclude, '"exclude" must map each entity type to a list of names');
   assertNotBoth(entities, exclude);
-  return { ...(owner ? { owner } : {}), entities, ...(Object.keys(exclude).length > 0 ? { exclude } : {}) };
+  const distinct = parseDistinct(raw.distinct);
+  return {
+    ...(owner ? { owner } : {}), entities,
+    ...(Object.keys(exclude).length > 0 ? { exclude } : {}), ...(Object.keys(distinct).length > 0 ? { distinct } : {}),
+  };
 }
 
 /** The owner, or undefined when there is none; an owner without a type and a list of names throws. */
@@ -98,6 +104,15 @@ function listsByKey(value: unknown, message: string): Record<string, string[]> {
   const map = mapOf(value, message);
   if (!Object.values(map).every(Array.isArray)) throw new Error(message);
   return Object.fromEntries(Object.entries(map).map(([key, names]) => [key, strings(names)]));
+}
+
+/** `distinct` as type → sets of record ids; anything but a map of lists of two or more slug ids throws. */
+function parseDistinct(value: unknown): Record<string, string[][]> {
+  const message = '"distinct" must map each entity type to a list of sets, each two or more record ids';
+  const map = mapOf(value, message);
+  const isIdSet = (set: unknown): boolean => Array.isArray(set) && set.length >= 2 && set.every((id) => typeof id === "string" && SLUG.test(id));
+  if (!Object.values(map).every((sets) => Array.isArray(sets) && sets.every(isIdSet))) throw new Error(message);
+  return map as Record<string, string[][]>;
 }
 
 /** The strings in a list, ignoring anything else. */
@@ -181,7 +196,24 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
 }
 
 /** Words that refer to someone without naming them; a spelling made only of these is no name. */
-const PRONOUNS = new Set(["i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "hers", "it", "its", "we", "us", "our", "they", "them", "their", "the", "a", "an"]);
+const PRONOUNS = new Set(["i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "hers", "it", "its", "we", "us", "our", "they", "them", "their", "the", "a"]);
+/**
+ * Words a spelling can start with that name a relation, not a person: possessive
+ * pronouns ("my dad") and family words ("mom", "mother-in-law"). A spelling that
+ * starts with one never makes a "Might be the same as" flag. (A given name that is
+ * also a family word, like "Son", is not indexed either; its full name still is.)
+ */
+const RELATION_WORDS = new Set([
+  "my", "your", "his", "her", "our", "their",
+  "mom", "mum", "mama", "momma", "mommy", "mother", "dad", "papa", "father", "parent", "parents", "brother", "brothers", "sister", "sisters",
+  "aunt", "auntie", "aunts", "uncle", "uncles", "cousin", "niece", "nephew", "wife", "husband", "partner", "son", "daughter", "kid", "child", "baby",
+  "grandma", "grandmother", "grandpa", "grandfather", "gran", "granny", "nan",
+]);
+
+/** Whether a normalized first word names a relation: one of {@link RELATION_WORDS}, an in-law, or a step-relation. */
+function isRelationWord(word: string): boolean {
+  return RELATION_WORDS.has(word) || word.endsWith("-in-law") || (word.startsWith("step") && RELATION_WORDS.has(word.slice("step".length)));
+}
 
 /** Whether a spelling is only pronouns and articles ("they", "his"), which the model sometimes lists among how a source writes someone. */
 function isPronoun(form: string): boolean {
@@ -191,7 +223,8 @@ function isPronoun(form: string): boolean {
 /** The spellings a group's mentions used that are not among its names, leaving out bare pronouns. */
 function spellingsOf(group: MentionGroup): string[] {
   const names = new Set(group.names.map(normalizeName));
-  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).filter((form) => !names.has(normalizeName(form)) && !isPronoun(form));
+  const forms = group.mentions.flatMap((mention) => mention.writtenAs ?? []).map(cleanSpelling)
+    .filter((form) => form && !names.has(normalizeName(form)) && !isPronoun(form));
   const first = new Map<string, string>();
   for (const form of forms) if (!first.has(normalizeName(form))) first.set(normalizeName(form), form);
   return [...first.values()];
@@ -233,23 +266,26 @@ export function displayName(record: ResolvedRecord, registered: string[] | undef
 /**
  * Record id → ids of records that might be the same one: a name or spelling of
  * one is another's first name, or two share a first name. A relation name ("Sam's
- * mother") is not indexed by its first word, which names someone else.
+ * mother") and a spelling that starts with a possessive pronoun or family word
+ * ("my dad", "mom") are not indexed by their first word, which names no one. Ids in one of the
+ * `distinct` sets were settled as different people and are never flagged together.
  */
-export function possibleDuplicates(records: ResolvedRecord[]): Map<string, string[]> {
+export function possibleDuplicates(records: ResolvedRecord[], distinct: string[][] = []): Map<string, string[]> {
+  const settled = (a: string, b: string): boolean => distinct.some((set) => set.includes(a) && set.includes(b));
   const others = new Map<string, Set<string>>();
   for (const ids of firstNameIndex(records).values()) {
-    for (const id of ids) for (const other of ids) if (other !== id) others.set(id, (others.get(id) ?? new Set()).add(other));
+    for (const id of ids) for (const other of ids) if (other !== id && !settled(id, other)) others.set(id, (others.get(id) ?? new Set()).add(other));
   }
   return new Map([...others].map(([id, ids]) => [id, [...ids].sort()]));
 }
 
-/** First word → ids of the records with a name or spelling starting with it; relation names are left out. */
+/** First word → ids of the records with a name or spelling starting with it; relation names and words that name no one are left out. */
 function firstNameIndex(records: ResolvedRecord[]): Map<string, Set<string>> {
   const firstNames = new Map<string, Set<string>>();
   for (const record of records) {
     for (const name of [...record.names, ...record.writtenAs].filter((candidate) => !RELATION_NAME.test(candidate))) {
       const first = normalizeName(name).split(" ")[0];
-      if (first) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
+      if (first && !isRelationWord(first)) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
     }
   }
   return firstNames;

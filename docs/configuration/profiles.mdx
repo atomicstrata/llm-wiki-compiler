@@ -367,9 +367,13 @@ Every record gets a page, `wiki/<type>/<id>.md`:
   such as a required field no source states, is not written, costs no model
   call, and compile says why.
 - **Body**: written by the model from the lines that mention the record (with
-  two lines of context), every claim cited to those lines.
+  two lines of context), every claim cited to those lines. A citation the model
+  writes across a gap in those lines (lines it was never shown) is cut to the
+  lines it was shown, on new pages and existing ones, with no model call.
 - **Days**: when the timeline is on, the days the record is mentioned on.
-- **Might be the same as**: records sharing a first name with it.
+- **Might be the same as**: records sharing a first name with it. A name or
+  spelling that starts with a possessive pronoun or a family word ("my dad",
+  "mom", "mother-in-law") names no one, so it never makes a flag.
 
 A page is regenerated only when what the model would be shown changes. The
 **Days** and **Might be the same as** lists are refreshed on every compile
@@ -416,6 +420,15 @@ directly; not public figures only mentioned").
 ```json
 {
   "exclude": { "person": ["Donald Trump", "Acme Corp"] }
+}
+```
+
+Records you know are different people stop being flagged as possibly the same
+once you list their ids together, two or more per set, under `distinct`:
+
+```json
+{
+  "distinct": { "person": [["ben", "ben-eggers"]] }
 }
 ```
 
