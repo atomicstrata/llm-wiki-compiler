@@ -6,10 +6,11 @@
  */
 
 import type { ProfilePack } from "../src/profile/types.js";
-import type { CompilePageWrite } from "../src/compiler/compile-write.js";
-import type { EntitySteps } from "../src/entities/generate.js";
+import type { EntityConfig, EntitySteps } from "../src/entities/generate.js";
+import { extractableTypes } from "../src/entities/schema.js";
+import { memoryDerivedSteps } from "./memory-derived-steps.js";
 import type { ExtractionCache, ExtractRequest } from "../src/entities/extract.js";
-import type { AliasRegistry } from "../src/entities/identity.js";
+import type { AliasRegistry, Mention } from "../src/entities/identity.js";
 
 /** A profile with a `person` type that opts in, and a `project` type that does not. */
 export function personProfile(description = "A person the owner knows"): ProfilePack {
@@ -32,31 +33,28 @@ export interface FakePerson { name: string; writtenAs?: string[]; relationship?:
 
 /** In-memory steps over `sources`; `people` says who each source names. */
 export function memoryEntitySteps(sources: Record<string, string>, people: Record<string, FakePerson[]>, registry: AliasRegistry = { entities: {} }) {
-  const pages = new Map<string, string>();
+  const base = memoryDerivedSteps(sources);
   const extractions: string[] = [];
   const pageRequests: string[] = [];
-  const batches: CompilePageWrite[][] = [];
   const state = { cache: null as ExtractionCache | null, registry };
   const steps: EntitySteps = {
-    listSources: async () => Object.entries(sources).map(([file, text]) => ({ file, hash: `h:${text}` })),
-    readSource: async (file) => sources[file],
+    ...base.steps,
     readCache: async () => state.cache,
     writeCache: async (cache) => { state.cache = structuredClone(cache); },
     readRegistry: async () => state.registry,
-    listPages: async (type) => new Map([...pages].filter(([key]) => key.startsWith(`${type}/`)).map(([key, text]) => [key.slice(type.length + 1), text])),
     complete: async (request: ExtractRequest) => answer(request, people, extractions, pageRequests),
-    writePages: async (writes) => {
-      batches.push(writes);
-      for (const write of writes) {
-        const key = `${write.entityType}/${write.slug}`;
-        if (write.deleting) pages.delete(key); else pages.set(key, write.body);
-      }
-      return { skipped: [] };
-    },
-    provenance: () => ({ modelId: "test-model" }),
-    now: () => "2026-05-10T00:00:00.000Z",
   };
-  return { steps, pages, extractions, pageRequests, batches, state };
+  return { steps, pages: base.pages, batches: base.batches, extractions, pageRequests, state };
+}
+
+/** The step's config for `profile` (default: {@link personProfile}) and the timeline's zone (`null`: timeline off). */
+export function entityConfig(options: { profile?: ProfilePack; timeZone?: string | null } = {}): EntityConfig {
+  return { types: extractableTypes(options.profile ?? personProfile()), timeZone: options.timeZone === undefined ? "UTC" : options.timeZone, concurrency: 2 };
+}
+
+/** A mention of `name` in `file` at `line`. */
+export function mention(name: string, file = "chat.md", line = 1): Mention {
+  return { file, name, fields: {}, lines: [{ start: line, end: line }] };
 }
 
 /** The fake model: extraction answers from `people`; a page answer cites the first line shown. */

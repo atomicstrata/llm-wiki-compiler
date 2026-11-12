@@ -182,6 +182,9 @@ function validateArtifactTypesScope(entityType: string, def: EntityTypeDef, decl
   }
 }
 
+/** Keys every extracted record answers, so an extracted type cannot declare them as fields. */
+const EXTRACTED_RECORD_KEYS = ["name", "writtenAs", "lines"];
+
 /**
  * An extraction opt-in must name only declared fields, and its type must live
  * at `wiki/<type>`: compile writes extracted records through the planner's typed
@@ -199,8 +202,6 @@ function validateExtract(entityType: string, def: EntityTypeDef, canonicalDirect
   }
 }
 
-/** Keys every extracted record answers, so an extracted type cannot declare them as fields. */
-const EXTRACTED_RECORD_KEYS = ["name", "writtenAs", "lines"];
 
 /** Every requiredFields entry must reference a declared field. */
 function validateRequiredFields(entityType: string, def: EntityTypeDef): void {

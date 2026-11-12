@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Links from a page to its sources.** A Markdown link to a source file, as in each page's `## Sources` list, now opens that source in the viewer. It was previously rendered without a destination.
 - **Source images.** A source can keep original images in `sources/images/` and name them in frontmatter `images:`. Source metadata lists them, `GET /api/source-image/<source>/<file>` serves an image only through a source that declares it, on a loopback binding, and the v2 client shows them on the source and on every page that cites it.
 
+### Changed
+
+- **The alias registry refuses anything of the wrong shape.** `.llmwiki/aliases.json` with an `owner` that lacks a type and a list of names, a record id that is not a slug, or a record that is not a list of names stops the entity step with a message naming the problem, instead of being ignored.
+- **A person's aliases leave out bare pronouns** ("they", "his") that extraction listed among how a source wrote them.
+- **Search ignores every generated tail**, not only a timeline day's: a person's **Days** and **Might be the same as** lists no longer make the page match.
+- **An empty or unreadable timeline page counts as hand-written**: the timeline step leaves it alone and says so, as the entity step already did.
+
 ### Fixed
 
 - **Timeline pages read cleanly.** The section marker above **Pages from this day** no longer shows as text, and pages are written in the third person; existing pages regenerate once on the next compile, at one model call per day and week. A timeline page links the previous and next day or week, a day links its week, and a week its days. The page panel calls it a day or a week, without freshness or an empty neighbourhood, and leaves out source images. Search matches a day on what happened rather than on its related list, and snippets drop citation and heading markers. The dashboard's page count leaves timeline pages out.

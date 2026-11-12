@@ -7,11 +7,12 @@
  */
 import { describe, expect, it } from "bun:test";
 import { parseFrontmatter } from "../src/utils/markdown.js";
-import type { CompilePageWrite } from "../src/compiler/compile-write.js";
 import { generateTimelineWith, type TimelineSteps } from "../src/timeline/generate.js";
-import { dayExcerpt, splitAnswer, type TimelineRequest } from "../src/timeline/prompts.js";
+import { dayExcerpt } from "../src/timeline/prompts.js";
+import { citationsOutside, splitAnswer, type PageRequest } from "../src/compiler/source-excerpt.js";
 import { dayBuckets } from "../src/timeline/buckets.js";
-import { citationsOutside, withDaySections } from "../src/timeline/pages.js";
+import { withDaySections } from "../src/timeline/pages.js";
+import { memoryDerivedSteps } from "./memory-derived-steps.js";
 
 const CONFIG = { enabled: true, timeZone: "UTC" };
 const CHAT = ["# Chat", "- 2026-05-04 09:00 A: plan the trip", "- 2026-05-05 10:00 B: booked it"].join("\n");
@@ -23,16 +24,12 @@ function firstCitation(prompt: string): string {
   return line ? `^[${line[1]}:${line[2]}-${line[2]}]` : /\^\[[^\]]+\]/.exec(prompt)![0];
 }
 
-/** In-memory sources, pages and model; records every request and write. */
+/** In-memory sources, pages (keyed `timeline/<slug>`) and model; records every request and write. */
 function memorySteps(sources: Record<string, string>, failOn: string[] = []) {
-  const pages = new Map<string, string>();
-  const requests: TimelineRequest[] = [];
-  const batches: CompilePageWrite[][] = [];
+  const base = memoryDerivedSteps(sources);
+  const requests: PageRequest[] = [];
   const steps: TimelineSteps = {
-    listSources: async () => Object.entries(sources).map(([file, text]) => ({ file, hash: `h:${text.length}:${text}` })),
-    readSource: async (file) => sources[file],
-    listTimelineSlugs: async () => [...pages.keys()],
-    readTimelinePage: async (slug) => pages.get(slug) ?? "",
+    ...base.steps,
     listConceptPages: async () => [{ slug: "trip", title: "Trip", body: "Booked. ^[chat.md:3-3]" }],
     listPeople: async () => [],
     complete: async (request) => {
@@ -41,89 +38,82 @@ function memorySteps(sources: Record<string, string>, failOn: string[] = []) {
       if (failOn.includes(period)) throw new Error("provider down");
       return `SUMMARY: About ${period}.\nWhat happened on ${period}. ${firstCitation(request.messages[0].content)}`;
     },
-    writePages: async (writes) => {
-      batches.push(writes);
-      for (const write of writes) write.deleting ? pages.delete(write.slug) : pages.set(write.slug, write.body);
-      return { skipped: [] };
-    },
-    provenance: () => ({ modelId: "test-model" }),
-    now: () => "2026-05-10T00:00:00.000Z",
   };
-  return { steps, pages, requests, batches, sources };
+  return { steps, pages: base.pages, requests, batches: base.batches, sources };
 }
 
 describe("generateTimelineWith", () => {
   it("writes a page per day and per week, then nothing when nothing changed", async () => {
     const memory = memorySteps({ "chat.md": CHAT, "2026-05-11-standup.md": NOTE });
-    const first = await generateTimelineWith(memory.steps, CONFIG, 2);
+    const first = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 2 });
     expect(first.written.sort()).toEqual(["2026-05-04", "2026-05-05", "2026-05-11", "2026-W19", "2026-W20"]);
     expect(first.errors).toEqual([]);
-    const again = await generateTimelineWith(memory.steps, CONFIG, 2);
+    const again = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 2 });
     expect([again.written, memory.requests.length]).toEqual([[], 5]);
   });
 
   it("records what each page covers, keeps creation time, and links the day to concept pages citing its lines", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
-    await generateTimelineWith(memory.steps, CONFIG, 1);
-    const { meta, body } = parseFrontmatter(memory.pages.get("2026-05-05")!);
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const { meta, body } = parseFrontmatter(memory.pages.get("timeline/2026-05-05")!);
     expect(meta).toMatchObject({ title: "Tuesday, May 5, 2026", summary: "About 2026-05-05.", timeline: "daily", date: "2026-05-05", sources: ["chat.md"], modelId: "test-model" });
     expect(body).toContain("## Pages from this day\n\n- [[trip|Trip]]");
-    expect(memory.pages.get("2026-05-04")).not.toContain("[[trip|Trip]]");
-    expect(parseFrontmatter(memory.pages.get("2026-W19")!).meta).toMatchObject({ title: "Week of May 4, 2026", timeline: "weekly", week: "2026-W19" });
+    expect(memory.pages.get("timeline/2026-05-04")).not.toContain("[[trip|Trip]]");
+    expect(parseFrontmatter(memory.pages.get("timeline/2026-W19")!).meta).toMatchObject({ title: "Week of May 4, 2026", timeline: "weekly", week: "2026-W19" });
   });
 
   it("rewrites only the edited source's days and their week", async () => {
     const memory = memorySteps({ "chat.md": CHAT, "2026-05-11-standup.md": NOTE });
-    await generateTimelineWith(memory.steps, CONFIG, 1);
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     memory.sources["2026-05-11-standup.md"] = "Decided to hire two.";
-    const result = await generateTimelineWith(memory.steps, CONFIG, 1);
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     expect(result.written.sort()).toEqual(["2026-05-11", "2026-W20"]);
   });
 
   it("holds a week back while one of its days failed, and builds it once the day succeeds", async () => {
     const memory = memorySteps({ "chat.md": CHAT }, ["2026-05-05"]);
-    const failed = await generateTimelineWith(memory.steps, CONFIG, 1);
+    const failed = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     expect([failed.written, failed.errors]).toEqual([["2026-05-04"], ['Timeline page "2026-05-05" failed: provider down']]);
     memory.steps.complete = memorySteps({}).steps.complete;
-    const retried = await generateTimelineWith(memory.steps, CONFIG, 1);
+    const retried = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     expect(retried.written.sort()).toEqual(["2026-05-05", "2026-W19"]);
   });
 
   it("removes the pages of days and weeks no source covers any more", async () => {
     const memory = memorySteps({ "chat.md": CHAT, "2026-05-11-standup.md": NOTE });
-    await generateTimelineWith(memory.steps, CONFIG, 1);
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     delete memory.sources["2026-05-11-standup.md"];
-    const result = await generateTimelineWith(memory.steps, CONFIG, 1);
-    expect([result.deleted.sort(), [...memory.pages.keys()].sort()]).toEqual([["2026-05-11", "2026-W20"], ["2026-05-04", "2026-05-05", "2026-W19"]]);
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect([result.deleted.sort(), [...memory.pages.keys()].sort()]).toEqual([["2026-05-11", "2026-W20"], ["timeline/2026-05-04", "timeline/2026-05-05", "timeline/2026-W19"]]);
   });
 
   it("keeps a day's related pages current without asking the model, and never touches hand-written files", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
-    memory.pages.set("README", "---\ntitle: Notes\n---\n\nMine.\n");
-    await generateTimelineWith(memory.steps, CONFIG, 1);
+    memory.pages.set("timeline/README", "---\ntitle: Notes\n---\n\nMine.\n");
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     const calls = memory.requests.length;
     memory.steps.listConceptPages = async () => [{ slug: "trip-plan", title: "Trip plan", body: "Planned. ^[chat.md:2-2]" }];
-    const result = await generateTimelineWith(memory.steps, CONFIG, 1);
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     expect([result.written.sort(), memory.requests.length, result.deleted]).toEqual([["2026-05-04", "2026-05-05"], calls, []]);
-    expect(memory.pages.get("2026-05-04")).toContain("- [[trip-plan|Trip plan]]");
-    expect(memory.pages.get("2026-05-05")).not.toContain("Pages from this day");
-    expect(memory.pages.get("README")).toBe("---\ntitle: Notes\n---\n\nMine.\n");
+    expect(memory.pages.get("timeline/2026-05-04")).toContain("- [[trip-plan|Trip plan]]");
+    expect(memory.pages.get("timeline/2026-05-05")).not.toContain("Pages from this day");
+    expect(memory.pages.get("timeline/README")).toBe("---\ntitle: Notes\n---\n\nMine.\n");
   });
 
   it("reports a page that cites lines it was not shown, and still writes it", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.complete = async (request) => `SUMMARY: x.\nMade up. ^[chat.md:3-3] ^[other.md:1-1]`.replace("^[chat.md:3-3]", request.messages[0].content.includes("2026-05-05") ? "" : "^[chat.md:3-3]");
-    const result = await generateTimelineWith(memory.steps, CONFIG, 1);
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     expect(result.errors).toContain('Timeline page "2026-05-04" cites 2 spans outside the lines it was written from');
-    expect(memory.pages.has("2026-05-04")).toBe(true);
+    expect(memory.pages.has("timeline/2026-05-04")).toBe(true);
   });
 
   it("leaves a hand-written file at a day's name alone, and says so", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     const mine = "---\ntitle: My notes\n---\n\nMine.\n";
-    memory.pages.set("2026-05-04", mine);
-    const result = await generateTimelineWith(memory.steps, CONFIG, 1);
-    expect(memory.pages.get("2026-05-04")).toBe(mine);
+    memory.pages.set("timeline/2026-05-04", mine);
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(memory.pages.get("timeline/2026-05-04")).toBe(mine);
     expect(result.errors).toContain("wiki/timeline/2026-05-04.md was not written by the timeline; left as it is");
     expect(result.errors).toContain('Timeline week "2026-W19" not written: one of its days is a hand-written page');
     expect(result.written).toEqual(["2026-05-05"]);
@@ -132,37 +122,45 @@ describe("generateTimelineWith", () => {
   it("keeps the model's own text when refreshing related pages, even under a look-alike heading", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.complete = async () => "SUMMARY: x.\nTop. ^[chat.md:2-2]\n\n## Pages from this day\n\nKept. ^[chat.md:2-2]";
-    await generateTimelineWith(memory.steps, CONFIG, 1);
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
     memory.steps.listConceptPages = async () => [{ slug: "trip-plan", title: "Trip plan", body: "^[chat.md:2-2]" }];
-    await generateTimelineWith(memory.steps, CONFIG, 1);
-    const day = memory.pages.get("2026-05-04")!;
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    const day = memory.pages.get("timeline/2026-05-04")!;
     expect(day).toContain("Kept. ^[chat.md:2-2]");
     expect(day.trimEnd().endsWith("- [[trip-plan|Trip plan]]")).toBe(true);
   });
 
   it("hides its section marker from readers and rewrites a page that used an older marker once", () => {
     const old = "---\ntitle: Day\n---\n\nBody.\n\n<!-- llmwiki:timeline-related -->\n## Pages from this day\n\n- [[a|A]]\n";
-    const fresh = withDaySections(old, [{ slug: "b", title: "B", body: "" }]);
+    const fresh = withDaySections(old, { related: [{ slug: "b", title: "B", body: "" }], people: [] });
     expect(fresh).toBe("---\ntitle: Day\n---\n\nBody.\n\n[//]: # (llmwiki-generated)\n## Pages from this day\n\n- [[b|B]]\n");
-    expect(withDaySections(fresh, [{ slug: "b", title: "B", body: "" }])).toBe(fresh);
+    expect(withDaySections(fresh, { related: [{ slug: "b", title: "B", body: "" }], people: [] })).toBe(fresh);
   });
 
   it("lists a person on the day whose lines mention them", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.steps.listPeople = async () => [{ target: "person/ana", title: "Ana", spans: [{ file: "chat.md", lines: { start: 2, end: 2 } }] }];
-    await generateTimelineWith(memory.steps, CONFIG, 1);
-    expect(memory.pages.get("2026-05-04")).toContain("## People this day\n\n- [[person/ana|Ana]]");
-    expect([...memory.pages].filter(([slug]) => slug !== "2026-05-04").some(([, text]) => text.includes("person/ana"))).toBe(false);
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(memory.pages.get("timeline/2026-05-04")).toContain("## People this day\n\n- [[person/ana|Ana]]");
+    expect([...memory.pages].filter(([key]) => key !== "timeline/2026-05-04").some(([, text]) => text.includes("person/ana"))).toBe(false);
   });
 
   it("lists the people on a day's lines under the pages, linked by folder", () => {
-    const fresh = withDaySections("Body.\n", [], [{ target: "person/alex-kim", title: "Alex Kim" }]);
+    const fresh = withDaySections("Body.\n", { related: [], people: [{ target: "person/alex-kim", title: "Alex Kim" }] });
     expect(fresh).toBe("Body.\n\n[//]: # (llmwiki-generated)\n## People this day\n\n- [[person/alex-kim|Alex Kim]]\n");
+  });
+
+  it("treats an empty page as hand-written: never overwritten, never removed", async () => {
+    const memory = memorySteps({ "chat.md": CHAT });
+    memory.pages.set("timeline/2026-05-04", "");
+    const result = await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(memory.pages.get("timeline/2026-05-04")).toBe("");
+    expect(result.errors).toContain("wiki/timeline/2026-05-04.md was not written by the timeline; left as it is");
   });
 
   it("does nothing at all when the timeline is off", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
-    expect(await generateTimelineWith(memory.steps, { ...CONFIG, enabled: false }, 1)).toEqual({ written: [], deleted: [], errors: [] });
+    expect(await generateTimelineWith(memory.steps, { ...CONFIG, enabled: false, concurrency: 1 })).toEqual({ written: [], deleted: [], errors: [] });
     expect(memory.batches).toEqual([]);
   });
 });

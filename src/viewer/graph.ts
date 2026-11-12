@@ -8,6 +8,7 @@
  */
 
 import { resolvePageKind } from "./page-fields.js";
+import { isQualifiedKey } from "../wiki/wikilink-target.js";
 import type { DefaultViewerPage } from "./types.js";
 import type { GraphData, GraphEdge, GraphNode, GraphNodeId, PageId } from "./types.js";
 import type { EntityId } from "../profile/types.js";
@@ -150,7 +151,7 @@ const GHOST_DIRECTORY = "concepts";
  * key: a bare slug under `concepts/`, a qualified `dir/slug` as itself.
  */
 function ghostId(slug: string): GraphNodeId {
-  return (slug.includes("/") ? slug : `${GHOST_DIRECTORY}/${slug}`) as PageId;
+  return (isQualifiedKey(slug) ? slug : `${GHOST_DIRECTORY}/${slug}`) as PageId;
 }
 
 function buildEdges(pages: DefaultViewerPage[], nodeIds: ReadonlySet<GraphNodeId>): WikilinkEdge[] {

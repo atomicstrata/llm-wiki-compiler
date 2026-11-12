@@ -32,11 +32,7 @@
  * wall time and is taken as written.
  */
 
-/** An inclusive, 1-based range of source lines. */
-export interface LineRange {
-  start: number;
-  end: number;
-}
+import type { LineRange } from "../compiler/source-excerpt.js";
 
 /** A line-leading stamp: an optional list marker, a date, a time, and an optional offset. */
 const LINE_STAMP = /^\s*(?:[-*]\s+)?(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)(Z|[+-]\d{2}:?\d{2})?(?![\d:])/;

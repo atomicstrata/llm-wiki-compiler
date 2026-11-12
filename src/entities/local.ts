@@ -17,18 +17,17 @@ import { readFile } from "fs/promises";
 import { callClaude } from "../utils/llm.js";
 import { atomicWrite } from "../utils/atomic-write.js";
 import { LLMWIKI_DIR } from "../utils/constants.js";
-import { diskLocalReads } from "../storage/disk-local-reads.js";
-import { readWikiPageContentOrWarnFrom } from "../compiler/confined-wiki-read.js";
-import { localDerivedSteps } from "../compiler/derived-steps.js";
+import { localDerivedSteps, ownPages } from "../compiler/derived-steps.js";
 import { resolveCompileConcurrency } from "../compiler/concurrency.js";
 import { loadProfile } from "../profile/load.js";
 import * as output from "../utils/output.js";
 import type { TimelineSchema } from "../schema/types.js";
 import type { PersonMentions } from "../timeline/pages.js";
-import type { ExtractionCache } from "./extract.js";
+import { mentionsOf, type ExtractionCache } from "./extract.js";
 import { extractableTypes } from "./schema.js";
 import { displayName, parseRegistry, resolveRecords } from "./identity.js";
-import { generateEntitiesWith, mentionsOf, type EntityResult, type EntitySteps } from "./generate.js";
+import { generateEntitiesWith, type EntityResult, type EntitySteps } from "./generate.js";
+import { isRecordPage } from "./pages.js";
 
 /** The extraction cache, relative to the project root. */
 const CACHE_FILE = path.join(LLMWIKI_DIR, "entities.json");
@@ -68,16 +67,6 @@ async function readRegistry(root: string): ReturnType<EntitySteps["readRegistry"
   }
 }
 
-/** The pages in `wiki/<type>/`, by slug. */
-async function listPages(root: string, type: string): Promise<Map<string, string>> {
-  const reads = diskLocalReads(root);
-  const directory = path.join("wiki", type);
-  const slugs = (await reads.listNames(directory).catch(() => [])).filter((name) => name.endsWith(".md")).map((name) => name.slice(0, -".md".length));
-  const texts = await Promise.all(slugs.map((slug) => readWikiPageContentOrWarnFrom(reads, directory, slug, false)));
-  // An unreadable or empty page is kept (as ""), so it counts as hand-written and is never taken over.
-  return new Map(slugs.map((slug, index): [string, string] => [slug, texts[index] ?? ""]));
-}
-
 /** The entity steps over the local project at `root`. */
 function localEntitySteps(root: string): EntitySteps {
   return {
@@ -85,7 +74,6 @@ function localEntitySteps(root: string): EntitySteps {
     readCache: () => readCache(root),
     writeCache: (cache) => atomicWrite(path.join(root, CACHE_FILE), `${JSON.stringify(cache)}\n`),
     readRegistry: () => readRegistry(root),
-    listPages: (type) => listPages(root, type),
     complete: (request) => callClaude(request),
   };
 }
@@ -110,14 +98,14 @@ export async function generateEntities(root: string, timeline: TimelineSchema, c
   return result;
 }
 
-/** The records of `type` that have a page, with every source line they are mentioned on. */
+/** The records of `type` whose page this step wrote, with every source line they are mentioned on. */
 export async function listRecordMentions(root: string, type: string): Promise<PersonMentions[]> {
   const cache = await readCache(root);
   if (!cache) return [];
   const registry = await readRegistry(root);
-  const pageIds = new Set((await listPages(root, type)).keys());
+  const { own } = ownPages(await localDerivedSteps(root).listPages(type), isRecordPage);
   return resolveRecords(type, mentionsOf(cache, type), registry)
-    .filter((record) => pageIds.has(record.id))
+    .filter((record) => own.has(record.id))
     .map((record) => ({
       target: `${type}/${record.id}`,
       title: displayName(record, registry.entities[type]?.[record.id]),

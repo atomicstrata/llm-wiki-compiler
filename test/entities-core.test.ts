@@ -6,15 +6,10 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { personProfile } from "./entity-steps.js";
+import { mention, personProfile } from "./entity-steps.js";
 import { extractableTypes, extractionTool, structuralDigest } from "../src/entities/schema.js";
-import { displayName, parseRegistry, possibleDuplicates, recordId, resolveRecords, type Mention } from "../src/entities/identity.js";
+import { displayName, parseRegistry, possibleDuplicates, recordId, resolveRecords } from "../src/entities/identity.js";
 import { extractionRequest, parseRecords } from "../src/entities/extract.js";
-
-/** A mention of `name` in `file` at `line`. */
-function mention(name: string, file = "chat.md", line = 1): Mention {
-  return { file, name, fields: {}, lines: [{ start: line, end: line }] };
-}
 
 describe("extractable types and the structural digest", () => {
   it("lists only opted-in types, with their fields in name order and without the title field", () => {
@@ -60,6 +55,11 @@ describe("identity", () => {
     expect(possibleDuplicates(records).get("alex-chen")).toEqual(["tom-baker"]);
   });
 
+  it("leaves bare pronouns out of how the sources wrote someone", () => {
+    const [record] = resolveRecords("person", [{ ...mention("Sam's mother"), writtenAs: ["mama", "they", "Their", "his", "the parents"] }], { entities: {} });
+    expect(record.writtenAs).toEqual(["mama", "the parents"]);
+  });
+
   it("does not flag relation names by their first word", () => {
     const records = resolveRecords("person", [mention("Sam's mother"), mention("Sam's brother"), mention("Sam Lee")], { entities: {} });
     expect(possibleDuplicates(records).size).toBe(0);
@@ -85,6 +85,12 @@ describe("identity", () => {
     const after = resolveRecords("person", names, parseRegistry(JSON.stringify({ exclude: { person: ["Mary Jane"] } })));
     expect(before.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane", "Mary Jane"], ["mary-jane-2", "Mary-Jane"]]);
     expect(after.map((record) => [record.id, record.names[0]])).toEqual([["mary-jane-2", "Mary-Jane"]]);
+  });
+
+  it("refuses an owner or a record of the wrong shape instead of ignoring it", () => {
+    expect(() => parseRegistry(JSON.stringify({ owner: { type: "person", names: "Sam" } }))).toThrow(/"owner" must be/);
+    expect(() => parseRegistry(JSON.stringify({ entities: { person: { "Alex Kim": ["Alex"] } } }))).toThrow('record id "Alex Kim" is not a slug');
+    expect(() => parseRegistry(JSON.stringify({ entities: { person: { "alex-kim": "Alex" } } }))).toThrow(/must map each record id to a list/);
   });
 
   it("refuses an exclude that is not a map of lists, and a name both excluded and registered", () => {

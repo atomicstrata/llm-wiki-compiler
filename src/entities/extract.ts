@@ -17,8 +17,9 @@
 
 import { createHash } from "node:crypto";
 import pLimit from "p-limit";
-import type { LineRange } from "../timeline/event-days.js";
+import type { LineRange } from "../compiler/source-excerpt.js";
 import { extractionTool, structuralDigest, type ExtractableType } from "./schema.js";
+import type { Mention } from "./identity.js";
 
 /** Characters of numbered source text one extraction call carries. */
 const CHUNK_CHARS = 60_000;
@@ -74,30 +75,37 @@ export interface ExtractResult {
   errors: string[];
 }
 
+/** What one refresh reads and how. */
+export interface ExtractRun {
+  types: ExtractableType[];
+  sources: { file: string; hash: string }[];
+  previous: ExtractionCache | null;
+  ownerNames: string[];
+  concurrency: number;
+}
+
 /**
  * Bring the cache up to date with the sources: re-read every source whose hash
  * or the schema structure changed (only its changed chunks), drop removed ones,
  * keep the rest.
  */
-export async function refreshExtractions(
-  steps: ExtractSteps, types: ExtractableType[], sources: { file: string; hash: string }[],
-  previous: ExtractionCache | null, ownerNames: string[], concurrency: number,
-): Promise<ExtractResult> {
-  const digest = structuralDigest(types);
-  const cache: ExtractionCache = { digest, sources: {} };
-  const result: ExtractResult = { cache, extracted: [], errors: [] };
-  const limit = pLimit(Math.max(1, concurrency));
-  await Promise.all(sources.map((source) => limit(() => refreshSource(steps, { types, digest, file: source.file, ownerNames }, source.hash, previous, result))));
+export async function refreshExtractions(steps: ExtractSteps, run: ExtractRun): Promise<ExtractResult> {
+  const digest = structuralDigest(run.types);
+  const result: ExtractResult = { cache: { digest, sources: {} }, extracted: [], errors: [] };
+  const limit = pLimit(Math.max(1, run.concurrency));
+  await Promise.all(run.sources.map((source) => limit(() => refreshSource(steps, {
+    types: run.types, digest, file: source.file, hash: source.hash, ownerNames: run.ownerNames, previous: run.previous,
+  }, result))));
   return result;
 }
 
 /** Bring one source's entry up to date in `result.cache`, keeping its previous answers when the read fails. */
-async function refreshSource(steps: ExtractSteps, job: SourceJob, hash: string, previous: ExtractionCache | null, result: ExtractResult): Promise<void> {
-  const prior = previous?.sources[job.file];
-  if (previous?.digest === job.digest && prior?.hash === hash) { result.cache.sources[job.file] = prior; return; }
+async function refreshSource(steps: ExtractSteps, job: SourceJob, result: ExtractResult): Promise<void> {
+  const prior = job.previous?.sources[job.file];
+  if (job.previous?.digest === job.digest && prior?.hash === job.hash) { result.cache.sources[job.file] = prior; return; }
   try {
     const { chunks, calls } = await extractSource(steps, job, prior?.chunks ?? []);
-    result.cache.sources[job.file] = { hash, chunks };
+    result.cache.sources[job.file] = { hash: job.hash, chunks };
     if (calls > 0) result.extracted.push(job.file);
   } catch (error) {
     keepAfterFailure(job.file, prior, error, result);
@@ -116,7 +124,10 @@ interface SourceJob {
   types: ExtractableType[];
   digest: string;
   file: string;
+  /** The source's current hash. */
+  hash: string;
   ownerNames: string[];
+  previous: ExtractionCache | null;
 }
 
 /** Every chunk's answer for one source, reusing `priorChunks` whose hash still matches; and how many calls it took. */
@@ -155,8 +166,8 @@ function numberedChunks(lines: string[]): string[] {
 /** The request for one chunk: what to list, how to name it, the owner to leave out, and the numbered text. */
 export function extractionRequest(types: ExtractableType[], file: string, chunk: string, ownerNames: string[]): ExtractRequest {
   const kinds = types.map(({ type, def, fields }) => {
-    const guidance = fields.map(([name]) => def.extract?.fields?.[name] ? `  - ${name}: ${def.extract.fields[name]}` : "").filter(Boolean);
-    return [`- ${type}: ${def.extract!.description}`, ...guidance].join("\n");
+    const guidance = fields.map(([name]) => def.extract.fields?.[name] ? `  - ${name}: ${def.extract.fields[name]}` : "").filter(Boolean);
+    return [`- ${type}: ${def.extract.description}`, ...guidance].join("\n");
   }).join("\n");
   const ownerName = ownerNames[0] ?? "the owner";
   const owner = ownerNames.length > 0 ? `\nThe owner of these records is ${ownerNames.join(" / ")}; never list the owner.` : "";
@@ -197,4 +208,10 @@ function spellings(value: unknown): string[] {
   const forms = value.filter((form): form is string => typeof form === "string" && !ADDRESS.test(form))
     .map((form) => form.trim().replace(POSSESSIVE, "").trim()).filter(Boolean);
   return [...new Set(forms)];
+}
+
+/** Every mention of `type` across the cached sources, in file order. */
+export function mentionsOf(cache: ExtractionCache, type: string): Mention[] {
+  return Object.entries(cache.sources).sort(([a], [b]) => a.localeCompare(b))
+    .flatMap(([file, entry]) => entry.chunks.flatMap((chunk) => (chunk.records[type] ?? []).map((record) => ({ file, ...record }))));
 }

@@ -10,8 +10,8 @@
  */
 
 import { buildFrontmatter, extractClaimCitations } from "../utils/markdown.js";
-import { withGenerated } from "../wiki/generated-section.js";
-import type { LineRange } from "./event-days.js";
+import { overlaps, type LineRange } from "../compiler/source-excerpt.js";
+import { linkList, withGenerated, type PageLink } from "../wiki/generated-section.js";
 import type { DayBucket } from "./buckets.js";
 import { weekStart } from "./buckets.js";
 
@@ -38,23 +38,28 @@ export interface TimelinePageMeta {
   provenance: Record<string, unknown>;
 }
 
-/** `Monday, May 4, 2026` for a day. */
-function dayTitle(day: string): string {
+/** `May 4, 2026` for a `YYYY-MM-DD` day, or `Monday, May 4, 2026` with its weekday. */
+export function formatDay(day: string, withWeekday: boolean): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
-    timeZone: "UTC", weekday: "long", year: "numeric", month: "long", day: "numeric",
+    timeZone: "UTC", ...(withWeekday ? { weekday: "long" } : {}), year: "numeric", month: "long", day: "numeric",
   });
 }
 
 /** `Week of May 4, 2026` for an ISO week. */
 function weekTitle(week: string): string {
-  const monday = new Date(`${weekStart(week)}T00:00:00Z`);
-  return `Week of ${monday.toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" })}`;
+  return `Week of ${formatDay(weekStart(week), false)}`;
+}
+
+/** A day's generated tail: the concept pages built from its lines, and the people in it. */
+export interface DaySections {
+  related: CitingPage[];
+  people: PageLink[];
 }
 
 /** The full markdown of a timeline page. */
-export function timelinePage(meta: TimelinePageMeta, body: string, related: CitingPage[] = [], people: DayPerson[] = []): string {
+export function timelinePage(meta: TimelinePageMeta, body: string, sections: DaySections = { related: [], people: [] }): string {
   const frontmatter = buildFrontmatter({
-    title: meta.kind === "daily" ? dayTitle(meta.period) : weekTitle(meta.period),
+    title: meta.kind === "daily" ? formatDay(meta.period, true) : weekTitle(meta.period),
     summary: meta.summary,
     sources: meta.sources,
     timeline: meta.kind,
@@ -64,23 +69,16 @@ export function timelinePage(meta: TimelinePageMeta, body: string, related: Citi
     updatedAt: meta.updatedAt,
     ...meta.provenance,
   });
-  return withGenerated(`${frontmatter}\n\n${body.trim()}\n`, daySections(related, people));
+  return withGenerated(`${frontmatter}\n\n${body.trim()}\n`, daySections(sections));
 }
 
-/** A person who appears on a day, as the "People this day" list shows them. */
-export interface DayPerson {
-  /** The person's page path under wiki/, e.g. `person/alex-kim`. */
-  target: string;
-  title: string;
-}
-
-/** A person with the source lines they are mentioned on, as the timeline reads them. */
-export interface PersonMentions extends DayPerson {
+/** A person (a link to their page) with the source lines they are mentioned on, as the timeline reads them. */
+export interface PersonMentions extends PageLink {
   spans: { file: string; lines: LineRange }[];
 }
 
 /** The people mentioned on any of a day's lines, by title. */
-export function peopleInDay(bucket: DayBucket, people: PersonMentions[]): DayPerson[] {
+export function peopleInDay(bucket: DayBucket, people: PersonMentions[]): PageLink[] {
   const rangesByFile = new Map(bucket.sources.map((source) => [source.file, source.ranges]));
   return people
     .filter((person) => person.spans.some((span) => rangesByFile.get(span.file)?.some((range) => overlaps(range, span.lines))))
@@ -88,13 +86,12 @@ export function peopleInDay(bucket: DayBucket, people: PersonMentions[]): DayPer
     .sort((a, b) => a.title.localeCompare(b.title));
 }
 
-/** A day's generated tail: the concept pages built from its lines, then the people in it. */
-function daySections(related: CitingPage[], people: DayPerson[] = []): string {
-  const pages = related.map((page) => `- [[${page.slug}|${page.title}]]`);
-  const persons = people.map((person) => `- [[${person.target}|${person.title}]]`);
+/** A day's generated tail as markdown: the concept pages built from its lines, then the people in it. */
+function daySections({ related, people }: DaySections): string {
+  const pages = related.map((page) => ({ target: page.slug, title: page.title }));
   return [
-    pages.length > 0 ? `## Pages from this day\n\n${pages.join("\n")}` : "",
-    persons.length > 0 ? `## People this day\n\n${persons.join("\n")}` : "",
+    pages.length > 0 ? `## Pages from this day\n\n${linkList(pages)}` : "",
+    people.length > 0 ? `## People this day\n\n${linkList(people)}` : "",
   ].filter(Boolean).join("\n\n");
 }
 
@@ -103,8 +100,8 @@ function daySections(related: CitingPage[], people: DayPerson[] = []): string {
  * concept and person pages, which change without the day's sources changing,
  * so it is kept current on every compile without a model call.
  */
-export function withDaySections(text: string, related: CitingPage[], people: DayPerson[] = []): string {
-  return withGenerated(text, daySections(related, people));
+export function withDaySections(text: string, sections: DaySections): string {
+  return withGenerated(text, daySections(sections));
 }
 
 /**
@@ -120,28 +117,4 @@ export function pagesCitingDay(bucket: DayBucket, pages: CitingPage[], singleDay
       return span.lines ? ranges.some((range) => overlaps(range, span.lines!)) : singleDayFiles.has(span.file);
     })))
     .sort((a, b) => a.title.localeCompare(b.title));
-}
-
-/**
- * How many of a page's cited spans fall outside the lines it was written from:
- * a file not among the days' sources, or lines past the days' ranges. The model
- * is shown only those lines, so any such span is a citation it made up.
- */
-export function citationsOutside(body: string, days: { sources: { file: string; ranges: LineRange[] }[] }[]): number {
-  const rangesByFile = new Map<string, LineRange[]>();
-  for (const day of days) for (const source of day.sources) {
-    rangesByFile.set(source.file, [...(rangesByFile.get(source.file) ?? []), ...source.ranges]);
-  }
-  const spans = extractClaimCitations(body).flatMap((citation) => citation.spans);
-  return spans.filter((span) => {
-    const ranges = rangesByFile.get(span.file);
-    if (!ranges) return true;
-    const lines = span.lines;
-    return lines !== undefined && !ranges.some((range) => range.start <= lines.start && lines.end <= range.end);
-  }).length;
-}
-
-/** Whether two inclusive line ranges share a line. */
-export function overlaps(a: LineRange, b: LineRange): boolean {
-  return a.start <= b.end && b.start <= a.end;
 }

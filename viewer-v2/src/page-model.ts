@@ -29,7 +29,8 @@ export function isTimelinePage(page: Pick<PagePayload, "pageDirectory" | "slug">
 
 /** The display kind: day or week for a timeline page, else frontmatter `kind`, the saved-query `type`, the entity type, or concept. */
 export function pageKind(page: PagePayload): string {
-  if (isTimelinePage(page)) return timelinePeriod(page.slug)!;
+  const period = page.pageDirectory === TIMELINE_DIRECTORY ? timelinePeriod(page.slug) : null;
+  if (period) return period;
   const { kind, type } = page.frontmatter;
   if (typeof kind === "string" && kind.length > 0) return kind;
   if (typeof type === "string" && type.length > 0) return type;

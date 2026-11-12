@@ -20,10 +20,10 @@
 import { createHash } from "node:crypto";
 import { buildFrontmatter, parseFrontmatter } from "../utils/markdown.js";
 import { validateFieldsAgainstDefs } from "../profile/field-contract.js";
-import { withGenerated } from "../wiki/generated-section.js";
-import { overlaps } from "../timeline/pages.js";
+import { linkList, withGenerated, type PageLink } from "../wiki/generated-section.js";
+import { CITED_BULLETS, mergeRanges, overlaps, SUMMARY_PREFIX, type LineRange, type PageRequest } from "../compiler/source-excerpt.js";
 import type { DayBucket } from "../timeline/buckets.js";
-import type { LineRange } from "../timeline/event-days.js";
+import { formatDay } from "../timeline/pages.js";
 import type { ExtractableType } from "./schema.js";
 import type { ResolvedRecord } from "./identity.js";
 
@@ -31,19 +31,11 @@ import type { ResolvedRecord } from "./identity.js";
 const RECORD_PAGE_VERSION = 1;
 /** Lines of context shown on each side of a mention. */
 const CONTEXT_LINES = 2;
-/** The marker the model's first line must start with. */
-const SUMMARY_PREFIX = "SUMMARY:";
 
 /** A source and the line ranges the model is shown from it. */
 export interface ShownSource {
   file: string;
   ranges: LineRange[];
-}
-
-/** A link to another page, as a generated list shows it. */
-export interface PageLink {
-  target: string;
-  title: string;
 }
 
 /** What a record page records about itself in frontmatter. */
@@ -70,17 +62,6 @@ export function shownSources(record: ResolvedRecord, texts: Map<string, string>)
     byFile.set(mention.file, [...(byFile.get(mention.file) ?? []), ...widened]);
   }
   return [...byFile].sort(([a], [b]) => a.localeCompare(b)).map(([file, ranges]) => ({ file, ranges: mergeRanges(ranges) }));
-}
-
-/** Sorted, non-overlapping ranges; adjacent ones join. */
-function mergeRanges(ranges: LineRange[]): LineRange[] {
-  const merged: LineRange[] = [];
-  for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
-    const last = merged.at(-1);
-    if (last && range.start <= last.end + 1) last.end = Math.max(last.end, range.end);
-    else merged.push({ ...range });
-  }
-  return merged;
 }
 
 /**
@@ -110,18 +91,22 @@ function mostFrequent(values: unknown[]): unknown {
   return [...counts.values()].reduce((best, entry) => (entry.count > best.count ? entry : best)).value;
 }
 
+/** Whether a page's frontmatter says this step wrote it (a record page or the hub). */
+export function isRecordPage(meta: Record<string, unknown>): boolean {
+  return typeof meta.entitySignature === "string";
+}
+
 /** The signature of what a record page is generated from; equal signatures mean the page is current. */
 export function recordSignature(title: string, fields: Record<string, unknown>, excerpt: string): string {
   return createHash("sha256").update(JSON.stringify([RECORD_PAGE_VERSION, title, fields, excerpt])).digest("hex").slice(0, 16);
 }
 
 /** The request for a record page. */
-export function recordPageRequest(type: string, title: string, excerpt: string, ownerNames: string[]): { system: string; messages: { role: "user"; content: string }[] } {
+export function recordPageRequest(type: string, title: string, excerpt: string, ownerNames: string[]): PageRequest {
   const owner = ownerNames[0] ? ` The owner of this memory is ${ownerNames[0]}.` : "";
   const system = `Write a page about ${title}, a ${type} in a personal memory, from the records below, in the third person.${owner}
 First line: "${SUMMARY_PREFIX} " and one sentence about who ${title} is.
-Then short "## " sections of bullets. End each bullet with its citation, ^[file.md:START-END], using the line numbers shown.
-Only what the records say. No title.`;
+${CITED_BULLETS}`;
   return { system, messages: [{ role: "user", content: `Records that mention ${title}:\n\n${excerpt}\n\nWrite the page about ${title}.` }] };
 }
 
@@ -171,21 +156,15 @@ export function withAliases(text: string, aliases: string[]): string {
 export function recordDays(record: ResolvedRecord, days: DayBucket[]): PageLink[] {
   return days.filter((day) => day.sources.some((source) => record.mentions.some((mention) =>
     mention.file === source.file && mention.lines.some((lines) => source.ranges.some((range) => overlaps(range, lines))))))
-    .map((day) => ({ target: `timeline/${day.day}`, title: dayLabel(day.day) }));
-}
-
-/** `May 4, 2026` for a day. */
-function dayLabel(day: string): string {
-  return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", year: "numeric", month: "long", day: "numeric" });
+    .map((day) => ({ target: `timeline/${day.day}`, title: formatDay(day.day, false) }));
 }
 
 /** A record page's generated tail: the days it appears on, then the records it might be the same as. */
 export function recordTail(days: PageLink[], maybeSame: PageLink[]): string {
-  const list = (links: PageLink[]): string => links.map((link) => `- [[${link.target}|${link.title}]]`).join("\n");
   return [
-    days.length > 0 ? `## Days\n\n${list(days)}` : "",
+    days.length > 0 ? `## Days\n\n${linkList(days)}` : "",
     maybeSame.length > 0
-      ? `## Might be the same as\n\n${list(maybeSame)}\n\nNot merged. If they are one, list their names under one id in \`.llmwiki/aliases.json\`.`
+      ? `## Might be the same as\n\n${linkList(maybeSame)}\n\nNot merged. If they are one, list their names under one id in \`.llmwiki/aliases.json\`.`
       : "",
   ].filter(Boolean).join("\n\n");
 }

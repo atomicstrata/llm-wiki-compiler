@@ -48,6 +48,12 @@ describe("the people a timeline day can list", () => {
     }]);
   });
 
+  it("does not list a record whose page was written by hand", async () => {
+    const root = await project(CACHE, null, []);
+    await writeFile(path.join(root, "wiki", "person", "ana.md"), "---\ntitle: Ana\n---\n\nMine.\n");
+    expect(await listRecordMentions(root, "person")).toEqual([]);
+  });
+
   it("lists nobody before the first extraction", async () => {
     expect(await listRecordMentions(await project(null, null, ["ana"]), "person")).toEqual([]);
   });
