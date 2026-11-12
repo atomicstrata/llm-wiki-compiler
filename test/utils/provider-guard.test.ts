@@ -41,6 +41,7 @@ describe("ensureProviderAvailable error taxonomy", () => {
 
   it("throws ProviderUnavailableError naming RUNCRATE_API_KEY when it is missing", () => {
     process.env.LLMWIKI_PROVIDER = "runcrate";
+    process.env.LLMWIKI_EMBEDDING_PROVIDER = "ollama";
     delete process.env.RUNCRATE_API_KEY;
     const err = assertUnavailableError(catchGuardError(), "runcrate");
     expect(err.missing).toContain("RUNCRATE_API_KEY");
@@ -49,6 +50,7 @@ describe("ensureProviderAvailable error taxonomy", () => {
   it("accepts the runcrate provider when RUNCRATE_API_KEY is set", () => {
     process.env.LLMWIKI_PROVIDER = "runcrate";
     process.env.RUNCRATE_API_KEY = "runcrate-test-key";
+    process.env.LLMWIKI_EMBEDDING_PROVIDER = "ollama";
     expect(() => ensureProviderAvailable()).not.toThrow();
   });
 

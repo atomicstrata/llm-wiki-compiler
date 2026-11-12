@@ -111,12 +111,15 @@ export function ensureCompileProviderAvailable(refreshEmbeddings = true): void {
   ensureRequiredProvidersAvailable(refreshEmbeddings && !embeddingsDisabled());
 }
 
+/** Chat providers whose own embedding call always fails, so embeddings need a separate backend. */
+const EMBEDDING_INCAPABLE_CHAT_PROVIDERS: readonly string[] = ["codex-agent", "converse", "runcrate"];
+
 /** Validate the provider capabilities required by one entry point. */
 function ensureRequiredProvidersAvailable(requireEmbeddings: boolean): void {
   if (requireEmbeddings) ensureEmbeddingProviderAvailable();
   const provider = normalizeProviderName(process.env.LLMWIKI_PROVIDER ?? DEFAULT_PROVIDER);
 
-  if (requireEmbeddings && (provider === "codex-agent" || provider === "converse") && !isEmbeddingProviderExplicit()) {
+  if (requireEmbeddings && EMBEDDING_INCAPABLE_CHAT_PROVIDERS.includes(provider) && !isEmbeddingProviderExplicit()) {
     throw new ProviderUnavailableError(
       provider,
       ["LLMWIKI_EMBEDDING_PROVIDER"],
