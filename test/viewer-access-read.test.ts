@@ -1,5 +1,5 @@
 /** Content reads must reject malformed UTF-8 and post-open growth without exporting bytes. */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { useTempRoot } from "./fixtures/temp-root.js";

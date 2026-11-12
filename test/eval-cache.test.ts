@@ -2,6 +2,7 @@
  * Tests for src/eval/cache.ts — citation cache management.
  */
 
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

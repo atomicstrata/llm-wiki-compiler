@@ -19,7 +19,8 @@
  * store themselves; their suites and `artifact-adapter.test.ts` show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as artifactApply from "../../src/artifacts/apply.js";
 import { ArtifactWriteDeniedError, ArtifactWriteRefusedError } from "../../src/artifacts/apply-guards.js";
 import * as artifactStore from "../../src/artifacts/store.js";
@@ -35,7 +36,7 @@ import {
 } from "../operation-bundles/adapter-fixtures.js";
 
 const tracker = tempRootTracker();
-afterEach(async () => { vi.restoreAllMocks(); vi.unstubAllEnvs(); await tracker.cleanup(); });
+afterEach(async () => { vi.restoreAllMocks(); restoreEnv(); await tracker.cleanup(); });
 
 /** An artifact-create context over a fresh tracked root, with its declaring profile and payload written. */
 async function artifactContext() {
@@ -79,7 +80,7 @@ async function over(ctx: AdapterContext, verb: "preflight" | "observe" | "apply"
 
 describe("the artifact adapter as a root-free body", () => {
   it("D1 walks preflight, observe, apply and verify to the same verdicts as the shipped adapter on disk", async () => {
-    vi.stubEnv("LLMWIKI_TRUSTED_WRITE", "research");
+    stubEnv("LLMWIKI_TRUSTED_WRITE", "research");
     const { ctx } = await artifactContext();
     const log: string[] = [];
     const stores = memoryStores(ctx as AdapterContext, log);
@@ -131,7 +132,7 @@ describe("the artifact adapter as a root-free body", () => {
 
 describe("the shipped artifact adapter", () => {
   it("Z1 the body over memory reaches no incumbent; the shipped adapter reaches each with the context's root", async () => {
-    vi.stubEnv("LLMWIKI_TRUSTED_WRITE", "research");
+    stubEnv("LLMWIKI_TRUSTED_WRITE", "research");
     const { root, ctx } = await artifactContext();
     const spies = [vi.spyOn(shared, "loadProfileOrUndefined"), vi.spyOn(shared, "readBundlePayload"), vi.spyOn(artifactStore, "artifactPaths"),
       vi.spyOn(artifactStore, "readArtifactManifest"), vi.spyOn(artifactStore, "readArtifactBody"), vi.spyOn(eventsRead, "readEvents"), vi.spyOn(artifactApply, "applyArtifactLocked")];

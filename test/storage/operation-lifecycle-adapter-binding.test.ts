@@ -22,7 +22,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { appendBoundEventLocked } from "../../src/events/store.js";
 import * as eventsRead from "../../src/events/store-read.js";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";

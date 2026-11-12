@@ -40,7 +40,7 @@
 
 import { symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectAllPages, collectAllPagesFrom, type LintPageSources } from "../../src/linter/rules-shared.js";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../../src/utils/constants.js";
 import { tempRootTracker } from "../temp-roots.js";

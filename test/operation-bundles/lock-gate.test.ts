@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { acquireMutationLock, acquireMutationLockBlocking, RecoveryGateError } from "../../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../../src/utils/lock.js";
 import { parkedSourceBundle } from "./executor-fixtures.js";

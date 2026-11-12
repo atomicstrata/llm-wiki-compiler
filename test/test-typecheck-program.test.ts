@@ -1,5 +1,5 @@
 /** Exercise actual TypeScript semantic checking, including nested files and no emit. */
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { collectTestDiagnostics } from "../scripts/test-typecheck-program.js";

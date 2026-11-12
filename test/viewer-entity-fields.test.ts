@@ -23,7 +23,7 @@
  * slice does not resolve.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   flushMicrotasks,
   jsonResponse,

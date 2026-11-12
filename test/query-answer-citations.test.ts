@@ -2,10 +2,12 @@
  * Public SDK and query-pipeline tests keep provider traffic stubbed at the LLM
  * boundary while exercising real selection, admission, reports, and saving.
  */
-import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import type { QueryResult } from "../src/index.js";
 import { generateAnswer } from "../src/commands/query.js";
 import { callClaude } from "../src/utils/llm.js";
@@ -13,22 +15,25 @@ import { parseFrontmatter } from "../src/utils/markdown.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { CITED_ANSWER, EXPECTED_REPORT, stageCitationWorkspace, citationWorkspaceBytes } from "./fixtures/query-answer-citations.js";
 
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realUtilsEmbeddings = { ...(await import("../src/utils/embeddings.js")) };
+
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
-vi.mock("../src/utils/embeddings.js", async (original) => ({
-  ...await original<typeof import("../src/utils/embeddings.js")>(),
+vi.mock("../src/utils/embeddings.js", () => ({
+  ...realUtilsEmbeddings,
   updateEmbeddingsLockedCore: vi.fn().mockResolvedValue(undefined),
 }));
 const ctx = useTempRoot();
 beforeEach(async () => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-  vi.stubEnv("ANTHROPIC_API_KEY", "offline-test-key");
+  stubEnv("LLMWIKI_PROVIDER", "anthropic");
+  stubEnv("ANTHROPIC_API_KEY", "offline-test-key");
   await stageCitationWorkspace(ctx.dir);
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => restoreEnv());
 
 /** Stub only external LLM calls, preserving the streaming callback contract. */
 function answerWith(answer: string, pages = ["concepts/alpha"]): void {
-  vi.mocked(callClaude).mockReset().mockImplementation(async (options) => {
+  mocked(callClaude).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages, reasoning: "Selected alpha" });
     options.onToken?.(answer);
     return answer;

@@ -25,7 +25,7 @@
  * Absence of a writer is a reason to build the fixture, not a reason to skip it.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { PAUSABLE_RUN_STATE, PAUSE_EDGE_EXISTS } from "../src/preparations/service-pause.js";
 import { LEGAL_EDGES } from "../src/preparations/run-validation.js";
 import { createPreparationService } from "../src/preparations/service.js";

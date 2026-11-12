@@ -16,7 +16,7 @@
  * instructions into three artifacts that outlive the run.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   activePromptModifiers,
   activeSystemPolicy,

@@ -11,7 +11,7 @@
  * grounding context so the test can assert which page's body reached the answer.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { buildCollidingProject, chunkOf, echoCallClaudeModule, mockQueryVector, seedTypedProject, writeChunkStore, PAPERS_BODY, CONCEPT_BODY } from "./fixtures/typed-grounding.js";
 
 // Echo the grounding context (the user message) so we can assert which page

@@ -19,7 +19,7 @@
  *      (absent) typed fields.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import path from "path";
 import { readFile, writeFile } from "fs/promises";
 import {
@@ -51,7 +51,7 @@ async function readCandidateJson(dir: string, id: string): Promise<Record<string
 
 /** Join all logged args from a console spy into a single string. */
 function collectLog(spy: ReturnType<typeof vi.spyOn>): string {
-  return spy.mock.calls.map((args) => args.join(" ")).join("\n");
+  return spy.mock.calls.map((args: unknown[]) => args.join(" ")).join("\n");
 }
 
 describe("typed-target metadata on page candidates", () => {

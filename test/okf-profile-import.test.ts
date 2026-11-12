@@ -8,7 +8,7 @@
  * newsroom genericity. Trusted promotion + the F4 guardrail live in the sibling
  * `okf-profile-import-trusted.test.ts`.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

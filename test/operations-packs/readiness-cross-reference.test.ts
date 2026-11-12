@@ -14,7 +14,7 @@
  * the same reason: a contract may not reference what nothing declares.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { assertCrossReferences } from "../../src/operations-packs/composition-refs.js";
 import { buildPack } from "./pack-fixture.js";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";

@@ -5,7 +5,7 @@
  * `adaptWorkflowRun` re-anchors a lossless adaptation.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import {
   buildWorkflowProfile,

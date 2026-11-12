@@ -12,7 +12,7 @@
  * NOT a throw) is NOT a failure — the run stays `awaiting-output` (recoverable).
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

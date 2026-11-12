@@ -12,7 +12,7 @@
  * seam runs under two dissimilar profiles' shapes.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { coreTreeFingerprint as fingerprint } from "./fixtures/core-tree-fingerprint.js";
 import { reconcileEvidence } from "../src/operations-packs/handlers/reconcile.js";
 import {

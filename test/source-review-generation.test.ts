@@ -1,5 +1,6 @@
 /** Real compile/review plumbing with deterministic provider responses, not a live-model claim. */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { createDemo } from "./fixtures/source-review-project.js";
@@ -9,14 +10,14 @@ import { AnthropicProvider } from "../src/providers/anthropic.js";
 
 const roots: string[] = [];
 afterEach(async () => {
-  vi.restoreAllMocks(); vi.unstubAllEnvs();
+  vi.restoreAllMocks(); restoreEnv();
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
 it("generates a real pending candidate and reuses its nested source coverage", async () => {
   const root = await createDemo(false); roots.push(root);
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic"); vi.stubEnv("ANTHROPIC_API_KEY", "test-key");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "offline");
+  stubEnv("LLMWIKI_PROVIDER", "anthropic"); stubEnv("ANTHROPIC_API_KEY", "test-key");
+  stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "offline");
   vi.spyOn(console, "log").mockImplementation(() => {});
   const extract = vi.spyOn(AnthropicProvider.prototype, "toolCall").mockResolvedValue(JSON.stringify({
     concepts: [{ concept: "Request timeouts", summary: "Timeout and retry policy", is_new: false }],

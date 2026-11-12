@@ -18,7 +18,7 @@
  * those, and the request-capture suites show the capture totality.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as lockGate from "../../src/operation-bundles/lock-gate.js";
 import * as cancellation from "../../src/preparations/cancellation.js";
 import * as runStore from "../../src/preparations/run-store.js";

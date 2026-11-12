@@ -26,7 +26,7 @@
  * SHOWING THE RUN STILL PAUSED rather than showing a missing method.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { createWiki } from "../src/sdk/wiki.js";
 import { expectNoRecoveryAuthority } from "./preparation-sdk-fixture.js";
 import type { PreparationGrant } from "../src/preparations/service.js";

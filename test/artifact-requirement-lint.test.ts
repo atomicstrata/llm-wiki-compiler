@@ -14,7 +14,7 @@
  * the status / export / context read surfaces through the SAME
  * `snapshot.profile.problems` / warning channel the existing health findings use.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { writeProfileFile, writeMarkdownPage } from "./fixtures/profile-fixtures.js";
 import { seedArtifact } from "./fixtures/artifact-root.js";

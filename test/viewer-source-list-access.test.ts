@@ -1,5 +1,5 @@
 /** Typed profiles distinguish clickable raw source entries from typed source records. */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mountViewerDom, jsonResponse } from "./fixtures/viewer-jsdom.js";
 
 describe("raw source list access", () => {

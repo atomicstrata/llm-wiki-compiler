@@ -19,7 +19,7 @@
 import { gateDecision } from "./lifecycle-fixture.js";
 import { randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { readPreparationKey } from "../../src/preparations/key-epoch.js";
 import { preparationKeyFile, preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";

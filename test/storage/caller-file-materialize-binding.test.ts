@@ -18,7 +18,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import {
   MAX_PREPARED_INPUT_OBJECT_BYTES, callerFileEvidenceStepsOver, materializeCallerFileInput, materializeCallerFileInputWith, planCallerFileInput,

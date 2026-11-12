@@ -34,7 +34,7 @@
 
 import { readFile, realpath, rm } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi, setSystemTime } from "bun:test";
 import lintCommand, { lintCommandFrom, type LintCommandOptions, type LintCommandSources } from "../../src/commands/lint.js";
 import type { LintCacheSources } from "../../src/linter/cache.js";
 import type { LintSources } from "../../src/linter/lint-sources.js";
@@ -98,11 +98,10 @@ async function askedOnDisk(root: string): Promise<OnDisk> {
 }
 
 mintOnceThenRemove(tracker, async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(AT));
+  setSystemTime(new Date(AT));
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), askedOnDisk);
 });
-afterAll(() => { vi.useRealTimers(); });
+afterAll(() => { setSystemTime(); });
 
 /** The cache over a map: each call logged, a write kept or refused. Relative paths are taken from the project's real root, as the disk command's are. */
 function cacheOver(events: string[], written: Map<string, string>, refusal?: Error): LintCacheSources {

@@ -9,7 +9,7 @@
  * bad/missing required input and an unknown action id each exit nonzero.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

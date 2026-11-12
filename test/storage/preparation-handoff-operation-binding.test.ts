@@ -19,7 +19,7 @@
  * obligation-capture suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as handoff from "../../src/preparations/handoff.js";
 import * as readiness from "../../src/preparations/service-readiness.js";
 import * as runLookup from "../../src/preparations/service-run-lookup.js";

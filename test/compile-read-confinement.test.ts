@@ -9,7 +9,7 @@
  * planned write or an LLM prompt.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, symlink, rm, mkdir } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

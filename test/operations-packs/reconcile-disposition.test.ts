@@ -19,7 +19,7 @@
  * operator reads and the thing the run acts on can never disagree.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compileIntents } from "../../src/operations-packs/handlers/intent-compile.js";
 import { FINDING_CLASS_FIELD, reconcileEvidence } from "../../src/operations-packs/handlers/reconcile.js";
 import type {

@@ -21,7 +21,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import type { CompiledPackActionV1 } from "../../src/operations-packs/compiler-types.js";
 import { packHostReadsOver, type PackHostReads } from "../../src/operations-packs/runtime/host-registry-reads.js";

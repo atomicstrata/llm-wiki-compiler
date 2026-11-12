@@ -8,7 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import type { PreparationLifecycleNamespaceV1 } from "../../src/preparations/lifecycle-fs/types.js";
 import { scanPreparationInventory } from "../../src/preparations/capacity.js";

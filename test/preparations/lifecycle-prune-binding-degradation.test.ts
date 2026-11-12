@@ -28,7 +28,7 @@ import { gateDecision } from "./lifecycle-fixture.js";
 import { lstat, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { expectFreshKeyStaging } from "./lifecycle-storage-fixture.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { PREPARATION_PRUNE_REGISTRY, preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";
 import { scanPreparationInventory } from "../../src/preparations/capacity.js";

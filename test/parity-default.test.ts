@@ -19,7 +19,7 @@
  * is empty.
  */
 
-import { describe, it, beforeAll, afterAll, expect } from "vitest";
+import { describe, it, beforeAll, afterAll, expect } from "bun:test";
 import { mkdtemp, rm, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -233,7 +233,7 @@ describe("MCP deterministic surfaces", () => {
       const index = await client.readResource({ uri: "llmwiki://index" });
       capture("mcp.resources", {
         resources: list.resources.map((r) => ({ uri: r.uri, name: r.name })),
-        index: index.contents.map((c) => ({ uri: c.uri, mimeType: c.mimeType, text: c.text })),
+        index: index.contents.map((c) => ({ uri: c.uri, mimeType: c.mimeType, text: "text" in c ? c.text : undefined })),
       }, { unordered: ["resources"] });
     } finally {
       await client.close();

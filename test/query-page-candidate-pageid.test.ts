@@ -13,7 +13,7 @@
  * page body reached the answer.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import path from "path";
 import { writePage } from "./fixtures/write-page.js";
 import { mockQueryVector, pageEntryOf, seedTypedProject, writePageStore } from "./fixtures/typed-grounding.js";

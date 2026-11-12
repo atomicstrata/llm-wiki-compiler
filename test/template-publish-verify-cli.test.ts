@@ -3,10 +3,9 @@
  * @description Frozen Slice A CLI acceptance oracle for successful output,
  * cryptographic failures, validation reuse, privacy, and help separation.
  */
-import { spawnSync } from "node:child_process";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { ProfileTemplatePackage } from "../src/profile/templates/types.js";
 import {
   COORDINATE,
@@ -26,8 +25,9 @@ import {
   writeSignedDistributionIndex,
   type PublishDistribution,
 } from "./fixtures/template-publish-distribution.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 
-const CLI = path.resolve("dist/cli.js");
 const fixtures: PublishDistribution[] = [];
 const HUMAN_SUCCESS_OUTPUT = [
   "Verified template publisher distribution.",
@@ -52,8 +52,8 @@ describe("template publish verify CLI", () => {
   it("verifies a valid static tree in stable human and JSON modes without writes", async () => {
     const tree = await fixture();
     const before = await snapshotTree(tree.root);
-    const human = runPublishVerify(tree);
-    const json = runPublishVerify(tree, ["--json"]);
+    const human = await runPublishVerify(tree);
+    const json = await runPublishVerify(tree, ["--json"]);
     expect(human.status).toBe(0);
     expect(human.stdout).toBe(HUMAN_SUCCESS_OUTPUT);
     expect(human.stderr).toBe("");
@@ -64,7 +64,7 @@ describe("template publish verify CLI", () => {
 
   it("keeps JSON output free of secrets, payloads, paths, and terminal controls", async () => {
     const tree = await fixture();
-    const result = runPublishVerify(tree, ["--json"]);
+    const result = await runPublishVerify(tree, ["--json"]);
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
     expect(result.stdout).not.toContain(TAP_KEY.publicKey);
@@ -78,21 +78,21 @@ describe("template publish verify CLI", () => {
     const tree = await fixture();
     const wrongKeyFile = path.join(tree.root, "wrong-key.txt");
     await writeFile(wrongKeyFile, PUBLISHER_KEY.publicKey, "utf8");
-    assertPublishVerifyFailure(runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
-    assertPublishVerifyFailure(runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree, [], TAP_KEY.keyId, wrongKeyFile), /signature|tap key/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree, [], "wrong-key-id"), /key id|trusted key|wrong key/i);
   });
 
   it("binds the signed index to an independently selected tap identity", async () => {
     const tree = await fixture();
     assertPublishVerifyFailure(
-      runPublishVerify(tree, [], TAP_KEY.keyId, tree.keyFile, "community"),
+      await runPublishVerify(tree, [], TAP_KEY.keyId, tree.keyFile, "community"),
       /expected tap|wrong tap|tap identity/i,
     );
   });
 
   it("does not emit a JSON success object after verification fails", async () => {
     const tree = await fixture();
-    assertPublishVerifyFailure(runPublishVerify(tree, ["--json"], "wrong-key-id"), /key id|trusted key|wrong key/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree, ["--json"], "wrong-key-id"), /key id|trusted key|wrong key/i);
   });
 
   it("fails closed for expired and future indexes", async () => {
@@ -101,12 +101,12 @@ describe("template publish verify CLI", () => {
       generatedAt: "2020-01-01T00:00:00Z",
       expiresAt: "2020-01-02T00:00:00Z",
     });
-    assertPublishVerifyFailure(runPublishVerify(tree), /expired/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /expired/i);
     await writeSignedDistributionIndex(tree, {
       generatedAt: "2099-01-01T00:00:00Z",
       expiresAt: "2099-01-02T00:00:00Z",
     });
-    assertPublishVerifyFailure(runPublishVerify(tree), /future|not yet valid/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /future|not yet valid/i);
   });
 
   it("fails closed for altered index and package bytes", async () => {
@@ -115,29 +115,29 @@ describe("template publish verify CLI", () => {
     const index = JSON.parse(await readFile(indexPath, "utf8"));
     index.sequence += 1;
     await writeFile(indexPath, JSON.stringify(index), "utf8");
-    assertPublishVerifyFailure(runPublishVerify(tree), /signature/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /signature/i);
     await writeFile(indexPath, JSON.stringify(tree.index), "utf8");
     const envelope = JSON.parse(await readFile(tree.packageFile, "utf8"));
     envelope.payload.displayName = "Altered";
     await writeFile(tree.packageFile, JSON.stringify(envelope), "utf8");
-    assertPublishVerifyFailure(runPublishVerify(tree), /digest|signature/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /digest|signature/i);
   });
 
   it("independently verifies the publisher signature and coordinate identity", async () => {
     const envelope = signedPackage();
     envelope.publisherSignature.value = corruptBase64(envelope.publisherSignature.value);
     const signatureTree = await fixture(envelope);
-    assertPublishVerifyFailure(runPublishVerify(signatureTree), /signature/i);
+    assertPublishVerifyFailure(await runPublishVerify(signatureTree), /signature/i);
     const conflictingCoordinate = COORDINATE.replace("/team@", "/other@");
     const identityTree = await fixture(signedPackage(signedPackage().payload, conflictingCoordinate));
-    assertPublishVerifyFailure(runPublishVerify(identityTree), /coordinate|identity|template.*match/i);
+    assertPublishVerifyFailure(await runPublishVerify(identityTree), /coordinate|identity|template.*match/i);
   });
 
   it("reuses strict production parsing for package envelopes and signed digest fields", async () => {
     const unexpectedTree = await fixture();
     const serialized = await readFile(unexpectedTree.packageFile, "utf8");
     await writeFile(unexpectedTree.packageFile, serialized.replace("{", '{"unexpected":true,'), "utf8");
-    assertPublishVerifyFailure(runPublishVerify(unexpectedTree), /unexpected|unknown|key|field/i);
+    assertPublishVerifyFailure(await runPublishVerify(unexpectedTree), /unexpected|unknown|key|field/i);
 
     const duplicateTree = await fixture();
     const duplicateSource = await readFile(duplicateTree.packageFile, "utf8");
@@ -146,7 +146,7 @@ describe("template publish verify CLI", () => {
       duplicateSource.replace('"schemaVersion":1', '"schemaVersion":1,"schemaVersion":1'),
       "utf8",
     );
-    assertPublishVerifyFailure(runPublishVerify(duplicateTree), /duplicate.*key|key.*duplicate/i);
+    assertPublishVerifyFailure(await runPublishVerify(duplicateTree), /duplicate.*key|key.*duplicate/i);
 
     const duplicateIndexTree = await fixture();
     const indexPath = path.join(duplicateIndexTree.directory, "index.json");
@@ -156,24 +156,24 @@ describe("template publish verify CLI", () => {
       indexSource.replace('"sequence":1', '"sequence":1,"sequence":1'),
       "utf8",
     );
-    assertPublishVerifyFailure(runPublishVerify(duplicateIndexTree), /duplicate.*key|key.*duplicate/i);
+    assertPublishVerifyFailure(await runPublishVerify(duplicateIndexTree), /duplicate.*key|key.*duplicate/i);
 
     const digestTree = await fixture();
     await writeSignedDistributionIndex(digestTree, { packages: [{
       ...digestTree.index.packages[0],
       payloadDigest: "sha256:../../outside" as `sha256:${string}`,
     }] });
-    assertPublishVerifyFailure(runPublishVerify(digestTree), /digest|sha256|invalid/i);
+    assertPublishVerifyFailure(await runPublishVerify(digestTree), /digest|sha256|invalid/i);
   });
 
   it("fails closed for a wrong package filename and invalid signed template", async () => {
     const tree = await fixture();
     const wrong = path.join(path.dirname(tree.packageFile), `${"a".repeat(64)}.json`);
     await rename(tree.packageFile, wrong);
-    assertPublishVerifyFailure(runPublishVerify(tree), /missing|digest|filename/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /missing|digest|filename/i);
     const invalid = { ...signedPackage().payload, displayName: "" } as ProfileTemplatePackage;
     const invalidTree = await fixture(signedPackage(invalid));
-    assertPublishVerifyFailure(runPublishVerify(invalidTree), /displayName|template|invalid/i);
+    assertPublishVerifyFailure(await runPublishVerify(invalidTree), /displayName|template|invalid/i);
   });
 
   it("does not accept one valid package envelope under two signed digest paths", async () => {
@@ -189,7 +189,7 @@ describe("template publish verify CLI", () => {
       { coordinate: second.coordinate, publisher: second.payload.publisher, payloadDigest: second.payloadDigest },
     ] });
     await writeFile(tree.packageFile, JSON.stringify(second), "utf8");
-    assertPublishVerifyFailure(runPublishVerify(tree), /content-addressed|signed digest|digest entry/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /content-addressed|signed digest|digest entry/i);
   });
 
   it("fails closed when a signed package digest or publisher key is revoked", async () => {
@@ -200,7 +200,7 @@ describe("template publish verify CLI", () => {
       reason: "withdrawn",
       revokedAt: new Date().toISOString(),
     }] });
-    assertPublishVerifyFailure(runPublishVerify(tree), /revoked/i);
+    assertPublishVerifyFailure(await runPublishVerify(tree), /revoked/i);
     const keyTree = await fixture();
     await writeSignedDistributionIndex(keyTree, { revocations: [{
       kind: "publisher-key",
@@ -208,15 +208,15 @@ describe("template publish verify CLI", () => {
       reason: "compromised",
       revokedAt: new Date().toISOString(),
     }] });
-    assertPublishVerifyFailure(runPublishVerify(keyTree), /revoked/i);
+    assertPublishVerifyFailure(await runPublishVerify(keyTree), /revoked/i);
   });
 
-  it("distinguishes consumer verification from publisher distribution verification in help", () => {
-    const templateHelp = spawnSync(process.execPath, [CLI, "template", "--help"], {
-      encoding: "utf8", timeout: CLI_TIMEOUT_MS,
+  it("distinguishes consumer verification from publisher distribution verification in help", async () => {
+    const templateHelp = await spawnCaptured(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "--help"], {
+      timeout: CLI_TIMEOUT_MS,
     });
-    const publishHelp = spawnSync(process.execPath, [CLI, "template", "publish", "--help"], {
-      encoding: "utf8", timeout: CLI_TIMEOUT_MS,
+    const publishHelp = await spawnCaptured(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "template", "publish", "--help"], {
+      timeout: CLI_TIMEOUT_MS,
     });
     expect(templateHelp.error).toBeUndefined();
     expect(templateHelp.signal).toBeNull();

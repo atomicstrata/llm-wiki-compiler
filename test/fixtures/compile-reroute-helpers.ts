@@ -11,7 +11,7 @@
 import { existsSync } from "fs";
 import { readdir, writeFile, mkdir } from "fs/promises";
 import path from "path";
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { AnthropicProvider } from "../../src/providers/anthropic.js";
 import { LLMWIKI_DIR } from "../../src/utils/constants.js";
 

@@ -7,7 +7,7 @@
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 
 /** Register cleanup and return a tracked scratch-directory factory. */
 export function useScratchDirs() {

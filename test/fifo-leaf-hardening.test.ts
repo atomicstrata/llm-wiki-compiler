@@ -6,7 +6,8 @@
  * with its fail-closed result. Planted FIFOs are released after every test so a
  * regression that does block cannot wedge the test worker.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { execFileSync } from "node:child_process";
 import { constants as fsConstants } from "node:fs";
 import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises";
@@ -33,7 +34,7 @@ const SETTLE_MS = 3000;
 const planted: string[] = [];
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  restoreEnv();
   // Opening the FIFO read-write releases any open still blocked on it.
   for (const fifo of planted.splice(0)) {
     await open(fifo, fsConstants.O_RDWR | fsConstants.O_NONBLOCK).then(h => h.close(), () => {});
@@ -126,7 +127,7 @@ it("refuses a FIFO as a custody copy source", async () => {
 // Regression guard: the timing sink already opened with O_NONBLOCK before this change.
 it("skips a FIFO stage-timing sink without delaying the measured work", async () => {
   const root = await project();
-  vi.stubEnv("LLMWIKI_STAGE_TIMING_FILE", await plantFifo(root, "timing.jsonl"));
+  stubEnv("LLMWIKI_STAGE_TIMING_FILE", await plantFifo(root, "timing.jsonl"));
   expect(await settle(timeStage("compile.finalize", async () => "done"))).toEqual({ value: "done" });
 });
 

@@ -5,7 +5,7 @@
  * (same stable sha256, no rewrite); with DIFFERENT bytes it is a hard error and the
  * original artifact is left byte-unchanged (never a silent overwrite).
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { researchArtifactProfile, startArtifactRun, resultOutput, grantTrustedWrite, countArtifactWriteEvents } from "./fixtures/artifact-seam-fixtures.js";
 import { submitStageOutput } from "../src/workflows/stage-output.js";
 import { WorkflowArtifactChangedError, WorkflowArtifactUnverifiableError } from "../src/workflows/errors.js";

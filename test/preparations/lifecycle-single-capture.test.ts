@@ -20,15 +20,18 @@
  * "once". It fails at two captures and passes only at one.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const listingProbe = vi.hoisted(() => ({
+const listingProbe = {
   calls: [] as string[],
-}));
+};
 
-vi.mock("node:fs/promises", async () => {
-  const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFsPromises = { ...(await import("node:fs/promises")) };
+
+vi.mock("node:fs/promises", () => {
+  const actual = realFsPromises;
   return {
     ...actual,
     opendir: async (directory: Parameters<typeof actual.opendir>[0]) => {

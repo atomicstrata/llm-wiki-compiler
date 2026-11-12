@@ -4,7 +4,7 @@
  * progress output. Keep those two side effects stubbed consistently while each
  * suite controls its own extraction and page-generation responses.
  */
-import { beforeEach, vi } from "vitest";
+import { beforeEach, vi } from "bun:test";
 import { AnthropicProvider } from "../../src/providers/anthropic.js";
 import * as embeddings from "../../src/utils/embeddings.js";
 import { useCompileProject, type CompileProjectCtx, type CompileProjectOptions } from "./compile-project.js";

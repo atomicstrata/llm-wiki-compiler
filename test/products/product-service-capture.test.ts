@@ -23,7 +23,7 @@
  *    gate rather than to refuse everything.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { PackActionInputValueV2 } from "../../src/operations-packs/types.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { resolvePreparationRun } from "../../src/preparations/service-run-lookup.js";

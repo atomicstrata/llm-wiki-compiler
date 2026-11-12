@@ -16,7 +16,7 @@
  * first digest, and the case this exists for would stay broken forever.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import {
   activePromptModifiers,
   promptModifierPairs,

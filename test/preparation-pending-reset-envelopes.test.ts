@@ -35,7 +35,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import { emptyWorkspace, planAndSeed } from "./preparation-cli-fixture.js";
 import { preparationKeyFile } from "../src/preparations/paths.js";

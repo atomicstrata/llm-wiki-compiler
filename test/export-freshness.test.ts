@@ -5,7 +5,7 @@
  * export stays active-page-only and never emits `freshnessStatus: "orphaned"`.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { writePage } from "./fixtures/write-page.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

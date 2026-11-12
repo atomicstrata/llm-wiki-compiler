@@ -4,7 +4,7 @@
  * releases, including when the guarded operation throws.
  */
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { withExclusiveLock, type LockPaths } from "../src/utils/exclusive-lock.js";
 import { publisherTempRoots } from "./fixtures/publisher-workspace.js";
 

@@ -10,7 +10,7 @@
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { EVENTS_FILE } from "../../src/utils/constants.js";
 import { appendEvent, type AppendEventInput } from "../../src/events/store.js";
 import { readEvents, readEventsStrict } from "../../src/events/store-read.js";

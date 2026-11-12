@@ -19,7 +19,7 @@
  * their suites and `relation-adapter.test.ts` show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as eventsRead from "../../src/events/store-read.js";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";
 import { defineRelationAdapter, relationAdapter, type RelationAdapterStores } from "../../src/operation-bundles/adapters/relation.js";

@@ -12,7 +12,7 @@
  * fail-closed finding instead of crashing `lint`.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { exportJson } from "../src/commands/export.js";

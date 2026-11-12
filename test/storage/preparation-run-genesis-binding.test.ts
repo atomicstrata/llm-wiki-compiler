@@ -15,7 +15,7 @@
  * the run-store and run-integrity suites show those.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { mintPreparationId, mintPreparationRunId } from "../../src/preparations/ids.js";
 import { preparationKeyEpochId, preparationRunBinding, verifyPreparationRunIntegrity } from "../../src/preparations/run-integrity.js";
 import { parsePreparationRun } from "../../src/preparations/run-parse.js";

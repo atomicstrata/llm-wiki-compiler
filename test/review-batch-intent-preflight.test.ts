@@ -3,7 +3,7 @@
  * storage, and already-known capacity exhaustion fail before live pages or source
  * state change; successful preparation is visible before the executor is entered.
  */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { chmod, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { existsSync } from "node:fs";

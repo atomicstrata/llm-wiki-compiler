@@ -3,7 +3,7 @@
  * The externalized build proves the engine can use the declared contracts seam;
  * installed tarball and consumer checks remain a separate integration gate.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { builtinModules } from "node:module";
 import path from "node:path";

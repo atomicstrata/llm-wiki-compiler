@@ -6,7 +6,7 @@
  * the deterministic topological ranks consumed by the scheduler.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";
 import { validatePlanSupersession, validatePreparationPlanGraph } from "../../src/preparations/plan-graph.js";
 import { PreparationPlanError } from "../../src/preparations/problems.js";

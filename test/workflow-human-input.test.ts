@@ -6,7 +6,7 @@
  * stale lifecycle state, and malformed payload shapes fail closed.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 import { mkdir, writeFile } from "node:fs/promises";

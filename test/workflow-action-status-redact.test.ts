@@ -12,7 +12,7 @@
  * the UNSCOPED `workflow status` still shows the full per-run diagnostics.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { runAction } from "../src/workflows/run-action.js";

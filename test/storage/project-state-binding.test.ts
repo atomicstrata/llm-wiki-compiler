@@ -44,7 +44,7 @@
  * an access-control layer and not `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectProjectStateFrom } from "../../src/project/state.js";
 import type { ProjectStateProbe, ProjectStateSources } from "../../src/project/state-sources.js";
 import type { LegacyLocalReads } from "../../src/storage/legacy-local-reads.js";

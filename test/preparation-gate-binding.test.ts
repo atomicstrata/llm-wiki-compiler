@@ -20,7 +20,7 @@
  * someone who cannot see what it is for.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { findApprovedGateProof, phaseBindingDigest } from "../src/preparations/gates.js";
 import { resolveGateAuthority } from "../src/preparations/service-gate-authority.js";
 import {

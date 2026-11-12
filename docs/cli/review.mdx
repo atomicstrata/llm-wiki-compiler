@@ -284,9 +284,9 @@ approving them, just as with single-candidate approval.
 To compare single and batch approval from a source checkout:
 
 ```bash
-npm run build
-npm run benchmark:review -- dist/cli.js single 1500 30
-npm run benchmark:review -- dist/cli.js batch 1500 30
+bun run build
+bun run benchmark:review -- dist/cli.js single 1500 30
+bun run benchmark:review -- dist/cli.js batch 1500 30
 ```
 
 Each command generates a disposable wiki with 1,500 existing pages and 30

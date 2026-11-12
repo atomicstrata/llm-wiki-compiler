@@ -25,7 +25,7 @@
  * of one re-checks.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { formatHref } from "../src/viewer/assets/viewer-field-format.js";
 
 describe("formatHref resolves the declared vocabulary", () => {

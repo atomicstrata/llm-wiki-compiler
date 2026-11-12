@@ -12,7 +12,7 @@
  *  - A7: a reader leaves a v2 store byte-unchanged (read-only).
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { mkdtemp, mkdir, writeFile, readFile, symlink } from "fs/promises";
 import path from "path";
 import os from "os";

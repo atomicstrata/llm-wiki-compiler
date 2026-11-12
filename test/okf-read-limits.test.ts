@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile, symlink } from "fs/promises";
 import path from "path";
 import { readOkfBundle } from "../src/import/okf-read.js";

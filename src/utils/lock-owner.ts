@@ -48,6 +48,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { readKernelStartSeconds } from "./kernel-start-time.js";
 
 /**
  * The inclusive upper bound Node accepts before `process.kill` rejects the
@@ -112,8 +113,63 @@ export function serializeOwner(pid: number): string {
     ...(identity === null ? {} : { identity }) });
 }
 
+/** Environment inputs that change how `ps -o lstart=` renders a start time. */
+const AMBIENT_RENDERING_ENV = ["TZ", "LC_ALL", "LC_TIME", "LANG"] as const;
+
+/** This process's ambient rendering, with the environment it was rendered under. */
+let cachedSelfLegacyStartTime: { env: string; value: string | null } | undefined;
+
+/**
+ * This process's own ambient rendering. A running process's start time never
+ * changes, so one answer per process serves every lock acquisition; the entry is
+ * reused only while the locale and zone inputs that shape the text are unchanged.
+ */
+function selfLegacyStartTime(): string | null {
+  const env = AMBIENT_RENDERING_ENV.map((name) => process.env[name] ?? "").join("\0");
+  if (cachedSelfLegacyStartTime?.env !== env) {
+    cachedSelfLegacyStartTime = { env, value: renderSelfLstart() ?? spawnLegacyProcessStartTime(process.pid) };
+  }
+  return cachedSelfLegacyStartTime.value;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** Whether the time locale `ps` renders under is the C locale, whose `lstart` text is fixed. */
+function isCTimeLocale(): boolean {
+  const locale = process.env.LC_ALL || process.env.LC_TIME || process.env.LANG || "C";
+  return locale === "C" || locale === "POSIX" || locale.startsWith("C.");
+}
+
+/**
+ * This process's `ps -o lstart=` text, rendered in-process: in the C locale both
+ * procps (`%a %b %e %H:%M:%S %Y`) and macOS `ps` (`%c`) print the start second in
+ * local time with that layout, and with `TZ` set `Date` uses that same zone. Null
+ * without an explicit `TZ`, outside the C locale or without a start second, which
+ * leaves the answer to `ps` itself.
+ * Not forking `ps` here keeps synchronous spawns off the lock path, where Bun can
+ * hang on one (oven-sh/bun#46488).
+ */
+function renderSelfLstart(): string | null {
+  const identity = selfStartTime();
+  // Only an explicit `TZ` is certain to be the zone both `Date` and libc use:
+  // without one, a runtime may keep its own default (`bun test` runs in UTC).
+  const explicitZone = Boolean(process.env.TZ);
+  if (!explicitZone || !isCTimeLocale() || identity === null || !identity.startsWith(IDENTITY_PREFIX)) return null;
+  const at = new Date(Number(identity.slice(IDENTITY_PREFIX.length)) * 1000);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  const day = String(at.getDate()).padStart(2, " ");
+  const clock = `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+  return `${WEEKDAYS[at.getDay()]} ${MONTHS[at.getMonth()]} ${day} ${clock} ${at.getFullYear()}`;
+}
+
 /** Read the exact ambient ps rendering used by public lock readers and writers. */
 function readLegacyProcessStartTime(pid: number): string | null {
+  return pid === process.pid ? selfLegacyStartTime() : spawnLegacyProcessStartTime(pid);
+}
+
+/** Ask `ps` for one process's ambient start-time rendering. */
+function spawnLegacyProcessStartTime(pid: number): string | null {
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],
@@ -268,6 +324,9 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  * unavailable/unparseable — so liveness degrades rather than failing.
  */
 export function readProcessStartTime(pid: number): string | null {
+  const kernelSeconds = readKernelStartSeconds(pid);
+  if (kernelSeconds === null) return null;
+  if (kernelSeconds !== undefined) return `${IDENTITY_PREFIX}${kernelSeconds}`;
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],

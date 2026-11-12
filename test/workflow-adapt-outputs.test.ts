@@ -11,7 +11,7 @@
  * old keys mapping to the same new key is ambiguous and must throw.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { buildWorkflowProfile, installWorkflowProfile } from "./fixtures/workflow-profile.js";
 import { startWorkflow } from "../src/workflows/start.js";

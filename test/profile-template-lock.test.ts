@@ -4,7 +4,7 @@
  */
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { profileValidate } from "../src/commands/profile.js";
 import { loadProfile } from "../src/profile/load.js";
 import { installBuiltinTemplate } from "../src/profile/templates/install.js";

@@ -6,7 +6,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { makeTempRoot, useTempRoot } from "../fixtures/temp-root.js";
 import {
   scanPreparationInventoryFromLifecycle,

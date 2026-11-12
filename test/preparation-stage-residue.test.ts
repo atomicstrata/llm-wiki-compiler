@@ -15,7 +15,7 @@
  * refusals and the crash state, which no CLI flag can reach.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalBytes } from "../src/profile/templates/signing/canonical.js";
 import { scanPreparationInventory } from "../src/preparations/capacity.js";
 import {

@@ -19,20 +19,23 @@
  * order; it is not a claim about what a crash leaves on disk.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
 import * as fs from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 interface PlannedFault { call: string; nth: number; error: Error }
 /** What the mock saw, and what it was asked to disturb. */
-const tape = vi.hoisted(() => ({
+const tape = {
   calls: [] as string[], lastListing: null as unknown,
   reverseListings: false, fault: null as PlannedFault | null,
-}));
+};
 
-vi.mock("fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs/promises")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   type Forwarded = (...args: unknown[]) => Promise<unknown>;
   const watch = (name: string): Forwarded => (...args) => {
     const call = `${name} ${String(args[0])}`;
@@ -91,7 +94,7 @@ beforeEach(() => {
   Object.assign(tape, { calls: [], lastListing: null, reverseListings: false, fault: null });
 });
 
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { setSystemTime(); });
 
 describe("listDirectoryEntries: one typed listing, nothing added", () => {
   it("hands back the listing's own promise, and each entry answers for itself", async () => {
@@ -131,12 +134,17 @@ describe("collectAllPages, generic scope: concepts then queries, as listed", () 
     expect(recorded("readFile").every((call) => call.endsWith('"utf-8"'))).toBe(true);
   });
 
-  it("keeps the order each listing returned: a reversed listing reverses that directory only", async () => {
+  // Node's readdir arrived name-sorted (libuv sorts); Bun's returns raw directory
+  // order. The disk adapter now orders names itself, so output never depends on
+  // the runtime or filesystem: a reversed raw listing must change nothing.
+  it("orders each directory by name whatever order readdir returned", async () => {
     const asListed = relativePaths(await collectAllPages(root));
     tape.reverseListings = true;
     const reversed = relativePaths(await collectAllPages(root));
-    expect(reversed).toEqual([...asListed.slice(0, 3).reverse(), ...asListed.slice(3).reverse()]);
-    expect(reversed).not.toEqual(asListed);
+    expect(asListed).toEqual([
+      "wiki/concepts/a.md", "wiki/concepts/b.md", "wiki/concepts/c.md", "wiki/queries/q1.md", "wiki/queries/q2.md",
+    ]);
+    expect(reversed).toEqual(asListed);
   });
 
   it("lists nothing for absent directories, and passes a read failure on untouched", async () => {
@@ -224,13 +232,15 @@ describe("the lint cache: exact bytes out, strict read back", () => {
   });
 
   it("writes the same bytes at a fixed clock, through the writer's own calls in order", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-01-02T03:04:05.678Z"));
+    setSystemTime(new Date("2026-01-02T03:04:05.678Z"));
     await writeLintCache(root, summary());
     const rule = { rule: "broken-wikilink", severity: "error", count: 2, fileCount: 1, topFile: "wiki/concepts/a.md", topFileCount: 2 };
     const expected = { warnings: 0, errors: 2, at: "2026-01-02T03:04:05.678Z", freshness: { stalePages: 0, orphanedPages: 0 }, rules: [rule] };
     expect(await fs.readFile(path.join(root, CACHE), "utf8")).toBe(`${JSON.stringify(expected, null, 2)}\n`);
-    const written = tape.calls.slice(0, tape.calls.findIndex((call) => call.startsWith("rename ")) + 1);
+    // Only the writer's own calls: a walk an earlier test rejected out of can
+    // still have a listing in flight, and it lands on this tape.
+    const own = tape.calls.filter((call) => call.split(" ")[1]?.includes(".llmwiki"));
+    const written = own.slice(0, own.findIndex((call) => call.startsWith("rename ")) + 1);
     const steps = written.map((call) => call.split(" ")[0]);
     expect(steps).toEqual(["mkdir", "mkdir", "open", "rename"]);
     expect(recorded("mkdir")).toEqual(['mkdir .llmwiki {"recursive":true}', 'mkdir .llmwiki {"recursive":true}']);

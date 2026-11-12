@@ -9,7 +9,7 @@
 import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { RELATIONS_FILE, EVENTS_FILE } from "../../src/utils/constants.js";
 import { appendRelation } from "../../src/relations/store.js";
 import { readRelations } from "../../src/relations/store-read.js";

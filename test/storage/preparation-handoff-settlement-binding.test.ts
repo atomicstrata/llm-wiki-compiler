@@ -21,7 +21,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as cancelSettlement from "../../src/preparations/attempts/cancel-settlement.js";
 import { recordDurableCancellingLocked } from "../../src/preparations/attempts/cancel-settlement.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";

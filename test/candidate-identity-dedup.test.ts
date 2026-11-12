@@ -10,7 +10,7 @@
  * before: two concepts candidates for one slug collapse to a single file.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { listCandidates, writeCandidate } from "../src/compiler/candidates.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 

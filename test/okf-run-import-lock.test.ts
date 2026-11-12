@@ -1,5 +1,5 @@
 // test/okf-run-import-lock.test.ts
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

@@ -12,7 +12,7 @@
  * a second, drift-prone copy of the page list on the wire.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { rm, writeFile } from "fs/promises";
 import path from "path";
 import { loadShellTemplate, resetShellTemplateCache } from "../src/viewer/shell.js";

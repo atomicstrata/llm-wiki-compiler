@@ -16,7 +16,7 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { loadOrCreateRunKeyWith, type RunKeyStore } from "../../src/local-workflow-host/run-key.js";
 import { writeRunCandidatesWith, writeRunWith, type RunRecordStore } from "../../src/local-workflow-host/run-store.js";
 import {

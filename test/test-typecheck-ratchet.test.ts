@@ -1,5 +1,5 @@
 /** Per-file test diagnostic allowances must decrease without transferable slack. */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { compareDiagnosticCounts } from "../scripts/test-typecheck-ratchet.js";
 
 it("accepts an unchanged per-file baseline", () => {

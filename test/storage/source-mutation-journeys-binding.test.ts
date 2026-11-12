@@ -16,7 +16,7 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { computeRemovalPlan } from "../../src/sources/removal-plan.js";
 import { applyRemovalWith, localSourceRemovalSteps, planRemovalWith, type SourceRemovalSteps } from "../../src/sources/removal.js";
 import * as sourceStore from "../../src/sources/store.js";

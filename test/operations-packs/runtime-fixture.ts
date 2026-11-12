@@ -18,7 +18,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import { createOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompiledPackActionV1 } from "../../src/operations-packs/compiler-types.js";

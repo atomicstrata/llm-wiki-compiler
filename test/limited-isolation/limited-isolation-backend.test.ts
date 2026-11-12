@@ -17,7 +17,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import net from "node:net";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createFrameDecoder } from "../../src/capability-providers/runtime/framing.js";
 import {
   IsolationUnavailableError, limitedIsolationBackend,

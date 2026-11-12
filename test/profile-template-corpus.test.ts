@@ -4,7 +4,7 @@
  */
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { artifactPaths, hashArtifactBody, writeArtifactFiles, type ArtifactManifest } from "../src/artifacts/store.js";
 import { appendEvent } from "../src/events/store.js";
 import { loadProfile, ProfileLoadError } from "../src/profile/load.js";

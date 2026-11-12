@@ -16,7 +16,7 @@
  * sweep and lifecycle-driver suites show those.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { sweepUnitIdFor } from "../../src/preparations/prune-delete.js";
 import { assessSweep, SweepUnobservableError, type PruneAssessmentReads } from "../../src/preparations/retention.js";
 

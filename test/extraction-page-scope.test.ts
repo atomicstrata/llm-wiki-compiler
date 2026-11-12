@@ -3,7 +3,7 @@
  * Pin dropped assignments, frozen failures and complete contributor sets with
  * a transitive chain whose tail should remain untouched.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { mergeExtractions } from "../src/compiler/extraction-merge.js";
 import type { ExtractionResult } from "../src/compiler/deps.js";
 

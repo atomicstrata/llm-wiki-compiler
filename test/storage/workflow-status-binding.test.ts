@@ -35,7 +35,7 @@
 
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { checkWorkflowRunHealth, checkWorkflowRunHealthFrom } from "../../src/linter/workflow-run-rule.js";
 import type { LintResult } from "../../src/linter/types.js";
 import type { RunIntegrityComputation } from "../../src/workflow-history/integrity.js";

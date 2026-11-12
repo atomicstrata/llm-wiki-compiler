@@ -13,7 +13,7 @@
  * emptied the marker once the (mocked) core succeeds for all of them.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeCandidate } from "../src/compiler/candidates.js";
 import reviewApproveCommand from "../src/commands/review-approve.js";
 import {

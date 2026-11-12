@@ -4,7 +4,8 @@
  * normal retry queue before the candidate is archived; a queue that cannot
  * record it, or unreadable intent, refuses the rejection and keeps the candidate.
  */
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { execFileSync } from "node:child_process";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -106,10 +107,10 @@ it.each(REJECTION_CASES)("rejecting the last candidate with a %s exclusion (embe
   const ids = await interruptBatch();
   if (content === "identical") await exclude(kind, await liveContentHash(ctx.dir, REWRITTEN));
   const markersBefore = await retryFileBytes(ctx.dir);
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", mode);
+  stubEnv("LLMWIKI_EMBEDDINGS", mode);
   for (const id of ids) await reject(id);
   if (mode === "off") expect(await retryFileBytes(ctx.dir)).toEqual(markersBefore);
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+  stubEnv("LLMWIKI_EMBEDDINGS", "on");
   expect(await listCandidates(ctx.dir)).toEqual([]);
   expect(await intentEntries()).toEqual([]);
   await drainUnderLock(ctx.dir);

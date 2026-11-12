@@ -8,7 +8,7 @@
  * page must still embed exactly as before.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile, symlink, realpath } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

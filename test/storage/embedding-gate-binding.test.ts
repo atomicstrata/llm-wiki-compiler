@@ -18,12 +18,13 @@
  * show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as storage from "../../src/utils/embeddings-storage.js";
 import { gateActiveStoreFrom, loadEmbeddingsForContext, loadEmbeddingsForSearch } from "../../src/utils/embeddings-load.js";
 import { resolveEmbeddingFingerprint, resolveEmbeddingModel } from "../../src/utils/embeddings-store.js";
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 /** A valid v3 store under `fingerprint` (the active one by default). */
 const v3 = (fingerprint = resolveEmbeddingFingerprint()) => ({
@@ -51,7 +52,7 @@ describe("the degrade-on-read gate over one stored read", () => {
     // A WELL-FORMED pageId (namespace/page) with a bad vector: a malformed id would be
     // dropped before validation, leaving an empty store that validates.
     const corrupt = { ...v3("x"), entries: [{ pageId: "concepts/alpha", vector: "not-a-vector" }] };
-    vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
+    stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
     expect((await gate(parsed(3, corrupt)))[1]).toEqual([{ code: "embedding-store-unavailable", message: "Embedding index failed integrity validation; rebuilt on next compile." }]);
   });
 
@@ -59,7 +60,7 @@ describe("the degrade-on-read gate over one stored read", () => {
     const other = [{ code: "embedding-index-outdated", message: "Embedding index was built with a different embedding configuration; rebuild with 'llmwiki compile'." }];
     expect((await gate(parsed(3, v3("sha256:other"))))[1]).toEqual(other);
     const store = v3();
-    vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
+    stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "not-a-provider");
     expect(resolveEmbeddingFingerprint).toThrow();
     expect((await gate(parsed(3, store)))[1]).toEqual(other);
   });

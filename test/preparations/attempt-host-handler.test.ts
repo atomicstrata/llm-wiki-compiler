@@ -8,7 +8,7 @@
  * descriptor, or when the resolved descriptor does not bind the ref.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { hostHandlerLegRunner, type HostHandlerLegInputV1 } from "../../src/preparations/attempts/host-handler.js";

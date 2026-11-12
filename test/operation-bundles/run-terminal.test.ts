@@ -4,7 +4,7 @@
  * manifest-identity regressions for operation-run semantic validation.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compensationId, mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";
 import { appendOperationTransition, signOperationRun } from "../../src/operation-bundles/run-integrity.js";
 import { parseOperationRun } from "../../src/operation-bundles/run-parse.js";

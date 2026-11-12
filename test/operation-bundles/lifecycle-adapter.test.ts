@@ -8,7 +8,7 @@
 import { mkdtemp, rm, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { lifecycleAdapter } from "../../src/operation-bundles/adapters/lifecycle.js";
 import { appendBoundEventLocked } from "../../src/events/store.js";
 import { writeProfileFile } from "../fixtures/profile-fixtures.js";

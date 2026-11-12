@@ -8,7 +8,7 @@
  * relation id is a 26-char ULID-bearing `rel_` handle.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import type { EntityId } from "../src/profile/types.js";
 import { relationContentHash, canonicalEndpoints } from "../src/relations/digest.js";
 import { ulid, mintRelationId } from "../src/relations/ulid.js";

@@ -16,7 +16,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";
 import { applyApprovedMutationsLocked, type ApplyOptions, type WriteOne } from "../../src/trust/executor.js";
 import type { PlannedMutation } from "../../src/trust/planner.js";

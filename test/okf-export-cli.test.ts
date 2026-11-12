@@ -5,7 +5,7 @@
  * directory is created with the expected structure (index.md + per-page docs).
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdtemp, mkdir, writeFile, access } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

@@ -7,7 +7,7 @@
  * the stub/seed boilerplate lives in one place.
  */
 
-import { vi, afterEach } from "vitest";
+import { vi, afterEach } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
 

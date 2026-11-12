@@ -33,7 +33,7 @@
  */
 
 import { readFile, realpath, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { formatArtifactRef } from "../../src/artifacts/ref.js";
 import { preparationKeyFile, preparationPaths } from "../../src/preparations/paths.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";

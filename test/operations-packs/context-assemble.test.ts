@@ -6,7 +6,7 @@
  * with a counted completeness deficit (a declared deficit, not a silent drop).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { assembleContext } from "../../src/operations-packs/handlers/context-assemble.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import type { ContextPhaseBodyV2 } from "../../src/operations-packs/recipe-types.js";

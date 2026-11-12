@@ -20,7 +20,7 @@
 
 import { chmod, link, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as confinedRead from "../../src/utils/confined-read.js";
 import type { CappedLeafRead } from "../../src/utils/confined-read.js";
 import { MAX_RUN_BYTES } from "../../src/operation-bundles/constants.js";

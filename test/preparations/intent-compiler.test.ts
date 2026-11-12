@@ -11,7 +11,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   DEFERRED_PROPOSAL_CODE, IntentCompilerError, createOperationIntentCompilerV1,
   type HostMutationTargetV1, type IntentCompilationRequestV1,

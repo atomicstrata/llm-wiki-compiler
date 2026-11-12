@@ -7,14 +7,14 @@
  * embedding path.
  */
 
-import { spawnSync } from "node:child_process";
 import { access, chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { installFakeCodex, type FakeCodex } from "./fixtures/fake-codex.js";
 import { CLI, expectCLIFailure, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
+import { spawnCaptured } from "./fixtures/spawn-captured.js";
 import { EMBEDDINGS_FILE, PENDING_EMBEDDINGS_FILE } from "../src/utils/constants.js";
 
 const aimock = useAimockLifecycle("codex-agent-cli");
@@ -28,7 +28,7 @@ async function copyNodeRuntime(runtime: string): Promise<string> {
   await copyFile(process.execPath, copiedNode);
   await chmod(copiedNode, 0o755);
   if (process.platform !== "darwin") return copiedNode;
-  const linked = spawnSync("/usr/bin/otool", ["-L", process.execPath], { encoding: "utf8" });
+  const linked = await spawnCaptured("/usr/bin/otool", ["-L", process.execPath]);
   const libraries = [...linked.stdout.matchAll(/\t@rpath\/([^ ]+)/g)].map((match) => match[1]);
   for (const library of libraries) {
     const source = path.resolve(path.dirname(process.execPath), "../lib", library);
@@ -155,7 +155,7 @@ describe("codex-agent through the real llmwiki CLI", () => {
     expect(result.stderr).not.toContain("ANTHROPIC_API_KEY");
   });
 
-  it.runIf(process.platform !== "win32")(
+  it.if(process.platform !== "win32")(
     "never executes a Codex binary beside Node when the caller PATH excludes it",
     async () => {
       const cwd = await aimock.makeWorkspace("# Source\n\nCodex is excluded from PATH.\n");
@@ -167,10 +167,9 @@ describe("codex-agent through the real llmwiki CLI", () => {
       const copiedNode = await copyNodeRuntime(runtime);
       const marker = path.join(root, "sibling-ran");
       await writeFile(path.join(runtime, "codex"), `#!/bin/sh\nprintf ran > '${marker}'\nexit 9\n`, { mode: 0o755 });
-      const result = spawnSync(copiedNode, [CLI, "compile", "--provider", "codex-agent"], {
+      const result = await spawnCaptured(copiedNode, [CLI, "compile", "--provider", "codex-agent"], {
         cwd,
         env: { PATH: emptyPath, LLMWIKI_EMBEDDING_PROVIDER: "ollama" },
-        encoding: "utf8",
       });
       expect(result.status).not.toBe(0);
       await expect(access(marker)).rejects.toThrow();

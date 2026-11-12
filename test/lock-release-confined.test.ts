@@ -15,7 +15,7 @@
  * always agree on the path.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, symlink, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { planRecoveryBundleLocked, settleOriginalFromRecoveryLocked, type RecoverySettlementRequest } from "../../src/operation-bundles/recovery-plan.js";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { approveRequest, buildRuntime, OPERATOR_PRINCIPAL, parkedSourceBundle, sourceRecoveryPlanner, WORKSPACE, type StagedBundle } from "./executor-fixtures.js";

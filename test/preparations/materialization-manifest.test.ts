@@ -5,7 +5,7 @@
  * used, and zero/one/multiple manifests classify without ever picking one.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MATERIALIZATION_MANIFEST_KIND, MaterializationCaptureError,
   captureMaterializationResult, classifyMaterializationManifests,

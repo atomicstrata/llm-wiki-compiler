@@ -12,7 +12,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { mkdtemp } from "node:fs/promises";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { scanOperationOrphans } from "../../src/operation-bundles/orphan-scan.js";
 
 let root: string;

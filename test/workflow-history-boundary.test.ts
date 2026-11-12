@@ -3,7 +3,7 @@
  * @description Keeps authenticated passive history independent of the local
  * execution engine, with stable compatibility exports and non-creating reads.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { existsSync } from "node:fs";
 import { readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";

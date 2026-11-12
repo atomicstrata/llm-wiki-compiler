@@ -19,7 +19,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";
 import { definePageAdapter, pageAdapter, type PageAdapterStores } from "../../src/operation-bundles/adapters/page.js";
 import * as shared from "../../src/operation-bundles/adapters/shared.js";

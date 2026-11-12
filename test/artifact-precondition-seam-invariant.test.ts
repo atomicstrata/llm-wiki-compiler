@@ -7,7 +7,7 @@
  * check), it re-introduces the drift this slice closed and this test fails. A real
  * runtime scan of the `src/` tree — a call `name(` is matched, not an import or `{@link}`.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

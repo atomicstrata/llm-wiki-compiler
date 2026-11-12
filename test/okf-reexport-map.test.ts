@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mapPageToOkfFrontmatter } from "../src/export/okf/mapping.js";
 import type { ExportPage } from "../src/export/types.js";
 

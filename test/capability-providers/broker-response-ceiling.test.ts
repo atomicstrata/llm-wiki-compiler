@@ -5,7 +5,7 @@
  * protocol frame budget is refused with a typed bounds problem naming the
  * dimension, for HTTPS, model, and command visible output, and never inlined.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { enforceInlineResponseCeiling } from "../../src/capability-providers/brokers/dispatch-outcome.js";
 import { dispatchHostBrokerRequest } from "../../src/capability-providers/brokers/dispatch.js";
 import { MAX_PROTOCOL_FRAME_BYTES } from "../../src/capability-providers/constants.js";

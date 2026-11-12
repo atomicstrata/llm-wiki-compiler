@@ -19,7 +19,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import type { PreparationRunV1 } from "../../src/preparations/run-types.js";
 import { stagePreparationIn } from "../preparations/attempt-fixture.js";

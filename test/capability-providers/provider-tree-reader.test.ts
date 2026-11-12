@@ -5,7 +5,7 @@
  * regular file's bytes, and refuses when the recomputed expanded-tree digest,
  * byte count, entry count, or entrypoint disagrees with the pinned artifact.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readProviderTreeEntriesOnDisk } from "../../src/capability-providers/packages/archive-filesystem.js";
 import type { PlatformArtifactV1 } from "../../src/capability-providers/packages/protocol.js";
 import { useTreeFixtures } from "./provider-tree-fixture.js";

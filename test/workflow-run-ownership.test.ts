@@ -12,7 +12,7 @@
  * Caller identity is `LLMWIKI_ACTOR` (advisory), driven here per-test.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { plantSignedRun } from "./fixtures/run-integrity.js";

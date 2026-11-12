@@ -8,7 +8,7 @@
  * "throw"` keeps the strict rejection.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useAlphaPageFixture, mockEmbeddingFailure } from "./fixtures/alpha-page.js";
 import { pickSearchRefs } from "../src/search/retrieval.js";
 

@@ -8,7 +8,7 @@
  * sources. Each spy resolves without calling through, so neither path reaches
  * the other and no call is counted twice.
  */
-import { afterEach, beforeEach, expect, vi } from "vitest";
+import { afterEach, beforeEach, expect, vi } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { useTempRoot } from "./temp-root.js";

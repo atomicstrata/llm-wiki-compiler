@@ -22,7 +22,7 @@
 
 import { gateDecision } from "./lifecycle-fixture.js";
 import { pruneUnitIdFor } from "../../src/preparations/prune-delete.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { SweepPreparationInput } from "../../src/preparations/retention.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { quarantinePreparationRunLocked } from "../../src/preparations/quarantine.js";

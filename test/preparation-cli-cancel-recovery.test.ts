@@ -16,7 +16,7 @@
  * than the one that made it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";
 import { CLI, expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 import {
@@ -137,7 +137,7 @@ describe("the built binary really is what these tests ran", () => {
     // ANTI-VACUITY for the whole file: every case above asserts on a subprocess,
     // and a missing binary would fail them all with the same shape as a genuine
     // regression. This says which it was.
-    const { access } = await import("node:fs/promises");
-    await expect(access(CLI)).resolves.toBeUndefined();
+    const { stat } = await import("node:fs/promises");
+    expect((await stat(CLI)).isFile()).toBe(true);
   });
 });

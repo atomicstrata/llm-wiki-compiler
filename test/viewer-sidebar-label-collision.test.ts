@@ -11,7 +11,7 @@
  * reader's own data, and renaming it would misreport their profile.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { flushMicrotasks, jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 /** Entity types that collide with the viewer's own fixed rows, as autosci's do. */

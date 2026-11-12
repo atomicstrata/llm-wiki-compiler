@@ -12,7 +12,7 @@
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { lint, lintByTier } from "../src/linter/index.js";
 import { formatArtifactRef } from "../src/artifacts/ref.js";
 import { profileRuleTiers } from "../src/profile/lint-registry.js";

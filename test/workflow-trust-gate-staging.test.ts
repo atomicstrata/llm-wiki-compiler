@@ -12,7 +12,7 @@
  * NOT complete the stage).
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { stat } from "node:fs/promises";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import {

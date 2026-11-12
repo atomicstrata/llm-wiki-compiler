@@ -12,6 +12,7 @@
  */
 
 import { lstat, mkdir, realpath } from "node:fs/promises";
+import { portableRealpath } from "../../utils/portable-realpath.js";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { canonicalDigest } from "../../profile/templates/signing/canonical.js";
@@ -134,7 +135,8 @@ async function finishChildCapture(
   code: "private-root-unavailable" | "registry-unavailable",
 ): Promise<PresentLifecycleDirectoryV1> {
   try {
-    const realPath = await realpath(lexicalPath);
+    // Portable: an unreadable registry must still bind, so its fault is attributed to it.
+    const realPath = await portableRealpath(lexicalPath);
     const after = await lstat(lexicalPath);
     if (realPath !== lexicalPath || after.isSymbolicLink() || !after.isDirectory() ||
         after.dev !== dev || after.ino !== ino) {

@@ -16,7 +16,7 @@
  * fails closed rather than escaping root.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFile, readFile, mkdir, symlink, rm, mkdtemp } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

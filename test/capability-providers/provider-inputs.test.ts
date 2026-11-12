@@ -8,7 +8,7 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { providerExposureDigest } from "../../src/capability-providers/authority/exposure.js";
 import {
   materializeProviderInputs, type ProviderInputSpecV1,

@@ -8,7 +8,7 @@
  * and distinct, so two attempts can never race the same effect identity.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { deriveAttemptId, deriveBrokerRequestId } from "../../src/preparations/ids.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { attemptRequest, stagePreparation, type StagedPreparation } from "./attempt-fixture.js";

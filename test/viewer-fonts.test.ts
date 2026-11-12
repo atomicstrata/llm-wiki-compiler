@@ -7,7 +7,7 @@
  * allowlist did not admit arbitrary binary extensions.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import { useViewerProcessLifecycle } from "./fixtures/run-cli-server.js";
 

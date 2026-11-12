@@ -5,7 +5,7 @@
  * bytes and every ordinary lifecycle surface treats the result as terminal.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../src/workflows/runtime.js";
 import { useTempRoot } from "./fixtures/temp-root.js";

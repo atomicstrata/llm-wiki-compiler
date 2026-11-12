@@ -12,7 +12,7 @@
  * - reviewShowCommand prints nothing extra when no violations
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeCandidate, readCandidate } from "../src/compiler/candidates.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { captureShowOutput } from "./fixtures/review-show-helpers.js";

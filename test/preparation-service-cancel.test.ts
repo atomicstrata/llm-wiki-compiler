@@ -18,7 +18,7 @@
  */
 
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";
 import { preparationKeyFile, preparationPaths } from "../src/preparations/paths.js";
 import type { CancelResultV1 } from "../src/preparations/service.js";

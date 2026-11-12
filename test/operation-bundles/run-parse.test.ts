@@ -5,7 +5,7 @@
  */
 
 import { access } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_RUN_BYTES, MAX_RUN_EVIDENCE_BLOB_BYTES, MAX_RUN_TRANSITIONS } from "../../src/operation-bundles/constants.js";
 import { writeRunEvidenceCreateOnly } from "../../src/operation-bundles/evidence-store.js";
 import { mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";

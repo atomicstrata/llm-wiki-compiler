@@ -1,9 +1,9 @@
 // test/okf-sdk.test.ts
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { listCandidates } from "../src/compiler/candidates.js";
 
 let dir: string;

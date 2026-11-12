@@ -4,7 +4,7 @@
  * headroom tests for operation-run staging and runtime replacement.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_RUN_BYTES,
   MAX_RUN_TRANSITIONS,

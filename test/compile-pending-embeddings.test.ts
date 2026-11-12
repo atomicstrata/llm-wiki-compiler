@@ -17,7 +17,7 @@
  * RESOLVES.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { existsSync } from "fs";
 import { readFile } from "fs/promises";
 import path from "path";

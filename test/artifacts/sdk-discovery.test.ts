@@ -3,7 +3,7 @@
  * but missing or tampered material never becomes authoritative absence or a
  * verified result. Reads require no write grant and do not execute selectors.
  */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { rm, writeFile, readFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { createWiki, type ArtifactSelectorV1 } from "../../src/index.js";

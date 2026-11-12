@@ -10,7 +10,7 @@
  * binary is exercised — not just the in-process unit.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";

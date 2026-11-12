@@ -11,7 +11,7 @@
  *    untouched (no live typed page, no relation). Approving one staged candidate
  *    through the promote seam then lands it at `wiki/<entityType>/<slug>.md`.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtemp, rm, readFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

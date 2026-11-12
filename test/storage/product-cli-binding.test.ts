@@ -20,7 +20,7 @@
  * themselves; their suites and `product-command-reporting.test.ts` show those.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as paths from "../../src/capability-providers/packages/paths.js";
 import { CLI_ACTIVATION_PRINCIPAL } from "../../src/commands/product/host.js";
 import { productInitCommand, productInitCommandWith, productInitStepsOver, type ProductInitSteps } from "../../src/commands/product/init.js";

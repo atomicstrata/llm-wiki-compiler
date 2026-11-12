@@ -9,7 +9,7 @@
 
 import { chmod, link, lstat, readdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { preparationPaths, preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";
 import { scanPreparationInventory } from "../../src/preparations/capacity.js";

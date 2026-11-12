@@ -6,7 +6,7 @@
  * rejected, and handoff/supersession coupling is enforced exactly.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { signPreparationRun } from "../../src/preparations/run-integrity.js";

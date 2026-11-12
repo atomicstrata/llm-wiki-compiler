@@ -10,7 +10,7 @@
  * that some relation exists.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { readOperationKey } from "../../src/operation-bundles/key-epoch.js";
 import { operationManifestDigest } from "../../src/operation-bundles/manifest-parse.js";

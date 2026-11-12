@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { link, mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";
 import {

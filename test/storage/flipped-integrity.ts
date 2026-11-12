@@ -22,7 +22,7 @@
  * not a general test framework: it holds this one function and nothing else.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 
 /**
  * `runText` with the last hex digit of its `integrity` value flipped.

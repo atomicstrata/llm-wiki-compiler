@@ -12,7 +12,8 @@
  *  - a prominent (non-dim) drop warning is emitted.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "bun:test";
+import { mocked } from "./mocked.js";
 import { writeFile, symlink, readFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
@@ -37,7 +38,7 @@ async function plantEscapingConcept(root: string, slug: string): Promise<void> {
 
 /** The single captured `system` prompt the stubbed provider last received. */
 function lastSystemPrompt(): string {
-  return vi.mocked(callClaude).mock.calls.at(-1)?.[0].system ?? "";
+  return mocked(callClaude).mock.calls.at(-1)?.[0].system ?? "";
 }
 
 function renderableConcept(slug: string) {
@@ -51,8 +52,8 @@ function renderableConcept(slug: string) {
 
 describe("page-renderer generation egress is confined", () => {
   beforeEach(() => {
-    vi.mocked(callClaude).mockReset();
-    vi.mocked(callClaude).mockResolvedValue("Generated body.");
+    mocked(callClaude).mockReset();
+    mocked(callClaude).mockResolvedValue("Generated body.");
   });
 
   it("omits a symlinked EXISTING page's bytes from the generation prompt + warns", async () => {

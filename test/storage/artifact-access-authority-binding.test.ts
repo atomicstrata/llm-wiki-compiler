@@ -19,7 +19,7 @@
  * artifact resolver, viewer access and product binding suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { formatArtifactRef } from "../../src/artifacts/ref.js";
 import * as resolve from "../../src/artifacts/resolve.js";
 import type { VerifiedArtifactRead } from "../../src/artifacts/resolve.js";

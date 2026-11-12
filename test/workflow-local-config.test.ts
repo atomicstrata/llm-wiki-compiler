@@ -9,7 +9,7 @@
  * to `read-only` and never returns out-of-tree bytes.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadLocalGrant, localEnablesHumanGate } from "../src/workflows/local-config.js";

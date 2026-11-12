@@ -24,7 +24,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import {
   ingestSource, ingestSourceWith, ingestTextSource, ingestTextSourceWith, type IngestProjectSteps,
 } from "../../src/commands/ingest.js";

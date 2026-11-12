@@ -6,7 +6,8 @@ import { createServer, type Server } from "node:http";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, mock } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { ConverseProvider } from "../src/providers/converse.js";
@@ -28,8 +29,8 @@ beforeEach(async () => {
   requestCount = 0;
   contentType = "application/json";
   directory = await mkdtemp(path.join(tmpdir(), "usage-receipts-"));
-  vi.stubEnv("LLMWIKI_USAGE_DIRECTORY", directory);
-  vi.stubEnv("LLMWIKI_USAGE_EXECUTION_ID", "execution-1");
+  stubEnv("LLMWIKI_USAGE_DIRECTORY", directory);
+  stubEnv("LLMWIKI_USAGE_EXECUTION_ID", "execution-1");
   server = createServer(async (request, response) => {
     requestCount += 1;
     for await (const _chunk of request) { /* Drain the request. */ }
@@ -42,8 +43,8 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
+  restoreEnv();
+  restoreGlobals();
   await closeLoopback(server);
   await rm(directory, { recursive: true, force: true });
 });
@@ -157,26 +158,26 @@ it.each([true, false])("retains Anthropic stream usage (failed=%s)", async (fail
 });
 
 it("does not record usage unless the host opts in", async () => {
-  vi.stubEnv("LLMWIKI_USAGE_DIRECTORY", undefined);
+  stubEnv("LLMWIKI_USAGE_DIRECTORY", undefined);
   payload = { model: "model", choices: [{ message: { content: "text" } }] };
   expect(await new OpenAIProvider("model", { baseURL, apiKey: "secret" }).complete("prompt", [], 100)).toBe("text");
   expect(await receipts()).toEqual([]);
 });
 
 it("rejects missing execution identity before constructing a usable provider", () => {
-  vi.stubEnv("LLMWIKI_USAGE_EXECUTION_ID", undefined);
+  stubEnv("LLMWIKI_USAGE_EXECUTION_ID", undefined);
   expect(() => new OpenAIProvider("model", { baseURL, apiKey: "secret" })).toThrow("execution id");
 });
 
 it("does not retry model work when receipt storage fails", async () => {
   payload = { model: "model", choices: [{ message: { content: "text" } }] };
-  vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_MODEL", "model");
-  vi.stubEnv("OPENAI_API_KEY", "secret");
-  vi.stubEnv("OPENAI_BASE_URL", baseURL);
+  stubEnv("LLMWIKI_PROVIDER", "openai");
+  stubEnv("LLMWIKI_MODEL", "model");
+  stubEnv("OPENAI_API_KEY", "secret");
+  stubEnv("OPENAI_BASE_URL", baseURL);
   const file = path.join(directory, "file");
   await writeFile(file, "not a directory");
-  vi.stubEnv("LLMWIKI_USAGE_DIRECTORY", file);
+  stubEnv("LLMWIKI_USAGE_DIRECTORY", file);
   await expect(callClaude({ system: "prompt", messages: [], maxTokens: 100 })).rejects.toMatchObject({ nonRetryable: true });
   expect(requestCount).toBe(1);
 });
@@ -222,8 +223,8 @@ it("retains one incomplete Converse receipt when iteration fails after usage", a
 });
 
 it("records Voyage embedding tokens before validating vectors", async () => {
-  vi.stubEnv("VOYAGE_API_KEY", "secret");
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+  stubEnv("VOYAGE_API_KEY", "secret");
+  stubGlobal("fetch", mock().mockResolvedValue(new Response(JSON.stringify({
     data: [], usage: { total_tokens: 42 }, model: "voyage-model",
   }))));
   await expect(voyageEmbed("private source", "voyage-model")).rejects.toThrow();

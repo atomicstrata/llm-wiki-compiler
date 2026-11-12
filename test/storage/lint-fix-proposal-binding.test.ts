@@ -32,7 +32,7 @@
 
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { lintFixProposeCommand } from "../../src/commands/lint-fix-propose.js";
 import { listCandidates } from "../../src/compiler/candidates.js";
 import { sha256Text } from "../../src/connectors/hash.js";

@@ -5,7 +5,7 @@
  * a missing core verifier receipt.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { runCLI } from "./fixtures/run-cli.js";
 import { advanceWorkflow } from "../src/workflows/advance.js";

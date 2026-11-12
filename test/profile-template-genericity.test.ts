@@ -4,7 +4,7 @@
  */
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { DEFAULT_PROFILE } from "../src/profile/default.js";
 import { profileDigest } from "../src/profile/digest.js";
 import { loadProfile } from "../src/profile/load.js";

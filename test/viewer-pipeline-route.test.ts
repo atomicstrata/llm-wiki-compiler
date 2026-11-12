@@ -14,7 +14,7 @@
  * not a claim that missing-state records were included or work was executed.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { envelopeBootstrapResponse, mountViewerDom } from "./fixtures/viewer-jsdom.js";
 
 /** Articles: ordered chain, a declared terminal, and a state nothing can reach. */

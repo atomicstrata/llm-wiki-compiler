@@ -17,7 +17,7 @@
  * test/freshness-lint-next-e2e.test.ts where in-process seeding feeds CLI assertions.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

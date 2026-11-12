@@ -5,7 +5,7 @@
  * optional workflow-parent and supersession-shape edges.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   parsePreparationPlan, preparationPlanDigest, verifyPreparationPlanDigest,
 } from "../../src/preparations/plan-parse.js";

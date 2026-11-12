@@ -5,7 +5,7 @@
  * a phase instance is ready only when every condition holds.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { PhaseInstanceId } from "../../src/preparations/ids.js";
 import {
   isPhaseInstanceReady, orderReadyInstances, type PhaseReadinessSignals,

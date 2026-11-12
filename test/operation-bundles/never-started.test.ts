@@ -1,6 +1,6 @@
 /** @file Conservative predicate witnesses using synthetic inputs, not a claim
  * that partial or future histories are currently reachable authenticated runs. */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { operationNeverStarted } from "../../src/operation-bundles/never-started.js";
 import type { OperationRun } from "../../src/operation-bundles/run-types.js";
 

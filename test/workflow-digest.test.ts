@@ -10,7 +10,7 @@
  * profile section leaves a workflow's digest stable.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { workflowDefDigest } from "../src/profile/workflow-digest.js";
 import type { WorkflowDef } from "../src/profile/types.js";
 

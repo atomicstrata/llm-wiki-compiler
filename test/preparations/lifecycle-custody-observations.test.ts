@@ -36,30 +36,32 @@
  */
 
 import { gateDecision } from "./lifecycle-fixture.js";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const observed = vi.hoisted(() => ({ captures: 0, bindings: [] as string[], registryWalks: 0 }));
+const observed = { captures: 0, bindings: [] as string[], registryWalks: 0 };
 
 type OrphanScanModule = typeof import("../../src/preparations/orphan-scan.js");
+
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realLifecycleRead = { ...(await import("../../src/preparations/lifecycle-snapshot/read.js")) };
+const realNamespace = { ...(await import("../../src/preparations/lifecycle-fs/namespace.js")) };
+const realPreparationsOrphanScan = { ...(await import("../../src/preparations/orphan-scan.js")) };
 
 // The registry-walking scanner, counted directly. The namespace-binding counter
 // above never saw this: the orphan scan walks paths without binding the
 // namespace, so a full re-enumeration of the lifecycle registry cost ZERO on that
 // meter. External review found the re-walk by reading the code, which is the
 // tell that the meter was pointed at the wrong thing.
-vi.mock("../../src/preparations/orphan-scan.js", async () => {
-  const actual = await vi.importActual<OrphanScanModule>("../../src/preparations/orphan-scan.js");
+vi.mock("../../src/preparations/orphan-scan.js", () => {
+  const actual = realPreparationsOrphanScan;
   return {
     ...actual,
-    scanPreparationOrphans: async (...args: Parameters<OrphanScanModule["scanPreparationOrphans"]>) => {
-      observed.registryWalks += 1;
-      return actual.scanPreparationOrphans(...args);
-    },
-    // THE BOUND BODY WALKS THE SAME REGISTRY. An importer that reached it instead
-    // of the root form would re-walk unseen unless it is metered too. The root
-    // form calls it from INSIDE the module, which this wrapper does not see, so
-    // one call through either imported name counts once.
+    // THE ROOT FORM DELEGATES TO THIS BOUND BODY, and Bun's module mock rebinds
+    // the module's own reference to it, so metering this one name counts a walk
+    // through either imported entry point exactly once. Metering the root form
+    // too would count its single walk twice; the positive control below proves
+    // both names still move the meter.
     scanPreparationOrphansFrom: async (...args: Parameters<OrphanScanModule["scanPreparationOrphansFrom"]>) => {
       observed.registryWalks += 1;
       return actual.scanPreparationOrphansFrom(...args);
@@ -74,10 +76,8 @@ type ReadModule = typeof import("../../src/preparations/lifecycle-snapshot/read.
 // DRIVER's capture must be exactly one; total namespace bindings are what the
 // operation costs overall, and the gap between them is the recorded
 // multi-observation debt that 9E owns.
-vi.mock("../../src/preparations/lifecycle-snapshot/read.js", async () => {
-  const actual = await vi.importActual<ReadModule>(
-    "../../src/preparations/lifecycle-snapshot/read.js",
-  );
+vi.mock("../../src/preparations/lifecycle-snapshot/read.js", () => {
+  const actual = realLifecycleRead;
   return {
     ...actual,
     withPreparationLifecycleRead: async (
@@ -89,10 +89,8 @@ vi.mock("../../src/preparations/lifecycle-snapshot/read.js", async () => {
   };
 });
 
-vi.mock("../../src/preparations/lifecycle-fs/namespace.js", async () => {
-  const actual = await vi.importActual<NamespaceModule>(
-    "../../src/preparations/lifecycle-fs/namespace.js",
-  );
+vi.mock("../../src/preparations/lifecycle-fs/namespace.js", () => {
+  const actual = realNamespace;
   return {
     ...actual,
     // The real opener still runs, so every downstream revalidation and brand

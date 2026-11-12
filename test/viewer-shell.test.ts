@@ -8,7 +8,7 @@
  * and the page-rendered HTML coming back from `/api/page/...`.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import {
   flushMicrotasks,
   jsonResponse,

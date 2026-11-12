@@ -19,7 +19,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as keyObservation from "../../src/preparations/lifecycle-fs/key-observation.js";
 import * as leafObservation from "../../src/preparations/lifecycle-fs/leaf-observation.js";
 import * as observe from "../../src/preparations/lifecycle-fs/observe.js";

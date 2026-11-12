@@ -4,7 +4,7 @@
  * resolver, including stale accepted evidence and known revocation refusal.
  */
 import { rename } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { resolveProviderPin } from "../../src/capability-providers/packages/resolve.js";
 import { readProviderSourcesState, writeProviderSourcesState } from "../../src/capability-providers/packages/state-store.js";
 import { installResolutionFixture, removeResolutionFixture, type ResolutionFixture } from "./resolution-fixture.js";

@@ -10,7 +10,7 @@ import { builtinModules } from "node:module";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 
 const REPO = path.resolve(import.meta.dirname, "..", "..");
 const PACKAGES = ["llmwiki-dev-backend", "llmwiki-limited-isolation-backend"] as const;
@@ -33,8 +33,9 @@ describe("the packed private packages install into an EMPTY consumer and import 
     const out = await mkdtemp(path.join(tmpdir(), "private-pack-out-")); dirs.push(out);
     const consumer = await mkdtemp(path.join(tmpdir(), "private-pack-consumer-")); dirs.push(consumer);
     const packInto = (dir: string): string => {
-      // Global setup already built the compiler packages. Re-running their
-      // prepack hooks here deletes shared chunks while CLI tests import them.
+      // `bun run build` has already built the compiler packages (test:pack and
+      // CI's package job run it first). Re-running their prepack hooks here
+      // would delete shared chunks while CLI tests import them.
       const compilerPackage = dir === REPO || ["llmwiki-core", "llmwiki-local-workflows"].includes(path.basename(dir));
       const flags = compilerPackage ? ["--ignore-scripts"] : [];
       const printed = execFileSync("npm", ["pack", "--silent", ...flags, "--pack-destination", out], { cwd: dir }).toString();

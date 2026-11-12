@@ -21,7 +21,8 @@
  * `connector-stage-draft-binding`) and the connector suites show those.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as audit from "../../src/connectors/audit.js";
 import { captureConnectorIdentity, preflightCandidateId } from "../../src/connectors/candidate-identity.js";
 import * as supersession from "../../src/connectors/candidate-supersession.js";
@@ -37,8 +38,8 @@ import * as profileBlock from "../../src/profile/block.js";
 import * as lock from "../../src/utils/lock.js";
 import { NEWSROOM_PROFILE } from "../fixtures/newsroom-profile.js";
 
-beforeEach(() => { vi.stubEnv("LLMWIKI_CONNECTORS", "fixture"); });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+beforeEach(() => { stubEnv("LLMWIKI_CONNECTORS", "fixture"); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 const ROOT = "/memory/project";
 const INPUTS = { id: "story-1" };
@@ -102,7 +103,7 @@ describe("the connector run as a root-free body", () => {
     expect(await run({}, "nope")).toMatchObject({ result: { kind: "refused", reason: "unknown connector" }, log: [] });
     expect(await run({ profile: null })).toMatchObject({ result: { kind: "refused", reason: "connectors require a non-default profile" }, log: ["profile"] });
     expect(await run({ config: { kind: "unavailable", reason: "config unreadable" } })).toMatchObject({ result: { kind: "unavailable", reason: "config unreadable" }, log: GATES.slice(0, 2) });
-    vi.stubEnv("LLMWIKI_CONNECTORS", "");
+    stubEnv("LLMWIKI_CONNECTORS", "");
     expect(await run()).toMatchObject({ result: { kind: "refused", reason: "connector is not activated" }, log: ["profile"] });
   });
 

@@ -7,7 +7,7 @@
  * rationale never enters the authority binding.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   SELECTION_BINDING_DIMENSIONS, SELECTION_BINDING_EXCLUSIONS, SelectionAuthorityError,

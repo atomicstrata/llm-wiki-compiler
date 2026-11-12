@@ -6,7 +6,7 @@
  * CopilotProvider.embedBatch not-supported override (Task 13).
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { voyageEmbed, voyageEmbedBatch } from "../src/providers/voyage-embed.js";
 import { CopilotProvider } from "../src/providers/copilot.js";

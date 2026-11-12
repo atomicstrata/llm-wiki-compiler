@@ -1,7 +1,7 @@
 /** Initial graph framing exercises the shipped D3 bundle and real SVG output. */
 import { readFile } from "node:fs/promises";
 import { JSDOM } from "jsdom";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 
 const windows: JSDOM[] = [];
 afterEach(() => { for (const dom of windows.splice(0)) dom.window.close(); });

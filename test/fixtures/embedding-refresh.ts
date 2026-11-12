@@ -5,19 +5,20 @@
  */
 import { writeFile } from "fs/promises";
 import path from "path";
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 
 /** Configure an isolated OpenAI embedding identity and restore the environment per test. */
 export function useEmbeddingRefreshEnvironment(): void {
   beforeEach(() => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
-    vi.stubEnv("LLMWIKI_EMBED_STRICT", "off");
-    vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
-    vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "test-embed");
-    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    stubEnv("LLMWIKI_EMBEDDINGS", "on");
+    stubEnv("LLMWIKI_EMBED_STRICT", "off");
+    stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
+    stubEnv("LLMWIKI_EMBEDDING_MODEL", "test-embed");
+    stubEnv("OPENAI_API_KEY", "test-key");
     vi.spyOn(console, "log").mockImplementation(() => {});
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => restoreEnv());
 }
 
 /** Seed or revise a real eligible page independently of its embedding cache. */

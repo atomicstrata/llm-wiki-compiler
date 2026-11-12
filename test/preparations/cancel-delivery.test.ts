@@ -12,7 +12,7 @@
  * backend.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { removePreparationCancelLocked, writePreparationCancelLockFree } from "../../src/preparations/cancellation.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";

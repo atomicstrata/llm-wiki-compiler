@@ -13,7 +13,7 @@
  * lock released, exactly as production does. Nothing here is planted.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { mintExternalEffectReceipt, type ExternalEffectReceiptV1 } from "../../src/capability-providers/brokers/receipts.js";
 import { authorGateProof } from "../../src/preparations/gates.js";
@@ -24,7 +24,7 @@ import {
 import { preparationRunPredecessor } from "../../src/preparations/run-integrity.js";
 import { appendPreparationTransitionLocked, appendProjectedTransitionLocked } from "../../src/preparations/run-store.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import type { RunPreparationInputV1 } from "../../src/preparations/runner.js";
 import {
   settleCancelledRunLocked, type CancelSettlementOutcomeV1,

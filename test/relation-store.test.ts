@@ -10,7 +10,7 @@
  * `wiki/graph`) reads empty.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, readFile, writeFile, appendFile, symlink, truncate } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

@@ -11,7 +11,7 @@
  * proving the refusal came from this predicate and nothing else.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompilePackActionRequestV1 } from "../../src/operations-packs/compiler-types.js";
 import type { PackPhaseV2, PackRecipeV2 } from "../../src/operations-packs/recipe-types.js";

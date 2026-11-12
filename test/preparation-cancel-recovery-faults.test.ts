@@ -23,7 +23,7 @@
  */
 
 import { chmod } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";
 import { preparationPaths } from "../src/preparations/paths.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";

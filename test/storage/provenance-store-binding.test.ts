@@ -35,7 +35,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import {
   executionProvenanceReadsOver, verifyExecutionProvenance, verifyExecutionProvenanceFrom,
   type ExecutionProvenanceVerdictV1,

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Copy latin-subset woff2 files out of the @fontsource packages into the
  * viewer's asset bundle.

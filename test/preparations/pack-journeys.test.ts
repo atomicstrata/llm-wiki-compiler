@@ -13,10 +13,10 @@
  * vocabulary, or completeness class — only the runner and the leg/input harness.
  */
 
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "bun:test";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import type { PreparationMaterializerV1 } from "../../src/preparations/runner.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";

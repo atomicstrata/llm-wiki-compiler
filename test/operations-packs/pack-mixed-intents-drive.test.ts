@@ -12,7 +12,7 @@
  * string constant each redden a distinct expectation.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { PackIntentDraftV1 } from "../../src/operations-packs/handlers/types.js";
 import {
   compileMixedBootstrapAction, driveStagedRun, readPhaseOutput, resultReason,

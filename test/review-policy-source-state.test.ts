@@ -16,7 +16,7 @@
  *   skipped while any sibling was still pending.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import path from "path";
 import os from "os";

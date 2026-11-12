@@ -4,13 +4,13 @@
  * stage records and nothing drawn from the corpus, prompts, answers, or paths;
  * with it unset, no log appears.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { mockClaudeEnv, useAimockLifecycle } from "./fixtures/aimock-helper.js";
-import { CLI, runCLI, expectCLIExit } from "./fixtures/run-cli.js";
+import { CLI, runCLI, expectCLIExit, CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const aimock = useAimockLifecycle("stage-timing");
 const SOURCE_TEXT = "Distinctive corpus sentence about Zyxwv lattices.";
@@ -57,7 +57,7 @@ describe("stage timing through the CLI", () => {
     for (const secret of [SOURCE_TEXT, "Zyxwv", "Canned", cwd, "mock-key-for-aimock"]) expect(log).not.toContain(secret);
   }, 60_000);
 
-  it.runIf(process.platform !== "win32")("finishes compile promptly when the log path is a FIFO nobody reads", async () => {
+  it.if(process.platform !== "win32")("finishes compile promptly when the log path is a FIFO nobody reads", async () => {
     const handle = await startMock();
     const cwd = await aimock.makeWorkspace(`# Source\n\n${SOURCE_TEXT}\n`);
     const fifo = path.join(cwd, "timing.fifo");
@@ -65,7 +65,7 @@ describe("stage timing through the CLI", () => {
     const env = { ...process.env, ...mockClaudeEnv(handle), LLMWIKI_STAGE_TIMING_FILE: fifo };
     // Before the fix the first stage's append blocked forever opening the FIFO,
     // holding the project lock; the bound turns that hang into a failure here.
-    const run = await execBounded(process.execPath, [CLI, "compile"], { cwd, env, timeout: HANG_BOUND_MS, killSignal: "SIGKILL" });
+    const run = await execBounded(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile"], { cwd, env, timeout: HANG_BOUND_MS, killSignal: "SIGKILL" });
     expect(run.stderr).not.toContain("Error");
     expect((await readdir(path.join(cwd, "wiki", "concepts"))).length).toBeGreaterThan(0);
   }, 60_000);

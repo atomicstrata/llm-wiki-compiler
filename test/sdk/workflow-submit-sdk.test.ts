@@ -9,7 +9,7 @@
  * `applied:true`. Also surfaces `awaitingOutput` via `workflowStatus`.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { useWorkflowRoot, startBuildRun } from "../fixtures/workflow-profile.js";
 import { TRUSTED_WRITE_ENV_VAR } from "../../src/workflows/trusted-write.js";
 

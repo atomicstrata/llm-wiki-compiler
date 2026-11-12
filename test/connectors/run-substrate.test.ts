@@ -4,7 +4,7 @@
  */
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { listCandidates } from "../../src/compiler/candidates.js";
 import { readConnectorBlock } from "../../src/connectors/fence.js";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";

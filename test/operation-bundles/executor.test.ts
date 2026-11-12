@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { MAX_RETAINED_SOURCE_BYTES } from "../../src/operation-bundles/constants.js";
 import { readDurableOperationLeafBuffer } from "../../src/operation-bundles/durable-leaf.js";

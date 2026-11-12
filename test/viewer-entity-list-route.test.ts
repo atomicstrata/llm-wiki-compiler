@@ -18,7 +18,7 @@
  * take.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { flushMicrotasks, mountViewerDom } from "./fixtures/viewer-jsdom.js";
 import {
   deferredVocabularyResponder,

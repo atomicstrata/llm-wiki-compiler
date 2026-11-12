@@ -29,7 +29,7 @@ import { LLMock } from "@copilotkit/aimock";
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import { tmpdir } from "os";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 
 /** Handle returned from {@link startMockClaude}. */
 export interface MockClaudeHandle {

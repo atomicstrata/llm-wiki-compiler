@@ -11,7 +11,7 @@
  * what the user actually observes after running `llmwiki ingest`.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { readdir, writeFile } from "fs/promises";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";

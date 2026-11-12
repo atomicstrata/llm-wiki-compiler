@@ -3,7 +3,7 @@
 import { readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { digestBytes } from "../../src/operation-bundles/adapters/shared.js";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { SAMPLE_PROFILE, writeProfileFile } from "../fixtures/profile-fixtures.js";
 import { loadProfile } from "../../src/profile/load.js";

@@ -9,7 +9,7 @@
  * and put links inside shell examples. Prose mentions must still be linked.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 import { resolveAndApplyLinks } from "../src/compiler/resolver.js";

@@ -18,7 +18,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { diskLocalEntityScans } from "../../src/storage/disk-local-reads.js";
 import type { EntityDirectoryOpen, LegacyLocalEntityScans } from "../../src/storage/legacy-local-reads.js";
 import { scanEntityDir, scanEntityDirFrom } from "../../src/wiki/collect.js";

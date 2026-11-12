@@ -8,7 +8,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   buildPreparationHandoffOrigin, parsePreparationHandoffOrigin,
   PREPARATION_HANDOFF_ORIGIN_KIND,

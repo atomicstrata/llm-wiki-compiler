@@ -9,7 +9,7 @@
  * tagged evidence, the `proposed` rule fields, and a stamped provenance.modelId.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { extractRuleCandidates } from "../src/compiler/rule-extractor.js";

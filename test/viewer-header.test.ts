@@ -14,7 +14,7 @@
  * something false.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 /** Lint cache shape the verdict reads; `null` means lint has never run. */

@@ -9,7 +9,7 @@
  * journey; the served bytes come from the confined, re-hashing verified-artifact reader.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { submitStageOutput, type StageOutput } from "../src/workflows/stage-output.js";

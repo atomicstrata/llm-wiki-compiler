@@ -7,7 +7,7 @@
  * and malformed-cache rejection so consumers never see partial counts.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";

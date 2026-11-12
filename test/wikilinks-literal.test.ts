@@ -8,7 +8,7 @@
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { wikilinksToOkf, okfLinksToWikilinks } from "../src/export/okf/mapping.js";
 import { lint } from "../src/linter/index.js";
 import { planLintFixes } from "../src/linter/fix-plan.js";

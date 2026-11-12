@@ -4,7 +4,7 @@
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { isConnectorActivated, loadConnectorConfig } from "../../src/connectors/config.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 

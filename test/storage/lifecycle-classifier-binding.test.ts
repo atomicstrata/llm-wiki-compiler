@@ -19,7 +19,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as leafObservation from "../../src/preparations/lifecycle-fs/leaf-observation.js";
 import { lifecycleScanBounds } from "../../src/preparations/lifecycle-fs/bounds.js";
 import { captureLifecycleKey, type CapturedLifecycleKey } from "../../src/preparations/lifecycle-fs/key-observation.js";

@@ -1,5 +1,5 @@
 /** Real source discovery controls for opt-in recursion and explicit deselection. */
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { mkdir, readFile, unlink, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { detectChanges, hashFile } from "../src/compiler/hasher.js";

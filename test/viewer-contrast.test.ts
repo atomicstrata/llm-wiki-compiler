@@ -35,7 +35,7 @@
  * near-invisible "disabled" treatment, pinned below like the other three.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 import { contrast } from "./fixtures/color-contrast.js";

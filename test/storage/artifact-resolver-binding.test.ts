@@ -28,7 +28,7 @@
  * `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildMemberManifest } from "../../src/artifacts/members.js";
 import type { ArtifactRef } from "../../src/artifacts/ref.js";
 import { readVerifiedArtifact, readVerifiedArtifactFrom, type ArtifactStoreReads } from "../../src/artifacts/resolve.js";

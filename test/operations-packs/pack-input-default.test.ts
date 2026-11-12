@@ -8,7 +8,7 @@
  * structural scalar reader alone would let through.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseOperationsPack } from "../../src/operations-packs/parse.js";
 import { PackParseError } from "../../src/operations-packs/problems.js";
 import { buildPack, serialize } from "./pack-fixture.js";
