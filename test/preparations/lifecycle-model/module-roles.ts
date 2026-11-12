@@ -182,6 +182,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/run-store-io.ts :: shared-primitive",
   "src/utils/runtime-capture.ts :: shared-primitive",
   "src/utils/scanned-leaf-bytes.ts :: shared-primitive",
+  "src/utils/shared-read-window.ts :: shared-primitive",
   "src/utils/stream-digest.ts :: shared-primitive",
   "src/utils/verified-bytes-memo.ts :: shared-primitive",
   "src/utils/well-formed-unicode.ts :: shared-primitive",

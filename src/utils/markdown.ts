@@ -97,6 +97,18 @@ export function buildFrontmatter(fields: Record<string, unknown>): string {
   return `---\n${dumped}\n---`;
 }
 
+const parsedContents = new WeakMap<{ content: string }, ReturnType<typeof parseFrontmatter>>();
+
+/** `parseFrontmatter(holder.content)`, parsed once per holder object: every walk handed the same page read or page record shares its parse. */
+export function frontmatterOf(holder: { content: string }): ReturnType<typeof parseFrontmatter> {
+  let parsed = parsedContents.get(holder);
+  if (!parsed) {
+    parsed = parseFrontmatter(holder.content);
+    parsedContents.set(holder, parsed);
+  }
+  return parsed;
+}
+
 /** Parse YAML frontmatter from a markdown string. Returns { meta, body }. */
 export function parseFrontmatter(content: string): {
   meta: Record<string, unknown>;

@@ -31,6 +31,18 @@ export async function safeRealpath(p: string, opts: StrictIoOptions = {}): Promi
   }
 }
 
+/** {@link safeRealpath} of `p`, looked up on the first call and kept for every later one, concurrent calls included. */
+export function realpathOnce(p: string): () => Promise<string | null> {
+  let lookup: Promise<string | null> | undefined;
+  return () => {
+    lookup ??= safeRealpath(p).then((real) => {
+      if (real === null) lookup = undefined;
+      return real;
+    });
+    return lookup;
+  };
+}
+
 /**
  * True when `child` equals `dir` or sits beneath it.
  *

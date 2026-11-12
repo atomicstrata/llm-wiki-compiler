@@ -176,7 +176,7 @@ export async function generateMocBounded(run: BatchRun): Promise<void> {
   const sorter = new ExternalSorter<MocEntryV1>(run, "mcs:", mocOrder);
   const next = { value: 0 };
   for await (const page of scanPages(run, "mc", CONCEPTS_DIR)) {
-    const info = mocPageInfo(page.slug, page.content);
+    const info = mocPageInfo(page.slug, page);
     if (info === null) continue;
     for (const tag of info.tags.length === 0 ? ["Uncategorized"] : info.tags) await sorter.add({ tag, at: await tagIndex(run, tag, next), slug: info.slug, title: info.title });
   }

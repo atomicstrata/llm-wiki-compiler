@@ -34,6 +34,7 @@ import {
   syncExistingCollision,
 } from "./atomic-write-no-replace-durable.js";
 import { prepareParent } from "./atomic-write-parent.js";
+import { forgetSharedRead } from "./shared-read-window.js";
 import { forgetLockHeldReads } from "./lock-held-reads.js";
 import type { DirectorySyncScope } from "./directory-sync-scope.js";
 
@@ -122,6 +123,11 @@ export class AtomicWritePostCommitError extends Error {
   }
 }
 
+function forgetReadsOf(filePath: string): void {
+  forgetSharedRead(filePath);
+  forgetLockHeldReads();
+}
+
 /** Snapshot mutable caller bytes before any filesystem await can yield control. */
 function snapshotContent(content: string | Uint8Array): string | Buffer {
   return typeof content === "string" ? content : Buffer.from(content);
@@ -162,7 +168,7 @@ export async function atomicWriteStreamed(filePath: string, content: TempContent
     const { binding } = await prepareParent(filePath, o);
     await writeViaTemp(filePath, content, o.durable === true, o.strictDurability === true, o.mode, binding, o);
   } finally {
-    forgetLockHeldReads();
+    forgetReadsOf(filePath);
   }
 }
 
@@ -178,7 +184,7 @@ export async function atomicWriteNoReplace(
     const { binding } = await prepareParent(filePath, opts);
     await writeViaTempNoReplace(filePath, preparedContent, opts, binding);
   } finally {
-    forgetLockHeldReads();
+    forgetReadsOf(filePath);
   }
 }
 
@@ -203,7 +209,7 @@ export async function atomicWriteNoReplaceDurable(
     }, binding) ??
       await writeViaTempNoReplaceDurable(filePath, preparedContent, opts, binding);
   } catch (error) {
-    forgetLockHeldReads();
+    forgetReadsOf(filePath);
     if (!(error instanceof AtomicWriteCollisionError)) throw error;
     await syncExistingCollision(filePath, preparedContent, opts?.mode, binding, opts?.beforeExistingFileSyncForTest);
     await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope, false);
@@ -214,7 +220,7 @@ export async function atomicWriteNoReplaceDurable(
     await fsyncDirectoryChain(dir, binding, opts?.beforeDirectorySyncForTest, scope, false);
     await assertSettledDestination(filePath, published.handle, binding);
   } finally {
-    forgetLockHeldReads();
+    forgetReadsOf(filePath);
     await published.handle.close().catch(() => {});
   }
 }
@@ -275,7 +281,7 @@ export async function atomicStreamCreateOnlyDurable(
     await assertSettledDestination(filePath, bound.handle, binding);
     return { filename, byteCount };
   } finally {
-    forgetLockHeldReads();
+    forgetReadsOf(filePath);
     await bound.handle.close().catch(() => {});
   }
 }

@@ -134,15 +134,51 @@ export async function requestedPagesExistenceFrom(
   profile: LoadedProfile,
   requested: PageId[],
 ): Promise<Map<PageId, PageExistence>> {
+  const located = requested.map((pageId) => ({ pageId, file: pageFileFor(pageId, profile) }));
+  const listed = await listingsOfCrowdedDirectories(reads, located.flatMap(({ file }) => (file ? [file.directory] : [])));
   const out = new Map<PageId, PageExistence>();
-  for (const pageId of requested) {
-    const parsed = parseQualifiedPageId(pageId);
-    const directory = parsed === null ? null : pageDirectoryFor(parsed.namespace, profile);
-    if (parsed === null || directory === null) { out.set(pageId, "absent"); continue; }
+  for (const { pageId, file } of located) {
+    if (file === null || listed.get(file.directory)?.(file.name)) { out.set(pageId, "absent"); continue; }
     // The locator is POSIX project-relative, matching the declared-directory convention (see `isRegularFile`).
-    out.set(pageId, await fileExistence(reads, path.posix.join(directory, `${parsed.pagePart}.md`)));
+    out.set(pageId, await fileExistence(reads, path.posix.join(file.directory, file.name)));
   }
   return out;
+}
+
+function pageFileFor(pageId: PageId, profile: LoadedProfile): { directory: string; name: string } | null {
+  const parsed = parseQualifiedPageId(pageId);
+  const directory = parsed === null ? null : pageDirectoryFor(parsed.namespace, profile);
+  return parsed === null || directory === null ? null : { directory, name: `${parsed.pagePart}.md` };
+}
+
+const LISTING_MIN_REQUESTS = 8;
+
+type ProvesAbsent = (name: string) => boolean;
+
+async function listingsOfCrowdedDirectories(reads: EmbeddingPageReads, directories: string[]): Promise<Map<string, ProvesAbsent>> {
+  const counts = new Map<string, number>();
+  for (const directory of directories) counts.set(directory, (counts.get(directory) ?? 0) + 1);
+  const out = new Map<string, ProvesAbsent>();
+  for (const [directory, count] of counts) {
+    if (count < LISTING_MIN_REQUESTS) continue;
+    const provesAbsent = await absenceFromListing(reads, directory);
+    if (provesAbsent) out.set(directory, provesAbsent);
+  }
+  return out;
+}
+
+const LISTING_COMPARABLE_NAME = /^[\x20-\x7d]*$/;
+
+async function absenceFromListing(reads: EmbeddingPageReads, directory: string): Promise<ProvesAbsent | null> {
+  let names: string[];
+  try {
+    names = await reads.listRelativeNames(directory);
+  } catch (error) {
+    return ABSENT_CODES.has(String((error as NodeJS.ErrnoException).code)) ? () => true : null;
+  }
+  if (!names.every((name) => LISTING_COMPARABLE_NAME.test(name))) return null;
+  const folded = new Set(names.map((name) => name.toLowerCase()));
+  return (name) => LISTING_COMPARABLE_NAME.test(name) && !folded.has(name.toLowerCase());
 }
 
 /** One page file's existence: a regular file is present; only a missing path or parent proves absence. */
