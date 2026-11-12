@@ -5,7 +5,7 @@
  */
 import path from "node:path";
 import { mkdir, rename, symlink } from "node:fs/promises";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { MAX_PROVIDER_LOGICAL_ID_SNAPSHOT_ITEMS } from "../../src/capability-providers/constants.js";
 import { planProviderCacheGarbageCollection, removeProviderInstallation } from "../../src/capability-providers/packages/remove.js";
 import {

@@ -2,7 +2,7 @@
  * Answer classification witnesses pin viewer precedence and normalized occurrence
  * order. Pending proposals never override retained pages or contribute aliases.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { classifyAnswerCitations } from "../src/citations/answer-report.js";
 import type { AnswerCitationIndex, RetainedCitationTarget } from "../src/citations/answer-types.js";
 import { resolveBareSlug } from "../src/viewer/collect.js";

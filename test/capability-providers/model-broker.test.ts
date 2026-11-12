@@ -3,7 +3,8 @@
  * @description Model broker integration tests for exact host usage, pinned
  * pricing, aggregate accounting, and fail-closed legacy LLMProvider adaptation.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { waitFor } from "../wait-for.js";
 import type { LLMProvider } from "../../src/utils/provider.js";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest, readHostBrokerUsage,
@@ -202,7 +203,7 @@ describe("model broker", () => {
     const model = { ...base, operations: [{ ...base.operations[0], timeoutMs: 60_000 }], invoke };
     const prepared = await setup(model, undefined, controller.signal);
     const pending = dispatchHostBrokerRequest(prepared.dispatcher, modelRequest());
-    await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(invoke).toHaveBeenCalledTimes(1));
     controller.abort();
     expect((await pending).status).toBe("unavailable");
   });

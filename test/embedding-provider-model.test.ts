@@ -11,7 +11,7 @@
  * that failure — hence one test per row rather than a spot check.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { resolveEmbeddingModel } from "../src/utils/embeddings-store.js";
 import { EMBEDDING_MODELS } from "../src/utils/constants.js";
 import { createEnvSnapshot } from "./fixtures/env-snapshot.js";

@@ -3,7 +3,7 @@
  * @description Scheduler and email broker tests for predeclared identities,
  * exact effect plans, deterministic idempotency lookup, and host receipts.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest,
 } from "../../src/capability-providers/brokers/dispatch.js";

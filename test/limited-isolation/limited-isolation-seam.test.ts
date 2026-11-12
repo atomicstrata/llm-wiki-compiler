@@ -23,7 +23,7 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { limitedIsolationBackend } from "../../packages/llmwiki-limited-isolation-backend/src/index.js";
 import { invokeCapabilityProvider } from "../../src/capability-providers/runtime/invoke.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";

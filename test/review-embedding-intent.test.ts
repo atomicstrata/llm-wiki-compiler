@@ -2,7 +2,7 @@
  * Durable batch ownership and write-ahead boundaries, independently of provider
  * behavior. Invalid storage must never allow collateral page bytes to change.
  */
-import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, vi } from "bun:test";
 import { readFile, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import { openReviewEmbeddingIntent } from "../src/commands/review-embedding-intent.js";

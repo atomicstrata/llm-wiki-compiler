@@ -15,7 +15,7 @@
  * the rule-candidate suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as ruleCandidates from "../../src/compiler/rule-candidates.js";
 import { collectRuleCandidatesForExport, collectRuleCandidatesForExportFrom } from "../../src/export/rule-candidates-json.js";
 

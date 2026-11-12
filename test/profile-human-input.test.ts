@@ -5,7 +5,7 @@
  * unenforceable schema.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { validateProfile } from "../src/profile/validate.js";
 import { ProfileValidationError } from "../src/profile/errors.js";
 import type { HumanInputFieldV1, ProfilePack } from "../src/profile/types.js";

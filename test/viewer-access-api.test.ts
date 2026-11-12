@@ -1,5 +1,5 @@
 /** Real HTTP handlers reverify pinned content and preserve remote metadata-only access. */
-import { afterEach, describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "bun:test";
 import http from "http";
 import { writeFile } from "fs/promises";
 import path from "path";

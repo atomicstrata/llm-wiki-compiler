@@ -10,7 +10,7 @@
  * evidence-incompatible type at LOAD with a clear message.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../src/profile/validate.js";
 import type { ProfilePack, FieldType } from "../src/profile/types.js";
 

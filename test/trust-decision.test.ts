@@ -12,7 +12,7 @@
  * monotone-in-block and warn-floor properties.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   composeTrustDecision,
   type TrustVerdict,

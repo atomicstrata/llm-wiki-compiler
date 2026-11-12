@@ -14,7 +14,7 @@
  * call mutated nothing on disk (no mkdir/prune/replay).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { readFile, rm, mkdtemp, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

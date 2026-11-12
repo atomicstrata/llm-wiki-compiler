@@ -14,7 +14,7 @@
 
 import path from "node:path";
 import { chmod, rm } from "node:fs/promises";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { runCLI, expectCLIJson } from "./fixtures/run-cli.js";
 import { emptyWorkspace } from "./preparation-cli-fixture.js";
 import { preparationPaths } from "../src/preparations/paths.js";

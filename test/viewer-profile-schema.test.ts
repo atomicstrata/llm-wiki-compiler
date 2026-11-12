@@ -18,7 +18,7 @@
  * below pin the resulting wire shape so a widening is visible in a diff.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildPipelineDefinitions, buildPipelineEnvelope } from "../src/viewer/pipeline.js";
 import type { ProfilePack } from "../src/profile/types.js";
 

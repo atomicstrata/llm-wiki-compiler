@@ -15,7 +15,7 @@
  * refusal actually binds, so a future change that reorders them goes red.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assertPreparationRunWriteBudget, projectPreparationRunBudget, RunBudgetError,
 } from "../src/preparations/run-budget.js";

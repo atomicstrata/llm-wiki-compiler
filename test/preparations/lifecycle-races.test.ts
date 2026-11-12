@@ -9,7 +9,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { readPreparationKey } from "../../src/preparations/key-epoch.js";
 import { preparationPaths, preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";

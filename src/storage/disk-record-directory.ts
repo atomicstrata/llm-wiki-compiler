@@ -16,10 +16,11 @@
  * candidates.
  */
 
-import { lstat, realpath, stat } from "node:fs/promises";
+import { lstat, realpath, stat } from "../utils/fs-metadata.js";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isInsideDir } from "../utils/path-confine.js";
+import { portableRealpath } from "../utils/portable-realpath.js";
 
 /** Stable identity captured for one literal candidate directory. */
 export interface CandidateDirectoryIdentity {
@@ -85,15 +86,51 @@ function binding(
  * Bind a confined candidate directory, optionally requiring literal components.
  * Inspect each component with lstat before resolving aliases, so broken links
  * cannot collapse into apparent absence and outside-root targets are rejected.
+ *
+ * Only a symlinked component and the last one are realpath'd. An intermediate
+ * literal directory resolves to its parent's canonical path plus its own name,
+ * which is already confined, and the last component's realpath re-resolves
+ * every component above it: a component swapped for an escaping or (in strict
+ * mode) any redirect after its lstat still fails that final check.
  */
 export async function captureCandidateDirectoryBinding(
   root: string,
   dir: string,
   requireLiteral = false,
 ): Promise<CandidateDirectoryBinding | null> {
+  return (await captureCandidateDirectoryUnderRoot(root, dir, requireLiteral)).binding;
+}
+
+/** A directory binding together with the real root it was judged under. */
+export interface RootedCandidateDirectoryBinding {
+  /** `realpath(root)`, which every component of the binding was confined under. */
+  readonly realRoot: string;
+  readonly binding: CandidateDirectoryBinding | null;
+}
+
+/**
+ * {@link captureCandidateDirectoryBinding}, also answering the real root it
+ * resolved, so a caller confining a leaf below the directory need not resolve
+ * the root a second time. Refusals are the same.
+ */
+export async function captureCandidateDirectoryUnderRoot(
+  root: string,
+  dir: string,
+  requireLiteral = false,
+): Promise<RootedCandidateDirectoryBinding> {
   const segments = ownedSegments(root, dir);
   const realRoot = await realpath(root).catch(() => null);
   if (realRoot === null) throw new UnsafeCandidateDirError();
+  return { realRoot, binding: await bindSegments(root, realRoot, segments, requireLiteral) };
+}
+
+/** Walk the owned segments under `realRoot`, binding the last one (see {@link captureCandidateDirectoryBinding}). */
+async function bindSegments(
+  root: string,
+  realRoot: string,
+  segments: readonly string[],
+  requireLiteral: boolean,
+): Promise<CandidateDirectoryBinding | null> {
   let lexical = path.resolve(root);
   let finalInfo: Stats | null = null;
   let realDir = realRoot;
@@ -101,6 +138,11 @@ export async function captureCandidateDirectoryBinding(
     lexical = path.join(lexical, segments[index]!);
     finalInfo = await inspectComponent(lexical);
     if (finalInfo === null) return null;
+    const isLast = index === segments.length - 1;
+    if (finalInfo.isDirectory() && !isLast) {
+      realDir = path.join(realDir, segments[index]!);
+      continue;
+    }
     const expected = path.join(realRoot, ...segments.slice(0, index + 1));
     const observed = await resolveComponent(lexical, realRoot, requireLiteral ? expected : undefined, finalInfo);
     if (finalInfo.isSymbolicLink()) finalInfo = await stat(observed);
@@ -114,7 +156,7 @@ export async function captureCandidateDirectoryBinding(
 /** Resolve one observed component under the root, enforcing literal mode when requested. */
 async function resolveComponent(lexical: string, realRoot: string, expected: string | undefined, info: Stats): Promise<string> {
   if (expected !== undefined && info.isSymbolicLink()) throw new UnsafeCandidateDirError();
-  const observed = await realpath(lexical).catch(() => null);
+  const observed = await portableRealpath(lexical).catch(() => null);
   if (observed === null || !isInsideDir(observed, realRoot)) throw new UnsafeCandidateDirError();
   if (expected !== undefined && observed !== expected) throw new UnsafeCandidateDirError();
   return observed;

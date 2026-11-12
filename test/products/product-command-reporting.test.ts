@@ -5,14 +5,15 @@
  */
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { productInitCommand } from "../../src/commands/product/init.js";
 import { productStatusCommand } from "../../src/commands/product/status.js";
 import { productWorkspace, type ProductWorkspaceV1 } from "./product-cli-fixture.js";
 
 const workspaces: ProductWorkspaceV1[] = [];
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  restoreEnv();
   vi.restoreAllMocks();
   await Promise.all(workspaces.splice(0).map(workspace => workspace.cleanup()));
 });
@@ -25,7 +26,7 @@ async function initializedWorkspace() {
   for (const [variable, directory] of [["XDG_CONFIG_HOME", "config"], ["XDG_CACHE_HOME", "cache"]]) {
     const target = path.join(root, directory!);
     await mkdir(path.join(target, "llmwiki"), { recursive: true });
-    vi.stubEnv(variable!, target);
+    stubEnv(variable!, target);
   }
   const output = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
   expect(await productInitCommand(root, workspace.sourceDir, { json: true })).toBe(0);

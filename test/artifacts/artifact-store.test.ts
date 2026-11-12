@@ -6,7 +6,7 @@
  * fail-closed, the symlinked-PARENT escape, and the swap-out/open/swap-back
  * race defeated by the {dev,ino} handle binding.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { readFile, symlink, writeFile, mkdir, rm, rename } from "fs/promises";
 import { makeTempRoot } from "../fixtures/temp-root.js";

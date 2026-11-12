@@ -10,7 +10,7 @@
  * the run JSON (which `readRun` keeps reporting unchanged).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, readFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

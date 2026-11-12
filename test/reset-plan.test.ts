@@ -21,7 +21,7 @@
 import { mkdir, writeFile, symlink, readdir, rm, rename, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { executeReset, planReset, RESET_SCOPES } from "../src/commands/reset-plan.js";
 import { tempRootTracker } from "./temp-roots.js";
 

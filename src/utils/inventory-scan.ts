@@ -2,8 +2,12 @@
  * Shared no-follow inventory primitives. Store-specific classification, traversal
  * limits and policy remain with each scanner; this module grants no authority.
  */
-import { lstat, realpath, opendir } from "node:fs/promises";
-import { openConfinedLeaf, resolveExpectedReal } from "./confined-read.js";
+import type { Dir, Dirent } from "node:fs";
+import { opendir } from "node:fs/promises";
+import path from "node:path";
+import { existingRealpath, expectedRealMatching, openConfinedLeaf, type ConfirmedLeafOpen } from "./confined-read.js";
+import { runContinues, type LeafReadAhead } from "./inventory-leaf-read-ahead.js";
+import type { ScannedLeafBytes } from "./scanned-leaf-bytes.js";
 
 /** Reject unbounded or fractional scan requests before any traversal. */
 export function positiveScanEntryLimit(requested: number, store: string): number {
@@ -25,26 +29,21 @@ export function verified<T>(read: () => T): T | null {
   try { return read(); } catch { return null; }
 }
 
-/** Distinguish a missing directory from one whose confinement cannot be proved. */
-async function directoryIsConfined(state: { root: string }, dir: string): Promise<boolean | "absent"> {
-  const metadata = await lstat(dir).catch((error: NodeJS.ErrnoException) =>
-    error.code === "ENOENT" ? null : error);
-  if (metadata === null) return "absent";
-  if (metadata instanceof Error || !metadata.isDirectory() || metadata.isSymbolicLink()) return false;
-  const expected = await resolveExpectedReal(state.root, dir);
-  if (expected === null) return false;
-  return await realpath(dir).catch(() => null) === expected;
-}
-
 /** Why a confined directory was not opened. Each is decided BEFORE any entry is seen. */
 type InventoryDirectoryRefusal = "absent" | "unavailable" | "unlistable";
 
-/** Open one confined directory for listing, or say which refusal stopped short of it. Names no store and notes nothing. */
-async function openConfinedDirectory(state: { root: string }, dir: string) {
-  const confined = await directoryIsConfined(state, dir);
-  if (confined === "absent") return "absent" as const;
-  if (!confined) return "unavailable" as const;
-  return opendir(dir).catch(() => "unlistable" as const);
+/**
+ * Open one confined directory for listing, or say which refusal stopped short
+ * of it. Names no store and notes nothing. The realpath must be the canonical
+ * in-root path, which no symlink at `dir` can produce; a non-directory there is
+ * refused by the open. Nothing there at all is absent; a dangling link or a
+ * fault is unavailable ({@link existingRealpath}).
+ */
+async function openConfinedDirectory(root: string, dir: string): Promise<Dir | InventoryDirectoryRefusal> {
+  const observed = await existingRealpath(dir);
+  if (observed === "missing") return "absent";
+  if (observed === "fault" || await expectedRealMatching(root, path.resolve(dir), observed) === null) return "unavailable";
+  return opendir(dir).catch(listingRefusal);
 }
 
 /**
@@ -63,34 +62,92 @@ function inventoryLeafMetadata(
   };
 }
 
-/** Traverse an open directory while the caller's store-specific budget permits. */
-async function walkInventoryEntries<T>(
-  entries: AsyncIterable<T> & { close(): Promise<void> }, take: () => boolean, inspect: (entry: T) => Promise<void>,
-): Promise<void> {
-  try {
-    for await (const entry of entries) {
-      if (!take()) break;
-      await inspect(entry);
+/** What a directory visit hands its caller, one entry at a time. */
+interface InventoryVisitor { take(): boolean; inspect(entry: Dirent): Promise<void> }
+
+/** One listed directory: the root it is confined under, its path, and its open listing. */
+interface OpenedInventoryListing { root: string; directory: string; entries: Dir }
+
+/**
+ * The next run of entries: one entry, or with a read-ahead, consecutive regular
+ * files up to its bound plus the entry that ended them. Empty at the end.
+ * `progress.seen` turns true with the first entry obtained.
+ */
+async function nextEntryRun(
+  entries: AsyncIterator<Dirent>, progress: { seen: boolean }, readingAhead: boolean,
+): Promise<Dirent[]> {
+  const run: Dirent[] = [];
+  do {
+    const next = await entries.next();
+    if (next.done === true) return run;
+    progress.seen = true;
+    run.push(next.value);
+  } while (readingAhead && runContinues(run));
+  return run;
+}
+
+/** Deliver one run in order under the caller's budget; false once `take()` refuses. Closes each leaf opened ahead and not observed. */
+async function deliverRun(run: readonly Dirent[], directory: string, visitor: InventoryVisitor, ahead?: LeafReadAhead): Promise<boolean> {
+  for (const entry of run) {
+    if (!visitor.take()) return false;
+    try {
+      await visitor.inspect(entry);
+    } finally {
+      await ahead?.release(path.join(directory, entry.name));
     }
-  } finally {
-    await entries.close().catch(() => {});
   }
+  return true;
+}
+
+/**
+ * Traverse an open directory while the caller's store-specific budget permits.
+ * With a read-ahead, each run of regular files is opened, and its directory
+ * proved once, before the run is delivered (`inventory-leaf-read-ahead.ts`);
+ * `take()` is still asked once per delivered entry, in listing order.
+ *
+ * Bun opens a directory lazily on Linux: `opendir` succeeds on a directory the
+ * process may not list, and the refusal (`EACCES`) arrives with the first read.
+ * A failure before any entry is seen is therefore the same refusal a failed open
+ * is, and is answered the same way; a failure after an entry was seen rejects.
+ */
+async function walkInventoryEntries(
+  listing: OpenedInventoryListing, visitor: InventoryVisitor, ahead?: LeafReadAhead,
+): Promise<"visited" | InventoryDirectoryRefusal> {
+  const progress = { seen: false }, entries = listing.entries[Symbol.asyncIterator]();
+  try {
+    for (let run = await nextEntryRun(entries, progress, ahead !== undefined); run.length > 0;
+      run = await nextEntryRun(entries, progress, ahead !== undefined)) {
+      await ahead?.openRun(listing.root, listing.directory, run);
+      if (!(await deliverRun(run, listing.directory, visitor, ahead))) break;
+    }
+    return "visited";
+  } catch (error) {
+    if (progress.seen) throw error;
+    return listingRefusal(error as NodeJS.ErrnoException);
+  } finally {
+    await ahead?.releaseAll();
+    await listing.entries.close().catch(() => {});
+  }
+}
+
+/** A confined path that is not a directory is unavailable; any other failure to list is unlistable. */
+function listingRefusal(error: NodeJS.ErrnoException): InventoryDirectoryRefusal {
+  return error.code === "ENOTDIR" ? "unavailable" : "unlistable";
 }
 
 /**
  * Visit one confined directory under the caller's visitor, or say why it was
  * not opened: the confined opener, then the bounded entry loop. It names no
  * store: the caller words its own problem. A refusal is returned
- * only before any entry is seen; a failure during iteration rejects.
+ * only before any entry is seen (including a lazy open's first read); a
+ * failure after an entry was seen rejects.
  */
 export async function visitInventoryDirectory(
-  root: string, directory: string,
-  visitor: { take(): boolean; inspect(entry: import("node:fs").Dirent): Promise<void> },
+  root: string, directory: string, visitor: InventoryVisitor, ahead?: LeafReadAhead,
 ): Promise<"visited" | InventoryDirectoryRefusal> {
-  const opened = await openConfinedDirectory({ root }, directory);
+  const opened = await openConfinedDirectory(root, directory);
   if (typeof opened === "string") return opened;
-  await walkInventoryEntries(opened, visitor.take, visitor.inspect);
-  return "visited";
+  return walkInventoryEntries({ root, directory, entries: opened }, visitor, ahead);
 }
 
 /** One leaf's size and identity as its opened handle reported them, or why it could not be opened. */
@@ -100,15 +157,75 @@ type InventoryLeafObservation =
   | { kind: "unavailable" };
 
 /**
+ * How a store's walk observes one leaf: its size and identity from the opened
+ * leaf, nothing open afterwards. `retainUpToBytes` is passed only for a leaf
+ * the inventory goes on to read: the provider MAY keep that leaf's verified
+ * bytes, within that cap, for its own reader later in the pass. The answer is
+ * the same either way.
+ */
+export type InventoryLeafObserver = (file: string, parent: string, retainUpToBytes?: number) => Promise<InventoryLeafObservation>;
+
+/** Where an observation may leave the leaf's bytes, and the most it may read. */
+interface InventoryLeafRetention { into: ScannedLeafBytes; maxBytes: number }
+
+/**
+ * Read a confirmed leaf's bytes for the pass's holder, or null, and close the
+ * handle. ONE read of one byte more than the handle's size: a leaf that grew
+ * returns too many and is not held.
+ *
+ * NO CHECK FOLLOWS THE READ HERE. Every question a post-read check could ask
+ * (the parent's realpath, the canonical leaf's identity, and the version: link
+ * count, size, modification and change times) is asked by the only consumer of
+ * held bytes, `heldLeafIsCurrent` in `durable-leaf.ts`, against this open's
+ * values and strictly later, before any held byte is returned. A write to the
+ * inode at any moment after the open, during this read included, moves its
+ * change time, which that later comparison sees; a handle `fstat` here would
+ * compare the same fields earlier and so could refuse nothing it lets through.
+ */
+async function readForHolder(opened: ConfirmedLeafOpen): Promise<Buffer | null> {
+  try {
+    const buffer = Buffer.alloc(opened.size + 1);
+    const { bytesRead } = await opened.handle.read(buffer, 0, buffer.length, 0);
+    return bytesRead === opened.size ? buffer.subarray(0, bytesRead) : null;
+  } catch {
+    return null;
+  } finally {
+    await opened.handle.close().catch(() => {});
+  }
+}
+
+/**
  * Observe one leaf through the no-follow confined open ({@link openConfinedLeaf}),
  * copy its size and identity FROM THE HANDLE, and close the handle before
- * answering. Nothing stays open on any path.
+ * answering. Nothing stays open on any path. A leaf its visit already opened
+ * ahead (`ahead`) is claimed instead of opened again: its directory was proved
+ * after that open, and its canonical identity is checked now, so the proof is
+ * the confined open's own in the same order.
+ *
+ * With `retain`, a leaf within `retain.maxBytes` that still fits the holder is
+ * also read from that same handle ({@link readForHolder}) and its bytes held
+ * with the identity, version and canonical paths the open proved. Reading
+ * never changes the observation: a failed read only means nothing is held.
  */
-export async function observeInventoryLeaf(root: string, file: string, parent: string): Promise<InventoryLeafObservation> {
-  const opened = await openConfinedLeaf(root, file, parent);
+export async function observeInventoryLeaf(
+  root: string, file: string, parent: string, retain?: InventoryLeafRetention, ahead?: LeafReadAhead,
+): Promise<InventoryLeafObservation> {
+  const opened = (await ahead?.claim(file, parent)) ?? await openConfinedLeaf(root, file, parent);
   if (opened.kind !== "confirmed") return opened;
-  await opened.handle.close().catch(() => {});
-  return { kind: "confirmed", size: opened.size, dev: opened.dev, ino: opened.ino };
+  const observation = { kind: "confirmed" as const, size: opened.size, dev: opened.dev, ino: opened.ino };
+  if (retain === undefined || opened.size > retain.maxBytes || !retain.into.hasRoomFor(opened.size)) {
+    await opened.handle.close().catch(() => {});
+    return observation;
+  }
+  const body = await readForHolder(opened);
+  if (body !== null) {
+    retain.into.hold({
+      root: path.resolve(root), leaf: file, ownedDirectory: path.resolve(parent), expectedReal: opened.expectedReal,
+      canonicalLeaf: opened.canonicalLeaf, dev: opened.dev, ino: opened.ino, nlink: opened.nlink,
+      size: opened.size, mtimeMs: opened.mtimeMs, ctimeMs: opened.ctimeMs, body,
+    });
+  }
+  return observation;
 }
 
 /** The two stores that walk an inventory tree; the label is the first word of every problem they record. */
@@ -171,23 +288,31 @@ export interface InventoryLeafPolicy<C extends { kind: string; protocolAlias?: "
   noteCap(kind: C["kind"], bytes: number, file: string): void;
   /** Keep the classified observation. */
   record(leaf: C & ReturnType<typeof inventoryLeafMetadata>): void;
+  /**
+   * The cap under which the walk may keep this leaf's bytes for the pass's later
+   * authenticated read of it, or undefined to keep none. Only leaves a scan
+   * goes on to read are worth keeping.
+   */
+  retainUpTo?(classified: C): number | undefined;
 }
 
 /**
- * THE leaf capture both stores share: observe (an unconfirmed leaf is a
- * `leaf-unavailable` problem and nothing else), classify, the optional pre-cap
- * check, the cap, keep the observation, then an `unknown` kind is a problem.
+ * THE leaf capture both stores share: classify (from the path alone), observe
+ * (an unconfirmed leaf is a `leaf-unavailable` problem and nothing else), the
+ * optional pre-cap check, the cap, keep the observation, then an `unknown` kind
+ * is a problem. The observer is asked to keep the bytes only of a leaf the
+ * policy names, so every other leaf is observed exactly as before.
  */
 export async function captureInventoryLeaf<C extends { kind: string; protocolAlias?: "writing" | "tmp" }>(
-  observeLeaf: (file: string, parent: string) => Promise<InventoryLeafObservation>,
+  observeLeaf: InventoryLeafObserver,
   file: string, parent: string, policy: InventoryLeafPolicy<C>,
 ): Promise<void> {
-  const observed = await observeLeaf(file, parent);
+  const classified = policy.classify(file);
+  const observed = await observeLeaf(file, parent, policy.retainUpTo?.(classified));
   if (observed.kind !== "confirmed") {
     policy.problem("leaf-unavailable", `${policy.label} leaf is ${observed.kind}`, file);
     return;
   }
-  const classified = policy.classify(file);
   policy.beforeCap?.(file);
   policy.noteCap(classified.kind, observed.size, file);
   policy.record({ ...classified, ...inventoryLeafMetadata(file, classified.protocolAlias, observed) });

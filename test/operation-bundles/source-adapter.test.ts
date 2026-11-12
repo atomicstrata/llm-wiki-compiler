@@ -8,7 +8,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { createHash } from "node:crypto";
 import { sourceAdapter } from "../../src/operation-bundles/adapters/source.js";
 import type { SourceRetainMutation } from "../../src/operation-bundles/types.js";

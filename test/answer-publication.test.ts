@@ -2,7 +2,7 @@
  * Publication policy witnesses exercise the strict validator with production
  * recognition and on-disk resolution, independently of generation and writes.
  */
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { assertCitationPublication, validateCitationPublication } from "../src/citations/answer-publication.js";

@@ -5,7 +5,7 @@
  */
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { loadProfile } from "../src/profile/load.js";
 import { formatRemoteInstallConfirmation, remoteInstallSummary } from "../src/commands/template.js";
 import { installRemoteTemplate } from "../src/profile/templates/install.js";

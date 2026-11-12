@@ -8,11 +8,11 @@
  * never the tool-calling fallback. No `vi.mock`, no spy, no network.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { chmod, mkdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { loadPendingEmbeddings, mergeFreshAttempts, writePendingEmbeddings } from "../src/utils/pending-embeddings.js";
 
 const CREDENTIAL_VARS = /_API_KEY$|_AUTH_TOKEN$|^GITHUB_TOKEN$/;

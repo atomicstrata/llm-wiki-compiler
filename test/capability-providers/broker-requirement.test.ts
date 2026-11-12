@@ -4,7 +4,7 @@
  * package parsing, the Task 5 grant resolver, and grant intersection so the
  * parsed per-broker maximum is enforced end-to-end rather than bypassed.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseCapabilityProviderPackage } from "../../src/capability-providers/packages/protocol.js";
 import { resolveEffectiveProviderGrant } from "../../src/capability-providers/authority/grants-resolve.js";
 import {

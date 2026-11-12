@@ -3,7 +3,7 @@
  * Seed browser state before any script runs so first-load resolution, migration,
  * inaccessible storage, and the public module binding are exercised together.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { emptyBootstrapResponse, mountViewerDom } from "./fixtures/viewer-jsdom.js";
 

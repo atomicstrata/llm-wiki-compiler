@@ -7,7 +7,7 @@
 
 import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { archiveCandidate, writeCandidate, type CandidateDraft } from "../src/compiler/candidates.js";
 import reviewRejectCommand from "../src/commands/review-reject.js";
 import { runCLI } from "./fixtures/run-cli.js";

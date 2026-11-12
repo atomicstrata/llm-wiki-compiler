@@ -22,7 +22,7 @@
  * where a display title is what is wanted (the viewer, the graph, the OKF TOC).
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { rm } from "node:fs/promises";
 import { lintProfileEntities } from "../src/profile/lint.js";
 import { collectProfileEntityDocs } from "../src/export/okf/profile-docs.js";

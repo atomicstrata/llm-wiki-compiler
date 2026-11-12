@@ -14,7 +14,7 @@
  * deterministic stand-in for a planner deny — while reporting the other as applied.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { generateSeedPages } from "../src/compiler/seed-pages.js";
 import * as compileWrite from "../src/compiler/compile-write.js";
 import { buildDefaultSchema } from "../src/schema/defaults.js";

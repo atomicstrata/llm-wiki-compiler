@@ -16,13 +16,16 @@
 
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "bun:test";
 
 /** `calls` are "<operation> <leaf name>"; `fail` maps one such key to the error it should raise. */
-const io = vi.hoisted(() => ({ calls: [] as string[], fail: new Map<string, Error>() }));
+const io = { calls: [] as string[], fail: new Map<string, Error>() };
 
-vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/utils/no-follow-open.js")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
+
+vi.mock("../../src/utils/no-follow-open.js", async () => {
+  const actual = realUtilsNoFollowOpen;
   const WATCHED = ["stat", "readFile", "read", "close"];
   /** Record `key`, then raise its planted failure if there is one. */
   const note = (key: string): void => {
@@ -30,10 +33,12 @@ vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
     const planted = io.fail.get(key);
     if (planted) throw planted;
   };
-  const openFileNoFollow = async (file: string, flags: number, mode?: number) => {
+  /** Record the open of `file`, and every watched call later made on the handle it yields. */
+  const watched = async <T>(file: string, open: () => Promise<T>, handleOf: (opened: T) => object): Promise<T> => {
     const name = file.slice(file.lastIndexOf("/") + 1);
     note(`open ${name}`);
-    const handle = await actual.openFileNoFollow(file, flags, mode);
+    const opened = await open();
+    const handle = handleOf(opened);
     const operations = handle as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;
     for (const operation of WATCHED) {
       const real = operations[operation]!.bind(handle);
@@ -43,9 +48,14 @@ vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
         return operation === "close" ? undefined : real(...args);
       };
     }
-    return handle;
+    return opened;
   };
-  return { ...actual, openFileNoFollow };
+  const openFileNoFollow = (file: string, flags: number, mode?: number) =>
+    watched(file, () => actual.openFileNoFollow(file, flags, mode), (handle) => handle);
+  // The regular-file opener's own fstat runs before it returns, like the open itself.
+  const openRegularNoFollow = (file: string, flags: number, mode?: number) =>
+    watched(file, () => actual.openRegularNoFollow(file, flags, mode), (opened) => opened.handle);
+  return { ...actual, openFileNoFollow, openRegularNoFollow };
 });
 
 import { ProfileLoadError, loadProfile } from "../../src/profile/load.js";
@@ -124,14 +134,14 @@ describe("legacy profile read", () => {
 });
 
 describe("product-mode reads", () => {
-  it("opens the binding, the manifest, each member in manifest order, then the knowledge profile", async () => {
+  it("opens the binding, the manifest, each member in manifest order, and the knowledge profile no second time", async () => {
     const { product, memberHexes } = await activateProduct();
-    const knowledgeHex = digestDirectoryName(product.manifest.knowledgeProfile.digest);
     const loaded = await loadProfile(root.dir);
     expect(loaded.loadedFrom).toBe(
       knowledgeProfileMemberPath(root.dir, product.manifest.packageDigest, product.manifest.knowledgeProfile.digest));
     const opens = io.calls.filter((call) => call.startsWith("open ")).map((call) => call.slice("open ".length));
-    expect(opens).toEqual(["active-product.json", "manifest.json", ...memberHexes, knowledgeHex]);
+    // The knowledge profile is loaded from the bytes its member check hashed and kept, so its leaf is opened once.
+    expect(opens).toEqual(["active-product.json", "manifest.json", ...memberHexes]);
     expect(count("close")).toBe(count("open"));
   });
 
@@ -148,7 +158,7 @@ describe("product-mode reads", () => {
     tampered[0] ^= 0xff;
     await writeFile(paths.memberFile(packageHex, memberHexes[0]!), tampered);
     expect(await resolveActiveProduct(root.dir)).toEqual({ mode: "unavailable", detail: "package-invalid" });
-    expect(callsOn(memberHexes[0]!).filter((call) => call !== "read")).toEqual(["open", "stat", "stat", "close"]);
+    expect(callsOn(memberHexes[0]!).filter((call) => call !== "read")).toEqual(["open", "stat", "close"]);
     expect(callsOn(memberHexes[0]!)).toContain("read");
   });
 
@@ -157,6 +167,6 @@ describe("product-mode reads", () => {
     const shorter = product.bytesByHex.get(memberHexes[0]!)!.subarray(1);
     await writeFile(paths.memberFile(packageHex, memberHexes[0]!), shorter);
     expect(await resolveActiveProduct(root.dir)).toEqual({ mode: "unavailable", detail: "package-invalid" });
-    expect(callsOn(memberHexes[0]!)).toEqual(["open", "stat", "close"]);
+    expect(callsOn(memberHexes[0]!)).toEqual(["open", "close"]);
   });
 });

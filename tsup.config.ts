@@ -2,8 +2,9 @@
  * Build the standard distribution as a facade over one core and engine package.
  * Dependency builds finish first; both CLI and SDK externalize the same entries.
  */
+import { execFileSync } from "node:child_process";
 import { defineConfig, type Options } from "tsup";
-import { buildCompilerDependencies } from "./scripts/tsup-command.js";
+import { buildCompilerDependencies, isolateFromSourcePaths } from "./scripts/tsup-command.js";
 
 // Fields shared by both bundles. Extracted into one base object so the CLI and
 // library entries can't drift on format/target/output settings.
@@ -23,6 +24,10 @@ export default defineConfig(async (options) => {
   {
     ...shared,
     entry: ["src/cli.ts"],
+    // The CLI imports a command's module when that command runs. Without
+    // splitting, esbuild inlines every command and its imports into cli.js.
+    splitting: true,
+    esbuildOptions(options) { options.chunkNames = "cli-chunks/[name]-[hash]"; },
     // External packages are outside esbuild's import graph. Watch their source
     // explicitly and rebuild them before announcing a successful facade build.
     ...(options.watch ? {
@@ -42,14 +47,19 @@ export default defineConfig(async (options) => {
     // entries in parallel) and could delete dist/index.* on watch/incremental
     // rebuilds.
     clean: ["dist/cli.js", "dist/cli.js.map"],
+    // The published CLI runs on Node; Bun is the development toolchain only.
     banner: {
       js: "#!/usr/bin/env node",
     },
     // Mirror the viewer's static assets (shell template, stylesheet, client
     // script) into dist/viewer/assets/ so they ship with the published
     // npm package. The Slice 3 viewer server reads the template at runtime
-    // and serves /assets/* from this directory.
-    onSuccess: "node scripts/copy-viewer-assets.mjs",
+    // and serves /assets/* from this directory. Then shield dist/ from the
+    // repository's tsconfig `paths` (see isolateFromSourcePaths).
+    onSuccess: async () => {
+      execFileSync(process.execPath, ["scripts/copy-viewer-assets.mjs"], { stdio: "inherit" });
+      isolateFromSourcePaths("dist");
+    },
   },
   {
     ...shared,

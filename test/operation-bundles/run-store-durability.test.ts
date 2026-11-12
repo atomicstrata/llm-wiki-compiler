@@ -4,7 +4,7 @@
  * confined no-follow reads, and durable complete operation-run replacement.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
 import { chmod, copyFile, link, mkdtemp, mkdir, readFile, readdir, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -151,16 +151,18 @@ describe("operation key epoch", () => {
   });
 
   it("rejects an over-permissive key and refuses a concurrent create collision", async () => {
-    let arrived = 0;
-    let release!: () => void;
-    const barrier = new Promise<void>((resolve) => { release = resolve; });
-    const beforePublishForTest = async () => { arrived += 1; if (arrived === 2) release(); await barrier; };
-    const results = await Promise.allSettled([
-      createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, { beforePublishForTest }),
-      createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, { beforePublishForTest }),
-    ]);
-    expect(results.filter((item) => item.status === "fulfilled")).toHaveLength(1);
-    expect(results.filter((item) => item.status === "rejected")).toHaveLength(1);
+    // Both creators read an absent key before either publishes; then the second
+    // publishes only once the first has finished. Publishing at the same instant
+    // would race on the shared temp names, which the caller's project lock rules
+    // out in real use, so it is not the collision this case pins.
+    const bothRead = Promise.withResolvers<void>();
+    const first = createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, { beforePublishForTest: () => bothRead.promise });
+    const second = createOperationKeyForEmptyEpochLocked(root, EMPTY_INVENTORY, {
+      beforePublishForTest: async () => { bothRead.resolve(); await first.catch(() => {}); },
+    });
+    const [firstResult, secondResult] = await Promise.allSettled([first, second]);
+    expect(firstResult.status).toBe("fulfilled");
+    expect(secondResult).toMatchObject({ status: "rejected", reason: { message: expect.stringMatching(/collision/) } });
     const keyFile = path.join(root, ".llmwiki", "operation-bundles.runkey");
     await chmod(keyFile, 0o644);
     expect(await readOperationKey(root)).toEqual({ status: "unavailable" });
@@ -294,12 +296,14 @@ describe("operation run durable store", () => {
     expect(swapped).toEqual({ kind: "unavailable" });
   });
 
-  it("strict create-only durability syncs every parent and propagates unsupported sync", async () => {
+  it("strict create-only durability syncs every parent once and propagates unsupported sync", async () => {
     const synced: string[] = [];
     const target = path.join(root, "a", "b", "record");
     await atomicWriteNoReplaceDurable(target, "body", { confineRoot: root, exactParent: true, beforeDirectorySyncForTest: async (dir) => { synced.push(dir); } });
-    const chain = [path.join(root, "a", "b"), path.join(root, "a"), root];
-    expect(synced).toEqual([...chain, ...chain, ...chain]);
+    const leaf = path.join(root, "a", "b");
+    // The first pass makes every new entry up to the root durable; the two later
+    // passes change only the leaf directory, so they sync only the leaf.
+    expect(synced).toEqual([leaf, path.join(root, "a"), root, leaf, leaf]);
     const failure = Object.assign(new Error("unsupported fsync"), { code: "ENOTSUP" });
     await expect(atomicWriteNoReplaceDurable(path.join(root, "failed"), "body", {
       confineRoot: root, exactParent: true, beforeDirectorySyncForTest: async () => { throw failure; },

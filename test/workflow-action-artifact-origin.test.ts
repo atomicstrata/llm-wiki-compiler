@@ -7,7 +7,7 @@
  * grant stays refused; WITH the grant it applies and is attributed "workflow-mcp".
  * Includes an origin-FORGERY test: a bogus `origin` action input is DROPPED.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { researchArtifactProfile, startArtifactRun, resultOutput, grantTrustedWrite, readArtifactEventOrigin } from "./fixtures/artifact-seam-fixtures.js";
 import { createWiki } from "../src/index.js";
 import { runAction } from "../src/workflows/run-action.js";

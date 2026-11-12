@@ -17,7 +17,7 @@
  * unit too low.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../src/preparations/plan-parse.js";
 import { PreparationBoundsError } from "../src/preparations/problems.js";
 import { planText, validPlan } from "./preparations/plan-fixture.js";

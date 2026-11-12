@@ -9,7 +9,7 @@
  * asked for.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readRun } from "../src/workflows/store.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { startWorkflow } from "../src/workflows/start.js";

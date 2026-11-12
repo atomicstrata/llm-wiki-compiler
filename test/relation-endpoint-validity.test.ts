@@ -15,7 +15,7 @@
  * the read-side STANDING re-check flags the same drift after the fact.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, chmod } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

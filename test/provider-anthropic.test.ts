@@ -3,7 +3,7 @@
  * Verifies that Anthropic client options are correctly built based on baseURL.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { buildAnthropicClientOptions } from "../src/providers/anthropic.js";
 
 describe("buildAnthropicClientOptions", () => {

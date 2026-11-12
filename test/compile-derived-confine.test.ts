@@ -29,7 +29,7 @@
  *      parity-safe — it never alters a legitimate in-root write).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

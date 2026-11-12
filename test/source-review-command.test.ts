@@ -1,5 +1,5 @@
 /** Terminal snippets preserve argument boundaries without executing candidate text. */
-import { it, expect } from "vitest";
+import { it, expect } from "bun:test";
 import { execFileSync } from "node:child_process";
 // Browser module is plain JavaScript by design.
 // @ts-expect-error No declaration file for the browser-only module.

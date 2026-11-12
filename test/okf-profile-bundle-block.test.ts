@@ -10,7 +10,7 @@
  * project stays byte-identical to `okf_version: "0.1"` only (D-7.6.10), and two
  * exports of one project are byte-identical (determinism).
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdtemp, readFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

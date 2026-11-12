@@ -17,7 +17,7 @@
  * look themselves; the operation CLI, recovery and gate suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as cancelRequest from "../../src/operation-bundles/cancel-request.js";
 import { scanOperationInventory, type OperationInventory } from "../../src/operation-bundles/capacity.js";
 import * as compensation from "../../src/operation-bundles/compensation.js";

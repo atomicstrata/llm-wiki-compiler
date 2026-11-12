@@ -9,7 +9,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { acquireMutationLock, RecoveryGateError, resolveOperationRecoveryState } from "../../src/operation-bundles/lock-gate.js";
 import { compensateOperationBundleLocked } from "../../src/operation-bundles/compensation.js";
 import { readOperationRun } from "../../src/operation-bundles/run-store.js";

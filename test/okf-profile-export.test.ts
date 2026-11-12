@@ -9,7 +9,7 @@
  * hook overrides the OKF `type`, and a default-profile project emits NO entity
  * docs or sections (byte-identical parity, D-7.6.10).
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { mkdtemp, mkdir, writeFile, readFile, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

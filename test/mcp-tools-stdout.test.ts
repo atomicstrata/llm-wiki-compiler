@@ -9,10 +9,11 @@
  * through. None of these tools call an LLM, so no API key is required.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
-import { useMcpRoot, buildServer, callTool } from "./fixtures/mcp-test-env.js";
+import { useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 
 afterEach(() => {
   vi.restoreAllMocks();

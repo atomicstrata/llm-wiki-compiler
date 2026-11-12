@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   collectEligibleLivePages, collectEligibleLivePagesFrom, requestedPagesExistence, requestedPagesExistenceFrom,
 } from "../../src/utils/embeddings-collect.js";
@@ -132,6 +132,12 @@ function memoryPageReadsOf(copy: Copy, log: string[], faults: Faults = {}): Embe
       if (copy.files.has(relPath)) return true;
       if (copy.listings.has(relPath)) return false;
       throw failure("ENOENT");
+    },
+    listRelativeNames: async (relDir) => {
+      log.push(`list ${relDir}`);
+      const listing = copy.listings.get(relDir);
+      if (listing === undefined) throw failure("ENOENT");
+      return listing.map((entry) => entry.name);
     },
   };
 }

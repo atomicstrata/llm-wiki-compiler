@@ -11,7 +11,7 @@ import { mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import { workspaceFileNames } from "./preparations/crash-fixture.js";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { acquirePreparationMutationLock, RecoveryGateError } from "../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../src/utils/lock.js";
 import { PREPARATION_QUARANTINE_SEGMENT } from "../src/preparations/paths.js";

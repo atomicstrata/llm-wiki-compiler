@@ -10,12 +10,13 @@
  * unrepresentable in a single run.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import type { RunPreparationResultV1 } from "../../src/preparations/runner.js";
 import {
-  compileMultiSourcePaperAction, driveStagedRun, readPhaseOutput, resultReason,
+  driveStagedRun, readPhaseOutput, resultReason,
   stageCompiledAction, stagedRunTracker, type StagedPackRunV1,
 } from "./runtime-fixture.js";
+import { compileMultiSourcePaperAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

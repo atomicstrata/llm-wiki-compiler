@@ -21,7 +21,7 @@
  *    reaches the wrapper at all.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { existsSync } from "fs";
 import path from "path";
 import { compileAndReport } from "../src/compiler/index.js";

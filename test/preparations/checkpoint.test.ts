@@ -8,7 +8,7 @@
  * prior chain, or non-checkpoint evidence.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { sealAttemptContext } from "../../src/preparations/attempts/start.js";
 import { buildCheckpointRef, checkpointDigest, classifyCheckpointResume } from "../../src/preparations/attempts/checkpoint.js";

@@ -14,7 +14,7 @@
  * alone. So the ordinary refusal is pinned beside it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { RuntimeCaptureError, capturedOr, tryCaptureOwnDataRecord } from "../../src/utils/runtime-capture.js";
 
 /** A fault that is emphatically not the capture's own refusal. */

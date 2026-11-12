@@ -12,13 +12,13 @@
  *    compactRelations collapses superseded records and shrinks the file.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, truncate } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
 import { RELATIONS_FILE, MAX_RELATION_STORE_BYTES, LOCK_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
-import { appendRelation, updateRelation, compactRelations, seedThreeVersionRelation, assertCompactionShrankTo3 } from "./fixtures/profile-fixtures.js";
+import { appendRelation, updateRelation, compactRelations, seedThreeVersionRelation, assertCompactionShrankTo3 } from "./fixtures/relation-fixtures.js";
 import { readRelations } from "../src/relations/store-read.js";
 import { validateRelationAgainstProfile } from "../src/relations/relation-contract.js";
 import { RelationStoreFullError } from "../src/relations/types.js";

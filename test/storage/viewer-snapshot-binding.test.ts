@@ -60,7 +60,7 @@
  * bindings to one project.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { EventReadSources } from "../../src/events/store-read.js";
 import type { SourceFreshnessSources } from "../../src/freshness/index.js";
 import type { EntityPageReads } from "../../src/profile/lifecycle-read.js";

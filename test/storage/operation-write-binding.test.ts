@@ -17,7 +17,7 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as atomicWriteModule from "../../src/utils/atomic-write.js";
 import * as confinedRead from "../../src/utils/confined-read.js";
 import * as runStoreIo from "../../src/utils/run-store-io.js";

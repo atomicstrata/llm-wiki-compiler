@@ -14,7 +14,7 @@
  * activation journeys stay covered by their existing suites, which run alongside.
  */
 
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { MAX_INSTALLED_PACKAGES_PER_PROJECT } from "../../src/products/constants.js";
 import { digestDirectoryName } from "../../src/products/ids.js";
@@ -143,7 +143,7 @@ describe("no ambient I/O from the bodies; the local steps reach their incumbents
     const readInstalled = vi.spyOn(packageStore, "readInstalledProductPackage");
     const writeReceipt = vi.spyOn(receipts, "writeProductInstallReceipt");
     await commitInstalledPackageWith({
-      commit: async () => ({ status: "converged" }), readInstalled: async () => ({ status: "ok", manifest: pkg.manifest }), writeReceipt: async () => {},
+      commit: async () => ({ status: "converged" }), readInstalled: async () => ({ status: "ok", manifest: pkg.manifest, verifiedMembers: new Map() }), writeReceipt: async () => {},
     }, pkg);
     expect([readInstalled.mock.calls.length, writeReceipt.mock.calls.length]).toEqual([0, 0]);
     const root = await freshRoot();

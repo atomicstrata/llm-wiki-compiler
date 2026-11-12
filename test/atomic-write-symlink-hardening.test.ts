@@ -10,7 +10,7 @@
  * parent-DIR guard is covered by atomic-write-confine-race.test.ts.)
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { symlink, readdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { atomicWrite } from "../src/utils/markdown.js";

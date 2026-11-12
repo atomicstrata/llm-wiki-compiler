@@ -42,7 +42,7 @@ import {
   groupByDeclaredTier, tieredReport, type LintTierV1, type TieredLintReportV1, type TieredResultGroupV1,
 } from "./tiers.js";
 import { collectProfileLintFindings, collectProfileLintInputFrom } from "../profile/lint.js";
-import type { PageScope } from "./rules-shared.js";
+import { readOncePageSources, type PageScope } from "./rules-shared.js";
 
 /**
  * One registry entry. `rule` is the root-taking rule: its function NAME is the
@@ -151,7 +151,9 @@ async function profileGroupsFrom(sources: LintSources, defaultResults: readonly 
  * started together in registry order; and last the profile appendix. Nothing a
  * rule reads is shared with another rule or kept for a later step.
  */
-async function collectTieredGroupsFrom(sources: LintSources, scope: PageScope): Promise<TieredResultGroupV1[]> {
+async function collectTieredGroupsFrom(allSources: LintSources, scope: PageScope): Promise<TieredResultGroupV1[]> {
+  // Every rule walks the same pages: read and parse each page once for this run.
+  const sources = { ...allSources, pages: readOncePageSources(allSources.pages) };
   const schema = await loadSchemaFrom(sources.schema);
   const freshness = await buildFreshnessSnapshotFrom(sources.sourceFreshness, await readStateClassifiedFrom(sources.state));
   const [plain, schemaGroups, freshnessGroups] = await Promise.all([

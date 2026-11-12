@@ -5,7 +5,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { expectProfileAbsent, managedTempRoots } from "./fixtures/managed-temp-roots.js";
 import { runCLI } from "./fixtures/run-cli.js";
 

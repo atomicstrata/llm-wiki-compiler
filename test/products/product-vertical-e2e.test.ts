@@ -18,7 +18,7 @@
  * production assembler; this suite only names an action and reads the answer.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import type { OperationMutation } from "../../src/operation-bundles/types.js";
 import { createPreparationService } from "../../src/preparations/service.js";
@@ -27,8 +27,8 @@ import type {
 } from "../../src/products/service.js";
 import {
   activatedProject, verticalService,
-  VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID,
 } from "./product-vertical-fixture.js";
+import { VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 /** The caller input both invocation forms declare, so only the NAME differs. */
 const INPUT = { topic: "superconductivity" } as const;

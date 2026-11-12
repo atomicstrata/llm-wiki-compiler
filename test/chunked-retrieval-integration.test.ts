@@ -23,7 +23,7 @@
  *     guard.  The store-upgrade logic is covered programmatically instead.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { mkdir, rm, writeFile } from "fs/promises";
 import path from "path";
 import os from "os";

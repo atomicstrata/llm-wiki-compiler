@@ -19,7 +19,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { formatArtifactRef } from "../../src/artifacts/ref.js";
 import { diskArtifactStoreReads } from "../../src/artifacts/resolve.js";
 import { artifactPaths, hashArtifactBody, writeArtifactFiles } from "../../src/artifacts/store.js";

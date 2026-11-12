@@ -12,8 +12,9 @@
  * (a human gate is producible only by the interactive CLI proof).
  */
 
-import { describe, it, expect } from "vitest";
-import { useWorkflowRoot, startBuildRun } from "../fixtures/workflow-profile.js";
+import { describe, it, expect } from "bun:test";
+import { useWorkflowRoot } from "../fixtures/workflow-profile.js";
+import { startBuildRun } from "../fixtures/workflow-run-helpers.js";
 import { SdkHumanGateError } from "../../src/workflows/errors.js";
 import { readRun } from "../../src/workflows/store.js";
 

@@ -7,7 +7,7 @@
  * runtime-member change alters it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   loadProductPackageManifest, recomputePackageDigest, recomputeRuntimeAuthorityDigest,
 } from "../../src/products/packages/verify.js";

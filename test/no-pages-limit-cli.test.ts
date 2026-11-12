@@ -3,7 +3,7 @@
  * extraction, switching modes regenerates unchanged sources, and refresh
  * preserves the chosen mode without widening its source selection.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readState } from "../src/utils/state.js";

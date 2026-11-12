@@ -13,11 +13,12 @@
  *    FAILS CLOSED ({@link StageOutputPendingError}) — never silently re-applies.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
-import { buildWorkflowProfile, installWorkflowProfile, readOkRun } from "./fixtures/workflow-profile.js";
+import { buildWorkflowProfile, installWorkflowProfile } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { submitStageOutput, type StageOutput } from "../src/workflows/stage-output.js";
 import {

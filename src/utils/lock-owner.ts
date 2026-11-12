@@ -48,6 +48,7 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { readKernelStartSeconds } from "./kernel-start-time.js";
 
 /**
  * The inclusive upper bound Node accepts before `process.kill` rejects the
@@ -92,7 +93,11 @@ export interface LockOwner {
 /** This process's start time, populated only when lock behavior first needs it. */
 let cachedSelfStartTime: string | null | undefined;
 
-function selfStartTime(): string | null {
+/**
+ * This process's start-time identity. A running process's start time never
+ * changes, so one read answers every caller in the process.
+ */
+export function selfStartTime(): string | null {
   if (cachedSelfStartTime === undefined) {
     cachedSelfStartTime = readProcessStartTime(process.pid);
   }
@@ -112,11 +117,70 @@ export function serializeOwner(pid: number): string {
     ...(identity === null ? {} : { identity }) });
 }
 
+/** Environment inputs that change how `ps -o lstart=` renders a start time. */
+const AMBIENT_RENDERING_ENV = ["TZ", "LC_ALL", "LC_TIME", "LANG"] as const;
+
+/** This process's ambient rendering, with the environment it was rendered under. */
+let cachedSelfLegacyStartTime: { env: string; value: string | null } | undefined;
+
+/**
+ * This process's own ambient rendering. A running process's start time never
+ * changes, so one `ps` per process answers every lock acquisition; the entry is
+ * reused only while the locale and zone inputs that shape the text are unchanged.
+ */
+function selfLegacyStartTime(): string | null {
+  const env = AMBIENT_RENDERING_ENV.map((name) => process.env[name] ?? "").join("\0");
+  if (cachedSelfLegacyStartTime?.env !== env) {
+    cachedSelfLegacyStartTime = { env, value: renderSelfLstart() ?? psLstart(process.pid) };
+  }
+  return cachedSelfLegacyStartTime.value;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** Whether the time locale `ps` renders under is the C locale, whose `lstart` text is fixed. */
+function isCTimeLocale(): boolean {
+  const locale = process.env.LC_ALL || process.env.LC_TIME || process.env.LANG || "C";
+  return locale === "C" || locale === "POSIX" || locale.startsWith("C.");
+}
+
+/**
+ * This process's `ps -o lstart=` text, rendered in-process: in the C locale both
+ * procps (`%a %b %e %H:%M:%S %Y`) and macOS `ps` (`%c`) print the start second in
+ * local time with that layout, and with `TZ` set `Date` uses that same zone. Null
+ * without an explicit `TZ`, outside the C locale or without a start second, which
+ * leaves the answer to `ps` itself.
+ * Not forking `ps` here keeps synchronous spawns off the lock path, where Bun can
+ * hang on one (oven-sh/bun#46488).
+ */
+function renderSelfLstart(): string | null {
+  const identity = selfStartTime();
+  // Only an explicit `TZ` is certain to be the zone both `Date` and libc use:
+  // without one, a runtime may keep its own default (`bun test` runs in UTC).
+  const explicitZone = Boolean(process.env.TZ);
+  if (!explicitZone || !isCTimeLocale() || identity === null || !identity.startsWith(IDENTITY_PREFIX)) return null;
+  const at = new Date(Number(identity.slice(IDENTITY_PREFIX.length)) * 1000);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  const day = String(at.getDate()).padStart(2, " ");
+  const clock = `${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
+  return `${WEEKDAYS[at.getDay()]} ${MONTHS[at.getMonth()]} ${day} ${clock} ${at.getFullYear()}`;
+}
+
 /** Read the exact ambient ps rendering used by public lock readers and writers. */
 function readLegacyProcessStartTime(pid: number): string | null {
+  return pid === process.pid ? selfLegacyStartTime() : psLstart(pid);
+}
+
+/**
+ * Ask `ps` for one process's `lstart` rendering, under `env` when given (else
+ * the ambient environment), or null when the pid is gone or `ps` fails.
+ */
+function psLstart(pid: number, env?: NodeJS.ProcessEnv): string | null {
   try {
     const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
       stdio: ["ignore", "pipe", "ignore"],
+      ...(env === undefined ? {} : { env }),
     }).toString().trim();
     return out.length > 0 ? out : null;
   } catch {
@@ -234,6 +298,12 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  * Read a live PID's process START INSTANT as a timezone- and locale-invariant
  * identity, `unix:<epochSeconds>`.
  *
+ * THE KERNEL RECORD IS READ DIRECTLY WHERE THAT IS PROVABLY THE SAME NUMBER `ps`
+ * WOULD GIVE (see `kernel-start-time.ts`): one in-process `sysctl` instead of a
+ * fork per lock acquisition. Elsewhere, and whenever that read is in any doubt,
+ * this falls through to `ps` below unchanged — so a writer and a reader on one
+ * host always hold the identity in the same form whichever route each took.
+ *
  * WHY THE PREVIOUS FORMAT WAS A DEFECT AND NOT A STYLE CHOICE. It stored what
  * `ps -o lstart=` printed, which libc renders in the AMBIENT timezone — so one
  * live process yields different identities to different readers:
@@ -268,17 +338,11 @@ const PINNED_TIME_ENV = { TZ: "UTC", LC_ALL: "C" } as const;
  * unavailable/unparseable — so liveness degrades rather than failing.
  */
 export function readProcessStartTime(pid: number): string | null {
-  try {
-    const out = execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], {
-      stdio: ["ignore", "pipe", "ignore"],
-      env: { ...process.env, ...PINNED_TIME_ENV },
-    })
-      .toString()
-      .trim();
-    return out.length > 0 ? identityFromUtcRendering(out) : null;
-  } catch {
-    return null;
-  }
+  const kernelSeconds = readKernelStartSeconds(pid);
+  if (kernelSeconds === null) return null;
+  if (kernelSeconds !== undefined) return `${IDENTITY_PREFIX}${kernelSeconds}`;
+  const rendered = psLstart(pid, { ...process.env, ...PINNED_TIME_ENV });
+  return rendered === null ? null : identityFromUtcRendering(rendered);
 }
 
 /** Turn a UTC-pinned `lstart` rendering into the versioned epoch identity. */

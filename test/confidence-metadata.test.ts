@@ -6,7 +6,7 @@
  * backward-compatibility with pages that omit the new fields.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { rm } from "fs/promises";
 import {
   buildFrontmatter,

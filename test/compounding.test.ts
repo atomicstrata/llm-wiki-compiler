@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import path from "path";
 import { loadSelectedPages } from "../src/commands/query.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

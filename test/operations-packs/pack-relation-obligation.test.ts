@@ -10,7 +10,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { authorPackObligation } from "../../src/operations-packs/runtime/materializer-obligation.js";
 import { packPolicyContractFor } from "../../src/operations-packs/runtime/policy-contract.js";
 import type { PackIntentDraftV1 } from "../../src/operations-packs/handlers/types.js";
@@ -20,7 +20,7 @@ import { relationContentHash } from "../../src/relations/digest.js";
 import { deriveAttemptId, derivePhaseInstanceId, singleExpansionIdentity } from "../../src/preparations/ids.js";
 import { draftPayloadBytes } from "../../src/operations-packs/handlers/page-payload.js";
 import type { EvidenceRefV1 } from "../../src/preparations/types.js";
-import { compileCitesRelationAction } from "./runtime-fixture.js";
+import { compileCitesRelationAction } from "./compiled-actions-fixture.js";
 
 /** One authenticated draft: the payload digest binds its own published fields. */
 function draftOf(

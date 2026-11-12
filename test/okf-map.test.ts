@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { okfDocToPage } from "../src/import/okf-map.js";
 import { parseFrontmatter } from "../src/utils/markdown.js";
 

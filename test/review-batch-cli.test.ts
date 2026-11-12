@@ -3,7 +3,7 @@
  * partial refusals, duplicate targets and the inherited single-review commands.
  * Fixtures contain no provider credentials and disable local embeddings.
  */
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it } from "bun:test";
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

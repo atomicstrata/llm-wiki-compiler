@@ -3,7 +3,7 @@
  * Avoids real network calls — we test the pure helpers and JSON roundtrips.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { mkdtemp, writeFile, mkdir } from "fs/promises";
 import path from "path";
 import os from "os";

@@ -4,15 +4,16 @@
  * failure becomes one bounded unavailable lifecycle read without recapture.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const scanAttempt = vi.hoisted(() => vi.fn(async () => {
+const scanAttempt = vi.fn(async () => {
   throw new Error("forced scanner failure with sensitive detail");
-}));
+});
 
+// `read.ts` scans through the just-opened form: its open already proved the namespace current.
 vi.mock("../../src/preparations/lifecycle-snapshot/scan.js", () => ({
-  scanPreparationLifecycle: scanAttempt,
+  scanJustOpenedPreparationLifecycle: scanAttempt,
 }));
 
 import {

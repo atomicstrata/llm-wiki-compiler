@@ -14,7 +14,7 @@
  * Run with `UPDATE_GOLDEN=1` (outside CI) to regenerate.
  */
 
-import { describe, it, beforeAll, afterAll } from "vitest";
+import { describe, it, beforeAll, afterAll } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

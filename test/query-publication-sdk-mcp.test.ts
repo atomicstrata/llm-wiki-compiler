@@ -3,7 +3,9 @@
  * provider boundary is stubbed; admission, profile, output scopes, and writes are
  * production code. The MCP schema remains save-only with no review option.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -14,26 +16,26 @@ import { callClaude } from "../src/utils/llm.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { stageCitationWorkspace, citationWorkspaceBytes } from "./fixtures/query-answer-citations.js";
 import { SAMPLE_PROFILE } from "./fixtures/profile-fixtures.js";
-import { buildServer } from "./fixtures/mcp-test-env.js";
+import { buildServer } from "./fixtures/mcp-test-server.js";
 
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 const ctx = useTempRoot();
 
 beforeEach(async () => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "anthropic");
-  vi.stubEnv("ANTHROPIC_API_KEY", "offline-key");
-  vi.stubEnv("VOYAGE_API_KEY", "");
-  vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "");
-  vi.stubEnv("LLMWIKI_CLAUDE_SETTINGS_PATH", path.join(ctx.dir, "no-settings.json"));
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+  stubEnv("LLMWIKI_PROVIDER", "anthropic");
+  stubEnv("ANTHROPIC_API_KEY", "offline-key");
+  stubEnv("VOYAGE_API_KEY", "");
+  stubEnv("ANTHROPIC_AUTH_TOKEN", "");
+  stubEnv("LLMWIKI_CLAUDE_SETTINGS_PATH", path.join(ctx.dir, "no-settings.json"));
+  stubEnv("LLMWIKI_EMBEDDINGS", "off");
   await stageCitationWorkspace(ctx.dir);
   answerWith("Retained [[alpha]].");
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 /** Stub the two provider requests without replacing retrieval or publication. */
 function answerWith(answer: string): void {
-  vi.mocked(callClaude).mockReset().mockImplementation(async (options) => {
+  mocked(callClaude).mockReset().mockImplementation(async (options) => {
     if (options.tools) return JSON.stringify({ pages: ["concepts/alpha"], reasoning: "Alpha" });
     options.onToken?.(answer);
     return answer;
@@ -41,7 +43,7 @@ function answerWith(answer: string): void {
 }
 
 it("validates review before missing credentials at SDK, command, and generation entrypoints", async () => {
-  vi.stubEnv("ANTHROPIC_API_KEY", "");
+  stubEnv("ANTHROPIC_API_KEY", "");
   const wiki = createWiki({ root: ctx.dir });
   await expect(wiki.query("Explain alpha", { review: true })).rejects.toThrow("Query review requires save.");
   await expect(wiki.query("Explain alpha")).rejects.toBeInstanceOf(ProviderUnavailableError);

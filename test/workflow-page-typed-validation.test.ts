@@ -19,7 +19,7 @@
  *  - a NON-lifecycle entity page with valid fields → still APPLIES (no false block).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

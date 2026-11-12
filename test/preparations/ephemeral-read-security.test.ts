@@ -15,7 +15,7 @@ import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runEphemeralRead } from "../../src/preparations/ephemeral-execute.js";
 import { readPreparationEvidence } from "../../src/preparations/evidence-store.js";
 import type { ProviderInvokeFn } from "../../src/preparations/attempts/provider.js";

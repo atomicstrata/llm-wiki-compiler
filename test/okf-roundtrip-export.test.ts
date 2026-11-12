@@ -7,7 +7,7 @@
  * deterministic.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createHash } from "crypto";
 import { wikilinksToOkf, okfLinksToWikilinks, canonicalBody } from "../src/export/okf/mapping.js";
 

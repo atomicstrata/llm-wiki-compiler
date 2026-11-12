@@ -18,7 +18,7 @@
  * renderer could act on, so it is rejected at load rather than ignored later.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { validateProfileShape } from "../src/profile/validate.js";
 import type { FieldDef, ProfilePack } from "../src/profile/types.js";
 

@@ -4,7 +4,7 @@
  * those together and mark the source current based on manifest order.
  */
 
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "bun:test";
 import { access } from "fs/promises";
 import path from "path";
 import { listCandidates } from "../src/compiler/candidates.js";

@@ -13,7 +13,7 @@
  * non-default project emit NO event findings (byte-identical default path).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, readFile, appendFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

@@ -12,7 +12,7 @@
  * still object-scope-filtered OUT of a `build.status` result; a `build` run is in.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { runAction } from "../src/workflows/run-action.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { installRunActionProfile, runActionProfile } from "./fixtures/run-action-profile.js";

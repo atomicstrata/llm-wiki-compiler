@@ -10,9 +10,9 @@
  * are marked it.skip and explained inline.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
-import { mkdir, rm, writeFile, readdir, readFile, access } from "fs/promises";
+import { mkdir, rm, writeFile, readdir, readFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import type { ReviewCandidate } from "../src/utils/types.js";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";
@@ -115,7 +115,7 @@ async function assertMissingIdFails(subcommand: string, suffix: string): Promise
 }
 
 // ---------------------------------------------------------------------------
-// dist/cli.js is built once via vitest globalSetup (see test/global-setup.ts)
+// dist/cli.js is built once by `bun run test` before the suite starts
 // ---------------------------------------------------------------------------
 
 describe("review integration tests", () => {
@@ -244,7 +244,7 @@ describe("review integration tests", () => {
         "archive",
         `${candidate.id}.json`,
       );
-      await expect(access(archivePath)).resolves.toBeUndefined();
+      expect((await stat(archivePath)).isFile()).toBe(true);
     } finally {
       await cleanupDir(cwd);
     }
@@ -297,7 +297,7 @@ describe("review integration tests", () => {
 
       // Wiki page written
       const pagePath = path.join(cwd, "wiki", "concepts", `${candidate.slug}.md`);
-      await expect(access(pagePath)).resolves.toBeUndefined();
+      expect((await stat(pagePath)).isFile()).toBe(true);
 
       // Candidate file removed from pending area
       const pendingFiles = await readdir(path.join(cwd, ".llmwiki", "candidates")).catch(

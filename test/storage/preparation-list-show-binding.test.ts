@@ -43,7 +43,7 @@
  * backend, and no journey is closed by it.
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "bun:test";
 import { scanPreparationInventoryFrom, type PreparationInventoryReads } from "../../src/preparations/capacity.js";
 import {
   readPreparationKeyEpochFrom, readPreparationKeyFrom, type PreparationKeyLeafReads,

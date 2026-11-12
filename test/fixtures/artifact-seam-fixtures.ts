@@ -9,7 +9,7 @@
 import { writeFile, mkdtemp } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import type { ProfilePack } from "../../src/profile/types.js";
 import { submitStageOutput, type StageOutput } from "../../src/workflows/stage-output.js";
 import { startWorkflow } from "../../src/workflows/start.js";

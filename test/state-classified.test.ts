@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readStateClassified } from "../src/utils/state.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { expectReadsCorruptNoBak, expectReadsOkV1 } from "./fixtures/state-read-assertions.js";

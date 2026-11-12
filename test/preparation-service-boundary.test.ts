@@ -46,11 +46,11 @@
  * subprocess and facade suites, and a green run here is not evidence about it.
  */
 
-import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "./fixtures/committed-source.js";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   dynamicImportSpecifiers, importedSpecifiers, importsNodeFilesystem,
 } from "./preparations/lifecycle-model/source-text.js";
@@ -61,6 +61,7 @@ const SERVICE = "src/preparations/service.ts";
 const SOURCE_ALIASES: Record<string, string[]> = JSON.parse(
   readFileSync(path.join(REPO_ROOT, "tsconfig.json"), "utf8"),
 ).compilerOptions.paths;
+const CORE_MODULES = "@atomicstrata/llmwiki-core/modules/";
 /** The CLI registrar lives among unrelated CLI files, so it is named. */
 const CLI_REGISTRAR = "src/cli/preparation-commands.ts";
 
@@ -79,12 +80,18 @@ async function adapterModules(): Promise<string[]> {
 
 /** One module's source, comments included — the parser ignores them anyway. */
 async function sourceOf(module: string): Promise<string> {
-  return readFile(path.join(REPO_ROOT, module), "utf8");
+  return readCommittedSource(path.join(REPO_ROOT, module));
+}
+
+/** The source file a package alias names, including core's per-module paths. */
+function aliasOf(specifier: string): string | undefined {
+  if (specifier.startsWith(CORE_MODULES)) return `src/${specifier.slice(CORE_MODULES.length)}.ts`;
+  return SOURCE_ALIASES[specifier]?.[0];
 }
 
 /** Resolve relative imports and the repository's real package aliases. */
 function resolveSpecifier(module: string, specifier: string): string {
-  const alias = SOURCE_ALIASES[specifier]?.[0];
+  const alias = aliasOf(specifier);
   if (alias) return path.posix.normalize(alias);
   return path.posix.normalize(
     path.posix.join(path.posix.dirname(module), specifier.replace(/\.js$/u, ".ts")));
@@ -95,7 +102,7 @@ async function substrateReaches(): Promise<string[]> {
   const offenders: string[] = [];
   for (const module of await adapterModules()) {
     for (const specifier of importedSpecifiers(module, await sourceOf(module))) {
-      if (!specifier.startsWith(".") && !SOURCE_ALIASES[specifier]) continue;
+      if (!specifier.startsWith(".") && !aliasOf(specifier)) continue;
       const resolved = resolveSpecifier(module, specifier);
       if (!resolved.startsWith("src/preparations/") || resolved === SERVICE) continue;
       offenders.push(`${module} -> ${resolved}`);
@@ -128,11 +135,15 @@ function isValueImportClause(clause: ts.ImportClause | undefined): boolean {
  * dynamic import is ALWAYS a value reach: there is no type-only form of it.
  */
 function valueImportsOf(module: string, source: string): string[] {
-  const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+  return moduleEdgesOf(module, source).valueImports;
+}
+
+/** {@link valueImportsOf} over an already-parsed module. */
+function parsedValueImports(module: string, parsed: ts.SourceFile, source: string): string[] {
   const reached: string[] = [];
   for (const statement of parsed.statements) {
     const specifier = valueSpecifierOf(statement);
-    if (specifier !== undefined && (specifier.startsWith(".") || SOURCE_ALIASES[specifier])) {
+    if (specifier !== undefined && (specifier.startsWith(".") || aliasOf(specifier))) {
       reached.push(resolveSpecifier(module, specifier));
     }
   }
@@ -142,7 +153,7 @@ function valueImportsOf(module: string, source: string): string[] {
     // type` specifiers too, so every type-only reach became a value edge and
     // `documents.ts` — which imports exactly one type from the service — was
     // classified as able to call an operation.
-    if (specifier.startsWith(".") || SOURCE_ALIASES[specifier]) reached.push(resolveSpecifier(module, specifier));
+    if (specifier.startsWith(".") || aliasOf(specifier)) reached.push(resolveSpecifier(module, specifier));
   }
   return reached;
 }
@@ -285,7 +296,34 @@ interface ReExportEdge {
 
 /** Every value-carrying `export … from` edge one module declares. */
 function reExportEdges(module: string, source: string): ReExportEdge[] {
-  const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+  return moduleEdgesOf(module, source).reExports;
+}
+
+/**
+ * Both edge sets of one module, from ONE parse of its text.
+ *
+ * The graph walks revisit the same modules from every test, and re-parsing them
+ * on each visit was nearly all of this file's CPU. Keyed by the module AND its
+ * exact text: edges resolve against the module's path, and different bytes are
+ * a different key, so a changed file is parsed afresh rather than answered from
+ * memory.
+ */
+const edgesBySource = new Map<string, { valueImports: string[]; reExports: ReExportEdge[] }>();
+
+/** The memoized value-import and re-export edges of one module text. */
+function moduleEdgesOf(module: string, source: string): { valueImports: string[]; reExports: ReExportEdge[] } {
+  const key = `${module}\0${source}`;
+  let edges = edgesBySource.get(key);
+  if (edges === undefined) {
+    const parsed = ts.createSourceFile(module, source, ts.ScriptTarget.Latest, true);
+    edges = { valueImports: parsedValueImports(module, parsed, source), reExports: parsedReExports(module, parsed) };
+    edgesBySource.set(key, edges);
+  }
+  return edges;
+}
+
+/** {@link reExportEdges} over an already-parsed module. */
+function parsedReExports(module: string, parsed: ts.SourceFile): ReExportEdge[] {
   const edges: ReExportEdge[] = [];
   for (const statement of parsed.statements) {
     if (!ts.isExportDeclaration(statement) || statement.isTypeOnly) continue;

@@ -11,7 +11,7 @@
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, validateProfileShape, ProfileValidationError } from "../src/profile/validate.js";
 import { ProfilePathError } from "../src/profile/paths.js";
 import { DEFAULT_PROFILE } from "../src/profile/default.js";

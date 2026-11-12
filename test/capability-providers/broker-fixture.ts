@@ -6,7 +6,7 @@
  */
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 import {
   createCredentialRegistry, writeOperatorCredentialRegistry,
 } from "../../src/capability-providers/authority/credentials.js";

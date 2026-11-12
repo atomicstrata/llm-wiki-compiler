@@ -21,7 +21,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as resolve from "../../src/artifacts/resolve.js";
 import * as profileLoad from "../../src/profile/load.js";
 import type { LoadedProfile } from "../../src/profile/types.js";

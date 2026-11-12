@@ -11,7 +11,7 @@
  * file is the single consolidated gate, so it re-asserts each capability here even
  * where a sibling test covers it, always through the same shared fixture/driver.
  */
-import { describe, it, afterEach, expect } from "vitest";
+import { describe, it, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, mkdir, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

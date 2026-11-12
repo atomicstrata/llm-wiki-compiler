@@ -4,7 +4,7 @@
  * code and detail. No standalone product or in-memory result substitutes for
  * the durable read path; product-specific invocation witnesses are archived.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { showPreparationOperation } from "../../src/preparations/service-show.js";
 import { attemptRequest, stagePreparation, succeededLeg, type StagedPreparation } from "./attempt-fixture.js";

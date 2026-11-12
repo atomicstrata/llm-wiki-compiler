@@ -6,7 +6,7 @@
 
 import path from "node:path";
 import { link, mkdir, open, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_ACTIVE_BUNDLE_BYTES, MAX_BUNDLE_PAYLOAD_BYTES, MAX_CATALOG_FILE_BYTES,
   MAX_CATALOG_RECORD_BYTES, MAX_CATALOG_RECORDS_PER_WORKSPACE,

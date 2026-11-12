@@ -1,0 +1,13 @@
+# Bun test runner settings. `bun run test` builds dist/ once first (integration
+# tests spawn dist/cli.js) and sets the 30s per-test timeout on the command line.
+# `scripts/run-tests.mjs` also caps workers below the core count: many tests
+# spawn a CLI subprocess, so a worker per core oversubscribes the machine and
+# starves those spawns past their timeout (a non-deterministic failure whose
+# victim varies per run).
+[test]
+# Suite-wide hooks (exit-code isolation); see the file's header.
+preload = ["./test/preload.ts"]
+# The fresh-install packaging checks (`npm pack` + `npm install`, 30-50 s each)
+# run only via `bun run test:pack`, which CI runs in its `package` job and which
+# replaces these patterns on its command line so the files are not ignored.
+pathIgnorePatterns = ["test/sdk/packaging.test.ts", "test/products/private-packages-pack.test.ts", ".claude/**", ".worktrees/**", "**/dist/**"]

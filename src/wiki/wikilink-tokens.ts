@@ -5,10 +5,11 @@
  * code retain the viewer's existing literal-text behavior. Empty targets and
  * repeated occurrences are preserved; reporting owns any deduplication.
  */
-import MarkdownIt from "markdown-it";
+import type MarkdownIt from "markdown-it";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
 import { slugify } from "../utils/markdown.js";
+import { requireOnUse } from "../utils/require-on-use.js";
 import { shouldDeferInlineRule } from "../viewer/markdown-it-helpers.js";
 import { registerCitationTokens } from "./citation-tokens.js";
 
@@ -33,7 +34,9 @@ export function registerWikilinkTokens(md: MarkdownIt, observe?: WikilinkObserve
  * wikilinks a body contains.
  */
 export function createWikilinkRecognizer(observe?: WikilinkObserver): MarkdownIt {
-  const md = new MarkdownIt({ html: false, linkify: false, breaks: false });
+  // Loaded on first use: commands that never read a page body start without the parser.
+  const Parser = requireOnUse<typeof MarkdownIt>("markdown-it");
+  const md = new Parser({ html: false, linkify: false, breaks: false });
   registerWikilinkTokens(md, observe);
   registerCitationTokens(md);
   return md;

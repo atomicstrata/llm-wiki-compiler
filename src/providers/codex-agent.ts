@@ -8,15 +8,14 @@
  * API-key environment variables.
  */
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { accessSync, constants as fsConstants, statSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import Ajv from "ajv";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
-import { registerCodexProcess, signalCodexTree } from "./codex-agent-lifecycle.js";
+import { registerCodexProcess, removeCodexCwd, signalCodexTree } from "./codex-agent-lifecycle.js";
 import { dropNullOptionals, toStrictSchema } from "./codex-strict-schema.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -41,7 +40,6 @@ const ENV_ALLOWLIST = [
   "COMSPEC",
   "PATHEXT",
 ] as const;
-const ajv = new Ajv({ allErrors: true, strict: false });
 
 /** Testable resource bounds; production uses the secure defaults above. */
 export interface CodexAgentProviderOptions {
@@ -113,12 +111,46 @@ function childEnvironment(): NodeJS.ProcessEnv {
   return env;
 }
 
+/** Bound on asking `node` where its real binary lives. */
+const NODE_PROBE_TIMEOUT_MS = 5_000;
+
+/**
+ * Directory of the real Node binary behind the first `node` on `searchPath`.
+ * Used only under Bun, whose executable cannot stand in for Node. A wrapper
+ * (`exec node "$@"`) reports the binary it finally runs, not itself.
+ */
+function realNodeDirectory(searchPath: string): string | null {
+  try {
+    const binary = execFileSync("node", ["-p", "process.execPath"], {
+      env: { PATH: searchPath }, encoding: "utf8", timeout: NODE_PROBE_TIMEOUT_MS,
+    }).trim();
+    return path.isAbsolute(binary) ? path.dirname(binary) : null;
+  } catch {
+    return null; // No Node at all: Codex's `env node` shebang fails on its own.
+  }
+}
+
+/** {@link realNodeDirectory} answers by search path, probed once per process. */
+const probedNodeDirectories = new Map<string, string | null>();
+
+/**
+ * Directory of the Node that env-based shebangs should run. Under Node it is
+ * this process's own binary. Under Bun (the test runner) it is probed, once per
+ * search path: the probe is a synchronous spawn, so it stays off every call.
+ */
+function nodeDirectoryFor(searchPath: string): string | null {
+  if (process.versions.bun === undefined) return path.dirname(process.execPath);
+  if (!probedNodeDirectories.has(searchPath)) probedNodeDirectories.set(searchPath, realNodeDirectory(searchPath));
+  return probedNodeDirectories.get(searchPath) ?? null;
+}
+
 /** Keep env-based Node shebangs away from wrappers that synthesize variables. */
 function interpreterSafePath(searchPath: string): string {
-  const runtimeDirectory = path.dirname(process.execPath);
+  const nodeDirectory = nodeDirectoryFor(searchPath);
+  if (nodeDirectory === null) return searchPath;
   const directories = searchPath.split(path.delimiter)
-    .filter((directory) => directory && directory !== runtimeDirectory);
-  return [runtimeDirectory, ...directories].join(path.delimiter);
+    .filter((directory) => directory && directory !== nodeDirectory);
+  return [nodeDirectory, ...directories].join(path.delimiter);
 }
 
 /** Select Codex before changing interpreter lookup, preserving PATH precedence. */
@@ -331,6 +363,9 @@ export class CodexAgentProvider implements LLMProvider {
     } catch {
       throw new CodexAgentError("Codex CLI returned invalid JSON for a structured request.");
     }
+    // Loaded here because only a structured Codex reply needs a validator.
+    const { default: Ajv } = await import("ajv");
+    const ajv = new Ajv({ allErrors: true, strict: false });
     const validate = ajv.compile(schema);
     if (!validate(parsed)) {
       throw new CodexAgentError(`Codex CLI response failed schema validation: ${ajv.errorsText(validate.errors)}`);
@@ -372,7 +407,7 @@ export class CodexAgentProvider implements LLMProvider {
       }
     } finally {
       try {
-        await rm(cwd, { recursive: true, force: true });
+        await removeCodexCwd(cwd);
       } finally {
         releaseCustody();
       }

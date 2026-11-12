@@ -21,7 +21,7 @@
  * themselves; the preparation and evidence suites show those.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import * as manifestStore from "../../src/preparations/manifest-store.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";
@@ -34,7 +34,8 @@ import {
 import * as pageEvidence from "../../src/operations-packs/runtime/page-evidence.js";
 import { builtEvidenceContextFrom } from "../../src/operations-packs/runtime/runner-input.js";
 import * as sourceEvidence from "../../src/operations-packs/runtime/source-evidence.js";
-import { compileSingleIntentAction, stageCompiledAction } from "../operations-packs/runtime-fixture.js";
+import { stageCompiledAction } from "../operations-packs/runtime-fixture.js";
+import { compileSingleIntentAction } from "../operations-packs/compiled-actions-fixture.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

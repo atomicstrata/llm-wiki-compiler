@@ -20,7 +20,7 @@
  * rather than inferred across two tests.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { canonicalBytes } from "../src/profile/templates/signing/canonical.js";
 import { createWiki } from "../src/sdk/wiki.js";

@@ -18,14 +18,15 @@
  * suites show those on disk.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as candidateRejection from "../../src/compiler/candidate-rejection.js";
 import { rejectCandidateWith, reviewRejectStepsOver, type ReviewRejectSteps } from "../../src/commands/review-reject.js";
 import * as embeddingIntent from "../../src/commands/review-embedding-intent.js";
 import * as embeddingsRetry from "../../src/utils/embeddings-retry.js";
 import * as output from "../../src/utils/output.js";
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); });
 
 const BYTES = Buffer.from("{\"id\":\"cand-1\"}");
 
@@ -53,23 +54,23 @@ async function reject(answers: Parameters<typeof stepsOf>[1]) {
 
 describe("the review-reject policy as one body", () => {
   it("R1 releases the intent from the captured bytes and queues its pages BEFORE the move, then reports the archive", async () => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "true");
+    stubEnv("LLMWIKI_EMBEDDINGS", "true");
     const run = await reject({ released: ["concepts/a", "concepts/b"] });
     expect([run.outcome, run.log]).toEqual(["rejected", ["archive cand-1", `release ${BYTES.toString()}`, "queue concepts/a,concepts/b", "moved"]]);
     expect(run.said.join(" ")).toContain("Rejected candidate cand-1");
   });
 
   it("R2 queues nothing when no pages are released or refreshes are disabled", async () => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "true");
+    stubEnv("LLMWIKI_EMBEDDINGS", "true");
     const none = await reject({ released: [] });
     expect([none.outcome, none.log.some((call) => call.startsWith("queue"))]).toEqual(["rejected", false]);
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "false");
+    stubEnv("LLMWIKI_EMBEDDINGS", "false");
     const disabled = await reject({ released: ["concepts/a"] });
     expect([disabled.outcome, disabled.log.some((call) => call.startsWith("queue"))]).toEqual(["rejected", false]);
   });
 
   it("R3 refuses, before the move, when the queue cannot record every released page", async () => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "true");
+    stubEnv("LLMWIKI_EMBEDDINGS", "true");
     const run = await reject({ released: ["concepts/a", "concepts/b"], unrecorded: ["concepts/b"] });
     expect(run.outcome).toBe("Embedding retry queue is full: 1 page(s) from an interrupted batch could not be queued. "
       + "Run `llmwiki compile` to work through queued embeddings, then retry; the candidate was not rejected.");

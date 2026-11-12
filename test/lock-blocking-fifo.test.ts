@@ -1,5 +1,6 @@
 /** Canonical-root FIFO integration plus deterministic queue-progress timing. */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { waitFor } from "./wait-for.js";
 import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -37,13 +38,13 @@ describe("blocking lock process-local FIFO", () => {
       return "second";
     });
     // realpath is asynchronous; establish actual enqueue order, not call order.
-    await vi.waitFor(() => expect(admission).toHaveBeenCalledTimes(2), { timeout: 5_000 });
+    await waitFor(() => expect(admission).toHaveBeenCalledTimes(2), { timeout: 5_000 });
     const third = acquireLockBlocking(root, { timeoutMs: 5_000, intervalMs: 5 }).then(async () => {
       order.push("third");
       await releaseLock(root);
       return "third";
     });
-    await vi.waitFor(() => expect(admission).toHaveBeenCalledTimes(3), { timeout: 5_000 });
+    await waitFor(() => expect(admission).toHaveBeenCalledTimes(3), { timeout: 5_000 });
     await releaseLock(root);
     await expect(Promise.all([second, third])).resolves.toEqual(["second", "third"]);
     expect(order).toEqual(["second", "third"]);
@@ -58,10 +59,10 @@ describe("blocking lock process-local FIFO", () => {
       const releaseFirst = await acquireKeyedFifo("progress-test", 50, failure);
       const second = acquireKeyedFifo("progress-test", 50, failure);
       const third = acquireKeyedFifo("progress-test", 50, failure);
-      await vi.advanceTimersByTimeAsync(30);
+      await vi.advanceTimersByTime(30);
       releaseFirst();
       const releaseSecond = await second;
-      await vi.advanceTimersByTimeAsync(45);
+      await vi.advanceTimersByTime(45);
       releaseSecond();
       const releaseThird = await third;
       releaseThird();

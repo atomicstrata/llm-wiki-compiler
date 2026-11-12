@@ -6,7 +6,7 @@
  * graph, lint, and the context pool — with ZERO core code specific to it. If a tiny
  * unrelated fixture can run the machinery, the machinery is not secretly research-shaped.
  */
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

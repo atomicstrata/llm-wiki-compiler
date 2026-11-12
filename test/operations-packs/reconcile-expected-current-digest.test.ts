@@ -15,7 +15,7 @@
  * caught too).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { reconcileEvidence } from "../../src/operations-packs/handlers/reconcile.js";
 import {
   CURRENT_BYTES_FIELD, CURRENT_DIGEST_FIELD,

@@ -5,7 +5,7 @@
  */
 import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { registerWikilink } from "../src/viewer/wikilink-rule.js";
 import type { ViewerPage } from "../src/viewer/types.js";
 import * as shared from "../src/wiki/wikilink-tokens.js";

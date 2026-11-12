@@ -11,14 +11,14 @@
  * never a crash; and an unknown action id is a clean error result.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { rm, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerWorkflowActionTools } from "../src/mcp/workflow-action-tools.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
-import { callTool as call } from "./fixtures/mcp-test-env.js";
+import { callTool as call } from "./fixtures/mcp-test-server.js";
 
 const ctx = useConfinementRoots("mcp-wf-action");
 

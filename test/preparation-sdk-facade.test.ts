@@ -18,7 +18,7 @@
  * that mapped refusals onto a boolean, or dropped unreadable rows, would do.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import path from "node:path";
 import { createWiki } from "../src/sdk/wiki.js";
 import { expectNoRecoveryAuthority } from "./preparation-sdk-fixture.js";

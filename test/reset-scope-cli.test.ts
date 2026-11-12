@@ -18,7 +18,7 @@
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import { useFileProject } from "./fixtures/file-project.js";
 

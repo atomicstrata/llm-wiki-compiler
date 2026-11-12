@@ -22,7 +22,7 @@
  * access-control layer and not `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   createSourceWindowBudget, materializeSourceWindowsFrom, MAX_SOURCE_WINDOWS, type SourceWindowLocations, type SourceWindowSources,
 } from "../../src/context/provenance.js";

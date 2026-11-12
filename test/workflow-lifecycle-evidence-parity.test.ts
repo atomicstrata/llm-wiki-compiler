@@ -1,7 +1,7 @@
 /** Lifecycle intent/recovery binds the applied projection, not ignored caller data. */
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../src/profile/templates/signing/canonical.js";
 import { previewLifecycleLocked } from "../src/trust/lifecycle-apply.js";
 import { prepareLifecycleIntent } from "../src/workflows/lifecycle-output-recovery.js";
@@ -9,7 +9,7 @@ import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { submitStageOutput, type LifecycleStageOutput } from "../src/workflows/stage-output.js";
 import { writeRun } from "../src/workflows/store.js";
 import { kindsProfile, startKindsRun, pageLifecycle } from "./fixtures/seam-fixtures.js";
-import { readOkRun } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 
 /** Declare one numeric evidence field; all other evidence must be ignored. */
 async function fixture() {

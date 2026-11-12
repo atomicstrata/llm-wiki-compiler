@@ -6,23 +6,28 @@
 
 import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import { openConfinedLeaf } from "../../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen } from "../../utils/confined-read.js";
 import { healthyKeyMetadata } from "../../utils/key-leaf-health.js";
 import { readOpenedPreparationKey } from "../key-epoch.js";
 import { preparationKeyEpochId } from "../run-integrity.js";
 import type { PreparationLifecycleNamespaceV1 } from "./types.js";
 import { PreparationLifecycleNamespaceError } from "./namespace.js";
 
-/** Private key observation used only within one scanner invocation. */
+/**
+ * Private key observation used only within one scanner invocation.
+ * `unobserved` is a scan that read no key because it had no unit to
+ * authenticate (`scan.ts`); it authenticates nothing, like every non-`ok` state.
+ */
 export type CapturedLifecycleKey =
   | { readonly status: "absent" }
+  | { readonly status: "unobserved" }
   | { readonly status: "unavailable" }
   | { readonly status: "ok"; readonly key: Buffer; readonly keyEpochId: string };
 
 /** Whether the opened key retains the metadata captured by the namespace. */
 function openedKeyMatches(
   namespace: PreparationLifecycleNamespaceV1,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): boolean {
   const expected = namespace.preparationKey;
   if (expected.status !== "present" || expected.kind !== "regular") return false;
@@ -54,7 +59,7 @@ export async function captureLifecycleKey(
 /** Validate, read, copy, and identify one already-opened bound key leaf. */
 async function captureOpenedKey(
   namespace: PreparationLifecycleNamespaceV1,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<CapturedLifecycleKey> {
   if (!openedKeyMatches(namespace, opened)) {
     await opened.handle.close().catch(() => {});

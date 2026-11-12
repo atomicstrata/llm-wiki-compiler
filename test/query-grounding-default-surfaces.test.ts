@@ -13,16 +13,16 @@
 
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mockEmbeddingFailure, useAlphaPageFixture } from "./fixtures/alpha-page.js";
-import { buildServer, callTool } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { writePage } from "./fixtures/write-page.js";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { QueryResult } from "../src/utils/types.js";
 
 // The selection call (tools present) runs the configured side effect, then
 // picks both pages; the answer call echoes the prompt the model was shown.
-const state = vi.hoisted(() => ({ onSelect: undefined as (() => Promise<void>) | undefined }));
+const state = { onSelect: undefined as (() => Promise<void>) | undefined };
 vi.mock("../src/utils/llm.js", () => ({
   callClaude: vi.fn(async (opts: { tools?: unknown[]; messages: Array<{ content: string }> }) => {
     if (!opts.tools) return opts.messages[0].content;

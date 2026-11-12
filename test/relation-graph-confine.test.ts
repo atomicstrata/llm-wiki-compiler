@@ -11,7 +11,7 @@
  * closed (regression of the prior leaf-only fix).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

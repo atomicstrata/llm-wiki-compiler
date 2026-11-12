@@ -43,11 +43,11 @@ For every user-facing feature PR:
 9. Run the normal repo gates before the PR is considered done:
 
    ```bash
-   npx tsc --noEmit
-   npm run typecheck:tests
-   npm run build
-   npm test
-   npm run fallow:ci
+   bunx tsc --noEmit
+   bun run typecheck:tests
+   bun run build
+   bun run test
+   bun run fallow:ci
    ```
 
 ## Release checklist
@@ -60,7 +60,7 @@ During release prep:
 4. Run:
 
    ```bash
-   npm run release:check-docs:current
+   bun run release:check-docs:current
    ```
 
 5. Preview the docs site and spot-check the changed pages.

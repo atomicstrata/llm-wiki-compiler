@@ -8,7 +8,7 @@
  * prior state); a healthy CORRECT ref lets the transition succeed. Before the shared
  * state-entry seam existed the two denial cases wrongly SUCCEEDED (the Critical bypass).
  */
-import { describe, it, afterEach, expect } from "vitest";
+import { describe, it, afterEach, expect } from "bun:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

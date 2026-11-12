@@ -2,7 +2,8 @@
  * Invalid local request settings must fail without network or retry backoff.
  * Exercises the real provider through the shared LLM entry point in all modes.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { callClaude } from "../src/utils/llm.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { OpenAIRequestConfigError } from "../src/providers/openai-request.js";
@@ -10,14 +11,14 @@ import { OpenAIRequestConfigError } from "../src/providers/openai-request.js";
 describe("OpenAI request configuration failures", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-    vi.stubEnv("OPENAI_API_KEY", "test-key");
-    vi.stubEnv("LLMWIKI_MODEL", "gpt-5.6");
-    vi.stubEnv("LLMWIKI_OPENAI_TOKEN_PARAM", undefined);
-    vi.stubEnv("LLMWIKI_OPENAI_REASONING_EFFORT", undefined);
-    vi.stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", undefined);
+    stubEnv("LLMWIKI_PROVIDER", "openai");
+    stubEnv("OPENAI_API_KEY", "test-key");
+    stubEnv("LLMWIKI_MODEL", "gpt-5.6");
+    stubEnv("LLMWIKI_OPENAI_TOKEN_PARAM", undefined);
+    stubEnv("LLMWIKI_OPENAI_REASONING_EFFORT", undefined);
+    stubEnv("LLMWIKI_OPENAI_EXTRA_BODY", undefined);
   });
-  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  afterEach(() => { vi.useRealTimers(); restoreEnv(); restoreGlobals(); vi.restoreAllMocks(); });
 
   it.each([
     ["LLMWIKI_OPENAI_EXTRA_BODY", "complete"],
@@ -30,16 +31,16 @@ describe("OpenAI request configuration failures", () => {
     ["LLMWIKI_OPENAI_REASONING_EFFORT", "stream"],
     ["LLMWIKI_OPENAI_REASONING_EFFORT", "toolCall"],
   ] as const)("rejects invalid %s once in %s", async (variable, method) => {
-    vi.stubEnv(variable, "invalid-value");
+    stubEnv(variable, "invalid-value");
     const attempt = vi.spyOn(OpenAIProvider.prototype, method);
     const network = vi.fn(() => { throw new Error("unexpected network request"); });
-    vi.stubGlobal("fetch", network);
+    stubGlobal("fetch", network);
     const timer = vi.spyOn(globalThis, "setTimeout");
     const result = callClaude({
       system: "Extract", messages: [], stream: method === "stream",
       tools: method === "toolCall" ? [{ name: "extract", description: "Extract", input_schema: {} }] : undefined,
     }).catch((error: unknown) => error);
-    await vi.runAllTimersAsync();
+    await vi.runAllTimers();
     const error = await result;
     expect(error).toBeInstanceOf(OpenAIRequestConfigError);
     expect((error as Error).message).toContain(variable);

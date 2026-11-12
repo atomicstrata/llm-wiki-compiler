@@ -23,7 +23,7 @@
  * layer and not `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   classifyJournalFileFrom, listBatchIdsFrom, type JournalBatches, type JournalOpening, type JournalReadSources,
 } from "../../src/trust/journal-classify.js";

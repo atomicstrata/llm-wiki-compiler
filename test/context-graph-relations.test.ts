@@ -9,7 +9,7 @@
  * (a ghost) is dropped rather than crashing.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildGraphData } from "../src/viewer/graph.js";
 import type { EntityPageNode, RelationEdge } from "../src/viewer/graph.js";
 import { expandGraphNeighborhood } from "../src/context/graph.js";

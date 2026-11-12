@@ -8,7 +8,7 @@
 
 import { readdir } from "fs/promises";
 import path from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { jsonResponse, mountViewerDom, mountViewerDomWith, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 const EMPTY_ENVELOPE = {

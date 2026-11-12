@@ -17,7 +17,7 @@
  * candidate-read suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidateRead from "../../src/compiler/candidate-read.js";
 import { diskCompileAccess, pendingSourceStatesFrom } from "../../src/compiler/compile-access.js";
 

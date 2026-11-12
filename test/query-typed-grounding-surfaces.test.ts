@@ -6,8 +6,8 @@
  * its qualified id across both programmatic surfaces (not just the CLI).
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildServer, callTool } from "./fixtures/mcp-test-env.js";
+import { describe, it, expect, vi, afterEach } from "bun:test";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { chunkOf, mockQueryVector, seedTypedProject, writeChunkStore } from "./fixtures/typed-grounding.js";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { QueryResult } from "../src/utils/types.js";

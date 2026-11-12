@@ -188,12 +188,15 @@ export async function resolveCurrentStage(root: string, run: WorkflowRun,
   return { def, stage, projectId: loaded.profile.profileId };
 }
 
-/** Advance through the supplied host while retaining stage policy and fresh product observations. */
+/**
+ * Advance through the supplied host while retaining stage policy and fresh product observations.
+ * The process authority is asserted by {@link withHostRunLock} on this same run, under this same
+ * lock, just before the body runs; nothing in between can change it, so the body does not repeat it.
+ */
 export async function advanceWorkflowWithHost(host: LocalWorkflowHost, root: string, runId: string,
   lockOptions: BlockingLockOptions = {}): Promise<AdvanceResult> {
   const result = await withHostRunLock<AdvanceResult>(host, root, runId, async (run, context) => {
     if (isTerminalStatus(run.status)) throw new RunNotActiveError(runId, run.status);
-    await host.profiles.assertProcessAuthority(root, run);
     const { def, stage } = await resolveCurrentStage(root, run, host.profiles.load);
     if (stageSatisfied(run, stage)) {
       if (stage.productAction !== undefined) await assertProductStageOutputCurrent(root, run, stage, host.observations);

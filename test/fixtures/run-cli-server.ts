@@ -18,10 +18,9 @@
  */
 
 import { ChildProcess, spawn } from "child_process";
-import path from "path";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
+import { CLI, CLI_RUNTIME_FLAGS } from "./run-cli.js";
 
-const CLI = path.resolve("dist/cli.js");
 // Parses either `http://127.0.0.1:PORT` or the bracketed-IPv6 form
 // `http://[::1]:PORT` — group 1 captures the host without the brackets.
 const READINESS_RE = /Viewer ready at http:\/\/(?:\[([^\]]+)\]|([^\s:]+)):(\d+)/;
@@ -42,7 +41,7 @@ export interface ViewerProcessHandle {
 }
 
 /**
- * Spawn `node dist/cli.js view <args>` in `cwd`, wait for the readiness
+ * Spawn `bun dist/cli.js view <args>` in `cwd`, wait for the readiness
  * line, and resolve with a handle. Thin wrapper around the shared
  * `spawnAwaitingReadiness` core so the viewer and quickstart paths
  * share one timeout/stderr-capture/cleanup story.
@@ -57,7 +56,7 @@ export async function startViewerCLI(
 }
 
 /**
- * Spawn `node dist/cli.js quickstart <args>` in `cwd`, wait for the
+ * Spawn `bun dist/cli.js quickstart <args>` in `cwd`, wait for the
  * readiness line emitted by quickstart's viewer handoff, and resolve
  * with a handle. `envOverrides` is merged on top of `process.env` so
  * tests can inject aimock credentials the same way `runCLI` does.
@@ -83,7 +82,7 @@ interface SpawnOptions {
 }
 
 /**
- * Spawn `node dist/cli.js <argv>` and resolve once the viewer readiness
+ * Spawn `bun dist/cli.js <argv>` and resolve once the viewer readiness
  * line is observed on stdout. Rejects on early exit or timeout so tests
  * fail fast with captured stderr instead of hanging.
  */
@@ -94,7 +93,7 @@ async function spawnAwaitingReadiness(
   label: string,
   options: SpawnOptions,
 ): Promise<ViewerProcessHandle> {
-  const child = spawn("node", [CLI, ...argv], {
+  const child = spawn("bun", [...CLI_RUNTIME_FLAGS, CLI, ...argv], {
     cwd,
     env: options.env,
     stdio: ["ignore", "pipe", "pipe"],

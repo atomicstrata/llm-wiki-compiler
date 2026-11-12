@@ -6,7 +6,7 @@
  * each sees `isQuiet() === true` for the duration of its own run.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { withQuiet, isQuiet, getQuiet } from "../../src/utils/output.js";
 
 const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

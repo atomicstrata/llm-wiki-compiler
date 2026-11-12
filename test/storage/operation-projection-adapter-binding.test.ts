@@ -17,7 +17,7 @@
  * `projection-adapter.test.ts` show that.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";
 import { defineProjectionAdapter, projectionAdapter, type ProjectionAdapterStores } from "../../src/operation-bundles/adapters/projection.js";
 import * as projectionStore from "../../src/operation-bundles/projection-store.js";

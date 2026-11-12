@@ -19,7 +19,7 @@
  * suites show those.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { CLI_OPERATOR_ID } from "../../src/cli/shared.js";
 import * as bundleTarget from "../../src/operation-bundles/bundle-target.js";
 import * as cancelRequest from "../../src/operation-bundles/cancel-request.js";

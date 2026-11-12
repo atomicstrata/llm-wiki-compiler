@@ -7,7 +7,7 @@
  * and filter by a REGISTERED predicate (an unregistered predicate fails closed).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { selectSet } from "../../src/operations-packs/handlers/set-select.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import { PackHostHandlerError } from "../../src/operations-packs/handlers/types.js";

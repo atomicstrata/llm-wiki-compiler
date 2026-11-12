@@ -3,7 +3,9 @@
  * admission. Fault injection changes only individual filesystem operations;
  * confinement, parsing, and classification still run against real fixtures.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi, type Mock } from "bun:test";
+import { fsMetadataThroughPromises } from "./fixtures/fs-metadata-through-promises.js";
+import { mocked } from "./mocked.js";
 import * as fs from "fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import os from "node:os";
@@ -16,15 +18,37 @@ import { UnsafeCandidateDirError } from "../src/compiler/candidate-store-paths.j
 import * as output from "../src/utils/output.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
 
-vi.mock("fs/promises", async (original) => {
-  const actual = await original<typeof fs>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   return { ...actual, readFile: vi.fn(actual.readFile), realpath: vi.fn(actual.realpath),
     open: vi.fn(actual.open), readdir: vi.fn(actual.readdir) };
 });
 
+// Route the primitives' metadata lookups through the mocked fs/promises above.
+vi.mock("../src/utils/fs-metadata.js", fsMetadataThroughPromises);
+
 let root: string;
 beforeEach(async () => { root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "answer-index-"))); });
-afterEach(async () => { vi.restoreAllMocks(); await fs.rm(root, { recursive: true, force: true }); });
+afterEach(async () => {
+  vi.restoreAllMocks();
+  resetFsMocks();
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+/**
+ * Bun's restoreAllMocks does not undo implementations installed on vi.fn module
+ * mocks, so each test's fault injection is reset back to the real filesystem.
+ */
+function resetFsMocks(): void {
+  for (const name of ["readFile", "realpath", "open", "readdir"] as const) {
+    const mocked = fs[name] as unknown as Mock<(...args: unknown[]) => unknown>;
+    mocked.mockReset();
+    mocked.mockImplementation(realFsPromises[name] as (...args: unknown[]) => unknown);
+  }
+}
 
 /** Create a page or queue fixture under the temporary project. */
 async function put(relative: string, content: string) {
@@ -43,10 +67,13 @@ async function candidate(id: string, extra: Record<string, unknown> = {}) {
   }));
 }
 
+/** One overload-erased signature, so a mock can forward any spelling of the call. */
+type ForwardedRead = (target: never, ...rest: never[]) => Promise<unknown>;
+
 /** Intercept one candidate read while forwarding all reads to the real filesystem. */
 async function beforeCandidateRead(file: string, action: (actual: typeof fs) => void | Promise<void>): Promise<void> {
-  const actual = await vi.importActual<typeof fs>("fs/promises");
-  vi.mocked(fs.readFile).mockImplementation(async (target, ...args) => {
+  const actual = realFsPromises;
+  (fs.readFile as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
     if (target === file) await action(actual);
     return actual.readFile(target, ...args);
   });
@@ -72,7 +99,10 @@ it("matches production ordering, identities and aliases while ignoring typed-onl
 
 it("admits default and imported query candidates, excluding typed, malformed and unsupported targets", async () => {
   await candidate("default");
-  await candidate("imported", { targetDirectory: "queries", reviewMode: "imported", slug: "query-answer" });
+  // A later generatedAt pins the order: same-instant candidates keep the backend's
+  // listing order, which is raw directory order under Bun (Node's libuv sorted it).
+  await candidate("imported", { targetDirectory: "queries", reviewMode: "imported", slug: "query-answer",
+    generatedAt: "2026-09-18T00:00:01Z" });
   await candidate("typed-only", { targetEntityType: "papers" });
   await candidate("bad-dir", { targetDirectory: "papers" });
   await candidate("unnormalized", { slug: "Raw Name" });
@@ -100,8 +130,8 @@ it("allows in-directory leaf aliases and rejects escaping leaves and redirected 
 
 it("drops a page disappearing between listing and opening", async () => {
   const file = await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
-  const actual = await vi.importActual<typeof fs>("fs/promises");
-  vi.mocked(fs.open).mockImplementationOnce(async (...args) => {
+  const actual = realFsPromises;
+  mocked(fs.open).mockImplementationOnce(async (...args) => {
     await actual.unlink(file);
     return actual.open(...args);
   });
@@ -111,9 +141,9 @@ it("drops a page disappearing between listing and opening", async () => {
 it("rejects a handle opened during a parent swap even after the path is restored", async () => {
   await put("wiki/concepts/alpha.md", "---\naliases: [Inside]\n---");
   await put("outside/alpha.md", "---\naliases: [Secret]\n---");
-  const actual = await vi.importActual<typeof fs>("fs/promises");
+  const actual = realFsPromises;
   const dir = path.join(root, "wiki/concepts");
-  vi.mocked(fs.open).mockImplementationOnce(async (...args) => {
+  mocked(fs.open).mockImplementationOnce(async (...args) => {
     await actual.rename(dir, `${dir}-saved`);
     await actual.symlink(path.join(root, "outside"), dir);
     const handle = await actual.open(...args);
@@ -128,30 +158,30 @@ it.each(["open", "read", "realpath", "readdir"] as const)("propagates genuine re
   const file = await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
   const fault = Object.assign(new Error("I/O fault"), { code: "EIO" });
   if (operation === "read") {
-    const actual = await vi.importActual<typeof fs>("fs/promises");
-    vi.mocked(fs.open).mockImplementationOnce(async (...args) => {
+    const actual = realFsPromises;
+    mocked(fs.open).mockImplementationOnce(async (...args) => {
       const handle = await actual.open(...args);
       vi.spyOn(handle, "read").mockRejectedValueOnce(fault);
       return handle;
     });
   } else if (operation === "realpath") {
-    const actual = await vi.importActual<typeof fs>("fs/promises");
-    vi.mocked(fs.realpath).mockImplementation(async (target, ...args) => {
+    const actual = realFsPromises;
+    (fs.realpath as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
       if (target === file) throw fault;
       return actual.realpath(target, ...args);
     });
-  } else vi.mocked(fs[operation]).mockRejectedValueOnce(fault);
+  } else (fs[operation] as unknown as Mock<(typeof fs)[typeof operation]>).mockRejectedValueOnce(fault);
   await expect(collectAnswerCitationIndex(root)).rejects.toMatchObject({ code: "EIO" });
 });
 
 it("closes the collector handle on success and on a read fault", async () => {
   await put("wiki/concepts/alpha.md", "---\naliases: [Alias]\n---");
-  const actual = await vi.importActual<typeof fs>("fs/promises");
+  const actual = realFsPromises;
   let opened: FileHandle | undefined;
-  vi.mocked(fs.open).mockImplementation(async (...args) => { opened = await actual.open(...args); return opened; });
+  mocked(fs.open).mockImplementation(async (...args) => { opened = await actual.open(...args); return opened; });
   await collectAnswerCitationIndex(root);
   await expect(opened!.stat()).rejects.toMatchObject({ code: "EBADF" });
-  vi.mocked(fs.open).mockImplementation(async (...args) => {
+  mocked(fs.open).mockImplementation(async (...args) => {
     opened = await actual.open(...args);
     vi.spyOn(opened, "read").mockRejectedValueOnce(Object.assign(new Error("fault"), { code: "EIO" }));
     return opened;
@@ -171,9 +201,11 @@ it("does not hide candidate read faults while legacy listing keeps its default",
 
 it("does not hide candidate directory realpath faults in either listing mode", async () => {
   await candidate("alpha");
-  const actual = await vi.importActual<typeof fs>("fs/promises");
-  vi.mocked(fs.realpath).mockImplementation(async (target, ...args) => {
-    if (target === path.join(root, ".llmwiki/candidates")) throw Object.assign(new Error("I/O fault"), { code: "EACCES" });
+  const actual = realFsPromises;
+  (fs.realpath as unknown as Mock<ForwardedRead>).mockImplementation(async (target, ...args) => {
+    // EIO, not EACCES: portableRealpath resolves EACCES on an unreadable leaf the way
+    // Node does, so only a non-permission errno is still a genuine fault here.
+    if (target === path.join(root, ".llmwiki/candidates")) throw Object.assign(new Error("I/O fault"), { code: "EIO" });
     return actual.realpath(target, ...args);
   });
   // The store binding fails closed for every caller: a directory fault is a

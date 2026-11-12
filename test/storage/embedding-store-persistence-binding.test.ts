@@ -39,7 +39,8 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { LLMWIKI_DIR } from "../../src/utils/constants.js";
 import { encodeBinaryStore } from "../../src/utils/embeddings-binary.js";
 import { persistEmbeddingStore, persistEmbeddingStoreFrom, type StoredEmbeddingWrites } from "../../src/utils/embeddings-storage.js";
@@ -85,12 +86,12 @@ async function runSteps(steps: Step[], persist: Persist, leaves: () => Promise<L
   const outcomes: string[] = [];
   try {
     for (const step of steps) {
-      vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", step.optIn);
+      stubEnv("LLMWIKI_BINARY_EMBEDDINGS", step.optIn);
       const settled = await persist(step.store()).then(() => "ok", failureText);
-      vi.unstubAllEnvs();
+      restoreEnv();
       outcomes.push(JSON.stringify({ settled, notes: printed.splice(0), leaves: await leaves() }));
     }
-  } finally { vi.unstubAllEnvs(); notices.mockRestore(); }
+  } finally { restoreEnv(); notices.mockRestore(); }
   return outcomes;
 }
 
@@ -172,12 +173,12 @@ describe("the embedding store writer over copied projects, with every minting di
     expect([only!.settled.startsWith("TypeError: "), only!.settled.includes("BigInt"), only!.notes, only!.leaves]).toEqual([true, true, [], null]);
   });
 
-  it("P7 looks, encodes, creates and replaces in that order, and stops at the first refusal (memory only)", async () => {
+  it("P7 looks, encodes, creates a missing directory and replaces in that order, and stops at the first refusal (memory only)", async () => {
     const logs = { requested: [] as string[], authority: [] as string[], nonregular: [] as string[] };
     for (const name of Object.keys(logs) as (keyof typeof logs)[]) await expectDiskParity(name, logs[name]);
     expect(logs).toEqual({
       requested: ["dir", "dir", "create", "replace .llmwiki/embeddings.bin"],
-      authority: ["dir", "kind embeddings.bin", "create", "replace .llmwiki/embeddings.bin"],
+      authority: ["dir", "kind embeddings.bin", "replace .llmwiki/embeddings.bin"],
       nonregular: ["dir", "kind embeddings.bin"],
     });
   });

@@ -4,7 +4,7 @@
  * envelopes must not cross this trust boundary even though signing primitives
  * are shared.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   parseCapabilityProviderPackage, parseProviderPackageEnvelope,
 } from "../../src/capability-providers/packages/protocol.js";

@@ -15,7 +15,7 @@
  * by a test of TERMINALITY, which is one sufficient reason mistaken for the rule.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   ADVISORY_UNCONSUMED_RUN_STATES, CANCEL_HONORABLE_RUN_STATES,
   CANCEL_SETTLEABLE_RUN_STATES,

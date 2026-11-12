@@ -2,7 +2,7 @@
  * Counts actual FileHandle bytes, including a readFile replacement, to distinguish
  * frontmatter-only I/O from buffered body reads. Real files retain parser parity.
  */
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
 import { mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import os from "node:os";

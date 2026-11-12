@@ -4,7 +4,7 @@
  * is stubbed so we never make a real network call.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { mkdtemp, mkdir, writeFile } from "fs/promises";
 import path from "path";
 import os from "os";

@@ -2,7 +2,7 @@
  * Focused disk-backed witnesses for the internal source-review prototype.
  * Synthetic proposals prove wiring and invalidation, not model quality.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { readFile, writeFile, rm, unlink, symlink, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { createDemo } from "./fixtures/source-review-project.js";

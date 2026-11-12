@@ -2,7 +2,7 @@
  * @file Connector input compatibility: preserve useful public validation reasons
  * while retaining data-only capture that never invokes caller-owned accessors.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { captureConnectorInputs } from "../../src/connectors/input-validation.js";
 
 describe("public connector input diagnostics", () => {

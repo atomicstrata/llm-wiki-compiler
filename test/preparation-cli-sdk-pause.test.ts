@@ -17,7 +17,7 @@
  * everything; the mutation between them is a single constructor field.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { PreparationGrant } from "../src/preparations/service.js";

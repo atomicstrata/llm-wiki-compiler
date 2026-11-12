@@ -6,12 +6,12 @@
  * and the default-project guard.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { RelationsRequireProfileError } from "../src/trust/relation-write.js";
 import {
   transitionLifecycle,

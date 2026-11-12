@@ -13,10 +13,11 @@
  *    forge-a-completed-run exploit is now BLOCKED.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile, stat, access } from "node:fs/promises";
 import path from "node:path";
-import { writeRun, readRun } from "../src/workflows/store.js";
+import { writeRun } from "../src/local-workflow-host/run-store.js";
+import { readRun } from "../src/workflow-history/store.js";
 import { loadOrCreateRunKey } from "../src/workflows/integrity.js";
 import { WORKFLOW_RUN_SCHEMA_VERSION, type WorkflowRun } from "../src/workflows/types.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";

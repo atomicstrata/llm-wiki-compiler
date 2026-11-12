@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { link, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeContentAddressedBlob } from "../../src/operation-bundles/blob-store.js";
 import { MAX_PAYLOAD_BYTES } from "../../src/operation-bundles/constants.js";
 import { mintBundleId } from "../../src/operation-bundles/ids.js";
@@ -102,19 +102,12 @@ describe("payload store", () => {
       createOnly: true, confineRoot: root.dir, exactParent: true,
       beforeDirectorySyncForTest: async (dir) => { synced.push(dir); },
     })).rejects.toBeInstanceOf(AtomicWriteCollisionError);
-    const chain = directoryChain(path.dirname(file), root.dir);
-    // Reconcile fsyncs the chain before AND after removing the poisoned temp (the
-    // removal is power-loss durable), then the collision path fsyncs it once more.
-    expect(synced).toEqual([...chain, ...chain, ...chain]);
+    const leaf = path.dirname(file);
+    // Reconcile fsyncs the leaf directory before AND after removing the poisoned
+    // temp (the removal is power-loss durable), then the collision path fsyncs it
+    // once more. The first write already made every ancestor's entry durable, so
+    // the chain stops at the leaf each time.
+    expect(synced).toEqual([leaf, leaf, leaf]);
     await expect(writePayloadCreateOnly(root.dir, location, bytes)).resolves.toBe("same");
   });
 });
-
-/** Return every directory whose entry must be durable through the root. */
-function directoryChain(start: string, boundary: string): string[] {
-  const result = [];
-  for (let current = start; ; current = path.dirname(current)) {
-    result.push(current);
-    if (current === boundary) return result;
-  }
-}

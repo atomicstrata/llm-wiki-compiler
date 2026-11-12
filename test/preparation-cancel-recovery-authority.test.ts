@@ -21,7 +21,7 @@
  * the pair discriminating.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import type { PreparationPrincipal } from "../src/preparations/service.js";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";

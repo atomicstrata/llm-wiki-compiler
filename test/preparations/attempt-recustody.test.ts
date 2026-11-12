@@ -13,7 +13,7 @@ import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { readPreparationEvidence, writePreparationEvidenceCreateOnly } from "../../src/preparations/evidence-store.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";

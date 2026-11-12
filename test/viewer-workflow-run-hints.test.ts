@@ -14,7 +14,7 @@
  * contract lives in `viewer-workflows-route.test.ts`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildWorkflowRunsEnvelope, type WorkflowRunRow } from "../src/viewer/workflow-runs.js";
 import type { RunStatus } from "../src/workflows/status.js";
 import type { WorkflowRun } from "../src/workflows/types.js";

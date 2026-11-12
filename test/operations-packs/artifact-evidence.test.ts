@@ -14,7 +14,7 @@
  * unpinned ref BEFORE staging, and OVERWRITES any caller-supplied columns.
  */
 
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import path from "path";
 import { writeFile } from "fs/promises";
 import { buildArtifactEvidenceSpecs } from "../../src/operations-packs/runtime/artifact-evidence.js";

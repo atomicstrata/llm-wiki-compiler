@@ -9,7 +9,7 @@
 
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { installLocalProductPackage } from "../../src/products/packages/install.js";
 import { readInstalledProductPackage } from "../../src/products/packages/store.js";

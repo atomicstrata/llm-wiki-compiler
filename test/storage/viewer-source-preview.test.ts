@@ -18,13 +18,18 @@
  */
 
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
 
 /** Every call of the confined-read primitive, as its raw argument list. */
-const primitive = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+const primitive = { calls: [] as unknown[][] };
 
-vi.mock("../../src/utils/confined-read.js", async (load) => {
-  const actual = await load<typeof import("../../src/utils/confined-read.js")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFsPromises = { ...(await import("node:fs/promises")) };
+
+const realUtilsConfinedRead = { ...(await import("../../src/utils/confined-read.js")) };
+
+vi.mock("../../src/utils/confined-read.js", () => {
+  const actual = realUtilsConfinedRead;
   const readConfinedLeaf = (...args: unknown[]): unknown => {
     primitive.calls.push(args);
     return (actual.readConfinedLeaf as (...rest: unknown[]) => unknown)(...args);
@@ -35,7 +40,7 @@ vi.mock("../../src/utils/confined-read.js", async (load) => {
 import { readViewerSource } from "../../src/viewer/source-access.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
-const fs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+const fs = realFsPromises;
 const ONE_MIB = 1024 * 1024;
 const NESTED_ID = "papers/a.md";
 const NESTED_TEXT = "---\ntitle: Zażółć\n---\nRaw body — 規則は必ず守る\n";

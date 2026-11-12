@@ -36,7 +36,8 @@
  * the caller's lock and publication.
  */
 
-import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
+import { acquireMutationLockHandingOver } from "../operation-bundles/lock-gate.js";
+import type { WriteFreePreparationPass } from "./recovery.js";
 import { releaseLock } from "../utils/lock.js";
 import { parseBoundedUniqueJson } from "../profile/templates/signing/json.js";
 import { StageCapacityError } from "./capacity.js";
@@ -262,12 +263,29 @@ export interface StageOperationSteps extends StageShellSteps {
   readonly lock: { acquire(): Promise<boolean>; release(): Promise<void> };
 }
 
-/** LOCAL DISK. The incumbent preflight, lock and durable publication for `root`, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent preflight, lock and durable publication for `root`,
+ * each called when asked. The acquisition keeps the gate's write-free
+ * preparation pass for the one publication that runs under that hold, so the
+ * staging does not scan the store the gate just scanned; the release drops it.
+ */
 function diskStageSteps(root: string): StageOperationSteps {
+  let gated: WriteFreePreparationPass | null = null;
   return {
     preflightRefusal: () => preparationPreflightRefusal(root),
-    publish: (request) => stagePreparationLocked(root, request),
-    lock: { acquire: () => acquireMutationLock(root, "ordinary"), release: () => releaseLock(root) },
+    publish: (request) => {
+      const handed = gated;
+      gated = null;
+      return stagePreparationLocked(root, request, handed);
+    },
+    lock: {
+      acquire: async () => {
+        const held = await acquireMutationLockHandingOver(root, "ordinary");
+        gated = held.acquired ? held.preparationPass : null;
+        return held.acquired;
+      },
+      release: () => { gated = null; return releaseLock(root); },
+    },
   };
 }
 

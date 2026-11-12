@@ -3,7 +3,7 @@
  * outcome through compilation, incremental bookkeeping and ownership changes,
  * while keeping malformed model output on the retryable failure path.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";

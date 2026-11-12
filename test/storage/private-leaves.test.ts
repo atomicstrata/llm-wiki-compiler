@@ -17,16 +17,19 @@
  * "over the cap". One narrow mock of the no-follow opener injects the faults.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** The handle operations ("stat", "readFile", "close") the opened handle should fail at. */
-const failing = vi.hoisted(() => new Set<string>());
+const failing = new Set<string>();
 
-vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/utils/no-follow-open.js")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realUtilsNoFollowOpen = { ...(await import("../../src/utils/no-follow-open.js")) };
+
+vi.mock("../../src/utils/no-follow-open.js", async () => {
+  const actual = realUtilsNoFollowOpen;
   /** A view of a real handle whose named operations reject; `close` still really closes first. */
   const sabotaged = <T extends object>(handle: T): T => new Proxy(handle, {
     get(target, key) {
@@ -37,7 +40,17 @@ vi.mock("../../src/utils/no-follow-open.js", async (importOriginal) => {
       return async () => { if (key === "close") await call(); throw new Error(`${String(key)} sabotaged`); };
     },
   });
-  return { ...actual, openFileNoFollow: async (file: string, flags: number, mode?: number) => sabotaged(await actual.openFileNoFollow(file, flags, mode)) };
+  // The regular-file opener takes its fstat before returning, so a failing stat fails that open.
+  const openRegularNoFollow = async (file: string, flags: number, mode?: number) => {
+    const opened = await actual.openRegularNoFollow(file, flags, mode);
+    if (!failing.has("stat")) return { handle: sabotaged(opened.handle), stat: opened.stat };
+    await opened.handle.close();
+    throw new Error("stat sabotaged");
+  };
+  return {
+    ...actual, openRegularNoFollow,
+    openFileNoFollow: async (file: string, flags: number, mode?: number) => sabotaged(await actual.openFileNoFollow(file, flags, mode)),
+  };
 });
 
 import {

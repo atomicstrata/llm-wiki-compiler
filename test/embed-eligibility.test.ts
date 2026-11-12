@@ -6,7 +6,7 @@
  * (codex#4), and the profile-invalid typed-page exclusion.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { pageEmbedSurfaces } from "../src/utils/embed-eligibility.js";
 import type { RetrievalDef } from "../src/profile/types.js";
 

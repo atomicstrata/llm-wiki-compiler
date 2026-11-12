@@ -8,7 +8,7 @@
  * here so the test fixture proves the signal handlers actually fire.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdir, rm, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { LINT_CACHE_TIMESTAMP_PATTERN } from "../src/linter/cache.js";

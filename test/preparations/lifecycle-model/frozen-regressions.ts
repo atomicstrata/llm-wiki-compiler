@@ -160,7 +160,7 @@ export const FROZEN_REGRESSION_BASELINE = "4499a7dc8465f5b1eff75e8587477454570c2
 export const FROZEN_REGRESSIONS = [
   {
     path: "test/preparations/abandonment.test.ts",
-    fileSha256: "8d1a0170576ee4556a74c08008d7703724499e2469cacbff94dd0be7c722c60d",
+    fileSha256: "b135faef50191997b1f50dfe804deb56bf4438048217c7b684f5534ca3d79f17",
     scenarios: [
       { id: "PLA-REG-ABD-001", title: "terminates a confirmed recovery-required run as abandoned", bodySha256: "778ba5c8d6ea1bd8cc9fcc3b5e904509254eee2170d913773d3f463180013096", operation: "shared", evidence: "ordinary", reachesProduction: "abandonPreparationRunLocked" },
       { id: "PLA-REG-ABD-002", title: "fails closed without explicit residual-state confirmation", bodySha256: "ad21df2e560a95aeb840a089cc531ecc2673dc5fdf8f7bf542aa2707ad47ce1d", operation: "shared", evidence: "adversarial", reachesProduction: "abandonPreparationRunLocked" },
@@ -171,7 +171,7 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/preparations/authority-references.test.ts",
-    fileSha256: "98d0ce7c33c2825ebfb1b75602f410917881c0547ec1487962c4a08c5193ba2f",
+    fileSha256: "3c205e037225485d241d60d934ec3ddbc25a003eb6a77c3de03ce03d3a1c6657",
     scenarios: [
       { id: "PLA-REG-REF-001", title: "emits runtime-authority and product-package references for a nonterminal run", bodySha256: "5ff318940ed905ee3f448071f4f36aa3532c177c48f431f04d21dad6fa41c253", operation: "shared", evidence: "ordinary", reachesProduction: "enumeratePreparationReferences" },
       { id: "PLA-REG-REF-002", title: "reports a retained terminal and an abandoned run by their exact state", bodySha256: "1dba25686690889192bfb27a0a5bc446e7e32ef328057b2123f593e9ad047607", operation: "shared", evidence: "ordinary", reachesProduction: "enumeratePreparationReferences" },
@@ -191,7 +191,7 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/preparations/key-reset.test.ts",
-    fileSha256: "0f606ffc12b22ff092f94ea22f18afcf7713d9fdb8f73e4f1bab5d1b77cc2fc8",
+    fileSha256: "0deef89fe4f6de22039c6d62d67ae6a18fab716881120fe1d9d5a380f633701e",
     scenarios: [
       { id: "PLA-REG-RST-001", title: "records an intent and returns a continuation secret on the first pass", bodySha256: "051ac05936034d5cd2184dec5cf82bd70939be1d5a06cef2f8085e60e65f313d", operation: "reset", evidence: "ordinary", reachesProduction: "resetPreparationKeyEpochLocked" },
       { id: "PLA-REG-RST-002", title: "quarantines all authority and installs one fresh epoch on the token-bearing rerun", bodySha256: "b874356ad9606d29189939791d5e53a1855ad116f972d5ae41c4c2e307493ab7", operation: "reset", evidence: "durability", reachesProduction: "resetPreparationKeyEpochLocked" },
@@ -217,14 +217,14 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/preparations/lifecycle-fixture.ts",
-    fileSha256: "3d621e8e976e424298f2a910e1119baee905fb34494e081fd007cbb6143e0ef7",
+    fileSha256: "983a617426afd0dfaaecb5053e0ad402579e4ae0f3c2db85688ece57b28eb047",
     scenarios: [
 
     ],
   },
   {
     path: "test/preparations/lifecycle-races.test.ts",
-    fileSha256: "b9823eb271c11ea1a59fe1ae1fd53ac98dfb15678457b7220945dde5201935d1",
+    fileSha256: "de497986c359e2ec1a90db38db56779e2bcbd3eab7c688f7e52bb0d15e625817",
     scenarios: [
       { id: "PLA-REG-RACE-001", title: "resumes after a crash following the planned receipt without byte loss", bodySha256: "3ea7c682ad81b8178a1869f4c6be05a1634a4bf6c94f90d22e6ef3394eb725a0", operation: "quarantine", evidence: "durability", reachesProduction: "quarantinePreparationRunLocked" },
       { id: "PLA-REG-RACE-002", title: "resumes after a crash following the moves and never re-trusts the run", bodySha256: "cdb5c3b3155d5424311e1a5d6dc9fdf9b8bb42a3061c89bcf1cc876b71e48708", operation: "quarantine", evidence: "durability", reachesProduction: "quarantinePreparationRunLocked" },
@@ -234,7 +234,7 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/preparations/prune-sweep.test.ts",
-    fileSha256: "9eba0b408d72c2dd408e695b4fc82509c99fa5e6d87ed3aa3452610a39ed347b",
+    fileSha256: "91cbbec90d8bc900ecd7d6efef37b6674aa5dc021dc33ccf18618847b13a6571",
     scenarios: [
       { id: "PLA-REG-PRN-001", title: "is eligible only for a terminal run past the injectable retention floor", bodySha256: "4d2bccbf78d416a069379014ab7a961fe7b806a420da22ddd59daac2e5ddb677", operation: "shared", evidence: "ordinary", reachesProduction: "pruneEligibility" },
       { id: "PLA-REG-PRN-002", title: "is never eligible for a recovery-required run", bodySha256: "cbc5b2c182bc88806cd2be3ed1b31c7e5778ee94de58febf9a4336e6644e2a95", operation: "shared", evidence: "adversarial", reachesProduction: "pruneEligibility" },
@@ -257,7 +257,7 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/preparations/quarantine.test.ts",
-    fileSha256: "766a4815dda86639f25b217095a5388190a772f7a204a2a0b7c57a08c7fea982",
+    fileSha256: "5830ed3bfe93c41d219e9fea9d4c3808b8f0e8be80f52d0e751cd9abe0025b25",
     scenarios: [
       { id: "PLA-REG-QTN-001", title: "moves an integrity-invalid run byte-for-byte and stops counting it as active", bodySha256: "39b3133c2fefa28981e2b1919d9cbebc227c92370997df333dfd79c7d80a5eca", operation: "quarantine", evidence: "ordinary", reachesProduction: "quarantinePreparationRunLocked" },
       { id: "PLA-REG-QTN-002", title: "is idempotent: a re-run resumes the same unit and returns the same objects", bodySha256: "544011045126b1d38218f8eb96cb15a0e169c6f0af3e03100afa3e39205ec0d3", operation: "quarantine", evidence: "durability", reachesProduction: "quarantinePreparationRunLocked" },
@@ -276,7 +276,7 @@ export const FROZEN_REGRESSIONS = [
   },
   {
     path: "test/utils/fs-presence.test.ts",
-    fileSha256: "5066c263df4e81d44dfd93c9122a20017acebb98d852e97a73967cd1f03fe41e",
+    fileSha256: "84c06ae9a83f9b4edf4d06d4c0af89df858c21c0418c40bf06a619a9185cd59e",
     scenarios: [
       { id: "PLA-REG-PRS-001", title: "proves absence only on ENOENT and reports every other fault as unavailable", bodySha256: "28de58f01af800b1be18e6db7811aa18cbc20da6af229f793d23724d555d113a", operation: "shared", evidence: "adversarial", reachesProduction: "lstatLeaf" },
       { id: "PLA-REG-PRS-002", title: "distinguishes an absent directory from an unreadable one", bodySha256: "9d67ea790855630e648047a657d234d42c6ba16390427eac444b4b1c1ec2d5bd", operation: "shared", evidence: "adversarial", reachesProduction: "readDirectoryNames" },

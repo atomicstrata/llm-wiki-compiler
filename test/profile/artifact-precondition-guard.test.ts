@@ -8,7 +8,7 @@
  * ordering (M3) are proven in `./artifact-requirements-load.test.ts`; write-time denial
  * in the artifact enforce suites.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfile, ProfileValidationError } from "../../src/profile/validate.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 

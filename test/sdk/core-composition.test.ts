@@ -2,7 +2,7 @@
  * Core SDK construction and standard composition compatibility witnesses.
  * These source-level checks do not claim installed-package independence.
  */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

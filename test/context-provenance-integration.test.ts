@@ -9,7 +9,7 @@
  * exceeds the 400-line ceiling.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile, symlink } from "fs/promises";
 import os from "os";
 import path from "path";

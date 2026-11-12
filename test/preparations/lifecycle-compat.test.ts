@@ -6,7 +6,7 @@
 
 import { mkdir, rename, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { withPreparationLifecycleRead } from "../../src/preparations/lifecycle-snapshot/read.js";
 import { quarantinePreparationRunLocked } from "../../src/preparations/quarantine.js";

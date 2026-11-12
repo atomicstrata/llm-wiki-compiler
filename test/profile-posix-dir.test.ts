@@ -25,7 +25,7 @@
  * the source text of the profile modules for native-separator tokens, and never
  * calls these functions.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { isInsidePosixDir, validateEntityDirectory } from "../src/profile/paths.js";
 
 describe("normalizeDeclaredDir — the one place separators are resolved", () => {

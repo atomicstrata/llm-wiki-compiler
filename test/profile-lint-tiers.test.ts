@@ -3,7 +3,7 @@
  * single entity collection, declaration-aware confidence filed as a judgement,
  * flat/tiered parity, and narrow default/profile aggregation.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import { realpath } from "node:fs/promises";
 import path from "node:path";
 import { lint, lintBothViews, lintByTier } from "../src/linter/index.js";

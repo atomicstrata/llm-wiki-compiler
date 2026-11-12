@@ -22,8 +22,11 @@
  */
 
 import path from "node:path";
-import { durableAlias, verified, positiveScanEntryLimit, captureInventoryLeaf, walkInventoryTree } from "../utils/inventory-scan.js";
+import {
+  durableAlias, verified, positiveScanEntryLimit, captureInventoryLeaf, walkInventoryTree, type InventoryLeafObserver,
+} from "../utils/inventory-scan.js";
 import { diskInventoryWalkReads } from "../utils/inventory-disk-walk.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import { assertPreparationId, assertPreparationRunId } from "./ids.js";
 import {
   MAX_PREPARATION_INVENTORY_ENTRIES,
@@ -90,8 +93,11 @@ export interface PreparationStoreWalkReads {
    *  - ORDER: obtain an entry, THEN call `take()`. Never call `take()` when no
    *    entry is in hand, so never at the end of a directory. If `take()` is
    *    false, deliver nothing more from this visit; otherwise await
-   *    `inspect(entry)` before obtaining the next. An entry may have been
-   *    obtained and not delivered; nothing here bounds what the store reads.
+   *    `inspect(entry)` before obtaining the next — except that a provider
+   *    may obtain a bounded run of entries ahead and deliver them in order
+   *    (the disk walk reads ahead consecutive files to prove their directory
+   *    once). An entry may have been obtained and not delivered; nothing here
+   *    bounds what the store reads.
    *  - REFUSALS: answer `absent`, `unavailable` or `unlistable` ONLY when
    *    neither `take` nor `inspect` was called. A failure after that REJECTS.
    *  - NAMES: each name is one non-empty path segment, not `.` or `..`, with no
@@ -107,10 +113,10 @@ export interface PreparationStoreWalkReads {
    * One leaf's size and identity, taken from the opened leaf and nothing else;
    * nothing stays open afterwards. `dev` and `ino` are an identity pair: equal
    * pairs mean the same stored object, because byte totals count by them.
+   * A manifest or run leaf is asked with its cap as `retainUpToBytes`
+   * ({@link InventoryLeafObserver}).
    */
-  observeLeaf(file: string, parent: string): Promise<
-    { kind: "confirmed"; size: number; dev: number; ino: number } | { kind: "absent" } | { kind: "unavailable" }
-  >;
+  observeLeaf: InventoryLeafObserver;
 }
 
 interface ScanState {
@@ -230,13 +236,20 @@ function captureDirectoryIdentity(state: ScanState, relative: string): void {
 
 /** Capture one opened regular file and its protocol-aware classification. */
 async function captureLeaf(state: ScanState, file: string, parent: string): Promise<void> {
-  await captureInventoryLeaf((leaf, dir) => state.reads.observeLeaf(leaf, dir), file, parent, {
+  await captureInventoryLeaf((leaf, dir, retainUpToBytes) => state.reads.observeLeaf(leaf, dir, retainUpToBytes), file, parent, {
     label: "preparation",
     problem: (dimension, detail, relative) => problem(state, dimension, detail, relative),
     classify: classifyLeaf,
     noteCap: (kind, bytes, leaf) => noteLeafCap(state, kind, bytes, leaf),
     record: (observation) => { state.leaves.push(observation); },
+    retainUpTo: retainedLeafCap,
   });
+}
+
+/** The cap under which a manifest or run leaf the inventory goes on to read may be kept; no other leaf is. */
+function retainedLeafCap(classified: ClassifiedLeaf): number | undefined {
+  if (classified.protocolAlias !== undefined) return undefined;
+  return classified.kind === "manifest" || classified.kind === "run" ? LEAF_BYTE_CAPS[classified.kind] : undefined;
 }
 
 /** Refuse a recognized leaf whose metadata already exceeds its local cap. */
@@ -313,16 +326,21 @@ function scanResult(state: ScanState): PreparationOrphanScan {
  * primitive with the resolved root, as the scan state did before. Exported for
  * the store's leaf composition (`store-leaf-reads.ts`) only; in no package index.
  */
-export function diskPreparationStoreWalkReads(root: string): PreparationStoreWalkReads {
-  return diskInventoryWalkReads(root, ".llmwiki");
+export function diskPreparationStoreWalkReads(root: string, scanned?: ScannedLeafBytes): PreparationStoreWalkReads {
+  return diskInventoryWalkReads(root, ".llmwiki", scanned);
 }
 
-/** Inventory active preparation storage without entering a lifecycle registry. */
+/**
+ * Inventory active preparation storage without entering a lifecycle registry.
+ * A pass that goes on to read the manifests and runs hands in its `scanned`
+ * holder, so the walk's reads of those leaves are the ones its readers consume.
+ */
 export async function scanActivePreparationStore(
   root: string,
   options: PreparationScanOptions = {},
+  scanned?: ScannedLeafBytes,
 ): Promise<PreparationOrphanScan> {
-  return scanActivePreparationStoreFrom(diskPreparationStoreWalkReads(root), options);
+  return scanActivePreparationStoreFrom(diskPreparationStoreWalkReads(root, scanned), options);
 }
 
 /** {@link scanActivePreparationStore} over the scanner's reads: the active walk only. */

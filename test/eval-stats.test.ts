@@ -2,6 +2,7 @@
  * Tests for src/eval/stats.ts — corpus size tracking and history append.
  */
 
+import { describe, it, expect } from "bun:test";
 import { readFile, mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

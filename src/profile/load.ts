@@ -34,12 +34,17 @@
  * ONE BODY: {@link loadProfile} runs {@link loadProfileFrom} over local-disk
  * {@link EffectiveProfileSources}. Mode precedence, "missing is the default",
  * "present but broken is an error", every error class and message and the
- * logical `loadedFrom` are decided in this file; the sources only look. Nothing
- * is remembered between calls: every call reads again.
+ * logical `loadedFrom` are decided in this file; the sources only look. Every
+ * call reads the file again; only the verdict on text already validated is
+ * reused (`validated-text.ts`: once per process per exact text, failures never
+ * kept, a private copy per caller). Nothing else is remembered between calls —
+ * EXCEPT inside one lock-held section (`utils/lock-held-reads.ts`), where the
+ * project lock keeps every writer out, so the first load serves the rest of
+ * that section and each caller still receives its own copy of the profile.
  *
  * ACYCLIC RULE: this module imports `products/binding`, never the reverse. The
  * binding resolver loads the knowledge-profile member and validates it directly
- * via `validateProfile`/`profileDigest`; it must never call back into `loadProfile`.
+ * via `validatedProfileText`; it must never call back into `loadProfile`.
  */
 
 import path from "node:path";
@@ -47,13 +52,15 @@ import { readLeafTextNoFollowCapped, type CappedTextNoFollowRead } from "../stor
 import { PROFILE_FILE, MAX_PROFILE_BYTES } from "../utils/constants.js";
 import { PrivateDirConfinementError } from "../utils/private-dir.js";
 import { DEFAULT_PROFILE } from "./default.js";
-import { validateProfile } from "./validate.js";
+import { validatedProfileText } from "./validated-text.js";
 import { profileDigest } from "./digest.js";
 import type { LoadedProfile } from "./types.js";
 import {
   diskActiveProductSources, resolveActiveProductFrom, type ActiveProductSources,
 } from "../products/binding/resolve.js";
 import { ActiveProductUnavailableError, ProductAuthorityConflictError } from "../products/binding/problems.js";
+import type { ActiveProductResolution } from "../products/binding/resolve.js";
+import { inLockHeldSection, readOncePerLockHold } from "../utils/lock-held-reads.js";
 
 /** Error raised when a present profile file cannot be loaded or validated. */
 export class ProfileLoadError extends Error {
@@ -158,9 +165,9 @@ async function loadLegacyProfile(sources: EffectiveProfileSources): Promise<Load
   if (read.kind === "oversize") {
     throw new ProfileLoadError(`${PROFILE_FILE} is ${read.size} bytes — exceeds the ${MAX_PROFILE_BYTES}-byte cap`);
   }
-  const parsed = parseOrThrow(read.text, logicalFilePath);
-  const { profile } = validateProfile(parsed);
-  return { profile, loadedFrom: logicalFilePath, digest: profileDigest(profile) };
+  const { profile, digest } = validatedProfileText(read.text,
+    (parseError) => new ProfileLoadError(`Invalid JSON in ${logicalFilePath}: ${describe(parseError)}`));
+  return { profile, loadedFrom: logicalFilePath, digest };
 }
 
 /**
@@ -195,7 +202,29 @@ async function assertPrivateDirNotConfinementFault(sources: EffectiveProfileSour
  */
 export async function loadProfile(root: string): Promise<LoadedProfile> {
   // `async` so that a throw while the disk sources are built REJECTS, as this function always did.
-  return loadProfileFrom(diskEffectiveProfileSources(root));
+  const sources = diskEffectiveProfileSources(root);
+  if (!inLockHeldSection()) return loadProfileFrom(sources);
+  const shared = await readOncePerLockHold("effective-profile", root,
+    async () => loadProfileFor(sources, await activeProductForLockHold(root)));
+  return privateCopy(shared);
+}
+
+/**
+ * The project's active-product resolution, read once per lock-held section and
+ * shared with the profile load of that section; outside one, read every call.
+ * Callers only read it.
+ */
+export function activeProductForLockHold(root: string): Promise<ActiveProductResolution> {
+  return readOncePerLockHold("active-product", root,
+    () => resolveActiveProductFrom(diskActiveProductSources(root)));
+}
+
+/**
+ * A shared load as a caller may own it: a fresh profile object, as a fresh read
+ * would give. The built-in default was always one shared object.
+ */
+function privateCopy(loaded: LoadedProfile): LoadedProfile {
+  return loaded.loadedFrom === null ? { ...loaded } : { ...loaded, profile: structuredClone(loaded.profile) };
 }
 
 /**
@@ -205,7 +234,11 @@ export async function loadProfile(root: string): Promise<LoadedProfile> {
  * throws, so a confinement fault there outranks it. It NEVER falls back.
  */
 export async function loadProfileFrom(sources: EffectiveProfileSources): Promise<LoadedProfile> {
-  const resolution = await resolveActiveProductFrom(sources.activeProduct);
+  return loadProfileFor(sources, await resolveActiveProductFrom(sources.activeProduct));
+}
+
+/** {@link loadProfileFrom} once the product is resolved: the four modes. */
+async function loadProfileFor(sources: EffectiveProfileSources, resolution: ActiveProductResolution): Promise<LoadedProfile> {
   if (resolution.mode === "legacy") return loadLegacyProfile(sources);
   if (resolution.mode === "product") return resolution.loaded;
   if (resolution.mode === "conflict") throw new ProductAuthorityConflictError();
@@ -222,15 +255,6 @@ export async function loadProfileFrom(sources: EffectiveProfileSources): Promise
  */
 export async function activeProfileDigest(root: string): Promise<string> {
   return (await loadProfile(root)).digest;
-}
-
-/** Parse profile JSON, failing closed (never falling back) on broken content. */
-function parseOrThrow(raw: string, filePath: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    throw new ProfileLoadError(`Invalid JSON in ${filePath}: ${describe(err)}`);
-  }
 }
 
 /** Extract a human-readable message from an unknown thrown value. */

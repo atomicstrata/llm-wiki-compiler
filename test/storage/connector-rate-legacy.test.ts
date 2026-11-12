@@ -20,7 +20,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { ConnectorRuntimeConfig } from "../../src/connectors/config.js";
 import { enforceRequestInterval } from "../../src/connectors/rate-limit.js";
 import { acquireLock, releaseLock } from "../../src/utils/lock.js";

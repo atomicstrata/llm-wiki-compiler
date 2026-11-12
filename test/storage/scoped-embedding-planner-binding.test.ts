@@ -32,7 +32,7 @@
  * with the incumbent suites; the writer, refresh, provider and lock are not run.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import type { EmbeddingPageReads } from "../../src/utils/embeddings-pages.js";
 import {
   planScopedEmbeddingUpdate, planScopedEmbeddingUpdateFrom, type EmbeddingPrepare, type ScopedEmbeddingSources, type ScopedEmbeddingUpdate,

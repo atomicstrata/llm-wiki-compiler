@@ -19,7 +19,7 @@
  * is empty.
  */
 
-import { describe, it, beforeAll, afterAll, expect } from "vitest";
+import { describe, it, beforeAll, afterAll, expect } from "bun:test";
 import { mkdtemp, rm, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -27,7 +27,8 @@ import { createWiki } from "../src/index.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { buildParityCorpus } from "./fixtures/parity-corpus.js";
 import { runCLI } from "./fixtures/run-cli.js";
-import { buildServer, callTool, connectMcpClient } from "./fixtures/mcp-test-env.js";
+import { connectMcpClient } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { assertGolden } from "./parity/golden.js";
 
 /** Every deterministic, no-LLM surface the profile refactor must reproduce. */
@@ -233,7 +234,7 @@ describe("MCP deterministic surfaces", () => {
       const index = await client.readResource({ uri: "llmwiki://index" });
       capture("mcp.resources", {
         resources: list.resources.map((r) => ({ uri: r.uri, name: r.name })),
-        index: index.contents.map((c) => ({ uri: c.uri, mimeType: c.mimeType, text: c.text })),
+        index: index.contents.map((c) => ({ uri: c.uri, mimeType: c.mimeType, text: "text" in c ? c.text : undefined })),
       }, { unordered: ["resources"] });
     } finally {
       await client.close();

@@ -13,7 +13,7 @@
  * one of them drifting back to a hard-coded `max_tokens`.
  */
 
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "bun:test";
 import {
   OpenAIRequestConfigError,
   reasoningParams,

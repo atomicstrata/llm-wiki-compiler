@@ -52,7 +52,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { registerPreparationCommands } from "../src/cli/preparation-commands.js";
 import { createPreparationService } from "../src/preparations/service.js";
 import type {
@@ -170,10 +170,8 @@ async function invocationEnd(
 
 /** The `preparation` verbs the CLI registrar actually registers. */
 function registeredVerbs(): string[] {
-  const program = new Command();
-  registerPreparationCommands(program);
-  const group = program.commands.find((command) => command.name() === "preparation");
-  if (group === undefined) throw new Error("the preparation command group is not registered");
+  const group = new Command("preparation");
+  registerPreparationCommands(group);
   return group.commands.map((command) => command.name()).sort();
 }
 

@@ -12,7 +12,7 @@
  * run alongside this file.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { diffProfilesFrom } from "../../src/profile/diff.js";
 import { profileDigest } from "../../src/profile/digest.js";
 import { getBuiltinTemplate, listBuiltinTemplates } from "../../src/profile/templates/registry.js";

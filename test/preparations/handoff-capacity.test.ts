@@ -8,7 +8,7 @@
  * host-authored origin blob, so it is self-contained by construction.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { handoffPreparation } from "../../src/preparations/handoff.js";
 import { readPreparationRun } from "../../src/preparations/run-store.js";

@@ -17,7 +17,7 @@
 import { mkdtemp, readFile, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   canvasDocument, focusSubgraph, obsidianGraphConfig,
 } from "../../src/viewer/navigation-artifacts.js";

@@ -6,7 +6,7 @@
  * `test/retry-exclusions.test.ts`.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mergeFreshAttempts, type PendingEmbedding } from "../src/utils/pending-embeddings.js";
 
 describe("mergeFreshAttempts", () => {

@@ -19,7 +19,7 @@
  *    clean no-op — byte-identical output, NO batch entry for that page.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { existsSync } from "fs";
 import { readFile, writeFile, mkdir, rm } from "fs/promises";
 import path from "path";

@@ -19,7 +19,7 @@
  * the connector candidate-store suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as audit from "../../src/connectors/audit.js";
 import * as supersession from "../../src/connectors/candidate-supersession.js";
 import * as stageCandidate from "../../src/connectors/stage-candidate.js";

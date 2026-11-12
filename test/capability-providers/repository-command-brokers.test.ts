@@ -3,7 +3,7 @@
  * @description Repository commit-pin and command typed-argv integration tests,
  * including moving-ref refusal and hostile shell-string preservation.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest,
 } from "../../src/capability-providers/brokers/dispatch.js";

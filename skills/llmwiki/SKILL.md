@@ -2,7 +2,7 @@
 name: llmwiki
 description: Build and use a persistent, citation-traceable knowledge wiki from documents, research papers, notes, or project documentation. Use for llmwiki projects, retrieving reusable evidence for an agent task, or compiling a corpus for repeated questions. A one-off file read or live web search does not need a wiki.
 license: MIT
-compatibility: Requires an installed llmwiki CLI with Node.js 24 or later, or an already connected llmwiki MCP server.
+compatibility: Requires an installed llmwiki CLI with Bun 1.3 or later, or an already connected llmwiki MCP server.
 ---
 
 # llmwiki

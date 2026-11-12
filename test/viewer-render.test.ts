@@ -7,7 +7,7 @@
  * supported span shapes.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { renderPageHtml } from "../src/viewer/render.js";
 import type {
   PageId,

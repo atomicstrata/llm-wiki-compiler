@@ -41,7 +41,7 @@
  * coarse check can never admit a kind the exact check would refuse.
  */
 
-import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
+import { acquireMutationLockHandingOver } from "../operation-bundles/lock-gate.js";
 // The same pairing the gate documents: the gate acquires, utils releases.
 import { releaseLock } from "../utils/lock.js";
 import {
@@ -69,8 +69,9 @@ import {
   resolveHostReadiness, resolveHostReadinessFrom, type HostReadinessV1, type PreparationReadinessReads,
 } from "./service-readiness.js";
 import {
-  resolvePreparationRun, resolvePreparationRunFrom, type PreparationRunLookupReads, type PreparationRunLookupV1,
+  resolvePreparationRunFrom, resolvePreparationRunOnPass, type PreparationRunLookupReads, type PreparationRunLookupV1,
 } from "./service-run-lookup.js";
+import { commandPreparationPass } from "./recovery.js";
 
 /** What one gate decision asks for, in order. No member takes a project root. */
 export interface GateOperationSteps {
@@ -86,14 +87,30 @@ export interface GateOperationSteps {
   readonly appendProjected: ProjectedRunAppend;
 }
 
-/** LOCAL DISK. The incumbent readers, lock and writer for `root`, each called when asked. */
+/**
+ * LOCAL DISK. The incumbent readers, lock and writer for `root`, each called when
+ * asked. The run lookup and the append's run and key reads are ONE PASS
+ * (`pass-reads.ts`) per hold of the lock: a pass begins when the lock is
+ * acquired, and the append, the decision's one write, is its last use. When the
+ * gate's settlement wrote nothing, the hold's pass is the gate's own, and the
+ * lookup takes the inventory the gate scanned (`commandPreparationPass`).
+ */
 function diskGateOperationSteps(root: string): GateOperationSteps {
+  let command = commandPreparationPass(root, null);
   return {
     hostReadiness: () => resolveHostReadiness(root),
-    lock: { acquire: () => acquireMutationLock(root, "review"), release: () => releaseLock(root) },
-    resolveRun: (runId) => resolvePreparationRun(root, runId),
+    lock: {
+      acquire: async () => {
+        const held = await acquireMutationLockHandingOver(root, "review");
+        command = commandPreparationPass(root, held.acquired ? held.preparationPass : null);
+        return held.acquired;
+      },
+      release: () => releaseLock(root),
+    },
+    resolveRun: (runId) => resolvePreparationRunOnPass(root, runId, command),
     gateAuthority: (binding, run, gateId) => resolveGateAuthority(root, binding, run, gateId),
-    appendProjected: (binding, expected, input, project) => appendProjectedTransitionLocked(root, binding, expected, input, project),
+    appendProjected: (binding, expected, input, project) =>
+      appendProjectedTransitionLocked(root, binding, expected, input, project, command.reads),
   };
 }
 

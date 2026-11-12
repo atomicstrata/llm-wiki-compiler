@@ -2,7 +2,7 @@
  * @file test/connectors/fence.test.ts
  * @description Connector-origin bytes are nonce fenced on every read surface.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { fenceUntrustedConnectorText, readConnectorBlock } from "../../src/connectors/fence.js";
 import { applyContentTiers } from "../../src/context/content-tiers.js";
 import type { ContextPack } from "../../src/context/types.js";

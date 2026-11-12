@@ -9,7 +9,7 @@
  * well-formed except the single property under test.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { loadProductPackageManifest, recomputePackageDigest } from "../../src/products/packages/verify.js";
 import { MAX_KNOWLEDGE_PROFILE_BYTES } from "../../src/products/constants.js";
 import {

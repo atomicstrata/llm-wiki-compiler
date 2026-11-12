@@ -19,7 +19,6 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
 import { authoritativeManifests, hasAuthoritativeRun, uniqueInventoryBytes as uniqueBytes } from "../utils/inventory-arithmetic.js";
 import { assertAggregateBlobCaps } from "./capacity-caps.js";
 import { readCatalogStore, type CatalogStoreRead } from "./catalog-store.js";
@@ -28,22 +27,24 @@ import {
   MAX_WORKSPACE_RETAINED_SOURCE_BYTES,
 } from "./constants.js";
 import type { BundleId, OperationRunId } from "./ids.js";
-import { verifyInventoryAuthorities } from "./inventory-authority.js";
+import {
+  diskInventoryAuthorityReads, verifyInventoryAuthoritiesFrom, type InventoryAuthorityReads,
+} from "./inventory-authority.js";
 import { graphNodes, payloadDigestsByBundle } from "./inventory-indexes.js";
 import type {
   OperationEpochInventory, OperationEpochInventoryEntry,
 } from "./key-epoch.js";
-import { readOperationKey } from "./key-epoch.js";
 import { readDurableOperationLeafBuffer } from "./durable-leaf.js";
 import { operationManifestDigest } from "./manifest-parse.js";
-import { manifestPayloadClaims, readOperationManifest, type OperationManifestRead } from "./manifest-store.js";
+import { manifestPayloadClaims, type OperationManifestRead } from "./manifest-store.js";
 import {
   scanOperationOrphans, type OperationInventoryProblem,
   type OperationLeafObservation, type OperationOrphanScan, type OperationScanOptions,
 } from "./orphan-scan.js";
-import { readOperationRun, type OperationRunRead } from "./run-store.js";
+import type { OperationRunRead } from "./run-store.js";
 import type { OperationRunBinding } from "./run-types.js";
 import { operationPaths } from "./paths.js";
+import { operationPassReads, type OperationPassReads } from "./pass-reads.js";
 import type {
   BundleGraphNode, OperationBundleManifest, OperationDigest,
 } from "./types.js";
@@ -82,6 +83,8 @@ export interface OperationInventory {
   runIds: ReadonlySet<OperationRunId>;
   completeBundleIds: ReadonlySet<BundleId>;
   payloadDigestsByBundle: ReadonlyMap<string, ReadonlySet<string>>;
+  /** What the walk listed (`OperationOrphanScan.listing`); absent from an inventory not built by a walk. */
+  listing?: OperationOrphanScan["listing"];
 }
 
 interface ManifestState {
@@ -102,8 +105,8 @@ export interface OperationInventoryReads {
   verifyAuthorities(leaves: readonly OperationLeafObservation[]): Promise<readonly OperationInventoryProblem[]>;
   /** One manifest by workspace and bundle. */
   readManifest(workspaceId: string, bundleId: BundleId): Promise<OperationManifestRead>;
-  /** One bundle payload leaf's bytes within `maxBytes`; a path it cannot derive rejects. */
-  readPayloadLeaf(workspaceId: string, bundleId: BundleId, digest: string, maxBytes: number): Promise<CappedLeafReadBuffer>;
+  /** One bundle payload leaf's SHA-256 and byte length within `maxBytes`; a path it cannot derive rejects. */
+  readPayloadLeaf(workspaceId: string, bundleId: BundleId, digest: string, maxBytes: number): Promise<PayloadLeafRead>;
   /** Whether the operation key can be read, and its epoch. NEVER the key bytes. */
   readKeyEpoch(): Promise<
     | { status: "ok"; keyEpochId: OperationRunBinding["keyEpochId"] }
@@ -116,32 +119,74 @@ export interface OperationInventoryReads {
   readCatalog(workspaceId: string): Promise<CatalogStoreRead>;
 }
 
-/** The incumbent payload leaf read for one root: path derivation, then the confined durable read. */
-function readDiskPayloadLeaf(root: string, workspaceId: string, bundleId: BundleId, digest: string, maxBytes: number) {
+/** A payload leaf as the manifest check needs it: its content digest and length, never its bytes. */
+export type PayloadLeafRead =
+  | { kind: "ok"; sha256: string; byteLength: number }
+  | { kind: "absent" }
+  | { kind: "unavailable" };
+
+/** Lowercase SHA-256 hex of exact bytes. */
+function sha256Hex(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+/** The incumbent payload leaf read for one root: path derivation, the confined durable read, then the digest. */
+async function readDiskPayloadLeaf(root: string, workspaceId: string, bundleId: BundleId, digest: string, maxBytes: number): Promise<PayloadLeafRead> {
   const paths = operationPaths(root, workspaceId);
-  return readDurableOperationLeafBuffer(root, paths.payloadFile(bundleId, digest), paths.payloadsRoot(bundleId), maxBytes);
+  const read = await readDurableOperationLeafBuffer(root, paths.payloadFile(bundleId, digest), paths.payloadsRoot(bundleId), maxBytes);
+  return read.kind === "ok" ? { kind: "ok", sha256: sha256Hex(read.body), byteLength: read.body.byteLength } : read;
+}
+
+/** Identity of one payload read: its location and cap. */
+function payloadReadKey(workspaceId: string, bundleId: string, digest: string, maxBytes: number): string {
+  return [workspaceId, bundleId, digest, maxBytes].join("\0");
+}
+
+/**
+ * The authority reads for one scan, noting each payload whose confined read in
+ * this scan already matched its content address. Only the digest and length are
+ * kept, never the bytes.
+ */
+function payloadNotingAuthorityReads(root: string, pass: OperationPassReads, verified: Map<string, number>): InventoryAuthorityReads {
+  const disk = diskInventoryAuthorityReads(root, pass.readKey, pass.scannedLeaves);
+  return {
+    ...disk,
+    readLeaf: async (leaf, maxBytes) => {
+      const read = await disk.readLeaf(leaf, maxBytes);
+      if (leaf.kind === "payload" && read.kind === "ok" && sha256Hex(read.body) === leaf.digest) {
+        verified.set(payloadReadKey(leaf.workspaceId, leaf.bundleId, leaf.digest, maxBytes), read.body.byteLength);
+      }
+      return read;
+    },
+  };
 }
 
 /**
  * The local-disk reads for one project root, built per call: each closure calls
  * the imported root-taking function when it is asked, never earlier. In no
- * package index.
+ * package index. A payload the authority pass of THIS scan already read through
+ * the same confined durable read and matched to its content address is not read
+ * a second time for the manifest check: its digest and length are answered from
+ * that read. Any other payload is read as before.
  */
-export function diskOperationInventoryReads(root: string): OperationInventoryReads {
+export function diskOperationInventoryReads(root: string, pass: OperationPassReads = operationPassReads(root)): OperationInventoryReads {
+  const verifiedPayloads = new Map<string, number>();
   return {
-    scanStore: (options) => scanOperationOrphans(root, options),
+    // The walk leaves the bytes of the leaves it reads with the pass, whose readers below consume them.
+    scanStore: (options) => scanOperationOrphans(root, options, pass.scannedLeaves),
     verifyAuthorities: async (leaves) => {
       const problems: OperationInventoryProblem[] = [];
-      await verifyInventoryAuthorities(root, leaves, problems);
+      await verifyInventoryAuthoritiesFrom(payloadNotingAuthorityReads(root, pass, verifiedPayloads), leaves, problems);
       return problems;
     },
-    readManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
-    readPayloadLeaf: (workspaceId, bundleId, digest, maxBytes) => readDiskPayloadLeaf(root, workspaceId, bundleId, digest, maxBytes),
-    readKeyEpoch: async () => {
-      const read = await readOperationKey(root);
-      return read.status === "ok" ? { status: "ok", keyEpochId: read.keyEpochId } : read;
+    readManifest: pass.readManifest,
+    readPayloadLeaf: async (workspaceId, bundleId, digest, maxBytes) => {
+      const byteLength = verifiedPayloads.get(payloadReadKey(workspaceId, bundleId, digest, maxBytes));
+      if (byteLength !== undefined) return { kind: "ok", sha256: digest, byteLength };
+      return readDiskPayloadLeaf(root, workspaceId, bundleId, digest, maxBytes);
     },
-    readRun: (binding) => readOperationRun(root, binding),
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
     readCatalog: (workspaceId) => readCatalogStore(root, workspaceId),
   };
 }
@@ -203,9 +248,8 @@ async function verifyManifestPayloads(
       leaf.protocolAlias === undefined && path.basename(leaf.logicalRelativePath) === digest);
     if (!present) return false;
     const read = await reads.readPayloadLeaf(manifest.workspaceId, manifest.bundleId, digest, MAX_PAYLOAD_BYTES);
-    const valid = read.kind === "ok" &&
-      createHash("sha256").update(read.body).digest("hex") === digest &&
-      claims.every((count) => count === read.body.byteLength);
+    const valid = read.kind === "ok" && read.sha256 === digest &&
+      claims.every((count) => count === read.byteLength);
     if (!valid) {
       problems.push({ dimension: "payload-state", detail: "manifest payload is unavailable or invalid" });
       return false;
@@ -350,8 +394,9 @@ async function classifyBundles(
 export async function scanOperationInventory(
   root: string,
   options: OperationScanOptions = {},
+  pass: OperationPassReads = operationPassReads(root),
 ): Promise<OperationInventory> {
-  return scanOperationInventoryFrom(diskOperationInventoryReads(root), options);
+  return scanOperationInventoryFrom(diskOperationInventoryReads(root, pass), options);
 }
 
 /** {@link scanOperationInventory} over the scan's own reads: the one body. */
@@ -382,5 +427,6 @@ export async function scanOperationInventoryFrom(
     completeBundleIds: new Set(classified.states.filter((item) => item.complete)
       .map((item) => item.manifest.bundleId)),
     payloadDigestsByBundle: payloadDigestsByBundle(scan.leaves),
+    listing: scan.listing,
   };
 }

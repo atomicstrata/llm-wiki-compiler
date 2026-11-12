@@ -1,4 +1,4 @@
-import { vi, expect } from "vitest";
+import { vi, expect } from "bun:test";
 /** Run `fn` asserting it writes nothing to stdout/stderr (the output-free-core guard). Returns fn's result. */
 export async function assertNoOutput<T>(fn: () => Promise<T>): Promise<T> {
   const log = vi.spyOn(console, "log").mockImplementation(() => {});

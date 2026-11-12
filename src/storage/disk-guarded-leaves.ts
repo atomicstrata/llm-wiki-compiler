@@ -77,7 +77,7 @@ import path from "node:path";
 import { atomicWrite, atomicWriteNoReplace } from "../utils/atomic-write.js";
 import {
   openConfinedLeaf, readConfinedLeaf, readConfinedLeafBuffer,
-  type CappedLeafRead, type CappedLeafReadBuffer, type ReadLeafOptions,
+  type CappedLeafRead, type CappedLeafReadBuffer, type ConfirmedLeafOpen, type ReadLeafOptions,
 } from "../utils/confined-read.js";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import {
@@ -250,7 +250,7 @@ async function handleStillBound(
 /** Read and rebind one already confinement-proved leaf handle; the handle is always closed. */
 async function consumeConfirmedLeaf(
   request: GuardedLeafReadRequest,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<GuardedLeafRead> {
   try {
     const info = await opened.handle.stat();
@@ -554,9 +554,13 @@ export async function renameLeafUnguarded(from: string, to: string): Promise<voi
   await rename(from, to);
 }
 
-/** NO GUARD. `readdir(dir)`: names in the order returned. Rejects with the raw error. */
+/**
+ * NO GUARD. `readdir(dir)`: names in code-unit order. Rejects with the raw error.
+ * Node's libuv returned every listing sorted; Bun returns raw directory order,
+ * so the sort keeps listing-derived output identical across runtimes.
+ */
 export async function listDirectoryNames(dir: string): Promise<string[]> {
-  return readdir(dir);
+  return (await readdir(dir)).sort();
 }
 
 /**

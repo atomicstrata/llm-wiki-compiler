@@ -21,7 +21,7 @@
 import { chmod, mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
   acquireMutationLock, PreparationLifecycleGateError,
 } from "../src/operation-bundles/lock-gate.js";

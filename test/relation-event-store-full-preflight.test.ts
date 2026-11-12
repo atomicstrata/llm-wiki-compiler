@@ -18,7 +18,7 @@
  *     emits the event; the dedup path appends/emits nothing.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -30,10 +30,13 @@ import { readEvents } from "../src/events/store-read.js";
 import { EventStoreFullError } from "../src/events/types.js";
 import { EXPERIMENT_A as EXP_A, IDEA_B, experimentsIdeasProfile } from "./fixtures/profile-fixtures.js";
 
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realUtilsConstants = { ...(await import("../src/utils/constants.js")) };
+
 // A tiny whole-file event cap so a handful of relation events drive the store to
-// the brink without writing 64 MB. Inlined literal: vi.mock is hoisted above consts.
-vi.mock("../src/utils/constants.js", async (importActual) => {
-  const actual = await importActual<typeof import("../src/utils/constants.js")>();
+// the brink without writing 64 MB.
+vi.mock("../src/utils/constants.js", () => {
+  const actual = realUtilsConstants;
   return { ...actual, MAX_EVENT_STORE_BYTES: 900 };
 });
 

@@ -9,12 +9,12 @@
  * surfaces collector `problems` for a contract violation.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { exportJson } from "../src/commands/export.js";
-import { createWiki } from "../src/index.js";
+import { createWiki } from "../src/sdk/wiki.js";
 import { CONCEPTS_DIR } from "../src/utils/constants.js";
 import {
   writeMarkdownPage,

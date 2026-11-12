@@ -5,7 +5,8 @@
  */
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { writePage } from "./fixtures/write-page.js";
 import * as transport from "../src/utils/embedding-provider.js";
@@ -17,13 +18,13 @@ import type { LoadedProfile } from "../src/profile/types.js";
 
 const ctx = useConfinementRoots("binary-consumers");
 beforeEach(() => {
-  vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
-  vi.stubGlobal("fetch", () => { throw new Error("NETWORK FORBIDDEN in consumer witness"); });
+  stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
+  stubGlobal("fetch", () => { throw new Error("NETWORK FORBIDDEN in consumer witness"); });
   vi.spyOn(transport, "getEmbeddingProvider").mockReturnValue({
     embed: async () => [1, 0],
   } as unknown as ReturnType<typeof transport.getEmbeddingProvider>);
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); restoreGlobals(); });
 
 /** Build stored metadata from real live pages, with deliberately poisoned caches. */
 async function storeFor(ids: string[]): Promise<EmbeddingStoreV3> {

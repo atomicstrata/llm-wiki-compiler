@@ -9,7 +9,7 @@
  * secret. We capture the system prompt by spying on `AnthropicProvider.toolCall`.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile, symlink } from "fs/promises";
 import path from "path";
 import { compileAndReport } from "../src/compiler/index.js";

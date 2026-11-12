@@ -1,7 +1,7 @@
 /** Shared retained-page fixtures for query and search fallback regressions. */
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, vi } from "vitest";
+import { afterEach, vi } from "bun:test";
 import * as provider from "../../src/utils/provider.js";
 import { makeTempRoot } from "./temp-root.js";
 import { writePage } from "./write-page.js";

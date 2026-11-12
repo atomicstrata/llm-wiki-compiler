@@ -7,13 +7,11 @@
  */
 
 import type { Command } from "commander";
-import { artifactWriteCommand, artifactVerifyCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import type { ArtifactWriteOptions, ArtifactVerifyOptions } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { artifactWriteCommand, artifactVerifyCommand } from "@atomicstrata/llmwiki-core/modules/commands/artifact";
+import type { ArtifactWriteOptions, ArtifactVerifyOptions } from "@atomicstrata/llmwiki-core/modules/commands/artifact";
 
-/** Register the `artifact` command group (`write`, `verify`) on `program`. */
-export function registerArtifactCommands(program: Command): void {
-  const artifactCmd = program.command("artifact").description("Write and verify typed artifacts");
-
+/** Register the `artifact` command group (`write`, `verify`). */
+export function registerArtifactCommands(artifactCmd: Command): void {
   artifactCmd
     .command("write")
     .description("Write a typed artifact's bytes (requires a profile-declared type and the LLMWIKI_TRUSTED_WRITE grant)")

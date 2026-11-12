@@ -13,7 +13,7 @@
  * would look at a directory that does not exist and find nothing.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { localCompileAccess, type CompileAccess } from "../../src/compiler/compile-access.js";
 import type { CandidateDraft } from "../../src/compiler/candidates.js";
 import { runReviewProposal } from "../../src/compiler/compile-phases.js";

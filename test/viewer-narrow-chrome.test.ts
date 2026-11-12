@@ -1,7 +1,7 @@
 /** Responsive chrome cascade guards; browser layout acceptance remains separate. */
 import { readFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 
 /** Apply the narrow media rules through the CSSOM, which JSDOM does not evaluate. */
 function narrowStyles() {

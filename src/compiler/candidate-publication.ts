@@ -20,7 +20,7 @@ import { randomBytes } from "node:crypto";
 import { AtomicWriteCollisionError } from "../utils/atomic-write.js";
 import { CANDIDATES_ARCHIVE_DIR, CANDIDATES_DIR } from "../utils/constants.js";
 import {
-  assertCandidateNamespacesHealthyFrom,
+  candidateNamespacesHealthyFrom,
   diskCandidateCustodyReads,
   type CandidateStoreWriteReads,
 } from "./candidate-custody.js";
@@ -65,17 +65,23 @@ interface CandidateCreateHooks {
   readonly afterCommit?: () => Promise<void>;
 }
 
+/** Where the two owned namespaces are, as one health check just proved them (`null` = absent). */
+export interface CandidateOwnedDirectories {
+  readonly pending: string | null;
+  readonly archive: string | null;
+}
+
 /**
  * The raw candidate-store effects the fresh allocator runs over. Each member
  * rejects with its own error; the allocator decides what that error means.
  */
 export interface CandidatePublicationStore {
   /**
-   * MECHANISM (candidate-store custody: namespace identity). Resolves when each
-   * owned namespace that exists is readable and the two are distinct objects;
-   * rejects otherwise.
+   * MECHANISM (candidate-store custody: namespace identity). Resolves, with the
+   * real directory of each namespace it bound, when each owned namespace that
+   * exists is readable and the two are distinct objects; rejects otherwise.
    */
-  assertNamespacesHealthy(): Promise<void>;
+  assertNamespacesHealthy(): Promise<CandidateOwnedDirectories>;
   /**
    * MECHANISM (directory confinement). Where the owned directory `relDir` is,
    * or `null` when it is absent. Rejects with `UnsafeCandidateDirError` when
@@ -94,13 +100,16 @@ export interface CandidatePublicationStore {
 
 /**
  * The publication store composed from the store mechanisms: the namespace
- * policy is the shared domain body ({@link assertCandidateNamespacesHealthyFrom}),
+ * policy is the shared domain body ({@link candidateNamespacesHealthyFrom}),
  * the owned directory is the alias-tolerant binding's real directory, and the
  * exclusive create resolves the confined pending leaf first. Building it does no I/O.
  */
 export function candidatePublicationStoreFrom(reads: CandidateStoreWriteReads): CandidatePublicationStore {
   return {
-    assertNamespacesHealthy: () => assertCandidateNamespacesHealthyFrom(reads),
+    assertNamespacesHealthy: async () => {
+      const proven = await candidateNamespacesHealthyFrom(reads);
+      return { pending: proven.pending?.realDir ?? null, archive: proven.archive?.realDir ?? null };
+    },
     ownedDirectory: async (relDir) => (await reads.captureDirectory(relDir))?.realDir ?? null,
     leafPresent: (dir, leafName) => reads.leafPresent(dir, leafName),
     createPending: async (id, text, hooks) => {
@@ -140,7 +149,11 @@ export function writableCandidateId(
 
 /** True when one exact no-follow leaf already owns an identity. */
 async function candidateObjectExists(store: CandidatePublicationStore, dir: string, id: string): Promise<boolean> {
-  const ownedDir = await store.ownedDirectory(dir);
+  return candidateLeafPresent(store, await store.ownedDirectory(dir), id);
+}
+
+/** True when the exact no-follow leaf of `id` is in an owned directory already located (`null` = absent). */
+async function candidateLeafPresent(store: CandidatePublicationStore, ownedDir: string | null, id: string): Promise<boolean> {
   if (ownedDir === null) return false;
   try {
     return await store.leafPresent(ownedDir, `${id}.json`);
@@ -149,11 +162,18 @@ async function candidateObjectExists(store: CandidatePublicationStore, dir: stri
   }
 }
 
-/** True when pending or archive already owns the exact identity. */
+/**
+ * True when pending or archive already owns the exact identity. The health
+ * check binds both namespaces and its probes re-prove each binding right after
+ * checking access, so the existence looks use the directories it hands back
+ * rather than binding them again. This lookup only skips a taken identity
+ * early: exclusion itself is the no-replace create and the archive recheck
+ * at the publication boundary, which binds archive afresh.
+ */
 async function candidateIdentityExists(store: CandidatePublicationStore, id: string): Promise<boolean> {
-  await store.assertNamespacesHealthy();
-  return (await candidateObjectExists(store, CANDIDATES_DIR, id)) ||
-    (await candidateObjectExists(store, CANDIDATES_ARCHIVE_DIR, id));
+  const owned = await store.assertNamespacesHealthy();
+  return (await candidateLeafPresent(store, owned.pending, id)) ||
+    (await candidateLeafPresent(store, owned.archive, id));
 }
 
 /** Publish one attempt, translating only non-confinement I/O faults. */

@@ -38,7 +38,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { eventPrevHash } from "../../src/events/event-digest.js";
 import type { EventBoundWriteSources } from "../../src/events/store.js";
 import * as eventRecord from "../../src/events/store-record.js";
@@ -258,7 +258,7 @@ describe("the operation-bound relation create over both stores, disk and memory,
 });
 
 describe("the bound operation create's order, its unknown outcomes, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
 
   it("O6 traces a fresh create exactly: two durable upgrades, each store's append writing the record ONLY, and no non-durable replacement", async () => {
     const side = memorySide(minted.fresh.copy);

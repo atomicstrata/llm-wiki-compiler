@@ -4,7 +4,7 @@
  * contract. Tests revocation, root/host isolation, cleanup and composition refusal
  * without replacing the production lock or filesystem with a mock authority.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
@@ -12,7 +12,7 @@ import { createLocalWorkflowTransactions, createLocalWorkflowTransactionScope } 
 import {
   assertLocalWorkflowCoreInstance, LocalWorkflowCoreInstanceError, LOCAL_WORKFLOW_CORE_INSTANCE,
   LocalWorkflowTransactionError, type LocalWorkflowTransaction,
-} from "../src/local-workflow-host/shared-contracts.js";
+} from "../src/local-workflow-host/contracts.js";
 
 const ctx = useConfinementRoots("local-workflow-host");
 

@@ -6,7 +6,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   MAX_ACTIVE_BUNDLE_BYTES,
   MAX_BUNDLE_PAYLOAD_BYTES,

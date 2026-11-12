@@ -17,7 +17,7 @@
  *   - a normal (clean) store append still works (regression).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 import path from "node:path";
 import type { EntityId, ProfilePack } from "../src/profile/types.js";

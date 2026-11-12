@@ -17,7 +17,7 @@
  * not bound by this.
  */
 import path from "node:path";
-import { z } from "zod";
+import type { z } from "zod";
 import { sha256Text } from "../connectors/hash.js";
 import { readConfinedLeafText, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
 import type { CappedLeafRead } from "../utils/confined-read.js";
@@ -27,14 +27,19 @@ import type { ReviewCandidate } from "../utils/types.js";
 
 const INTENT_FILE = "review-embedding-intent.json";
 const MAX_INTENT_BYTES = 1024 * 1024;
-const intentSchema = z.object({
-  schemaVersion: z.literal(1),
-  entries: z.array(z.object({
-    candidates: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1),
-    pageIds: z.array(z.string().refine(id => parseQualifiedPageId(id) !== null)),
-  })),
-});
-type IntentEntry = z.infer<typeof intentSchema>["entries"][number];
+
+/** Build the intent schema where it is read, so only a batch approval loads zod. */
+async function loadIntentSchema() {
+  const { z } = await import("zod");
+  return z.object({
+    schemaVersion: z.literal(1),
+    entries: z.array(z.object({
+      candidates: z.array(z.string().regex(/^[a-f0-9]{64}$/)).min(1),
+      pageIds: z.array(z.string().refine(id => parseQualifiedPageId(id) !== null)),
+    })),
+  });
+}
+type IntentEntry = z.infer<Awaited<ReturnType<typeof loadIntentSchema>>>["entries"][number];
 /** The candidate fields that identify one promoted snapshot. */
 type SnapshotFields = Partial<Record<"id" | "slug" | "targetDirectory" | "targetEntityType" | "body", unknown>>;
 
@@ -166,7 +171,7 @@ async function readIntent(storage: ReviewEmbeddingIntentStorage, directory: stri
   const read = await storage.readLeafText(directory, file, MAX_INTENT_BYTES);
   if (read.kind === "absent") return [];
   if (read.kind !== "ok") throw new Error("Review embedding intent unavailable; retry after repairing its storage.");
-  const parsed = intentSchema.safeParse(parseJson(read.body));
+  const parsed = (await loadIntentSchema()).safeParse(parseJson(read.body));
   if (!parsed.success) throw new Error("Invalid review embedding intent; recovery cannot safely continue.");
   return parsed.data.entries;
 }

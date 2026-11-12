@@ -6,7 +6,7 @@
 
 import { mkdir, readFile, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { AtomicWriteCollisionError, atomicWrite, atomicWriteNoReplace } from "../src/utils/atomic-write.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 

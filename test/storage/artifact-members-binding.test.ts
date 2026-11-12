@@ -32,7 +32,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { applyArtifactLockedWith, type ArtifactApplySources } from "../../src/artifacts/apply.js";
 import * as applyGuards from "../../src/artifacts/apply-guards.js";
 import { applyMembersLockedWith, type MembersApplySources } from "../../src/artifacts/apply-members.js";
@@ -42,7 +42,7 @@ import type { EventBoundWriteSources } from "../../src/events/store.js";
 import { readEvents, readEventsFrom, verifyEventChain } from "../../src/events/store-read.js";
 import * as eventRecord from "../../src/events/store-record.js";
 import type { EventRecord } from "../../src/events/types.js";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import { mintBundleId, mintOperationRunId, mutationId } from "../../src/operation-bundles/ids.js";
 import * as profileBlock from "../../src/profile/block.js";
 import type { ProfilePack } from "../../src/profile/types.js";
@@ -310,7 +310,7 @@ describe("the member-bearing artifact write, disk and memory, from three raw-cop
 });
 
 describe("the bound member write's unknown outcomes, its order, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
   const batch = ".llmwiki/journal/<batch>.json";
   const record = (rel: string, read = "read") => ["realpath .", `${read} ${rel}`, `replace ${batch}`];
 

@@ -13,7 +13,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compileIntents } from "../../src/operations-packs/handlers/intent-compile.js";
 import type { PackEvidenceItemV1 } from "../../src/operations-packs/handlers/types.js";
 import { createPackMaterializer } from "../../src/operations-packs/runtime/materializer.js";
@@ -26,7 +26,7 @@ import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompiledPackActionV1 } from "../../src/operations-packs/compiler-types.js";
 import { mixedTerminalPaperRequest, multiSourceSingleIntentRequest } from "./compile-fixture.js";
 import { actionInputItemIdentities } from "../../src/operations-packs/runtime/host-registry.js";
-import { compileTwoPhasePaperAction } from "./runtime-fixture.js";
+import { compileTwoPhasePaperAction } from "./compiled-actions-fixture.js";
 
 const INPUT = { topic: "superconductivity", doi: "10.1/abc" } as const;
 

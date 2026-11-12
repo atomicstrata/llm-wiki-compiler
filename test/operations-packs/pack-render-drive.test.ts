@@ -16,13 +16,14 @@
  * template never stages a run at all.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import { renderBothSourcesRequest, renderProjectionRequest } from "./compile-fixture.js";
 import {
-  compileRenderProjectionAction, driveStagedRun, readPhaseOutput, resultReason,
+  driveStagedRun, readPhaseOutput, resultReason,
   stageCompiledAction, stagedRunTracker,
 } from "./runtime-fixture.js";
+import { compileRenderProjectionAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

@@ -30,7 +30,7 @@
  * `workflow-refused` and `workflow-verifier-receipt` on disk.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createLocalWorkflowHost } from "../../src/local-workflow-host/index.js";
 import { createLocalWorkflowRuntime } from "../../src/workflows/runtime.js";
 import { RunNotActiveError } from "../../src/workflows/errors.js";

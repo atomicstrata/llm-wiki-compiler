@@ -22,7 +22,7 @@
  * ONE BODY PER WRITER, OVER THE WRITERS' OWN STEPS. Genesis, the authenticated
  * append (with or without a projector), the handoff settlement and the
  * abandonment each have one root-free body (`…With`) over
- * {@link PreparationRunWriteSteps}: the authenticated read, a fresh key, the
+ * {@link PreparationRunWriteSteps}: the authenticated read, the key, the
  * verifying evidence read, create-only genesis publication and durable
  * replacement. The bodies own predecessor authentication, the epoch, signing,
  * the budget lane, the projector invariant, the reserved handoff identities and
@@ -34,6 +34,7 @@
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import { genesisCollisionMessage, publishRunGenesis, readAuthenticatedRunFrom, replaceRunLeaf } from "../utils/run-store-io.js";
 import { readDurableOperationLeaf } from "../operation-bundles/durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import type { CappedLeafRead } from "../utils/confined-read.js";
 import { MAX_PREPARATION_RUN_BYTES } from "./constants.js";
 import { readPreparationEvidence, type PreparationEvidenceLocation, type PreparationEvidenceRead } from "./evidence-store.js";
@@ -47,6 +48,7 @@ import {
   verifyPreparationRunIntegrity,
 } from "./run-integrity.js";
 import { parsePreparationRun } from "./run-parse.js";
+import { once, oncePer } from "../utils/pass-memo.js";
 import type {
   AppendPreparationTransitionInput, HandoffBindingV1, HandoffStartBindingV1,
   InitialPreparationRunInput, PreparationPrincipalV1, PreparationRunBinding,
@@ -96,9 +98,9 @@ export interface HandoffPreparationRunInput {
 }
 
 /** Read one exact workspace run leaf before consulting any project key. */
-async function readRunLeaf(root: string, binding: PreparationRunBinding, maxBytes: number) {
+async function readRunLeaf(root: string, binding: PreparationRunBinding, maxBytes: number, scanned?: ScannedLeafBytes) {
   const paths = preparationPaths(root, binding.workspaceId);
-  return readDurableOperationLeaf(root, paths.runFile(binding.runId), paths.runsRoot, maxBytes);
+  return readDurableOperationLeaf(root, paths.runFile(binding.runId), paths.runsRoot, maxBytes, scanned);
 }
 
 /**
@@ -132,9 +134,63 @@ export function diskPreparationRunLeafReads(root: string): PreparationRunLeafRea
   };
 }
 
-/** Read, parse, and authenticate only against all caller-requested identities. */
-export async function readPreparationRun(root: string, binding: PreparationRunBinding): Promise<PreparationRunRead> {
-  return readPreparationRunFrom(diskPreparationRunLeafReads(root), binding);
+/**
+ * Read, parse, and authenticate only against all caller-requested identities.
+ * With `hold`, the read is that hold's ({@link preparationRunHoldReads}): one
+ * key read and one read per binding for one hold of the project lock.
+ */
+export async function readPreparationRun(
+  root: string, binding: PreparationRunBinding, hold?: PreparationRunWriteReads,
+): Promise<PreparationRunRead> {
+  return hold === undefined ? readPreparationRunFrom(diskPreparationRunLeafReads(root), binding) : hold.readRun(binding);
+}
+
+/** One run read's identity: every field of the binding it authenticates against. */
+function preparationRunReadIdentity(binding: PreparationRunBinding): string {
+  return [binding.workspaceId, binding.preparationId, binding.runId, binding.manifestDigest, binding.keyEpochId].join("\0");
+}
+
+/**
+ * The run and key reads of ONE HOLD of the project lock, for the local disk:
+ * the key is read once, and each binding's run once, under that one key read.
+ * Within one hold nothing else writes the run or the key, so a second disk read
+ * before this hold's own write could only return the first one's answer. The
+ * caller takes a fresh one per hold and never consults it after writing the run
+ * or the key; a write through {@link preparationRunWriteStepsOn} is the end of it.
+ * With `scanned`, a run leaf the pass's inventory walk already read is used
+ * once the durable reader proves it current.
+ */
+export function preparationRunHoldReads(root: string, scanned?: ScannedLeafBytes): PreparationRunWriteReads {
+  const readKey = once(() => readPreparationKey(root));
+  const leaves: PreparationRunLeafReads = { readRunLeaf: (binding, maxBytes) => readRunLeaf(root, binding, maxBytes, scanned), readKey };
+  return { readKey, readRun: oncePer(preparationRunReadIdentity, (binding) => readPreparationRunFrom(leaves, binding)) };
+}
+
+/** A lock-holding caller's {@link preparationRunHoldReads}, renewed at each acquisition and after each run write. */
+export interface PreparationRunHolds {
+  /** The current hold's reads. */
+  current(): PreparationRunWriteReads;
+  /** Begin a new hold: call it once the lock is acquired. */
+  renew(): void;
+  /** Run one run write over the current hold, which ends with it whether it succeeds or not. */
+  writing<T>(write: (hold: PreparationRunWriteReads) => Promise<T>): Promise<T>;
+}
+
+/** {@link PreparationRunHolds} for `root`. Building it reads nothing. */
+export function preparationRunHolds(root: string): PreparationRunHolds {
+  let hold = preparationRunHoldReads(root);
+  const renew = () => { hold = preparationRunHoldReads(root); };
+  return {
+    current: () => hold,
+    renew,
+    writing: async (write) => {
+      try {
+        return await write(hold);
+      } finally {
+        renew();
+      }
+    },
+  };
 }
 
 /**
@@ -157,9 +213,12 @@ export async function readPreparationRunFrom(
 
 /** What the run writers ask of the store. No member takes a project root. */
 export interface PreparationRunWriteSteps {
-  /** The authenticated exact-binding run read. Local: `readPreparationRun(root, binding)`. */
+  /** The authenticated exact-binding run read. Local: `readPreparationRunFrom` over the operation's one key read. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
-  /** The preparation key WITH ITS BYTES, fresh on each call. Local: `readPreparationKey(root)`. */
+  /**
+   * The preparation key WITH ITS BYTES. Local: read ONCE per write operation and
+   * shared with that operation's run read (see {@link diskPreparationRunWriteSteps}).
+   */
   readKey(): Promise<PreparationKeyRead>;
   /** The verifying evidence read. Local: `readPreparationEvidence(root, location, digest)`. */
   readEvidence(location: PreparationEvidenceLocation, digest: string): Promise<PreparationEvidenceRead>;
@@ -169,11 +228,35 @@ export interface PreparationRunWriteSteps {
   replaceRun(binding: PreparationRunBinding, serialized: string): Promise<void>;
 }
 
-/** The local-disk run write steps for one root, built per call; each closure calls the incumbent when asked. In no package index. */
-function diskPreparationRunWriteSteps(root: string): PreparationRunWriteSteps {
+/** The two reads a write operation shares: the authenticated run and the key it is signed under. */
+export type PreparationRunWriteReads = Pick<PreparationRunWriteSteps, "readRun" | "readKey">;
+
+/**
+ * The local-disk run write steps for one root, built per call: ONE write
+ * operation under the project lock, over its own {@link preparationRunHoldReads}.
+ * The run read and the signing key are one reading of the key: the append reads
+ * the run (which authenticates it under the key) and then asks for the key to
+ * sign with, and nothing between the two writes the key, so the second disk read
+ * could only return the first one's answer. The same holds for the run: the
+ * handoff settlement reads it for the reserved identities and the append reads
+ * it again, with no write between. Every body reads before its one write, except
+ * the genesis collision diagnostic, which reads only after it and so reaches the
+ * disk. Every other closure calls the incumbent when asked. In no package index.
+ */
+function diskPreparationRunWriteSteps(root: string, hold: PreparationRunWriteReads = preparationRunHoldReads(root)): PreparationRunWriteSteps {
+  return preparationRunWriteStepsOn(root, hold);
+}
+
+/**
+ * The local-disk run writers for one root over a caller's {@link PreparationRunWriteReads}:
+ * for a caller that already read the run and key in the same hold of the
+ * project lock and has written neither since. A caller that writes the run
+ * through these steps must not hand the same reads to a later write.
+ */
+export function preparationRunWriteStepsOn(root: string, reads: PreparationRunWriteReads): PreparationRunWriteSteps {
   return {
-    readRun: (binding) => readPreparationRun(root, binding),
-    readKey: () => readPreparationKey(root),
+    readRun: reads.readRun,
+    readKey: reads.readKey,
     readEvidence: (location, digest) => readPreparationEvidence(root, location, digest),
     publishGenesis: (binding, serialized, collisionMessage) =>
       publishRunGenesis({ root, file: preparationPaths(root, binding.workspaceId).runFile(binding.runId) }, serialized, collisionMessage),
@@ -208,9 +291,9 @@ async function requirePreparationKey(steps: Pick<PreparationRunWriteSteps, "read
  * declared plan budget is re-proven so no run defect can follow a durable write.
  */
 export async function createPreparationRunLocked(
-  root: string, input: InitialPreparationRunInput, budgetInput: RunBudgetInput,
+  root: string, input: InitialPreparationRunInput, budgetInput: RunBudgetInput, hold?: PreparationRunWriteReads,
 ): Promise<PreparationRunV1> {
-  return createPreparationRunWith(diskPreparationRunWriteSteps(root), input, budgetInput);
+  return createPreparationRunWith(diskPreparationRunWriteSteps(root, hold), input, budgetInput);
 }
 
 /**
@@ -279,12 +362,12 @@ async function appendAuthenticatedTransition(
  */
 export function appendProjectedTransitionLocked(
   root: string, binding: PreparationRunBinding, expected: PreparationRunPredecessor,
-  input: AppendPreparationTransitionInput, project: PreparationRunContentProjector,
+  input: AppendPreparationTransitionInput, project: PreparationRunContentProjector, hold?: PreparationRunWriteReads,
 ): Promise<PreparationRunV1> {
   if (input.type === "handed-off" || input.type === "abandoned") {
     throw new Error(`${input.type} requires its evidence-verifying control writer`);
   }
-  return appendAuthenticatedTransition(diskPreparationRunWriteSteps(root), binding, expected, input, project);
+  return appendAuthenticatedTransition(diskPreparationRunWriteSteps(root, hold), binding, expected, input, project);
 }
 
 /** Append one ordinary or fixed-shape control transition under the project lock. */
@@ -333,9 +416,9 @@ export function appendHeadroomExhaustedControl(
  */
 export function appendHandoffStartedTransitionLocked(
   root: string, binding: PreparationRunBinding, expected: PreparationRunPredecessor,
-  input: HandoffStartInput,
+  input: HandoffStartInput, hold?: PreparationRunWriteReads,
 ): Promise<PreparationRunV1> {
-  return appendHandoffStartedTransitionWith(diskPreparationRunWriteSteps(root), binding, expected, input);
+  return appendHandoffStartedTransitionWith(diskPreparationRunWriteSteps(root, hold), binding, expected, input);
 }
 
 /** {@link appendHandoffStartedTransitionLocked} over the writers' own steps: the one append. */
@@ -371,9 +454,9 @@ export function handoffStartBinding(run: PreparationRunV1): HandoffStartBindingV
  */
 export async function appendHandoffTransitionLocked(
   root: string, binding: PreparationRunBinding, expected: PreparationRunPredecessor,
-  input: HandoffPreparationRunInput,
+  input: HandoffPreparationRunInput, hold?: PreparationRunWriteReads,
 ): Promise<PreparationRunV1> {
-  return appendHandoffTransitionWith(diskPreparationRunWriteSteps(root), binding, expected, input);
+  return appendHandoffTransitionWith(diskPreparationRunWriteSteps(root, hold), binding, expected, input);
 }
 
 /** {@link appendHandoffTransitionLocked} over the writers' own steps: identities only from the durable handoff-started record. */

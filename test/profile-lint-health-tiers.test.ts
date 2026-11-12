@@ -3,7 +3,7 @@
  * fail-closed read faults. Only the failing I/O boundary is injected; check
  * mapping, entity collection, artifact validation and partitioning are real.
  */
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "bun:test";
 import * as events from "../src/events/store-read.js";
 import * as relations from "../src/relations/store-read.js";
 import * as artifacts from "../src/artifacts/resolve.js";

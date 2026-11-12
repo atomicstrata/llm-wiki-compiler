@@ -6,7 +6,7 @@
  * (custodian, admission, the paper-compile error frame); this pins the helper itself.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { neutralisedProviderText, quotedProviderToken } from "../../src/capability-providers/runtime/untrusted-text.js";
 
 describe("untrusted provider text", () => {

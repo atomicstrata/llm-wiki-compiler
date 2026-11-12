@@ -22,7 +22,7 @@
  *  - the built-in default profile yields no standing problem at all.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, rm as rmFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
@@ -34,7 +34,8 @@ import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { buildContextPack } from "../src/context/build.js";
 import { collectStandingRelationProblems } from "../src/profile/relation-standing.js";
 import { DEFAULT_PROFILE } from "../src/profile/default.js";
-import { writeProfileFile, writeMarkdownPage, appendRelation, gatedResearchProfile, genericGatedProfile } from "./fixtures/profile-fixtures.js";
+import { writeProfileFile, writeMarkdownPage, gatedResearchProfile, genericGatedProfile } from "./fixtures/profile-fixtures.js";
+import { appendRelation } from "./fixtures/relation-fixtures.js";
 import { RELATIONS_FILE, WIKI_GRAPH_DIR } from "../src/utils/constants.js";
 
 const UNMET = "lifecycle-relation-requirement-unmet";

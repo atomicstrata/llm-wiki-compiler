@@ -16,7 +16,7 @@
  * import suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { BundleRelationEntry } from "../../src/export/okf/bundle-block.js";
 import { applyBundleRelations, applyBundleRelationsWith, type RelationImportSteps } from "../../src/import/relation-import.js";
 import * as relationStore from "../../src/relations/store.js";

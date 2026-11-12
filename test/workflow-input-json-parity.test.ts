@@ -3,14 +3,15 @@
  * pre-await snapshot prevents caller mutation and hidden-field disclosure.
  * Assertions read the persisted run, not merely the returned in-memory copy.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { startWorkflow } from "../src/workflows/start.js";
 import { snapshotWorkflowInputs } from "../src/workflows/input-snapshot.js";
 import { WorkflowInputBoundsError } from "../src/workflows/input-bounds.js";
 import { deepCaptureData, RuntimeCaptureError } from "../src/utils/runtime-capture.js";
 import { runAction } from "../src/workflows/run-action.js";
 import { installRunActionProfile } from "./fixtures/run-action-profile.js";
-import { useWorkflowRoot, readOkRun, ADAPT_BUILD_STAGES } from "./fixtures/workflow-profile.js";
+import { useWorkflowRoot, ADAPT_BUILD_STAGES } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 
 const ctx = useWorkflowRoot("workflow-json-parity-", ADAPT_BUILD_STAGES);
 

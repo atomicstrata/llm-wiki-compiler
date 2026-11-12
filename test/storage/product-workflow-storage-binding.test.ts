@@ -16,7 +16,7 @@
 
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import { loadOrCreateRunKeyWith, type RunKeyStore } from "../../src/local-workflow-host/run-key.js";
 import { writeRunCandidatesWith, writeRunWith, type RunRecordStore } from "../../src/local-workflow-host/run-store.js";
 import {
@@ -153,7 +153,7 @@ describe("product activation: refusals in order, nothing written on refusal", ()
     const log: string[] = [];
     await expect(activateUnderLockWith(steps(log, {}), DIGEST, principal, {})).rejects.toThrow("installed package is absent");
     expect(log).toEqual(["package"]);
-    const ok = { readInstalledPackage: async () => { log.push("package"); return { status: "ok", manifest: { packageDigest: DIGEST, compositionLock: {}, rootOperationsPack: {}, knowledgeProfile: { digest: DIGEST } } } as never; } };
+    const ok = { readInstalledPackage: async () => { log.push("package"); return { status: "ok", manifest: { packageDigest: DIGEST, compositionLock: { digest: DIGEST }, rootOperationsPack: { digest: DIGEST }, knowledgeProfile: { digest: DIGEST } }, verifiedMembers: new Map() } as never; } };
     log.length = 0;
     await expect(activateUnderLockWith(steps(log, { ...ok, profileJsonPresent: async () => { log.push("legacy"); return true; } }), DIGEST, principal, {})).rejects.toThrow("legacy profile.json");
     expect(log).toEqual(["package", "legacy"]);

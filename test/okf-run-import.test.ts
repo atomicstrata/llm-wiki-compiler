@@ -1,5 +1,5 @@
 // test/okf-run-import.test.ts
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, mkdir, rm, readFile, writeFile, stat } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

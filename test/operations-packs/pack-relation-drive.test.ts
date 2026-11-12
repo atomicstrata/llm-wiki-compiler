@@ -10,7 +10,7 @@
  * that some relation exists.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { readOperationKey } from "../../src/operation-bundles/key-epoch.js";
 import { operationManifestDigest } from "../../src/operation-bundles/manifest-parse.js";
@@ -23,9 +23,10 @@ import { readRelationRecords } from "../../src/relations/store-read.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 import { writeProfileFile } from "../fixtures/profile-fixtures.js";
 import {
-  compileCitesRelationAction, driveStagedRun, resultReason, stageCompiledAction,
+  driveStagedRun, resultReason, stageCompiledAction,
   stagedRunTracker, type StagedPackRunV1,
 } from "./runtime-fixture.js";
+import { compileCitesRelationAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

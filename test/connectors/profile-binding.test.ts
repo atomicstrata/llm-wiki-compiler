@@ -2,7 +2,7 @@
  * @file test/connectors/profile-binding.test.ts
  * @description Load-validation for pure-data connector profile bindings.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { validateProfile } from "../../src/profile/validate.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 

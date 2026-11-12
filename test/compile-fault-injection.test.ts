@@ -18,7 +18,7 @@
  * the journalled batch exactly as a real mid-write fault would.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "bun:test";
 import { existsSync } from "fs";
 import { readdir, mkdir } from "fs/promises";
 import path from "path";

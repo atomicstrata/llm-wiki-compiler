@@ -8,13 +8,13 @@
  * `content` projecting the seeded frontmatter title / page body respectively.
  *
  * This exercises the shallow-before-deep reveal through the full subprocess
- * serialization (spawn `node dist/cli.js`, parse stdout JSON) rather than the
+ * serialization (spawn `bun dist/cli.js`, parse stdout JSON) rather than the
  * in-process `buildContextPack` path, so the wire shape is what an agent sees. A
  * second case proves default-profile parity: a DEFAULT project's primaries emit
  * NO `contentTiers` key at all, so the feature is additive and opt-in.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

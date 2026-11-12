@@ -16,7 +16,7 @@
  * import and trust suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as candidates from "../../src/compiler/candidates.js";
 import { applyTypedDocs, applyTypedDocsWith, type TypedImportSteps } from "../../src/import/profile-import.js";
 import type { MappedTypedOkfDoc } from "../../src/import/types.js";

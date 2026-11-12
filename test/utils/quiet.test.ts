@@ -5,7 +5,7 @@
  * while the process-wide quiet flag is set.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "bun:test";
 import { setQuiet, getQuiet, note } from "../../src/utils/output.js";
 
 describe("output.note respects quiet flag", () => {

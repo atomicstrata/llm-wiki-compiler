@@ -3,17 +3,19 @@
  * @description Production-boundary regressions for Task 9C lifecycle reads.
  *
  * Successful reads must be minted by the scanner, tied to one canonical
- * project root, and usable only while their callback lease is active.
+ * project root, and usable only while their callback lease is active — including
+ * a capture one pass shares across its borrows.
  * Capture faults remain one bounded unavailable value rather than retrying.
  */
 
 import { mkdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { makeTempRoot, useTempRoot } from "../fixtures/temp-root.js";
 import {
   assertPreparationLifecycleRead,
   PreparationLifecycleReadError,
+  preparationLifecycleReadPass,
   withPreparationLifecycleRead,
   type PreparationLifecycleReadV1,
 } from "../../src/preparations/lifecycle-snapshot/read.js";
@@ -64,6 +66,21 @@ describe("leased preparation lifecycle reads", () => {
     if (retained === undefined) throw new Error("lifecycle read callback was not invoked");
     await expect(assertPreparationLifecycleRead(root.dir, retained))
       .rejects.toBeInstanceOf(PreparationLifecycleReadError);
+  });
+
+  it("shares one pass capture across borrows, but leases it only inside each borrow", async () => {
+    const pass = preparationLifecycleReadPass(root.dir);
+    let first: PreparationLifecycleReadV1 | undefined;
+    await pass.borrow((read) => { first = read; });
+    if (first === undefined) throw new Error("lifecycle read callback was not invoked");
+    await expect(assertPreparationLifecycleRead(root.dir, first)).rejects.toBeInstanceOf(PreparationLifecycleReadError);
+    await pass.borrow(async (read) => {
+      expect(read).toBe(first as PreparationLifecycleReadV1);
+      await expect(assertPreparationLifecycleRead(root.dir, read)).resolves.toBeUndefined();
+    });
+    pass.close();
+    await pass.borrow((read) => expect(read).not.toBe(first as PreparationLifecycleReadV1));
+    await expect(assertPreparationLifecycleRead(root.dir, first)).rejects.toBeInstanceOf(PreparationLifecycleReadError);
   });
 
   it("returns one bounded unavailable result for namespace failure", async () => {

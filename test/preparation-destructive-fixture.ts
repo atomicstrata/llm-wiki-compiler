@@ -15,7 +15,7 @@ import { gateDecision } from "./preparations/lifecycle-fixture.js";
 import { chmod, mkdir, mkdtemp, rm, symlink, rename } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { PREPARATION_QUARANTINE_SEGMENT } from "../src/preparations/paths.js";
 import { preparationPaths } from "../src/preparations/paths.js";
 import { scanPreparationInventory } from "../src/preparations/capacity.js";

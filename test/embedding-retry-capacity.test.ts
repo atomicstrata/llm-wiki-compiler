@@ -1,5 +1,5 @@
 /** Real marker I/O witnesses: no work may spend or forget a budget outside durable capacity. */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadEmbeddingRetry } from "../src/utils/embeddings-retry.js";

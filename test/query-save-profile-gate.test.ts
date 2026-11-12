@@ -10,7 +10,7 @@
  * full LLM answer pipeline.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 import path from "path";
@@ -34,6 +34,9 @@ describe("query --save profile gate", () => {
 
   afterEach(() => {
     process.chdir(originalCwd);
+    // Also here, not only in the test's `finally`: a timed-out test never reaches
+    // its `finally`, and a hook left installed would fail every later save.
+    setQuerySaveTestHookForTest(undefined);
   });
 
   it("DEFAULT project: --save writes a queries page (unchanged)", async () => {

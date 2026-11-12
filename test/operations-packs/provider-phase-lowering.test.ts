@@ -16,7 +16,7 @@
  * same shape `requestedGrantKinds` already uses.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { lowerPhase } from "../../src/operations-packs/compiler-lowering.js";
 import { createHostHandlerRegistry } from "../../src/operations-packs/handlers/registry.js";
 import { PackParseError } from "../../src/operations-packs/problems.js";

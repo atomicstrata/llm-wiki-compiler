@@ -4,7 +4,7 @@
  * rediscover their stale chunks. Durable intent must survive reordered/subset
  * retries without spending unrelated pending or quarantined retry budgets.
  */
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import * as indexgen from "../src/compiler/indexgen.js";

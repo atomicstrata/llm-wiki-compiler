@@ -16,7 +16,7 @@
  * occasionally — which is the whole point.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { mkdtemp, readFile, readdir, rm } from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

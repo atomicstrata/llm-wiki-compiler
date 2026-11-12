@@ -8,7 +8,7 @@
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { readCancelRequest, writeCancelRequestLockFree } from "../../src/operation-bundles/cancel-request.js";
 import { mintOperationRunId } from "../../src/operation-bundles/ids.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";

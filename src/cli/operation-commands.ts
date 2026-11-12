@@ -13,11 +13,11 @@
  */
 
 import type { Command } from "commander";
-import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { operationListCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { operationInspectCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { operationResumeCommand, operationCompensateCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { operationCancelCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/shared";
+import { operationListCommand } from "@atomicstrata/llmwiki-core/modules/commands/operation/list";
+import { operationInspectCommand } from "@atomicstrata/llmwiki-core/modules/commands/operation/inspect";
+import { operationResumeCommand, operationCompensateCommand } from "@atomicstrata/llmwiki-core/modules/commands/operation/drive";
+import { operationCancelCommand } from "@atomicstrata/llmwiki-core/modules/commands/operation/cancel";
 
 /** A single `--json` machine-output flag shared by every subcommand. */
 interface JsonOption {
@@ -60,12 +60,8 @@ function registerOperationDriveCommands(operationCmd: Command): void {
     .action(async (target: string, options: JsonOption) => runExitCodeCommand(() => operationCancelCommand(process.cwd(), target, options)));
 }
 
-/** Register the `operation` command group on `program`. */
-export function registerOperationCommands(program: Command): void {
-  const operationCmd = program
-    .command("operation")
-    .description("Inspect and drive operation-bundle execution/recovery (list, inspect, resume, compensate, cancel)");
-
+/** Register the `operation` command group. */
+export function registerOperationCommands(operationCmd: Command): void {
   registerOperationReadCommands(operationCmd);
   registerOperationDriveCommands(operationCmd);
 }

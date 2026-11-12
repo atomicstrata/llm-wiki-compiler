@@ -3,7 +3,7 @@
  * rereading relations or provenance. These checks use real profile/page stores
  * and the HTTP page endpoint, including missing endpoints and default parity.
  */
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it } from "bun:test";
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { useTempRoot } from "./fixtures/temp-root.js";

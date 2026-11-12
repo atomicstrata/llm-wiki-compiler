@@ -6,7 +6,7 @@
  * mutation, and the fault injector defines compensate + cancel-safe boundaries.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   createOperationAdapterRegistry,
   OPERATION_MUTATION_KINDS,

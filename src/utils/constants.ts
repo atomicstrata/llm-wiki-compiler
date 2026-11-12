@@ -185,7 +185,7 @@ export const LOCK_FILE = ".llmwiki/lock";
  * Resource cap on the lock leaf (`.llmwiki/lock`). The leaf holds ONLY a decimal
  * `process.pid` (a handful of bytes), so 64 bytes is far above any legitimate
  * content yet bounds the read. `.llmwiki` is local/sync-controllable, so a planted
- * symlinked or oversized leaf would otherwise let {@link isLockStale}'s read slurp
+ * symlinked or oversized leaf would otherwise let {@link lockHolderState}'s read slurp
  * an unbounded symlink target into memory before parsing — a PID-parse oracle + a
  * local DoS. The hardened reader caps the read at this bound and treats an oversized
  * (or non-regular / symlinked) leaf as unreadable → stale.

@@ -15,17 +15,15 @@
  * valued `undefined` is accepted (the key is dropped consistently on persist).
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { RelationEndpointError } from "../src/relations/types.js";
 import { validateEntityFields } from "../src/profile/field-contract.js";
 import type { EntityTypeDef } from "../src/profile/types.js";
-import {
-  experimentsIdeasProfile,
-  readRelations, makeRelationWriter,
-} from "./fixtures/profile-fixtures.js";
+import { experimentsIdeasProfile } from "./fixtures/profile-fixtures.js";
+import { readRelations, makeRelationWriter } from "./fixtures/relation-fixtures.js";
 
 /** A `tests` relation declaring a REQUIRED `confidence` and an OPTIONAL `kind`. */
 const profile = () => experimentsIdeasProfile({

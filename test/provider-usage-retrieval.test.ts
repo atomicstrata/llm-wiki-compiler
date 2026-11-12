@@ -6,7 +6,8 @@
 import { createServer, type Server } from "node:http";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, mock, spyOn } from "bun:test";
+import { restoreEnv, stubEnv } from "./stubs.js";
 import { generateAnswer } from "../src/commands/query.js";
 import { pickSearchRefs } from "../src/search/retrieval.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
@@ -38,19 +39,20 @@ beforeEach(async () => {
     response.end(JSON.stringify(payload));
   });
   const baseURL = await listenLoopback(server);
-  vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_MODEL", "chat");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "embedding");
-  vi.stubEnv("OPENAI_API_KEY", "test-key");
-  vi.stubEnv("OPENAI_BASE_URL", baseURL);
-  vi.stubEnv("OPENAI_EMBEDDINGS_BASE_URL", baseURL);
-  vi.stubEnv("LLMWIKI_USAGE_DIRECTORY", path.join(root, "receipts"));
-  vi.stubEnv("LLMWIKI_USAGE_EXECUTION_ID", "retrieval-test");
+  stubEnv("LLMWIKI_PROVIDER", "openai");
+  stubEnv("LLMWIKI_MODEL", "chat");
+  stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
+  stubEnv("LLMWIKI_EMBEDDING_MODEL", "embedding");
+  stubEnv("OPENAI_API_KEY", "test-key");
+  stubEnv("OPENAI_BASE_URL", baseURL);
+  stubEnv("OPENAI_EMBEDDINGS_BASE_URL", baseURL);
+  stubEnv("LLMWIKI_USAGE_DIRECTORY", path.join(root, "receipts"));
+  stubEnv("LLMWIKI_USAGE_EXECUTION_ID", "retrieval-test");
 });
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  restoreEnv();
+  mock.restore();
   await closeLoopback(server);
 });
 
@@ -78,7 +80,7 @@ it.each(consumers)("$name stops after the first failed receipt, with or without 
 
 it.each(consumers)("$name rejects invalid receipt configuration before any request", async ({ run }) => {
   await seedStore(true);
-  vi.stubEnv("LLMWIKI_USAGE_EXECUTION_ID", undefined);
+  stubEnv("LLMWIKI_USAGE_EXECUTION_ID", undefined);
   await expect(run(root, "what is alpha?"))
     .rejects.toMatchObject({ name: "UsageAccountingError", nonRetryable: true });
   expect(requests).toEqual([]);
@@ -86,7 +88,7 @@ it.each(consumers)("$name rejects invalid receipt configuration before any reque
 
 it.each(consumers)("$name still falls back for ordinary nonRetryable embedding errors", async ({ run }) => {
   await seedStore(true);
-  const embed = vi.spyOn(OpenAIProvider.prototype, "embed")
+  const embed = spyOn(OpenAIProvider.prototype, "embed")
     .mockRejectedValue(Object.assign(new Error("embedding unavailable"), { nonRetryable: true }));
   const result = await run(root, "what is alpha?");
   expect(embed).toHaveBeenCalledTimes(run === generateAnswer ? 2 : 1);

@@ -18,7 +18,7 @@
  *  (c) replay is idempotent (a second call is a no-op).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { writeFile, readFile } from "fs/promises";
 import path from "path";
 import {

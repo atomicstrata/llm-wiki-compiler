@@ -3,7 +3,7 @@
  * refresh calls the core's ONE BODY, `updateEmbeddingsLockedCoreFrom`, with its
  * bound writer sources, so that is the seam spied here and matched below.
  */
-import { expect, vi } from "vitest";
+import { expect, vi } from "bun:test";
 import * as embeddings from "../../src/utils/embeddings.js";
 
 /** Capture every requested id and acknowledge all of them without a provider call. */

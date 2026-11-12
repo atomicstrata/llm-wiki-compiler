@@ -21,7 +21,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import type { CompiledPackActionV1 } from "../../src/operations-packs/compiler-types.js";
 import { packHostReadsOver, type PackHostReads } from "../../src/operations-packs/runtime/host-registry-reads.js";
@@ -32,7 +32,7 @@ import * as evidenceStore from "../../src/preparations/evidence-store.js";
 import { deriveAttemptId, derivePhaseInstanceId, singleExpansionIdentity } from "../../src/preparations/ids.js";
 import * as runStore from "../../src/preparations/run-store.js";
 import type { PreparationRunBinding } from "../../src/preparations/run-types.js";
-import { compileChainedAction, compileReconcilePaperAction } from "../operations-packs/runtime-fixture.js";
+import { compileChainedAction, compileReconcilePaperAction } from "../operations-packs/compiled-actions-fixture.js";
 
 afterEach(() => { vi.restoreAllMocks(); });
 

@@ -6,7 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { catalogRecordId, mintBundleId, mintOperationRunId, mutationId, type BundleId, type MutationId } from "../../src/operation-bundles/ids.js";
 import { operationAuditBinding, type OperationAuditBinding } from "../../src/operation-bundles/audit-binding.js";
 import { writePayloadCreateOnly } from "../../src/operation-bundles/payload-store.js";

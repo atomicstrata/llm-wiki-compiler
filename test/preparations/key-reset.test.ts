@@ -18,7 +18,7 @@ import { chmod, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "
 import path from "node:path";
 import { PREPARATION_PRUNE_REGISTRY, preparationPaths } from "../../src/preparations/paths.js";
 import { expectCompletedSweep } from "./lifecycle-fixture.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { readPreparationKey } from "../../src/preparations/key-epoch.js";
 import { preparationKeyFile, preparationQuarantineUnitPaths } from "../../src/preparations/paths.js";

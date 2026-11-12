@@ -4,12 +4,13 @@
  */
 import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { startWorkflow } from "../src/workflows/start.js";
 import { acquireMutationLock, PreparationLifecycleGateError } from "../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../src/utils/lock.js";
 import { readActiveProductBinding } from "../src/products/binding/store.js";
-import { useWorkflowRoot, ADAPT_BUILD_STAGES, readOkRun } from "./fixtures/workflow-profile.js";
+import { useWorkflowRoot, ADAPT_BUILD_STAGES } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 
 const ctx = useWorkflowRoot("legacy-private-layout-", ADAPT_BUILD_STAGES);
 

@@ -13,7 +13,7 @@
  * `advance` at the cap still throws.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { writeRun, readRun } from "../src/workflows/store.js";
 import { cancelWorkflow } from "../src/workflows/cancel.js";
 import { failWorkflow } from "../src/workflows/fail.js";

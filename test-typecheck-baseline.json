@@ -1,7 +1,7 @@
 {
   "version": 1,
   "typescript": "5.9.3",
-  "configuration": "1f5a6de71f87f9e2a3a8b940ed0f86af09f11eb0fef1c3b892ca1e32789507ff",
+  "configuration": "3a15b5b5de5438ad22767617f7ff92201f2102db2a916fea18477c5f587b1ad3",
   "counts": {
     "test/artifacts/artifact-health-surfaces.test.ts": 3,
     "test/artifacts/artifact-ref-layer-b.test.ts": 1,
@@ -39,7 +39,6 @@
     "test/okf-reexport-map.test.ts": 2,
     "test/okf-render-doc.test.ts": 1,
     "test/page-apply-net-growth-floor.test.ts": 1,
-    "test/parity-default.test.ts": 1,
     "test/profile-identity.test.ts": 5,
     "test/profile-lifecycle-enforce.test.ts": 3,
     "test/profile-lint.test.ts": 1,
@@ -60,9 +59,6 @@
     "test/relation-store-symlink-surfaces.test.ts": 1,
     "test/relation-surface.test.ts": 2,
     "test/research-profile.test.ts": 2,
-    "test/review-lock.test.ts": 2,
-    "test/review-policy-compile.test.ts": 1,
-    "test/review-policy-source-state.test.ts": 1,
     "test/rule-validation.test.ts": 1,
     "test/sdk-relation-lifecycle.test.ts": 1,
     "test/state-shape-validation.test.ts": 2,
