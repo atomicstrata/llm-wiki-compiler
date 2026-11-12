@@ -80,10 +80,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
 
       - name: Install llmwiki
-        run: bun add --global llm-wiki-compiler
+        run: npm install -g llm-wiki-compiler
 
       - name: Check wiki quality
         run: llmwiki eval --suite fast

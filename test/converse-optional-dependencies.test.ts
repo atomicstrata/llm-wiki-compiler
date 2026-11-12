@@ -75,7 +75,7 @@ it.each(packages)("reports missing %s only when Converse is used", async (missin
   const report = JSON.parse(stdout.trim().split("\n").at(-1)!);
   expect(report.loadsAtImport).toBe(0);
   for (const result of report.results) {
-    expect(result.message).toContain("bun add @aws-sdk/client-bedrock-runtime @smithy/node-http-handler");
+    expect(result.message).toContain("npm install @aws-sdk/client-bedrock-runtime @smithy/node-http-handler");
     expect(result.nonRetryable).toBe(true);
     expect(result.loads).toBe(1);
   }
