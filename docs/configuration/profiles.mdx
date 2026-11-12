@@ -440,10 +440,10 @@ registered under that id): the page about who they are now. Compile writes it
 after the timeline:
 
 - **Body**: written by the model from the week pages, newest first (as many as
-  fit about 60,000 characters), keeping their citations, so every claim still
-  resolves to source lines. It is regenerated only when those week pages
-  change. With the timeline off there are no week pages, and the page has no
-  body and costs no model call.
+  fit about 60,000 characters), keeping their citations, so its claims resolve
+  to source lines. It is regenerated only when those week pages change; a
+  change to the owner's names only updates `aliases`. With the timeline off no
+  week pages are read, so the page has no body and costs no model call.
 - **People**: every record of the type, grouped by the first enum field the
   type declares (here, relationship), each with its summary, rebuilt on every
   compile without a model call.

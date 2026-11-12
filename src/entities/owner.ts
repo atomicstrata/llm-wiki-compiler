@@ -5,16 +5,16 @@
  * loads it on every turn is the reader's choice, not memory's.
  *
  * Its body is written by the model from the timeline's week pages, newest first
- * within a budget, keeping their citations: so every claim still resolves to
- * source lines, and citations of lines no week cited are fitted or reported like
- * any page's. Below it, a generated "People" section lists every record of the
+ * within a budget, keeping their citations, so its claims resolve to source
+ * lines; citations of lines no week cited are fitted or reported like any page's. Below it, a generated "People" section lists every record of the
  * owner's type, grouped by the type's first declared enum field (a person's
  * relationship), built with no model call.
  *
  * It runs after the timeline, which it reads. The body is regenerated only when
  * the weeks it was written from change (its `entitySignature` hashes them);
- * otherwise only the People section is refreshed. With the timeline off there
- * are no weeks, so the page is the People section alone and costs no call.
+ * otherwise only its aliases and People section are refreshed. With the timeline
+ * off no week pages are read, so the page is the People section alone and costs
+ * no call.
  */
 
 import { createHash } from "node:crypto";
@@ -29,7 +29,7 @@ import { SUMMARY_PREFIX, splitAnswer, type PageRequest, type ShownLines } from "
 import { TIMELINE_NAMESPACE } from "../timeline/pages.js";
 import { ownerPageId, type AliasRegistry } from "./identity.js";
 import { entityReport } from "./generate.js";
-import { isRecordPage, namedBy } from "./pages.js";
+import { isRecordPage, namedBy, withAliases } from "./pages.js";
 import type { ExtractableType } from "./schema.js";
 
 /** Bump only when the owner page's prompt or layout changes in a way it must pick up; it regenerates the page. */
@@ -64,8 +64,16 @@ interface OwnerDraft {
   signature: string;
 }
 
-/** Bring the owner page of `type` up to date; does nothing when the registry names no owner of that type. */
-export async function generateOwnerPageWith(steps: OwnerSteps, type: ExtractableType): Promise<DerivedResult> {
+/** How the owner page is written: for which type, and whether the timeline (its week pages) is on. */
+export interface OwnerConfig {
+  type: ExtractableType;
+  /** False when the timeline is off: week pages left from when it was on are not read. */
+  useTimeline: boolean;
+}
+
+/** Bring the owner page of `config.type` up to date; does nothing when the registry names no owner of that type. */
+export async function generateOwnerPageWith(steps: OwnerSteps, config: OwnerConfig): Promise<DerivedResult> {
+  const { type } = config;
   const report = entityReport(type.type, { written: [], deleted: [], errors: [] });
   const registry = await steps.readRegistry();
   const id = ownerPageId(registry, type.type);
@@ -73,28 +81,42 @@ export async function generateOwnerPageWith(steps: OwnerSteps, type: Extractable
   const { own, foreign } = ownPages(await steps.listPages(type.type), isRecordPage);
   if (!claimable(report, id, foreign)) return report.result;
   const names = registry.owner!.names;
-  const weeks = recentWeeks(await steps.listPages(TIMELINE_NAMESPACE));
+  const weeks = config.useTimeline ? recentWeeks(await steps.listPages(TIMELINE_NAMESPACE)) : [];
   const draft: OwnerDraft = {
     steps, type, report, id, names, weeks, page: own.get(id),
     people: peopleSection(own, id, type), signature: ownerSignature(names[0], weeks),
   };
   const text = await ownerPageText(draft);
-  if (text === null || text === draft.page?.text) return report.result;
-  const violations = validateEntityFields(parseFrontmatter(text).meta, type.def);
-  if (violations.length > 0) report.result.errors.push(`${report.label(id)} not written: ${violations.join(" ")}`);
-  else await writeAndReport(report, steps, [{ entityType: type.type, slug: id, body: text }]);
+  if (text !== null && text !== draft.page?.text) await writeAndReport(report, steps, [{ entityType: type.type, slug: id, body: text }]);
   return report.result;
 }
 
-/** The page's new text: the current page with its People section refreshed, or a regenerated page; null when the model call fails. */
+/**
+ * The page's new text. A current page gets its aliases and People section
+ * refreshed. Otherwise the page is regenerated, after its frontmatter is checked
+ * against the type's field contract so a page that cannot be written costs no
+ * call; when the call fails, the page on disk keeps its body and still gets the
+ * refresh. Null when there is nothing to write.
+ */
 async function ownerPageText(draft: OwnerDraft): Promise<string | null> {
   const { page } = draft;
-  if (page && stringField(page.meta, "entitySignature") === draft.signature) return withGenerated(page.text, draft.people);
-  if (draft.weeks.length === 0) return ownerPage(draft, OWNER_SUMMARY, "");
+  if (page && stringField(page.meta, "entitySignature") === draft.signature) return refreshed(draft, page);
+  const blank = ownerPage(draft, OWNER_SUMMARY, "");
+  const violations = validateEntityFields(parseFrontmatter(blank).meta, draft.type.def);
+  if (violations.length > 0) {
+    draft.report.result.errors.push(`${draft.report.label(draft.id)} not written: ${violations.join(" ")}`);
+    return null;
+  }
+  if (draft.weeks.length === 0) return blank;
   const answer = await completePage(draft.report, (request) => draft.steps.complete(request), ownerRequest(draft.names[0], draft.weeks), draft.id);
-  if (answer === null) return null;
+  if (answer === null) return page ? refreshed(draft, page) : null;
   const { summary, body } = splitAnswer(fitAndReportCitations(draft.report, draft.id, answer, citedLines(draft.weeks)));
   return ownerPage(draft, summary || OWNER_SUMMARY, body);
+}
+
+/** A page on disk with its aliases and People section brought up to date, with no model call. */
+function refreshed(draft: OwnerDraft, page: OwnPage): string {
+  return withGenerated(withAliases(page.text, draft.names.slice(1)), draft.people);
 }
 
 /** The week pages, newest first, as many as fit the budget (always at least the newest). */
@@ -141,6 +163,7 @@ function ownerPage(draft: OwnerDraft, summary: string, body: string): string {
     ...namedBy(draft.type.def.titleField, draft.names[0]),
     summary,
     ...(draft.names.length > 1 ? { aliases: draft.names.slice(1) } : {}),
+    ...(body ? { sources: [...new Set(citedLines(draft.weeks).map((lines) => lines.file))].sort() } : {}),
     entitySignature: draft.signature,
     createdAt: stringField(draft.page?.meta ?? {}, "createdAt") || now,
     updatedAt: now,

@@ -29,6 +29,7 @@ import { displayName, parseRegistry, resolveRecords } from "./identity.js";
 import { generateEntitiesWith, type EntityResult, type EntitySteps } from "./generate.js";
 import { isRecordPage } from "./pages.js";
 import { generateOwnerPageWith } from "./owner.js";
+import type { PageRequest } from "../compiler/source-excerpt.js";
 
 /** The extraction cache, relative to the project root. */
 const CACHE_FILE = path.join(LLMWIKI_DIR, "entities.json");
@@ -104,12 +105,14 @@ export async function generateEntities(root: string, timeline: TimelineSchema, c
  * changed. Does nothing when the profile extracts no records or the alias
  * registry names no owner of an extracted type.
  * @param root - Project root; the caller holds its lock.
+ * @param timeline - The schema's timeline settings; with the timeline off, no week pages are read.
  */
-export async function generateOwnerPage(root: string): Promise<DerivedResult> {
+export async function generateOwnerPage(root: string, timeline: TimelineSchema): Promise<DerivedResult> {
   const ownerType = parseRegistryOrNone(await readOptional(root, REGISTRY_FILE))?.owner?.type;
   const type = extractableTypes((await loadProfile(root)).profile).find((candidate) => candidate.type === ownerType);
   if (!type) return { written: [], deleted: [], errors: [] };
-  const result = await generateOwnerPageWith({ ...localDerivedSteps(root), readRegistry: () => readRegistry(root), complete: (request) => callClaude(request) }, type);
+  const steps = { ...localDerivedSteps(root), readRegistry: () => readRegistry(root), complete: (request: PageRequest) => callClaude(request) };
+  const result = await generateOwnerPageWith(steps, { type, useTimeline: timeline.enabled });
   for (const error of result.errors) output.status("!", output.warn(error));
   if (result.written.length > 0) output.status("✓", output.success(`Owner page: ${result.written.join(", ")} written.`));
   return result;

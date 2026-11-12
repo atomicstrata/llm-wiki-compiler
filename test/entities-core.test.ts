@@ -8,7 +8,7 @@
 import { describe, expect, it } from "bun:test";
 import { mention, personProfile } from "./entity-steps.js";
 import { extractableTypes, extractionTool, structuralDigest } from "../src/entities/schema.js";
-import { displayName, parseRegistry, possibleDuplicates, recordId, resolveRecords } from "../src/entities/identity.js";
+import { displayName, ownerPageId, parseRegistry, possibleDuplicates, recordId, resolveRecords } from "../src/entities/identity.js";
 import { extractionRequest, parseRecords } from "../src/entities/extract.js";
 
 describe("extractable types and the structural digest", () => {
@@ -148,6 +148,12 @@ describe("identity", () => {
     expect(displayName(lower, undefined)).toBe("Elon Musk");
     const [mixed] = resolveRecords("person", [mention("lori"), mention("lori"), mention("Lori")], { entities: {} });
     expect(displayName(mixed, undefined)).toBe("Lori");
+  });
+
+  it("gives the owner page an id no registered record has", () => {
+    const registry = parseRegistry(JSON.stringify({ owner: { type: "person", names: ["Sam"] }, entities: { person: { sam: ["Sam Lee"], "sam-owner": ["Sam Owner"] } } }));
+    expect(ownerPageId(registry, "person")).toBe("sam-owner-2");
+    expect(ownerPageId(registry, "company")).toBeNull();
   });
 
   it("gives a slug-safe id to any name", () => {

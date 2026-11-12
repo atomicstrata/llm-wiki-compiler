@@ -154,8 +154,12 @@ function nameHash(name: string): string {
 export function ownerPageId(registry: AliasRegistry, type: string): string | null {
   const name = registry.owner?.type === type ? registry.owner.names[0] : undefined;
   if (!name) return null;
-  const id = recordId(name);
-  return registry.entities[type]?.[id] ? `${id}-owner` : id;
+  const registered = registry.entities[type] ?? {};
+  const base = recordId(name);
+  if (!registered[base]) return base;
+  let id = `${base}-owner`;
+  for (let suffix = 2; registered[id]; suffix++) id = `${base}-owner-${suffix}`;
+  return id;
 }
 
 /**

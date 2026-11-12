@@ -65,8 +65,8 @@ export interface CompileFinalizeSteps {
   updateEntities(root: string, timeline: TimelineSchema, concurrency?: number): Promise<unknown>;
   /** Bring `wiki/timeline/` up to date with the sources, `concurrency` model calls at a time. Local: `generateTimeline(root, timeline, concurrency)`. */
   updateTimeline(root: string, timeline: TimelineSchema, concurrency?: number): Promise<unknown>;
-  /** Bring the owner page up to date from the timeline just written. Local: `generateOwnerPage(root)`. */
-  updateOwnerPage(root: string): Promise<unknown>;
+  /** Bring the owner page up to date from the timeline just written. Local: `generateOwnerPage(root, timeline)`. */
+  updateOwnerPage(root: string, timeline: TimelineSchema): Promise<unknown>;
 }
 
 /** LOCAL. The incumbent steps, called at call time with their old arguments; frozen. In no package index. */
@@ -81,7 +81,7 @@ const localCompileFinalizeSteps: CompileFinalizeSteps = Object.freeze({
   refreshEmbeddings: (root: string, changedPageIds: PageId[]) => refreshEmbeddingsDrainingPending(root, changedPageIds),
   updateEntities: (root: string, timeline: TimelineSchema, concurrency?: number) => generateEntities(root, timeline, concurrency),
   updateTimeline: (root: string, timeline: TimelineSchema, concurrency?: number) => generateTimeline(root, timeline, concurrency),
-  updateOwnerPage: (root: string) => generateOwnerPage(root),
+  updateOwnerPage: (root: string, timeline: TimelineSchema) => generateOwnerPage(root, timeline),
 });
 
 /**
@@ -156,7 +156,7 @@ export async function seedThenFinalizeWith(
   if (options.review) return;
   await timeStage("compile.entities", () => runOrWarn("Entity pages", () => steps.updateEntities(root, schema.timeline, options.concurrency)));
   await timeStage("compile.timeline", () => runOrWarn("Timeline", () => steps.updateTimeline(root, schema.timeline, options.concurrency)));
-  await timeStage("compile.owner", () => runOrWarn("Owner page", () => steps.updateOwnerPage(root)));
+  await timeStage("compile.owner", () => runOrWarn("Owner page", () => steps.updateOwnerPage(root, schema.timeline)));
 }
 
 /**

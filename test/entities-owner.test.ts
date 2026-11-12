@@ -44,7 +44,7 @@ async function project() {
 describe("the owner page", () => {
   it("is written from the week pages, newest first, with a People section grouped by relationship", async () => {
     const { memory, steps, requests, type } = await project();
-    expect((await generateOwnerPageWith(steps, type)).written).toEqual(["person/sam"]);
+    expect((await generateOwnerPageWith(steps, { type, useTimeline: true })).written).toEqual(["person/sam"]);
     const page = parseFrontmatter(memory.pages.get("person/sam")!);
     expect(page.meta).toMatchObject({ title: "Sam", aliases: ["Sam Rivera"], summary: "Sam is busy." });
     expect(requests[0].messages[0].content.indexOf("2026-W19")).toBeLessThan(requests[0].messages[0].content.indexOf("2026-W18"));
@@ -55,32 +55,32 @@ describe("the owner page", () => {
   it("groups by the first declared enum field, and keeps a value a page still carries outside it", async () => {
     const { memory, steps, type } = await project();
     memory.pages.set("person/alex", memory.pages.get("person/alex")!.replace("title: Alex", "title: Alex\nrelationship: mentor"));
-    await generateOwnerPageWith(steps, type);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
     expect(memory.pages.get("person/sam")).toContain("### Friend\n\n- [[person/ana|Ana]] — Ana is someone the owner knows.\n\n### Mentor\n\n- [[person/alex|Alex]]");
   });
 
   it("makes no model call and writes nothing when nothing it is written from changed", async () => {
     const { steps, requests, type } = await project();
-    await generateOwnerPageWith(steps, type);
-    expect(await generateOwnerPageWith(steps, type)).toEqual({ written: [], deleted: [], errors: [] });
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    expect(await generateOwnerPageWith(steps, { type, useTimeline: true })).toEqual({ written: [], deleted: [], errors: [] });
     expect(requests).toHaveLength(1);
   });
 
   it("refreshes only the People section when the people change, and regenerates when a week changes", async () => {
     const { memory, steps, requests, type } = await project();
-    await generateOwnerPageWith(steps, type);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
     memory.pages.delete("person/alex");
-    await generateOwnerPageWith(steps, type);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
     expect([requests.length, memory.pages.get("person/sam")!.includes("person/alex")]).toEqual([1, false]);
     memory.pages.set("timeline/2026-W19", weekPage("2026-W19", "- Ana left. ^[chat.md:2-2]"));
-    await generateOwnerPageWith(steps, type);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
     expect(requests).toHaveLength(2);
   });
 
   it("fits a citation to the lines the weeks cite, and reports one they never cite", async () => {
     const { memory, steps, type } = await project();
     steps.complete = async () => "SUMMARY: Sam.\n## Now\n\n- A. ^[chat.md:2-3]\n- B. ^[chat.md:9-9]";
-    const result = await generateOwnerPageWith(steps, type);
+    const result = await generateOwnerPageWith(steps, { type, useTimeline: true });
     expect(result.errors).toEqual(['Page "person/sam" cites 1 span outside the lines it was written from']);
     expect(memory.pages.get("person/sam")).toContain("- A. ^[chat.md:2-3]");
   });
@@ -89,7 +89,7 @@ describe("the owner page", () => {
     const { memory, steps, requests, type } = await project();
     memory.pages.delete("timeline/2026-W19");
     memory.pages.delete("timeline/2026-W18");
-    await generateOwnerPageWith(steps, type);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
     const page = parseFrontmatter(memory.pages.get("person/sam")!);
     expect([requests.length, page.meta.summary]).toEqual([0, "The owner of this memory."]);
     expect(page.body).toContain("## People");
@@ -98,10 +98,43 @@ describe("the owner page", () => {
   it("leaves a hand-written page at the owner's id alone, and does nothing without an owner", async () => {
     const { memory, steps, requests, type } = await project();
     memory.pages.set("person/sam", "---\ntitle: Sam\n---\n\nMine.\n");
-    const result = await generateOwnerPageWith(steps, type);
+    const result = await generateOwnerPageWith(steps, { type, useTimeline: true });
     expect(result.errors).toEqual(["wiki/person/sam.md was not written by entity extraction; left as it is"]);
     memory.state.registry = { entities: {} };
-    expect(await generateOwnerPageWith(steps, type)).toEqual({ written: [], deleted: [], errors: [] });
+    expect(await generateOwnerPageWith(steps, { type, useTimeline: true })).toEqual({ written: [], deleted: [], errors: [] });
     expect([requests.length, memory.pages.get("person/sam")]).toEqual([0, "---\ntitle: Sam\n---\n\nMine.\n"]);
+  });
+});
+
+describe("the owner page when things change or go wrong", () => {
+  it("checks the field contract before the model call, so a page that cannot be written costs no call", async () => {
+    const { steps, requests } = await project();
+    const strict = personProfile();
+    strict.entities.person.requiredFields = ["relationship"];
+    const type = extractableTypes(strict)[0];
+    const result = await generateOwnerPageWith(steps, { type, useTimeline: true });
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    expect([requests.length, result.errors[0]]).toEqual([0, expect.stringContaining('Required field "relationship"')]);
+  });
+
+  it("refreshes the aliases with no model call when the owner's names change", async () => {
+    const { memory, steps, requests, type } = await project();
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    memory.state.registry = { ...memory.state.registry, owner: { type: "person", names: ["Sam", "Sam Rivera", "Sammy"] } };
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    expect([requests.length, parseFrontmatter(memory.pages.get("person/sam")!).meta.aliases]).toEqual([1, ["Sam Rivera", "Sammy"]]);
+  });
+
+  it("reads no week pages when the timeline is off, and keeps its body and refreshes People when the call fails", async () => {
+    const { memory, steps, requests, type } = await project();
+    await generateOwnerPageWith(steps, { type, useTimeline: false });
+    expect([requests.length, parseFrontmatter(memory.pages.get("person/sam")!).meta.summary]).toEqual([0, "The owner of this memory."]);
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    memory.pages.set("timeline/2026-W19", weekPage("2026-W19", "- Ana left. ^[chat.md:2-2]"));
+    memory.pages.delete("person/alex");
+    steps.complete = async () => { throw new Error("down"); };
+    await generateOwnerPageWith(steps, { type, useTimeline: true });
+    const page = memory.pages.get("person/sam")!;
+    expect([page.includes("- Hosting Ana."), page.includes("person/alex")]).toEqual([true, false]);
   });
 });

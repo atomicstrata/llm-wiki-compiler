@@ -108,7 +108,7 @@ describe("record ids", () => {
   });
 });
 
-describe("the hub and long sources", () => {
+describe("long sources", () => {
   it("re-reads only the changed last chunk of a source that grows", async () => {
     const long = ["# Chat", ...Array.from({ length: 1200 }, (_, i) => `- 2026-05-04 09:00 Sam: line ${i} ${"x".repeat(80)}`)].join("\n");
     const sources = { "chat.md": long };
