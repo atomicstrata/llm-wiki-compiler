@@ -10,13 +10,13 @@
 
 import { spawn } from "node:child_process";
 import { accessSync, constants as fsConstants, statSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Ajv from "ajv";
 import type { LLMMessage, LLMProvider, LLMTool } from "../utils/provider.js";
-import { registerCodexProcess, signalCodexTree } from "./codex-agent-lifecycle.js";
+import { registerCodexProcess, removeCodexCwd, signalCodexTree } from "./codex-agent-lifecycle.js";
 import { dropNullOptionals, toStrictSchema } from "./codex-strict-schema.js";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
@@ -372,7 +372,7 @@ export class CodexAgentProvider implements LLMProvider {
       }
     } finally {
       try {
-        await rm(cwd, { recursive: true, force: true });
+        await removeCodexCwd(cwd);
       } finally {
         releaseCustody();
       }
