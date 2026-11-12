@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Print what a hung test shard is doing, while it is still alive: the process
+# Print what a hung test run is doing, while it is still alive: the process
 # tree, then each bun process's kernel wait channel, threads and open files.
 # Drop kernel threads (children of kthreadd, pid 2) but keep zombies, which
 # print as `[name] <defunct>`: an unreaped child is what a stuck spawn leaves.

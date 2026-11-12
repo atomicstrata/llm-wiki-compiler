@@ -66,7 +66,7 @@ export default defineConfig(async (options) => {
     entry: ["src/index.ts"],
     // Per-entry targeted clean: only this bundle's own outputs, never the CLI's.
     clean: ["dist/index.js", "dist/index.js.map", "dist/index.d.ts"],
-    dts: process.env.LLMWIKI_SKIP_DTS !== "1",
+    dts: true,
     // No banner — library bundle must not include a shebang line.
   },
   ];

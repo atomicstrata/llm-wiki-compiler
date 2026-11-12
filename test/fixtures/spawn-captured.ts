@@ -3,7 +3,7 @@
  * @description `spawnSync`'s result, from an asynchronous spawn.
  *
  * Under Bun a synchronous spawn can spin forever beside its exited, unreaped
- * child (oven-sh/bun#46488): CI shards hung on a test worker at 100% CPU next
+ * child (oven-sh/bun#46488): CI runs hung on a test worker at 100% CPU next
  * to a `[bun] <defunct>`, with the per-test timeout unable to fire. Tests that
  * start a process and read what it printed use {@link spawnCaptured} instead,
  * which resolves with the same `status` / `signal` / `stdout` / `stderr` /
