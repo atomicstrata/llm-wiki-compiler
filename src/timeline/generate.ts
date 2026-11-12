@@ -23,9 +23,9 @@ import pLimit, { type LimitFunction } from "p-limit";
 import { parseFrontmatter } from "../utils/markdown.js";
 import type { CompilePageWrite } from "../compiler/compile-write.js";
 import type { TimelineSchema } from "../schema/types.js";
-import { fitCitations, splitAnswer, type PageRequest, type ShownLines } from "../compiler/source-excerpt.js";
+import { splitAnswer, type PageRequest, type ShownLines } from "../compiler/source-excerpt.js";
 import {
-  claimable, completePage, deleteAndReport, fitAndReportCitations, ownPages, readSources, stringField, writeAndReport,
+  claimable, completePage, deleteAndReport, fitAndReportCitations, fitPageCitations, ownPages, readSources, stringField, writeAndReport,
   type DerivedResult, type DerivedSteps, type OwnPage, type PageReport,
 } from "../compiler/derived-steps.js";
 import { withoutGenerated } from "../wiki/generated-section.js";
@@ -131,7 +131,7 @@ async function planDay(pass: TimelinePass, day: DayBucket, texts: Map<string, st
   const page = pass.existing.get(day.day);
   const { request, shown } = dailyRequest(day, texts);
   if (page && signatureOf(page) === day.signature) {
-    const updated = withDaySections(fitCitations(page.text, shown.sources).body, sections);
+    const updated = withDaySections(fitPageCitations(page.text, shown.sources), sections);
     return updated === page.text ? null : { write: timelineWrite(day.day, updated) };
   }
   const answer = await completePage(pass.report, (req) => pass.steps.complete(req), request, day.day);
@@ -150,7 +150,7 @@ async function writeWeeks(pass: TimelinePass, weeks: WeekBucket[], freshDays: Ma
 /** A current week page with its citations fitted to its days' lines, or null when they already fit. */
 function refittedWeek(pass: TimelinePass, week: WeekBucket): PeriodWrite | null {
   const text = pass.existing.get(week.week)!.text;
-  const fitted = fitCitations(text, week.days.flatMap((day) => day.sources)).body;
+  const fitted = fitPageCitations(text, week.days.flatMap((day) => day.sources));
   return fitted === text ? null : { write: timelineWrite(week.week, fitted) };
 }
 
@@ -174,8 +174,7 @@ function orphanDeletes(pass: TimelinePass, days: DayBucket[], weeks: WeekBucket[
 
 /** A regenerated day or week page from the model's answer, keeping the page's original creation time. */
 function periodWrite(pass: TimelinePass, page: PeriodPage, answer: string, sections?: DaySections): PeriodWrite {
-  const { summary, body: answered } = splitAnswer(answer);
-  const body = fitAndReportCitations(pass.report, page.period, answered, page.shown);
+  const { summary, body } = splitAnswer(fitAndReportCitations(pass.report, page.period, answer, page.shown));
   const now = pass.steps.now();
   const createdAt = stringField(pass.existing.get(page.period)?.meta ?? {}, "createdAt") || now;
   const { shown: _shown, ...meta } = page;

@@ -150,6 +150,16 @@ describe("generateTimelineWith", () => {
     expect(fresh).toBe("Body.\n\n[//]: # (llmwiki-generated)\n## People this day\n\n- [[person/alex-kim|Alex Kim]]\n");
   });
 
+  it("fits a summary's citation once: the second compile writes nothing", async () => {
+    const memory = memorySteps({ "chat.md": CHAT });
+    memory.steps.complete = async (request) => `SUMMARY: Planned ^[chat.md:1-3].\nDone. ${firstCitation(request.messages[0].content)}`;
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(parseFrontmatter(memory.pages.get("timeline/2026-05-04")!).meta.summary).toBe("Planned ^[chat.md:2-2].");
+    const batches = memory.batches.length;
+    await generateTimelineWith(memory.steps, { ...CONFIG, concurrency: 1 });
+    expect(memory.batches.length).toBe(batches);
+  });
+
   it("treats an empty page as hand-written: never overwritten, never removed", async () => {
     const memory = memorySteps({ "chat.md": CHAT });
     memory.pages.set("timeline/2026-05-04", "");

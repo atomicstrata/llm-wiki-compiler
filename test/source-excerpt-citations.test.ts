@@ -32,6 +32,11 @@ describe("fitting citations to the shown lines", () => {
     expect(fitCitations(once, SHOWN)).toEqual({ body: once, outside: 0 });
   });
 
+  it("leaves a marker with a malformed entry as written, for the linter to report", () => {
+    const body = "- A. ^[a.md:12-5, chat.md:97-112]";
+    expect(fitCitations(body, SHOWN).body).toBe(body);
+  });
+
   it("joins a file's shown ranges from several sources before fitting", () => {
     const split = [{ file: "chat.md", ranges: [{ start: 1, end: 3 }] }, { file: "chat.md", ranges: [{ start: 4, end: 6 }] }];
     expect(fitCitations("- A. ^[chat.md:2-5]", split)).toEqual({ body: "- A. ^[chat.md:2-5]", outside: 0 });

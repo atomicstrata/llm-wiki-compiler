@@ -106,13 +106,13 @@ function listsByKey(value: unknown, message: string): Record<string, string[]> {
   return Object.fromEntries(Object.entries(map).map(([key, names]) => [key, strings(names)]));
 }
 
-/** `distinct` as type → lists of record ids; anything but a map of lists of lists throws. */
+/** `distinct` as type → sets of record ids; anything but a map of lists of two or more slug ids throws. */
 function parseDistinct(value: unknown): Record<string, string[][]> {
-  const message = '"distinct" must map each entity type to a list of lists of record ids';
+  const message = '"distinct" must map each entity type to a list of sets, each two or more record ids';
   const map = mapOf(value, message);
-  const isListOfLists = (sets: unknown): boolean => Array.isArray(sets) && sets.every(Array.isArray);
-  if (!Object.values(map).every(isListOfLists)) throw new Error(message);
-  return Object.fromEntries(Object.entries(map).map(([type, sets]) => [type, (sets as unknown[][]).map(strings)]));
+  const isIdSet = (set: unknown): boolean => Array.isArray(set) && set.length >= 2 && set.every((id) => typeof id === "string" && SLUG.test(id));
+  if (!Object.values(map).every((sets) => Array.isArray(sets) && sets.every(isIdSet))) throw new Error(message);
+  return map as Record<string, string[][]>;
 }
 
 /** The strings in a list, ignoring anything else. */
@@ -196,13 +196,24 @@ function groupMentions(type: string, mentions: Mention[], registry: AliasRegistr
 }
 
 /** Words that refer to someone without naming them; a spelling made only of these is no name. */
-const PRONOUNS = new Set(["i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "hers", "it", "its", "we", "us", "our", "they", "them", "their", "the", "a", "an"]);
-/** Family words ("mom", "my brother"); like a pronoun, a spelling that starts with one names a relation, not a person. */
-const FAMILY_WORDS = new Set([
-  "mom", "mama", "momma", "mommy", "mother", "dad", "papa", "father", "parent", "parents", "brother", "brothers", "sister", "sisters",
-  "aunt", "aunts", "uncle", "uncles", "cousin", "niece", "nephew", "wife", "husband", "partner", "son", "daughter", "kid", "child", "baby",
-  "grandma", "grandmother", "grandpa", "grandfather", "sister-in-law", "brother-in-law",
+const PRONOUNS = new Set(["i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "hers", "it", "its", "we", "us", "our", "they", "them", "their", "the", "a"]);
+/**
+ * Words a spelling can start with that name a relation, not a person: possessive
+ * pronouns ("my dad") and family words ("mom", "mother-in-law"). A spelling that
+ * starts with one never makes a "Might be the same as" flag. (A given name that is
+ * also a family word, like "Son", is not indexed either; its full name still is.)
+ */
+const RELATION_WORDS = new Set([
+  "my", "your", "his", "her", "our", "their",
+  "mom", "mum", "mama", "momma", "mommy", "mother", "dad", "papa", "father", "parent", "parents", "brother", "brothers", "sister", "sisters",
+  "aunt", "auntie", "aunts", "uncle", "uncles", "cousin", "niece", "nephew", "wife", "husband", "partner", "son", "daughter", "kid", "child", "baby",
+  "grandma", "grandmother", "grandpa", "grandfather", "gran", "granny", "nan",
 ]);
+
+/** Whether a normalized first word names a relation: one of {@link RELATION_WORDS}, an in-law, or a step-relation. */
+function isRelationWord(word: string): boolean {
+  return RELATION_WORDS.has(word) || word.endsWith("-in-law") || (word.startsWith("step") && RELATION_WORDS.has(word.slice("step".length)));
+}
 
 /** Whether a spelling is only pronouns and articles ("they", "his"), which the model sometimes lists among how a source writes someone. */
 function isPronoun(form: string): boolean {
@@ -255,8 +266,8 @@ export function displayName(record: ResolvedRecord, registered: string[] | undef
 /**
  * Record id → ids of records that might be the same one: a name or spelling of
  * one is another's first name, or two share a first name. A relation name ("Sam's
- * mother") and a spelling that starts with a pronoun or family word ("my dad")
- * are not indexed by their first word, which names no one. Ids in one of the
+ * mother") and a spelling that starts with a possessive pronoun or family word
+ * ("my dad", "mom") are not indexed by their first word, which names no one. Ids in one of the
  * `distinct` sets were settled as different people and are never flagged together.
  */
 export function possibleDuplicates(records: ResolvedRecord[], distinct: string[][] = []): Map<string, string[]> {
@@ -274,7 +285,7 @@ function firstNameIndex(records: ResolvedRecord[]): Map<string, Set<string>> {
   for (const record of records) {
     for (const name of [...record.names, ...record.writtenAs].filter((candidate) => !RELATION_NAME.test(candidate))) {
       const first = normalizeName(name).split(" ")[0];
-      if (first && !PRONOUNS.has(first) && !FAMILY_WORDS.has(first)) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
+      if (first && !isRelationWord(first)) firstNames.set(first, (firstNames.get(first) ?? new Set()).add(record.id));
     }
   }
   return firstNames;

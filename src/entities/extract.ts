@@ -199,8 +199,8 @@ export function parseRecords(answer: string, types: ExtractableType[], lineCount
 
 /** An address rather than a name, which is never kept as a spelling. */
 const ADDRESS = /@|:\/\//;
-/** A possessive ending ("Ben’s", "parents’"), which is not part of the name. */
-const POSSESSIVE = /['’]s?$/i;
+/** A possessive ending after a lowercase letter ("Ben’s", "parents’"), which is not part of the name; "O'S" is left alone. */
+const POSSESSIVE = /(?<=\p{Ll})['’]s?$/u;
 
 /** A spelling as kept: trimmed, without a possessive ending. */
 export function cleanSpelling(form: string): string {

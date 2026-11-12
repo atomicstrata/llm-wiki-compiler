@@ -133,14 +133,26 @@ export async function completePage(report: PageReport, complete: (request: PageR
 }
 
 /**
- * A page body with its citations fitted to `shown`, the lines it was written
- * from (see {@link fitCitations}); a span that cites no shown line is reported.
- * The page is still written.
+ * A model answer (summary line and body) with its citations fitted to `shown`,
+ * the lines it was written from (see {@link fitCitations}); a span that cites no
+ * shown line is reported. The page is still written.
  */
-export function fitAndReportCitations(report: PageReport, slug: string, body: string, shown: ShownLines[]): string {
-  const fitted = fitCitations(body, shown);
+export function fitAndReportCitations(report: PageReport, slug: string, answer: string, shown: ShownLines[]): string {
+  const fitted = fitCitations(answer, shown);
   if (fitted.outside > 0) report.result.errors.push(`${report.label(slug)} cites ${fitted.outside} span${fitted.outside === 1 ? "" : "s"} outside the lines it was written from`);
   return fitted.body;
+}
+
+/**
+ * A page on disk with the citations in its body fitted to `shown`, its
+ * frontmatter untouched: the summary was fitted with the answer it came from, so
+ * a refresh and a regeneration fit the same text and a second compile writes nothing.
+ */
+export function fitPageCitations(text: string, shown: ShownLines[]): string {
+  const end = text.startsWith("---\n") ? text.indexOf("\n---", 3) : -1;
+  if (end === -1) return fitCitations(text, shown).body;
+  const bodyStart = end + "\n---".length;
+  return text.slice(0, bodyStart) + fitCitations(text.slice(bodyStart), shown).body;
 }
 
 /** Apply `writes`, report the ones the write floor skipped and list the rest as written; returns the writes that landed. */

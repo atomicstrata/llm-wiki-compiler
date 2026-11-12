@@ -4,11 +4,11 @@
  * days, entity records): the line-range type, the numbered excerpt of source
  * lines a prompt shows (each line with its ORIGINAL number, so the model's
  * `^[file.md:START-END]` citations point at the real lines), the answer format
- * (a `SUMMARY:` line, then cited bullets), and the check for citations of lines
- * the model was not shown.
+ * (a `SUMMARY:` line, then cited bullets), and fitting the model's citations to
+ * the lines it was shown.
  */
 
-import { extractClaimCitations } from "../utils/markdown.js";
+import { extractClaimCitations, splitCitationMarker } from "../utils/markdown.js";
 import type { SourceSpan } from "../utils/types.js";
 
 /** An inclusive, 1-based range of source lines. */
@@ -144,6 +144,7 @@ export function fitCitations(body: string, shown: ShownLines[]): FittedCitations
   for (const source of shown) rangesByFile.set(source.file, mergeRanges([...(rangesByFile.get(source.file) ?? []), ...source.ranges]));
   let outside = 0;
   const fitted = body.replace(CITATION_MARKER, (marker) => {
+    if (hasMalformedEntry(marker)) return marker;
     const fits = (extractClaimCitations(marker)[0]?.spans ?? []).map((span) => fitSpan(span, rangesByFile.get(span.file)));
     outside += fits.filter((fit) => fit.outside).length;
     return fits.some((fit) => fit.changed) ? `^[${formatSpans(fits.flatMap((fit) => fit.spans))}]` : marker;
@@ -153,6 +154,11 @@ export function fitCitations(body: string, shown: ShownLines[]): FittedCitations
 
 /** A citation marker, `^[…]`. */
 const CITATION_MARKER = /\^\[[^\]]+\]/g;
+
+/** Whether a marker has an entry the citation parser drops (`a.md:12-5`); such a marker is left for the linter to report. */
+function hasMalformedEntry(marker: string): boolean {
+  return splitCitationMarker(marker.slice(2, -1)).some((entry) => entry.trim() && (extractClaimCitations(`^[${entry}]`)[0]?.spans.length ?? 0) === 0);
+}
 
 /** One cited span after fitting: the spans it becomes, whether it changed, and whether it cites no shown line. */
 interface FittedSpan {
