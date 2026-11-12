@@ -1,0 +1,4 @@
+#!/bin/sh
+# No-op browser opener: tests that exercise the viewer handoff put this
+# directory first on PATH so they never open a real browser tab.
+exit 0

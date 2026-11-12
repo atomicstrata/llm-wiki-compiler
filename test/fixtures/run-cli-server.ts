@@ -18,8 +18,12 @@
  */
 
 import { ChildProcess, spawn } from "child_process";
+import { delimiter, join } from "path";
 import { afterEach } from "bun:test";
 import { CLI, CLI_RUNTIME_FLAGS } from "./run-cli.js";
+
+/** Directory of no-op `open` / `xdg-open` stubs that stand in for a browser. */
+const NO_BROWSER_BIN = join(import.meta.dirname, "no-browser");
 
 // Parses either `http://127.0.0.1:PORT` or the bracketed-IPv6 form
 // `http://[::1]:PORT` — group 1 captures the host without the brackets.
@@ -65,6 +69,10 @@ export async function startViewerV2CLI(args: string[], cwd: string): Promise<Vie
  * readiness line emitted by quickstart's viewer handoff, and resolve
  * with a handle. `envOverrides` is merged on top of `process.env` so
  * tests can inject aimock credentials the same way `runCLI` does.
+ *
+ * The handoff runs `viewCommand({ open: true })`, which shells out to
+ * `open` / `xdg-open`. `PATH` starts with no-op stubs for those so a test
+ * run never opens a real browser tab on the developer's machine.
  */
 export async function startQuickstartCLI(
   args: string[],
@@ -72,12 +80,13 @@ export async function startQuickstartCLI(
   envOverrides: NodeJS.ProcessEnv = {},
   timeoutMs: number = DEFAULT_READY_TIMEOUT_MS,
 ): Promise<ViewerProcessHandle> {
+  const PATH = `${NO_BROWSER_BIN}${delimiter}${process.env.PATH}`;
   return spawnAwaitingReadiness(
     ["quickstart", ...args],
     cwd,
     timeoutMs,
     "quickstart",
-    { env: { ...process.env, ...envOverrides } },
+    { env: { ...process.env, PATH, ...envOverrides } },
   );
 }
 
