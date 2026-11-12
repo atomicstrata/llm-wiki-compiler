@@ -177,6 +177,7 @@ export function memoryFinalizeSteps(held: Held, write: CompilePageWriteSteps, op
     refreshEmbeddings: (_root, ids) => step(`embeddings ${ids.join(",")}`, async () => {}),
     updateEntities: (_root, _timeline, concurrency) => step(concurrency === undefined ? "entities" : `entities x${concurrency}`, async () => {}),
     updateTimeline: (_root, _timeline, concurrency) => step(concurrency === undefined ? "timeline" : `timeline x${concurrency}`, async () => {}),
+    updateOwnerPage: () => step("owner", async () => {}),
   };
 }
 

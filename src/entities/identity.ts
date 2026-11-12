@@ -21,7 +21,7 @@
  *    people only mentioned in passing, such as public figures, or names the
  *    model took for a person that are not one.
  *      { "exclude": { "person": ["Donald Trump", "Acme Corp"] } }
- *  - The owner's hub page has an id of its own that no record takes.
+ *  - The owner page has an id of its own that no record takes.
  *  - Records that MIGHT be the same (one name is another's first name, or two
  *    share a first name) are flagged both ways for the owner to settle in the
  *    registry, never merged.
@@ -150,8 +150,8 @@ function nameHash(name: string): string {
   return hash.toString(36);
 }
 
-/** The id of the owner's hub page in `type`, or null when the owner is not of that type. */
-export function hubId(registry: AliasRegistry, type: string): string | null {
+/** The id of the owner page in `type`, or null when the owner is not of that type. */
+export function ownerPageId(registry: AliasRegistry, type: string): string | null {
   const name = registry.owner?.type === type ? registry.owner.names[0] : undefined;
   if (!name) return null;
   const id = recordId(name);
@@ -161,12 +161,12 @@ export function hubId(registry: AliasRegistry, type: string): string | null {
 /**
  * Group one type's mentions into records: registry names first, then exact
  * normalized names. Each record gets its own id: a registry id as given, else
- * its name's slug, with a numbered suffix when another record or the hub has it.
+ * its name's slug, with a numbered suffix when another record or the owner page has it.
  */
 export function resolveRecords(type: string, mentions: Mention[], registry: AliasRegistry): ResolvedRecord[] {
   const taken = new Set(Object.keys(registry.entities[type] ?? {}));
-  const hub = hubId(registry, type);
-  if (hub) taken.add(hub);
+  const ownerPage = ownerPageId(registry, type);
+  if (ownerPage) taken.add(ownerPage);
   // Excluded names still take their ids here, so excluding one never renames another record.
   return [...groupMentions(type, mentions, registry)].sort(([a], [b]) => a.localeCompare(b))
     .map(([, group]) => ({ group, id: group.registered ?? uniqueId(recordId(group.names[0]), taken) }))

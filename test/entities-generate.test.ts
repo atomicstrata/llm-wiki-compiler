@@ -25,7 +25,7 @@ describe("entity pages", () => {
     const memory = memoryEntitySteps({ "chat.md": CHAT, "note.md": NOTE }, PEOPLE, OWNER);
     const result = await generateEntitiesWith(memory.steps, entityConfig());
     expect(result.errors).toEqual([]);
-    expect([...memory.pages.keys()].sort()).toEqual(["person/alex", "person/alex-kim", "person/ana", "person/sam"]);
+    expect([...memory.pages.keys()].sort()).toEqual(["person/alex", "person/alex-kim", "person/ana"]);
     const ana = parseFrontmatter(memory.pages.get("person/ana")!);
     expect(ana.meta).toMatchObject({ title: "Ana", relationship: "friend", sources: ["chat.md"], summary: "Ana is someone the owner knows." });
     expect(ana.body).toContain("- Mentioned. ^[chat.md:1-1]");
@@ -59,17 +59,6 @@ describe("entity pages", () => {
     expect(ana).toContain("## Days\n\n- [[timeline/2026-05-04|May 4, 2026]]\n- [[timeline/2026-05-05|May 5, 2026]]");
     expect(memory.pages.get("person/alex")).toContain("## Might be the same as\n\n- [[person/alex-kim|Alex Kim]]");
     expect(memory.pages.get("person/alex-kim")).not.toContain("## Days");
-  });
-
-  it("builds the owner's hub with no model call, grouped by relationship", async () => {
-    const memory = memoryEntitySteps({ "chat.md": CHAT, "note.md": NOTE }, PEOPLE, OWNER);
-    await generateEntitiesWith(memory.steps, entityConfig());
-    const hub = parseFrontmatter(memory.pages.get("person/sam")!);
-    expect(hub.meta).toMatchObject({ title: "Sam", aliases: ["Sam Rivera"] });
-    expect(hub.body).toContain("## Friend\n\n- [[person/ana|Ana]] — Ana is someone the owner knows.");
-    expect(hub.body).toContain("## Family\n\n- [[person/alex-kim|Alex Kim]]");
-    expect(hub.body).toContain("## Not stated\n\n- [[person/alex|Alex]]");
-    expect(memory.pageRequests.sort()).toEqual(["Alex", "Alex Kim", "Ana"]);
   });
 
   it("makes no model call and writes nothing when nothing changed", async () => {
