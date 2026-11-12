@@ -47,6 +47,7 @@
  */
 
 import path from "node:path";
+import pLimit from "p-limit";
 import { authoritativeManifests, hasAuthoritativeRun, capacityViolation, uniqueInventoryBytes as uniqueBytes } from "../utils/inventory-arithmetic.js";
 import {
   MAX_ACTIVE_NONTERMINAL_RUNS, MAX_ACTIVE_PREPARATION_BYTES,
@@ -55,11 +56,9 @@ import {
   MAX_PREPARATION_RUN_BYTES, MAX_PREPARED_INPUTS_PER_RUN,
 } from "./constants.js";
 import type { PreparationId, PreparationRunId } from "./ids.js";
-import type { PreparationEpochInventory, PreparationEpochInventoryEntry } from "./key-epoch.js";
-import { readPreparationKeyEpoch } from "./key-epoch.js";
+import type { PreparationEpochInventory, PreparationEpochInventoryEntry, PreparationKeyEpochRead } from "./key-epoch.js";
 import { validatePreparationSupersessionSet } from "./manifest-graph.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
-import { readPreparationManifest } from "./manifest-store.js";
 import type { PreparationManifestRead } from "./manifest-store.js";
 import {
   preparationScanEntryLimit, scanActivePreparationStore,
@@ -68,15 +67,15 @@ import {
 } from "./orphan-scan.js";
 import {
   assertPreparationLifecycleRead,
-  withPreparationLifecycleRead,
   type PreparationLifecycleReadV1,
 } from "./lifecycle-snapshot/read.js";
 import type {
   PreparationLifecycleStorageEntryV1,
 } from "./lifecycle-snapshot/types.js";
-import { readPreparationRun } from "./run-store.js";
 import type { PreparationRunRead } from "./run-store.js";
 import type { PreparationRunBinding, PreparationRunState } from "./run-types.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
+import { once } from "../utils/pass-memo.js";
 
 const TERMINAL_STATES = new Set<PreparationRunState>([
   "handed-off", "succeeded", "succeeded-with-warnings", "failed", "cancelled",
@@ -172,11 +171,7 @@ export interface PreparationInventoryReads {
   /** One manifest by workspace and preparation. */
   readManifest(workspaceId: string, preparationId: PreparationId): Promise<PreparationManifestRead>;
   /** Whether the preparation key can be read, and its epoch. NEVER the key bytes. */
-  readKeyEpoch(): Promise<
-    | { status: "ok"; keyEpochId: PreparationRunBinding["keyEpochId"] }
-    | { status: "absent" }
-    | { status: "unavailable" }
-  >;
+  readKeyEpoch(): Promise<PreparationKeyEpochRead>;
   /** One run leaf by its binding, authenticated by whatever answers. */
   readRun(binding: PreparationRunBinding): Promise<PreparationRunRead>;
 }
@@ -211,61 +206,71 @@ export interface PreparationInventoryLifecycleReads extends PreparationInventory
  * closure calls the imported store function when it is asked, never earlier. The
  * lifecycle proof here is the real one, against this root.
  */
-function diskPreparationInventoryReads(root: string): PreparationInventoryReads {
+function diskPreparationInventoryReads(root: string, pass: PreparationPassReads): PreparationInventoryReads {
   return {
     assertLifecycleRead: (read) => assertPreparationLifecycleRead(root, read),
-    scanActiveStore: (options) => scanActivePreparationStore(root, options),
-    readManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
-    readKeyEpoch: () => readPreparationKeyEpoch(root),
-    readRun: (binding) => readPreparationRun(root, binding),
+    scanActiveStore: (options) => scanActivePreparationStore(root, options, pass.scannedLeaves),
+    readManifest: pass.readManifest,
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
   };
 }
 
 /**
  * The local-disk reads that can also borrow, for one project root. Private, and
- * built per call. The borrow is the imported lifecycle capture for this root,
- * called when it is asked and never earlier, so the read it lends is the one the
- * proof beside it accepts. ROOT-BOUND LOCAL-DISK AUTHORITY: named, not neutral.
+ * built per call. The borrow is the pass's lifecycle capture for this root —
+ * a fresh one per borrow unless the pass shares one — taken when it is asked and
+ * never earlier, so the read it lends is the one the proof beside it accepts.
+ * ROOT-BOUND LOCAL-DISK AUTHORITY: named, not neutral.
  */
-function diskPreparationInventoryLifecycleReads(root: string): PreparationInventoryLifecycleReads {
+function diskPreparationInventoryLifecycleReads(root: string, pass: PreparationPassReads): PreparationInventoryLifecycleReads {
   return {
-    ...diskPreparationInventoryReads(root),
-    borrowLifecycleRead: (maxRegistryEntries, use) => withPreparationLifecycleRead(root, use, { maxRegistryEntries }),
+    ...diskPreparationInventoryReads(root, pass),
+    borrowLifecycleRead: (maxRegistryEntries, use) => pass.lifecycle.borrow(use, { maxRegistryEntries }),
   };
 }
+
+const SCAN_READ_CONCURRENCY = 16;
 
 /** Read every authoritative manifest and preserve invalid/unavailable state. */
 async function readManifests(
   reads: PreparationInventoryReads, leaves: readonly PreparationLeafObservation[], problems: PreparationInventoryProblem[],
 ): Promise<Map<string, PreparationManifestV1>> {
+  const limit = pLimit(SCAN_READ_CONCURRENCY);
+  const identified = authoritativeManifests(leaves).flatMap((leaf) =>
+    leaf.workspaceId === undefined || leaf.preparationId === undefined
+      ? [] : [{ leaf, workspaceId: leaf.workspaceId, preparationId: leaf.preparationId as PreparationId }]);
+  const read = await Promise.all(identified.map((item) => limit(() => reads.readManifest(item.workspaceId, item.preparationId))));
   const result = new Map<string, PreparationManifestV1>();
-  for (const leaf of authoritativeManifests(leaves)) {
-    if (leaf.workspaceId === undefined || leaf.preparationId === undefined) continue;
-    const read = await reads.readManifest(leaf.workspaceId, leaf.preparationId as PreparationId);
-    if (read.status === "ok") result.set(`${leaf.workspaceId}\0${leaf.preparationId}`, read.manifest);
-    else problems.push({ dimension: "manifest-state", detail: `preparation manifest is ${read.status}`, path: path.join(".llmwiki", leaf.relativePath) });
-  }
+  identified.forEach(({ leaf, workspaceId, preparationId }, index) => {
+    const outcome = read[index];
+    if (outcome.status === "ok") result.set(`${workspaceId}\0${preparationId}`, outcome.manifest);
+    else problems.push({ dimension: "manifest-state", detail: `preparation manifest is ${outcome.status}`, path: path.join(".llmwiki", leaf.relativePath) });
+  });
   return result;
 }
+
+interface PreparationStateOutcome { state: PreparationState; problem?: PreparationInventoryProblem }
 
 /** Verify one manifest's initial evidence, run leaf, and authenticated run. */
 async function preparationState(
   reads: PreparationInventoryReads, manifest: PreparationManifestV1, leaves: readonly PreparationLeafObservation[],
-  problems: PreparationInventoryProblem[],
-): Promise<PreparationState> {
+  keyEpoch: () => Promise<PreparationKeyEpochRead>,
+): Promise<PreparationStateOutcome> {
+  const incomplete: PreparationState = { manifest, complete: false, nonterminal: false };
   const evidencePresent = manifest.initialEvidence.every((evidence) => leaves.some((leaf) =>
     leaf.kind === "evidence" && leaf.workspaceId === manifest.workspaceId && leaf.preparationId === manifest.preparationId
     && leaf.protocolAlias === undefined && path.basename(leaf.logicalRelativePath) === evidence.digest.slice("sha256:".length)));
   const runLeaf = hasAuthoritativeRun(leaves, manifest);
-  if (!evidencePresent || !runLeaf) return { manifest, complete: false, nonterminal: false };
-  const key = await reads.readKeyEpoch();
-  if (key.status !== "ok") { problems.push({ dimension: "run-state", detail: `preparation key is ${key.status}` }); return { manifest, complete: false, nonterminal: false }; }
+  if (!evidencePresent || !runLeaf) return { state: incomplete };
+  const key = await keyEpoch();
+  if (key.status !== "ok") return { state: incomplete, problem: { dimension: "run-state", detail: `preparation key is ${key.status}` } };
   const run = await reads.readRun({
     runId: manifest.runId, preparationId: manifest.preparationId, workspaceId: manifest.workspaceId,
     manifestDigest: preparationManifestDigest(manifest), keyEpochId: key.keyEpochId,
   });
-  if (run.status !== "ok") { problems.push({ dimension: "run-state", detail: `preparation run is ${run.status}` }); return { manifest, complete: false, nonterminal: false }; }
-  return { manifest, complete: true, nonterminal: !TERMINAL_STATES.has(run.run.state) };
+  if (run.status !== "ok") return { state: incomplete, problem: { dimension: "run-state", detail: `preparation run is ${run.status}` } };
+  return { state: { manifest, complete: true, nonterminal: !TERMINAL_STATES.has(run.run.state) } };
 }
 
 /** Build exact active epoch totals from the active-only classified scan. */
@@ -391,9 +396,12 @@ async function preparationStates(
   } catch (error) {
     problems.push({ dimension: "supersession", detail: error instanceof Error ? error.message : "invalid supersession set" });
   }
-  const states: PreparationState[] = [];
-  for (const manifest of manifestList) states.push(await preparationState(reads, manifest, scan.leaves, problems));
-  return { manifestList, states };
+  const keyEpoch = once(() => reads.readKeyEpoch());
+  const limit = pLimit(SCAN_READ_CONCURRENCY);
+  const outcomes = await Promise.all(manifestList.map((manifest) =>
+    limit(() => preparationState(reads, manifest, scan.leaves, keyEpoch))));
+  for (const { problem } of outcomes) if (problem) problems.push(problem);
+  return { manifestList, states: outcomes.map((outcome) => outcome.state) };
 }
 
 /**
@@ -407,7 +415,7 @@ export async function scanPreparationInventoryFromLifecycle(
   read: PreparationLifecycleReadV1,
   options: PreparationScanOptions = {},
 ): Promise<PreparationInventory> {
-  return scanPreparationInventoryFrom(diskPreparationInventoryReads(root), read, options);
+  return scanPreparationInventoryFrom(diskPreparationInventoryReads(root, preparationPassReads(root)), read, options);
 }
 
 /**
@@ -450,8 +458,9 @@ export async function scanPreparationInventoryFrom(
 export async function scanPreparationInventory(
   root: string,
   options: PreparationScanOptions = {},
+  pass: PreparationPassReads = preparationPassReads(root),
 ): Promise<PreparationInventory> {
-  return scanPreparationInventoryBorrowingFrom(diskPreparationInventoryLifecycleReads(root), options);
+  return scanPreparationInventoryBorrowingFrom(diskPreparationInventoryLifecycleReads(root, pass), options);
 }
 
 /**

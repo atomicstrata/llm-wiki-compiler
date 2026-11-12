@@ -229,8 +229,10 @@ describe("the operation inventory scan: one body over its own reads", () => {
   it("I3 keeps faults as faults in the body: payload digest and byte claims, key, run and catalog states, and a rejecting walk", async () => {
     const answers = await snapshot();
     const scan = async (overrides: Partial<Snapshot>, log: string[] = []) => scanOperationInventoryFrom(memoryInventory({ ...answers, ...overrides }, log));
-    const payload = answers.readPayloadLeaf.kind === "ok" ? answers.readPayloadLeaf.body : Buffer.alloc(0);
-    const tampered = await scan({ readPayloadLeaf: { kind: "ok", body: Buffer.concat([payload, Buffer.from("x")]) } });
+    if (answers.readPayloadLeaf.kind !== "ok") throw new Error("snapshot payload");
+    const tampered = await scan({ readPayloadLeaf: { ...answers.readPayloadLeaf, byteLength: answers.readPayloadLeaf.byteLength + 1 } });
+    const resealed = await scan({ readPayloadLeaf: { ...answers.readPayloadLeaf, sha256: "0".repeat(64) } });
+    expect(resealed.problems).toEqual([{ dimension: "payload-state", detail: "manifest payload is unavailable or invalid" }]);
     expect([tampered.problems, tampered.completeBundleIds.size, tampered.epoch.bundles.health]).toEqual([[{ dimension: "payload-state", detail: "manifest payload is unavailable or invalid" }], 0, "unavailable"]);
     if (answers.readManifest.status !== "ok") throw new Error("snapshot manifest");
     const claimed = structuredClone(answers.readManifest.manifest) as unknown as { mutations: { postcondition: { byteCount: number } }[] };
@@ -249,8 +251,8 @@ describe("the operation inventory scan: one body over its own reads", () => {
     const answers = await snapshot();
     const spies = [
       vi.spyOn(orphanScan, "scanOperationOrphans"), vi.spyOn(inventoryScan, "visitInventoryDirectory"), vi.spyOn(inventoryScan, "observeInventoryLeaf"),
-      vi.spyOn(inventoryAuthority, "verifyInventoryAuthorities"), vi.spyOn(manifestStore, "readOperationManifest"), vi.spyOn(durableLeaf, "readDurableOperationLeafBuffer"),
-      vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRun"), vi.spyOn(catalogStore, "readCatalogStore"),
+      vi.spyOn(inventoryAuthority, "verifyInventoryAuthoritiesFrom"), vi.spyOn(manifestStore, "readOperationManifest"), vi.spyOn(durableLeaf, "readDurableOperationLeafBuffer"),
+      vi.spyOn(keyEpoch, "readOperationKey"), vi.spyOn(runStore, "readOperationRunFrom"), vi.spyOn(catalogStore, "readCatalogStore"),
     ];
     await scanOperationInventoryFrom(memoryInventory(answers, []));
     await scanOperationOrphansFrom(memoryWalk({ [WORKSPACE]: "dir" }, {}));

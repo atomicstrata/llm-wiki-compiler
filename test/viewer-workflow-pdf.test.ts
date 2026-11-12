@@ -16,7 +16,7 @@ import { startViewer } from "../src/index.js";
 import { buildWorkflowRunProjection, type LiveStageProjectionProvider, type VerifiedStageFactsV1 } from "../src/viewer/workflow-run-projection.js";
 import { contentDispositionFor } from "../src/viewer/workflow-pdf.js";
 import { startArtifactRun, researchArtifactProfile } from "./fixtures/artifact-seam-fixtures.js";
-import { startAndParkBuild } from "./fixtures/workflow-profile.js";
+import { startAndParkBuild } from "./fixtures/workflow-run-helpers.js";
 import { writeBundle, bundlePaths, membersBlock } from "./fixtures/member-artifact-root.js";
 
 /** A two-stage roster, so two verified rows can each carry a pdfRef. */

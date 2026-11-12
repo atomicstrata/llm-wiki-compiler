@@ -18,9 +18,11 @@ import os from "node:os";
 import { RelationEndpointError } from "../src/relations/types.js";
 import { planRelationMutation } from "../src/trust/relation-plan.js";
 import {
-  experimentsIdeasProfile, EXPERIMENT_A as EXP_A, IDEA_B,
-  readRelations, makeRelationWriter,
+  experimentsIdeasProfile,
+  EXPERIMENT_A as EXP_A,
+  IDEA_B,
 } from "./fixtures/profile-fixtures.js";
+import { readRelations, makeRelationWriter } from "./fixtures/relation-fixtures.js";
 
 /** A profile whose `tests` relation declares a bounded-number `confidence` + enum `kind`. */
 const profile = () => experimentsIdeasProfile({

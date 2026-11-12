@@ -45,7 +45,7 @@ import type { FileHandle } from "node:fs/promises";
 import {
   AtomicWriteCollisionError, atomicStreamCreateOnlyDurable, atomicWriteNoReplaceDurable,
 } from "../utils/atomic-write.js";
-import { openConfinedLeaf } from "../utils/confined-read.js";
+import { openConfinedLeaf, type ConfirmedLeafOpen } from "../utils/confined-read.js";
 import { MAX_PREPARATION_EVIDENCE_OBJECT_BYTES } from "./constants.js";
 import type { PreparationId } from "./ids.js";
 import { preparationPaths } from "./paths.js";
@@ -379,9 +379,6 @@ async function withEvidenceLeaf<T>(
   return lent.value;
 }
 
-/** One confined leaf whose open handle is already confirmed. */
-type ConfirmedEvidenceLeaf = Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>;
-
 /**
  * The local-disk evidence leaves for one project root, built per call: the
  * closure derives the path and opens the leaf when it is asked. Exported for
@@ -410,7 +407,7 @@ async function useDiskEvidenceLeaf<T>(
 }
 
 /** The lent view of one confirmed handle: its size, its reads, and its post-read identity. */
-function diskOpenEvidenceLeaf(opened: ConfirmedEvidenceLeaf): PreparationEvidenceOpenLeaf {
+function diskOpenEvidenceLeaf(opened: ConfirmedLeafOpen): PreparationEvidenceOpenLeaf {
   return {
     size: opened.size,
     read: (target, offset, length, position) => opened.handle.read(target, offset, length, position),
@@ -479,7 +476,7 @@ async function streamVerifyEvidence(
 }
 
 /** PHYSICAL ONLY: the handle is still the same object, with the same link count and size, as when opened. */
-function sameEvidenceLeaf(opened: ConfirmedEvidenceLeaf, after: Stats): boolean {
+function sameEvidenceLeaf(opened: ConfirmedLeafOpen, after: Stats): boolean {
   return after.dev === opened.dev && after.ino === opened.ino && after.nlink === opened.nlink
     && after.size === opened.size;
 }

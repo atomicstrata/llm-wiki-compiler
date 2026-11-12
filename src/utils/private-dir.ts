@@ -104,6 +104,17 @@ async function confineLlmwikiDir(io: PrivateDirIo, root: string): Promise<string
 }
 
 /**
+ * The root a confined `.llmwiki` was resolved under. `confineTarget` answers
+ * `<realpath(root)>/.llmwiki` (or `<resolve(root)>/.llmwiki` when the root does
+ * not resolve), and the name is one segment, so its parent IS the real root the
+ * confinement judged against. Re-resolving the root for the re-check would ask
+ * the filesystem again for the answer the confinement already used.
+ */
+function confinedRoot(confined: string): string {
+  return path.dirname(confined);
+}
+
+/**
  * Post-existence TOCTOU re-check: verify that the realpath of an existing
  * `confined` dir still sits inside `realRoot`. A symlink swapped in between
  * the lstat/mkdir and this check would escape — fail closed.
@@ -136,8 +147,7 @@ export async function resolveConfinedPrivateDir(root: string): Promise<string> {
 export async function resolveConfinedPrivateDirFrom(io: PrivateDirIo, root: string): Promise<string> {
   const confined = await confineLlmwikiDir(io, root);
   await io.makeDirectoryTree(confined);
-  const realRoot = (await io.safeRealPath(root)) ?? path.resolve(root);
-  return recheckRealpath(io, confined, realRoot);
+  return recheckRealpath(io, confined, confinedRoot(confined));
 }
 
 /**
@@ -171,6 +181,5 @@ export async function resolveExistingConfinedPrivateDirFrom(io: PrivateDirIo, ro
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw err;
   }
-  const realRoot = (await io.safeRealPath(root)) ?? path.resolve(root);
-  return recheckRealpath(io, confined, realRoot);
+  return recheckRealpath(io, confined, confinedRoot(confined));
 }

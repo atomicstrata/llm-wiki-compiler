@@ -34,6 +34,7 @@ import { readOperationManifest, type OperationManifestRead } from "./manifest-st
 import type { OperationPrincipal } from "./principal.js";
 import type { OperationProblem, OperationProblemCode } from "./problems.js";
 import { appendOperationTransitionLocked, readOperationRun, type OperationRunRead } from "./run-store.js";
+import { once } from "../utils/pass-memo.js";
 import type {
   AppendOperationTransitionInput, OperationRun, OperationRunBinding, OperationRunCounters, OperationRunPredecessor, OperationRunState,
 } from "./run-types.js";
@@ -87,12 +88,13 @@ export interface OperationRunStores {
 
 /** LOCAL DISK. The incumbent root forms for `root`, each called when asked with its old arguments. */
 export function diskOperationRunStores(root: string): OperationRunStores {
+  const readKey = once(() => readOperationKey(root));
   return {
     capabilityRoot: root,
     readManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
-    readKey: () => readOperationKey(root),
-    readRun: (binding) => readOperationRun(root, binding),
-    appendTransition: (binding, expected, input) => appendOperationTransitionLocked(root, binding, expected, input),
+    readKey,
+    readRun: (binding) => readOperationRun(root, binding, readKey),
+    appendTransition: (binding, expected, input) => appendOperationTransitionLocked(root, binding, expected, input, readKey),
     writeEvidence: (location, bytes) => writeRunEvidenceCreateOnly(root, location, bytes),
     readCancel: (workspaceId, runId) => readCancelRequest(root, workspaceId, runId),
     removeCancel: (workspaceId, runId) => removeCancelRequestLocked(root, workspaceId, runId),

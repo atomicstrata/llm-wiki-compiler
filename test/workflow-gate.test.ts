@@ -13,7 +13,8 @@
 
 import { describe, it, expect } from "bun:test";
 import { makeTempRoot } from "./fixtures/temp-root.js";
-import { buildWorkflowProfile, installWorkflowProfile, startAndParkBuild as startAndPark } from "./fixtures/workflow-profile.js";
+import { buildWorkflowProfile, installWorkflowProfile } from "./fixtures/workflow-profile.js";
+import { startAndParkBuild as startAndPark } from "./fixtures/workflow-run-helpers.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { advanceWorkflow } from "../src/workflows/advance.js";
 import { cancelWorkflow } from "../src/workflows/cancel.js";

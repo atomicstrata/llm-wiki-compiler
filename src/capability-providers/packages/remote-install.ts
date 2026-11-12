@@ -270,12 +270,10 @@ async function custodyDownload(
   afterParentCheckForTest?: (directory: string) => Promise<void>,
   afterOpenForTest?: (leaf: string) => Promise<void>,
 ): Promise<Buffer> {
-  await assertAuthorizedProviderPaths(paths);
   const downloads = await ensureAuthorizedProviderDirectory(paths, paths.downloadsRoot);
   await afterParentCheckForTest?.(paths.downloadsRoot);
   await assertAuthorizedProviderDirectory(paths, downloads);
   const leaf = path.join(paths.downloadsRoot, `.download-${randomUUID()}`);
-  await assertAuthorizedProviderDirectory(paths, downloads);
   const write = await open(leaf, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
   try {
     await afterOpenForTest?.(leaf);
@@ -286,7 +284,6 @@ async function custodyDownload(
     await write.close();
   }
   try {
-    await assertAuthorizedProviderDirectory(paths, downloads);
     const read = await open(leaf, fsConstants.O_RDONLY | (process.platform === "win32" ? 0 : fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK));
     try {
       await assertBoundProviderLeaf(paths, downloads, leaf, read, DOWNLOAD_ESCAPED);

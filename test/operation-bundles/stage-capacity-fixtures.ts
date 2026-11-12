@@ -26,8 +26,37 @@ import { listProjectFiles } from "../fixtures/project-files.js";
 const DIGEST = `sha256:${"a".repeat(64)}` as const;
 const AT = "2026-07-18T12:00:00.000Z";
 
+/** Below this size a buffer is hashed directly; checking it for uniformity would not pay. */
+const UNIFORM_MEMO_MIN_BYTES = 1024 * 1024;
+
+/**
+ * SHA-256 of each large single-byte-fill buffer, by length and fill byte.
+ *
+ * The cap fixtures are built from `Buffer.alloc(size, fill)`, and the same
+ * hundreds of megabytes were hashed up to three times per proof: once to name a
+ * seeded blob, then again by the before and after fingerprints that read it
+ * back. A buffer only takes a memoized digest after its bytes are compared, in
+ * full, with that fill — so a changed or partially written file can never
+ * borrow the digest of the bytes it was supposed to hold.
+ */
+const uniformDigests = new Map<string, string>();
+
 /** Return the lowercase content address for exact bytes. */
 function digest(bytes: Buffer): string {
+  const fill = bytes[0];
+  if (fill === undefined || bytes.length < UNIFORM_MEMO_MIN_BYTES
+    || !bytes.equals(Buffer.alloc(bytes.length, fill))) return sha256Hex(bytes);
+  const key = `${bytes.length}:${fill}`;
+  let hex = uniformDigests.get(key);
+  if (hex === undefined) {
+    hex = sha256Hex(bytes);
+    uniformDigests.set(key, hex);
+  }
+  return hex;
+}
+
+/** SHA-256 of exact bytes, as lowercase hex. */
+function sha256Hex(bytes: Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
