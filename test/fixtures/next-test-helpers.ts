@@ -19,7 +19,7 @@ export interface NextTempDirEnv {
 }
 
 /**
- * Wire vitest before/afterEach hooks that create and clean up a temp directory.
+ * Wire before/afterEach hooks that create and clean up a temp directory.
  * Returns a live handle whose `dir` field refreshes before every test.
  * @param prefix - Short label for the temp directory name.
  */

@@ -12,7 +12,7 @@ import path from "path";
 /**
  * Make a directory at `os.tmpdir()/outside-<timestamp>-<rand>/` and
  * return its absolute path. Caller is responsible for cleanup if
- * needed; for vitest tests this is usually fine to leave behind since
+ * needed; for tests this is usually fine to leave behind since
  * each run uses a fresh suffix.
  */
 export async function makeOutsideDir(): Promise<string> {

@@ -86,7 +86,7 @@ function normalize(value: unknown, opts: GoldenOptions): unknown {
 /**
  * Assert that `value` matches the stored golden snapshot named `name`, or
  * write the golden when `UPDATE_GOLDEN` is set. Returns nothing; throws via
- * vitest's `expect` on mismatch.
+ * the test runner's `expect` on mismatch.
  *
  * @param name - Golden file basename (without extension); also the surface id.
  * @param value - The captured surface value to snapshot.

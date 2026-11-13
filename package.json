@@ -114,8 +114,7 @@
     "husky": "^9.1.7",
     "madge": "^8.0.0",
     "tsup": "^8.0.0",
-    "typescript": "5.9.3",
-    "vitest": "^3.2.7"
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1149.0",
