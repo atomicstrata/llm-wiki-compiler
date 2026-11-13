@@ -13,7 +13,8 @@ import { OpenAIProvider } from "../src/providers/openai.js";
 import { OllamaProvider } from "../src/providers/ollama.js";
 import { MiniMaxProvider } from "../src/providers/minimax.js";
 import { AtlasCloudProvider } from "../src/providers/atlascloud.js";
-import { ATLASCLOUD_BASE_URL, PROVIDER_MODELS } from "../src/utils/constants.js";
+import { RuncrateProvider } from "../src/providers/runcrate.js";
+import { ATLASCLOUD_BASE_URL, PROVIDER_MODELS, RUNCRATE_BASE_URL } from "../src/utils/constants.js";
 import { OrcaRouterProvider } from "../src/providers/orcarouter.js";
 
 const TEST_SETTINGS_PATH_ENV = "LLMWIKI_CLAUDE_SETTINGS_PATH";
@@ -71,6 +72,7 @@ describe("getProvider", () => {
     delete process.env.ATLASCLOUD_BASE_URL;
     delete process.env.ATLAS_CLOUD_BASE_URL;
     delete process.env.ORCAROUTER_API_KEY;
+    delete process.env.RUNCRATE_API_KEY;
 
     for (const dir of tempDirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
@@ -180,6 +182,38 @@ describe("getProvider", () => {
     process.env.LLMWIKI_PROVIDER = "atlas";
 
     expect(resolveActiveModelId()).toBe(PROVIDER_MODELS.atlascloud);
+  });
+
+  it("returns RuncrateProvider when LLMWIKI_PROVIDER=runcrate", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+    process.env.RUNCRATE_API_KEY = "runcrate-test-key";
+
+    const provider = getProvider();
+
+    expect(provider).toBeInstanceOf(RuncrateProvider);
+    expect(Reflect.get(provider, "model")).toBe(PROVIDER_MODELS.runcrate);
+    expectClientBaseURL(provider, "client", RUNCRATE_BASE_URL);
+  });
+
+  it("honors LLMWIKI_MODEL for the runcrate provider", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+    process.env.RUNCRATE_API_KEY = "runcrate-test-key";
+    process.env.LLMWIKI_MODEL = "deepseek-ai/DeepSeek-V4-Flash";
+
+    expect(Reflect.get(getProvider(), "model")).toBe("deepseek-ai/DeepSeek-V4-Flash");
+    expect(resolveActiveModelId()).toBe("deepseek-ai/DeepSeek-V4-Flash");
+  });
+
+  it("throws when RUNCRATE_API_KEY is absent for runcrate provider", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+
+    expect(() => getProvider()).toThrow("RUNCRATE_API_KEY");
+  });
+
+  it("resolves the Runcrate default model", () => {
+    process.env.LLMWIKI_PROVIDER = "runcrate";
+
+    expect(resolveActiveModelId()).toBe(PROVIDER_MODELS.runcrate);
   });
 
   it("returns OrcaRouterProvider when LLMWIKI_PROVIDER=orcarouter", () => {

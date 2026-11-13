@@ -463,6 +463,40 @@ export OPENAI_EMBEDDINGS_API_KEY=<your-key>
 ```
 
   </Tab>
+  <Tab title="Runcrate">
+
+The `runcrate` provider routes chat and tool calls through [Runcrate](https://www.runcrate.ai), an AI cloud that serves open models through an OpenAI-compatible API at `https://api.runcrate.ai/v1`.
+
+**Variables**
+
+| Variable | Required | Description |
+|---|---|---|
+| `LLMWIKI_PROVIDER` | Yes | Set to `runcrate` |
+| `RUNCRATE_API_KEY` | Yes | Your Runcrate API key |
+| `LLMWIKI_MODEL` | No | Model override. Defaults to `Qwen/Qwen3-235B-A22B-Instruct-2507`; must be a model that supports tool calls |
+
+**Setup**
+
+Runcrate does not serve embeddings to llmwiki, so either turn embedding refreshes off as below or route them to another backend (see Embeddings).
+
+```bash
+export LLMWIKI_PROVIDER=runcrate
+export RUNCRATE_API_KEY=<your-key>
+export LLMWIKI_EMBEDDINGS=off
+llmwiki compile
+```
+
+**Embeddings**
+
+Runcrate embeddings are not wired up in llmwiki, so the provider fails closed rather than inheriting OpenAI's embedding semantics. To keep Runcrate for chat while using embeddings, route them to another backend with `LLMWIKI_EMBEDDING_PROVIDER` - see [Environment Variables](/configuration/environment-variables):
+
+```bash
+export LLMWIKI_PROVIDER=runcrate
+export LLMWIKI_EMBEDDING_PROVIDER=openai
+export OPENAI_EMBEDDINGS_API_KEY=<your-key>
+```
+
+  </Tab>
 </Tabs>
 
 ## Per-concept prompt budget
