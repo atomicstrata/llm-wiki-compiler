@@ -28,18 +28,19 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+
+import { fsTapper } from "./fs-taps.js";
 
 /** `calls` are the tapped `fs` function names noted while `on`. */
-const taps = vi.hoisted(() => ({ on: false, calls: [] as string[] }));
-/** The suite's `fs/promises` tapper (`fs-taps.ts`, loaded in this hoisted block): each tapped call's name is noted while `on`. */
-const tapper = vi.hoisted(async () => {
-  const { fsTapper } = await import("./fs-taps.js");
-  return fsTapper({ note: (name) => { if (taps.on) taps.calls.push(name); } });
-});
+const taps = { on: false, calls: [] as string[] };
+/** The suite's `fs/promises` tapper: each tapped call's name is noted while `on`. */
+const tapper = fsTapper({ note: (name) => { if (taps.on) taps.calls.push(name); } });
+// Snapshot the real module before mock.module patches it in place for this file.
+const realFsPromises = { ...(await import("node:fs/promises")) };
 // Both spellings: `private-dir.ts` takes `mkdir` from the bare one and `lstat` from the `node:` one.
-vi.mock("fs/promises", async (load) => (await tapper)(await load<typeof import("fs/promises")>(), ["mkdir", "lstat"]));
-vi.mock("node:fs/promises", async (load) => (await tapper)(await load<typeof import("node:fs/promises")>(), ["mkdir", "lstat"]));
+vi.mock("fs/promises", () => tapper(realFsPromises, ["mkdir", "lstat"]));
+vi.mock("node:fs/promises", () => tapper(realFsPromises, ["mkdir", "lstat"]));
 
 import { readdir, readFile, rm, writeFile } from "node:fs/promises";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";

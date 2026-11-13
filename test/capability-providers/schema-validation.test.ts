@@ -3,7 +3,7 @@
  * @description Deterministic compilation and no-coercion runtime validation
  * coverage for Provider V2 capability schemas.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { compileClosedProviderSchema } from "../../src/capability-providers/schema/compile.js";
 import { parseClosedProviderSchema } from "../../src/capability-providers/schema/parse.js";
 import { validateClosedProviderValue } from "../../src/capability-providers/schema/validate.js";

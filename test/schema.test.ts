@@ -6,7 +6,7 @@
  * across the JSON, YAML, and missing-file paths.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, writeFile, rm } from "fs/promises";
 import path from "path";
 import os from "os";

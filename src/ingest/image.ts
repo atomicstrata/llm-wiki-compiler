@@ -12,7 +12,7 @@
 
 import { readFile } from "fs/promises";
 import path from "path";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import { buildAnthropicClientOptions } from "../providers/anthropic.js";
 import { IMAGE_DESCRIBE_MAX_TOKENS } from "../utils/constants.js";
 import { resolveAnthropicAuthFromEnv, resolveAnthropicBaseURLFromEnv, resolveAnthropicModelFromEnv } from "../utils/claude-settings.js";
@@ -41,8 +41,12 @@ function mimeTypeForExtension(ext: string): AnthropicImageMediaType {
   return mimeType;
 }
 
-/** Build an Anthropic client from the current environment config. */
-function buildClient(): Anthropic {
+/**
+ * Build an Anthropic client from the current environment config. The SDK is
+ * loaded here so that only an image ingest pays for it.
+ */
+async function buildClient(): Promise<Anthropic> {
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const baseURL = resolveAnthropicBaseURLFromEnv();
   const auth = resolveAnthropicAuthFromEnv();
   return new Anthropic(buildAnthropicClientOptions({ baseURL, ...auth }));
@@ -105,7 +109,7 @@ export default async function ingestImage(filePath: string): Promise<IngestedSou
   const imageBuffer = await readFile(filePath);
   const imageData = imageBuffer.toString("base64");
 
-  const client = buildClient();
+  const client = await buildClient();
   const model = resolveAnthropicModelFromEnv() ?? PROVIDER_MODELS.anthropic;
   const content = await describeImageWithVision(client, model, imageData, mimeType);
   const title = titleFromFilename(filePath);

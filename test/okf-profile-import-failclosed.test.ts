@@ -11,7 +11,7 @@
  * routing (the F4 guardrail, field contracts, lifecycle/artifact gates) entirely.
  * Both untrusted and trusted imports must reject and write NOTHING.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, stat, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

@@ -1,4 +1,3 @@
 # Tests create temporary repositories; hook Git variables must not redirect them.
 unset $(git rev-parse --local-env-vars)
-npm run build
-npm test
+bun run test

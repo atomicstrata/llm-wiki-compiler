@@ -8,7 +8,7 @@
 import { mkdtemp, rm, mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { pageAdapter } from "../../src/operation-bundles/adapters/page.js";
 import { relationAdapter } from "../../src/operation-bundles/adapters/relation.js";
 import { lifecycleAdapter } from "../../src/operation-bundles/adapters/lifecycle.js";

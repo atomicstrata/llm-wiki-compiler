@@ -15,7 +15,7 @@
  * torn-tail rules; the event-store suites show those.
  */
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "bun:test";
 import { readEventsStrict, readEventsStrictFrom } from "../../src/events/store-read.js";
 import { tempRootTracker } from "../temp-roots.js";
 import { auditSeeds, ONE } from "./audit-event-fixtures.js";

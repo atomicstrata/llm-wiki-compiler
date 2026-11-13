@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { writeFile, readFile } from "fs/promises";
 import path from "path";
 import { buildFrontmatter, parseFrontmatter } from "../src/utils/markdown.js";

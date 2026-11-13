@@ -7,7 +7,7 @@
  * its malformed argument before any read or write.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { validateCitationPublication } from "../../src/citations/answer-publication.js";
 import { generateAnswer } from "../../src/commands/query.js";
 import { reportQueryAnswerCitations } from "../../src/commands/query-citation-report.js";

@@ -7,7 +7,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { advanceWorkflow } from "../src/workflows/advance.js";
 import { approveGate, resolveGateChallenge } from "../src/workflows/gate.js";

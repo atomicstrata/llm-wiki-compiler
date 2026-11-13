@@ -32,7 +32,7 @@
  * `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectEntityPagesFrom, EntityCollectError } from "../../src/profile/collect.js";
 import { DEFAULT_PROFILE } from "../../src/profile/default.js";
 import type { EffectiveProfileSources } from "../../src/profile/load.js";

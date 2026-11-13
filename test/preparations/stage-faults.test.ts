@@ -7,7 +7,7 @@
  * run authenticating as `planned`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { stagePreparationLocked, type StageFaultsForTest } from "../../src/preparations/stage.js";
 import { fixturePlan, readReplayedRun, stageRequest } from "./store-fixture.js";

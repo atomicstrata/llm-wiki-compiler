@@ -9,7 +9,7 @@
  * settlement never runs while a bundle needs recovery.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { acquireMutationLock } from "../../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../../src/utils/lock.js";

@@ -27,7 +27,7 @@
  *    rather than reading the resolver's object directly.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import type {
   ListResultV1, PreparationPrincipal, PreparationServiceV1, PreparationSurface, StageRequestV1,

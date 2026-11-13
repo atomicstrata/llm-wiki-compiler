@@ -8,7 +8,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { JSDOM } from "jsdom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 const SCRIPT = path.resolve("src/viewer/assets/viewer-stage-facts.js");
 

@@ -6,7 +6,7 @@
  * gate (so the compiler never "successfully" emits a candidate the rule importer rejects).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   buildRuleCandidate,
   buildRuleSlug,

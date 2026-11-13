@@ -10,7 +10,7 @@
  * The fix: resolveSourcesDir() requires sources/ to be a REAL directory via
  * lstat() before trusting it. A symlink returns null → treated as absent.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdtemp, mkdir, writeFile, symlink, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";

@@ -4,7 +4,7 @@
  * parser, its AO-04 evidence fields, and RFC 8785 digest binding.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_MANIFEST_BYTES } from "../../src/operation-bundles/constants.js";
 import { mutationId, type BundleId } from "../../src/operation-bundles/ids.js";
 import {

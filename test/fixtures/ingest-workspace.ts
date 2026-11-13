@@ -12,7 +12,7 @@
 import { mkdtemp, rm, writeFile } from "fs/promises";
 import path from "path";
 import { tmpdir } from "os";
-import { afterEach } from "vitest";
+import { afterEach } from "bun:test";
 
 /** Public API of the workspace lifecycle returned by useIngestWorkspaces. */
 export interface IngestWorkspaceContext {

@@ -11,7 +11,7 @@
  * never calls a provider, so no API key is required.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";

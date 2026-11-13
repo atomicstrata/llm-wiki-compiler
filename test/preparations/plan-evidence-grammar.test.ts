@@ -11,7 +11,7 @@
  * other's), or aliased member columns (one input field claiming two roles).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../../src/preparations/plan-parse.js";
 import { PreparationPlanError } from "../../src/preparations/problems.js";
 import { syntheticResearchPack } from "../fixtures/preparations/synthetic-research-pack.js";

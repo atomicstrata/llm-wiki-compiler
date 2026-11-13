@@ -5,7 +5,7 @@
  * and settlement per run outcome. I/O and the real core are exercised in the
  * attempt-accounting and disabled-contract suites.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { MAX_PENDING_EMBEDDING_ATTEMPTS as MAX } from "../src/utils/constants.js";
 import type { EmbeddingRunOutcome } from "../src/utils/embedding-attempts.js";
 import { normalizeMarker, type PendingEmbedding } from "../src/utils/pending-embeddings.js";

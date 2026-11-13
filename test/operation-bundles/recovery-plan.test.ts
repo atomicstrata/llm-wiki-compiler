@@ -10,7 +10,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { planRecoveryBundleLocked, RecoveryPlanError, type RecoveryPlanRequest } from "../../src/operation-bundles/recovery-plan.js";
 import { readOperationManifest } from "../../src/operation-bundles/manifest-store.js";
 import type { OperationDigest } from "../../src/operation-bundles/types.js";

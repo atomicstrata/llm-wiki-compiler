@@ -8,7 +8,7 @@
  * for its credential-failure path (a real extraction would need an API key).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, rm, writeFile, readFile } from "fs/promises";
 import { tmpdir } from "os";

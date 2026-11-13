@@ -8,7 +8,7 @@
  * A within-bounds payload passes both guards untouched.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   assertRawInputJsonWithinBounds,
   assertInputDepthWithinBounds,

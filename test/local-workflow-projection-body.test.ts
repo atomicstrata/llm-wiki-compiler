@@ -2,7 +2,7 @@
  * The projection host may persist only recognizably derived output, including on
  * first creation. This is format admission, not authentication of rendered facts.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";

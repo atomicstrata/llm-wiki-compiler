@@ -26,7 +26,7 @@
  * fails here instead of quietly mis-describing an installed project.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   getBuiltinTemplate,
   getBuiltinTemplateRelease,

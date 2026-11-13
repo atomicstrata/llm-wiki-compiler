@@ -12,7 +12,7 @@
  * its halves.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { readPreparationCancel } from "../../src/preparations/cancellation.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import {

@@ -3,7 +3,7 @@
  * @description Exercises a Newsroom-shaped verified envelope through the real,
  * product-neutral journey DOM in both core-owned viewer themes.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 import { pagesResponse } from "./fixtures/journey-fixtures.js";
 

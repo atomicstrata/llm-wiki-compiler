@@ -2,6 +2,7 @@
  * Tests for src/eval/graph-health.ts.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluateGraphHealth } from "../src/eval/graph-health.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 

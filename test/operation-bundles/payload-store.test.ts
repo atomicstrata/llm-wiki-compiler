@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { link, mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeContentAddressedBlob } from "../../src/operation-bundles/blob-store.js";
 import { MAX_PAYLOAD_BYTES } from "../../src/operation-bundles/constants.js";
 import { mintBundleId } from "../../src/operation-bundles/ids.js";

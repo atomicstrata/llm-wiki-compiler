@@ -13,7 +13,7 @@
  * manifest double-read is gone — see that block's own comment.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { rm, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";

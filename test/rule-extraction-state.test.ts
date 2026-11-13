@@ -7,7 +7,7 @@
  * call is stubbed via vi.spyOn so extraction is deterministic and offline.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "bun:test";
 import { rm } from "fs/promises";
 import path from "path";
 import { extractRuleCandidates } from "../src/compiler/rule-extractor.js";

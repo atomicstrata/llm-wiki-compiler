@@ -5,7 +5,7 @@
  * proving that only the new provider receives stricter embedding treatment.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { AnthropicProvider } from "../src/providers/anthropic.js";
 import { AtlasCloudProvider } from "../src/providers/atlascloud.js";
 import { ClaudeAgentProvider } from "../src/providers/claude-agent.js";

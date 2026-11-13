@@ -2,7 +2,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi } from "bun:test";
 
 /** Register lifecycle hooks before caller setup, and expose the current project root. */
 export function useCommandProject(prefix: string): { root: string } {

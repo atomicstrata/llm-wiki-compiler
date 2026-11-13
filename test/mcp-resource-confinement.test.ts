@@ -12,7 +12,7 @@
  * inside its own directory, while Unicode, space, `#` and `%` slugs still read.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdir, symlink, writeFile } from "fs/promises";
 import path from "path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";

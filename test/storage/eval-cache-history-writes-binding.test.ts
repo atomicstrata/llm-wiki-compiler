@@ -32,7 +32,7 @@
 
 import { mkdir, symlink } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { clearCitationCache, clearCitationCacheFrom, loadCitationCache, loadCitationCacheFrom } from "../../src/eval/cache.js";
 import type { EvalFileReads } from "../../src/eval/file-reads.js";
 import type { EvalFileWrites } from "../../src/eval/file-writes.js";

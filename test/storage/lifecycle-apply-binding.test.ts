@@ -41,7 +41,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as eventRecord from "../../src/events/store-record.js";
 import * as profileBlock from "../../src/profile/block.js";
 import * as lifecycleRead from "../../src/profile/lifecycle-read.js";

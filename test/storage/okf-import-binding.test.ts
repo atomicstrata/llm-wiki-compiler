@@ -40,7 +40,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import { buildOkfBundle } from "../../src/export/okf/bundle.js";
 import { importOkfBundle, importOkfBundleFrom, type ImportedOkfBundle, type OkfImportSources } from "../../src/import/okf-import.js";

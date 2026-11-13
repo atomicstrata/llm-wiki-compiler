@@ -18,7 +18,7 @@
  * state carries an unsatisfiable relation precondition is REFUSED promotion and
  * retained for review (fail to review, never fail open).
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtemp, rm, readFile, stat, readdir } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

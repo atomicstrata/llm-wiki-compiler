@@ -15,11 +15,11 @@
  * any pack-side execution, not for one product's vocabulary.
  */
 
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { runPreparation } from "../../src/index.js";
+import { runPreparation } from "../../src/preparations/runner.js";
 import { compilePackAction } from "../../src/operations-packs/compiler.js";
 import type { CompiledPackActionV1 } from "../../src/operations-packs/compiler-types.js";
 import { assembleRunnerInput } from "../../src/operations-packs/runtime/runner-input.js";

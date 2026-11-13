@@ -3,7 +3,7 @@
  * @description Constructed lifecycle parity over real signed records. Spies on
  * host capabilities prove lifecycle operations do not bypass supplied services.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { installWorkflowProfile, buildWorkflowProfile, ADAPT_BUILD_STAGES, ADAPT_RENAMED_STAGES } from "./fixtures/workflow-profile.js";
 import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";

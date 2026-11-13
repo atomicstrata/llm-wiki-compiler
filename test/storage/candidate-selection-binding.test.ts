@@ -34,7 +34,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { CandidateCustodyUnavailableError, type CandidateStoreScanReads } from "../../src/compiler/candidate-custody.js";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import {

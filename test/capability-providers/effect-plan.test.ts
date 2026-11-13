@@ -3,7 +3,7 @@
  * @description Immutable exact effect-plan matching, idempotency, and
  * separately-authorized reversal tests for Provider V2 CP-INV-14/31.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   effectPlanDigest, matchEffectPlanEntry, parseEffectPlan,
 } from "../../src/capability-providers/authority/effect-plan.js";

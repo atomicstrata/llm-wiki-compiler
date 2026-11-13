@@ -4,7 +4,8 @@
  * identity capture for lifecycle observation and later revalidation.
  */
 
-import { lstat, opendir, realpath } from "node:fs/promises";
+import { lstat, opendir } from "node:fs/promises";
+import { portableRealpath } from "../../utils/portable-realpath.js";
 import type { BigIntStats } from "node:fs";
 import type { LifecycleScanBounds } from "./bounds.js";
 import type {
@@ -46,7 +47,7 @@ export async function captureLifecycleDirectoryVersion(
 ): Promise<LifecycleDirectoryVersionObservation | null> {
   try {
     const before = await lstat(directory, { bigint: true });
-    const resolved = await realpath(directory);
+    const resolved = await portableRealpath(directory);
     const after = await lstat(directory, { bigint: true });
     const beforeVersion = directoryVersion(before);
     const afterVersion = directoryVersion(after);
@@ -95,7 +96,7 @@ export async function captureLifecycleDirectory(
 ): Promise<LifecycleDirectoryObservation | null> {
   try {
     const before = await lstat(directory);
-    const resolved = await realpath(directory);
+    const resolved = await portableRealpath(directory);
     const after = await lstat(directory);
     if (!before.isDirectory() || before.isSymbolicLink() || resolved !== directory ||
         before.dev !== after.dev || before.ino !== after.ino) return null;

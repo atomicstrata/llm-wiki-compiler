@@ -8,7 +8,7 @@
  * is permitted). An out-of-scope `--entity-type` is rejected by the scope guard.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

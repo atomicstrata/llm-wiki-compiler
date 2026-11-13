@@ -7,7 +7,7 @@
  * and the activity-log entry — while `result.selectedPages` stays bare slugs.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "bun:test";
 import path from "path";
 import { readFile } from "fs/promises";
 import { buildCollidingProject, echoCallClaudeModule, mockQueryVector } from "./fixtures/typed-grounding.js";

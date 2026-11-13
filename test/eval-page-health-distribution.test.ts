@@ -2,6 +2,7 @@
  * Tests for src/eval/page-health-distribution.ts.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluatePageHealthDistribution } from "../src/eval/page-health-distribution.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";
 import { sha256Hex, writeSourceState, writeSourceFile } from "./fixtures/state-json.js";

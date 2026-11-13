@@ -11,7 +11,7 @@
  * Matching the QUOTED literal exactly word-boundaries the check (`=== "tests"` is a
  * hit; `=== "attests"` is not). No `src/` edit — this is a pure read gate.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

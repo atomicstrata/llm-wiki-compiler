@@ -4,7 +4,7 @@
  * embedding — each pinned so a mutant that drifts from the contract goes red.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { CONCEPT_EXTRACTION_TOOL } from "../../src/compiler/prompts.js";
 import {
   OFFLINE_EMBEDDING_DIMENSIONS, OfflineProvider, OfflineProviderError, bagOfWordsVector, schemaEmptyValue,

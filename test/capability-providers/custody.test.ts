@@ -5,7 +5,7 @@
  * file ceilings are unavailable before any provider starts, distinct from
  * runtime exhaustion.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assessCustodyFeasibility, type CustodyBudgetV1, type DeclaredCustodyValidatorV1,
 } from "../../src/capability-providers/runtime/custody.js";

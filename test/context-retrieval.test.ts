@@ -8,8 +8,8 @@
  * v3 store/provider exhibited. `loadProfile` is mocked to the default profile.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Mock } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import type { Mock } from "bun:test";
 import { defaultProfileLoad } from "./fixtures/profile-fixtures.js";
 
 vi.mock("../src/utils/embeddings-load.js", () => ({
@@ -23,8 +23,10 @@ vi.mock("../src/profile/load.js", () => ({
 import { loadEmbeddingsForContext, findRelevantChunksV3 } from "../src/utils/embeddings-load.js";
 import { retrieveSemanticChunks } from "../src/context/retrieval.js";
 
-const mockedLoad = loadEmbeddingsForContext as unknown as Mock;
-const mockedFindChunks = findRelevantChunksV3 as unknown as Mock;
+/** A mocked async collaborator whose resolved value each test supplies. */
+type StubbedAsync = Mock<(...args: never[]) => Promise<unknown>>;
+const mockedLoad = loadEmbeddingsForContext as unknown as StubbedAsync;
+const mockedFindChunks = findRelevantChunksV3 as unknown as StubbedAsync;
 
 afterEach(() => {
   mockedLoad.mockReset();

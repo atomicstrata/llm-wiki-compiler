@@ -11,7 +11,7 @@
  * state; these tests pin the dashboard to the same line.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { flushMicrotasks, jsonResponse, mountViewerDom, type FetchResponder } from "./fixtures/viewer-jsdom.js";
 
 const ENTITY_TYPES = [

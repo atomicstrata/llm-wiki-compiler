@@ -63,15 +63,28 @@ function inventoryLeafMetadata(
   };
 }
 
-/** Traverse an open directory while the caller's store-specific budget permits. */
+/**
+ * Traverse an open directory while the caller's store-specific budget permits.
+ *
+ * Bun opens a directory lazily on Linux: `opendir` succeeds on a directory the
+ * process may not list, and the refusal (`EACCES`) arrives with the first read.
+ * A failure before any entry is seen is therefore the same refusal a failed open
+ * is; a failure after an entry was seen rejects.
+ */
 async function walkInventoryEntries<T>(
   entries: AsyncIterable<T> & { close(): Promise<void> }, take: () => boolean, inspect: (entry: T) => Promise<void>,
-): Promise<void> {
+): Promise<"visited" | "unlistable"> {
+  let seen = false;
   try {
     for await (const entry of entries) {
+      seen = true;
       if (!take()) break;
       await inspect(entry);
     }
+    return "visited";
+  } catch (error) {
+    if (seen) throw error;
+    return "unlistable";
   } finally {
     await entries.close().catch(() => {});
   }
@@ -89,8 +102,7 @@ export async function visitInventoryDirectory(
 ): Promise<"visited" | InventoryDirectoryRefusal> {
   const opened = await openConfinedDirectory({ root }, directory);
   if (typeof opened === "string") return opened;
-  await walkInventoryEntries(opened, visitor.take, visitor.inspect);
-  return "visited";
+  return walkInventoryEntries(opened, visitor.take, visitor.inspect);
 }
 
 /** One leaf's size and identity as its opened handle reported them, or why it could not be opened. */

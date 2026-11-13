@@ -11,7 +11,7 @@
 import { mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { acquirePreparationMutationLock, RecoveryGateError } from "../src/operation-bundles/lock-gate.js";
 import { releaseLock } from "../src/utils/lock.js";
 import { PREPARATION_QUARANTINE_SEGMENT, preparationPaths } from "../src/preparations/paths.js";

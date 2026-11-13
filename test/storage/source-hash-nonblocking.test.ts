@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { diskCompileAccess } from "../../src/compiler/compile-access.js";
 import { detectChanges, hashFile, NotRegularFileError } from "../../src/compiler/hasher.js";
 import { buildFreshnessSnapshotFrom, type SourceFreshnessSources } from "../../src/freshness/index.js";

@@ -9,7 +9,7 @@
  */
 import path from "node:path";
 import { link, mkdir, readFile, realpath, rename, symlink, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildVerifiedLaunchSnapshot } from "../../src/capability-providers/runtime/launch-snapshot.js";
 import type { PlatformArtifactV1 } from "../../src/capability-providers/packages/protocol.js";
 import { useTreeFixtures } from "./provider-tree-fixture.js";

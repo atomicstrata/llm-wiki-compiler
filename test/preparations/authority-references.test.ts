@@ -7,7 +7,7 @@
  * destructive unit fails closed to `complete: false` so GC holds.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { enumeratePreparationReferences } from "../../src/preparations/references.js";
 import { quarantinePreparationRunLocked } from "../../src/preparations/quarantine.js";

@@ -19,14 +19,23 @@
  *   definition's label turned into a link).
  */
 
+import type MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
 import { locateWikilinks } from "./wikilink-locate.js";
 import { createWikilinkRecognizer } from "./wikilink-tokens.js";
 
-const renderer = createWikilinkRecognizer();
-// A wikilink renders as its display text, so it compares equal to that text written plainly.
-renderer.renderer.rules.wikilink = (tokens: Token[], index: number): string =>
-  renderer.utils.escapeHtml(tokens[index].meta.display);
+let sharedRenderer: MarkdownIt | undefined;
+
+/** The comparison renderer, built on first use so loading this module does not load the parser. */
+function comparisonRenderer(): MarkdownIt {
+  if (sharedRenderer) return sharedRenderer;
+  const renderer = createWikilinkRecognizer();
+  // A wikilink renders as its display text, so it compares equal to that text written plainly.
+  renderer.renderer.rules.wikilink = (tokens: Token[], index: number): string =>
+    renderer.utils.escapeHtml(tokens[index].meta.display);
+  sharedRenderer = renderer;
+  return renderer;
+}
 
 /**
  * True when replacing `text[range.start, range.end)` with `link` makes the
@@ -44,5 +53,7 @@ export function insertsOnlyALink(
   const next = before + link + after;
   const linkEnd = range.start + link.length;
   const isRecognized = locateWikilinks(next).some(found => found.start === range.start && found.end === linkEnd);
-  return isRecognized && renderer.render(next) === renderer.render(before + display + after);
+  if (!isRecognized) return false;
+  const renderer = comparisonRenderer();
+  return renderer.render(next) === renderer.render(before + display + after);
 }

@@ -243,6 +243,8 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   // The no-follow I/O moved here; store classification remains in orphan-scan.
   { path: "src/utils/inventory-scan.ts", role: "shared-primitive", rawFilesystemAccess: true },
   // Key-leaf mode, ownership and link-count health shared by both key epochs.
+  // Reads a process start time from the kernel (/proc on Linux) for lock owners.
+  { path: "src/utils/kernel-start-time.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/key-leaf-health.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/keyed-fifo.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/lock-owner.ts", role: "shared-primitive", rawFilesystemAccess: true },
@@ -252,6 +254,7 @@ export const LIFECYCLE_MODULE_OWNERSHIP: readonly LifecycleModuleOwnershipV1[] =
   { path: "src/utils/output.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/path-confine.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/planned-bytes.ts", role: "shared-primitive", rawFilesystemAccess: true },
+  { path: "src/utils/portable-realpath.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/private-dir.ts", role: "shared-primitive", rawFilesystemAccess: true },
   { path: "src/utils/run-budget-arithmetic.ts", role: "shared-primitive", rawFilesystemAccess: false },
   { path: "src/utils/run-history-projection.ts", role: "shared-primitive", rawFilesystemAccess: false },
@@ -413,6 +416,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/inventory-arithmetic.ts :: shared-primitive",
   "src/utils/inventory-disk-walk.ts :: shared-primitive",
   "src/utils/inventory-scan.ts :: shared-primitive",
+  "src/utils/kernel-start-time.ts :: shared-primitive",
   "src/utils/key-leaf-health.ts :: shared-primitive",
   "src/utils/keyed-fifo.ts :: shared-primitive",
   "src/utils/lock-owner.ts :: shared-primitive",
@@ -422,6 +426,7 @@ export const EXPECTED_MODULE_ROLES = [
   "src/utils/output.ts :: shared-primitive",
   "src/utils/path-confine.ts :: shared-primitive",
   "src/utils/planned-bytes.ts :: shared-primitive",
+  "src/utils/portable-realpath.ts :: shared-primitive",
   "src/utils/private-dir.ts :: shared-primitive",
   "src/utils/run-budget-arithmetic.ts :: shared-primitive",
   "src/utils/run-history-projection.ts :: shared-primitive",

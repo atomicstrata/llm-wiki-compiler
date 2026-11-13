@@ -11,7 +11,7 @@
  * end to end: the hint text is what the operator actually SEES, and `submitHint`
  * itself is module-private, so only a CLI-level assertion proves the fix.
  */
-import { describe, it, afterEach, expect } from "vitest";
+import { describe, it, afterEach, expect } from "bun:test";
 import { rm } from "node:fs/promises";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 import { researchArtifactProfile, startArtifactRun } from "./fixtures/artifact-seam-fixtures.js";

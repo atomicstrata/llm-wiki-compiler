@@ -8,7 +8,7 @@
  * operator to grant trust on flagged content). These pin the branch.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { parkedOutputMessage } from "../src/commands/workflow-shared.js";
 
 describe("parkedOutputMessage", () => {

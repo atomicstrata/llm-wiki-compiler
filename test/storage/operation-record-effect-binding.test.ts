@@ -19,7 +19,7 @@
 
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as shared from "../../src/operation-bundles/adapters/shared.js";
 import * as capacity from "../../src/operation-bundles/capacity.js";
 import * as reservation from "../../src/operation-bundles/effect-reservation.js";

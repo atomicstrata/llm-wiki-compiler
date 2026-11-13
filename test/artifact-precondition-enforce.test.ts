@@ -7,7 +7,7 @@
  * without a healthy pinned artifact is DENIED; with a healthy pinned ref it APPLIES;
  * a forged (integrity-lie) manifest DENIES (does not park); a malformed manifest PARKS.
  */
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

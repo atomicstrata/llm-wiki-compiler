@@ -27,7 +27,7 @@
 
 import { writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { runCLI, type CLIResult } from "./run-cli.js";
 import { expectCLIExit } from "./run-cli.js";
 

@@ -12,7 +12,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { makeTempRoot } from "../fixtures/temp-root.js";
 import { writeProfileFile } from "../fixtures/profile-fixtures.js";
 import { writePage } from "../fixtures/write-page.js";

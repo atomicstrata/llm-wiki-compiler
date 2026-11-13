@@ -3,7 +3,7 @@
  * @description Profile label fencing is content-derived and cannot be disabled
  * by advisory provenance changes.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { actionDefForPresentationWithNonce, actionLabelForPresentation } from "../src/profile/presentation-trust.js";
 import { AUTOSCI_TEMPLATE } from "../src/profile/templates/builtin/autosci.js";
 import type { ProfilePack, WorkflowActionDef } from "../src/profile/types.js";

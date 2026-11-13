@@ -3,7 +3,7 @@
  * @description Ordered concrete input-exposure snapshots and confirmation
  * invalidation tests for Provider V2 CP-INV-26.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   providerExposureDigest, providerExposureDisplay, snapshotProviderExposure,
 } from "../../src/capability-providers/authority/exposure.js";

@@ -6,7 +6,7 @@
  * and that the file lands at the documented path with the documented shape.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { rm, readFile, stat } from "fs/promises";
 import path from "path";
 import { runCLI, expectCLIExit, expectCLIFailure } from "./fixtures/run-cli.js";

@@ -5,7 +5,7 @@
 
 import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
 import { makeTempRoot } from "./temp-root.js";
 

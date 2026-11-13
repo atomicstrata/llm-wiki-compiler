@@ -37,7 +37,7 @@
  * drifted from how the closure is actually written — never as the authority.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createPreparationService } from "../src/preparations/service.js";
 import type { PreparationPrincipal, PreparationServiceV1 } from "../src/preparations/service.js";
 import { REQUEST_CAPTURE_REFUSAL } from "../src/preparations/service-request-capture.js";

@@ -5,7 +5,7 @@
 import { mkdir, readdir, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { packageUrl, resolveRemotePackage } from "../src/profile/templates/taps/package.js";
 import type { TapPaths } from "../src/profile/templates/taps/paths.js";
 import { removeTap } from "../src/profile/templates/taps/manage.js";

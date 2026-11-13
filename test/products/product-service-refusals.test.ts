@@ -18,7 +18,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { PrincipalAuthorityError } from "../../src/preparations/principals.js";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";
 import { PROFILE_FILE } from "../../src/utils/constants.js";

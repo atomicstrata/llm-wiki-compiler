@@ -9,7 +9,7 @@
  * shared floor→compose→build core is unchanged.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { planPageMutation } from "../src/trust/planner.js";
 import { COMPILE_ORIGIN } from "../src/trust/checks.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

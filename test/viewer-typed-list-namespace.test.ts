@@ -19,7 +19,7 @@
  * hash still does.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { flushMicrotasks, jsonResponse, mountViewerDom } from "./fixtures/viewer-jsdom.js";
 import {
   typedPage,

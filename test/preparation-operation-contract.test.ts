@@ -52,7 +52,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { registerPreparationCommands } from "../src/cli/preparation-commands.js";
 import { createPreparationService } from "../src/preparations/service.js";
 import type {

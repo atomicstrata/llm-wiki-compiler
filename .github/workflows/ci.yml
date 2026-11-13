@@ -21,36 +21,69 @@ jobs:
   # So win32 behaviour is held by the `sep` test seam in `src/utils/path-confine.ts`,
   # NOT by CI. Restoring this leg means fixing those 64 failures first — worth
   # doing as its own change, and not free.
+  #
+  #
+  # One job, so branch protection's `build-and-test (24)` is the whole check.
+  # The suite and the packing checks run one after the other: run as parallel
+  # steps they share the runner's four cores, and the packing checks' builds
+  # slowed the suite from about three minutes to five and a half.
   build-and-test:
     runs-on: ubuntu-latest
+    # A full run takes five to ten minutes; a hung test would otherwise hold it for six hours.
+    timeout-minutes: 25
     strategy:
       matrix:
         node-version: [24]
+    env:
+      LLMWIKI_TEST_TRACE: /tmp/llmwiki-test-trace
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      # The published package runs on Node: the packing tests import it with
+      # Node, and the last check starts the built CLI with Node.
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
+      - run: bun install --frozen-lockfile
       - name: Install Linux isolation test dependency
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+        run: sudo apt-get install -y --no-install-recommends bubblewrap || (sudo apt-get update && sudo apt-get install -y bubblewrap)
       - name: Permit Bubblewrap namespaces on the disposable runner
         run: sudo apparmor_parser --replace .github/ci/bwrap.apparmor
       # An installed binary can still be barred by runner namespace policy.
-      # Surface its stderr before the full suite, using the backend's controls.
+      # Surface its stderr before the suite, using the backend's controls.
       - name: Verify Linux isolation launch
         run: >-
           bwrap --cap-drop ALL --unshare-net --ro-bind / /
-          --dev /dev --proc /proc -- "$(command -v node)" --version
-      - run: npm run release:check-docs
-      - run: npm run build
-      - run: npm test
-      # Default tests exclude this fresh-install check. Exercise the shipped
-      # facade, its exact workspace dependencies, and consumer declarations.
-      - run: npm run test:pack
+          --dev /dev --proc /proc -- "$(command -v bun)" --version
+      - run: bun run release:check-docs
+      - run: bun run build
+      # The packing tests npm-install the tarballs into empty consumers.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-pack-${{ hashFiles('bun.lock') }}
+          restore-keys: npm-pack-
+      # On a hang, snapshot the live processes at 840s, then fail at 900s.
+      # Ignore patterns given here replace bunfig's list rather than adding to
+      # it, so the two packing tests bunfig ignores are named again.
+      - name: Run the suite
+        run: >-
+          mkdir -p "$LLMWIKI_TEST_TRACE" &&
+          (sleep 840 && bash .github/ci/hang-snapshot.sh) &
+          timeout 900 bun scripts/run-tests.mjs
+          --path-ignore-patterns=test/sdk/packaging.test.ts
+          --path-ignore-patterns=test/products/private-packages-pack.test.ts
+          --path-ignore-patterns=test/local-workflow-package-boundary.test.ts
+      # The shipped facade, its exact workspace dependencies, consumer
+      # declarations, and the built CLI started with Node. These are
+      # `bun run test:pack` without its build, which the step above did.
+      - name: Packing checks
+        run: bun test --path-ignore-patterns='**/dist/**' ./test/sdk/packaging.test.ts ./test/products/private-packages-pack.test.ts
+      - run: bun test ./test/local-workflow-package-boundary.test.ts && node dist/cli.js --version
 
   codebase-health:
     runs-on: ubuntu-latest

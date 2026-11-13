@@ -10,7 +10,7 @@
  * Commander's synthetic `help` verb is excluded (it is not a reservable surface).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { runCLI } from "./fixtures/run-cli.js";
 import { RESERVED_CORE_VERBS } from "../src/profile/reserved-verbs.js";
 

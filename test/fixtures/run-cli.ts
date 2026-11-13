@@ -9,13 +9,26 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { access } from "fs/promises";
-import path from "path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
+import { CLI } from "./built-dist.js";
 
-const exec = promisify(execFile);
+export { CLI };
 
-/** Absolute path to the compiled CLI entry point. */
-export const CLI = path.resolve("dist/cli.js");
+/** Promisified execFile, for suites that spawn the CLI with their own options. */
+export const exec = promisify(execFile);
+
+/** Strip ANSI escape codes so plain-text assertions work on colored output. */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/**
+ * Flags for running the built CLI under Bun. The installed CLI runs on Node,
+ * which never loads `.env` by itself; Bun does unless told not to, so suites
+ * pass these to keep project credentials out the way an installed binary does.
+ */
+export const CLI_RUNTIME_FLAGS = ["--no-env-file"];
 
 /** Result shape returned by {@link runCLI}. */
 export interface CLIResult {
@@ -29,7 +42,7 @@ export interface CLIResult {
   /** Error message from child_process when the spawn itself fails (ENOENT etc). */
   message: string | null;
   /** Original args for inclusion in assertion-failure messages. */
-  args: string[];
+  args: readonly string[];
   /** Working directory passed to the subprocess. */
   cwd: string;
 }
@@ -90,12 +103,12 @@ export function expectCLIFailure(result: CLIResult): void {
  * Run the llmwiki CLI with the given arguments and return its output +
  * rich diagnostics. Never throws — non-zero exits, spawn errors, and
  * missing-cwd errors are all captured into the returned CLIResult.
- * @param args - CLI arguments to pass after `node dist/cli.js`.
+ * @param args - CLI arguments to pass after `bun dist/cli.js`.
  * @param cwd - Working directory for the subprocess.
  * @param envOverrides - Optional environment variable overrides.
  */
 export async function runCLI(
-  args: string[],
+  args: readonly string[],
   cwd: string,
   envOverrides: NodeJS.ProcessEnv = {},
 ): Promise<CLIResult> {
@@ -105,7 +118,7 @@ export async function runCLI(
     // it via the normal CLIResult shape instead of as a raw throw.
     await access(cwd);
 
-    const { stdout, stderr } = await exec(process.execPath, [CLI, ...args], {
+    const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
       cwd,
       env: { ...process.env, ...envOverrides },
     });

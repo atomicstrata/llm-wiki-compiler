@@ -42,7 +42,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { collectBundleBlock, collectBundleBlockFrom, type BundleBlock } from "../../src/export/okf/bundle-block.js";
 import { collectProfileEntityDocs, collectProfileEntityDocsFrom, type ProfileEntityDoc } from "../../src/export/okf/profile-docs.js";
 import type { LinkResolver } from "../../src/export/okf/types.js";

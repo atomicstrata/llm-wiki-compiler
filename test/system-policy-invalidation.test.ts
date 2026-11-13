@@ -14,7 +14,7 @@
  * candidate written under one policy must not satisfy a run asking for another.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { createWiki } from "../src/sdk/wiki.js";

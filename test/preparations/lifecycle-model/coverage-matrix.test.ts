@@ -10,7 +10,7 @@
  * later extended.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { FROZEN_REGRESSION_IDS, FROZEN_REGRESSIONS, OPERATION_DRIVERS } from "./frozen-regressions.js";

@@ -10,7 +10,7 @@
  * is a SYMLINK to an out-of-tree dir fails CLOSED, creating nothing at the victim.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, symlink, readdir } from "node:fs/promises";
 import path from "node:path";
 import { makeTempRoot } from "./fixtures/temp-root.js";

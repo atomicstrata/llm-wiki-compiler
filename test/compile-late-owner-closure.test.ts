@@ -4,7 +4,7 @@
  * reveals an owner whose extraction reveals another shared owner.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";

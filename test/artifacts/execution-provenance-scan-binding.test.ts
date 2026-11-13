@@ -24,7 +24,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { verifyExecutionProvenance } from "../../src/artifacts/execution-provenance.js";
 import type { ExecutionProvenanceReq } from "../../src/profile/types.js";
 

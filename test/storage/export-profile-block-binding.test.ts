@@ -42,7 +42,7 @@
  */
 
 import { writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { formatArtifactRef } from "../../src/artifacts/ref.js";
 import { artifactPaths } from "../../src/artifacts/store.js";
 import type { JsonExportProfileBlock } from "../../src/export/json-export.js";

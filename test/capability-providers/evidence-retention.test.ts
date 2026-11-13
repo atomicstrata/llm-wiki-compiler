@@ -8,7 +8,7 @@
  */
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createEvidenceStore } from "../../src/capability-providers/runtime/evidence-store.js";
 import { createStreamingCustodian } from "../../src/capability-providers/runtime/custodian.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";

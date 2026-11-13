@@ -2,7 +2,7 @@
  * @file test/connectors/crossref.test.ts
  * @description Crossref connector normalization from offline fixture JSON.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import fixture from "../fixtures/crossref-work.json" with { type: "json" };
 import { crossrefConnector } from "../../src/connectors/impl/crossref.js";
 

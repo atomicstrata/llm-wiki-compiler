@@ -5,7 +5,7 @@
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { lint, lintBothViews } from "../src/linter/index.js";
 import { planLintFixes } from "../src/linter/fix-plan.js";
 import { useTempRoot } from "./fixtures/temp-root.js";

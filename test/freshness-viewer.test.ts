@@ -8,7 +8,7 @@
  * `.bak` side-effect.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { existsSync } from "fs";
 import { rm } from "fs/promises";
 import path from "path";

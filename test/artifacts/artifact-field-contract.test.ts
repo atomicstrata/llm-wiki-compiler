@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateFieldsAgainstDefs } from "../../src/profile/field-contract.js";
 import { validateProfile } from "../../src/profile/validate.js";
 import type { FieldDef } from "../../src/profile/types.js";

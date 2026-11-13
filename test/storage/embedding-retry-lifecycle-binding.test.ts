@@ -35,7 +35,7 @@
  */
 
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   loadEmbeddingRetry, loadEmbeddingRetryFrom, loadScopedEmbeddingRetry, loadScopedEmbeddingRetryFrom,
   queueScopedEmbeddingRetry, queueScopedEmbeddingRetryFrom, unrecordableScopedIds, unrecordableScopedIdsFrom,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { canonicalBody, safeRefName } from "../src/export/okf/mapping.js";
 import { renderCitationsSection } from "../src/export/okf/citations.js";
 

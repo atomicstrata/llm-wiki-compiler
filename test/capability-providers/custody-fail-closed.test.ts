@@ -8,7 +8,7 @@
  */
 import path from "node:path";
 import { readdir } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { createStreamingCustodian } from "../../src/capability-providers/runtime/custodian.js";
 import { createEvidenceStore } from "../../src/capability-providers/runtime/evidence-store.js";
 import { artifactClaim as claim, custodyOptions as options, useCustodyOutputRoots } from "./custody-fixture.js";

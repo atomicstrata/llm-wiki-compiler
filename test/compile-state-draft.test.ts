@@ -14,7 +14,7 @@
  * v2 typed mirror rather than serialising the in-memory state verbatim.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, readFile } from "fs/promises";
 import os from "os";
 import path from "path";

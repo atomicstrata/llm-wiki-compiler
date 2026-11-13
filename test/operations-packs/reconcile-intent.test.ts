@@ -8,7 +8,7 @@
  * bound input. Both fail closed when the input set exceeds the item ceiling.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { reconcileEvidence } from "../../src/operations-packs/handlers/reconcile.js";
 import { compileIntents } from "../../src/operations-packs/handlers/intent-compile.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";

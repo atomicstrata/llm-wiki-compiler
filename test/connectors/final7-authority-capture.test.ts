@@ -4,7 +4,7 @@
  * definition, canonical-source, and candidate-identity authority snapshot.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { captureConnectorIdentity } from "../../src/connectors/candidate-identity.js";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
 import { getConnectorDef } from "../../src/connectors/registry.js";

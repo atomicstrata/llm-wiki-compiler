@@ -30,7 +30,7 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { evaluateCitationDepth, evaluateCitationDepthFrom } from "../../src/eval/citation-depth.js";
 import { evaluateGraphHealth, evaluateGraphHealthFrom } from "../../src/eval/graph-health.js";
 import type { CitationDepthResult, GraphHealthResult } from "../../src/eval/types.js";

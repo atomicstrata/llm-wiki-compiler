@@ -7,7 +7,8 @@
  * outside llmwiki), checks both retry files are byte-identical, then turns
  * embeddings on and requires the next refresh to bring the page's chunks current.
  */
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { compileAndReport } from "../src/compiler/index.js";
@@ -41,10 +42,10 @@ async function excludeCurrentContent(pageId: string): Promise<void> {
 /** Change a page with embeddings off, require untouched retry files, then recover with them on. */
 async function expectRecoveryAfterDisabledChange(pageId: string, change: () => Promise<void>): Promise<void> {
   const before = await retryFileBytes(ctx.dir);
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+  stubEnv("LLMWIKI_EMBEDDINGS", "off");
   await change();
   expect(await retryFileBytes(ctx.dir)).toEqual(before);
-  vi.stubEnv("LLMWIKI_EMBEDDINGS", "on");
+  stubEnv("LLMWIKI_EMBEDDINGS", "on");
   await expectChunksCurrent(ctx.dir, pageId, false);
   await drainUnderLock(ctx.dir);
   await expectChunksCurrent(ctx.dir, pageId, true);

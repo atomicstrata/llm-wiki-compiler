@@ -4,7 +4,7 @@
  * integration test stubs the LLM provider so no network calls are made.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { mkdir, writeFile, readdir, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

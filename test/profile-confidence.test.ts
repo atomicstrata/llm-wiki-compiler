@@ -4,7 +4,7 @@
  * schema ownership of malformed or missing required confidence values.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { checkDeclaredConfidence } from "../src/profile/lint-confidence.js";
 import { collectConfidenceFixture, confidenceFixture } from "./fixtures/profile-confidence.js";
 import type { EntityTypeDef } from "../src/profile/types.js";

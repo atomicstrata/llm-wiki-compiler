@@ -13,7 +13,7 @@
  * plan LOSSY (require confirm), never silently drop the crash guard.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import {
   ADAPT_BUILD_STAGES as BUILD,
   ADAPT_RENAMED_STAGES as RENAMED,

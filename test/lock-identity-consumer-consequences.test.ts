@@ -15,14 +15,15 @@
  * wrong, these are the two places it destroys something.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { spawn, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { acquireLock, releaseLock } from "../src/utils/lock.js";
 import { LLMWIKI_DIR } from "../src/utils/constants.js";
+import { psLstart } from "./fixtures/ps-lstart.js";
 
 /** The pre-fix leaf shape: a live pid plus a HUMAN-READABLE rendered start time. */
 const LEGACY_RENDERING = "Thu Jul 23 11:16:28 2026";
@@ -55,7 +56,7 @@ async function leaf(): Promise<string | null> {
 
 /** Plant a lock leaf naming a LIVE holder in the pre-fix identity format. */
 async function plantLegacyHeldLock(): Promise<string> {
-  const startTime = execFileSync("ps", ["-o", "lstart=", "-p", String(livePid)]).toString().trim();
+  const startTime = await psLstart(livePid);
   const content = JSON.stringify({ pid: livePid, startTime });
   await writeFile(path.join(root, LLMWIKI_DIR, "lock"), content, "utf-8");
   return content;
@@ -93,7 +94,7 @@ describe("consumer 1: project-lock reclamation", () => {
     expect(parsed.pid).toBe(process.pid);
     // VERSIONED, which is the whole reason the migration is detectable at all.
     expect(parsed.identity).toMatch(/^unix:\d+$/u);
-    expect(parsed.startTime).toBe(execFileSync("ps", ["-o", "lstart=", "-p", String(process.pid)]).toString().trim());
+    expect(parsed.startTime).toBe(await psLstart(process.pid));
     await releaseLock(root);
   });
 });

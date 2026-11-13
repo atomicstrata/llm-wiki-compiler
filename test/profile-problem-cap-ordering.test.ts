@@ -9,7 +9,7 @@
  * drifted project as silently healthy. These pin the high-severity-first order.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { orderProblemViews, PROFILE_PROBLEM_CAP } from "../src/profile/block.js";
 import type { EntityProblemView } from "../src/profile/types.js";
 

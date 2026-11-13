@@ -2,7 +2,7 @@
  * @file test/connectors/origin.test.ts
  * @description One shared connector-origin predicate backs every review surface.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { connectorBlockFromBody, isConnectorCandidate } from "../../src/connectors/origin.js";
 import type { ReviewCandidate } from "../../src/utils/types.js";
 

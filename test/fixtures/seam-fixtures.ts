@@ -11,7 +11,7 @@
 import { writeFile, readFile, mkdir, mkdtemp } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import type { EntityId, ProfilePack } from "../../src/profile/types.js";
 import type { StageOutput } from "../../src/workflows/stage-output.js";
 import { parseFrontmatter } from "../../src/utils/markdown.js";

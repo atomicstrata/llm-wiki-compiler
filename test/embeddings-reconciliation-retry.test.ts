@@ -6,7 +6,8 @@
 
 import { readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "bun:test";
+import { stubEnv } from "./stubs.js";
 import { OpenAIProvider } from "../src/providers/openai.js";
 import { refreshEmbeddingsDrainingPending } from "../src/utils/embeddings-refresh.js";
 import { acquireLockBlocking, releaseLock } from "../src/utils/lock.js";
@@ -155,7 +156,7 @@ describe("automatic reconciliation retry budget", () => {
 
   it("settles newly discovered failures before rethrowing in strict mode", async () => {
     failProvider();
-    vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+    stubEnv("LLMWIKI_EMBED_STRICT", "on");
     await expect(refresh()).rejects.toThrow("embedding backend unavailable");
     expect(await loadPendingEmbeddings(ctx.dir)).toEqual([await alphaEntry(1)]);
   });
@@ -180,7 +181,7 @@ describe("automatic reconciliation retry budget", () => {
     await quarantinePage();
     const quarantined = await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE);
     provider.mockClear();
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+    stubEnv("LLMWIKI_EMBEDDINGS", "off");
     await refresh([PAGE_ID]);
     expect(provider).not.toHaveBeenCalled();
     expect(await loadPendingEmbeddings(ctx.dir, QUARANTINED_EMBEDDINGS_FILE)).toEqual(quarantined);
@@ -239,7 +240,7 @@ describe("deferred reconciliation", () => {
   it("persists admitted work and preserves deferred cache before strict mode throws", async () => {
     const { provider, old } = await staleCache();
     await fillBudget(true);
-    vi.stubEnv("LLMWIKI_EMBED_STRICT", "on");
+    stubEnv("LLMWIKI_EMBED_STRICT", "on");
     await expect(refresh()).rejects.toThrow("1 page(s) deferred");
     expect(provider).toHaveBeenCalled();
     expect(provider.mock.calls.flatMap(call => call[0]).every(text => text.includes("healthy"))).toBe(true);
@@ -262,7 +263,7 @@ describe("deferred reconciliation", () => {
   it.each(["backend", "deleted", "orphaned", "invalid-vector"])("does not retain %s cache when deferred", async reason => {
     const { provider, old } = await staleCache();
     await fillBudget();
-    if (reason === "backend") vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "different-model");
+    if (reason === "backend") stubEnv("LLMWIKI_EMBEDDING_MODEL", "different-model");
     if (reason === "deleted") await unlink(path.join(ctx.dir, "wiki/concepts/alpha.md"));
     if (reason === "orphaned") await writeFile(path.join(ctx.dir, "wiki/concepts/alpha.md"),
       "---\ntitle: alpha\nsummary: alpha\norphaned: true\n---\nalpha body\n");

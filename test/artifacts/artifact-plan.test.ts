@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import type { PlannedMutation } from "../../src/trust/planner.js";
 import type { ApplyResult } from "../../src/trust/apply-result.js";
 

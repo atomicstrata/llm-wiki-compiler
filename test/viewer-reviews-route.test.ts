@@ -14,7 +14,7 @@
  * renders the design system's empty state, never the italic loading placeholder.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   emptyBootstrapResponse,
   jsonResponse,

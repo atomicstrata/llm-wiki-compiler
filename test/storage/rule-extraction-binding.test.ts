@@ -33,7 +33,8 @@
 
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import * as hasher from "../../src/compiler/hasher.js";
 import * as ruleCandidates from "../../src/compiler/rule-candidates.js";
 import type { RuleCandidateLeaves } from "../../src/compiler/rule-candidates.js";
@@ -88,7 +89,7 @@ let rootReached = [false, false, false, false, false, false];
 /** The fresh scenario's disk ask: its root, and each root step's calls with their exact arguments. */
 let freshAsk: { root: string; calls: unknown[][][] };
 
-beforeAll(() => { vi.stubEnv("LLMWIKI_PROVIDER", "anthropic"); vi.stubEnv("ANTHROPIC_API_KEY", "test-key"); });
+beforeAll(() => { stubEnv("LLMWIKI_PROVIDER", "anthropic"); stubEnv("ANTHROPIC_API_KEY", "test-key"); });
 mintOnceThenRemove(tracker, async () => {
   await stubRuleExtraction();
   const spies = rootSpies();
@@ -104,7 +105,7 @@ mintOnceThenRemove(tracker, async () => {
     if (name === "fresh") freshAsk = { root: minted.fresh.dir, calls: spies.map((spy) => spy.mock.calls.map((call) => [...call])) };
   }
 });
-afterAll(() => { vi.unstubAllEnvs(); });
+afterAll(() => { restoreEnv(); });
 
 /** Hold `text` at `rel` in the mutable copy, listing it under its directory as the disk would. */
 function hold(project: Copy, rel: string, text: string): void {

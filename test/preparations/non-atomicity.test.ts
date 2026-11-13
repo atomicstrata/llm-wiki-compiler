@@ -8,7 +8,7 @@
  * durable atomicity cross-check.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { deriveGateProofId } from "../../src/preparations/ids.js";

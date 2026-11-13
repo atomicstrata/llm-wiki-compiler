@@ -16,7 +16,7 @@
  *   - empty-turn export fails loudly (codex review hardening)
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { mkdir, readdir, readFile, writeFile, copyFile } from "fs/promises";
 import {

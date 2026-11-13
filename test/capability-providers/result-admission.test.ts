@@ -5,7 +5,7 @@
  * missing required output is a typed partial, custody exhaustion fails the whole
  * result with zero artifacts, and untrusted provider evidence stays separated.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   admitProviderResult, type AcceptedArtifactV1, type CustodyOutcomeV1,

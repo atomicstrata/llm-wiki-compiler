@@ -7,7 +7,7 @@
  * Valid candidates co-existing with malformed ones must still be returned.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import {
@@ -141,7 +141,7 @@ describe("candidate JSON validation (Issue C)", () => {
     await writeMalformedCandidate(root.dir, "crash-bait.json", "not-json-at-all!!!");
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await expect(reviewListCommand()).resolves.not.toThrow();
+    await expect(reviewListCommand()).resolves.toBeUndefined();
     const out = logSpy.mock.calls.map((a) => a.join(" ")).join("\n");
     expect(out).toContain("safe-slug");
   });
@@ -151,7 +151,7 @@ describe("candidate JSON validation (Issue C)", () => {
     await writeMalformedCandidate(root.dir, "another-bad.json", '{"broken":}');
 
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    await expect(reviewShowCommand(good.id)).resolves.not.toThrow();
+    await expect(reviewShowCommand(good.id)).resolves.toBeUndefined();
     const out = logSpy.mock.calls.map((a) => a.join(" ")).join("\n");
     expect(out).toContain("show-safe-slug");
   });

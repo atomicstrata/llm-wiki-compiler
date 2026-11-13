@@ -9,7 +9,7 @@
  * the page into markdown, both in-process and through the real CLI.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
@@ -17,11 +17,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 
-const jsdomLoads = vi.hoisted(() => ({ count: 0 }));
-vi.mock("jsdom", async (importOriginal) => {
-  jsdomLoads.count += 1;
-  return importOriginal<typeof import("jsdom")>();
-});
+/**
+ * Whether jsdom has been loaded into this process. jsdom is CommonJS, so each
+ * of its files lands in the shared module cache the moment it is evaluated;
+ * observing the cache (rather than mocking jsdom) leaves the import untouched.
+ */
+function isJsdomLoaded(): boolean {
+  return Object.keys(require.cache).some((file) => file.includes(`${path.sep}node_modules${path.sep}jsdom${path.sep}`));
+}
 
 const PAGE = `<!doctype html><html><head><title>Lazy Loading</title></head><body>
 <article><h1>Lazy Loading</h1><p>Deferring heavy modules until they are needed keeps
@@ -45,11 +48,11 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 describe("web ingestion loads jsdom lazily", () => {
   it("does not load jsdom on import, only when a URL is ingested", async () => {
     const { default: ingestWeb } = await import("../src/ingest/web.js");
-    expect(jsdomLoads.count).toBe(0);
+    expect(isJsdomLoaded()).toBe(false);
     const page = await servePage();
     cleanups.push(page.close);
     const result = await ingestWeb(page.url);
-    expect(jsdomLoads.count).toBe(1);
+    expect(isJsdomLoaded()).toBe(true);
     expect(result.title).toBe("Lazy Loading");
     expect(result.content).toContain("Only the web ingestion path pays for the HTML parser.");
   });

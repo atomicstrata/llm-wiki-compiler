@@ -6,7 +6,7 @@
  * (exit 1, page not live) when the pinned artifact's manifest is a forged
  * integrity-lie — proving a forged manifest does NOT park (superset proof gate a).
  */
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, readFile, writeFile, access } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

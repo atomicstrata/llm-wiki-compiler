@@ -5,7 +5,7 @@
  * `trust:`-gate-needs-a-producible-output rule (a trust-gated artifact-only stage
  * is valid). An undeclared artifact type is rejected at profile LOAD.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfileShape } from "../src/profile/validate.js";
 import type { ProfilePack } from "../src/profile/types.js";
 

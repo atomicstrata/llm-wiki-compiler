@@ -11,7 +11,7 @@
  * replay under the already-held review lock.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { writeFile, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";

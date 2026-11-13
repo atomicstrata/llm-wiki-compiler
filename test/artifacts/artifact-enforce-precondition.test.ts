@@ -7,7 +7,7 @@
  * (ArtifactPreconditionUnverifiableError) only on a GENUINE store fault (malformed
  * manifest). A healthy pinned ref passes. Non-gated / no-requirement states early-out.
  */
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

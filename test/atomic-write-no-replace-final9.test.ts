@@ -7,7 +7,7 @@
 
 import { access, mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   atomicWriteNoReplace,
   AtomicWriteCommittedCleanupError,

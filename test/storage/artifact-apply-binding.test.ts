@@ -40,13 +40,13 @@
  */
 
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as applyGuards from "../../src/artifacts/apply-guards.js";
 import { applyArtifactLocked, applyArtifactLockedWith, type ArtifactApplySources } from "../../src/artifacts/apply.js";
 import type { ArtifactLeafReads } from "../../src/artifacts/resolve.js";
 import * as artifactStore from "../../src/artifacts/store.js";
 import * as eventRecord from "../../src/events/store-record.js";
-import { createWiki } from "../../src/index.js";
+import { createWiki } from "../../src/sdk/wiki.js";
 import * as profileBlock from "../../src/profile/block.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 import * as diskLeaves from "../../src/storage/disk-guarded-leaves.js";

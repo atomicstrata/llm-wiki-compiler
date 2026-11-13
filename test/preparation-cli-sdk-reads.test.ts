@@ -19,7 +19,7 @@
  * SURFACE contract: the exit codes, the envelope, and the operator's line.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile, writeFile } from "node:fs/promises";
 import { runCLI, expectCLIJson } from "./fixtures/run-cli.js";
 import { createWiki } from "../src/sdk/wiki.js";

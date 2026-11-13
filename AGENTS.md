@@ -37,9 +37,9 @@ A knowledge compiler CLI. Raw sources in, interlinked wiki out.
 
 Before committing any work, and before considering any task complete, you must:
 
-1. `npx tsc --noEmit` — type-check passes
-2. `npm run build` — build succeeds
-3. `npm test` — all tests pass
+1. `bunx tsc --noEmit` — type-check passes
+2. `bun run build` — build succeeds
+3. `bun run test` — all tests pass
 4. `fallow` — run the fallow codebase health analyzer. Fix all issues it reports (dead code, duplication, complexity). Use `fallow fix --dry-run` to preview auto-fixes, then `fallow fix --yes` to apply. Fix any remaining issues manually. Do not commit until fallow reports no issues.
 
 ## General Rules

@@ -12,7 +12,7 @@
  * The compiled output is then read back and inspected for marker presence.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 import { compileAndReport } from "../src/compiler/index.js";

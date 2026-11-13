@@ -7,7 +7,7 @@
  * vars and sets a 30-minute Ollama default.
  */
 
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "bun:test";
 import { OpenAIProvider, readTimeoutEnv } from "../src/providers/openai.js";
 import { OllamaProvider } from "../src/providers/ollama.js";
 import {

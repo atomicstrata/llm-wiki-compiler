@@ -4,7 +4,7 @@
  * status, legacy caller-held lock compatibility, and duplicate-core refusal.
  * Other execution arms are intentionally not claimed by these start-only tests.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { installWorkflowProfile } from "./fixtures/workflow-profile.js";

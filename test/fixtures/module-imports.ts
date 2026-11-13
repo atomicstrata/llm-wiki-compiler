@@ -2,13 +2,20 @@
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 
-/** Recognize syntax that names a module, including dynamic and type imports. */
+/**
+ * Callees that load a package synchronously: Node's `require` and the
+ * `requireOnUse` helper production code uses for on-demand loading. A bundler
+ * appends digits when it has to rename either one, so those count too.
+ */
+const SYNCHRONOUS_LOADER = /^require(OnUse)?\d*$/;
+
+/** Recognize syntax that names a module, including dynamic, lazy and type imports. */
 function moduleSpecifier(node: ts.Node, source: ts.SourceFile): ts.Node | undefined {
   if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return node.moduleSpecifier;
   if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) return node.argument.literal;
   if (!ts.isCallExpression(node)) return undefined;
   const dynamic = node.expression.kind === ts.SyntaxKind.ImportKeyword;
-  return dynamic || node.expression.getText(source) === "require" ? node.arguments[0] : undefined;
+  return dynamic || SYNCHRONOUS_LOADER.test(node.expression.getText(source)) ? node.arguments[0] : undefined;
 }
 
 /** Return literal import paths without resolving package or source identities. */

@@ -3,7 +3,7 @@
  * Covers constructor behaviour, factory resolution, and the embed() stub.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { CopilotProvider } from "../src/providers/copilot.js";
 import { getProvider } from "../src/utils/provider.js";
 import { COPILOT_BASE_URL, PROVIDER_MODELS } from "../src/utils/constants.js";

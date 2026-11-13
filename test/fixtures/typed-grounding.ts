@@ -9,7 +9,7 @@
 
 import { writeFile, mkdir, rm } from "fs/promises";
 import path from "path";
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import { makeTempRoot } from "./temp-root.js";
 import { writePage } from "./write-page.js";
 import { writeProfileFile } from "./profile-fixtures.js";

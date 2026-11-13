@@ -19,7 +19,7 @@
  * — so we never spin up an stdio transport.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "fs/promises";
 import path from "path";
 import { buildContextPack } from "../src/context/build.js";

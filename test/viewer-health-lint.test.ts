@@ -18,7 +18,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readLintCache } from "../src/linter/cache.js";
 import { LAST_LINT_FILE, LLMWIKI_DIR } from "../src/utils/constants.js";
 import {

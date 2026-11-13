@@ -554,9 +554,13 @@ export async function renameLeafUnguarded(from: string, to: string): Promise<voi
   await rename(from, to);
 }
 
-/** NO GUARD. `readdir(dir)`: names in the order returned. Rejects with the raw error. */
+/**
+ * NO GUARD. `readdir(dir)`: names in code-unit order. Rejects with the raw error.
+ * Node's libuv returned every listing sorted; Bun returns raw directory order,
+ * so the sort keeps listing-derived output identical across runtimes.
+ */
 export async function listDirectoryNames(dir: string): Promise<string[]> {
-  return readdir(dir);
+  return (await readdir(dir)).sort();
 }
 
 /**

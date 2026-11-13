@@ -6,7 +6,7 @@
  * make process/workspace drift fail before stage advancement.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { activateProductLocked } from "../src/products/binding/activate.js";
 import { writeRun } from "../src/workflows/store.js";

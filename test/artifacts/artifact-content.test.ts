@@ -1,5 +1,5 @@
 /** Verified artifact content must come from the same read that establishes health. */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile } from "fs/promises";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { seedArtifact } from "../fixtures/artifact-seed.js";

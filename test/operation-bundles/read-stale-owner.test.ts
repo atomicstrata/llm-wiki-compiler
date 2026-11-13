@@ -8,7 +8,7 @@
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { approveAndApplyOperationBundleLocked } from "../../src/operation-bundles/executor.js";
 import { resolveOperationRecoveryState } from "../../src/operation-bundles/lock-gate.js";
 import { readOperationManifest } from "../../src/operation-bundles/manifest-store.js";

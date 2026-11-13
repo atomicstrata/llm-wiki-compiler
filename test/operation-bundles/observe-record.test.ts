@@ -2,7 +2,7 @@
  * never substitute for authenticated application; unavailable custody stays unknown. */
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { stageOperationBundleLocked, type OperationBundleDraft } from "../../src/operation-bundles/stage.js";
 import { digestBytes } from "../../src/operation-bundles/adapters/shared.js";

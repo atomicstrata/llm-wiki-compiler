@@ -18,7 +18,7 @@
 
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { vi } from "vitest";
+import { vi } from "bun:test";
 import * as providerMod from "../../src/utils/provider.js";
 import {
   findTopK,

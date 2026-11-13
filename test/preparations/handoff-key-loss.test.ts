@@ -9,7 +9,7 @@
  */
 
 import { rm } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { handoffPreparation } from "../../src/preparations/handoff.js";
 import { preparationKeyFile } from "../../src/preparations/paths.js";

@@ -9,7 +9,7 @@
  * to prove `writeRun` (the run-record source of truth) threads `durable: true`.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 import { atomicWrite } from "../src/utils/markdown.js";

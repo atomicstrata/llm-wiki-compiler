@@ -9,7 +9,7 @@
  * and the marker would not register.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { wikilinksToOkf } from "../src/export/okf/mapping.js";
 import { findWikilinks, rewriteWikilinks } from "../src/wiki/wikilinks.js";
 import { recognizedWikilinkTargets } from "../src/wiki/wikilink-tokens.js";

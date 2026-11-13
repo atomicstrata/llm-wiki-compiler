@@ -8,7 +8,7 @@
  * as real subprocesses; the chain must carry freshness end-to-end on its own.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { runCLI } from "./fixtures/run-cli.js";

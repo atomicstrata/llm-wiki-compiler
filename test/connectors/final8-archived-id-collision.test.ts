@@ -6,17 +6,20 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";
 import { runConnector } from "../../src/connectors/run.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import { plantConnectorCandidate } from "./final6-fixtures.js";
 import { activateFixtureConnector } from "./run-test-fixtures.js";
 
-const suffixes = vi.hoisted((): Buffer[] => []);
+const suffixes = ((): Buffer[] => [])();
 
-vi.mock("crypto", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("crypto")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realCrypto = { ...(await import("crypto")) };
+
+vi.mock("crypto", () => {
+  const actual = realCrypto;
   return {
     ...actual,
     randomBytes: (size: number) => size === 4 && suffixes.length > 0

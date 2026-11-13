@@ -27,7 +27,7 @@
 
 import * as fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { retrieveSemanticChunksFrom } from "../../src/context/retrieval.js";
 import { loadProfile } from "../../src/profile/load.js";
 import type { LoadedProfile, ProfilePack } from "../../src/profile/types.js";

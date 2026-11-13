@@ -52,7 +52,7 @@
  * `ProjectStore`.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { eventPrevHash } from "../../src/events/event-digest.js";
 import type { HeadLeafRead } from "../../src/events/store-read.js";
 import { eventHeaderLine, serializeEventRecord } from "../../src/events/store-record.js";

@@ -2,6 +2,7 @@
  * Compiled-CLI witnesses for the explicit candidate selector and advisory failure
  * report. Network-free runs use fast mode or an intentionally unconfigured provider.
  */
+import { describe, it, expect } from "bun:test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { writeCandidate } from "../src/compiler/candidates.js";

@@ -10,7 +10,7 @@
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { PROFILE_FILE } from "../src/utils/constants.js";
 import { startViewer } from "../src/index.js";
 import { buildWorkflowRunProjection, type LiveStageProjectionProvider, type VerifiedStageFactsV1 } from "../src/viewer/workflow-run-projection.js";

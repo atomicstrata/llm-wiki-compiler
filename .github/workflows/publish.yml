@@ -156,11 +156,15 @@ jobs:
         with:
           ref: ${{ needs.resolve.outputs.public_sha }}
           fetch-depth: 0
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      # npm stays only as the registry client (`npm view`, Trusted Publishing).
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
       - name: Verify package identities match payload and repository
         env:
           WANT: ${{ needs.resolve.outputs.version }}
@@ -223,17 +227,16 @@ jobs:
       - name: Verify Linux isolation launch
         run: >-
           bwrap --cap-drop ALL --unshare-net --ro-bind / /
-          --dev /dev --proc /proc -- "$(command -v node)" --version
+          --dev /dev --proc /proc -- "$(command -v bun)" --version
       - name: Install, validate docs, build, test, pack
         run: |
           set -euo pipefail
-          npm ci
-          npm run release:check-docs:current
-          npm run build
-          npm test
-          npm run test:pack
+          bun install --frozen-lockfile
+          bun run release:check-docs:current
+          bun run test
+          bun run test:pack
           for dir in ${PACKAGE_DIRS}; do
-            (cd "${dir}" && npm pack --dry-run --ignore-scripts)
+            (cd "${dir}" && bun pm pack --dry-run --ignore-scripts)
           done
 
   publish:
@@ -257,7 +260,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org/"
-          cache: npm
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - name: Require npm >= 11.5.1 for Trusted Publishing
         run: |
           set -euo pipefail
@@ -266,8 +272,8 @@ jobs:
       - name: Install and build
         run: |
           set -euo pipefail
-          npm ci
-          npm run build
+          bun install --frozen-lockfile
+          bun run build
       - name: Publish dependencies first (OIDC, no token)
         env:
           WANT: ${{ needs.resolve.outputs.version }}

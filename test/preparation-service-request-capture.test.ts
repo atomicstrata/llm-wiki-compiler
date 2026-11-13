@@ -26,7 +26,7 @@
  * is EMPTY. A field added to a request type later cannot slip past it.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readPreparationCancel } from "../src/preparations/cancellation.js";
 import { REQUEST_CAPTURE_REFUSAL } from "../src/preparations/service-request-capture.js";
 import { useTempRoot } from "./fixtures/temp-root.js";

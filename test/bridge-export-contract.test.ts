@@ -14,7 +14,7 @@
  * `bridge-export-contract-cli.test.ts` to keep file size under control.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import path from "path";
 import { writePage } from "./fixtures/write-page.js";
 import { makeTempRoot } from "./fixtures/temp-root.js";

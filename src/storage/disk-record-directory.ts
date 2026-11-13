@@ -20,6 +20,7 @@ import { lstat, realpath, stat } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isInsideDir } from "../utils/path-confine.js";
+import { portableRealpath } from "../utils/portable-realpath.js";
 
 /** Stable identity captured for one literal candidate directory. */
 export interface CandidateDirectoryIdentity {
@@ -114,7 +115,7 @@ export async function captureCandidateDirectoryBinding(
 /** Resolve one observed component under the root, enforcing literal mode when requested. */
 async function resolveComponent(lexical: string, realRoot: string, expected: string | undefined, info: Stats): Promise<string> {
   if (expected !== undefined && info.isSymbolicLink()) throw new UnsafeCandidateDirError();
-  const observed = await realpath(lexical).catch(() => null);
+  const observed = await portableRealpath(lexical).catch(() => null);
   if (observed === null || !isInsideDir(observed, realRoot)) throw new UnsafeCandidateDirError();
   if (expected !== undefined && observed !== expected) throw new UnsafeCandidateDirError();
   return observed;

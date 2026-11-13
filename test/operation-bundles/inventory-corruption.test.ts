@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { scanOperationInventory } from "../../src/operation-bundles/capacity.js";
 import { mintBundleId, mintOperationRunId } from "../../src/operation-bundles/ids.js";
 import { operationPaths } from "../../src/operation-bundles/paths.js";

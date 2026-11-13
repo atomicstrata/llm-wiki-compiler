@@ -28,10 +28,13 @@
  * neighbouring suite must keep calling the REAL reader.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 
 const readCredentialRegistryState = vi.fn(async () => ({ kind: "absent" as const }));
+// Snapshot the real module before mock.module replaces it for this file.
+const realCredentials = { ...(await import("../../src/capability-providers/authority/credentials.js")) };
 vi.mock("../../src/capability-providers/authority/credentials.js", () => ({
+  ...realCredentials,
   readCredentialRegistryState,
 }));
 

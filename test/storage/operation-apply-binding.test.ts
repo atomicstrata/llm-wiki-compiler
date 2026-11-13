@@ -22,7 +22,7 @@
  * those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import * as cancelRequest from "../../src/operation-bundles/cancel-request.js";
 import * as evidenceStore from "../../src/operation-bundles/evidence-store.js";
 import { approveAndApplyOperationBundleLocked, approveAndApplyOperationBundleWith } from "../../src/operation-bundles/executor.js";

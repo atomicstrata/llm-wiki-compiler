@@ -7,7 +7,7 @@
  * record written before the fields existed still parses exactly as it did.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   PHASE_SUMMARY_OPTIONAL_FIELDS, PHASE_SUMMARY_REQUIRED_FIELDS, parsePhaseSummary,
 } from "../../src/preparations/run-parse-helpers.js";

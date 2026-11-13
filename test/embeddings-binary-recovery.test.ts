@@ -2,7 +2,8 @@
  * Recovery uses the actual embedding update/migration/persistence pipeline.
  * Only provider transport is replaced; unchanged follow-up work must reuse vectors.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { restoreEnv, restoreGlobals, stubEnv, stubGlobal } from "./stubs.js";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
@@ -14,19 +15,19 @@ const ctx = useConfinementRoots("binary-recovery");
 let embeddedTexts = 0;
 
 beforeEach(() => {
-  vi.stubEnv("LLMWIKI_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
-  vi.stubEnv("LLMWIKI_EMBEDDING_MODEL", "offline-embed");
-  vi.stubEnv("OPENAI_API_KEY", "test-key");
-  vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
-  vi.stubGlobal("fetch", () => { throw new Error("Network forbidden in binary recovery test"); });
+  stubEnv("LLMWIKI_PROVIDER", "openai");
+  stubEnv("LLMWIKI_EMBEDDING_PROVIDER", "openai");
+  stubEnv("LLMWIKI_EMBEDDING_MODEL", "offline-embed");
+  stubEnv("OPENAI_API_KEY", "test-key");
+  stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "");
+  stubGlobal("fetch", () => { throw new Error("Network forbidden in binary recovery test"); });
   embeddedTexts = 0;
   vi.spyOn(provider, "getEmbeddingProvider").mockReturnValue({
     embed: async () => { embeddedTexts++; return [0.5, 0.5]; },
     embedBatch: async (texts: string[]) => { embeddedTexts += texts.length; return texts.map(() => [0.5, 0.5]); },
   } as unknown as ReturnType<typeof provider.getEmbeddingProvider>);
 });
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); restoreEnv(); restoreGlobals(); });
 
 describe("binary recovery through embedding updates", () => {
   it("rebuilds corrupt binary without touching JSON and reuses the repaired vectors", async () => {

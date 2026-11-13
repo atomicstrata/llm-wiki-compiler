@@ -33,7 +33,7 @@
  * This is a pure read gate: it opens no fixture, writes nothing, and edits no
  * `src/` file.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

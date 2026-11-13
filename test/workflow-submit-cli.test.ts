@@ -11,7 +11,7 @@
  * non-zero, an unknown `--kind` exits non-zero, and a bogus run id exits non-zero.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, writeFile, stat, symlink } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";

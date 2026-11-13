@@ -55,7 +55,18 @@
     { "file": "src/operation-bundles/stage.ts", "exports": ["StageFaultsForTest"] },
     { "file": "src/operation-bundles/run-store.ts", "exports": ["appendAbandonedTransitionLocked"] },
     { "file": "test/preparation-recovery-fixture.ts", "exports": ["readRun"] },
-    { "file": "test/preparations/cancel-settlement-fixture.ts", "exports": ["readRun"] }
+    { "file": "test/preparations/cancel-settlement-fixture.ts", "exports": ["readRun"] },
+    { "file": "src/preparations/intent-compiler.ts", "exports": ["ENVELOPE_KEYS", "captureIntentRequest", "CapturedIntentRequestV1", "CapturedTargetV1", "IntentCompilerCode", "IntentSettlementV1"] }
+  ],
+  "framework": [
+    {
+      "name": "bun-test",
+      "enablers": ["@types/bun"],
+      "entryPoints": ["test/**/*.ts"],
+      "entryPointRole": "test",
+      "configPatterns": ["bunfig.toml"],
+      "alwaysUsed": ["test/preload.ts"]
+    }
   ],
   "overrides": [
     {

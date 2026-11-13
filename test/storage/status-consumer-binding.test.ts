@@ -38,7 +38,7 @@
  * `ProjectStore`.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { writeCandidate } from "../../src/compiler/candidates.js";
 import { collectStatus, collectStatusFrom, statusReadsOver, type StatusReads, type StatusSources, type WikiStatus } from "../../src/status/collect.js";
 import {

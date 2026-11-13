@@ -19,7 +19,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { pruneUnitIdFor } from "../src/preparations/prune-delete.js";
 import { preparationPaths, preparationPruneUnitPaths } from "../src/preparations/paths.js";
 import { scanPreparationInventory } from "../src/preparations/capacity.js";
@@ -99,10 +99,11 @@ describe("prune: the unit no shipped verb can retire", () => {
       status: "pending", units: [{ operation: null, unitId }],
     });
     const outcome = await cliPreparationService(root).prune({ runId });
-    expect(outcome).toMatchObject({
-      status: "refused", reason: expect.stringContaining("has no recorded operation"),
-    });
-    expect(outcome).toMatchObject({ reason: expect.stringContaining(unitId) });
+    // Read before matching: Bun's toMatchObject overwrites matched fields with their asymmetric matchers.
+    const { reason } = outcome as { reason?: string };
+    expect(outcome).toMatchObject({ status: "refused" });
+    expect(reason).toContain("has no recorded operation");
+    expect(reason).toContain(unitId);
     // AND IT IS GENUINELY STUCK: sweep, the only other destructive verb, is
     // refused too, so nothing shipped retires it.
     expect(await cliPreparationService(root).sweep()).toMatchObject({ status: "refused" });

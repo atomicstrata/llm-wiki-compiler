@@ -7,7 +7,7 @@
  * classification only; executable ephemeral read is Task 4's.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import {
   ephemeralIneligibility, EphemeralIneligibleError, assertEphemeralEligible,

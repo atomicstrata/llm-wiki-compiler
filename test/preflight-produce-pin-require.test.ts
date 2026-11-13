@@ -19,7 +19,7 @@
  * (`entityPagePath`), not merely against CLI exit codes, so the proof covers the
  * actual write outcome the gate is meant to control.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { runCLI, expectCLIExit } from "./fixtures/run-cli.js";
 import { makeResearchLiteProjectRoot } from "./fixtures/profile-fixtures.js";
 import { startRun, driveStage, entityPagePath, expectCompleted } from "./fixtures/research-workflow.js";

@@ -10,7 +10,7 @@
 import { mkdtemp, rm, mkdir, access, readFile, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { acquireLock, releaseLock } from "../../src/utils/lock.js";
 import { LLMWIKI_DIR } from "../../src/utils/constants.js";
 import type { WriteOne } from "../../src/trust/executor.js";

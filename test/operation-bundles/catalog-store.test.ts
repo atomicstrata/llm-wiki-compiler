@@ -7,7 +7,7 @@
 
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   appendCatalogRecordLocked,
   createCatalogRecord,

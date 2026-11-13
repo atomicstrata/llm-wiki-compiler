@@ -7,7 +7,7 @@
  * changes nothing the leg receives or leg-K digests.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { deepCaptureData, RuntimeCaptureError } from "../../src/utils/runtime-capture.js";
 import { authoritySnapshotDigest, computeSealedAuthority, sealAttemptContext } from "../../src/preparations/attempts/start.js";

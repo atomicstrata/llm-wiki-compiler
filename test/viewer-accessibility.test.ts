@@ -10,7 +10,7 @@
  * dot's `aria-label`.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 import type { JSDOM } from "jsdom";

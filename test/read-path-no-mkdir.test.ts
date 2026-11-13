@@ -12,7 +12,7 @@
  * This file pins every affected surface with a concrete assertion.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

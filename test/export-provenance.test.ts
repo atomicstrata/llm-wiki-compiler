@@ -11,7 +11,7 @@
  *  - `contentHash` is stable for the same body and changes when the body does.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync } from "fs";
 import { mkdir, writeFile } from "fs/promises";

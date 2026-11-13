@@ -5,7 +5,7 @@
  * secret-bearing suffix beyond the tightened full-scan response ceiling.
  */
 import { Readable } from "node:stream";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import {
   createHostBrokerDispatcher, dispatchHostBrokerRequest, readHostBrokerUsage,
 } from "../../src/capability-providers/brokers/dispatch.js";

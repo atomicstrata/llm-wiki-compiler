@@ -37,7 +37,7 @@
 
 import path from "node:path";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const SRC_PREFIX = path.join(REPO_ROOT, "src") + path.sep;

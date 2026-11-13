@@ -6,7 +6,7 @@
  * the sequence and hash chain even when the HMAC is re-stamped under the key.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { canonicalBytes } from "../../src/profile/templates/signing/canonical.js";
 import {

@@ -8,7 +8,7 @@
  * is BYTE-IDENTICAL to before, with no typed-mirror keys added.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtemp, rm, readFile } from "fs/promises";
 import os from "os";
 import path from "path";

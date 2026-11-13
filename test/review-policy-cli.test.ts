@@ -6,7 +6,7 @@
  * normal `llmwiki compile` run.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { access, mkdir, readFile, readdir, writeFile } from "fs/promises";
 import path from "path";
 import { mockClaudeEnv, useAimockLifecycle } from "./fixtures/aimock-helper.js";
@@ -121,7 +121,8 @@ describe("review policy CLI", () => {
     expectCLIExit(approveResult, 0);
 
     // Step 4a: concept page is now live.
-    await expect(access(path.join(cwd, "wiki", "concepts", `${slug}.md`))).resolves.toBeUndefined();
+    // Bun's access() resolves null rather than undefined; a rejection is what means "missing".
+    await expect(access(path.join(cwd, "wiki", "concepts", `${slug}.md`))).resolves.toBeNil();
 
     // Step 4b: candidate file is cleared from the pending area.
     const remaining = await readdir(candidatesDir).catch(() => [] as string[]);

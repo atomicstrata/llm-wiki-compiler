@@ -12,7 +12,7 @@
  * is rejected; and a workflow-less profile still validates (omitted-for-default).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { validateProfileShape, ProfileValidationError } from "../src/profile/validate.js";
 import { ProfilePathError } from "../src/profile/paths.js";
 import type { ProfilePack, WorkflowDef } from "../src/profile/types.js";

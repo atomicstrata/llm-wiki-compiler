@@ -21,6 +21,7 @@
  *   after its `![`, so its offsets are shifted into the enclosing content first.
  */
 
+import type MarkdownIt from "markdown-it";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 import type Token from "markdown-it/lib/token.mjs";
 import { createWikilinkRecognizer } from "./wikilink-tokens.js";
@@ -53,25 +54,37 @@ const REPLACEMENT_CHARACTER = "�";
 
 /** Each recognized token's offsets in its own parse's source. */
 const parsedRanges = new WeakMap<Token, LocatedWikilink>();
-const recognizer = createWikilinkRecognizer((token, state, start, end) => {
-  parsedRanges.set(token, { start, end, inner: state.src.slice(start + 2, end - 2) });
-});
-const tokenize = recognizer.inline.tokenize.bind(recognizer.inline);
-// Record each inline parse's starting offset. Link text reuses its parent's
-// state, so only image alt text (a new source string) needs a shifted base.
-recognizer.inline.tokenize = (state: StateInline): void => {
-  const env = state.env as LocateEnv;
-  const parent = env.active.at(-1);
-  if (!env.bases.has(state.tokens)) {
-    env.bases.set(state.tokens, parent ? env.bases.get(parent.tokens)! + parent.pos + ALT_TEXT_OFFSET : 0);
-  }
-  env.active.push(state);
-  try {
-    tokenize(state);
-  } finally {
-    env.active.pop();
-  }
-};
+let sharedRecognizer: MarkdownIt | undefined;
+
+/** The offset-recording recognizer, built on first use so loading this module does not load the parser. */
+function locatingRecognizer(): MarkdownIt {
+  sharedRecognizer ??= buildLocatingRecognizer();
+  return sharedRecognizer;
+}
+
+/** A production recognizer that also records where each link and inline parse starts. */
+function buildLocatingRecognizer(): MarkdownIt {
+  const recognizer = createWikilinkRecognizer((token, state, start, end) => {
+    parsedRanges.set(token, { start, end, inner: state.src.slice(start + 2, end - 2) });
+  });
+  const tokenize = recognizer.inline.tokenize.bind(recognizer.inline);
+  // Record each inline parse's starting offset. Link text reuses its parent's
+  // state, so only image alt text (a new source string) needs a shifted base.
+  recognizer.inline.tokenize = (state: StateInline): void => {
+    const env = state.env as LocateEnv;
+    const parent = env.active.at(-1);
+    if (!env.bases.has(state.tokens)) {
+      env.bases.set(state.tokens, parent ? env.bases.get(parent.tokens)! + parent.pos + ALT_TEXT_OFFSET : 0);
+    }
+    env.active.push(state);
+    try {
+      tokenize(state);
+    } finally {
+      env.active.pop();
+    }
+  };
+  return recognizer;
+}
 
 /** Every wikilink the renderer recognizes in `body`, with its page offsets, in document order. */
 export function locateWikilinks(body: string): LocatedWikilink[] {
@@ -79,7 +92,7 @@ export function locateWikilinks(body: string): LocatedWikilink[] {
   const lineStarts = [0, ...[...body.matchAll(LINE_BREAK)].map(match => match.index + match[0].length)];
   const located: LocatedWikilink[] = [];
   let cursor = 0;
-  for (const token of recognizer.parse(body, env)) {
+  for (const token of locatingRecognizer().parse(body, env)) {
     // A block restarts alignment at its first line; table cells carry no map
     // and continue along their row.
     if (token.map && (token.type === "inline" || token.type === "tr_open")) cursor = lineStarts[token.map[0]];

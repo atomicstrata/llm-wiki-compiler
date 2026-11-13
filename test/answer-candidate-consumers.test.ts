@@ -2,7 +2,7 @@
  * Real import and advisory evaluation paths cannot rewrite answer candidates.
  * Metadata remains durable even when read-only projections omit audit fields.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { runOkfImport } from "../src/import/run.js";

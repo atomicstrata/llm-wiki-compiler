@@ -6,7 +6,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { connectorRunCommand } from "../../src/commands/connector.js";
 import { moveCandidateWithCustody } from "../../src/compiler/candidate-custody.js";
 import type { ConfinedFetchResult } from "../../src/connectors/confined-fetch.js";

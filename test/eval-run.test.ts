@@ -5,6 +5,7 @@
  * and does write when record=true.
  */
 
+import { describe, it, expect } from "bun:test";
 import { existsSync } from "fs";
 import path from "path";
 import { runEval } from "../src/eval/index.js";

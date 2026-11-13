@@ -30,7 +30,7 @@
  * `splitIntoChunks`) so the migration's content-verify can actually match.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { writePage } from "./fixtures/write-page.js";

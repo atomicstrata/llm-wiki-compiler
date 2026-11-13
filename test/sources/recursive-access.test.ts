@@ -1,5 +1,5 @@
 /** Nested source IDs must survive store operations and the viewer's frozen allowlist. */
-import { beforeEach, expect, it } from "vitest";
+import { beforeEach, expect, it } from "bun:test";
 import { mkdir, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { listSources, getSource, deleteSource, sourceFileMissing } from "../../src/sources/store.js";

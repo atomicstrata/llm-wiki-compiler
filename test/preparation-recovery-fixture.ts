@@ -19,7 +19,7 @@
  */
 
 import { mkdtemp, rm } from "node:fs/promises";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createPreparationService } from "../src/preparations/service.js";

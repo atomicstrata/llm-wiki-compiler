@@ -4,7 +4,7 @@
  * gates only and must name an earlier stage that produces the declared artifact.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { validateProfile } from "../src/profile/validate.js";
 import { ProfileValidationError } from "../src/profile/errors.js";
 import type { ProfilePack, WorkflowStageDef } from "../src/profile/types.js";

@@ -25,7 +25,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import {
   artifactDiscoveryReadsOver, discoverArtifact, discoverArtifactFrom, type ArtifactDiscoveryReads,
 } from "../../src/artifacts/discover.js";

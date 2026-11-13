@@ -7,7 +7,7 @@
  * allowance all fail closed with the exhausted dimension named.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   assertPreparationRunWriteBudget, preparationRunWriteBudgetClass,
   projectPreparationRunBudget, RunBudgetError,

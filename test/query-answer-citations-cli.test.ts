@@ -2,7 +2,7 @@
  * Built CLI witnesses exercise streamed output and real candidate admission over
  * local aimock HTTP fixtures; losing the command's print call must fail these.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { mockClaudeEnv, useAimockLifecycle, type MockClaudeHandle } from "./fixtures/aimock-helper.js";

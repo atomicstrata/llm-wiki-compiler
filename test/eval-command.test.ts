@@ -3,7 +3,7 @@
  * Also covers the runEval() credential guard in src/eval/index.ts.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { parseSampleSize } from "../src/commands/eval.js";
 import { runEval } from "../src/eval/index.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";

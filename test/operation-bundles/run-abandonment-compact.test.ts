@@ -5,7 +5,7 @@
  * scale, including the exact zero-unresolved case.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { canonicalBytes, canonicalDigest } from "../../src/profile/templates/signing/canonical.js";
 import { MAX_TRANSITION_ENVELOPE_BYTES } from "../../src/operation-bundles/constants.js";
 import { appendOperationTransition, signOperationRun } from "../../src/operation-bundles/run-integrity.js";

@@ -13,7 +13,7 @@
  *       page counts derived from `collectEntityPages`.
  */
 
-import { describe, it, beforeEach, afterEach, expect } from "vitest";
+import { describe, it, beforeEach, afterEach, expect } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, readFile, symlink } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";

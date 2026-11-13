@@ -10,7 +10,7 @@
  * size and node count rather than drifting back to a fixed pair.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { readFile } from "fs/promises";
 import path from "path";
 

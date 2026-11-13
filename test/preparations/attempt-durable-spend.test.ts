@@ -9,7 +9,7 @@
  * as a zero that would report a billable attempt as free.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { parseSha256Digest } from "../../src/capability-providers/ids.js";
 import { executePhaseAttempt } from "../../src/preparations/attempts/execute.js";
 import { durableRetryCostPreview } from "../../src/preparations/attempts/retry.js";

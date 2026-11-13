@@ -7,7 +7,7 @@
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { runConnector } from "../../src/connectors/run.js";
 import { readEvents } from "../../src/events/store-read.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
@@ -41,7 +41,7 @@ async function expectRefusalBeforeEffects(fetches: { value: number }): Promise<v
     .toBe(false);
 }
 
-describe.runIf(CAN_TEST_POSIX_MODES)("Decision 20 connector candidate access", () => {
+describe.if(CAN_TEST_POSIX_MODES)("Decision 20 connector candidate access", () => {
   afterEach(() => { delete process.env.LLMWIKI_CONNECTORS; });
 
   it("refuses an archive without search access before rate or fetch", async () => {

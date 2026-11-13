@@ -18,7 +18,7 @@
  * the source-store and executor suites show those.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
 import type { AdapterContext } from "../../src/operation-bundles/adapter-types.js";
 import * as shared from "../../src/operation-bundles/adapters/shared.js";
 import { defineSourceAdapter, sourceAdapter, type SourceAdapterStores } from "../../src/operation-bundles/adapters/source.js";

@@ -39,7 +39,8 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { LLMWIKI_DIR } from "../../src/utils/constants.js";
 import { encodeBinaryStore } from "../../src/utils/embeddings-binary.js";
 import { persistEmbeddingStore, persistEmbeddingStoreFrom, type StoredEmbeddingWrites } from "../../src/utils/embeddings-storage.js";
@@ -85,12 +86,12 @@ async function runSteps(steps: Step[], persist: Persist, leaves: () => Promise<L
   const outcomes: string[] = [];
   try {
     for (const step of steps) {
-      vi.stubEnv("LLMWIKI_BINARY_EMBEDDINGS", step.optIn);
+      stubEnv("LLMWIKI_BINARY_EMBEDDINGS", step.optIn);
       const settled = await persist(step.store()).then(() => "ok", failureText);
-      vi.unstubAllEnvs();
+      restoreEnv();
       outcomes.push(JSON.stringify({ settled, notes: printed.splice(0), leaves: await leaves() }));
     }
-  } finally { vi.unstubAllEnvs(); notices.mockRestore(); }
+  } finally { restoreEnv(); notices.mockRestore(); }
   return outcomes;
 }
 

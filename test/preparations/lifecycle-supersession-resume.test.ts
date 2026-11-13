@@ -20,7 +20,7 @@
 
 import { appendFile, chmod, mkdir, readdir, rm, rmdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import {
   MISSING_KEY_CONFIRMATION, resetPreparationKeyEpochLocked,

@@ -8,7 +8,7 @@
  * would then execute (writing attacker pre-state content to confined in-root
  * targets). A symlinked leaf must read as "not loadable" (null), never followed.
  */
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, symlink } from "fs/promises";
 import { tmpdir } from "os";
 import path from "path";

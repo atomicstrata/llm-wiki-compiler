@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { checkConfinedLeafDigest, readLeafTextNoFollowCapped } from "../../src/storage/disk-handle-leaves.js";
 
 const BYTES = Buffer.from("member bytes, exactly these\n");

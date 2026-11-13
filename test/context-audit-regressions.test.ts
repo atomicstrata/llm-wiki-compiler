@@ -6,7 +6,8 @@
  * scoring, and context-specific suggested-action suffixes.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
+import { mocked } from "./mocked.js";
 import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
@@ -21,7 +22,7 @@ vi.mock("../src/context/retrieval.js", () => ({
   retrieveSemanticChunks: vi.fn(async () => ({ hits: [], warning: null })),
 }));
 
-const mockedRetrieve = vi.mocked(retrieveSemanticChunks);
+const mockedRetrieve = mocked(retrieveSemanticChunks);
 
 let root: string;
 

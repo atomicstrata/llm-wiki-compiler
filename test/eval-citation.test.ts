@@ -3,6 +3,7 @@
  * Verifies coverage%, precision%, and per-page breakdown.
  */
 
+import { describe, it, expect } from "bun:test";
 import { evaluateCitationCoverage } from "../src/eval/citation-coverage.js";
 import type { CitationCoverageResult } from "../src/eval/types.js";
 import { useLintTempRoot } from "./fixtures/lint-temp-root.js";

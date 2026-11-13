@@ -2,7 +2,8 @@
  * Minimal real candidate fixtures for batch-review tests. Bodies avoid providers
  * and timestamps so filesystem comparisons focus on review and recovery behavior.
  */
-import { beforeEach, afterEach, vi } from "vitest";
+import { beforeEach, afterEach, vi } from "bun:test";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { writeCandidate, type CandidateDraft } from "../../src/compiler/candidates.js";
 import { approveReviewBatch } from "../../src/commands/review-approve-batch.js";
 import type { ReviewBatchItem } from "../../src/commands/review-batch-types.js";
@@ -27,9 +28,9 @@ export function approveBatch(root: string, ...items: (string | ReviewBatchItem)[
 /** Silence progress and disable provider calls unless an individual test enables embeddings. */
 export function useQuietBatchTests(): void {
   beforeEach(() => {
-    vi.stubEnv("LLMWIKI_EMBEDDINGS", "off");
+    stubEnv("LLMWIKI_EMBEDDINGS", "off");
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => restoreEnv());
 }

@@ -2,7 +2,7 @@
  * Canonical query serialization witnesses pin the pre-extraction saved bytes.
  * Frontmatter metadata must never become answer-body citation diagnostics.
  */
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { buildFrontmatter, parseFrontmatter } from "../src/utils/markdown.js";
 import { summarizeAnswer } from "../src/commands/query-save.js";
 import { classifyAnswerCitations } from "../src/citations/answer-report.js";

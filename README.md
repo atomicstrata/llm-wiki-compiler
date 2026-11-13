@@ -476,10 +476,10 @@ Contributions are welcome. If llmwiki is missing something you need, open an iss
 Before committing code changes, run:
 
 ```bash
-npx tsc --noEmit
-npm run build
-npm test
-npm run fallow:ci
+bunx tsc --noEmit
+bun run build
+bun run test
+bun run fallow:ci
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).

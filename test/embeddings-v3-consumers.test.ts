@@ -8,8 +8,8 @@
  * selection rather than crashing.
  */
 
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Mock } from "vitest";
+import { afterEach, describe, expect, it, vi } from "bun:test";
+import type { Mock } from "bun:test";
 import { defaultProfileLoad } from "./fixtures/profile-fixtures.js";
 
 const OUTDATED = { code: "embedding-index-outdated", message: "older" };
@@ -38,9 +38,11 @@ import {
   findRelevantPagesV3,
 } from "../src/utils/embeddings-load.js";
 
-const mockedLoad = loadEmbeddingsForSearch as unknown as Mock;
-const mockedChunks = findRelevantChunksV3 as unknown as Mock;
-const mockedPages = findRelevantPagesV3 as unknown as Mock;
+/** A mocked async collaborator whose resolved value each test supplies. */
+type StubbedAsync = Mock<(...args: never[]) => Promise<unknown>>;
+const mockedLoad = loadEmbeddingsForSearch as unknown as StubbedAsync;
+const mockedChunks = findRelevantChunksV3 as unknown as StubbedAsync;
+const mockedPages = findRelevantPagesV3 as unknown as StubbedAsync;
 
 afterEach(() => vi.clearAllMocks());
 

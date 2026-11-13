@@ -20,16 +20,19 @@
  * more depth; this file does not repeat them.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import * as fs from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 /** The next `lstat` of exactly `target` rejects with `error`. */
-const fault = vi.hoisted(() => ({ target: "", error: null as Error | null }));
+const fault = { target: "", error: null as Error | null };
 
-vi.mock("fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs/promises")>();
+// Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
+const realFsPromises = { ...(await import("fs/promises")) };
+
+vi.mock("fs/promises", () => {
+  const actual = realFsPromises;
   const lstat = ((target: unknown, ...rest: unknown[]) => {
     if (fault.error !== null && target === fault.target) {
       const error = fault.error;

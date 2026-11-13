@@ -3,7 +3,7 @@
  * @description Provider V2 hostile-identity byte ceilings, Windows device
  * exclusions, and bounded non-coercing diagnostic coverage.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import * as limits from "../../src/capability-providers/constants.js";
 import * as ids from "../../src/capability-providers/ids.js";
 import { parseProviderId } from "../../src/capability-providers/ids.js";

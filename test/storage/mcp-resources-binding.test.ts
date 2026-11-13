@@ -36,7 +36,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import path from "node:path";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "bun:test";
 import type { EvalFileReads } from "../../src/eval/file-reads.js";
 import * as evalStats from "../../src/eval/stats.js";
 import { registerWikiResources, registerWikiResourcesWith, type WikiResourceReads } from "../../src/mcp/resources.js";

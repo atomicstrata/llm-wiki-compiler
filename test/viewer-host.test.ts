@@ -14,7 +14,7 @@
  * `::1` route — CI on some Linux configs.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import http from "http";
 import net from "net";
 import { exec as execCb } from "child_process";
@@ -26,9 +26,9 @@ import {
   startViewerCLI,
   useViewerProcessLifecycle,
 } from "./fixtures/run-cli-server.js";
+import { CLI_RUNTIME_FLAGS, CLI } from "./fixtures/run-cli.js";
 
 const exec = promisify(execCb);
-const CLI = path.resolve("dist/cli.js");
 const CLI_REJECTION_TIMEOUT_MS = 30_000;
 
 let ipv6Available = false;
@@ -85,7 +85,7 @@ describe("CLI — wildcard host rejection", () => {
     const root = await makeTempRoot(`viewer-host-wildcard-${host.replace(/[:.*]/g, "-")}`);
     let stderr = "";
     try {
-      await exec(`node "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
+      await exec(`"${process.execPath}" ${CLI_RUNTIME_FLAGS.join(" ")} "${CLI}" view --port 0 --allow-lan --host "${host}"`, {
         cwd: root,
         timeout: CLI_REJECTION_TIMEOUT_MS,
       });

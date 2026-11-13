@@ -50,7 +50,7 @@
  * about what it cannot see or remove.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { writeFile, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";

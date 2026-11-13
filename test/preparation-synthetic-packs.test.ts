@@ -25,7 +25,7 @@
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { parsePreparationPlan } from "../src/preparations/plan-parse.js";
 import { canonicalBytes } from "../src/profile/templates/signing/canonical.js";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";

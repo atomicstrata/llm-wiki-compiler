@@ -35,7 +35,9 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, setSystemTime } from "bun:test";
+import { mocked } from "../mocked.js";
+import { restoreEnv, stubEnv } from "../stubs.js";
 import { NO_ENTITIES, lintSourcesOver } from "./lint-sources-doubles.js";
 
 vi.mock("../../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
@@ -149,11 +151,11 @@ const onDisk: Handlers = {
 interface OnDisk { real: string; steps: Steps }
 const tracker = tempRootTracker();
 let project: Minted<OnDisk>;
-const offline = (): void => { vi.stubEnv("LLMWIKI_PROVIDER", "offline"); vi.stubEnv("LLMWIKI_EMBEDDING_PROVIDER", ""); };
+const offline = (): void => { stubEnv("LLMWIKI_PROVIDER", "offline"); stubEnv("LLMWIKI_EMBEDDING_PROVIDER", ""); };
 
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(AT)); offline(); vi.mocked(callClaude).mockImplementation(modelStub); });
-beforeEach(() => { stubHost(); offline(); vi.mocked(callClaude).mockReset().mockImplementation(modelStub); printed.length = 0; process.exitCode = 0; });
-afterAll(() => { vi.unstubAllEnvs(); vi.useRealTimers(); process.exitCode = 0; });
+beforeAll(() => { setSystemTime(new Date(AT)); offline(); mocked(callClaude).mockImplementation(modelStub); });
+beforeEach(() => { stubHost(); offline(); mocked(callClaude).mockReset().mockImplementation(modelStub); printed.length = 0; });
+afterAll(() => { restoreEnv(); setSystemTime(); });
 mintOnceThenRemove(tracker, async () => {
   stubHost();
   project = await mintCopied(tracker, PREFIX, (root) => writeFiles(root, FILES), async (root) => {

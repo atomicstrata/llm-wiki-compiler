@@ -18,7 +18,7 @@
  * `c5c9e5e`).
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import {
   profileBootstrapResponse,
   jsonResponse,
@@ -96,6 +96,9 @@ const PROBLEM_ROW = {
 };
 
 const RUNS = [PARKED_ON_GATE, PARKED_ON_OUTPUT, COMPLETED];
+
+/** How long to wait for the runs list to render after navigating to it. */
+const RUNS_RENDER_DEADLINE_MS = 2000;
 
 /** Responder serving the given `/api/workflow-runs` rows over an empty project. */
 function responderWithRuns(runs: unknown[], workflowJourneys = false): FetchResponder {
@@ -353,7 +356,12 @@ async function clickSidebarWorkflows(): Promise<Window> {
   const mounted = await mountViewerDom(responderWithRuns(RUNS));
   const win = mounted.dom.window as unknown as Window;
   (win.document.querySelector('a[data-route="workflows"]') as HTMLElement).click();
-  await mounted.flush();
+  // The rows render after the route's fetch, which can outlast one 25 ms flush
+  // when the full suite loads the machine, so keep flushing until they appear.
+  const deadline = Date.now() + RUNS_RENDER_DEADLINE_MS;
+  do {
+    await mounted.flush();
+  } while (!win.document.querySelector("[data-main-pane] .list-row") && Date.now() < deadline);
   return win;
 }
 

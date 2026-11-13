@@ -5,7 +5,7 @@
  */
 
 import { Buffer } from "node:buffer";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "bun:test";
 import { CandidateIdentityMismatchError } from "../../src/compiler/candidates.js";
 import {
   assertBundleId,

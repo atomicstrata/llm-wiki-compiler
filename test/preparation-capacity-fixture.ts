@@ -18,7 +18,7 @@
 
 import { readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect } from "vitest";
+import { expect } from "bun:test";
 import { runCLI, type CLIResult } from "./fixtures/run-cli.js";
 import { initializedWorkspace } from "./preparation-cli-fixture.js";
 import { validPlan } from "./preparations/plan-fixture.js";

@@ -11,7 +11,7 @@
  * short-circuited by applied-once (mutant: manifest-only applied-once); the
  * legacy single-file type keeps its applied-once short-circuit (one event).
  */
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, afterEach } from "bun:test";
 import path from "path";
 import { access, readFile, writeFile } from "fs/promises";
 import { applyApprovedMutations } from "../../src/trust/executor.js";

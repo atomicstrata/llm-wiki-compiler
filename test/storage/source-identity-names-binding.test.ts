@@ -19,7 +19,7 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "bun:test";
 import * as scan from "../../src/sources/scan.js";
 import * as selectionModule from "../../src/sources/selection.js";
 import { listIdentityNamesFrom, saveSource, sourceIdentityReadsOver } from "../../src/utils/source-writer.js";

@@ -8,7 +8,7 @@
  * return `null` (the CLI wrapper turns that into an exit-1 before the core).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { parseJsonObject } from "../src/commands/workflow.js";
 
 describe("parseJsonObject", () => {

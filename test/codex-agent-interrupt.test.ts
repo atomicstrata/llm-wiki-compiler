@@ -9,10 +9,10 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
 import { access, rm } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "bun:test";
 import { useAimockLifecycle } from "./fixtures/aimock-helper.js";
 import { installFakeCodex, type CapturedCodexCall, type FakeCodex } from "./fixtures/fake-codex.js";
-import { CLI } from "./fixtures/run-cli.js";
+import { CLI, CLI_RUNTIME_FLAGS } from "./fixtures/run-cli.js";
 
 const aimock = useAimockLifecycle("codex-agent-interrupt");
 const fakes: FakeCodex[] = [];
@@ -69,7 +69,7 @@ describe("codex-agent parent interruption", () => {
       const cwd = await aimock.makeWorkspace("# Source\n\nInterrupt the compile.\n");
       const fake = await installFakeCodex({ hang: true, ignoreTerm: true });
       fakes.push(fake);
-      const child = spawn(process.execPath, [CLI, "compile", "--provider", "codex-agent"], {
+      const child = spawn(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, "compile", "--provider", "codex-agent"], {
         cwd,
         env: {
           ...process.env,

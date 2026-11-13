@@ -3,7 +3,7 @@
  * writes to a native Windows filesystem. Real filesystem operations stay native.
  */
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from "bun:test";
 import { journalSavedPath } from "../src/commands/ingest.js";
 
 it.each([

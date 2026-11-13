@@ -17,7 +17,7 @@
  * out of process.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
 import {
   SEED_GATE_ID, gateProject, gatedRun, readGateRun, type GateFixture,
