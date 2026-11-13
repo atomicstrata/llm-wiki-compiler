@@ -6,14 +6,15 @@
  * without scraping CLI output. Read-only wiki views are exposed as
  * MCP resources for direct context injection.
  *
- * Transport: stdio. The server reads JSON-RPC messages on stdin and
+ * Transport: stdio by default. The server reads JSON-RPC messages on stdin and
  * writes responses on stdout, which is the standard surface area for
- * Claude Desktop, Cursor, and other MCP-aware clients.
+ * Claude Desktop, Cursor, and other MCP-aware clients. With `http` it serves
+ * streamable HTTP on loopback instead; see `http.ts`.
  *
- * Because stdout is the protocol stream, the process runs in quiet mode from
- * the moment the server starts: no tool, resource or future handler may print
- * progress there. Handlers also scope quiet mode themselves, for callers that
- * register them on a server of their own.
+ * Because stdout is the stdio protocol stream, the process runs in quiet mode
+ * from the moment the server starts: no tool, resource or future handler may
+ * print progress there. Handlers also scope quiet mode themselves, for callers
+ * that register them on a server of their own.
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -23,23 +24,22 @@ import { registerOkfTools } from "./okf-tools.js";
 import { registerWorkflowActionTools } from "./workflow-action-tools.js";
 import { registerWikiResources } from "./resources.js";
 import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { serveMcpOverHttp, type HttpServeOptions } from "./http.js";
 
 interface ServerOptions {
   /** Project root directory the server operates on. */
   root: string;
   /** Server version surfaced to MCP clients in the initialize handshake. */
   version: string;
+  /** Register only the tools that never write a project file. */
+  readOnly?: boolean;
+  /** Serve streamable HTTP on loopback instead of stdio. */
+  http?: HttpServeOptions;
 }
 
-/**
- * Start the MCP server bound to stdio transport.
- * Resolves once the transport closes (typically when the parent process exits).
- *
- * @param options - Root directory and server version (the CLI passes its own
- *                  version so the server doesn't need to read package.json).
- */
-export async function startMCPServer(options: ServerOptions): Promise<void> {
-  const { root, version } = options;
+/** Build an MCP server with the tools and resources `options` asks for. */
+function buildServer(options: ServerOptions): McpServer {
+  const { root, version, readOnly } = options;
   const server = new McpServer({ name: "llmwiki", version }, {
     instructions:
       "llmwiki compiles documents into a persistent, cited knowledge wiki. " +
@@ -59,13 +59,25 @@ export async function startMCPServer(options: ServerOptions): Promise<void> {
       "verdict, never the body; there is no write or store-wide list tool for artifacts over MCP.",
   });
 
-  registerWikiTools(server, root);
-  registerOkfTools(server, root);
-  registerWorkflowActionTools(server, root);
+  registerWikiTools(server, root, readOnly);
+  if (!readOnly) registerOkfTools(server, root);
+  registerWorkflowActionTools(server, root, readOnly);
   registerWikiResources(server, root);
+  return server;
+}
 
-  // From here stdout carries only JSON-RPC, for every handler registered above.
+/**
+ * Start the MCP server on stdio, or on loopback HTTP when `options.http` is set.
+ * Over stdio it resolves once the transport is connected; over HTTP, once the
+ * port is bound.
+ *
+ * @param options - Root directory and server version (the CLI passes its own
+ *                  version so the server doesn't need to read package.json),
+ *                  plus the read-only and HTTP choices.
+ */
+export async function startMCPServer(options: ServerOptions): Promise<void> {
+  // From here stdout carries only JSON-RPC, for every handler a server registers.
   output.setQuiet(true);
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  if (options.http) return serveMcpOverHttp(() => buildServer(options), options.http);
+  await buildServer(options).connect(new StdioServerTransport());
 }
