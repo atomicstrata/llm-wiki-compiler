@@ -62,10 +62,17 @@ async function expectCleanFailure(
   await expect(access(call.cwd)).rejects.toThrow();
 }
 
+/**
+ * Budget for a fake Codex that answers at once. Only the timeout tests below
+ * time out on purpose; the rest need room for a cold process start on a busy
+ * machine, which a 2 s budget did not always leave.
+ */
+const RESPONSE_TIMEOUT_MS = 10_000;
+
 /** Complete one request with the deliberately small output cap used by boundary witnesses. */
 async function expectCappedCompletion(expected: string): Promise<void> {
   const provider = new CodexAgentProvider(undefined, {
-    timeoutMs: 2_000,
+    timeoutMs: RESPONSE_TIMEOUT_MS,
     maxOutputBytes: 1_024,
   });
   await expect(provider.complete("system", [{ role: "user", content: "x" }], 1))
@@ -111,7 +118,7 @@ describe("CodexAgentProvider process boundary", () => {
     process.env.OPENAI_API_KEY = "sk-parent-must-not-leak";
     process.env.ANTHROPIC_API_KEY = "parent-anthropic-secret";
     process.env.UNRELATED_PARENT_VALUE = "not-allowed";
-    const provider = new CodexAgentProvider("gpt-test", { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider("gpt-test", { timeoutMs: RESPONSE_TIMEOUT_MS });
 
     await expect(provider.complete("system", [{ role: "user", content: "source" }], 17))
       .resolves.toBe("compiled page");
@@ -151,7 +158,7 @@ describe("CodexAgentProvider process boundary", () => {
       const wrapperDirectory = await installInjectingNodeWrapper();
       process.env.PATH = [fake.binDir, wrapperDirectory, originalEnv.PATH ?? ""]
         .join(path.delimiter);
-      await new CodexAgentProvider(undefined, { timeoutMs: 2_000 })
+      await new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS })
         .complete("system", [{ role: "user", content: "hello" }], 1);
       const [call] = await fake.calls();
       expect(call.env.LLMWIKI_LAUNCHER_INJECTED).toBeUndefined();
@@ -160,7 +167,7 @@ describe("CodexAgentProvider process boundary", () => {
 
   it("passes no model flag when the operator leaves model selection to Codex", async () => {
     const fake = await useFake();
-    await new CodexAgentProvider(undefined, { timeoutMs: 2_000 })
+    await new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS })
       .complete("system", [{ role: "user", content: "hello" }], 4096);
     expect((await fake.calls())[0].args).not.toContain("--model");
   });
@@ -168,7 +175,7 @@ describe("CodexAgentProvider process boundary", () => {
   it("delivers Codex's buffered stream result as one final callback chunk", async () => {
     await useFake({ textOutput: "streamed page" });
     const chunks: string[] = [];
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     await expect(provider.stream(
       "system",
       [{ role: "user", content: "hello" }],
@@ -180,14 +187,14 @@ describe("CodexAgentProvider process boundary", () => {
 
   it("rejects malformed JSON before a structured response can be consumed", async () => {
     await useFake({ rawToolOutput: "not-json" });
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     await expect(provider.toolCall("system", [{ role: "user", content: "x" }], [TOOL], 99))
       .rejects.toThrow(/invalid JSON/i);
   });
 
   it("validates structured last-message JSON against the requested schema", async () => {
     const fake = await useFake({ toolOutput: { value: 7 } });
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     await expect(provider.toolCall("system", [{ role: "user", content: "x" }], [TOOL], 99))
       .rejects.toThrow(/schema validation/i);
     const [call] = await fake.calls();
@@ -196,7 +203,7 @@ describe("CodexAgentProvider process boundary", () => {
 
   it("returns schema-valid structured output and cleans schema artifacts", async () => {
     const fake = await useFake({ toolOutput: { value: "safe" } });
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     await expect(provider.toolCall("system", [{ role: "user", content: "x" }], [TOOL], 99))
       .resolves.toBe('{"value":"safe"}');
     const [call] = await fake.calls();
@@ -206,7 +213,7 @@ describe("CodexAgentProvider process boundary", () => {
   });
 
   it("rejects structured requests that do not provide exactly one schema", async () => {
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     await expect(provider.toolCall("system", [], [], 99)).rejects.toThrow(/exactly one/);
     await expect(provider.toolCall("system", [], [TOOL, TOOL], 99)).rejects.toThrow(/exactly one/);
   });
@@ -214,7 +221,7 @@ describe("CodexAgentProvider process boundary", () => {
   it("drains unconsumed stdout without charging it to the diagnostic cap", async () => {
     const fake = await useFake({ stdoutBytes: 8_192 });
     const provider = new CodexAgentProvider(undefined, {
-      timeoutMs: 2_000,
+      timeoutMs: RESPONSE_TIMEOUT_MS,
       maxOutputBytes: 1_024,
       terminateGraceMs: 50,
     });
@@ -243,7 +250,7 @@ describe("CodexAgentProvider process boundary", () => {
   it("keeps stderr inside the subprocess output cap", async () => {
     const fake = await useFake({ stderr: "x".repeat(8_192) });
     await expectCleanFailure(fake, {
-      timeoutMs: 2_000,
+      timeoutMs: RESPONSE_TIMEOUT_MS,
       maxOutputBytes: 1_024,
       terminateGraceMs: 50,
     }, /output limit/i);
@@ -252,14 +259,14 @@ describe("CodexAgentProvider process boundary", () => {
   it("caps the final-message artifact and cleans its throwaway directory", async () => {
     const fake = await useFake({ textOutput: "x".repeat(2_048) });
     await expectCleanFailure(fake, {
-      timeoutMs: 2_000,
+      timeoutMs: RESPONSE_TIMEOUT_MS,
       maxOutputBytes: 1_024,
     }, /last message.*output limit/i);
   });
 
   it("cleans its throwaway directory when Codex omits the final message", async () => {
     const fake = await useFake({ omitOutput: true });
-    await expectCleanFailure(fake, { timeoutMs: 2_000 }, /without a readable final message/i);
+    await expectCleanFailure(fake, { timeoutMs: RESPONSE_TIMEOUT_MS }, /without a readable final message/i);
   });
 
   it("cleans its throwaway directory when the codex binary is absent", async () => {
@@ -269,7 +276,7 @@ describe("CodexAgentProvider process boundary", () => {
     await mkdir(emptyBin);
     process.env.TMPDIR = root;
     process.env.PATH = emptyBin;
-    await expect(new CodexAgentProvider(undefined, { timeoutMs: 2_000 })
+    await expect(new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS })
       .complete("system", [{ role: "user", content: "x" }], 1))
       .rejects.toThrow(/Codex CLI.*not installed/i);
     expect((await readdir(root)).filter((name) => name.startsWith("llmwiki-codex-agent-")))
@@ -283,7 +290,7 @@ describe("CodexAgentProvider process boundary", () => {
         'authentication failed: Bearer abc.secret, OPENAI_API_KEY=sk-live-secret, ' +
         'GITHUB_TOKEN="ghp-another-secret", password=hunter2',
     });
-    const provider = new CodexAgentProvider(undefined, { timeoutMs: 2_000 });
+    const provider = new CodexAgentProvider(undefined, { timeoutMs: RESPONSE_TIMEOUT_MS });
     const failure = provider.complete("system", [{ role: "user", content: "x" }], 1);
     await expect(failure).rejects.toThrow(/Codex CLI.*authentication failed/i);
     await expect(failure).rejects.not.toThrow(/abc\.secret|sk-live-secret|ghp-another-secret|hunter2/);
