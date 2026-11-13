@@ -14,7 +14,7 @@ const env = useLintTempRoot("profile-confidence-cli");
 const NO_CREDENTIALS = {
   LLMWIKI_PROVIDER: "openai", ANTHROPIC_API_KEY: "", ANTHROPIC_AUTH_TOKEN: "",
   OPENAI_API_KEY: "", ORCAROUTER_API_KEY: "", VOYAGE_API_KEY: "",
-  MINIMAX_API_KEY: "", GITHUB_TOKEN: "", ATLASCLOUD_API_KEY: "", ATLAS_CLOUD_API_KEY: "",
+  MINIMAX_API_KEY: "", GITHUB_TOKEN: "", ATLASCLOUD_API_KEY: "", ATLAS_CLOUD_API_KEY: "", RUNCRATE_API_KEY: "",
 };
 const LOW_CONFIDENCE = "Page confidence 0.30 is below 0.5";
 

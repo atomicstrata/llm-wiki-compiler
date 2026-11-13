@@ -101,6 +101,7 @@ export const SUPPORTED_PROVIDER_INPUTS = [
   "atlascloud",
   "atlas-cloud",
   "atlas",
+  "runcrate",
 ] as const;
 
 /** Normalize accepted LLMWIKI_PROVIDER aliases to provider implementation names. */
@@ -131,6 +132,10 @@ export const PROVIDER_MODELS: Record<string, string> = {
   // smallest catalogue model that does advertise tools, keeping the cheap-and-fast
   // intent of the original default.
   atlascloud: "qwen/qwen3.5-35b-a3b",
+  // Runcrate's catalogue lists tool support per model in `supported_features`;
+  // compile's extraction pass needs tool calls, so the default is an open model
+  // that advertises `tools`.
+  runcrate: "Qwen/Qwen3-235B-A22B-Instruct-2507",
 };
 
 /** Default Ollama API base URL. */
@@ -147,6 +152,9 @@ export const ATLASCLOUD_API_KEY_ENV_VARS = ["ATLASCLOUD_API_KEY", "ATLAS_CLOUD_A
 
 /** Atlas Cloud base URL env vars, checked in order. */
 export const ATLASCLOUD_BASE_URL_ENV_VARS = ["ATLASCLOUD_BASE_URL", "ATLAS_CLOUD_BASE_URL"] as const;
+
+/** Runcrate OpenAI-compatible API base URL. */
+export const RUNCRATE_BASE_URL = "https://api.runcrate.ai/v1";
 
 /**
  * Default request timeout for cloud OpenAI-compatible providers (10 minutes).

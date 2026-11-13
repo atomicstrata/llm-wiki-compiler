@@ -32,6 +32,7 @@ const { setEnv, restore } = createEnvSnapshot([
   "OPENAI_EMBEDDINGS_BASE_URL",
   "VOYAGE_API_KEY",
   "ANTHROPIC_API_KEY",
+  "RUNCRATE_API_KEY",
 ]);
 
 afterEach(restore);
@@ -97,6 +98,21 @@ describe("ensureProviderAvailable — the default path stays soft", () => {
     // errors top-down is not told to fix the chat key first and then hit this.
     setEnv({ LLMWIKI_PROVIDER: "openai", LLMWIKI_EMBEDDING_PROVIDER: "minimax" });
     expect(() => ensureProviderAvailable()).toThrow(/LLMWIKI_EMBEDDING_PROVIDER/);
+  });
+});
+
+describe("runcrate chat provider — embeddings need their own backend", () => {
+  it("rejects the default configuration before a refresh can consume retry attempts", () => {
+    setEnv({ LLMWIKI_PROVIDER: "runcrate", RUNCRATE_API_KEY: "k" });
+    expect(() => ensureCompileProviderAvailable()).toThrow(/LLMWIKI_EMBEDDING_PROVIDER/);
+    expect(() => ensureProviderAvailable()).toThrow(/LLMWIKI_EMBEDDING_PROVIDER/);
+  });
+
+  it("accepts disabled embeddings and an explicit supported backend", () => {
+    setEnv({ LLMWIKI_PROVIDER: "runcrate", RUNCRATE_API_KEY: "k", LLMWIKI_EMBEDDINGS: "off" });
+    expect(() => ensureCompileProviderAvailable()).not.toThrow();
+    setEnv({ LLMWIKI_PROVIDER: "runcrate", RUNCRATE_API_KEY: "k", LLMWIKI_EMBEDDINGS: undefined, LLMWIKI_EMBEDDING_PROVIDER: "ollama" });
+    expect(() => ensureCompileProviderAvailable()).not.toThrow();
   });
 });
 
