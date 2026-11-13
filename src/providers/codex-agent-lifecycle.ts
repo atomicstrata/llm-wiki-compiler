@@ -22,6 +22,7 @@ interface ActiveCodexProcess {
 }
 
 const activeProcesses = new Map<number, ActiveCodexProcess>();
+const cwdRemovals = new Map<string, Promise<void>>();
 const EXIT_WAIT_MS = 1_000;
 let interrupting = false;
 
@@ -68,13 +69,30 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Remove one invocation cwd, sharing a single in-flight removal between the
+ * provider's own cleanup and parent interruption. Both start within
+ * milliseconds of the child's exit, and two concurrent recursive removals of
+ * one tree race each other: under Bun one can settle before the tree is gone.
+ * The interrupt path exits right after its removal settles, so it must await
+ * the removal that actually finishes the tree.
+ */
+export function removeCodexCwd(cwd: string): Promise<void> {
+  const pending = cwdRemovals.get(cwd);
+  if (pending) return pending;
+  const removal = rm(cwd, { recursive: true, force: true })
+    .finally(() => cwdRemovals.delete(cwd));
+  cwdRemovals.set(cwd, removal);
+  return removal;
+}
+
 /** Gracefully stop, force the tree, await pipe closure, and clean its cwd. */
 async function stopForInterrupt(entry: ActiveCodexProcess): Promise<void> {
   signalCodexTree(entry.child, "SIGTERM");
   await delay(entry.graceMs);
   signalCodexTree(entry.child, "SIGKILL");
   await Promise.race([entry.closed, delay(EXIT_WAIT_MS)]);
-  await rm(entry.cwd, { recursive: true, force: true });
+  await removeCodexCwd(entry.cwd);
 }
 
 /** Own parent interruption while at least one detached Codex tree is live. */
