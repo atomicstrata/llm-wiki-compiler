@@ -8,8 +8,8 @@
  */
 
 import type { Command } from "commander";
-import { evalCommand, evalCacheClearCommand, evalCacheShowCommand, evalReportCommand, evalHistoryCommand, evalJudgementsCommand } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { addProviderOption, applyProviderOption, type ProviderOption } from "@atomicstrata/llmwiki-core/compiler-cli";
+import evalCommand, { evalCacheClearCommand, evalCacheShowCommand, evalReportCommand, evalHistoryCommand, evalJudgementsCommand } from "@atomicstrata/llmwiki-core/modules/commands/eval";
+import { addProviderOption, applyProviderOption, type ProviderOption } from "@atomicstrata/llmwiki-core/modules/cli/provider-option";
 
 /** Register the `eval cache` sub-group (`clear`, `show`) under the parent `eval` command. */
 function registerEvalCacheCommands(evalCmd: Command): void {
@@ -32,11 +32,9 @@ function registerEvalCacheCommands(evalCmd: Command): void {
     });
 }
 
-/** Register the `eval` command group (root eval + `cache`/`report`/`history`/`judgements`) on `program`. */
-export function registerEvalCommands(program: Command): void {
-  const evalCmd = addProviderOption(
-    program.command("eval").description("Evaluate wiki quality (health, citation coverage, LLM judge)"),
-  )
+/** Register the `eval` command group (root eval + `cache`/`report`/`history`/`judgements`). */
+export function registerEvalCommands(command: Command): void {
+  const evalCmd = addProviderOption(command)
     .option("--suite <level>", "fast (deterministic) or full (+ LLM judge)", "fast")
     .option("--out <format>", "terminal or json", "terminal")
     .option("--sample <n>", "number of citations to judge in full suite", "20")

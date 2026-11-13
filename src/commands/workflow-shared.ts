@@ -10,10 +10,10 @@
  * shared logic lives in exactly one place (no duplication, no behavior change).
  */
 
-import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { processTerminalLineIo } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { parseInputPairs, parseInputJsonObject } from "@atomicstrata/llmwiki-core/compiler-cli";
-export { parseJsonObject } from "@atomicstrata/llmwiki-core/compiler-cli";
+import * as output from "@atomicstrata/llmwiki-core/modules/utils/output";
+import { processTerminalLineIo } from "@atomicstrata/llmwiki-core/modules/utils/terminal-line";
+import { parseInputPairs, parseInputJsonObject } from "@atomicstrata/llmwiki-core/modules/cli/input-parsers";
+export { parseJsonObject } from "@atomicstrata/llmwiki-core/modules/cli/input-parsers";
 import type { RunStatus } from "../workflows/status.js";
 import type { WorkflowRun } from "../workflows/types.js";
 import type { TrustDecision } from "@atomicstrata/llmwiki-core/compiler-cli";

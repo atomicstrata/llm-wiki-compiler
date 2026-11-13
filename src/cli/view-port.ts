@@ -6,7 +6,7 @@
  * remain isolated and default to port 0 unless explicitly configured.
  */
 
-import { ENV_VIEW_PORT } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { ENV_VIEW_PORT } from "@atomicstrata/llmwiki-core/modules/utils/constants";
 
 /** Legal TCP port range bounds. */
 const MIN_PORT = 0;

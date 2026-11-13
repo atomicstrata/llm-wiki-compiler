@@ -149,7 +149,7 @@ describe("the embedding page scan keeps its permissive rule", () => {
     await put("wiki/concepts/untitled.md", "---\nsummary: none\n---\n");
     await fs.symlink(path.join(base, "outside.md"), at("wiki/concepts/leak.md"));
     await fs.symlink(at("wiki/concepts/alpha.md"), at("wiki/concepts/inside-link.md"));
-    const listed = (await fs.readdir(at("wiki/concepts"))).filter((name) => ["alpha.md", "inside-link.md"].includes(name));
+    const listed = (await fs.readdir(at("wiki/concepts"))).sort().filter((name) => ["alpha.md", "inside-link.md"].includes(name));
     expect(await slugs()).toEqual([...listed.map((name) => `concepts/${name.slice(0, -3)}`), "queries/question"]);
     expect(JSON.stringify(await collectNamespacedPageRecords(root))).not.toContain("LEAK");
   });
