@@ -222,7 +222,9 @@ workspace installation and ordered builds; no package publication is needed loca
 Core entry points share built chunks, including lock/error identities and a
 module-instance token. Composition rejects a host from a duplicate core instance.
 Core's `compiler-sdk` and `compiler-cli` support entries let the standard
-package compose services without bundling another private copy of core. The separately
+package compose services without bundling another private copy of core. The CLI
+imports each command from its own `modules/` entry and loads it only when that
+command runs; `serve` and `workflow` still compose through `compiler-cli`. The separately
 named `compiler-legacy-workflows` entry preserves the caller-held-lock start
 contract; it does not independently verify that the caller holds the lock.
 
