@@ -3,7 +3,7 @@
  * Covers constructor behavior, the default base URL, and the embed() fail-closed stubs.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { RuncrateProvider } from "../src/providers/runcrate.js";
 import { PROVIDER_MODELS, RUNCRATE_BASE_URL } from "../src/utils/constants.js";
 
