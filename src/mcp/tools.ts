@@ -31,18 +31,24 @@ import type { ArtifactRef } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { withQuiet } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { jsonResult, errorResult } from "./result.js";
 
-/** Register all 10 wiki tools on the given MCP server instance. */
-export function registerWikiTools(server: McpServer, root: string): void {
+/**
+ * Register the wiki tools on the given MCP server instance: all 10, or with
+ * `readOnly` only the five that never write a project file. `lint_wiki` is left
+ * out of those because it saves `.llmwiki/last-lint.json`, `query_wiki` because
+ * `save` publishes a page, and `run_eval` because `record` appends to history.
+ */
+export function registerWikiTools(server: McpServer, root: string, readOnly = false): void {
+  registerSearchTool(server, root);
+  registerReadTool(server, root);
+  registerStatusTool(server, root);
+  registerContextPackTool(server, root);
+  registerVerifyArtifactTool(server, root);
+  if (readOnly) return;
   registerIngestTool(server, root);
   registerCompileTool(server, root);
   registerQueryTool(server, root);
-  registerSearchTool(server, root);
-  registerReadTool(server, root);
   registerLintTool(server, root);
-  registerStatusTool(server, root);
-  registerContextPackTool(server, root);
   registerEvalTool(server, root);
-  registerVerifyArtifactTool(server, root);
 }
 
 function registerIngestTool(server: McpServer, root: string): void {
