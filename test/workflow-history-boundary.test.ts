@@ -42,6 +42,9 @@ const PACKAGE_ENTRIES: Record<string, string> = {
   "llm-wiki-compiler": "index.ts",
 };
 
+/** Core modules the CLI imports by their own path map straight onto src/. */
+const CORE_MODULES = "@atomicstrata/llmwiki-core/modules/";
+
 /** The core consumers whose passive imports must not reintroduce execution. */
 const PASSIVE_CONSUMERS = [
   "artifacts/apply.ts", "preparations/workflow-parent.ts", "profile/templates/corpus.ts",
@@ -71,6 +74,7 @@ async function snapshot(root: string): Promise<Array<[string, string | null]>> {
 function dependencies(file: string): string[] {
   return literalModuleImports(file).flatMap(specifier => {
     if (specifier.startsWith(".")) return [path.resolve(path.dirname(file), specifier.replace(/\.js$/, ".ts"))];
+    if (specifier.startsWith(CORE_MODULES)) return [path.join(SRC_DIR, `${specifier.slice(CORE_MODULES.length)}.ts`)];
     const entry = PACKAGE_ENTRIES[specifier];
     return entry ? [path.join(SRC_DIR, entry)] : [];
   });

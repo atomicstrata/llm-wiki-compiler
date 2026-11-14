@@ -24,10 +24,11 @@
  */
 
 import { scanPreparationInventory, type PreparationInventory } from "./capacity.js";
-import { readPreparationKeyEpoch, type PreparationKeyEpochRead } from "./key-epoch.js";
+import type { PreparationKeyEpochRead } from "./key-epoch.js";
+import { preparationPassReads } from "./pass-reads.js";
 import type { PreparationManifestV1 } from "./manifest-parse.js";
 import { bindingFor } from "./references.js";
-import { readPreparationRun, type PreparationRunRead } from "./run-store.js";
+import type { PreparationRunRead } from "./run-store.js";
 import { resolvePreparationReadReadiness } from "./service-readiness.js";
 import type { ReadReadinessV1 } from "./service-readiness.js";
 import type { PreparationRunBinding, PreparationRunState } from "./run-types.js";
@@ -171,11 +172,12 @@ export interface PreparationListReads {
  * closure calls the imported root-taking reader when it is asked, never earlier.
  */
 function diskPreparationListReads(root: string): PreparationListReads {
+  const pass = preparationPassReads(root);
   return {
     readReadiness: () => resolvePreparationReadReadiness(root),
-    scanInventory: () => scanPreparationInventory(root),
-    readKeyEpoch: () => readPreparationKeyEpoch(root),
-    readRun: (binding) => readPreparationRun(root, binding),
+    scanInventory: () => scanPreparationInventory(root, {}, pass),
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
   };
 }
 

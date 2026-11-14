@@ -180,7 +180,7 @@ describe("the lifecycle transition's under-lock write, disk and memory, from thr
 });
 
 describe("the bound transition's order, its unknown outcomes, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
   const batch = ".llmwiki/journal/<batch>.json";
 
   it("L5 traces one unbound transition exactly: replay, context, gate, audit repair, pre-flight size, the journalled page write, then the event", async () => {

@@ -33,7 +33,7 @@
 
 import {
   appendHandoffTransitionLocked, appendPreparationTransitionLocked, appendProjectedTransitionLocked,
-  handoffStartBinding, readPreparationRun, type PreparationRunContentProjector, type PreparationRunRead,
+  handoffStartBinding, type PreparationRunContentProjector, type PreparationRunRead,
 } from "./run-store.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import { LEGAL_EDGES, OWNER_ACTIVE_STATES } from "./run-validation.js";
@@ -49,10 +49,10 @@ import type { LifecyclePendingUnitV1 } from "./lifecycle-snapshot/compat.js";
 import { upsertPhaseSummary } from "./attempts/start.js";
 import { ownerFencesAttempt } from "./attempts/lease.js";
 import { scanPreparationInventory } from "./capacity.js";
-import { withPreparationLifecycleRead } from "./lifecycle-snapshot/read.js";
-import { readPreparationKey } from "./key-epoch.js";
+import { perBorrowLifecycleReads, type PreparationLifecycleReads } from "./lifecycle-snapshot/read.js";
 import { preparationManifestDigest, type PreparationManifestV1 } from "./manifest-parse.js";
 import type { PreparationInventory } from "./capacity.js";
+import type { PreparationScanOptions } from "./orphan-scan.js";
 import { assertBundleId, assertOperationRunId } from "../operation-bundles/ids.js";
 import { readOperationKey } from "../operation-bundles/key-epoch.js";
 import { readOperationManifest, type OperationManifestRead } from "../operation-bundles/manifest-store.js";
@@ -69,6 +69,7 @@ import type {
   AppendPreparationTransitionInput, PhaseSummaryV1, PreparationPrincipalV1,
   PreparationRunBinding, PreparationRunV1,
 } from "./run-types.js";
+import { preparationPassReads, type PreparationPassReads } from "./pass-reads.js";
 
 /** The eight closed attempt recovery classes (design section 16.4). */
 export type AttemptRecoveryClassification =
@@ -612,21 +613,85 @@ export async function settlePreparationHandoffsWith(steps: HandoffSettlementStep
 }
 
 /**
+ * What a settlement pass that WROTE NOTHING hands the command holding the same
+ * hold of the lock: the inventory it scanned and the reads it made. No write
+ * came between the scan and the hand-over, so both still describe the store.
+ * The command consumes them before its own first write and never after a
+ * release; the lifecycle capture behind the inventory is already closed.
+ */
+export interface WriteFreePreparationPass {
+  readonly inventory: PreparationInventory;
+  readonly reads: PreparationPassReads;
+}
+
+/** The pass one command runs on under its hold of the lock, and that pass's inventory scan. */
+export interface CommandPreparationPass {
+  readonly reads: PreparationPassReads;
+  scanInventory(options?: PreparationScanOptions): Promise<PreparationInventory>;
+}
+
+/** The pass a command runs on after a gated acquisition: `gated`'s reads, and `gated`'s inventory for the command's first default-options scan, which is the scan the command would take itself, under the same hold with nothing written since. */
+export function commandPreparationPass(root: string, gated: WriteFreePreparationPass | null): CommandPreparationPass {
+  const reads = gated?.reads ?? preparationPassReads(root);
+  let lent = gated?.inventory;
+  return {
+    reads,
+    scanInventory: async (options) => {
+      const inventory = options?.maxDirectoryEntriesForTest === undefined ? lent : undefined;
+      lent = undefined;
+      return inventory ?? scanPreparationInventory(root, options, reads);
+    },
+  };
+}
+
+function markingWrites(steps: PreparationRunSettlementSteps, mark: () => void): PreparationRunSettlementSteps {
+  const writing = <A extends unknown[], R>(write: (...args: A) => Promise<R>) =>
+    (...args: A): Promise<R> => { mark(); return write(...args); };
+  return {
+    readBundleManifest: steps.readBundleManifest, readOperationKeyEpoch: steps.readOperationKeyEpoch,
+    readOperationRun: steps.readOperationRun, cancellationRequested: steps.cancellationRequested,
+    appendTransition: writing(steps.appendTransition), appendHandoff: writing(steps.appendHandoff),
+    removeCancel: writing(steps.removeCancel), settleCancelledRun: writing(steps.settleCancelledRun),
+    carryAdvisoryIntoCancelling: writing(steps.carryAdvisoryIntoCancelling),
+  };
+}
+
+interface LocalSettlementPass {
+  readonly steps: HandoffSettlementSteps;
+  writeFree(): WriteFreePreparationPass | null;
+}
+
+/**
  * The LOCAL-DISK settlement collaborators for one project root, built per call:
  * each closure calls the incumbent root-taking function when it is asked, never
  * earlier. `settleRun` is the per-run settlement body over this root's
- * {@link localRunSettlementSteps}. Internal; in no package index.
+ * {@link localRunSettlementSteps}.
  */
-export function localHandoffSettlementSteps(root: string): HandoffSettlementSteps {
-  return {
-    scanInventory: () => scanPreparationInventory(root),
-    readKeyEpoch: async () => {
-      const key = await readPreparationKey(root);
-      return key.status === "ok" ? { status: "ok", keyEpochId: key.keyEpochId } : key;
+function localSettlementPass(root: string, lifecycle: PreparationLifecycleReads): LocalSettlementPass {
+  const pass = preparationPassReads(root, lifecycle);
+  let inventory: PreparationInventory | undefined;
+  let mayHaveWritten = false;
+  const runSteps = markingWrites(localRunSettlementSteps(root), () => { mayHaveWritten = true; });
+  const steps: HandoffSettlementSteps = {
+    scanInventory: async () => {
+      try {
+        return inventory = await scanPreparationInventory(root, {}, pass);
+      } finally {
+        lifecycle.close();
+      }
     },
-    readRun: (binding) => readPreparationRun(root, binding),
-    settleRun: (binding, run, at) => settleRunRecoveryWith(localRunSettlementSteps(root), binding, run, at),
+    readKeyEpoch: pass.readKeyEpoch,
+    readRun: pass.readRun,
+    settleRun: (binding, run, at) => settleRunRecoveryWith(runSteps, binding, run, at),
   };
+  return { steps, writeFree: () => (inventory === undefined || mayHaveWritten ? null : { inventory, reads: pass }) };
+}
+
+/** {@link localSettlementPass}'s steps alone. */
+export function localHandoffSettlementSteps(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): HandoffSettlementSteps {
+  return localSettlementPass(root, lifecycle).steps;
 }
 
 /**
@@ -647,12 +712,22 @@ export function localHandoffSettlementSteps(root: string): HandoffSettlementStep
  * what it can) so the iteration always reaches the runs behind a run it could not
  * advance.
  *
- * THE PASS ITSELF is {@link settlePreparationHandoffsWith}; this production entry keeps its signature and delegates over
- * {@link localHandoffSettlementSteps}. Its production caller is the mutation
+ * THE PASS ITSELF is {@link settlePreparationHandoffsWith}; this production entry delegates over
+ * {@link localHandoffSettlementSteps}. The gate hands in its pass's `lifecycle`,
+ * so the inventory scan is lent the capture the lifecycle leg already took. Its production caller is the mutation
  * recovery gate (`lock-gate.ts`, `settleHandoffs`), which still owns when it runs.
+ *
+ * A pass that wrote nothing is given to `handOver`, so the command that runs
+ * next under the same hold can take the store from it instead of scanning again.
  */
-export async function settlePreparationHandoffsLocked(root: string): Promise<void> {
-  return settlePreparationHandoffsWith(localHandoffSettlementSteps(root));
+export async function settlePreparationHandoffsLocked(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+  handOver?: (pass: WriteFreePreparationPass) => void,
+): Promise<void> {
+  const settlement = localSettlementPass(root, lifecycle);
+  await settlePreparationHandoffsWith(settlement.steps);
+  const unwritten = settlement.writeFree();
+  if (unwritten !== null) handOver?.(unwritten);
 }
 
 // Reported inside the state below, so a consumer must be able to name what it
@@ -712,9 +787,12 @@ export type PreparationLifecyclePendingState =
  *
  * The joined STATUS consumer named above still does not exist: nothing under
  * `src/commands/` renders this projection, and wiring that surface is remaining
- * Task 10 work. Only the gate consumer is real today.
+ * Task 10 work. Only the gate consumer is real today. The gate lends it its
+ * pass's `lifecycle`, so one capture serves this decision and the settlement scan.
  */
-export async function resolvePreparationLifecyclePending(root: string): Promise<PreparationLifecyclePendingState> {
+export async function resolvePreparationLifecyclePending(
+  root: string, lifecycle: PreparationLifecycleReads = perBorrowLifecycleReads(root),
+): Promise<PreparationLifecyclePendingState> {
   try {
     // One callback-scoped capture delegating to a pure projector: the projector
     // performs no scan of its own, so this decision cannot observe two states.
@@ -722,7 +800,7 @@ export async function resolvePreparationLifecyclePending(root: string): Promise<
     // snapshot cannot attribute the fault to one registry, so the origin is
     // unknown rather than confined. Naming a registry here would be a guess that
     // a consumer could act on.
-    return await withPreparationLifecycleRead(root, (read) => (read.status === "unavailable"
+    return await lifecycle.borrow((read) => (read.status === "unavailable"
       ? { status: "unavailable" as const, detail: read.detail, registries: [] }
       : projectLifecyclePending(read.snapshot)));
   } catch (error) {

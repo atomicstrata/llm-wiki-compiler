@@ -48,7 +48,7 @@ import { preparationManifestDigest } from "./manifest-parse.js";
 import { preparationRunPredecessor } from "./run-integrity.js";
 import {
   appendHandoffStartedTransitionLocked, appendHandoffStartedTransitionWith, appendHandoffTransitionLocked,
-  appendHandoffTransitionWith, handoffStartBinding, readPreparationRun, readPreparationRunFrom,
+  appendHandoffTransitionWith, handoffStartBinding, preparationRunHolds, readPreparationRun, readPreparationRunFrom,
   type PreparationRunLeafReads, type PreparationRunWriteSteps,
 } from "./run-store.js";
 import {
@@ -141,19 +141,21 @@ export interface HandoffSteps {
   readonly appendHandoff: Rootless<typeof appendHandoffTransitionLocked>;
 }
 
-/** LOCAL DISK AND HOST. The incumbent root forms for `root`, each called when asked with its old arguments. */
 function diskHandoffSteps(root: string): HandoffSteps {
+  const holds = preparationRunHolds(root);
   return {
-    lock: { acquire: () => acquireMutationLockBlocking(root, "handoff"), release: () => releaseLock(root) },
-    readRun: (binding) => readPreparationRun(root, binding),
+    lock: { acquire: async () => { await acquireMutationLockBlocking(root, "handoff"); holds.renew(); }, release: () => releaseLock(root) },
+    readRun: (binding) => readPreparationRun(root, binding, holds.current()),
     cancellationRequested: (workspaceId, runId) => preparationCancellationRequested(root, workspaceId, runId),
     readPreparationManifest: (workspaceId, preparationId) => readPreparationManifest(root, workspaceId, preparationId),
     readOperationManifest: (workspaceId, bundleId) => readOperationManifest(root, workspaceId, bundleId),
     readOperationKey: () => readOperationKey(root),
     readOperationRun: (binding) => readOperationRun(root, binding),
     stage: (request) => stageOperationBundleLocked(root, request),
-    appendStarted: (binding, expected, input) => appendHandoffStartedTransitionLocked(root, binding, expected, input),
-    appendHandoff: (binding, expected, input) => appendHandoffTransitionLocked(root, binding, expected, input),
+    appendStarted: (binding, expected, input) =>
+      holds.writing((hold) => appendHandoffStartedTransitionLocked(root, binding, expected, input, hold)),
+    appendHandoff: (binding, expected, input) =>
+      holds.writing((hold) => appendHandoffTransitionLocked(root, binding, expected, input, hold)),
   };
 }
 

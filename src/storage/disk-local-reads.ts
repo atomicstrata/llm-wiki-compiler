@@ -2,10 +2,9 @@
  * @file src/storage/disk-local-reads.ts
  * @description The local-directory implementation of {@link LegacyLocalReads}.
  *
- * Each method makes the Node call the compile made inline before the binding
- * existed, on the same absolute path, and lets that call's own error through
- * untouched. The two confined reads are the incumbent exact-directory,
- * handle-bound, no-follow page readers, moved here unchanged: the root is
+ * Each method makes one Node call on the absolute path under the root and lets
+ * that call's own error through untouched. The two confined reads are the
+ * exact-directory, handle-bound, no-follow page readers: the root is
  * canonicalized, the file must resolve inside its expected directory, and the
  * bytes come from the opened handle. An escaping path is dropped BEFORE any
  * read, so out-of-tree content can never reach a prompt or a planned write.
@@ -24,8 +23,8 @@
  * resolves and confines NOTHING, and checks no root or parent.
  *
  * {@link diskLocalEntityScans} is the local-directory implementation of
- * {@link LegacyLocalEntityScans}: the root, directory and entry checks the
- * shared entity scan made inline before, in the same order, unchanged.
+ * {@link LegacyLocalEntityScans}: the root, directory and entry checks of the
+ * shared entity scan, in the scan's order.
  */
 
 import { existsSync, type Dirent, type Stats } from "node:fs";
@@ -33,9 +32,10 @@ import { lstat, readFile, readdir } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
-  readConfinedLeaf, readConfinedPage, readConfinedPageWith, type ConfinedPageRead, type ReadConfinedPageOptions,
+  readConfinedLeaf, readConfinedPage, readConfinedPageOutcome, readConfinedPageWith, type ConfinedPageRead, type ReadConfinedPageOptions,
 } from "../utils/confined-read.js";
-import { isInsideDir, resolveRealDir, safeRealpath } from "../utils/path-confine.js";
+import { fileIdentityOf, sharedConfinedRead, type IdentifiedRead } from "./shared-page-reads.js";
+import { isInsideDir, realpathOnce, resolveRealDir, safeRealpath } from "../utils/path-confine.js";
 import { listDirectoryNames } from "./disk-guarded-leaves.js";
 import { readLocationPrefix, readLocationText } from "./disk-locations.js";
 import type {
@@ -74,15 +74,28 @@ export async function locationKindNoFollow(location: string): Promise<LocalEntry
  * realpath is missing or escapes the dir (never reads the target), or
  * `{dropped:"unreadable"}` if the confined read itself fails closed.
  */
-export async function readConfinedExactFile(
+export function readConfinedExactFile(
   expectedDir: string,
   filePath: string,
 ): Promise<ConfinedReadResult> {
+  return sharedConfinedRead(expectedDir, filePath, () => readConfinedExactFileIdentified(expectedDir, filePath));
+}
+
+async function readConfinedExactFileIdentified(expectedDir: string, filePath: string): Promise<IdentifiedRead> {
+  const direct = await readConfinedPageWith(filePath, expectedDir, async (handle, opened) => ({
+    content: await handle.readFile("utf-8"),
+    identity: fileIdentityOf(opened),
+  }));
+  if (direct.kind === "ok") return { result: { content: direct.value.content }, identity: direct.value.identity };
+  if (direct.kind === "unreadable") return { result: { dropped: "unreadable" }, identity: null };
+  return { result: await readThroughInDirLink(expectedDir, filePath), identity: null };
+}
+
+async function readThroughInDirLink(expectedDir: string, filePath: string): Promise<ConfinedReadResult> {
   const real = await safeRealpath(filePath);
   if (!real || !isInsideDir(real, expectedDir)) return { dropped: "escapes-dir" };
-  const content = await readConfinedPage(real, expectedDir);
-  if (content === null) return { dropped: "unreadable" };
-  return { content };
+  const content = real === filePath ? null : await readConfinedPage(real, expectedDir);
+  return content === null ? { dropped: "unreadable" } : { content };
 }
 
 /**
@@ -94,13 +107,9 @@ export async function readConfinedExactFile(
  * as it needs. The primitive closes the handle in `finally`; `read` must not.
  * `opts` pass through unchanged, `strictIo` included. A confinement refusal is
  * `absent`; a raw I/O error from the open, from the checks made on the open
- * handle, or from `read`, is `unreadable` with its cause.
- *
- * ONE CASE REJECTS. The primitive first resolves `capturedRealpath` again,
- * before it opens anything and outside its `try`. With `strictIo` that first
- * resolve REJECTS with the raw error on a genuine fault (anything other than
- * `ENOENT`, `ENOTDIR` or `ELOOP`, for example `EACCES`). Without `strictIo`
- * every failure of that resolve is `absent`, and nothing rejects.
+ * handle, or from `read`, is `unreadable` with its cause. Nothing rejects:
+ * with `strictIo`, a genuine fault re-resolving the path after the open (any
+ * error other than `ENOENT`, `ENOTDIR` or `ELOOP`) is `unreadable` too.
  */
 export function readConfinedPageThrough<T>(
   capturedRealpath: string,
@@ -125,22 +134,13 @@ export function readConfinedPageText(capturedRealpath: string, expectedCanonical
   return readConfinedPage(capturedRealpath, expectedCanonicalDir);
 }
 
-/** `<root>/<relDir>/<slug>.md`, confined to `<canonical root>/<relDir>`. */
-async function readDiskConfinedPage(root: string, relDir: string, slug: string): Promise<ConfinedReadResult> {
-  const canonicalRoot = await safeRealpath(root);
-  if (!canonicalRoot) return { dropped: "no-root" };
-  const expectedDir = path.join(canonicalRoot, relDir);
-  const filePath = path.join(expectedDir, `${slug}.md`);
-  return readConfinedExactFile(expectedDir, filePath);
-}
-
-/** `<root>/<relPath>`, confined to its own parent directory under the canonical root. */
-async function readDiskConfinedFile(root: string, relPath: string): Promise<ConfinedReadResult> {
-  const canonicalRoot = await safeRealpath(root);
-  if (!canonicalRoot) return { dropped: "no-root" };
-  const expectedDir = path.join(canonicalRoot, path.dirname(relPath));
-  const filePath = path.join(canonicalRoot, relPath);
-  return readConfinedExactFile(expectedDir, filePath);
+function confinedReaderUnder(root: string): (relDir: string, relPath: string) => Promise<ConfinedReadResult> {
+  const canonicalRoot = realpathOnce(root);
+  return async (relDir, relPath) => {
+    const real = await canonicalRoot();
+    if (!real) return { dropped: "no-root" };
+    return readConfinedExactFile(path.join(real, relDir), path.join(real, relPath));
+  };
 }
 
 /** Listings anchored at an already-verified canonical directory. */
@@ -164,6 +164,7 @@ function diskDirectory(canonicalDir: string): LocalDirectory {
  */
 export function diskLocalReads(root: string): LegacyLocalReads {
   const locate = (relPath: string): string => path.join(root, relPath);
+  const readConfined = confinedReaderUnder(root);
   return {
     readText: (relPath) => readFile(locate(relPath), "utf-8"),
     exists: async (relPath) => existsSync(locate(relPath)),
@@ -173,8 +174,8 @@ export function diskLocalReads(root: string): LegacyLocalReads {
       const canonicalDir = await resolveRealDir(root, relDir);
       return canonicalDir === null ? null : diskDirectory(canonicalDir);
     },
-    readConfinedPage: (relDir, slug) => readDiskConfinedPage(root, relDir, slug),
-    readConfinedFile: (relPath) => readDiskConfinedFile(root, relPath),
+    readConfinedPage: (relDir, slug) => readConfined(relDir, path.join(relDir, `${slug}.md`)),
+    readConfinedFile: (relPath) => readConfined(path.dirname(relPath), relPath),
     locate,
   };
 }

@@ -26,7 +26,7 @@ import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
 import {
   isMalformedCitationEntry,
   parseCitationLineRanges,
-  parseFrontmatter,
+  frontmatterOf,
   splitCitationMarker,
 } from "../utils/markdown.js";
 import { SOURCES_DIR } from "../utils/constants.js";
@@ -76,7 +76,7 @@ export async function checkBrokenCitationsFrom(sources: CitationLintSources): Pr
   const lookup = directoryCitationLookup({ reads: sources.cited, relDir: SOURCES_DIR }, new Map<string, number>());
 
   for (const page of pages) {
-    const { meta } = parseFrontmatter(page.content);
+    const { meta } = frontmatterOf(page);
     // Imported pages cite EXTERNAL bundle sources (not copied into sources/), so
     // local source-existence does not apply — exempt them from broken-citation.
     if (meta.provenanceState === "imported") continue;

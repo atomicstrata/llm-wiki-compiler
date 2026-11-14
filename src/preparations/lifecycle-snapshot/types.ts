@@ -8,6 +8,7 @@
 /** Public state of the project preparation-key epoch. */
 export type PreparationLifecycleKeyStateV1 =
   | { readonly status: "absent" }
+  | { readonly status: "unobserved" }
   | { readonly status: "unavailable" }
   | { readonly status: "ok"; readonly keyEpochId: string };
 

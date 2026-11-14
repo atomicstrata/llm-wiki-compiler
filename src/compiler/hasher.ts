@@ -14,6 +14,7 @@ import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
 import { SOURCES_DIR } from "../utils/constants.js";
 import type { WikiState, SourceChange } from "../utils/types.js";
 import { listSelectedSourceFilesFrom } from "../sources/scan.js";
+import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { isSourceSelected, loadSourceSelectionFrom, type SourceSelection } from "../sources/selection.js";
 
 // Re-exported where `hashFile` callers have always imported it from.
@@ -39,7 +40,7 @@ export async function hashFile(filePath: string): Promise<string> {
  * Reads one source's text for HASHING, by its project-relative path
  * (`sources/<file>`). Kept apart from the generic content reads so the local
  * disk can hash without blocking (see {@link diskSourceHashText}) while every
- * other page and configuration read keeps its incumbent behaviour.
+ * other page and configuration read goes through the ordinary binding.
  */
 export type SourceHashText = (relPath: string) => Promise<string>;
 
@@ -84,8 +85,9 @@ export async function detectChangesFrom(
   const selection = await loadSourceSelectionFrom(reads);
   const currentFiles = await listSelectedSourceFilesFrom(reads, selection);
   const hashed: HashedSource[] = [];
-  for (const file of currentFiles) {
-    hashed.push({ file, hash: await hashSourceFrom(hashText, file) });
+  const pending = prefetchInOrder(currentFiles, (file) => hashSourceFrom(hashText, file));
+  for (const [index, file] of currentFiles.entries()) {
+    hashed.push({ file, hash: await pending[index] });
   }
   return changesFromHashes(hashed, prevState, selection);
 }

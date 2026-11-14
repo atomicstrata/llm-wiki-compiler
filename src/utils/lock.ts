@@ -108,6 +108,7 @@ export interface LockHost {
   park(key: string, release: () => void): void;
   /** Release and forget the permit parked for `key`, if any. Local: the process's permit map. */
   releaseParked(key: string): void;
+  hasParked(): boolean;
   /** Emit one status line. Local: `output.status(icon, message)`. */
   status(icon: string, message: string): void;
 }
@@ -156,6 +157,7 @@ const localLockHost: LockHost = Object.freeze({
     blockingQueueReleases.get(key)?.();
     blockingQueueReleases.delete(key);
   },
+  hasParked: () => blockingQueueReleases.size > 0,
   status: (icon: string, message: string) => output.status(icon, message),
 });
 
@@ -280,26 +282,28 @@ export async function acquireLockFrom(
   const lockPath = lockFileIn(privateDir);
 
   for (let attempt = 0; attempt < MAX_ACQUIRE_ATTEMPTS; attempt++) {
-    // Try create-only publication — fails if the name is already taken
-    const created = await tryCreateLock(io, host, lockPath, options.hooks);
-    if (created) return true;
-
-    // Lock exists. Check if the holding process is dead.
-    const stale = await isLockStale(io, host, lockPath);
-    if (!stale) {
+    const outcome = await attemptAcquire(io, host, lockPath, options.hooks);
+    if (outcome === "acquired") return true;
+    if (outcome === "busy") {
       if (!options.quiet) host.status("!", output.warn("Another compilation is running."));
       return false;
     }
-
-    // Stale lock — serialize reclamation via a second lock.
-    const reclaimed = await reclaimStaleLock(io, host, lockPath);
-    if (reclaimed) return true;
-
-    // Reclamation failed (e.g. cleaned up stale reclaim lock). Retry.
   }
 
   if (!options.quiet) host.status("!", output.warn("Could not acquire lock after retrying."));
   return false;
+}
+
+async function attemptAcquire(
+  io: LockIo, host: LockHost, lockPath: string, hooks?: LockPublicationHooks,
+): Promise<"acquired" | "busy" | "retry"> {
+  if (await tryCreateLock(io, host, lockPath, hooks)) return "acquired";
+
+  const holder = await lockHolderState(io, host, lockPath);
+  if (holder === "absent") return "retry";
+  if (holder === "live") return "busy";
+
+  return (await reclaimStaleLock(io, host, lockPath)) ? "acquired" : "retry";
 }
 
 /**
@@ -317,9 +321,7 @@ async function reclaimStaleLock(io: LockIo, host: LockHost, lockPath: string): P
   if (!gotReclaimLock) return false;
 
   try {
-    // Re-verify under exclusive reclamation access.
-    // Another reclaimer may have already fixed the main lock.
-    if (!(await isLockStale(io, host, lockPath))) {
+    if ((await lockHolderState(io, host, lockPath)) !== "stale") {
       return false;
     }
 
@@ -352,8 +354,7 @@ async function reclaimStaleLock(io: LockIo, host: LockHost, lockPath: string): P
 async function acquireReclaimLock(io: LockIo, host: LockHost, reclaimPath: string): Promise<boolean> {
   if (await tryCreateLock(io, host, reclaimPath)) return true;
 
-  // Reclaim lock exists. If its holder is alive, back off.
-  if (!(await isLockStale(io, host, reclaimPath))) return false;
+  if ((await lockHolderState(io, host, reclaimPath)) !== "stale") return false;
 
   // Stale reclaim lock — clean it up but do NOT retry in this call.
   // Retrying here would reintroduce the unlink+create race.
@@ -369,7 +370,7 @@ async function acquireReclaimLock(io: LockIo, host: LockHost, reclaimPath: strin
  *
  * The record is linked into place COMPLETE — see {@link publishLockRecordFrom}. The
  * previous create-then-write left the authoritative name briefly zero-length,
- * and an empty leaf is precisely what {@link isLockStale} reports as stale, so a
+ * and an empty leaf is precisely what {@link lockHolderState} reports as stale, so a
  * contender could reclaim a lock from a process that was still taking it and
  * both would proceed. Shrinking that window was not enough; publication removes
  * it. The same rule serves the reclaim lock, which acquires through this
@@ -389,39 +390,49 @@ async function tryCreateLock(io: LockIo, host: LockHost, lockPath: string, hooks
  * read oracle + the unbounded-target DoS), `fstat`s the HANDLE requiring a REGULAR
  * file, and enforces the small {@link MAX_LOCK_FILE_BYTES} cap before reading. The
  * raw text is then parsed by {@link parseOwner} (new `{pid, startTime}` JSON OR a
- * legacy bare PID). The single hardened leaf reader shared by {@link isLockStale}
- * (stale check) and {@link releaseLock} (ownership guard), so neither follows nor
- * over-reads the leaf.
+ * legacy bare PID). {@link releaseLock}'s ownership guard; {@link lockHolderState}
+ * makes the same capped read but keeps ABSENT apart from unreadable.
  */
 async function readLockOwner(io: LockIo, lockPath: string): Promise<ReturnType<typeof parseOwner>> {
   // Absent (ENOENT), a symlinked leaf, a non-regular leaf, an oversize leaf and a
   // failed stat or read are ALL "no readable owner": this reader has never told
   // absent from unreadable, so both of the storage read's refusals map to null.
   const read = await io.readLeafCapped(lockPath, MAX_LOCK_FILE_BYTES);
-  if (read.kind !== "ok") return null;
+  return read.kind === "ok" ? parseOwnerOrNull(read.body) : null;
+}
+
+function parseOwnerOrNull(body: string): LockOwner | null {
   try {
-    return parseOwner(read.body);
+    return parseOwner(body);
   } catch {
     return null;
   }
 }
 
+type LockHolderState = "absent" | "live" | "stale";
+
 /**
- * Check if an existing lock is stale (its holder no longer holds it).
+ * Classify the holder of an existing lock leaf.
  *
- * The leaf is read through {@link readLockOwner} (no-follow + fstat-capped), so a
- * `null` owner (absent / symlinked / oversize / non-regular / unparseable) is
- * stale. A readable owner is judged by the host's liveness classifier
- * ({@link isLockRecordStale} locally): a dead PID is stale (unchanged), AND —
- * closing the PID-reuse wedge — a LIVE PID whose recorded start time differs from
- * the live process's current start time is ALSO stale. A legacy leaf (bare PID, no
- * start time) keeps the PID-only behavior. The reclaim flow is unchanged — it
- * still keys off this boolean.
+ * ABSENT is its own answer, never "stale". A lock that vanished between a failed
+ * publish and this read was RELEASED, and a free name can be published by any
+ * contender at any moment without the reclaim lock. Treating it as stale sent
+ * the reclaimer on to unlink whatever was at the name by then — a fresh, live
+ * holder's record — and republish its own, so two processes held the lock.
+ *
+ * A present leaf whose owner cannot be read (symlinked / oversize / non-regular /
+ * unparseable) is stale, or a corrupt lock would strand the project. A readable
+ * owner is judged by the host's liveness classifier ({@link isLockRecordStale}
+ * locally): a dead PID, or a live PID whose recorded start time differs from the
+ * live process's (PID reuse), is stale. A legacy bare-PID leaf keeps PID-only
+ * behavior.
  */
-async function isLockStale(io: LockIo, host: LockHost, lockPath: string): Promise<boolean> {
-  const owner = await readLockOwner(io, lockPath);
-  if (owner === null) return true;
-  return host.isOwnerProcessStale(owner);
+async function lockHolderState(io: LockIo, host: LockHost, lockPath: string): Promise<LockHolderState> {
+  const read = await io.readLeafCapped(lockPath, MAX_LOCK_FILE_BYTES);
+  if (read.kind === "absent") return "absent";
+  const owner = read.kind === "ok" ? parseOwnerOrNull(read.body) : null;
+  if (owner === null) return "stale";
+  return host.isOwnerProcessStale(owner) ? "stale" : "live";
 }
 
 /**
@@ -454,10 +465,10 @@ export async function releaseLock(root: string): Promise<void> {
   return releaseLockFrom(diskLockIo, localLockHost, root);
 }
 
-/** THE ONE BODY of {@link releaseLock}, over the raw I/O and the host it is handed. Releases the parked queue permit on EVERY exit. */
+/** THE ONE BODY of {@link releaseLock}, over the raw I/O and the host it is handed. */
 export async function releaseLockFrom(io: LockIo, host: LockHost, root: string): Promise<void> {
-  const queueKey = await lockQueueKey(io, root);
-  const releaseQueue = (): void => host.releaseParked(queueKey);
+  const queueKey = host.hasParked() ? await lockQueueKey(io, root) : null;
+  const releaseQueue = (): void => { if (queueKey !== null) host.releaseParked(queueKey); };
   let privateDir: string | null;
   try {
     privateDir = await resolveExistingConfinedPrivateDirFrom(io, root);

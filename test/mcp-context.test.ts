@@ -24,12 +24,8 @@ import { writeFile } from "fs/promises";
 import path from "path";
 import { buildContextPack } from "../src/context/build.js";
 import { writePage } from "./fixtures/write-page.js";
-import {
-  buildServer,
-  callTool,
-  snapshotWorkspace,
-  useMcpRoot,
-} from "./fixtures/mcp-test-env.js";
+import { snapshotWorkspace, useMcpRoot } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import {
   sha256Hex,
   writeSourceFile,

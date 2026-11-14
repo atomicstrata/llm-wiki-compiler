@@ -46,7 +46,7 @@ import {
   maybeSaveQueryPage, maybeSaveQueryPageFrom, queryPublicationStepsOver, type QueryPublicationSources,
 } from "../../src/commands/query-publication.js";
 import { loadNonDefaultProfile, loadNonDefaultProfileFrom } from "../../src/profile/block.js";
-import { CANDIDATES_DIR, CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR } from "../../src/utils/constants.js";
+import { CANDIDATES_ARCHIVE_DIR, CANDIDATES_DIR, CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR } from "../../src/utils/constants.js";
 import { updateEmbeddingsLockedCore } from "../../src/utils/embeddings.js";
 import { PAPERS_PROFILE } from "../fixtures/typed-grounding.js";
 import { writeProfileFile } from "../fixtures/profile-fixtures.js";
@@ -148,9 +148,14 @@ function hold(project: Copy, rel: string, text: string): void {
 /** The candidate store over the mutable copy, under a memory project root; nothing here decides custody. */
 function candidateStoreOf(project: Copy, note: Note): CandidatePublicationStore {
   const relOf = (location: string): string => path.posix.relative("/memory/project", location);
+  const located = (relDir: string): string | null => project.listings.has(relDir) ? `/memory/project/${relDir}` : null;
   return {
-    assertNamespacesHealthy: async () => { note("health"); },
-    ownedDirectory: async (relDir) => { note(`dir ${relDir}`); return project.listings.has(relDir) ? `/memory/project/${relDir}` : null; },
+    assertNamespacesHealthy: async () => {
+      const [pending, archive] = [CANDIDATES_DIR, CANDIDATES_ARCHIVE_DIR].map(located);
+      note("health");
+      return { pending: pending ?? null, archive: archive ?? null };
+    },
+    ownedDirectory: async (relDir) => { note(`dir ${relDir}`); return located(relDir); },
     leafPresent: async (dir, leafName) => { note(`present ${leafName}`); return project.files.has(`${relOf(dir)}/${leafName}`); },
     createPending: async (id, text, hooks) => {
       note("create");

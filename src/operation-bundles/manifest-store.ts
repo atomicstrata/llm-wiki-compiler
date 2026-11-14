@@ -27,6 +27,7 @@ import {
 import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
 import { MAX_MANIFEST_BYTES } from "./constants.js";
 import { readDurableOperationLeafBuffer } from "./durable-leaf.js";
+import type { ScannedLeafBytes } from "../utils/scanned-leaf-bytes.js";
 import type { BundleId } from "./ids.js";
 import { parseOperationManifest } from "./manifest-parse.js";
 import { operationPaths } from "./paths.js";
@@ -99,12 +100,12 @@ export interface OperationManifestLeafReads {
 }
 
 /** The local-disk manifest leaves for one project root, built per call. In no package index. */
-export function diskOperationManifestLeafReads(root: string): OperationManifestLeafReads {
+export function diskOperationManifestLeafReads(root: string, scanned?: ScannedLeafBytes): OperationManifestLeafReads {
   return {
     manifestLeavesIn: (workspaceId) => {
       const paths = operationPaths(root, workspaceId);
       return (bundleId, maxBytes) => readDurableOperationLeafBuffer(
-        root, paths.manifestFile(bundleId), paths.bundleRoot(bundleId), maxBytes);
+        root, paths.manifestFile(bundleId), paths.bundleRoot(bundleId), maxBytes, scanned);
     },
   };
 }
@@ -114,8 +115,9 @@ export async function readOperationManifest(
   root: string,
   workspaceId: string,
   bundleId: BundleId,
+  scanned?: ScannedLeafBytes,
 ): Promise<OperationManifestRead> {
-  return readOperationManifestFrom(diskOperationManifestLeafReads(root), workspaceId, bundleId);
+  return readOperationManifestFrom(diskOperationManifestLeafReads(root, scanned), workspaceId, bundleId);
 }
 
 /** {@link readOperationManifest} over the reader's own leaves: the one body. */

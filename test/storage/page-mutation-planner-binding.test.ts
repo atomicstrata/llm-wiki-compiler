@@ -142,13 +142,14 @@ describe("the page-mutation planner over a copied project, with the minting dire
     expect(agent!.checks.find((check) => check.code === "resource-limit")!.message).toBe(`body ${BIG.length} chars exceeds cap of ${MAX_SOURCE_CHARS}`);
   });
 
-  it("P5 issues both confinement probes before the collision presence probe, and probes presence for the create choice only on a live write (memory only)", async () => {
+  // One plan asks each distinct probe once: the floor, the collision check and the create choice share the answers.
+  it("P5 confines the target once before the collision presence probe, and the create choice reuses that presence (memory only)", async () => {
     const [free, collide] = [[], []] as string[][];
     await memoryPlan(memoryProbesOf(seededCopy(), free))(STEPS[0]!);
     await memoryPlan(memoryProbesOf(seededCopy(), collide))(STEPS[1]!);
     const at = (slug: string) => [`confine ${native("wiki", "concepts", `${slug}.md`)}`, `present wiki/concepts/${slug}.md`];
-    expect(free).toEqual([at("fresh")[0], at("fresh")[0], at("fresh")[1], ...at("fresh")]);
-    expect(collide).toEqual([at("existing")[0], at("existing")[0], at("existing")[1]]);
+    expect(free).toEqual(at("fresh"));
+    expect(collide).toEqual(at("existing"));
   });
 
   it("P6 blocks on a confinement fault and reads a presence fault as free, without short-circuiting the floor (memory only)", async () => {

@@ -33,10 +33,12 @@ import type {
 } from "../../src/products/service.js";
 import type { BuiltProductPackage } from "./product-package-fixture.js";
 import {
-  activatedProject, buildVerticalProduct, gatedVerticalPack, misplacedEntityProduct,
-  undeclaredTargetVerticalPack, verticalClock, verticalService,
-  VERTICAL_ACTION_ID, VERTICAL_CLOCK_YEAR, VERTICAL_WORKSPACE_ID,
+  activatedProject, verticalClock, verticalService, VERTICAL_CLOCK_YEAR,
 } from "./product-vertical-fixture.js";
+import {
+  buildVerticalProduct, gatedVerticalPack, misplacedEntityProduct,
+  undeclaredTargetVerticalPack, VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID,
+} from "./product-vertical-package.js";
 
 /** One invocation request whose nested input record the caller still owns. */
 function requestFor(topic: string): ProductInvocationRequestV1 {

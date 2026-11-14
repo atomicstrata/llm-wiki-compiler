@@ -4,6 +4,13 @@
  * native JSON parsing can silently collapse them.
  */
 
+const JSON_NUMBER = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
+const STRING_STOP = /["\\\u0000-\u001f]/g;
+const NON_ASCII_SPACE = /\s/;
+const QUOTE = 0x22;
+const BACKSLASH = 0x5c;
+const FIRST_NON_ASCII_SPACE = 0xa0;
+
 /** Parse bounded JSON after validating depth, syntax, and key uniqueness. */
 export function parseBoundedUniqueJson(text: string, maxBytes: number, maxDepth = 32): unknown {
   if (Buffer.byteLength(text, "utf8") > maxBytes) throw new Error("signed JSON exceeds its byte cap");
@@ -76,13 +83,24 @@ class JsonShapeScanner {
     this.skipSpace();
     const start = this.position;
     if (this.text[this.position++] !== '"') this.fail("expected JSON string");
-    while (this.position < this.text.length) {
-      const char = this.text[this.position++];
-      if (char === '"') return JSON.parse(this.text.slice(start, this.position)) as string;
-      if (char === "\\") this.scanEscape();
-      else if (char.charCodeAt(0) < 0x20) this.fail("control character in JSON string");
+    let escaped = false;
+    while (true) {
+      STRING_STOP.lastIndex = this.position;
+      if (!STRING_STOP.test(this.text)) break;
+      this.position = STRING_STOP.lastIndex;
+      const code = this.text.charCodeAt(this.position - 1);
+      if (code === QUOTE) return this.stringValue(start, escaped);
+      if (code !== BACKSLASH) this.fail("control character in JSON string");
+      escaped = true;
+      this.scanEscape();
     }
+    this.position = this.text.length;
     this.fail("unterminated JSON string");
+  }
+
+  private stringValue(start: number, escaped: boolean): string {
+    const literal = this.text.slice(start, this.position);
+    return escaped ? JSON.parse(literal) as string : literal.slice(1, -1);
   }
 
   private scanEscape(): void {
@@ -95,10 +113,9 @@ class JsonShapeScanner {
   }
 
   private scanNumber(): void {
-    const rest = this.text.slice(this.position);
-    const match = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(rest);
-    if (!match) this.fail("invalid JSON number");
-    this.position += match[0].length;
+    JSON_NUMBER.lastIndex = this.position;
+    if (!JSON_NUMBER.test(this.text)) this.fail("invalid JSON number");
+    this.position = JSON_NUMBER.lastIndex;
   }
 
   private scanLiteral(literal: string): void {
@@ -119,7 +136,7 @@ class JsonShapeScanner {
   }
 
   private skipSpace(): void {
-    while (/\s/.test(this.text[this.position] ?? "")) this.position++;
+    while (this.position < this.text.length && isSpace(this.text.charCodeAt(this.position))) this.position++;
   }
 
   private fail(message: string): never {
@@ -129,4 +146,9 @@ class JsonShapeScanner {
 
 function isDigit(char: string | undefined): boolean {
   return char !== undefined && char >= "0" && char <= "9";
+}
+
+function isSpace(code: number): boolean {
+  if (code < FIRST_NON_ASCII_SPACE) return code === 0x20 || (code >= 0x09 && code <= 0x0d);
+  return NON_ASCII_SPACE.test(String.fromCharCode(code));
 }

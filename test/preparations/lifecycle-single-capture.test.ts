@@ -17,7 +17,9 @@
  *
  * This counts exact registry-root `opendir` calls on the real production path
  * rather than asserting structure, because structure and parity cannot express
- * "once". It fails at two captures and passes only at one.
+ * "once". It fails at two captures and passes only at one. The gate pass is
+ * counted the same way: its lifecycle leg and its settlement scan share one
+ * capture, under one hold of the lock, before the settlement writes.
  */
 
 import { describe, expect, it, vi } from "bun:test";
@@ -55,6 +57,8 @@ import {
   lifecycleSnapshotFixture, writeQuarantineReceipts,
 } from "./lifecycle-snapshot-fixture.js";
 import { resolvePreparationLifecyclePending } from "../../src/preparations/recovery.js";
+import { acquireMutationLock } from "../../src/operation-bundles/lock-gate.js";
+import { releaseLock } from "../../src/utils/lock.js";
 
 /**
  * Exact `opendir` count for one physical lifecycle registry root. Matched by
@@ -159,6 +163,25 @@ describe("one lifecycle capture per complete decision", () => {
     await populatedRoot(root.dir);
     listingProbe.calls.length = 0;
     await resolvePreparationLifecyclePending(root.dir);
+    expect({
+      quarantine: rootOpens("preparation-quarantine"),
+      prune: rootOpens("preparation-prune"),
+    }).toEqual({ quarantine: 1, prune: 1 });
+  });
+});
+
+describe("one lifecycle capture per gate pass", () => {
+  const root = useTempRoot();
+
+  it("enumerates each lifecycle registry once per gated acquisition, across the lifecycle leg and the settlement scan", async () => {
+    // A staged preparation, so the settlement leg reaches its inventory scan
+    // rather than stopping at an empty store; no pending unit, so the lifecycle
+    // leg admits the ordinary intent and the settlement leg runs at all.
+    await presentRegistries(root.dir);
+    await stagePreparation(root.dir);
+    listingProbe.calls.length = 0;
+    expect(await acquireMutationLock(root.dir, "ordinary")).toBe(true);
+    await releaseLock(root.dir);
     expect({
       quarantine: rootOpens("preparation-quarantine"),
       prune: rootOpens("preparation-prune"),
