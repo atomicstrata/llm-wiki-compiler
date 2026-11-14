@@ -17,7 +17,21 @@ llmwiki serve                        # serve the current directory
 llmwiki serve --root /path/to/wiki   # serve a specific project root
 ```
 
-The server uses stdio transport. It starts immediately and doesn't require LLM credentials at startup - only tools that make LLM calls validate credentials lazily when they're invoked.
+The server uses stdio transport by default. It starts immediately and doesn't require LLM credentials at startup - only tools that make LLM calls validate credentials lazily when they're invoked.
+
+### Serving over HTTP
+
+```bash
+llmwiki serve --root /path/to/wiki --http 18882 --token-file /path/to/token --read-only
+```
+
+| Flag | What it does |
+|------|-------------|
+| `--http <port>` | Serve streamable HTTP at `http://127.0.0.1:<port>/mcp` instead of stdio. It binds loopback only; publish it through a reverse proxy or tunnel. |
+| `--token-file <path>` | File holding the bearer token. Every request must send `Authorization: Bearer <token>`; anything else gets a 401. Leave it out when the proxy authenticates callers itself, as an OAuth proxy does: the server then has no authentication of its own and admits only requests whose `Host` is `127.0.0.1:<port>`, so the proxy must send that. |
+| `--read-only` | Register only the tools that never write a project file: `search_pages`, `read_page`, `wiki_status`, `get_context_pack`, `verify_artifact`, `list_workflow_actions`, `describe_workflow_action` and `workflow_run_status`. Resources are unchanged. Works with stdio too. |
+
+The HTTP transport is stateless: a client POSTs JSON-RPC to `/mcp` and there are no sessions. `lint_wiki`, `query_wiki` and `run_eval` are not read-only tools, because each can save a file.
 
 ---
 

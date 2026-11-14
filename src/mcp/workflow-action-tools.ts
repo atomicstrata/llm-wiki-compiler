@@ -134,10 +134,11 @@ function registerRunStatusTool(server: McpServer, root: string): void {
  *
  * @param server - The MCP server to register the tools on.
  * @param root - Absolute project root the tools operate on.
+ * @param readOnly - Leave out `run_workflow_action`, the one tool here that writes.
  */
-export function registerWorkflowActionTools(server: McpServer, root: string): void {
+export function registerWorkflowActionTools(server: McpServer, root: string, readOnly = false): void {
   registerListTool(server, root);
   registerDescribeTool(server, root);
-  registerRunTool(server, root);
+  if (!readOnly) registerRunTool(server, root);
   registerRunStatusTool(server, root);
 }

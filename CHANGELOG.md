@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`llmwiki serve --http <port>`: the MCP server over streamable HTTP.** It listens on `127.0.0.1:<port>/mcp` for a proxy or tunnel to publish, and with `--token-file` every request must send that file's token as `Authorization: Bearer`, or it gets a 401. Without it the proxy owns authentication and the server admits only requests whose `Host` is `127.0.0.1:<port>`. `--read-only`, for either transport, registers only the tools that never write a project file.
+
 ## [1.5.0] - 2026-10-19
 
 Separate what a wiki does from how it is stored on disk, connect to

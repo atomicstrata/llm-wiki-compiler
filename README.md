@@ -234,7 +234,7 @@ The [`examples/basic/`](examples/basic/) directory includes a small pre-generate
 | `llmwiki eval [--suite fast\|full]` | Measure wiki quality and optional citation support. |
 | `llmwiki export --target <format>` | Export the wiki to portable formats, including Open Knowledge Format (`okf`). |
 | `llmwiki import --okf <dir> [--dry-run] [--trusted]` | Import an Open Knowledge Format bundle, staged for review by default. |
-| `llmwiki serve --root <dir>` | Start the MCP server. |
+| `llmwiki serve --root <dir>` | Start the MCP server over stdio, or over HTTP with `--http <port>`. |
 
 Full command docs live in [`docs/cli/`](docs/cli/).
 

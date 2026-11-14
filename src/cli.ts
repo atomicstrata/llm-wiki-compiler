@@ -81,7 +81,7 @@ const COMMANDS: LazyCommand[] = [
     () => import("./cli/context-command.js").then((m) => m.registerContextCommand)],
   ["quickstart [options] <source>", "Ingest a source and compile it into a wiki in one step. Recommends the next action when finished.",
     () => import("./cli/quickstart-command.js").then((m) => m.registerQuickstartCommand)],
-  ["serve [options]", "Start an MCP server exposing wiki tools and resources over stdio",
+  ["serve [options]", "Start an MCP server exposing wiki tools and resources over stdio or loopback HTTP",
     () => import("./cli/serve-command.js").then((m) => (command) => m.registerServeCommand(command, version))],
 ];
 
