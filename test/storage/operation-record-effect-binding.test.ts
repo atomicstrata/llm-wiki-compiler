@@ -159,19 +159,20 @@ describe("record observation and retirement as root-free bodies", () => {
 describe("the root forms", () => {
   it("Z1 prepare and retire reach every incumbent with the root and their old arguments; the bodies over memory reach none", async () => {
     const seed = await prepared();
-    const spies = [vi.spyOn(capacity, "scanOperationInventory"), vi.spyOn(observe, "observeOperationBundle"), vi.spyOn(profileBlock, "loadNonDefaultProfile"),
+    // The observation and the run read are the steps' pass reads (`diskOperationObservationReads`, `pass.readRun`), not root forms.
+    const spies = [vi.spyOn(capacity, "scanOperationInventory"), vi.spyOn(profileBlock, "loadNonDefaultProfile"),
       vi.spyOn(shared, "readPageDigest"), vi.spyOn(planner, "planPageMutation"), vi.spyOn(reservation, "reserveRecordEffectLocked"),
       vi.spyOn(stage, "stageOperationBundleLocked"), vi.spyOn(manifestStore, "readOperationManifest"), vi.spyOn(shared, "readBundlePayload"),
-      vi.spyOn(runStore, "readOperationRun"), vi.spyOn(runStore, "appendOperationTransitionLocked"), vi.spyOn(lockGate, "acquireMutationLock"), vi.spyOn(lock, "releaseLock")];
+      vi.spyOn(runStore, "appendOperationTransitionLocked"), vi.spyOn(lockGate, "acquireMutationLock"), vi.spyOn(lock, "releaseLock")];
     await prepareRecordEffectWith(memorySteps(seed, [], { inventory: { ...seed.inventory, manifests: [] } }), PRINCIPAL, seed.intent);
     await retireRecordEffectWith(memorySteps(seed, []), PRINCIPAL, seed.ref);
-    expect(spies.map((spy) => spy.mock.calls.length)).toEqual(Array(13).fill(0));
+    expect(spies.map((spy) => spy.mock.calls.length)).toEqual(Array(11).fill(0));
     const second = { ...seed.intent, effectId: "note-2", target: { entityType: "notes", slug: "two" } };
     await prepareRecordEffect(seed.root, PRINCIPAL, second);
     await retireRecordEffect(seed.root, PRINCIPAL, seed.ref);
     const firsts = spies.map((spy) => spy.mock.calls[0]?.[0]);
-    expect(firsts).toEqual([...Array(4).fill(seed.root), expect.objectContaining({ root: seed.root, body: second.proposedBody }), ...Array(8).fill(seed.root)]);
-    expect([spies[11]!.mock.calls[0], spies[12]!.mock.calls[0]]).toEqual([[seed.root, "ordinary"], [seed.root]]);
-    expect(spies[10]!.mock.calls.map((call: readonly unknown[]) => (call[3] as { type: string }).type)).toContain("superseded");
+    expect(firsts).toEqual([...Array(3).fill(seed.root), expect.objectContaining({ root: seed.root, body: second.proposedBody }), ...Array(7).fill(seed.root)]);
+    expect([spies[9]!.mock.calls[0], spies[10]!.mock.calls[0]]).toEqual([[seed.root, "ordinary"], [seed.root]]);
+    expect(spies[8]!.mock.calls.map((call: readonly unknown[]) => (call[3] as { type: string }).type)).toContain("superseded");
   });
 });

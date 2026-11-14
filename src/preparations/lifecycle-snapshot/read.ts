@@ -11,7 +11,8 @@ import {
   preparationLifecycleRootMatchesBinding,
 } from "../lifecycle-fs/namespace.js";
 import type { PresentLifecycleDirectoryV1 } from "../lifecycle-fs/types.js";
-import { scanPreparationLifecycle } from "./scan.js";
+import { lifecycleScanBounds } from "../lifecycle-fs/bounds.js";
+import { scanJustOpenedPreparationLifecycle, type LifecycleKeyObservation } from "./scan.js";
 import type { PreparationLifecycleReadV1 } from "./types.js";
 
 /**
@@ -29,6 +30,11 @@ interface PreparationLifecycleReadOptions {
 
 interface ReadLease {
   active: boolean;
+}
+
+interface CapturedRead {
+  read: PreparationLifecycleReadV1;
+  lease?: ReadLease;
 }
 
 interface SuccessfulReadBinding {
@@ -67,12 +73,13 @@ export class PreparationLifecycleReadError extends Error {
 async function capturePreparationLifecycleRead(
   root: string,
   options: PreparationLifecycleReadOptions,
-): Promise<{ read: PreparationLifecycleReadV1; lease?: ReadLease }> {
+  keyObservation: LifecycleKeyObservation = "always",
+): Promise<CapturedRead> {
   try {
     const namespace = await openPreparationLifecycleNamespace(root, "read");
-    const snapshot = await scanPreparationLifecycle(namespace, {
+    const snapshot = await scanJustOpenedPreparationLifecycle(namespace, {
       maxRegistryEntries: options.maxRegistryEntries,
-    });
+    }, keyObservation);
     const read = Object.freeze({ status: "ok" as const, snapshot });
     const lease = { active: true };
     SUCCESSFUL_READS.set(read, { root: namespace.root, lease });
@@ -99,6 +106,52 @@ export async function withPreparationLifecycleRead<T>(
   } finally {
     if (captured.lease !== undefined) captured.lease.active = false;
   }
+}
+
+/** Lifecycle reads lent to the legs of one pass. */
+export interface PreparationLifecycleReads {
+  borrow<T>(
+    consume: (read: PreparationLifecycleReadV1) => Promise<T> | T,
+    options?: PreparationLifecycleReadOptions,
+  ): Promise<T>;
+  close(): void;
+}
+
+/** A fresh capture for every borrow: {@link withPreparationLifecycleRead} for `root`. */
+export function perBorrowLifecycleReads(root: string): PreparationLifecycleReads {
+  return {
+    borrow: (consume, options) => withPreparationLifecycleRead(root, consume, options),
+    close: () => undefined,
+  };
+}
+
+function captureCeiling(options: PreparationLifecycleReadOptions): number {
+  return lifecycleScanBounds({ maxRegistryEntries: options.maxRegistryEntries }).maxRegistryEntries;
+}
+
+/** ONE capture shared by every borrow of one pass over `root`, until `close`. */
+export function preparationLifecycleReadPass(root: string): PreparationLifecycleReads {
+  const fresh = perBorrowLifecycleReads(root);
+  const ceiling = captureCeiling({});
+  let shared: Promise<CapturedRead> | undefined;
+  let lent = 0;
+  let closed = false;
+  return {
+    async borrow(consume, options = {}) {
+      const captured = closed || captureCeiling(options) !== ceiling
+        ? undefined : await (shared ??= capturePreparationLifecycleRead(root, {}, "for-units"));
+      if (captured === undefined || closed) return fresh.borrow(consume, options);
+      lent += 1;
+      if (captured.lease !== undefined) captured.lease.active = true;
+      try {
+        return await consume(captured.read);
+      } finally {
+        lent -= 1;
+        if (captured.lease !== undefined) captured.lease.active = lent > 0;
+      }
+    },
+    close: () => { closed = true; },
+  };
 }
 
 /** Require a scanner-minted successful read for this root and active callback. */

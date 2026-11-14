@@ -32,7 +32,7 @@
  */
 
 import { durableTempPath, durableWritingPath } from "../utils/atomic-write-no-replace-durable.js";
-import { openConfinedLeaf, readWithinCapOrElse, type CappedLeafRead } from "../utils/confined-read.js";
+import { openConfinedLeaf, readWithinCapOrElse, type CappedLeafRead, type ConfirmedLeafOpen } from "../utils/confined-read.js";
 import { healthyKeyLinks, healthyKeyMetadata, publishKeyLeafNoReplace, recoveredEpochKey } from "../utils/key-leaf-health.js";
 import path from "node:path";
 import { MAX_PREPARATION_KEY_FILE_BYTES } from "./constants.js";
@@ -188,7 +188,7 @@ async function readHealthyKeyLeafText(
  * The handle is always closed, and no caller-supplied pathname is consulted.
  */
 export async function readOpenedPreparationKey(
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<Buffer | null> {
   const read = await readWithinCapOrElse(opened, MAX_PREPARATION_KEY_FILE_BYTES, () => ({ kind: "unavailable" as const }));
   return read.kind === "ok" ? decodePreparationKey(read.body) : null;
@@ -236,10 +236,14 @@ export interface PreparationKeyCreateSteps {
   publishKey(key: Buffer): Promise<"created" | "collision">;
 }
 
-/** LOCAL DISK. The current and crash-ready key leaves and the no-replace write for `root`, each reached when asked. */
-function diskPreparationKeyCreateSteps(root: string): PreparationKeyCreateSteps {
+function diskPreparationKeyCreateSteps(root: string, heldCurrentKey?: () => Promise<PreparationKeyRead>): PreparationKeyCreateSteps {
+  let beforePublication = heldCurrentKey;
   return {
-    readCurrentKey: () => readPreparationKey(root),
+    readCurrentKey: () => {
+      const read = beforePublication ?? (() => readPreparationKey(root));
+      beforePublication = undefined;
+      return read();
+    },
     readCrashReadyKey: () => {
       const file = preparationKeyFile(root);
       return readPreparationKeyLeaf(root, durableTempPath(file), durableWritingPath(file));
@@ -306,8 +310,9 @@ export async function prepareKeyForEmptyEpochLocked(
   root: string,
   inventory: PreparationEpochInventory,
   options: PreparationKeyCreateOptions = {},
+  heldCurrentKey?: () => Promise<PreparationKeyRead>,
 ): Promise<PreparedPreparationKey> {
-  return prepareKeyForEmptyEpochLockedWith(diskPreparationKeyCreateSteps(root), inventory, options);
+  return prepareKeyForEmptyEpochLockedWith(diskPreparationKeyCreateSteps(root, heldCurrentKey), inventory, options);
 }
 
 /** {@link prepareKeyForEmptyEpochLocked} over {@link PreparationKeyCreateSteps}: THE ONE BODY, publication included. */

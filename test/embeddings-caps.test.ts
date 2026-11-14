@@ -14,7 +14,7 @@ import path from "node:path";
 import { readEmbeddingStore, writeEmbeddingStore, type EmbeddingStore, type EmbeddingEntry, type ChunkEmbeddingEntry } from "../src/utils/embeddings-store.js";
 import { EMBEDDINGS_FILE, LLMWIKI_DIR, MAX_EMBEDDING_FIELD_CHARS } from "../src/utils/constants.js";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
-import { findTopK } from "../src/utils/embeddings.js";
+import { findTopK } from "../src/utils/embeddings-search.js";
 
 const ctx = useConfinementRoots("embed-caps");
 

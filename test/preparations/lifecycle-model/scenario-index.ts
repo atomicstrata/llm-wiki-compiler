@@ -10,7 +10,7 @@
  * to prevent.
  */
 
-import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "../../fixtures/committed-source.js";
 import path from "node:path";
 import { listFilesUnder } from "./walk.js";
 import { scenarioReach } from "./reach.js";
@@ -19,7 +19,7 @@ import { scenarioReach } from "./reach.js";
 export async function scenarioBodyIndex(repoRoot: string): Promise<Map<string, ReadonlySet<string>>> {
   const bodies = new Map<string, ReadonlySet<string>>();
   for (const file of await listFilesUnder(repoRoot, "test", ".test.ts")) {
-    const source = await readFile(path.join(repoRoot, file), "utf8");
+    const source = await readCommittedSource(path.join(repoRoot, file));
     for (const scenario of scenarioReach(file, source)) bodies.set(scenario.title, scenario.calls);
   }
   return bodies;

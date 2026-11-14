@@ -56,7 +56,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
-import { appendRelation } from "../../src/relations/store.js";
 import type { ProfilePack } from "../../src/profile/types.js";
 import { autosciArtifacts } from "../../src/profile/templates/builtin/autosci/artifacts.js";
 import { autosciEntities } from "../../src/profile/templates/builtin/autosci/entities.js";
@@ -146,9 +145,13 @@ export const RESEARCH_RELATION_TYPES = [
  * store. Every endpoint has a backing seed page, so no relation is dangling and
  * the read surfaces (status/export/lint/graph) stay clean.
  *
+ * The relation store is imported on call: most importers of this profile never
+ * seed relations, and a static import would load the store into each of them.
+ *
  * @param root - Absolute project root of a materialized research project.
  */
 export async function seedResearchRelations(root: string): Promise<void> {
+  const { appendRelation } = await import("../../src/relations/store.js");
   for (const rel of SEED_RELATIONS) {
     await appendRelation(root, RESEARCH_PROFILE, { type: rel.type, from: rel.from, to: rel.to });
   }

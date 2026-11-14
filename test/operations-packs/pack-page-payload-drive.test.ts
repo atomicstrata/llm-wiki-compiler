@@ -18,9 +18,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createCliOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";
 import { applyProductBundle } from "../../src/products/apply.js";
 import {
-  compilePagePayloadAction, compileReconcilePaperAction, driveStagedRun, phaseStates,
+  driveStagedRun, phaseStates,
   resultReason, stageActionIn, stageCompiledAction, stagedRunTracker, type StagedPackRunV1,
 } from "./runtime-fixture.js";
+import { compilePagePayloadAction, compileReconcilePaperAction } from "./compiled-actions-fixture.js";
 
 const tracker = stagedRunTracker();
 afterEach(() => tracker.cleanupAll());

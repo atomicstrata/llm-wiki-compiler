@@ -310,7 +310,7 @@ describe("the member-bearing artifact write, disk and memory, from three raw-cop
 });
 
 describe("the bound member write's unknown outcomes, its order, and no ambient call (memory only, not real guards)", () => {
-  const repair = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  const repair = ["read events.jsonl", "private-dir", "head events.head"];
   const batch = ".llmwiki/journal/<batch>.json";
   const record = (rel: string, read = "read") => ["realpath .", `${read} ${rel}`, `replace ${batch}`];
 
