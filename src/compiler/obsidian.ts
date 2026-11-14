@@ -11,21 +11,20 @@
  * it reaches the project only through {@link MocGenerationSources}, three
  * operations this module names itself, the last of which publishes the
  * finished page. `generateMOC(root)` is a delegate over a private binding built
- * per call, whose members call the same listing, the same confined page read
- * and the same atomic writer as before. Naming the operations selects no
- * backend and rules on no mechanism; every member of the local binding is
- * still local disk.
+ * per call, whose members call the local listing, confined page read and
+ * atomic writer. Naming the operations selects no backend and rules on no
+ * mechanism; every member of the local binding is local disk.
  *
  * WHO WARNS ABOUT A DROPPED PAGE. The read answers a fact, the page's text or
  * that it was dropped, and reports nothing. THE BODY decides what a drop means:
- * it emits the incumbent warning, naming the bare `<slug>.md`, and leaves the
+ * it emits the drop warning, naming the bare `<slug>.md`, and leaves the
  * page out. So no backend can drop a page silently.
  */
 
 import path from "path";
-import { slugify, parseFrontmatter } from "../utils/markdown.js";
+import { slugify, frontmatterOf } from "../utils/markdown.js";
 import { listDirectoryNames, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
-import { readWikiPageInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
+import { wikiPageReaderInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
 import type { ConfinedReadResult } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR, MOC_FILE } from "../utils/constants.js";
 
@@ -144,7 +143,7 @@ export interface MocGenerationSources {
   readConceptPage(slug: string): Promise<ConfinedReadResult>;
   /**
    * LAST. Replace the project's Map of Content with `content`, the whole
-   * finished text. On local disk this is the incumbent confined atomic
+   * finished text. On local disk this is the confined atomic
    * replacement of `wiki/MOC.md`. What a reader sees meanwhile, durability,
    * locking and recovery are the implementation's and are NOT promised here.
    */
@@ -161,7 +160,7 @@ function diskMocGenerationSources(root: string): MocGenerationSources {
   const conceptsPath = path.join(root, CONCEPTS_DIR);
   return {
     listConceptNames: () => listDirectoryNames(conceptsPath),
-    readConceptPage: (slug) => readWikiPageInDir(conceptsPath, slug),
+    readConceptPage: wikiPageReaderInDir(conceptsPath),
     publishMoc: (content) => replaceLeafAtomicWithin(root, path.join(root, MOC_FILE), content),
   };
 }
@@ -210,7 +209,7 @@ async function loadConceptPages(sources: MocGenerationSources): Promise<PageInfo
       warnDroppedWikiRead(`${slug}.md`, result.dropped);
       continue;
     }
-    const info = mocPageInfo(slug, result.content);
+    const info = mocPageInfo(slug, result);
     if (info !== null) pages.push(info);
   }
 
@@ -218,9 +217,9 @@ async function loadConceptPages(sources: MocGenerationSources): Promise<PageInfo
 }
 
 /** The MOC entry for one page, or `null` for an empty or orphaned page. */
-function mocPageInfo(slug: string, content: string): PageInfo | null {
-  if (!content) return null;
-  const { meta } = parseFrontmatter(content);
+function mocPageInfo(slug: string, read: { content: string }): PageInfo | null {
+  if (!read.content) return null;
+  const { meta } = frontmatterOf(read);
   if (meta.orphaned) return null;
   const title = typeof meta.title === "string" ? meta.title : slug;
   const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];

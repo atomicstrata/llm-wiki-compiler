@@ -143,14 +143,12 @@ describe("the interlink planner over copied projects, with every minting directo
     expect(log).toEqual([`exists ${CONCEPTS_DIR}`]);
   });
 
-  it("L6 lists, reads every listed page for the index in listing order, then reads outbound before inbound (memory only)", async () => {
+  it("L6 lists and reads every listed page once, in listing order; the outbound and inbound passes reuse those reads (memory only)", async () => {
     const log: string[] = [];
     const copy = seededCopy("wiki");
     await resolveLinksFrom(memoryReadsOf(copy, log), ["beta"], ["beta"]);
     const listed = copy.listings.get(CONCEPTS_DIR)!.map((one) => one.name).filter((file) => file.endsWith(".md")).map((file) => file.slice(0, -3));
-    // Inbound reads every TITLED page except the new one, in listing order; gamma (orphaned) and untitled are not indexed.
-    const inbound = listed.filter((slug) => ["alpha", "delta"].includes(slug)).map((slug) => `read ${slug}`);
-    expect(log).toEqual([`exists ${CONCEPTS_DIR}`, `list ${CONCEPTS_DIR}`, ...listed.map((slug) => `read ${slug}`), "read beta", ...inbound]);
+    expect(log).toEqual([`exists ${CONCEPTS_DIR}`, `list ${CONCEPTS_DIR}`, ...listed.map((slug) => `read ${slug}`)]);
   });
 
   it("L8 plans a page in both passes once, at its outbound position, with the inbound body, as the disk did", async () => {

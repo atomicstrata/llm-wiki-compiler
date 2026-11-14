@@ -18,13 +18,11 @@
  * producing an empty UI.
  */
 
-import { readFile, readdir } from "fs/promises";
-import path from "path";
+import { readViewerAsset, requireViewerAsset, viewerAssetNames } from "./viewer-assets.js";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { vi } from "bun:test";
 
-const ASSETS_DIR = path.resolve("src/viewer/assets");
-const SHELL_PATH = path.join(ASSETS_DIR, "index.html");
+const SHELL_FILE = "index.html";
 const ENTRY_SCRIPT = "viewer.js";
 const THEME_BOOT_SCRIPT = "viewer-theme-boot.js";
 
@@ -189,7 +187,7 @@ function moduleToRegistryScript(source: string, specifier: string): string {
 
 /** List the client modules to mount, honouring MODULE_ORDER first. */
 async function listModuleFiles(extraModules: ExtraModules): Promise<string[]> {
-  const entries = [...await readdir(ASSETS_DIR), ...Object.keys(extraModules)];
+  const entries = [...await viewerAssetNames(), ...Object.keys(extraModules)];
   const modules = entries.filter(
     (name) =>
       name.startsWith("viewer-") &&
@@ -199,21 +197,6 @@ async function listModuleFiles(extraModules: ExtraModules): Promise<string[]> {
   const ordered = MODULE_ORDER.filter((name) => modules.includes(name));
   const rest = modules.filter((name) => !ordered.includes(name)).sort();
   return [...ordered, ...rest];
-}
-
-/**
- * Read a file from the assets dir, returning null when it does not exist.
- * Only ENOENT is treated as "optional and absent" — a permissions error or
- * any other filesystem failure re-throws, so a broken fixture fails loudly
- * instead of silently rendering as if the file were never there.
- */
-async function readOptional(name: string): Promise<string | null> {
-  try {
-    return await readFile(path.join(ASSETS_DIR, name), "utf-8");
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw err;
-  }
 }
 
 /**
@@ -361,8 +344,8 @@ interface MountOptions {
 async function mount(options: MountOptions): Promise<MountResult> {
   const { responder, startHash, graphHandle, beforeBoot, extraModules } = options;
   const [html, entrySrc, moduleFiles] = await Promise.all([
-    readFile(SHELL_PATH, "utf-8"),
-    readFile(path.join(ASSETS_DIR, ENTRY_SCRIPT), "utf-8"),
+    requireViewerAsset(SHELL_FILE),
+    requireViewerAsset(ENTRY_SCRIPT),
     listModuleFiles(extraModules),
   ]);
   const fetchMock = vi.fn(async (input: string | URL) => {
@@ -380,11 +363,11 @@ async function mount(options: MountOptions): Promise<MountResult> {
   dom.window.eval("window.__viewerModules = {};");
   const { graphFitMock, resolveGraphHandle } = setupGraphStub(dom.window, graphHandle);
   beforeBoot?.(dom.window);
-  const themeBoot = await readOptional(THEME_BOOT_SCRIPT);
+  const themeBoot = await readViewerAsset(THEME_BOOT_SCRIPT);
   if (themeBoot) dom.window.eval(themeBoot);
   for (const name of moduleFiles) {
     if (name === "viewer-graph.js") continue;
-    const source = Object.hasOwn(extraModules, name) ? extraModules[name] : await readOptional(name);
+    const source = Object.hasOwn(extraModules, name) ? extraModules[name] : await readViewerAsset(name);
     if (source === null) continue;
     dom.window.eval(moduleToRegistryScript(source, `./${name}`));
   }

@@ -353,14 +353,16 @@ describe("inventory scan over its own reads: one manifest's key and run", () => 
 });
 
 describe("inventory scan over its own reads: read order, the binding and the run state", () => {
-  it("N10 two complete manifests are read key, run, key, run, in manifest order, each with its own binding", async () => {
+  it("N10 two complete manifests share one key read, then each run is read in manifest order with its own binding", async () => {
     const first = preparedOf("first");
     const second = preparedOf("second");
     const store = storeOf(completeStore([first, second]));
     await scanPreparationInventoryFrom(store.reads, lifecycleOf());
     expect(store.log.slice(2)).toEqual([
       ["manifest", "ws-one", "prp_first"], ["manifest", "ws-one", "prp_second"],
-      ["key"], ["run", bindingOf(first.manifest)], ["key"], ["run", bindingOf(second.manifest)],
+      // The key epoch is one fact about the store: a scan reads it once and
+      // authenticates every run against that same reading.
+      ["key"], ["run", bindingOf(first.manifest)], ["run", bindingOf(second.manifest)],
     ]);
   });
 

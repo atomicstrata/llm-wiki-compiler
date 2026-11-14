@@ -35,6 +35,7 @@ import { diskLocalReads } from "../storage/disk-local-reads.js";
 import { diskLocalRecordDirs } from "../storage/disk-local-record-dirs.js";
 import type { LegacyLocalRecordDirs } from "../storage/legacy-local-record-dirs.js";
 import type { LocalEntry } from "../storage/legacy-local-reads.js";
+import { oncePer } from "../utils/pass-memo.js";
 
 /** Pattern matching ^[filename.md] citation markers in markdown content. */
 export const CITATION_PATTERN = /\^\[([^\]]+)\]/g;
@@ -165,10 +166,35 @@ export async function collectAllPages(
   return collectAllPagesFrom(diskLintPageSources(root), scope);
 }
 
-/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes. */
+type LintPage = { filePath: string; content: string };
+
+const runCollections = new WeakMap<LintPageSources, Map<PageScope, Promise<LintPage[]>>>();
+
+/** `sources` for ONE lint run: every rule collects the same pages, so each listing and page text is read once and every later ask gets the first answer (its promise, so a failure repeats too), and a page collection is built once per scope. */
+export function readOncePageSources(sources: LintPageSources): LintPageSources {
+  const perPath = <T>(read: (relPath: string) => Promise<T>) => oncePer((relPath: string) => relPath, read);
+  const run: LintPageSources = {
+    exists: perPath((relPath) => sources.exists(relPath)),
+    listNames: perPath((relPath) => sources.listNames(relPath)),
+    listEntries: perPath((relPath) => sources.listEntries(relPath)),
+    readText: perPath((relPath) => sources.readText(relPath)),
+    locate: (relPath) => sources.locate(relPath),
+  };
+  runCollections.set(run, new Map());
+  return run;
+}
+
+/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes; once per scope within a run. */
 export async function collectAllPagesFrom(
   sources: LintPageSources, scope: PageScope = "generic",
-): Promise<Array<{ filePath: string; content: string }>> {
+): Promise<LintPage[]> {
+  const collections = runCollections.get(sources);
+  if (!collections) return collectPagesFrom(sources, scope);
+  if (!collections.has(scope)) collections.set(scope, collectPagesFrom(sources, scope));
+  return [...await collections.get(scope)!];
+}
+
+async function collectPagesFrom(sources: LintPageSources, scope: PageScope): Promise<LintPage[]> {
   if (scope === "generic") {
     const conceptPages = await readMarkdownFiles(sources, CONCEPTS_DIR);
     const queryPages = await readMarkdownFiles(sources, QUERIES_DIR);

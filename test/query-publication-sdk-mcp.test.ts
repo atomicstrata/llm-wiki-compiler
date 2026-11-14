@@ -16,7 +16,7 @@ import { callClaude } from "../src/utils/llm.js";
 import { useTempRoot } from "./fixtures/temp-root.js";
 import { stageCitationWorkspace, citationWorkspaceBytes } from "./fixtures/query-answer-citations.js";
 import { SAMPLE_PROFILE } from "./fixtures/profile-fixtures.js";
-import { buildServer } from "./fixtures/mcp-test-env.js";
+import { buildServer } from "./fixtures/mcp-test-server.js";
 
 vi.mock("../src/utils/llm.js", () => ({ callClaude: vi.fn() }));
 const ctx = useTempRoot();

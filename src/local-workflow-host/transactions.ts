@@ -8,6 +8,7 @@
 import path from "node:path";
 import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { releaseLock, type BlockingLockOptions } from "../utils/lock.js";
+import { withLockHeldReads } from "../utils/lock-held-reads.js";
 import { trackHostEffect } from "./tracked-effect.js";
 import {
   LOCAL_WORKFLOW_CORE_INSTANCE, LocalWorkflowTransactionError,
@@ -38,7 +39,7 @@ async function withMutation<T>(leases: WeakMap<LocalWorkflowTransaction, Lease>,
   leases.set(transaction, lease);
   let callbackFailed = false;
   try {
-    return await body(transaction);
+    return await withLockHeldReads(() => body(transaction));
   } catch (error) {
     callbackFailed = true;
     throw error;

@@ -23,9 +23,10 @@ import { afterEach, describe, expect, it } from "bun:test";
 import { createCliOperationRuntime } from "../../src/operation-bundles/runtime-factory.js";
 import { applyProductBundle } from "../../src/products/apply.js";
 import {
-  activatedProject, verticalService, VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID,
+  activatedProject, verticalService,
   type ActivatedProjectV1,
 } from "./product-vertical-fixture.js";
+import { VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 const projects: ActivatedProjectV1[] = [];
 afterEach(async () => { await Promise.all(projects.splice(0).map(project => project.cleanup())); });

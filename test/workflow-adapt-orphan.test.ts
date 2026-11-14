@@ -14,10 +14,10 @@ import { makeTempRoot } from "./fixtures/temp-root.js";
 import {
   buildWorkflowProfile,
   installWorkflowProfile,
-  readOkRun,
   ADAPT_BUILD_STAGES,
   ADAPT_REMOVED_STAGES,
 } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 import { startWorkflow } from "../src/workflows/start.js";
 import { adaptApply, computeAdaptationPlan } from "../src/workflows/adapt.js";
 import { AdaptationRequiresConfirmError } from "../src/workflows/errors.js";

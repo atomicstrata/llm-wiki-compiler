@@ -27,9 +27,7 @@ import { runCLI } from "../fixtures/run-cli.js";
 import {
   activatedCliProject, expectRefusalEnvelope, productWorkspace, runAction, VERTICAL_ACTION_ID,
 } from "./product-cli-fixture.js";
-import {
-  buildVerticalProduct, gatedVerticalPack, misplacedEntityProduct, undeclaredTargetVerticalPack,
-} from "./product-vertical-fixture.js";
+import { buildVerticalProduct, gatedVerticalPack, misplacedEntityProduct, undeclaredTargetVerticalPack } from "./product-vertical-package.js";
 import type { BuiltProductPackage } from "./product-package-fixture.js";
 
 /**

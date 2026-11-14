@@ -4,7 +4,7 @@
  * naming its owner, so the two must become visible together. Creating the final
  * name first and writing the owner record into it second makes the lock briefly
  * a ZERO-BYTE file under its authoritative name — and an empty leaf is exactly
- * what {@link ../utils/lock.js isLockStale} classifies as stale and reclaimable,
+ * what {@link ../utils/lock.js lockHolderState} classifies as stale and reclaimable,
  * because an unreadable owner has to stay recoverable. A contender polling in
  * that window therefore unlinks a lock a LIVE process is in the middle of
  * taking, creates its own, and both processes proceed believing they hold it.
@@ -136,7 +136,7 @@ export async function publishLockRecordFrom(
   //
   // What the default does guarantee is that publication is no more restrictive
   // than the create-then-write it replaces, and that matters because this leaf's
-  // readability is load-bearing: `isLockStale` treats an owner it cannot read as
+  // readability is load-bearing: `lockHolderState` treats an owner it cannot read as
   // stale, so a lock another UID is unable to open is classified reclaimable and
   // reclaimed from its live owner — double ownership by a different route.
   // Hard-coding `0o600` would make that failure UNCONDITIONAL, which is the only

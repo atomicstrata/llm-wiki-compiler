@@ -175,8 +175,9 @@ export async function persistEmbeddingStore(root: string, store: EmbeddingStore 
 /**
  * {@link persistEmbeddingStore} over {@link StoredEmbeddingWrites}: THE ONE BODY.
  * An existing binary leaf stays authoritative and a non-regular one is refused.
- * The bytes are serialized or encoded BEFORE the private directory is created,
- * so a store that cannot be serialized or encoded creates nothing. One replacement
+ * The bytes are serialized or encoded BEFORE the private directory is created
+ * (only when the look found none), so a store that cannot be serialized or
+ * encoded creates nothing. One replacement
  * publishes them, and the migration notice follows only its success.
  *
  * @param writes - The private directory's looks, its creation, and one leaf's replacement.
@@ -190,7 +191,7 @@ export async function persistEmbeddingStoreFrom(writes: StoredEmbeddingWrites, s
   const json = binaryLeaf !== "absent" || requested ? null : serializeEmbeddingJson(store);
   const binary = json === null;
   const content = binary ? encodeForWrite(store) : json;
-  await writes.createPrivateDir();
+  if (dir === null) await writes.createPrivateDir();
   await writes.replaceLeaf(binary ? EMBEDDINGS_BINARY_FILE : EMBEDDINGS_FILE, content);
   if (binary && binaryLeaf === "absent" && !requested) {
     note("Embedding index exceeded the JSON limit; saved embeddings.bin. Future updates remain binary.");

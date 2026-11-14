@@ -23,9 +23,11 @@ import { PrincipalAuthorityError } from "../../src/preparations/principals.js";
 import type { WorkspaceOperationsPackV2 } from "../../src/operations-packs/types.js";
 import { PROFILE_FILE } from "../../src/utils/constants.js";
 import {
-  activatedProject, buildVerticalProduct, verticalPack, verticalService,
-  VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID,
+  activatedProject, verticalService,
 } from "./product-vertical-fixture.js";
+import {
+  buildVerticalProduct, verticalPack, VERTICAL_ACTION_ID, VERTICAL_ALIAS_TOKEN, VERTICAL_WORKSPACE_ID,
+} from "./product-vertical-package.js";
 
 const INPUT = { topic: "superconductivity" } as const;
 

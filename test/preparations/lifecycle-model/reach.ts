@@ -111,9 +111,7 @@ function scenarioTitle(node: ts.Node): string | null {
 
 /** Every scenario in one test source, with the production calls it actually reaches. */
 export function scenarioReach(fileName: string, source: string): ScenarioReachV1[] {
-  const found: ScenarioReachV1[] = [];
-  forEachScenario(fileName, source, (title, node) => found.push({ title, calls: reachOf(node) }));
-  return found;
+  return [...scenarioFactsOf(fileName, source).reach];
 }
 
 /**
@@ -124,10 +122,40 @@ export function scenarioReach(fileName: string, source: string): ScenarioReachV1
  * Normalising whitespace keeps reformatting from reading as a behavioural change.
  */
 export function scenarioBodies(fileName: string, source: string): { title: string; body: string }[] {
-  const found: { title: string; body: string }[] = [];
-  forEachScenario(fileName, source, (title, node) =>
-    found.push({ title, body: node.getText().replace(/\s+/g, " ").trim() }));
-  return found;
+  return [...scenarioFactsOf(fileName, source).bodies];
+}
+
+/** What one test source's scenarios reach, and what their bodies say. */
+interface ScenarioFacts {
+  readonly reach: readonly ScenarioReachV1[];
+  readonly bodies: readonly { title: string; body: string }[];
+}
+
+/**
+ * Scenario facts per exact source text, from ONE parse.
+ *
+ * The coverage matrix, the protocol map, and the frozen corpus each index the
+ * whole test tree, several times per suite; re-parsing it for every index was
+ * nearly all of their CPU. Keyed by the file name (which picks the parser's
+ * script kind) AND the text, so a changed file is a new key and is parsed
+ * afresh rather than answered from memory.
+ */
+const factsBySource = new Map<string, ScenarioFacts>();
+
+/** The memoized scenario facts of one source text. */
+function scenarioFactsOf(fileName: string, source: string): ScenarioFacts {
+  const key = `${fileName}\0${source}`;
+  const cached = factsBySource.get(key);
+  if (cached !== undefined) return cached;
+  const reach: ScenarioReachV1[] = [];
+  const bodies: { title: string; body: string }[] = [];
+  forEachScenario(fileName, source, (title, node) => {
+    reach.push({ title, calls: reachOf(node) });
+    bodies.push({ title, body: node.getText().replace(/\s+/g, " ").trim() });
+  });
+  const facts = { reach, bodies };
+  factsBySource.set(key, facts);
+  return facts;
 }
 
 /** Visit every `it(...)` / `test(...)` scenario call in one source. */

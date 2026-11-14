@@ -156,8 +156,9 @@ describe("the candidate move and mutation-access preflight over copied default p
     expect([outcome, files]).toEqual([minted.archive!.onDisk.outcome, diskFiles("archive")]);
     expect(effects).toEqual([`ensure ${CANDIDATES_ARCHIVE_DIR}`, `move ${pendingRel("alpha-a")} -> ${archivedRel("alpha-a")}`]);
     expect(files[archivedRel("alpha-a")]).toBe(minted.archive!.onDisk.before.files[pendingRel("alpha-a")]);
-    expect(calls.slice(0, 9)).toEqual([`dir ${CANDIDATES_DIR}`, `probe list ${CANDIDATES_DIR}`, `dir ${CANDIDATES_ARCHIVE_DIR}`,
-      `dir ${CANDIDATES_DIR}`, `probe write ${CANDIDATES_DIR}`, `dir ${CANDIDATES_ARCHIVE_DIR}`, `dir ${CANDIDATES_DIR}`, `probe write ${CANDIDATES_DIR}`, `dir ${CANDIDATES_DIR}`]);
+    // The pending binding the health check proved is probed for write as-is; the absent archive is looked up afresh.
+    expect(calls.slice(0, 8)).toEqual([`dir ${CANDIDATES_DIR}`, `probe list ${CANDIDATES_DIR}`, `dir ${CANDIDATES_ARCHIVE_DIR}`,
+      `probe write ${CANDIDATES_DIR}`, `dir ${CANDIDATES_ARCHIVE_DIR}`, `dir ${CANDIDATES_DIR}`, `probe write ${CANDIDATES_DIR}`, `dir ${CANDIDATES_DIR}`]);
   });
 
   it("M3 archives and then restores under one receipt, leaving the bytes where they began, as the disk did", async () => {

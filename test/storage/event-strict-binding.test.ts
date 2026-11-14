@@ -2,8 +2,8 @@
  * @file test/storage/event-strict-binding.test.ts
  * @description The strict audit-log read as ONE body over the event read sources,
  * `readEventsStrictFrom`, with no project directory: the whole read (store, then
- * the head anchor), then the strict verification (the chain, then a SECOND, fresh
- * anchor read), failing closed with the same errors as the root form.
+ * the head anchor), then the strict verification (the chain, then that same
+ * anchor), failing closed with the same errors as the root form.
  *
  * HOW IT IS BUILT. The three audit seeds every bound-write suite mints (a fresh
  * project, a real v1 store with one sealed record, and a tampered head) are
@@ -51,18 +51,18 @@ describe("the strict audit-log read over its sources", () => {
     });
   });
 
-  it("S2 reads the store, then the anchor, then the anchor AGAIN for the strict verification", async () => {
+  it("S2 reads the store, then the anchor, and verifies strictly against that one anchor read", async () => {
     const log: string[] = [];
     await readEventsStrictFrom(memoryOf("v1", log));
-    expect(log).toEqual(["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"]);
+    expect(log).toEqual(["read events.jsonl", "private-dir", "head events.head"]);
   });
 
-  it("S3 a tampered head fails closed after both anchor reads; a fresh project asks its absent head twice and passes", async () => {
+  it("S3 a tampered head fails closed on its one anchor read; a fresh project asks its absent head once and passes", async () => {
     const tampered: string[] = [];
     await expect(readEventsStrictFrom(memoryOf("tampered", tampered))).rejects.toThrow("does not match last event");
-    expect(tampered.filter((call) => call.startsWith("head"))).toHaveLength(2);
+    expect(tampered.filter((call) => call.startsWith("head"))).toHaveLength(1);
     const fresh: string[] = [];
     await readEventsStrictFrom(memoryOf("fresh", fresh));
-    expect(fresh.filter((call) => call.startsWith("head"))).toHaveLength(2);
+    expect(fresh.filter((call) => call.startsWith("head"))).toHaveLength(1);
   });
 });

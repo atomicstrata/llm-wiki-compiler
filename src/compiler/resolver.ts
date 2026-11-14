@@ -20,6 +20,7 @@
 import { parseFrontmatter } from "../utils/markdown.js";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
 import type { LegacyLocalReads } from "../storage/legacy-local-reads.js";
+import { readOncePages } from "../storage/read-once-pages.js";
 import { readWikiPageContentOrWarnFrom } from "./confined-wiki-read.js";
 import { CONCEPTS_DIR } from "../utils/constants.js";
 import { applyCompilePageWritesWithIdsLocked } from "./compile-write-ids.js";
@@ -54,13 +55,13 @@ export async function listLinkableTitlesFrom(reads: LegacyLocalReads): Promise<L
   if (!(await reads.exists(CONCEPTS_DIR))) return [];
 
   const files = await reads.listNames(CONCEPTS_DIR);
+  const slugs = files.filter((file) => file.endsWith(".md")).map((file) => file.replace(/\.md$/, ""));
+  const pageReads = readOncePages(reads);
+  await pageReads.prefetchPages(CONCEPTS_DIR, slugs);
   const titles: LinkableTitle[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-
-    const slug = file.replace(/\.md$/, "");
-    const content = await readWikiPageContentOrWarnFrom(reads, CONCEPTS_DIR, slug);
+  for (const slug of slugs) {
+    const content = await readWikiPageContentOrWarnFrom(pageReads, CONCEPTS_DIR, slug);
     const title = linkableTitleOf(content);
     if (title !== null) titles.push({ slug, title });
   }
@@ -226,17 +227,18 @@ export async function resolveLinksFrom(
   changedSlugs: string[],
   newSlugs: string[],
 ): Promise<CompilePageWrite[]> {
-  const titleIndex = await listLinkableTitlesFrom(reads);
+  const pageReads = readOncePages(reads);
+  const titleIndex = await listLinkableTitlesFrom(pageReads);
   if (titleIndex.length === 0) return [];
 
   // Pass 1 (outbound) on changed pages, then Pass 2 (inbound) on all pages,
   // de-duplicated by slug so a page changed in both passes is written once with
   // the latest body (inbound supersedes outbound for the same page).
   const writes = new Map<string, CompilePageWrite>();
-  for (const write of await resolveOutboundLinks(reads, titleIndex, changedSlugs)) {
+  for (const write of await resolveOutboundLinks(pageReads, titleIndex, changedSlugs)) {
     writes.set(write.slug, write);
   }
-  for (const write of await resolveInboundLinks(reads, titleIndex, newSlugs)) {
+  for (const write of await resolveInboundLinks(pageReads, titleIndex, newSlugs)) {
     writes.set(write.slug, write);
   }
 
