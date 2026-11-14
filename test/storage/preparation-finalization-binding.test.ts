@@ -152,7 +152,7 @@ describe("the compositions and the root forms", () => {
     expect((await finalizePreparationForHandoff({ root: "/project", ...bodyInput() })).status).toBe("finalized");
     expect(order).toEqual(["acquire", "read", "cancel", "manifest", "write", "write", "append", "release"]);
     expect([acquire.mock.calls, read.mock.calls, cancel.mock.calls, manifest.mock.calls, release.mock.calls]).toEqual([
-      [["/project", "ordinary"]], [["/project", BINDING]], [["/project", "ws", "run_1"]], [["/project", "ws", "prep_1"]], [["/project"]],
+      [["/project", "ordinary"]], [["/project", BINDING, expect.anything()]], [["/project", "ws", "run_1"]], [["/project", "ws", "prep_1"]], [["/project"]],
     ]);
     expect([write.mock.calls[0]?.slice(0, 2), append.mock.calls[0]?.slice(0, 3)]).toEqual([["/project", LOCATION], ["/project", BINDING, { stateVersion: 4, chainTip: "tip" }]]);
   });

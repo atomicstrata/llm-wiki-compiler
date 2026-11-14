@@ -40,7 +40,17 @@ vi.mock("../../src/utils/no-follow-open.js", async () => {
       return async () => { if (key === "close") await call(); throw new Error(`${String(key)} sabotaged`); };
     },
   });
-  return { ...actual, openFileNoFollow: async (file: string, flags: number, mode?: number) => sabotaged(await actual.openFileNoFollow(file, flags, mode)) };
+  // The regular-file opener takes its fstat before returning, so a failing stat fails that open.
+  const openRegularNoFollow = async (file: string, flags: number, mode?: number) => {
+    const opened = await actual.openRegularNoFollow(file, flags, mode);
+    if (!failing.has("stat")) return { handle: sabotaged(opened.handle), stat: opened.stat };
+    await opened.handle.close();
+    throw new Error("stat sabotaged");
+  };
+  return {
+    ...actual, openRegularNoFollow,
+    openFileNoFollow: async (file: string, flags: number, mode?: number) => sabotaged(await actual.openFileNoFollow(file, flags, mode)),
+  };
 });
 
 import {

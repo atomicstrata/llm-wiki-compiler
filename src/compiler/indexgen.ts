@@ -9,17 +9,18 @@
  * project only through {@link IndexGenerationSources}, five operations this
  * module names itself, the last of which publishes the finished index.
  * `generateIndex(root)` is a delegate over a private binding built per call,
- * whose members call the same readers and the same atomic writer as before, at
- * the same points. Naming the operations selects no backend and rules on no
- * mechanism; every member of the local binding is still local disk.
+ * whose members call the local readers and atomic writer. Naming the
+ * operations selects no backend and rules on no mechanism; every member of
+ * the local binding is local disk.
  */
 
 import path from "path";
-import { parseFrontmatter } from "../utils/markdown.js";
+import { frontmatterOf } from "../utils/markdown.js";
 import { listDirectoryNames, replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
-import { readWikiPageInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
+import { wikiPageReaderInDir, warnDroppedWikiRead } from "./confined-wiki-read.js";
 import type { ConfinedReadResult } from "./confined-wiki-read.js";
 import { toPosixPath } from "../utils/path-confine.js";
+import { prefetchInOrder } from "../utils/prefetch-in-order.js";
 import { CONCEPTS_DIR, QUERIES_DIR, INDEX_FILE } from "../utils/constants.js";
 import * as output from "../utils/output.js";
 import type { PageSummary } from "../utils/types.js";
@@ -43,7 +44,7 @@ export interface IndexGenerationSources {
   collectEntityPages(loaded: LoadedProfile): Promise<{ pages: EntityPage[] }>;
   /**
    * LAST. Replace the project's index with `content`, the whole finished text.
-   * On local disk this is the incumbent confined atomic replacement of
+   * On local disk this is the confined atomic replacement of
    * `wiki/index.md`. What a reader sees meanwhile, durability, locking and
    * recovery are the implementation's and are NOT promised by this member.
    */
@@ -141,7 +142,7 @@ export interface WikiPageScanReads {
 export function diskWikiPageScanReads(dirPath: string): WikiPageScanReads {
   return {
     listNames: () => listDirectoryNames(dirPath),
-    readPage: (slug) => readWikiPageInDir(dirPath, slug),
+    readPage: wikiPageReaderInDir(dirPath),
   };
 }
 
@@ -158,8 +159,9 @@ export async function scanWikiPages(dirPath: string): Promise<ScannedPage[]> {
 
 /**
  * {@link scanWikiPages} through `reads`: THE ONE BODY. One listing, then one
- * page read per `.md` name, one after another in listing order. A listing that
- * rejects is an empty scan; a dropped page is warned about here and skipped.
+ * page read per `.md` name, started in parallel ({@link prefetchInOrder}). The
+ * result, and every dropped-page warning, stays in listing order. A listing
+ * that rejects is an empty scan; a dropped page is warned about and skipped.
  */
 export async function scanWikiPagesFrom(reads: WikiPageScanReads): Promise<ScannedPage[]> {
   let files: string[];
@@ -172,15 +174,16 @@ export async function scanWikiPagesFrom(reads: WikiPageScanReads): Promise<Scann
   // The scan directory is itself the confinement boundary: a symlinked entry
   // whose target escapes `dirPath` is dropped (warned, skipped) and never enters
   // the scan, keeping its bytes out of any index/summary derived from it.
+  const slugs = files.filter((f) => f.endsWith(".md")).map((file) => file.replace(/\.md$/, ""));
+  const pending = prefetchInOrder(slugs, (slug) => reads.readPage(slug));
   const scanned: ScannedPage[] = [];
-  for (const file of files.filter((f) => f.endsWith(".md"))) {
-    const slug = file.replace(/\.md$/, "");
-    const result = await reads.readPage(slug);
+  for (const [index, slug] of slugs.entries()) {
+    const result = await pending[index];
     if (!("content" in result)) {
       warnDroppedWikiRead(`${slug}.md`, result.dropped); // dropped (symlink escape / fail-closed)
       continue;
     }
-    const { meta } = parseFrontmatter(result.content);
+    const { meta } = frontmatterOf(result);
     scanned.push({ slug, meta });
   }
   return scanned;
@@ -205,7 +208,7 @@ export async function collectPageSummariesFrom(reads: WikiPageScanReads): Promis
 }
 
 /** The index rows for scanned pages: titled, non-orphaned pages with their summaries. */
-function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
+export function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
   return scanned
     .filter(({ meta }) => meta.title && typeof meta.title === "string" && !meta.orphaned)
     .map(({ slug, meta }) => ({

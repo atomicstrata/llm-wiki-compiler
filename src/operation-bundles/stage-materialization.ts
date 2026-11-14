@@ -20,7 +20,10 @@ import {
 } from "./constants.js";
 import { canonicalBytes } from "../profile/templates/signing/canonical.js";
 import type { OperationInventory } from "./capacity.js";
-import { inspectDurableCandidate } from "./durable-candidate.js";
+import path from "node:path";
+import { durableTempPath, durableWritingPath } from "../utils/atomic-write-no-replace-durable.js";
+import { inspectDurableCandidate, type DurableCandidateInspection } from "./durable-candidate.js";
+import { walkProvesAbsent } from "./orphan-scan.js";
 import type { BundleId, OperationRunId } from "./ids.js";
 import { assertWorkspaceId, operationPaths } from "./paths.js";
 import type { OperationBundleManifest } from "./types.js";
@@ -49,22 +52,29 @@ export interface StageMaterializationReads {
   ): ReturnType<typeof inspectDurableCandidate>;
 }
 
-/** The confined final path and owned parent of one candidate location. */
-function candidatePaths(root: string, leaf: StageCandidateLeaf): { file: string; parent: string } {
-  const paths = operationPaths(root, leaf.workspaceId);
-  if (leaf.kind === "payload") return { file: paths.payloadFile(leaf.bundleId, leaf.digest), parent: paths.payloadsRoot(leaf.bundleId) };
-  if (leaf.kind === "manifest") return { file: paths.manifestFile(leaf.bundleId), parent: paths.bundleRoot(leaf.bundleId) };
-  return { file: paths.runFile(leaf.runId), parent: paths.runsRoot };
+function candidatePaths(root: string, leaf: StageCandidateLeaf): { file: string; parent: string; store: string } {
+  const paths = operationPaths(root, leaf.workspaceId), store = paths.workspacesRoot;
+  if (leaf.kind === "payload") return { file: paths.payloadFile(leaf.bundleId, leaf.digest), parent: paths.payloadsRoot(leaf.bundleId), store };
+  if (leaf.kind === "manifest") return { file: paths.manifestFile(leaf.bundleId), parent: paths.bundleRoot(leaf.bundleId), store };
+  return { file: paths.runFile(leaf.runId), parent: paths.runsRoot, store };
 }
 
-/** The local-disk classifier reads for one root, built per call. In no package index. */
-function diskStageMaterializationReads(root: string): StageMaterializationReads {
+function absentCandidate(expected: Buffer): DurableCandidateInspection {
+  return { authoritative: false, publicationRequired: true, physicalByteDelta: expected.byteLength };
+}
+
+function diskStageMaterializationReads(root: string, listing: OperationInventory["listing"]): StageMaterializationReads {
   return {
-    inspectCandidate: (leaf, expected, maxBytes, conflict, mode) => {
-      const { file, parent } = candidatePaths(root, leaf);
+    inspectCandidate: async (leaf, expected, maxBytes, conflict, mode) => {
+      const { file, parent, store } = candidatePaths(root, leaf);
+      if (listing !== undefined && walkProvesAbsent(listing, reservedLeaves(path.relative(store, file)))) return absentCandidate(expected);
       return inspectDurableCandidate(root, file, parent, expected, maxBytes, conflict, mode);
     },
   };
+}
+
+function reservedLeaves(file: string): string[] {
+  return [file, durableTempPath(file), durableWritingPath(file)];
 }
 
 /** Inspect every intended payload path in deterministic publication order. */
@@ -95,7 +105,7 @@ export async function inspectStageMaterialization(
   inventory: OperationInventory,
   runBytes: Buffer | undefined,
 ): Promise<StageMaterialization> {
-  return inspectStageMaterializationWith(diskStageMaterializationReads(root), { manifest, manifestBytes, payloads, inventory, runBytes });
+  return inspectStageMaterializationWith(diskStageMaterializationReads(root, inventory.listing), { manifest, manifestBytes, payloads, inventory, runBytes });
 }
 
 /** One classification request: the bundle's manifest and canonical bytes, its payloads, the inventory, and the run's bytes when staged with it. */

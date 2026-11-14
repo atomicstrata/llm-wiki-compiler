@@ -8,7 +8,8 @@
  * There is no project directory. Two in-memory doubles decide nothing: `binding`
  * (the binding leaf, the alias check, the private-directory resolution and the
  * look at one of its entries) and `packages` (the manifest leaf, one member
- * check, the two directory looks, the two listings, one member's bytes).
+ * check, the same check keeping the bytes, the two directory looks, the two
+ * listings, one member's bytes).
  *
  * WHAT IS LOGGED. Every method of both doubles logs its call to ONE shared,
  * ordered log BEFORE it returns or throws, under a name that starts with its
@@ -64,6 +65,8 @@ interface Held {
   manifest?: Answer<Buffer | "absent" | "unavailable">;
   /** Member hex to its check answer; a member not held answers `matches`. */
   checks?: Record<string, Answer<string>>;
+  /** What a check that keeps the bytes returns with `matches`; by default the member's own bytes. */
+  keptBytes?: Buffer;
   kinds?: Partial<Record<"package" | "members", Answer<string>>>;
   listings?: Partial<Record<"package" | "members", Answer<PackageDirEntry[]>>>;
   memberBytes?: Answer<Buffer | "absent" | "unavailable">;
@@ -87,6 +90,11 @@ function packagesOf(held: Held, note: (call: string) => void): ProductPackageRea
   return {
     readManifestLeaf: async (hex, maxBytes) => { note(`packages.readManifestLeaf ${hex === HEX ? "PKG" : hex} max=${maxBytes}`); return leafRead(serve(held.manifest ?? Buffer.from(PRODUCT.manifestText))); },
     checkMemberLeaf: async (_hex, memberHex, byteCount) => { note(`packages.checkMemberLeaf ${MEMBERS.indexOf(memberHex)} bytes=${byteCount}`); return serve(held.checks?.[memberHex] ?? "matches"); },
+    readCheckedMemberLeaf: async (_hex, memberHex, byteCount) => {
+      note(`packages.readCheckedMemberLeaf ${MEMBERS.indexOf(memberHex)} bytes=${byteCount}`);
+      const kind = serve(held.checks?.[memberHex] ?? "matches");
+      return kind === "matches" ? { kind, bytes: held.keptBytes ?? PRODUCT.bytesByHex.get(memberHex)! } : { kind };
+    },
     directoryKind: async (_hex, directory) => { note(`packages.directoryKind ${directory}`); return serve(held.kinds?.[directory] ?? "directory"); },
     listDirectory: async (_hex, directory) => { note(`packages.listDirectory ${directory}`); return serve(held.listings?.[directory] ?? declared[directory]); },
     readMemberLeaf: async (_hex, memberHex, maxBytes) => { note(`packages.readMemberLeaf ${memberHex === KNOWLEDGE ? "KNOWLEDGE" : memberHex} max=${maxBytes}`); return leafRead(serve(held.memberBytes ?? PRODUCT.bytesByHex.get(memberHex)!)); },
@@ -104,10 +112,14 @@ const BOUND = Buffer.from(serializeBinding(bindingFor(PRODUCT.manifest)));
 const LEAF = `binding.readBindingLeaf max=${MAX_ACTIVE_PRODUCT_BINDING_BYTES}`;
 const PRESENCE = ["binding.resolvePrivateDir", "binding.privateEntryKind mem:private/profile.json"];
 const MANIFEST = `packages.readManifestLeaf PKG max=${MAX_PRODUCT_MANIFEST_BYTES}`;
-const CHECKS = PRODUCT.manifest.members.map((member, index) => `packages.checkMemberLeaf ${index} bytes=${member.byteCount}`);
+const RETAINED = new Set([PRODUCT.manifest.knowledgeProfile, PRODUCT.manifest.rootOperationsPack, PRODUCT.manifest.compositionLock].map((ref) => ref.digest));
+const CHECKS = PRODUCT.manifest.members.map((member, index) =>
+  `packages.${RETAINED.has(member.digest) ? "readCheckedMemberLeaf" : "checkMemberLeaf"} ${index} bytes=${member.byteCount}`);
 const LISTINGS = ["packages.directoryKind package", "packages.listDirectory package", "packages.directoryKind members", "packages.listDirectory members"];
 const PACKAGE_OK = [MANIFEST, ...CHECKS, ...LISTINGS];
 const MEMBER_READ = `packages.readMemberLeaf KNOWLEDGE max=${MAX_KNOWLEDGE_PROFILE_BYTES}`;
+/** Kept bytes whose length is not the member's declared count: the resolver falls back to the capped member read. */
+const SHORT = Buffer.from("short");
 const read = (held: Held, digest: Sha256Digest = PRODUCT.manifest.packageDigest) => {
   const { sources, calls } = sourcesOf(held);
   return readInstalledProductPackageFrom(sources.packages, digest).then((result) => ({ result, calls }));
@@ -197,8 +209,8 @@ describe("active-product resolution over its sources", () => {
     const none = await resolve({ leaf: BOUND, privateDir: null });
     const lookFails = await resolve({ leaf: BOUND });
     expect([refused.resolution.mode, none.resolution.mode, lookFails.resolution.mode]).toEqual(["product", "product", "product"]);
-    expect([refused.calls, none.calls]).toEqual([[LEAF, PRESENCE[0], ...PACKAGE_OK, MEMBER_READ], [LEAF, PRESENCE[0], ...PACKAGE_OK, MEMBER_READ]]);
-    expect(lookFails.calls).toEqual([LEAF, ...PRESENCE, ...PACKAGE_OK, MEMBER_READ]);
+    expect([refused.calls, none.calls]).toEqual([[LEAF, PRESENCE[0], ...PACKAGE_OK], [LEAF, PRESENCE[0], ...PACKAGE_OK]]);
+    expect(lookFails.calls).toEqual([LEAF, ...PRESENCE, ...PACKAGE_OK]);
   });
 
   it("R6 resolves product mode with the member path built from the one root, and loadProfileFrom returns that profile", async () => {
@@ -207,7 +219,7 @@ describe("active-product resolution over its sources", () => {
     const strict = async (): Promise<never> => { throw new Error("legacy leaf read reached"); };
     const loaded = await loadProfileFrom({ activeProduct: sources, readPrivateLeafText: strict });
     expect([loaded.profile.profileId, loaded.loadedFrom, loadedFrom.startsWith(`${ROOT}${path.sep}`)]).toEqual(["custom", loadedFrom, true]);
-    expect(calls).toEqual([LEAF, ...PRESENCE, ...PACKAGE_OK, MEMBER_READ]);
+    expect(calls).toEqual([LEAF, ...PRESENCE, ...PACKAGE_OK]);
   });
 
   it("R7 answers unavailable for a component mismatch without reading the member, and for a package that is not ok", async () => {
@@ -220,9 +232,15 @@ describe("active-product resolution over its sources", () => {
   it("R8 lets a package read that rejects leave as the same error, but turns a failed member load into unavailable", async () => {
     const refused = new Error("EIO: package read refused");
     await expect(resolveActiveProductFrom(sourcesOf({ leaf: BOUND, manifest: refused }).sources)).rejects.toBe(refused);
-    const member = await resolve({ leaf: BOUND, memberBytes: "unavailable" });
+    const member = await resolve({ leaf: BOUND, keptBytes: SHORT, memberBytes: "unavailable" });
     expect([member.resolution.mode, member.calls.at(-1)]).toEqual(["unavailable", MEMBER_READ]);
-    const thrown = await resolve({ leaf: BOUND, memberBytes: new Error("EIO: member read refused") });
+    const thrown = await resolve({ leaf: BOUND, keptBytes: SHORT, memberBytes: new Error("EIO: member read refused") });
     expect(thrown.resolution).toEqual({ mode: "unavailable", detail: "EIO: member read refused" });
+  });
+
+  it("R9 loads the knowledge profile from the bytes the package check kept, making no second member read", async () => {
+    const blank = Buffer.alloc(PRODUCT.manifest.knowledgeProfile.byteCount, " ");
+    const kept = await resolve({ leaf: BOUND, keptBytes: blank });
+    expect(kept).toEqual({ resolution: { mode: "unavailable", detail: "knowledge-profile member is not valid JSON" }, calls: [LEAF, ...PRESENCE, ...PACKAGE_OK] });
   });
 });

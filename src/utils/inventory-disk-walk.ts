@@ -17,12 +17,14 @@
  */
 
 import path from "node:path";
-import { observeInventoryLeaf, visitInventoryDirectory } from "./inventory-scan.js";
+import { observeInventoryLeaf, visitInventoryDirectory, type InventoryLeafObserver } from "./inventory-scan.js";
+import { leafReadAhead } from "./inventory-leaf-read-ahead.js";
+import type { ScannedLeafBytes } from "./scanned-leaf-bytes.js";
 
 /** The walk reads one store directory answers, in the primitives' own terms. */
 interface DiskInventoryWalkReads {
   visitDirectory(directory: string, visitor: Parameters<typeof visitInventoryDirectory>[2]): ReturnType<typeof visitInventoryDirectory>;
-  observeLeaf(file: string, parent: string): ReturnType<typeof observeInventoryLeaf>;
+  observeLeaf: InventoryLeafObserver;
 }
 
 /**
@@ -31,12 +33,14 @@ interface DiskInventoryWalkReads {
  * @param root - The project root.
  * @param storeDirectory - The store's directory, relative to `root`.
  */
-export function diskInventoryWalkReads(root: string, storeDirectory: string): DiskInventoryWalkReads {
+export function diskInventoryWalkReads(root: string, storeDirectory: string, scanned?: ScannedLeafBytes): DiskInventoryWalkReads {
   const resolvedRoot = path.resolve(root), storeRoot = path.resolve(path.join(root, storeDirectory));
+  const ahead = leafReadAhead();
   return {
     visitDirectory: (directory, visitor) =>
-      visitInventoryDirectory(resolvedRoot, path.join(storeRoot, directory), visitor),
-    observeLeaf: (file, parent) =>
-      observeInventoryLeaf(resolvedRoot, path.join(storeRoot, file), path.join(storeRoot, parent)),
+      visitInventoryDirectory(resolvedRoot, path.join(storeRoot, directory), visitor, ahead),
+    observeLeaf: (file, parent, retainUpToBytes) =>
+      observeInventoryLeaf(resolvedRoot, path.join(storeRoot, file), path.join(storeRoot, parent),
+        scanned === undefined || retainUpToBytes === undefined ? undefined : { into: scanned, maxBytes: retainUpToBytes }, ahead),
   };
 }

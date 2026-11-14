@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readCommittedSource } from "../../fixtures/committed-source.js";
 import path from "node:path";
 import { FROZEN_REGRESSION_IDS, FROZEN_REGRESSIONS, OPERATION_DRIVERS } from "./frozen-regressions.js";
 import { listFilesUnder } from "./walk.js";
@@ -124,7 +124,7 @@ describe("finite lifecycle coverage model", () => {
     const cited = new Set(LIFECYCLE_COVERAGE_ROWS.map((row) => row.provingTestId));
     const seen = new Map<string, string[]>();
     for (const file of await listFilesUnder(REPO_ROOT, "test", ".test.ts")) {
-      const source = await readFile(path.join(REPO_ROOT, file), "utf8");
+      const source = await readCommittedSource(path.join(REPO_ROOT, file));
       for (const scenario of scenarioReach(file, source)) {
         if (cited.has(scenario.title)) {
           seen.set(scenario.title, [...seen.get(scenario.title) ?? [], file]);
@@ -236,7 +236,7 @@ describe("finite lifecycle coverage model", () => {
     const drivers = Object.values(OPERATION_DRIVERS);
     const unchecked: string[] = [];
     for (const file of FROZEN_REGRESSIONS) {
-      const source = await readFile(path.join(REPO_ROOT, file.path), "utf8");
+      const source = await readCommittedSource(path.join(REPO_ROOT, file.path));
       const reach = new Map(scenarioReach(file.path, source).map((s) => [s.title, s.calls]));
       for (const scenario of file.scenarios) {
         const driven = drivers.filter((driver) => reach.get(scenario.title)?.has(driver));

@@ -193,7 +193,6 @@ export async function advanceWorkflowWithHost(host: LocalWorkflowHost, root: str
   lockOptions: BlockingLockOptions = {}): Promise<AdvanceResult> {
   const result = await withHostRunLock<AdvanceResult>(host, root, runId, async (run, context) => {
     if (isTerminalStatus(run.status)) throw new RunNotActiveError(runId, run.status);
-    await host.profiles.assertProcessAuthority(root, run);
     const { def, stage } = await resolveCurrentStage(root, run, host.profiles.load);
     if (stageSatisfied(run, stage)) {
       if (stage.productAction !== undefined) await assertProductStageOutputCurrent(root, run, stage, host.observations);

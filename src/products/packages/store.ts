@@ -38,14 +38,17 @@ import {
 import {
   listDirectoryEntries, makeDirectoryTree, readConfinedLeafBytes, renameLeafUnguarded,
 } from "../../storage/disk-guarded-leaves.js";
-import { checkConfinedLeafDigest, type ConfinedLeafDigestCheck } from "../../storage/disk-handle-leaves.js";
+import {
+  checkConfinedLeafDigest, readConfinedLeafDigest, type ConfinedLeafDigestCheck, type ConfinedLeafDigestRead,
+} from "../../storage/disk-handle-leaves.js";
 import { locationKindNoFollow } from "../../storage/disk-local-reads.js";
 import { locationRealPath } from "../../storage/disk-locations.js";
 import type { LocalEntryKind } from "../../storage/legacy-local-reads.js";
 import type { CappedLeafReadBuffer } from "../../utils/confined-read.js";
 import { isInsideDir } from "../../utils/path-confine.js";
 import {
-  MAX_INSTALLED_PACKAGES_PER_PROJECT, MAX_PRODUCT_MANIFEST_BYTES, MAX_PRODUCT_PACKAGE_STORE_BYTES,
+  MAX_COMPOSITION_LOCK_BYTES, MAX_INSTALLED_PACKAGES_PER_PROJECT, MAX_KNOWLEDGE_PROFILE_BYTES,
+  MAX_PRODUCT_MANIFEST_BYTES, MAX_PRODUCT_PACKAGE_STORE_BYTES, MAX_ROOT_OPERATIONS_PACK_BYTES,
 } from "../constants.js";
 import { assertProductDigest, digestDirectoryName, type Sha256Digest } from "../ids.js";
 import { ProductBoundsError, ProductPackageError } from "../problems.js";
@@ -56,9 +59,12 @@ import type { ProductPackageManifestV1 } from "../types.js";
 const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true });
 const TEMP_TOKEN_BYTES = 16;
 
+/** Member bytes an installed-package read verified while it checked them, keyed by the member's digest hex. */
+export type VerifiedMemberBytes = ReadonlyMap<string, Buffer>;
+
 /** Complete read classification for one installed immutable package. */
 export type InstalledPackageRead =
-  | { status: "ok"; manifest: ProductPackageManifestV1 }
+  | { status: "ok"; manifest: ProductPackageManifestV1; verifiedMembers: VerifiedMemberBytes }
   | { status: "absent" }
   | { status: "invalid"; detail: string }
   | { status: "unavailable"; detail: string };
@@ -95,6 +101,7 @@ export interface ProductPackageReads {
   readManifestLeaf(packageHex: string, maxBytes: number): Promise<CappedLeafReadBuffer>;
   /** One member leaf checked against a byte count and its own digest (`memberHex`), without returning its bytes. */
   checkMemberLeaf(packageHex: string, memberHex: string, byteCount: number): Promise<ConfinedLeafDigestCheck>;
+  readCheckedMemberLeaf(packageHex: string, memberHex: string, byteCount: number): Promise<ConfinedLeafDigestRead>;
   /** What one of the package's two directories IS, without following a link. REJECTS raw, for a missing one too. */
   directoryKind(packageHex: string, directory: PackageDirectory): Promise<LocalEntryKind>;
   /** The direct entries of one of the package's two directories. REJECTS raw. */
@@ -224,10 +231,32 @@ export async function readInstalledProductPackageFrom(
   } catch (error) {
     return { status: "invalid", detail: error instanceof Error ? error.message : "manifest-invalid" };
   }
-  const members = await verifyMemberLeaves((memberHex, byteCount) => reads.checkMemberLeaf(hex, memberHex, byteCount), manifest);
+  const verifiedMembers = new Map<string, Buffer>();
+  const members = await verifyMemberLeaves(memberCheckKeeping(reads, hex, manifest, verifiedMembers), manifest);
   if (members !== "ok") return members;
   const undeclared = await assertNoUndeclaredLeaves(reads, hex, manifest);
-  return undeclared === "ok" ? { status: "ok", manifest } : undeclared;
+  return undeclared === "ok" ? { status: "ok", manifest, verifiedMembers } : undeclared;
+}
+
+function retainedMemberCaps(manifest: ProductPackageManifestV1): Map<string, number> {
+  return new Map([
+    [digestDirectoryName(manifest.knowledgeProfile.digest), MAX_KNOWLEDGE_PROFILE_BYTES],
+    [digestDirectoryName(manifest.rootOperationsPack.digest), MAX_ROOT_OPERATIONS_PACK_BYTES],
+    [digestDirectoryName(manifest.compositionLock.digest), MAX_COMPOSITION_LOCK_BYTES],
+  ]);
+}
+
+function memberCheckKeeping(
+  reads: ProductPackageReads, hex: string, manifest: ProductPackageManifestV1, kept: Map<string, Buffer>,
+): (memberHex: string, byteCount: number) => Promise<ConfinedLeafDigestCheck> {
+  const caps = retainedMemberCaps(manifest);
+  return async (memberHex, byteCount) => {
+    const cap = caps.get(memberHex);
+    if (cap === undefined || byteCount > cap) return reads.checkMemberLeaf(hex, memberHex, byteCount);
+    const read = await reads.readCheckedMemberLeaf(hex, memberHex, byteCount);
+    if (read.kind === "matches") kept.set(memberHex, read.bytes);
+    return read.kind;
+  };
 }
 
 /**
@@ -246,6 +275,8 @@ export function diskProductPackageReads(root: string): ProductPackageReads {
     readManifestLeaf: (hex, maxBytes) =>
       readConfinedLeafBytes(root, paths().manifestFile(hex), paths().packageDir(hex), maxBytes, { requireSingleLink: true }),
     checkMemberLeaf: (hex, memberHex, byteCount) => checkConfinedLeafDigest(
+      root, paths().memberFile(hex, memberHex), paths().membersRoot(hex), { sha256Hex: memberHex, byteCount }, { requireSingleLink: true }),
+    readCheckedMemberLeaf: (hex, memberHex, byteCount) => readConfinedLeafDigest(
       root, paths().memberFile(hex, memberHex), paths().membersRoot(hex), { sha256Hex: memberHex, byteCount }, { requireSingleLink: true }),
     directoryKind: (hex, directory) => locationKindNoFollow(directoryOf(hex, directory)),
     listDirectory: async (hex, directory) => (await listDirectoryEntries(directoryOf(hex, directory)))
