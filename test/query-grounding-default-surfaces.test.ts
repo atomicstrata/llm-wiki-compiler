@@ -15,7 +15,7 @@ import { rm } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import { mockEmbeddingFailure, useAlphaPageFixture } from "./fixtures/alpha-page.js";
-import { buildServer, callTool } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { writePage } from "./fixtures/write-page.js";
 import { createWiki } from "../src/sdk/wiki.js";
 import type { QueryResult } from "../src/utils/types.js";

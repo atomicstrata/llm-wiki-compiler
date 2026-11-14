@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi } from "bun:test";
-import { startAndParkBuild } from "./fixtures/workflow-profile.js";
+import { startAndParkBuild } from "./fixtures/workflow-run-helpers.js";
 import { workflowStatus, type RunStatus } from "../src/workflows/status.js";
 import { printRunStatus } from "../src/commands/workflow-shared.js";
 import type { WorkflowRun } from "../src/workflows/types.js";

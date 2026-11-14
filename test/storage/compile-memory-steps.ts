@@ -189,7 +189,8 @@ export function memoryHost(): LockHost {
     entropy: (bytes) => { drawn += 1; return drawn.toString(16).padStart(bytes * 2, "0"); },
     now: () => clock.now, sleep: async (ms) => { clock.now += ms; },
     admit: async () => () => {}, park: (key, release) => { parked.set(key, release); },
-    releaseParked: (key) => { parked.get(key)?.(); parked.delete(key); }, status: () => {},
+    releaseParked: (key) => { parked.get(key)?.(); parked.delete(key); },
+    hasParked: () => parked.size > 0, status: () => {},
   };
 }
 

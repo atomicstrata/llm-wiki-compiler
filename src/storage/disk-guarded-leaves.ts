@@ -77,7 +77,7 @@ import path from "node:path";
 import { atomicWrite, atomicWriteNoReplace } from "../utils/atomic-write.js";
 import {
   openConfinedLeaf, readConfinedLeaf, readConfinedLeafBuffer,
-  type CappedLeafRead, type CappedLeafReadBuffer, type ReadLeafOptions,
+  type CappedLeafRead, type CappedLeafReadBuffer, type ConfirmedLeafOpen, type ReadLeafOptions,
 } from "../utils/confined-read.js";
 import { openFileNoFollow } from "../utils/no-follow-open.js";
 import {
@@ -250,7 +250,7 @@ async function handleStillBound(
 /** Read and rebind one already confinement-proved leaf handle; the handle is always closed. */
 async function consumeConfirmedLeaf(
   request: GuardedLeafReadRequest,
-  opened: Extract<Awaited<ReturnType<typeof openConfinedLeaf>>, { kind: "confirmed" }>,
+  opened: ConfirmedLeafOpen,
 ): Promise<GuardedLeafRead> {
   try {
     const info = await opened.handle.stat();

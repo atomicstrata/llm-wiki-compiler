@@ -258,8 +258,8 @@ describe("the relation create over both stores, disk and memory, from four copie
 });
 
 describe("the bound create's order, its unknown outcomes, and no ambient call (memory only, not real guards)", () => {
-  /** The create's whole store conversation: repair read (store, anchor twice), live read, pre-flight, record, event, seal. */
-  const prepare = ["read events.jsonl", "private-dir", "head events.head", "private-dir", "head events.head"];
+  /** The create's whole store conversation: repair read (store, then the anchor it judges), live read, pre-flight, record, event, seal. */
+  const prepare = ["read events.jsonl", "private-dir", "head events.head"];
 
   it("R5a reads, repairs, pre-flights, appends the record (serialised twice, at the incumbent points), then the event, then seals", async () => {
     const real = relationRecord.serializeRecord;

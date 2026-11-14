@@ -102,19 +102,12 @@ describe("payload store", () => {
       createOnly: true, confineRoot: root.dir, exactParent: true,
       beforeDirectorySyncForTest: async (dir) => { synced.push(dir); },
     })).rejects.toBeInstanceOf(AtomicWriteCollisionError);
-    const chain = directoryChain(path.dirname(file), root.dir);
-    // Reconcile fsyncs the chain before AND after removing the poisoned temp (the
-    // removal is power-loss durable), then the collision path fsyncs it once more.
-    expect(synced).toEqual([...chain, ...chain, ...chain]);
+    const leaf = path.dirname(file);
+    // Reconcile fsyncs the leaf directory before AND after removing the poisoned
+    // temp (the removal is power-loss durable), then the collision path fsyncs it
+    // once more. The first write already made every ancestor's entry durable, so
+    // the chain stops at the leaf each time.
+    expect(synced).toEqual([leaf, leaf, leaf]);
     await expect(writePayloadCreateOnly(root.dir, location, bytes)).resolves.toBe("same");
   });
 });
-
-/** Return every directory whose entry must be durable through the root. */
-function directoryChain(start: string, boundary: string): string[] {
-  const result = [];
-  for (let current = start; ; current = path.dirname(current)) {
-    result.push(current);
-    if (current === boundary) return result;
-  }
-}

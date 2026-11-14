@@ -9,7 +9,7 @@ import { createLocalWorkflowHost } from "../src/local-workflow-host/index.js";
 import { submitStageOutput, type LifecycleStageOutput } from "../src/workflows/stage-output.js";
 import { writeRun } from "../src/workflows/store.js";
 import { kindsProfile, startKindsRun, pageLifecycle } from "./fixtures/seam-fixtures.js";
-import { readOkRun } from "./fixtures/workflow-profile.js";
+import { readOkRun } from "./fixtures/workflow-run-read.js";
 
 /** Declare one numeric evidence field; all other evidence must be ignored. */
 async function fixture() {

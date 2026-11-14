@@ -118,6 +118,7 @@ describe("the lifecycle-gate decision over the local-disk reads (real crashed sw
     expect(await acquireMutationLock(root, "ordinary")).toBe(true);
     await releaseLock(root);
     expect(alias.mock.calls).toEqual([[root, ALIAS_NAMES]]);
-    expect(capture.mock.calls).toEqual([[root]]);
+    // The second argument is the gate pass's shared lifecycle reads.
+    expect(capture.mock.calls.map(([called]) => called)).toEqual([root]);
   });
 });

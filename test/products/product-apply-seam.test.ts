@@ -29,8 +29,8 @@ import { applyProductBundle, type ProductApplyResultV1 } from "../../src/product
 import { writeJournal } from "../trust/journal-fixture.js";
 import {
   activatedProject, type ActivatedProjectV1, verticalService,
-  VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID,
 } from "./product-vertical-fixture.js";
+import { VERTICAL_ACTION_ID, VERTICAL_WORKSPACE_ID } from "./product-vertical-package.js";
 
 /** The caller input every invocation in this suite declares. */
 const INPUT = { topic: "superconductivity" } as const;

@@ -27,7 +27,8 @@ import { createWiki } from "../src/index.js";
 import { buildViewerSnapshot } from "../src/viewer/snapshot.js";
 import { buildParityCorpus } from "./fixtures/parity-corpus.js";
 import { runCLI } from "./fixtures/run-cli.js";
-import { buildServer, callTool, connectMcpClient } from "./fixtures/mcp-test-env.js";
+import { connectMcpClient } from "./fixtures/mcp-test-env.js";
+import { buildServer, callTool } from "./fixtures/mcp-test-server.js";
 import { assertGolden } from "./parity/golden.js";
 
 /** Every deterministic, no-LLM surface the profile refactor must reproduce. */

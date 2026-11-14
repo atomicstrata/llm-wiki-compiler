@@ -12,7 +12,7 @@
  * its parent's canonical path plus its own name.
  */
 
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, realpath } from "./fs-metadata.js";
 import path from "node:path";
 
 /** Permission errnos Bun's realpath raises for an unreadable but present leaf. */

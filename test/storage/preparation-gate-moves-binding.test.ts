@@ -164,7 +164,7 @@ describe("the compositions and the root forms", () => {
     const { order } = stubs;
     expect((await blockAtGate("/project", BINDING, GATE, ACTOR, "2026-10-14T00:00:00.000Z")).status).toBe("moved");
     expect([order, acquire.mock.calls, read.mock.calls, release.mock.calls]).toEqual([
-      ["acquire", "read", "append", "release"], [["/project", "ordinary"]], [["/project", BINDING]], [["/project"]],
+      ["acquire", "read", "append", "release"], [["/project", "ordinary"]], [["/project", BINDING, expect.anything()]], [["/project"]],
     ]);
     expect(append.mock.calls[0]?.slice(0, 3)).toEqual(["/project", BINDING, { stateVersion: 2, chainTip: "tip" }]);
   });
@@ -172,13 +172,13 @@ describe("the compositions and the root forms", () => {
   it("B3 the gate operation's root form reaches every incumbent with exact arguments", async () => {
     vi.spyOn(gates, "authorGateProof").mockReturnValue({ summary: PROOF } as never);
     const ready = vi.spyOn(readiness, "resolveHostReadiness").mockResolvedValue({ ready: true, reason: null });
-    const acquire = vi.spyOn(lockGate, "acquireMutationLock").mockResolvedValue(true);
-    const resolve = vi.spyOn(lookup, "resolvePreparationRun").mockResolvedValue({ ok: true, binding: BINDING, run: runIn("awaiting-gate") } as never);
+    const acquire = vi.spyOn(lockGate, "acquireMutationLockHandingOver").mockResolvedValue({ acquired: true, preparationPass: null });
+    const resolve = vi.spyOn(lookup, "resolvePreparationRunOnPass").mockResolvedValue({ ok: true, binding: BINDING, run: runIn("awaiting-gate") } as never);
     const authority = vi.spyOn(gateAuthority, "resolveGateAuthority").mockResolvedValue({ ok: true, authoritative: {} } as never);
     const append = vi.spyOn(runStore, "appendProjectedTransitionLocked").mockImplementation(async (_r, _b, _e, _i, project) => project(runIn("awaiting-gate")) as never);
     const release = vi.spyOn(lock, "releaseLock").mockResolvedValue(undefined);
     expect((await gatePreparationOperation("/project", DECIDER, REQUEST)).status).toBe("recorded");
-    expect([ready.mock.calls, acquire.mock.calls, resolve.mock.calls, release.mock.calls]).toEqual([[["/project"]], [["/project", "review"]], [["/project", "run_1"]], [["/project"]]]);
+    expect([ready.mock.calls, acquire.mock.calls, resolve.mock.calls, release.mock.calls]).toEqual([[["/project"]], [["/project", "review"]], [["/project", "run_1", expect.anything()]], [["/project"]]]);
     expect([authority.mock.calls[0]?.slice(0, 2), authority.mock.calls[0]?.[3], append.mock.calls[0]?.slice(0, 3)])
       .toEqual([["/project", BINDING], "g", ["/project", BINDING, { stateVersion: 2, chainTip: "tip" }]]);
   });

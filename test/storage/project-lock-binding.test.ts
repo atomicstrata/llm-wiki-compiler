@@ -244,6 +244,7 @@ function memoryHost(log: string[], statuses: string[]): LockHost {
     },
     park: (key, release) => { log.push(`park ${key}`); parked.set(key, release); },
     releaseParked: (key) => { log.push(`release-parked ${key}`); parked.get(key)?.(); parked.delete(key); },
+    hasParked: () => parked.size > 0,
     status: (icon, message) => { statuses.push(`${icon} ${plain(message)}`); },
   };
 }
@@ -287,7 +288,8 @@ const published = (rel: string, n: number): string[] => {
   const scratch = `${rel}.${n.toString(16).padStart(16, "0")}.publishing`;
   return [`serialize ${MEM_SELF}`, "entropy 8", `create ${scratch}`, `link ${scratch} -> ${rel}`, `remove ${scratch}`];
 };
-const RESOLVED = ["confine .llmwiki", "mkdir .llmwiki", "safe-realpath .", "safe-realpath .llmwiki"];
+// The re-check compares against the root the confinement judged under (the confined dir's parent), so the root is not resolved again.
+const RESOLVED = ["confine .llmwiki", "mkdir .llmwiki", "safe-realpath .llmwiki"];
 
 describe("the project lock over a copied project, with the minting directory gone", () => {
   it("L1 runs after the minting directory was removed, on a copy holding exactly the seed and no private directory", () => {
@@ -324,7 +326,8 @@ describe("the project lock over a copied project, with the minting directory gon
     expect(acquired).toEqual([...RESOLVED, ...published(".llmwiki/lock", 1)]);
     const released: string[] = [];
     await memorySide(released).release();
-    expect(released).toEqual(["realpath .", "confine .llmwiki", "probe .llmwiki", `release-parked ${MEM_ROOT}`]);
+    // Nothing is parked, so release neither resolves a queue key nor releases a permit.
+    expect(released).toEqual(["confine .llmwiki", "probe .llmwiki"]);
   });
 
   it("L6 cleans a stale reclaim lock WITHOUT re-acquiring it, then converges on the second attempt under reclaim ownership (memory only)", async () => {

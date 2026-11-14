@@ -24,7 +24,7 @@ import type { PreparationRunBinding } from "../../src/preparations/run-types.js"
 import { multiSourcePaperRequest } from "./compile-fixture.js";
 import {
   compileActionInputRenderAction, compileMultiSourceRenderAction, compileChainedAction, compileSingleIntentAction, compileTwoPhasePaperAction,
-} from "./runtime-fixture.js";
+} from "./compiled-actions-fixture.js";
 
 /** A well-formed manifest digest; only the phase-instance derivation reads it. */
 const MANIFEST = parseSha256Digest(`sha256:${"c".repeat(64)}`);
