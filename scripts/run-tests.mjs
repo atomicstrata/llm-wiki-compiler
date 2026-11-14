@@ -88,10 +88,8 @@ function runTests(tmpdir) {
 
 const ramDisk = shouldUseRamDisk() ? mountRamDisk() : null;
 if (ramDisk) console.log(`run-tests: temp files on RAM disk ${ramDisk.mountPoint}`);
-let exitCode = 1;
 try {
-  exitCode = await runTests(ramDisk?.mountPoint);
+  process.exitCode = await runTests(ramDisk?.mountPoint);
 } finally {
   if (ramDisk) detachRamDisk(ramDisk.device);
 }
-process.exit(exitCode);
