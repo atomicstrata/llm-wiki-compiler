@@ -5,6 +5,13 @@
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+## On main — Leaner startup (unreleased)
+
+These changes are merged for the next release. The published npm `latest` release remains `1.5.0`.
+
+- **Less work at startup.** The CLI loads command implementations only when needed, profile schema validation is compiled ahead of time, and lock-owner checks read kernel process records where supported instead of spawning `ps`.
+- **Bun for contributors, Node for users.** Repository builds and tests use Bun and `bun.lock`; the installed CLI and SDK still run on Node.js 24 or newer. No wiki migration is needed.
+
 ## New in 1.5 — Wiki behavior separated from storage.
 
 `1.5.0` is the stable release on npm `latest`: `npm install --global llm-wiki-compiler`.
@@ -342,7 +349,7 @@ Provider selection is environment-driven:
 | GitHub Copilot | `LLMWIKI_PROVIDER=copilot`, `GITHUB_TOKEN=$(gh auth token)` |
 | Atlas Cloud | `LLMWIKI_PROVIDER=atlascloud`, `ATLASCLOUD_API_KEY` |
 | OrcaRouter | `LLMWIKI_PROVIDER=orcarouter`, `ORCAROUTER_API_KEY` |
-| Runcrate | `LLMWIKI_PROVIDER=runcrate`, `RUNCRATE_API_KEY` |
+| Runcrate (on main) | `LLMWIKI_PROVIDER=runcrate`, `RUNCRATE_API_KEY`; separate embedding provider required when enabled, or set `LLMWIKI_EMBEDDINGS=off` |
 
 See [`docs/configuration/providers.mdx`](docs/configuration/providers.mdx) and [`docs/configuration/environment-variables.mdx`](docs/configuration/environment-variables.mdx).
 
@@ -473,14 +480,20 @@ Use them independently or together. The [`@atomicmemory/llmwiki`](https://github
 
 Contributions are welcome. If llmwiki is missing something you need, open an issue or PR and describe the workflow you are trying to support - need-driven improvements are often the best ones. If you want to contribute more generally, roadmap items are a good place to start. For larger changes to core compile, review, import/export, or retrieval semantics, please start with an issue or design discussion so we can align on the contract first.
 
-Before committing code changes, run:
+For repository development, use the Bun version pinned in `package.json` (currently `1.4.2`). Dependencies are locked in `bun.lock`, and tests use `bun:test`. Node.js 24 or newer is still required for installed-package checks.
+
+Install dependencies and run the code-change checks from the repository root:
 
 ```bash
+bun install --frozen-lockfile
 bunx tsc --noEmit
+bun run typecheck:tests
 bun run build
 bun run test
 bun run fallow:ci
 ```
+
+For packaging or export changes, also run `bun run test:pack`, which checks the packed packages in fresh installed consumers.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
