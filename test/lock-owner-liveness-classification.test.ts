@@ -20,11 +20,15 @@
  * red results cannot tell a faithful collapse from an over-eager one.
  */
 
-import { describe, it, expect, vi } from "bun:test";
-import {
-  classifyOwnerLiveness, isOwnerStale, isUnobservableLiveness, readProcessStartTime,
-} from "../src/utils/lock-owner.js";
-import type { LockOwner, OwnerLiveness } from "../src/utils/lock-owner.js";
+import { afterEach, beforeEach, describe, expect, it, spyOn, vi } from "bun:test";
+import { isUnobservableLiveness, type LockOwner, type OwnerLiveness } from "../src/utils/lock-owner.js";
+
+// Supply readable identities independently of the host's process tools.
+/** Fixed start instant for the self and foreign cases below. */
+const START_SECONDS = 1_700_000_000;
+const LIVE_START_TIME = `unix:${START_SECONDS}`;
+/** PID for the simulated foreign holder. Signal 0 is intercepted in its tests. */
+const FOREIGN_LIVE_PID = 1;
 
 // Snapshot the real modules before mock.module replaces them for this file.
 const realChildProcess = { ...(await import("node:child_process")) };
@@ -33,7 +37,7 @@ const realKernelStartTime = { ...(await import("../src/utils/kernel-start-time.j
  * While set, NEITHER start-time source answers for any lock-owner instance in
  * this file: `ps` throws and the in-process kernel read defers to it.
  */
-const psProbe = { unavailable: false };
+const psProbe = { fixtureActive: false, unavailable: false };
 let freshImports = 0;
 vi.mock("node:child_process", () => ({
   ...realChildProcess,
@@ -43,9 +47,19 @@ vi.mock("node:child_process", () => ({
   }) as typeof realChildProcess.execFileSync,
 }));
 vi.mock("../src/utils/kernel-start-time.js", () => ({
-  readKernelStartSeconds: (pid: number) =>
-    psProbe.unavailable ? undefined : realKernelStartTime.readKernelStartSeconds(pid),
+  readKernelStartSeconds: (pid: number) => {
+    if (psProbe.unavailable) return undefined;
+    if (psProbe.fixtureActive && (pid === process.pid || pid === FOREIGN_LIVE_PID)) return START_SECONDS;
+    return realKernelStartTime.readKernelStartSeconds(pid);
+  },
 }));
+
+// The regular module may have cached a real identity in another test file.
+const fixtureModule = await import(`../src/utils/lock-owner.js?liveness=${++freshImports}`);
+const { classifyOwnerLiveness, isOwnerStale, readProcessStartTime } =
+  fixtureModule as typeof import("../src/utils/lock-owner.js");
+beforeEach(() => { psProbe.fixtureActive = true; });
+afterEach(() => { psProbe.fixtureActive = false; });
 
 /** A pid no host assigns, so the signal probe reports it GONE. */
 const DEAD_PID = 999999;
@@ -62,21 +76,19 @@ const DEAD_PID = 999999;
  */
 const IMPOSSIBLE_START_TIME = "unix:1";
 
-/**
- * PID 1 — live on every POSIX host and owned by root, so a non-root operator
- * observes it as EPERM (alive, foreign). Matches the instrument
- * `lock-pid-reuse.test.ts` already uses, deliberately: a spawned-then-killed pid
- * would be the ESRCH case, which is a different arm.
- */
-const FOREIGN_LIVE_PID = 1;
-
-/** True only when this process genuinely cannot signal the foreign pid. */
-function foreignPidIsUnsignalable(): boolean {
+/** Model an alive process that the current user cannot signal. */
+async function withForeignOwner(use: () => void | Promise<void>): Promise<void> {
+  const kill = process.kill.bind(process);
+  const probe = spyOn(process, "kill").mockImplementation((pid, signal) => {
+    if (pid === FOREIGN_LIVE_PID && signal === 0) {
+      throw Object.assign(new Error("signal denied"), { code: "EPERM" });
+    }
+    return kill(pid, signal);
+  });
   try {
-    process.kill(FOREIGN_LIVE_PID, 0);
-    return false;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
+    await use();
+  } finally {
+    probe.mockRestore();
   }
 }
 
@@ -131,15 +143,12 @@ describe("classifyOwnerLiveness — per-branch behaviour identity", () => {
     expectArm({ pid: process.pid, startTime: startTime! }, "live", false);
   });
 
-  it("classifies a live FOREIGN pid by its start time, both ways", () => {
-    // ANTI-VACUITY: running the suite as root makes pid 1 signalable and this
-    // case would exercise the self path instead of the foreign one.
-    expect(foreignPidIsUnsignalable()).toBe(true);
-    const startTime = readProcessStartTime(FOREIGN_LIVE_PID);
-    expect(startTime).not.toBeNull();
-    // Pre-collapse foreign arm: `return current !== owner.startTime;`
-    expectArm({ pid: FOREIGN_LIVE_PID, startTime: startTime! }, "live", false);
-    expectArm({ pid: FOREIGN_LIVE_PID, startTime: IMPOSSIBLE_START_TIME }, "stale", true);
+  it("classifies a live FOREIGN pid by its start time, both ways", async () => {
+    await withForeignOwner(() => {
+      // Pre-collapse foreign arm: compare the recorded identity with the current one.
+      expectArm({ pid: FOREIGN_LIVE_PID, startTime: LIVE_START_TIME }, "live", false);
+      expectArm({ pid: FOREIGN_LIVE_PID, startTime: IMPOSSIBLE_START_TIME }, "stale", true);
+    });
   });
 
   it("classifies a record that stored NO start time as PERMANENTLY unobservable", () => {
@@ -164,16 +173,12 @@ describe("classifyOwnerLiveness — per-branch behaviour identity", () => {
   });
 
   it("classifies an unreadable FOREIGN pid as unobservable too", async () => {
-    expect(foreignPidIsUnsignalable()).toBe(true);
-    await withUnreadableStartTimes((module) => {
+    await withForeignOwner(() => withUnreadableStartTimes((module) => {
       expect(module.readProcessStartTime(FOREIGN_LIVE_PID)).toBeNull();
-      // The recorded start time is one that cannot be real, so a readable probe
-      // would have said `stale`. It reads `unobservable` only because the
-      // evidence is missing — which is what makes this the arm and not the other.
-      expect(module.classifyOwnerLiveness({ pid: FOREIGN_LIVE_PID, startTime: IMPOSSIBLE_START_TIME }))
-        .toBe("unobservable-unreadable");
-      expect(module.isOwnerStale({ pid: FOREIGN_LIVE_PID, startTime: IMPOSSIBLE_START_TIME })).toBe(false);
-    });
+      const owner = { pid: FOREIGN_LIVE_PID, startTime: IMPOSSIBLE_START_TIME };
+      expect(module.classifyOwnerLiveness(owner)).toBe("unobservable-unreadable");
+      expect(module.isOwnerStale(owner)).toBe(false);
+    }));
   });
 });
 
