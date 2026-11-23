@@ -560,30 +560,6 @@
     "note": "Everything that keeps this tree from being a release candidate. `check` and `kinds` name the mechanism finding an item produces, when it produces one; an item with `check: null` is a prerequisite or decision no mechanism measures. The gate reports its mechanism checks and this list SEPARATELY: mechanisms can all pass while the release is not ready. The default gate run exits non-zero while any item is open. An item is removed only by the work or ruling it names, never to make the gate pass. Each item has a `category`: code-qualification (work or evidence still owed on the code), model-qualification (a real-model result still owed) or publication-approval (a release decision or its execution prerequisite, not a code defect).",
     "items": [
       {
-        "id": "integration-gate-not-run",
-        "check": null,
-        "needs": "The f7f85c53 source copy passed type-check, build, Fallow and the full Node 24/Bun 1.4.2 regression suite on 2026-11-22 (14,807 pass, 13 skip, 0 fail). Source-review and release-checklist evidence edits now require the final candidate commit, its required local gates and a fresh clean package stage before this item closes.",
-        "category": "code-qualification"
-      },
-      {
-        "id": "release-documents-await-review",
-        "check": null,
-        "category": "code-qualification",
-        "needs": "The f7f85c53 tarballs passed exact-byte packaged documentation and receipt checks. Repeat the artifact check on the final candidate commit after the release evidence edits, binding shipped README, CHANGELOG, ARCHITECTURE, skill and LICENSE to its new receipt."
-      },
-      {
-        "id": "publish-workflow-unreconciled",
-        "check": null,
-        "needs": "The current publish workflow builds the public stage, runs the full release gate, carries exact checked tarballs in a hash-verified receipt, requires gitHead equal to public_sha, and checks a fresh consumer before publication through Trusted Publishing. Its reviewed corrections have bounded local synthetic contract evidence (47 rows), but a successful manual hosted publish:false branch preflight has not run. Keep this item open until that hosted qualification is accepted; it does not authorize publication or prove the skipped registry/MCP steps.",
-        "category": "publication-approval"
-      },
-      {
-        "id": "real-model-pilot-not-run",
-        "check": null,
-        "needs": "no compile has run against a real local model on this tree (Gate 2)",
-        "category": "model-qualification"
-      },
-      {
         "id": "publication-not-authorized",
         "check": null,
         "needs": "nothing in this repository authorizes publication; it needs a separate, explicit approval",
