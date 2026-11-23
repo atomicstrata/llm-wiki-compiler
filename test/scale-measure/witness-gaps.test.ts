@@ -5,6 +5,8 @@
  * page, and a standard migration is complete only when `scale.set` reports a
  * `ready` project whose active architecture is `local-indexed` with nothing
  * pending (`unavailable`, `preparing` and `parked` are not completed work).
+ * An `init` that requested an indexed layout must likewise report `local-indexed`, ready, nothing pending: a parked
+ * preparation (for example the free-space preflight) is refused with its parked step, not silently accepted.
  */
 
 import { afterEach, expect, it, vi } from "bun:test";
@@ -59,4 +61,42 @@ it("refuses a ready report that is still on the standard architecture", async ()
 it("accepts a ready indexed migration with nothing pending", async () => {
   setReport("ready", "local-indexed");
   expect(await BUILD_PHASES["migrate"]!("/unused", shape)).toMatchObject({ readiness: "ready", active: "local-indexed", pending: null });
+});
+
+const indexedShape = { ...shape, expectedDocuments: 10_000 };
+
+/** Replace `initWikiCore` with a facade whose `scale.status` answers `report`; returns the status spy. */
+function initReport(report: unknown) {
+  const status = vi.fn(async () => report);
+  vi.spyOn(core, "initWikiCore").mockResolvedValue({ scale: { status } } as never);
+  return status;
+}
+
+const parkedPreflight = { kind: "prepare", target: "local-indexed", steps: [{ name: "capacity-preflight", status: "parked", detail: "insufficient-disk: free 7098449920 B, conservative estimate 8282701824 B" }] };
+
+it("refuses an indexed init whose preparation parked, naming the parked step", async () => {
+  initReport({ readiness: "parked", record: { active: { architecture: "local-standard" }, pending: parkedPreflight } });
+  await expect(BUILD_PHASES["init"]!("/unused", indexedShape)).rejects.toThrow(/did not reach local-indexed for 10000 expected documents.*capacity-preflight: insufficient-disk/);
+});
+
+it("refuses an indexed init that is ready but still on the standard architecture", async () => {
+  initReport({ readiness: "ready", record: { active: { architecture: "local-standard" }, pending: null } });
+  await expect(BUILD_PHASES["init"]!("/unused", indexedShape)).rejects.toThrow("active local-standard");
+});
+
+it("bounds the parked step's detail in the refusal", async () => {
+  initReport({ readiness: "parked", record: { active: { architecture: "local-standard" }, pending: { steps: [{ name: "capacity-preflight", status: "parked", detail: "x".repeat(5000) }] } } });
+  const refusal = await BUILD_PHASES["init"]!("/unused", indexedShape).then(() => "", (error: Error) => error.message);
+  expect(refusal.length).toBeLessThan(800);
+});
+
+it("accepts a ready indexed init with nothing pending", async () => {
+  initReport({ readiness: "ready", record: { active: { architecture: "local-indexed" }, pending: null } });
+  expect(await BUILD_PHASES["init"]!("/unused", indexedShape)).toEqual({ expectedDocuments: 10_000, architecture: "local-indexed" });
+});
+
+it("keeps the default (standard) init valid without asking for a scale report", async () => {
+  const status = initReport({ readiness: "parked", record: null });
+  expect(await BUILD_PHASES["init"]!("/unused", shape)).toEqual({ expectedDocuments: 0 });
+  expect(status).not.toHaveBeenCalled();
 });

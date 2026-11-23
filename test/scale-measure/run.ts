@@ -49,20 +49,52 @@ const STANDARD_OPS = ALL_OPS.filter((op) => ![
 ].includes(op));
 const BUILD = ["init", "sources", "pages", "vectors", "events", "relations", "opcat", "compile"];
 
+/**
+ * The expected scale the SMOKE variant requests: the smallest document count the planner places on `local-indexed`
+ * (3,001 documents need 3,237,150,720 free bytes at init, against 8,282,701,824 for the graduated 10,000), so the
+ * two-document smoke runs on an ordinary temp volume. The graduated `indexed` variant keeps 10,000.
+ */
+export const SMOKE_EXPECTED_DOCUMENTS = 3_001;
+
+/** The shape of every indexed variant: only the expected scale it requests differs. */
+const indexedShape = (expectedDocuments: number) => (docs: number): CorpusShape => ({ docs, chunksPerDoc: 1, eventsPerDoc: 10, relationsPerDoc: 5, expectedDocuments });
+const INDEXED: Variant = { shape: indexedShape(10_000), phases: BUILD, ops: ALL_OPS };
+
 /** The measured variants. */
 const VARIANTS: Record<string, Variant> = {
   // Vectors per document = 1 page vector + chunksPerDoc: 2 per document here, 10 in the high-multiplicity variant.
-  indexed: { shape: (docs) => ({ docs, chunksPerDoc: 1, eventsPerDoc: 10, relationsPerDoc: 5, expectedDocuments: 10_000 }), phases: BUILD, ops: ALL_OPS },
+  indexed: INDEXED,
+  "indexed-smoke": { ...INDEXED, shape: indexedShape(SMOKE_EXPECTED_DOCUMENTS) },
   "indexed-hi": { shape: (docs) => ({ docs, chunksPerDoc: 9, eventsPerDoc: 0, relationsPerDoc: 0, expectedDocuments: 10_000 }), phases: ["init", "pages", "vectors"], ops: ["vector-search", "vector-update-one", "verify-all"] },
   standard: { shape: (docs) => ({ docs, chunksPerDoc: 1, eventsPerDoc: 10, relationsPerDoc: 5, expectedDocuments: 0 }), phases: BUILD, ops: STANDARD_OPS, env: { LLMWIKI_BINARY_EMBEDDINGS: "1" } },
   "standard-migrate": { shape: (docs) => ({ docs, chunksPerDoc: 1, eventsPerDoc: 10, relationsPerDoc: 5, expectedDocuments: 0 }), phases: [...BUILD, "migrate"], ops: ["list-pages", "event-append", "vector-search", "verify-all"], env: { LLMWIKI_BINARY_EMBEDDINGS: "1" } },
   calibration: { shape: (docs) => ({ docs, chunksPerDoc: 0, eventsPerDoc: 0, relationsPerDoc: 0, expectedDocuments: 0 }), phases: [], ops: ["fs-calibration"] },
 };
 
+/** Most trailing characters of a failed child's stderr and stdout kept in its entry and in the thrown error. */
+const STDERR_TAIL_CHARS = 4000;
+const STDOUT_TAIL_CHARS = 2000;
+/** Most characters of a spawn error message kept in the thrown error (the child entry keeps it whole). */
+const ERROR_MESSAGE_CHARS = 500;
+
 /** The measurement a finished child printed, or a failed entry: a spawn error, a nonzero exit, a signal or no JSON line is a failure. */
 function childOutcome(request: ChildRequest, end: ChildEnd): Record<string, unknown> {
   if (end.error === undefined && end.code === 0 && end.signal === null && end.json !== null) return end.json;
-  return { mode: request.mode, name: request.name, failed: true, code: end.code, signal: end.signal, error: end.error?.message, stderr: end.stderr.slice(-4000), stdout: end.stdout.slice(-2000) };
+  return { mode: request.mode, name: request.name, failed: true, code: end.code, signal: end.signal, error: end.error?.message, stderr: end.stderr.slice(-STDERR_TAIL_CHARS), stdout: end.stdout.slice(-STDOUT_TAIL_CHARS) };
+}
+
+/**
+ * The failed child's own evidence for the thrown error, because the results directory is removed after the run.
+ * Only the exit code, signal, spawn error and the bounded stderr/stdout tails are named; absent fields are omitted,
+ * and every string is cut again here (error message to its first {@link ERROR_MESSAGE_CHARS} characters, the tails to
+ * their last) so an entry carrying more than the helper's caps still cannot flood the message.
+ */
+function childFailureDetail(result: Record<string, unknown>): string {
+  const tail = (value: unknown, chars: number): unknown => (typeof value === "string" ? value.slice(-chars) : value);
+  const head = (value: unknown, chars: number): unknown => (typeof value === "string" ? value.slice(0, chars) : value);
+  const fields = { code: result.code, signal: result.signal, error: head(result.error, ERROR_MESSAGE_CHARS), stderr: tail(result.stderr, STDERR_TAIL_CHARS), stdout: tail(result.stdout, STDOUT_TAIL_CHARS) };
+  const present = Object.entries(fields).filter(([, value]) => value !== undefined && value !== "");
+  return present.length === 0 ? "no exit code, signal, error or output was recorded" : present.map(([name, value]) => `${name}=${JSON.stringify(value)}`).join(" ");
 }
 
 /**
@@ -139,7 +171,7 @@ async function measureChild(measured: Measured, request: ChildRequest): Promise<
     variant: measured.name, docs: measured.docs, shape: request.shape, ...result, ...disk,
     ...(diskError === undefined ? {} : { failed: true, diskError }),
   });
-  if (result.failed === true) throw new Error(`measurement child failed: ${measured.name}/${measured.docs} ${request.mode}/${request.name}`);
+  if (result.failed === true) throw new Error(`measurement child failed: ${measured.name}/${measured.docs} ${request.mode}/${request.name}: ${childFailureDetail(result)}`);
   if (diskError !== undefined) throw new Error(`measurement disk evidence failed: ${measured.name}/${measured.docs} ${request.mode}/${request.name}: ${diskError}`);
 }
 

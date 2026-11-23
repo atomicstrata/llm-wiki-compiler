@@ -4,7 +4,7 @@
  * committed-temp unlink guard. Real filesystems need not allocate such IDs.
  */
 
-import type { BigIntStats, Stats } from "node:fs";
+import type { BigIntStats, PathLike, StatOptions, Stats } from "node:fs";
 import * as fsPromises from "fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,6 +12,25 @@ import { describe, expect, it, spyOn } from "bun:test";
 import { removeCommittedTemp } from "../../src/utils/atomic-write-no-replace-durable.js";
 
 const HIGH_INODE = 9_007_199_254_740_992n;
+
+/**
+ * A stand-in for `lstat` that answers the chosen paths with synthetic BigIntStats
+ * ONLY when the caller asks for `bigint: true` (the production call does), and
+ * delegates every other call, path or option, to the real `lstat`. `lstat` is
+ * overloaded and a mock is typed by its LAST overload (Stats), so the stand-in
+ * declares the same overloads: a `bigint: false` or default request can never
+ * receive a BigIntStats from it.
+ */
+function lstatSeam(real: typeof fsPromises.lstat, synthetic: ReadonlyMap<string, BigIntStats>) {
+  function seam(file: PathLike, options?: StatOptions & { bigint?: false }): Promise<Stats>;
+  function seam(file: PathLike, options: StatOptions & { bigint: true }): Promise<BigIntStats>;
+  function seam(file: PathLike, options?: StatOptions): Promise<Stats | BigIntStats>;
+  async function seam(file: PathLike, options?: StatOptions): Promise<Stats | BigIntStats> {
+    const hit = options?.bigint === true && typeof file === "string" ? synthetic.get(file) : undefined;
+    return hit ?? real(file, options);
+  }
+  return seam;
+}
 
 describe("committed-temp inode precision", () => {
   it("refuses an unsafe numeric identity before unlinking its path", async () => {
@@ -22,14 +41,11 @@ describe("committed-temp inode precision", () => {
     const roundedActual = { dev: 1, ino: Number(HIGH_INODE) } as Stats;
     expect(expected.ino).toBe(roundedActual.ino);
     const realLstat = fsPromises.lstat;
-    let intercepted = false;
-    const seam = spyOn(fsPromises, "lstat").mockImplementation(async (file, options) => {
-      if (file === leaf) { intercepted = true; return roundedActual; }
-      return realLstat(file, options);
-    });
+    // No synthetic answer exists here: the imprecise identity must be refused before ANY lstat.
+    const seam = spyOn(fsPromises, "lstat").mockImplementation(lstatSeam(realLstat, new Map()));
     try {
       await expect(removeCommittedTemp(leaf, undefined, expected)).rejects.toThrow();
-      expect(intercepted).toBe(false);
+      expect(seam).not.toHaveBeenCalled();
       expect(await fsPromises.readFile(leaf, "utf8")).toBe("foreign");
     } finally {
       seam.mockRestore();
@@ -45,11 +61,9 @@ describe("committed-temp inode precision", () => {
     await fsPromises.writeFile(swapped, "foreign");
     const expected = { dev: 1n, ino: HIGH_INODE + 1n } as BigIntStats;
     const realLstat = fsPromises.lstat;
-    const seam = spyOn(fsPromises, "lstat").mockImplementation(async (file, options) => {
-      if (file === matched) return expected;
-      if (file === swapped) return { dev: 1n, ino: HIGH_INODE } as BigIntStats;
-      return realLstat(file, options);
-    });
+    const adjacent = { dev: 1n, ino: HIGH_INODE } as BigIntStats;
+    const answers = new Map([[matched, expected], [swapped, adjacent]]);
+    const seam = spyOn(fsPromises, "lstat").mockImplementation(lstatSeam(realLstat, answers));
     try {
       await removeCommittedTemp(matched, undefined, expected);
       await expect(fsPromises.readFile(matched)).rejects.toMatchObject({ code: "ENOENT" });

@@ -169,10 +169,46 @@ async function buildOpcat(root: string, shape: CorpusShape): Promise<Record<stri
   return { records: shape.docs };
 }
 
-/** Initialize the project with its expected scale (none when `expectedDocuments` is 0: today's default path). */
-async function buildInit(root: string, shape: CorpusShape): Promise<Record<string, number>> {
-  await initWikiCore(shape.expectedDocuments > 0 ? { root, expectedScale: { documents: shape.expectedDocuments } } : { root });
-  return { expectedDocuments: shape.expectedDocuments };
+/** The scale report `init` leaves behind (what {@link indexedInitRefusal} reads). */
+type InitScaleReport = Awaited<ReturnType<Awaited<ReturnType<typeof initWikiCore>>["scale"]["status"]>>;
+type InitPending = NonNullable<InitScaleReport["record"]>["pending"];
+/** Most characters of the parked step's detail kept in the refusal. */
+const INIT_REFUSAL_DETAIL_CHARS = 400;
+
+/** The architecture (or "none") and pending transition (or null) of an init report. */
+function initState(report: InitScaleReport): { architecture: string; pending: InitPending } {
+  return { architecture: report.record?.active.architecture ?? "none", pending: report.record?.pending ?? null };
+}
+
+/** The parked step of a pending transition as bounded "; name: detail" text, or "" when none is parked. */
+function parkedStepDetail(pending: InitPending): string {
+  const parked = pending !== null && "steps" in pending ? pending.steps.find((step) => step.status === "parked") : undefined;
+  return parked === undefined ? "" : `; ${parked.name}: ${parked.detail ?? ""}`.slice(0, INIT_REFUSAL_DETAIL_CHARS);
+}
+
+/** Whether a transition is pending, with the parked step's bounded detail when there is one. */
+function pendingText(pending: InitPending): string {
+  return pending === null ? "nothing pending" : `a transition pending${parkedStepDetail(pending)}`;
+}
+
+/** Why an init that requested an indexed layout is NOT ready on `local-indexed` with nothing pending, or `undefined` when it is. */
+function indexedInitRefusal(report: InitScaleReport): string | undefined {
+  const { architecture, pending } = initState(report);
+  if (report.readiness === "ready" && architecture === "local-indexed" && pending === null) return undefined;
+  return `readiness ${report.readiness}, active ${architecture}, ${pendingText(pending)}`;
+}
+
+/**
+ * Initialize the project with its expected scale (none when `expectedDocuments` is 0: today's default path). An
+ * indexed layout that was REQUESTED must be reached: a parked preparation (for example the free-space preflight)
+ * would otherwise let `init` exit cleanly and fail a later child with a pending-transition refusal.
+ */
+async function buildInit(root: string, shape: CorpusShape): Promise<Record<string, unknown>> {
+  const wiki = await initWikiCore(shape.expectedDocuments > 0 ? { root, expectedScale: { documents: shape.expectedDocuments } } : { root });
+  if (shape.expectedDocuments === 0) return { expectedDocuments: 0 };
+  const refusal = indexedInitRefusal(await wiki.scale.status());
+  if (refusal !== undefined) throw new Error(`init did not reach local-indexed for ${shape.expectedDocuments} expected documents: ${refusal}`);
+  return { expectedDocuments: shape.expectedDocuments, architecture: "local-indexed" };
 }
 
 /** Migrate an incumbent project: set an indexed expected scale, which prepares (imports) and activates. */
