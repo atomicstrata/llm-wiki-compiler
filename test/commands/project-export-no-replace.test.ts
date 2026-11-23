@@ -5,6 +5,7 @@
 
 import { expect, it } from "bun:test";
 import { lstat, mkdtemp, readlink, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { exportToDirectory } from "../../src/commands/project/export-command.js";
 import type { ExportItem, WikiProject } from "../../src/portable/project/api.js";
@@ -15,7 +16,7 @@ async function* completed(): AsyncGenerator<ExportItem> {
 }
 
 it("preserves an existing dangling symlink at the export target", async () => {
-  const root = await mkdtemp(path.join(process.env.TMPDIR!, "project-export-"));
+  const root = await mkdtemp(path.join(tmpdir(), "project-export-"));
   const out = path.join(root, "wiki");
   const target = path.join(root, "missing");
   try {

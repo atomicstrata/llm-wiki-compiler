@@ -6,6 +6,7 @@
 
 import type { BigIntStats, Stats } from "node:fs";
 import * as fsPromises from "fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, spyOn } from "bun:test";
 import { removeCommittedTemp } from "../../src/utils/atomic-write-no-replace-durable.js";
@@ -14,7 +15,7 @@ const HIGH_INODE = 9_007_199_254_740_992n;
 
 describe("committed-temp inode precision", () => {
   it("refuses an unsafe numeric identity before unlinking its path", async () => {
-    const parent = await fsPromises.mkdtemp(path.join(process.env.TMPDIR!, "pub-inode-"));
+    const parent = await fsPromises.mkdtemp(path.join(tmpdir(), "pub-inode-"));
     const leaf = path.join(parent, "ready.tmp");
     await fsPromises.writeFile(leaf, "foreign");
     const expected = { dev: 1, ino: Number(HIGH_INODE + 1n) } as Stats;
@@ -37,7 +38,7 @@ describe("committed-temp inode precision", () => {
   });
 
   it("accepts a full-width match and refuses an adjacent high inode", async () => {
-    const parent = await fsPromises.mkdtemp(path.join(process.env.TMPDIR!, "pub-inode-"));
+    const parent = await fsPromises.mkdtemp(path.join(tmpdir(), "pub-inode-"));
     const matched = path.join(parent, "matched.tmp");
     const swapped = path.join(parent, "swapped.tmp");
     await fsPromises.writeFile(matched, "owned");
