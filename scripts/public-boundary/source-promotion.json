@@ -9653,8 +9653,8 @@
       "identicalToSourceBranch": true,
       "outsideAllocatedPrefix": false,
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Whole current body and scoped source traced at 8a8365f635a1d082b70d4fb909efac2579ba72dd20fa78b9e41d7a956536e9d0; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch16-20261122/recommendations.json. Whole child and cstate consumer path traced through compile-state project, restore-cstate tests, and scale transition. Build/park/run modes still lack full consumer and product-effect alignment; keep whole-file partial. Prior: Whole current body reviewed at SHA-256 8a8365f635a1d082b70d4fb909efac2579ba72dd20fa78b9e41d7a956536e9d0; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch15-20261122/recommendations.json. The currently referenced cstate mode is traced through both restore consumers and the set/prepare transition body. Other fixture modes (build, park, run) and their product effects are not fully matched to consumers or reviewed; preserve partial for the whole file. Prior inventory: Whole current body reviewed at SHA-256 8a8365f635a1d082b70d4fb909efac2579ba72dd20fa78b9e41d7a956536e9d0; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch8-20261122/recommendations.json. Read entire child builder and catalog/operation/scale entry points; not all restore/custody consumer assertions traced. Prior inventory: Current bytes 8a8365f635a1: Whole test or fixture body read; direct consumers and all branch outcomes were not exhaustively traced in this bounded source review. No confirmed P1/P2 release blocker found. Evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/roadmap-release-resume-20261121/test-review-wave4-a-20261122/recommendations.json. Review only; runtime evidence tracked separately.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 8a8365f635a1d082b70d4fb909efac2579ba72dd20fa78b9e41d7a956536e9d0 (83 lines): live modes cstate (restore-helpers.ts compileStateProject) and run (run-seams.test.ts) traced to their consumers. Named P3 debt: modes build and park have no consumer under test/ (dead fixture code). Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "8a8365f635a1d082b70d4fb909efac2579ba72dd20fa78b9e41d7a956536e9d0",
@@ -11792,8 +11792,8 @@
       "identicalToSourceBranch": true,
       "outsideAllocatedPrefix": false,
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Current SHA-256 ba0891483906251f70383f88a8bb41397908665053fb62bd935ebc5dbee0f31d: standard-migrate now refuses readiness other than ready, active architecture other than local-indexed, or a pending transition; independent Codex diff review and focused 11-pass witness. Other writer paths and 10,000-document run remain untraced; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-measure-fixture-review-20261122/REPORT.md describes the prior P2 witness gap.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 ba0891483906251f70383f88a8bb41397908665053fb62bd935ebc5dbee0f31d (228 lines): every build phase read against its production route; smoke and witness-gaps tests pin counts and the migration refusal. Named P3 debt: stale vitest comment at line 64. The 100/1,000/10,000-document runs are not in the suite and are not covered by this review. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "8376c527c4a33e587cef5dc85142c3641554b3cd1644e01dce035607f34fdf0e",
@@ -11917,8 +11917,8 @@
       "identicalToSourceBranch": false,
       "outsideAllocatedPrefix": false,
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Current SHA-256 1145e34ae87ed47a5eeb9ff6f80929443a86ea56d98fc46c38a074d7c60b2216: first/second page cardinality and cursor now fail closed for a 100-document listing; independent Codex diff review and focused 11-pass witness. Remaining operation routes were not fully traced; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-measure-fixture-review-20261122/REPORT.md describes the prior P2 witness gap.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 1145e34ae87ed47a5eeb9ff6f80929443a86ea56d98fc46c38a074d7c60b2216 (243 lines): every measured operation read; list cursor/cardinality and mustHold checks pinned by witness-gaps and list-semantics tests. Named P3 debt: eventPage, ingestOne, syncAfterEdit and vectorUpdateOne return a number without asserting they did the work; vectorUpdateOne chunk count depends on operation order (ops line 193, run.ts ALL_OPS). Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "d4059c688edb0a4130f5027b5d8ba094b8559065b1cfbd44605ff0e55454fba9",
@@ -12161,8 +12161,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "add",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Current bytes 95f7962d44e01d338b72324e318eb83c2a5ec0a73a9f8a650a284ab46f011c17: whole test reviewed; local-large now asserts two seeded vectors before and after downgrade. Complete store source paths remain partially reviewed. Evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-downgrade-vectors-evidence-fix-20261122/REPORT.md; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-scale-partial-deep-review-20261122/REPORT.md.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 95f7962d44e01d338b72324e318eb83c2a5ec0a73a9f8a650a284ab46f011c17 (99 lines): whole test, helpers and child snapshot read. Named P3 debt: the indexed-to-standard journey (line 36) does not assert non-empty seeded vectors, unlike the local-large case; 900 s case budget depends on the volume. Production store paths were not re-traced here (src/scale/downgrade-apply.ts carries its own independent row). Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "d69547620f45d68a2a3dae8d540dc4f1cb77918e1cf7f387782249c9c99432c7",
@@ -12963,8 +12963,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "add",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Current SHA-256 e80297f70f5ac41f2b0a4e98880a565a74ce10bf10dd51761bef47a193d25de5: both initial snapshots now assert the exact two seeded vector keys before the unchanged logical equality checks. Independent Codex diff review and cheap empty-map rejection witness; real full journeys on final snapshot pending, and documented child-timeout cleanup remains debt. Plan /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-fixture-gap-remediation-plan-20261122/REPORT.md.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 e80297f70f5ac41f2b0a4e98880a565a74ce10bf10dd51761bef47a193d25de5 (81 lines): both initial snapshots assert the exact two seeded vector keys (concepts/page-0, concepts/page-1) before the unchanged logical equality checks. The Sonnet co-review of this row is not independent (the same reviewer authored the seeded-vector edit); the row rests on Codex's recorded diff review, the current hash, and the REUSED exact-commit full-suite log /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-integration-gate-20261122/mac-npm-test-fixture-final-14807-pass.log (SHA-256 a3dc2fecc180f0ef1ad53420020726aac90e0596211355b8348813cf9b1d0cf0: 14,807 pass, 13 skip, 0 fail), where both journeys appear as (pass) at lines 16946 and 17803 (under their file headers at 16945 and 17802). That log is reused evidence from the isolated copy, not a run by the reviewer. Documented child-timeout cleanup gap remains debt. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md; Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' is not exhaustive or release-ready.",
         "history": [
           {
             "sha256": "ea2c5d69a4b5df375bc9066cda240d9b37ad483acd0580b1b3185da27fcee0e8",
@@ -14145,8 +14145,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "hand",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Whole current body and scoped source traced at 339ae5470a827742f547de1fae2129fabc4ef0a2fe0b79815653e73d9f0c857f; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch18-20261122/recommendations.json. Whole composite test double was read in batch11 and unchanged; consuming test and all implementation branches remain untraced. Prior: Whole current body reviewed at SHA-256 339ae5470a827742f547de1fae2129fabc4ef0a2fe0b79815653e73d9f0c857f; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch11-20261122/recommendations.json. Composite test double read in full; consuming test and all implementation branches not fully traced. Prior inventory: Current bytes 339ae5470a82: manifest hash, test titles, assertion/skip pattern screen only. Review evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/roadmap-release-resume-20261121/test-review-wave3-20261122/ledger.json. Coverage level partially-reviewed; runtime checks tracked separately.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 339ae5470a827742f547de1fae2129fabc4ef0a2fe0b79815653e73d9f0c857f (282 lines): the in-memory double read in full; it asserts nothing itself, and compile-run-binding supplies a fixture provider override so no model call is reachable. Named P3 debt: scaleBlock is a constant null (line 231) so scale gating is not exercised through it; consumer list in the header is stale (seven importers); the seven consuming tests were not read in full. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "339ae5470a827742f547de1fae2129fabc4ef0a2fe0b79815653e73d9f0c857f",
@@ -14377,8 +14377,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "hand",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Whole current body and scoped source traced at a8eaec4acadc20b2492c3c985083959c3b7918a02a115f823bde2df3cc83ce63; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch18-20261122/recommendations.json. Whole reset binding and source read in batch11 and unchanged; inherited backup destination lookup policy still requires owner fix/review. Prior: Whole current body reviewed at SHA-256 a8eaec4acadc20b2492c3c985083959c3b7918a02a115f823bde2df3cc83ce63; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch11-20261122/recommendations.json. Whole test/source read; backup destination permission-error policy is being corrected separately; reassess after integration. Prior inventory: Current bytes a8eaec4acadc: manifest hash, test titles, assertion/skip pattern screen only. Review evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/roadmap-release-resume-20261121/test-review-wave3-20261122/ledger.json. Coverage level partially-reviewed; runtime checks tracked separately.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 a8eaec4acadc20b2492c3c985083959c3b7918a02a115f823bde2df3cc83ce63 (340 lines): whole test read with state-reset.ts and reset-plan.ts. Inherited reset semantics remain open debt, not endorsed: the backup lookup treats every lstat failure as absent (state-reset.ts 260-268; S4 pins it) and an unreadable .llmwiki yields an empty planned scope with exit 0 (reproduced by read-only Scratch repro); both are unchanged from public b8e28c66 (P3). Test limits: the candidate's segmented step is not driven here and FAILURES (line 56) omits segmented. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "a8eaec4acadc20b2492c3c985083959c3b7918a02a115f823bde2df3cc83ce63",
@@ -14400,8 +14400,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "hand",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Whole current body and scoped source traced at 480b2eaf4c8488d3a3801dda36461ac105f53ae7f9f6064b85f6c7ec00b5a677; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch18-20261122/recommendations.json. Whole disk-call test and source read in batch11 and unchanged; inherited backup and reset-plan error handling findings remain open. Prior: Whole current body reviewed at SHA-256 480b2eaf4c8488d3a3801dda36461ac105f53ae7f9f6064b85f6c7ec00b5a677; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch11-20261122/recommendations.json. Whole test/source read; B3 exposes inherited backup destination permission-error policy; reassess after integration. Prior inventory: Current bytes 480b2eaf4c84: full test read; production or wider fixture contract not fully reviewed in this batch Evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/roadmap-release-resume-20261121/test-review-wave4-c-20261122/recommendations.json. Review only; runtime evidence tracked separately.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 480b2eaf4c8488d3a3801dda36461ac105f53ae7f9f6064b85f6c7ec00b5a677 (256 lines): whole test read. Inherited reset semantics remain open debt, not endorsed: B3 and P3 pin the fail-open backup lookup and the empty-scope plan, both unchanged from public b8e28c66 (P3); scope all deletes the planned state file without the segmented guard the default state path applies, an inherited operator distinction to document. Test limit: no real-disk case for the segmented refusal. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "480b2eaf4c8488d3a3801dda36461ac105f53ae7f9f6064b85f6c7ec00b5a677",
@@ -14446,8 +14446,8 @@
       "outsideAllocatedPrefix": false,
       "provenanceRule": "hand",
       "review": {
-        "level": "partially-reviewed",
-        "decision": "Whole current body and scoped source traced at 04df05dac99fc48236f482b2183659dbff40d8765dd08db36ab2c0d69e800cd5; /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch18-20261122/recommendations.json. Whole journey file read in batch11 and unchanged; broad multi-command routing has only selected direct source coverage. Prior: Whole current body reviewed at SHA-256 04df05dac99fc48236f482b2183659dbff40d8765dd08db36ab2c0d69e800cd5; invoked source alignment scope and limits in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-test-review-batch11-20261122/recommendations.json. Whole journeys read and selected mutation paths checked; broad multi-command routing not fully traced. Prior inventory: Current bytes 04df05dac99f: full test read; production or wider fixture contract not fully reviewed in this batch Evidence: /Volumes/EJ2T-ssd/Projects/llmwiki/roadmap-release-resume-20261121/test-review-wave4-c-20261122/recommendations.json. Review only; runtime evidence tracked separately.",
+        "level": "reviewed",
+        "decision": "Current SHA-256 04df05dac99fc48236f482b2183659dbff40d8765dd08db36ab2c0d69e800cd5 (268 lines): whole file read with the candidate deltas in removal.ts, source-writer.ts and relations/store.ts. Named limit: the file's cases do not reach the catalog reconcile after removal or the lookupIdentity route; no test names them and other suites' coverage was not traced. Per-file report /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/source-review-nine-sonnet.md (whole body read at HEAD f7f85c53); Codex adjudication /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/SOURCE-REVIEW-ADJUDICATION.md. 'Reviewed' means the body and its test claims were read and traced, not that the file is exhaustive or release-ready; no new P1/P2 candidate regression was found. Full-suite evidence is the reused exact-commit log, not a fresh run.",
         "history": [
           {
             "sha256": "04df05dac99fc48236f482b2183659dbff40d8765dd08db36ab2c0d69e800cd5",
@@ -14998,8 +14998,8 @@
     "health": "fallow 2.82.0 full tree (installed binary, no cache, no network), NOT PASSED: checkpoint 11 122 dead-code, 7 duplication, 42 complexity; checkpoint 12 after entry-point registration and traced cleanup 25, 3, 42 (each residual classified in the checkpoint-12 evidence)",
     "currentSnapshot": {
       "sourceFiles": 741,
-      "reviewed": 732,
-      "partiallyReviewed": 9,
+      "reviewed": 741,
+      "partiallyReviewed": 0,
       "toolchain": "Node 24.16.0, Bun 1.4.2, Fallow 2.82.0 on isolated macOS arm64 copy",
       "sourceCopy": "All 741 manifest file hashes and the manifest itself matched the isolated copy before the final run",
       "typecheck": "npx tsc --noEmit: exit 0",
@@ -15008,8 +15008,8 @@
       "runtime": "npm test: 14,807 pass, 13 skip, 0 fail, 45,344 assertions across 1,822 files",
       "runtimeLog": "/Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-integration-gate-20261122/mac-npm-test-fixture-final-14807-pass.log",
       "runtimeLogSha256": "a3dc2fecc180f0ef1ad53420020726aac90e0596211355b8348813cf9b1d0cf0",
-      "packageSmoke": "Earlier npm run test:pack 4 pass, 18 assertions, with unchanged package and packaging-test source; staged release tarballs not yet checked",
-      "releaseStatus": "No frozen candidate commit or fresh public stage yet; nine test/fixture source-review rows remain partial. Mechanism and publication gates separate."
+      "packageSmoke": "Candidate f7f85c53 exact-source gate and packaging evidence is recorded beside this file in /Volumes/EJ2T-ssd/Projects/llmwiki/llmwiki-public-rc-f7f85c53-20261122/: the 14,807-pass log above, release-identity.json and the release receipt (SHA-256 106b1c4317a64754fef8f34c906a3988eff66f48cd455c14f7b189ebafbb7b99) for the three 1.6.0-rc.1 tarballs, test-pack.log, PACKAGED-DOCUMENTS-CHECK.md and INSTALLED-CONSUMER-CHECK.md. That evidence was produced at clean HEAD f7f85c53, before this inventory edit.",
+      "releaseStatus": "The f7f85c53 exact source gate, release receipt and installed-consumer checks describe the source tree at that HEAD. The inventory review update (nine rows moved to reviewed, counts 741/0) and release-checklist reconciliation require final local gates, a clean stage and a new receipt before release claims. Codex independently reviewed the inventory diff. Reviewed is not exhaustive or release-ready; named P3 debt and inherited reset semantics remain. Model, hosted preflight and publication gates are separate."
     }
   },
   "removedAfterReview": {
