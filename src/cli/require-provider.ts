@@ -14,9 +14,14 @@ export function requireProvider(): void {
   requireAvailableProvider(ensureProviderAvailable);
 }
 
-/** Run the compile-aware provider guard through the legacy CLI error path. */
-export function requireCompileProvider(): void {
-  requireAvailableProvider(ensureCompileProviderAvailable);
+/**
+ * Run the compile-aware provider guard through the legacy CLI error path.
+ *
+ * @param refreshEmbeddings - Whether this compile refreshes embeddings, so the
+ *   embedding credentials are required too (`compile --no-embeddings` passes false).
+ */
+export function requireCompileProvider(refreshEmbeddings = true): void {
+  requireAvailableProvider(() => ensureCompileProviderAvailable(refreshEmbeddings));
 }
 
 /** Print a provider-guard failure in red and exit through the legacy path. */

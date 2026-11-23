@@ -15,6 +15,8 @@
  * `AdapterContext.root` stays the compatibility handle a host adapter receives.
  */
 
+import { indexedBoundEvents } from "../../history/bound-lookups.js";
+import type { EventRecord } from "../../events/types.js";
 import path from "node:path";
 import { resolveConfinedEntityPage } from "../../profile/lifecycle-read.js";
 import { readEvents, type ReadEventsResult } from "../../events/store-read.js";
@@ -52,6 +54,8 @@ export interface LifecycleAdapterStores {
   readEntityPage(def: EntityTypeDef, slug: string): Promise<LeafDigest>;
   /** The project's audit events. */
   readEvents(): Promise<ReadEventsResult>;
+  /** OPTIONAL: the events bound to one mutation via the `local-indexed` binding index, or `null` (then `readEvents` is used). */
+  boundEvents?(mutationId: string): Promise<EventRecord[] | null>;
   /** Transition through the lifecycle authority with the out-of-band binding; the caller holds the project lock. */
   applyLifecycle(planned: LifecycleTransitionPlannedMutation, binding: OperationBinding): Promise<unknown>;
 }
@@ -62,13 +66,14 @@ function diskLifecycleAdapterStores(ctx: Pick<AdapterContext, "root">): Lifecycl
     loadProfile: () => loadProfileOrUndefined(ctx.root),
     readEntityPage: (def, slug) => entityPageDigest(ctx.root, def, slug),
     readEvents: () => readEvents(ctx.root),
+    boundEvents: (mutationId) => indexedBoundEvents(ctx.root, mutationId),
     applyLifecycle: (planned, binding) => applyLifecycleLocked(ctx.root, planned, binding),
   };
 }
 
 /** Count bound lifecycle-transition events for this mutation. */
 async function boundLifecycleEvents(stores: LifecycleAdapterStores, mutationId: string): Promise<number> {
-  const { events } = await stores.readEvents();
+  const events = (await stores.boundEvents?.(mutationId)) ?? (await stores.readEvents()).events;
   return events.filter((event) => event.type === "lifecycle-transition" && event.operationBinding?.mutationId === mutationId).length;
 }
 

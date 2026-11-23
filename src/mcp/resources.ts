@@ -17,9 +17,10 @@ import path from "path";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CONCEPTS_DIR, INDEX_FILE, QUERIES_DIR, SOURCES_DIR, STATE_FILE } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { safeReadFile, parseFrontmatter } from "@atomicstrata/llmwiki-core/compiler-cli";
-import { readStateClassified, readPageContent, listPageFileNames } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { readStateClassified, readPageContent } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { loadPreviousReport, loadHistory } from "@atomicstrata/llmwiki-core/compiler-cli";
 import { listSelectedSourceFiles } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { indexedCatalogNote, routedPageFileNames, type CatalogListingNote } from "@atomicstrata/llmwiki-core/compiler-cli";
 
 /** Standard JSON content block for an MCP resource read result. */
 function jsonContent(uri: URL, payload: unknown): {
@@ -60,6 +61,8 @@ export interface WikiResourceReads {
   sourceText(file: string): Promise<string>;
   /** One page directory's entry names, unsorted and unfiltered. Rejects when it cannot be listed. */
   pageFileNames(dir: PageDirectory): Promise<string[]>;
+  /** OPTIONAL: the `local-indexed` catalog's freshness note, or `null` when the project is not indexed. */
+  catalogNote?(): Promise<CatalogListingNote | null>;
   /** One page's text confined to `dir`; `null` for a refused slug, a missing page or an escape. */
   pageText(dir: PageDirectory, slug: string): Promise<string | null>;
   /** The classified compile state; never a recovering read. */
@@ -76,7 +79,8 @@ function diskWikiResourceReads(root: string): WikiResourceReads {
     indexText: () => safeReadFile(path.join(root, INDEX_FILE)),
     sourceFiles: () => listSelectedSourceFiles(root),
     sourceText: (file) => safeReadFile(path.join(root, SOURCES_DIR, file)),
-    pageFileNames: (dir) => listPageFileNames(root, dir),
+    pageFileNames: (dir) => routedPageFileNames(root, dir),
+    catalogNote: () => indexedCatalogNote(root),
     pageText: (dir, slug) => readPageContent(root, dir, slug),
     state: () => readStateClassified(root),
     previousEvalReport: () => loadPreviousReport(root),
@@ -125,9 +129,11 @@ function registerSourcesResource(server: McpServer, reads: WikiResourceReads): v
       description: "List of ingested source files with frontmatter metadata.",
       mimeType: "application/json",
     },
-    async (uri) => ({
-      contents: [jsonContent(uri, await listSources(reads))],
-    }),
+    async (uri) => {
+      const note = await reads.catalogNote?.() ?? null;
+      const catalog = note === null ? [] : [jsonContent(new URL("llmwiki://sources#catalog"), note)];
+      return { contents: [jsonContent(uri, await listSources(reads)), ...catalog] };
+    },
   );
 }
 
@@ -290,7 +296,7 @@ async function listPagesUnder(
   reads: WikiResourceReads,
   dir: PageDirectory,
   scheme: "concept" | "query",
-): Promise<{ resources: Array<{ uri: string; name: string }> }> {
+): Promise<{ resources: Array<{ uri: string; name: string }>; _meta?: { catalog: CatalogListingNote } }> {
   let files: string[];
   try {
     files = await reads.pageFileNames(dir);
@@ -308,5 +314,6 @@ async function listPagesUnder(
       return { uri: `llmwiki://${scheme}/${encodeURIComponent(slug)}`, name: slug };
     });
 
-  return { resources };
+  const note = await reads.catalogNote?.() ?? null;
+  return note === null ? { resources } : { resources, _meta: { catalog: note } };
 }

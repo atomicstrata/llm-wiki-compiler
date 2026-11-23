@@ -41,8 +41,8 @@ import { MAX_ACTIVE_PRODUCT_BINDING_BYTES } from "./types.js";
 import type { ActiveProductBindingV1 } from "./types.js";
 
 const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true });
-/** The binding leaf under `.llmwiki/`. */
-const ACTIVE_PRODUCT_FILENAME = "active-product.json";
+/** The binding leaf under `.llmwiki/`. Exported so every reader names the same file. */
+export const ACTIVE_PRODUCT_FILENAME = "active-product.json";
 const OWNER_PRIVATE_FILE = 0o600;
 
 /**

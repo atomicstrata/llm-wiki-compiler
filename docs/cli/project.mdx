@@ -1,0 +1,59 @@
+---
+title: "llmwiki project - The Experimental Portable Project Path"
+sidebarTitle: "Project (experimental)"
+description: "llmwiki project is an opt-in, experimental path for a registered project directory or a hosted project. The standard way to build a local wiki is llmwiki compile."
+---
+
+`llmwiki project` is an **experimental, opt-in** path. It works on a directory you register, or on a project served by a host you are given a URL and token for. It does not replace the standard commands, never runs them, and never falls back to them.
+
+**The standard local route is unchanged.** To build and use a wiki on your own machine, use `llmwiki ingest`, `llmwiki compile`, `llmwiki query` and `llmwiki view`. A small wiki of around 100 documents needs no extra service and no `project` command.
+
+## What works locally
+
+After `llmwiki project register <dir>`, these commands work on a local directory without any model:
+
+- `project source add <file>` adds a source.
+- `project pages list`, `project pages read <id>`, `project search <query>` and `project export` read published pages.
+- `project scale pages`, `project scale open` and `project scale search` read one bounded page at a time on a project whose store has a catalog.
+- `project status <operation>` and `project capabilities` report recorded outcomes and what the storage guarantees.
+
+## Proposing needs a model you supply
+
+`project propose` runs the compile in review mode and stores a proposal. Where the model comes from depends on the project:
+
+- **A hosted project** (`--project <url>/<id>` with `--token`) proposes under the model its host configured.
+- **A local directory** has no model in this CLI. The proposal is refused with `capability_unsupported`: no model runs, no draft is generated and no page is published. The refusal itself is recorded as that operation's outcome in the project's operation records, so asking again with the same operation id returns the same answer. The CLI never falls back to a provider named in the environment.
+
+To propose on a local portable project from code, pass a model explicitly with the SDK:
+
+```ts
+import { openProject } from "llm-wiki-compiler";
+
+const { project } = await openProject({
+  project: { localRoot: "/path/to/registered/project" },
+  credential: { kind: "local-os" },
+  localHostModel: () => ({ provider, providerName: "my-provider", modelId: "my-model" }),
+});
+```
+
+`localHostModel` applies to local projects only. A client never chooses the model a host runs, so passing it with a hosted project is an error.
+
+## Hosted clients
+
+`project originals` and `project tiers` require a hosted `--project <url>/<id>`. `project federation` requires an explicit host, receiver and credentials file. These optional clients need a remote backend that provides their capabilities; this package supplies no remote portable backend or host-side federated storage. Their local SDK sessions return `capability_unsupported`. The local viewer and MCP server remain available.
+
+A host you name is trusted with the credentials you send it:
+
+- Commands that accept a hosted `--project` reference, including `llmwiki serve`, send `--token` or `LLMWIKI_PROJECT_TOKEN` to that host as the bearer. Prefer the environment variable: a command-line token can be visible in the process list.
+- `project federation` sends the receiver host its token as the bearer and your token for every shard in the `--credentials` file in the request body. Include only credentials you intend to share with that receiver. The SDK's `openFederation` sends its `shards` credentials the same way.
+- Use `https://` unless the host runs on this machine. Plain `http://` is accepted and sends tokens unencrypted.
+
+The CLI sets protocol headers itself. `project scoped` serves registered local directories only; it does not accept hosted references.
+
+`portable-detached/2` types and constants are published as a contract only. No detached-compile runtime ships in this release.
+
+## Limits
+
+- The path is experimental and its interfaces may change between releases.
+- Expected-scale profiles (`llmwiki init`, `llmwiki scale`) choose between single-machine layouts. Their bounds are policy limits, not measured capacity, and choosing a larger profile does not provision anything.
+- No performance or capacity figure is claimed for large corpora.

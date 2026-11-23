@@ -18,6 +18,7 @@
  * the page scope exactly once and then run the same private selection.
  */
 
+import { isShardedView } from "../vectors/store.js";
 import * as output from "../utils/output.js";
 import { UsageAccountingError } from "../providers/usage.js";
 import {
@@ -87,6 +88,7 @@ function narrowToScope(
   if (pageScope === undefined || !outcome.store) return outcome;
   const allowed = new Set(pageScope);
   const store = outcome.store;
+  if (isShardedView(store)) return { ...outcome, store: { ...store, scope: allowed } };
   return {
     ...outcome,
     store: {

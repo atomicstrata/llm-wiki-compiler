@@ -2,10 +2,13 @@
  * @file test/storage/reset-disk-calls.test.ts
  * @description `llmwiki state reset` through its REAL functions, on real files:
  * the backup-and-remove of `state.json`, the per-scope deletion plan, and the
- * execution of a plan. The file states behaviour that moving the seven direct
- * disk calls of `state-reset.ts` and `reset-plan.ts` behind `src/storage/` must
- * not change, so it is run byte for byte against the source both before and
- * after that move. Nine cases assert outcomes; only A1 asserts call lists.
+ * execution of a plan. Nine cases assert outcomes; only A1 asserts call lists.
+ * A1 pins today's calls, not the pre-scale ones: before backing up, a confirmed
+ * reset asks the scale guard whether the compile state is segmented, which costs
+ * four no-follow `lstat`s (`.llmwiki`, `.llmwiki/scale.json`,
+ * `.llmwiki/scale-downgrade.json`, `.llmwiki/indexed`). The third is the routing's
+ * pending-scale-down probe (`indexedActive` → `downgradeNeedsRecovery`): a reset
+ * must refuse rather than treat the project as legacy while a scale-down is owed.
  *
  * THIS COMMAND DESTROYS FILES. Every destructive call goes through
  * {@link ownedRoot}, which proves the working directory is this fixture's own
@@ -234,7 +237,12 @@ describe("the reset's own disk calls, by argument", () => {
 
     await put(STATE_FILE, STATE_BYTES);
     await recording(resetYes);
-    expect(io.calls).toStrictEqual([["existsSync", statePath()], ["lstat", bakPath()], ["rename", statePath(), bakPath()]]);
+    // The scale guard looks first: a real `.llmwiki` holding neither `scale.json`, a scale-down intent nor `indexed` is the legacy layout this backup serves.
+    expect(io.calls).toStrictEqual([
+      ["lstat", inRoot(".llmwiki")], ["lstat", inRoot(".llmwiki", "scale.json")],
+      ["lstat", inRoot(".llmwiki", "scale-downgrade.json")], ["lstat", inRoot(".llmwiki", "indexed")],
+      ["existsSync", statePath()], ["lstat", bakPath()], ["rename", statePath(), bakPath()],
+    ]);
 
     await put("raw/x.md", "x");
     await recording(async () => planReset(await ownedRoot(), "raw"));

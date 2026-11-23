@@ -35,31 +35,32 @@
  */
 
 import path from "path";
-import { EVENTS_FILE, EVENTS_HEAD_FILE, MAX_RELATION_STORE_BYTES, MAX_EVENT_HEAD_BYTES } from "../utils/constants.js";
-import { resolveExistingConfinedPrivateDir, PrivateDirConfinementError } from "../utils/private-dir.js";
+import { EVENTS_FILE, MAX_RELATION_STORE_BYTES } from "../utils/constants.js";
+import { PrivateDirConfinementError } from "../utils/private-dir.js";
 import {
-  diskGraphStoreReads, openGraphFileRead, splitStoreRecords, type GraphStoreReads, type SymlinkErrorFactory,
+  diskGraphStoreReads, splitStoreRecords, type GraphStoreReads,
 } from "../utils/jsonl-store.js";
-import { readOpenedTextWithinCap } from "../utils/no-follow-open.js";
-import { isOperationBinding } from "../utils/operation-binding.js";
 import { parseStoreHeaderVersion, splitStoreHeaderLine } from "../utils/store-header.js";
 import { atomicWrite } from "../utils/markdown.js";
 import type { EventRecord } from "./types.js";
+import type { SegmentedEventLog } from "../history/events-segmented.js";
+import { diskHeadAnchorSources, eventSymlinkError, readHeadAnchorFrom, type HeadAnchorSources } from "./head-anchor.js";
+import { parseRecord, verifyChecksum, verifyEventChain } from "./record-check.js";
 import {
   EVENT_STORE_BASE_WRITE_VERSION,
   EVENT_STORE_SCHEMA_VERSION,
-  GENESIS_PREV_HASH,
   EventStoreTooNewError,
   EventStoreCorruptError,
-  EventStoreSymlinkError,
   EventStoreChainError,
 } from "./types.js";
 import {
-  eventChecksum,
   serializeEventRecord,
   eventHeaderLine,
 } from "./store-record.js";
 import { eventPrevHash } from "./event-digest.js";
+
+export { verifyEventChain } from "./record-check.js";
+export type { HeadLeafRead } from "./head-anchor.js";
 
 /** The substring {@link readEvents} prefixes onto a tolerated torn-trailing-line problem. */
 const TORN_TAIL_MARKER = "torn trailing line";
@@ -72,12 +73,6 @@ export interface ReadEventsResult {
   problems: string[];
 }
 
-/** What one look at the head-anchor leaf found: nothing there, a leaf over the cap (never read), or its text. */
-export type HeadLeafRead =
-  | { kind: "absent" }
-  | { kind: "oversize"; size: number }
-  | { kind: "text"; text: string };
-
 /**
  * Everything {@link readEventsFrom} reads. OWNED BY THE EVENT READER: a narrow
  * seam with one disk implementation; not `ProjectStore`, not a hosted or
@@ -85,35 +80,15 @@ export type HeadLeafRead =
  * Nothing ties the graph read to the private-directory looks; production builds
  * all from one root.
  */
-export interface EventReadSources {
+export interface EventReadSources extends HeadAnchorSources {
   /** The graph-store read, asked with THIS store's configuration (file name, cap and both error factories). */
   graph: GraphStoreReads;
-  /** The existing private directory, resolved WITHOUT creating it, or `null` when there is none. REJECTS on a confinement fault and on any other failure. */
-  resolvePrivateDir(): Promise<string | null>;
   /**
-   * One leaf of a resolved private directory, opened WITHOUT following a link.
-   * A link or a non-regular leaf REJECTS with what `makeSymlinkError` builds; a
-   * leaf over `maxBytes` is a value carrying its size and is never read; a
-   * failed read or close REJECTS raw.
+   * OPTIONAL: the segmented event log when the project is `local-indexed`
+   * (then every body here dispatches to it), or `null` when the incumbent
+   * single file is the authority. Absent in test doubles: the file bodies run.
    */
-  readHeadLeaf(dir: string, name: string, maxBytes: number, makeSymlinkError: SymlinkErrorFactory): Promise<HeadLeafRead>;
-}
-
-/** The event store's typed link error, built here for the graph read and for the head-anchor leaf alike. */
-function eventSymlinkError(reason: string): Error {
-  return new EventStoreSymlinkError(reason);
-}
-
-/**
- * LOCAL DISK. The head-anchor leaf look: the no-follow open (a link or a
- * non-regular leaf fails closed), the size look, the read only when within the
- * cap, and the close in `finally`, in that order. A close that fails wins over
- * whatever the look had found, as it always did.
- */
-async function readDiskHeadLeaf(file: string, maxBytes: number, makeSymlinkError: SymlinkErrorFactory): Promise<HeadLeafRead> {
-  const handle = await openGraphFileRead(file, makeSymlinkError);
-  if (handle === null) return { kind: "absent" };
-  return readOpenedTextWithinCap(handle, maxBytes);
+  segmented?(): Promise<SegmentedEventLog | null>;
 }
 
 /**
@@ -125,8 +100,9 @@ async function readDiskHeadLeaf(file: string, maxBytes: number, makeSymlinkError
 export function diskEventReadSources(root: string, graph: GraphStoreReads = diskGraphStoreReads(root)): EventReadSources {
   return {
     graph,
-    resolvePrivateDir: () => resolveExistingConfinedPrivateDir(root),
-    readHeadLeaf: (dir, name, maxBytes, makeSymlinkError) => readDiskHeadLeaf(path.join(dir, name), maxBytes, makeSymlinkError),
+    ...diskHeadAnchorSources(root),
+    // Loaded on demand; the segmented log imports only the leaf validators (./record-check.ts, ./head-anchor.ts).
+    segmented: () => import("../history/events-segmented.js").then((log) => log.segmentedEventLogFor(root)),
   };
 }
 
@@ -196,34 +172,6 @@ function parseHeader(line: string): void {
   }
 }
 
-/** Parse one record line into an {@link EventRecord}, validating its required shape. */
-function parseRecord(line: string): EventRecord {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(line);
-  } catch {
-    throw new EventStoreCorruptError("record line is not valid JSON");
-  }
-  const rec = parsed as Partial<EventRecord>;
-  const idOk = typeof rec.id === "string" && rec.id.startsWith("evt_");
-  if (!idOk || typeof rec.checksum !== "string" || typeof rec.prevHash !== "string" || typeof rec.type !== "string") {
-    throw new EventStoreCorruptError("record line is missing required fields");
-  }
-  if (rec.operationBinding !== undefined && !isOperationBinding(rec.operationBinding)) {
-    throw new EventStoreCorruptError(`event ${rec.id} has a malformed operation binding`);
-  }
-  return rec as EventRecord;
-}
-
-/** Verify a parsed record's stored checksum; throw {@link EventStoreCorruptError} on mismatch. */
-function verifyChecksum(record: EventRecord): EventRecord {
-  const { checksum, ...rest } = record;
-  if (eventChecksum(rest) !== checksum) {
-    throw new EventStoreCorruptError(`checksum mismatch for event ${record.id}`);
-  }
-  return record;
-}
-
 /**
  * Parse every record line AFTER the header. A failure on any line except the LAST
  * is interior corruption (fail closed); a failure on the last line is a torn
@@ -244,44 +192,6 @@ function parseRecords(lines: string[], problems: string[]): EventRecord[] {
     }
   }
   return events;
-}
-
-/**
- * Verify the hash chain over `events` (file order): the first record's `prevHash`
- * must equal {@link GENESIS_PREV_HASH}, and each subsequent record's `prevHash`
- * must equal the chain digest of its predecessor ({@link eventPrevHash}). An edit,
- * reorder, deletion, or fork changes a digest and breaks a link.
- *
- * @param events - Events in append order.
- * @returns `{ ok }`, with a `problem` describing the first broken link when not ok.
- */
-export function verifyEventChain(events: EventRecord[]): { ok: boolean; problem?: string } {
-  for (let i = 0; i < events.length; i++) {
-    const expected = i === 0 ? GENESIS_PREV_HASH : eventPrevHash(events[i - 1]);
-    if (events[i].prevHash !== expected) {
-      return { ok: false, problem: `chain link broken at event ${i} (${events[i].id})` };
-    }
-  }
-  return { ok: true };
-}
-
-/**
- * Read the sealed head-anchor digest, or null when it is absent, over
- * {@link EventReadSources}: THE ONE BODY. No private
- * directory and no leaf each mean no anchor; a leaf over the cap is this store's
- * corrupt error and was never read; the text is trimmed here.
- */
-async function readHeadAnchorFrom(sources: EventReadSources): Promise<string | null> {
-  const dir = await sources.resolvePrivateDir(); // throws on .llmwiki symlink escape
-  if (dir === null) return null; // absent .llmwiki → no head anchor, clean project
-  const read = await sources.readHeadLeaf(dir, path.basename(EVENTS_HEAD_FILE), MAX_EVENT_HEAD_BYTES, eventSymlinkError);
-  if (read.kind === "absent") return null;
-  if (read.kind === "oversize") {
-    throw new EventStoreCorruptError(
-      `head anchor file ${read.size} bytes exceeds the ${MAX_EVENT_HEAD_BYTES}-byte cap`,
-    );
-  }
-  return read.text.trim();
 }
 
 /**
@@ -342,6 +252,8 @@ export async function readEvents(root: string): Promise<ReadEventsResult> {
  * store too. Nothing is caught, so a rejection leaves as the same error.
  */
 export async function readEventsFrom(sources: EventReadSources): Promise<ReadEventsResult> {
+  const segmented = await sources.segmented?.();
+  if (segmented) return segmented.readAll(); // capped compatibility materializer of the indexed log
   const raw = await readStoreFile(sources.graph); // throws on symlink/too-new/corrupt
   const recordLines = splitStoreRecords(raw, parseHeader);
   // An ABSENT or header-only log yields ZERO events — but if the sealed head
@@ -508,6 +420,11 @@ function classifyHeadState(anchor: string | null, events: EventRecord[]): HeadSt
  * @throws {EventStoreChainError} When the chain is broken or the head anchor mismatches.
  */
 export async function prepareEventStoreForAppendFrom(sources: EventRepairSources): Promise<EventRecord[]> {
+  const segmented = await sources.segmented?.();
+  if (segmented) {
+    await segmented.verifyForAppend(); // bounded: the committed tail, the anchor, the legacy backup
+    return [];
+  }
   const { events, problems } = await readEventsFrom(sources); // throws on corrupt/too-new/symlink
   // VERIFY BEFORE REPAIR: a broken/reordered chain must be rejected with the file
   // left BYTE-IDENTICAL — never truncate (write to) a store we are about to refuse.

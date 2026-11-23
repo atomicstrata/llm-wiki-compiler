@@ -28,7 +28,7 @@ import type { LegacyLocalEntityScans, LocalEntryKind } from "../../storage/legac
 import { atomicWrite, parseFrontmatterStatus } from "../../utils/markdown.js";
 import * as output from "../../utils/output.js";
 import { safeRealpath, isInsideDir, confineUnderRoot } from "../../utils/path-confine.js";
-import { diskGraphStoreReads } from "../../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../../relations/graph-reads.js";
 import { diskWorkflowRunReads } from "../../workflow-history/store.js";
 import type { ExportPage } from "../types.js";
 import type { LinkResolver } from "./types.js";
@@ -103,7 +103,7 @@ export function diskOkfBundleSources(root: string): OkfBundleSources {
     tree: DISK_OKF_BUNDLE_TREE,
     profile: diskEffectiveProfileSources(root),
     scans: diskLocalEntityScans(root),
-    block: { graph: diskGraphStoreReads(root), runs: diskWorkflowRunReads(root) },
+    block: { graph: diskRelationGraphReads(root), runs: diskWorkflowRunReads(root) },
   };
 }
 

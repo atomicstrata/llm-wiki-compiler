@@ -126,7 +126,7 @@ function realNodeDirectory(searchPath: string): string | null {
     }).trim();
     return path.isAbsolute(binary) ? path.dirname(binary) : null;
   } catch {
-    return null; // No Node at all: Codex's `env node` shebang fails on its own.
+    return null; // A failing probe cannot establish a safe child interpreter.
   }
 }
 
@@ -147,7 +147,9 @@ function nodeDirectoryFor(searchPath: string): string | null {
 /** Keep env-based Node shebangs away from wrappers that synthesize variables. */
 function interpreterSafePath(searchPath: string): string {
   const nodeDirectory = nodeDirectoryFor(searchPath);
-  if (nodeDirectory === null) return searchPath;
+  if (nodeDirectory === null) {
+    throw new CodexAgentError("Node interpreter on PATH could not be verified. Check the local Node installation and retry.");
+  }
   const directories = searchPath.split(path.delimiter)
     .filter((directory) => directory && directory !== nodeDirectory);
   return [nodeDirectory, ...directories].join(path.delimiter);

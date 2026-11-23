@@ -22,13 +22,39 @@ import { registerWikiTools } from "./tools.js";
 import { registerOkfTools } from "./okf-tools.js";
 import { registerWorkflowActionTools } from "./workflow-action-tools.js";
 import { registerWikiResources } from "./resources.js";
-import { output } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { output, type OpenSession } from "@atomicstrata/llmwiki-core/compiler-cli";
+import { registerPortableScaleTools } from "./portable-scale-tools.js";
+import { registerPortableTools } from "./portable-tools.js";
 
 interface ServerOptions {
   /** Project root directory the server operates on. */
   root: string;
   /** Server version surfaced to MCP clients in the initialize handshake. */
   version: string;
+  /**
+   * Serve a PORTABLE project instead of a directory. When set, only the
+   * portable tools are registered; `root` and every legacy tool are unused.
+   */
+  portable?: OpenSession;
+}
+
+/** Instructions for a server bound to a portable project. */
+const PORTABLE_INSTRUCTIONS =
+  "This server exposes one llmwiki portable project. Use portable_list_pages, portable_read_page and " +
+  "portable_search to read published pages; they use no model. portable_propose runs the compile in " +
+  "review mode and persists a proposal; portable_list_candidates and portable_read_candidate show the " +
+  "exact drafts. On a project whose store has a catalog, portable_list_pages_paged, portable_open_page and " +
+  "portable_search_paged read one bounded page at a time. Every call is authorized as the server's configured principal. Approval and apply " +
+  "are not available over MCP.";
+
+/** Start the server for a portable project: portable tools only, never the legacy ones. */
+async function startPortableServer(version: string, open: OpenSession): Promise<void> {
+  const server = new McpServer({ name: "llmwiki", version }, { instructions: PORTABLE_INSTRUCTIONS });
+  registerPortableTools(server, open);
+  registerPortableScaleTools(server, open);
+  // stdout carries only JSON-RPC from here on.
+  output.setQuiet(true);
+  await server.connect(new StdioServerTransport());
 }
 
 /**
@@ -40,6 +66,7 @@ interface ServerOptions {
  */
 export async function startMCPServer(options: ServerOptions): Promise<void> {
   const { root, version } = options;
+  if (options.portable) return startPortableServer(version, options.portable);
   const server = new McpServer({ name: "llmwiki", version }, {
     instructions:
       "llmwiki compiles documents into a persistent, cited knowledge wiki. " +

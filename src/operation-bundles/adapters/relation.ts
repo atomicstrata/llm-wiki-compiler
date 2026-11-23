@@ -17,6 +17,7 @@
  * compatibility handle a host adapter receives.
  */
 
+import { indexedRelationState, type IndexedRelationState } from "../../history/bound-lookups.js";
 import { readEvents, type ReadEventsResult } from "../../events/store-read.js";
 import { appendRelationForOperationLocked, type RelationOperationApply } from "../../relations/operation-write.js";
 import { relationContentHash } from "../../relations/digest.js";
@@ -40,6 +41,8 @@ export interface RelationAdapterStores {
   readRelations(): Promise<ReadRelationRecordsResult>;
   /** The project's audit events. */
   readEvents(): Promise<ReadEventsResult>;
+  /** OPTIONAL: the mutation's relation state through `local-indexed` point lookups, or `null` (then the whole reads are used). */
+  indexedState?(mutationId: string): Promise<IndexedRelationState | null>;
   /** The operation-aware append (never a duplicate write); the caller holds the project lock. */
   appendForOperation(profile: ProfilePack, input: AppendRelationInput, binding: OperationBinding, promisedId: RelationRef["id"]): Promise<RelationOperationApply>;
 }
@@ -50,6 +53,7 @@ function diskRelationAdapterStores(ctx: Pick<AdapterContext, "root">): RelationA
     loadProfile: () => loadProfileOrUndefined(ctx.root),
     readRelations: () => readRelationRecords(ctx.root),
     readEvents: () => readEvents(ctx.root),
+    indexedState: (mutationId) => indexedRelationState(ctx.root, mutationId),
     appendForOperation: (profile, input, binding, promisedId) => appendRelationForOperationLocked(ctx.root, profile, input, binding, promisedId),
   };
 }
@@ -90,6 +94,16 @@ function declaredDigestConflict(mutation: RelationOperationMutation): string | n
     ? null : "relation postcondition digest is not the declared content hash";
 }
 
+/** The content hash the mutation declares under the active profile, or the observation that stops the check. */
+async function declaredContentHash(stores: RelationAdapterStores, mutation: RelationOperationMutation): Promise<string | OperationObservation> {
+  const digestConflict = declaredDigestConflict(mutation);
+  if (digestConflict !== null) return { outcome: "conflict", detail: digestConflict };
+  const profile = await stores.loadProfile();
+  if (!profile) return { outcome: "unavailable", detail: "no profile is active" };
+  try { return buildRelationRef(profile, relationInput(mutation)).contentHash; }
+  catch { return { outcome: "conflict", detail: "relation content is invalid for the active profile" }; }
+}
+
 /** Observe append-shaped relation state against the mutation identity + content. */
 async function observeRelation(stores: RelationAdapterStores, ctx: AdapterContext<RelationOperationMutation>): Promise<OperationObservation> {
   const mutationId = ctx.auditBinding.mutationId;
@@ -97,14 +111,9 @@ async function observeRelation(stores: RelationAdapterStores, ctx: AdapterContex
   if (state === null) return { outcome: "unavailable", detail: "relation or event store is unreadable" };
   const boundRecords = state.records.filter((record) => record.operationBinding?.mutationId === mutationId);
   if (boundRecords.length > 1 || state.boundEvents > 1) return { outcome: "conflict", detail: "duplicate relation authority for mutation" };
-  const digestConflict = declaredDigestConflict(ctx.mutation);
-  if (digestConflict !== null) return { outcome: "conflict", detail: digestConflict };
-  const profile = await stores.loadProfile();
-  if (!profile) return { outcome: "unavailable", detail: "no profile is active" };
-  let contentHash: string;
-  try { contentHash = buildRelationRef(profile, relationInput(ctx.mutation)).contentHash; }
-  catch { return { outcome: "conflict", detail: "relation content is invalid for the active profile" }; }
-  const live = liveContentRef(state.records, contentHash);
+  const contentHash = await declaredContentHash(stores, ctx.mutation);
+  if (typeof contentHash !== "string") return contentHash;
+  const live = state.live === undefined ? liveContentRef(state.records, contentHash) : await state.live(contentHash);
   if (boundRecords.length === 0 && live === undefined) return { outcome: "not-applied" };
   return presenceOutcome(ctx.mutation, boundRecords.length, state.boundEvents, live);
 }
@@ -112,8 +121,10 @@ async function observeRelation(stores: RelationAdapterStores, ctx: AdapterContex
 /** Read the relation and event stores for one mutation identity, or null when unreadable. */
 async function relationState(
   stores: RelationAdapterStores, mutationId: string,
-): Promise<{ records: readonly BoundRelationRecord[]; boundEvents: number } | null> {
+): Promise<{ records: readonly BoundRelationRecord[]; boundEvents: number; live?: IndexedRelationState["live"] } | null> {
   try {
+    const indexed = await stores.indexedState?.(mutationId);
+    if (indexed) return { records: indexed.bound, boundEvents: indexed.boundEvents, live: indexed.live };
     const records = (await stores.readRelations()).records;
     const boundEvents = (await stores.readEvents()).events
       .filter((event) => event.operationBinding?.mutationId === mutationId).length;

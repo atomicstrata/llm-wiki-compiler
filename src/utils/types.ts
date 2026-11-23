@@ -12,6 +12,7 @@ import type { PageId } from "./page-id.js";
 import type { SelectedPageRef } from "../search/retrieval.js";
 import type { AnswerCitationReport } from "../citations/answer-types.js";
 import type { AnswerCitationManifest, ValidatedAnswerKind } from "../citations/answer-manifest.js";
+import type { BatchCompileSummaryV1 } from "../compiler/batch/contracts.js";
 
 /**
  * Lifecycle state of a concept or page's provenance.
@@ -169,6 +170,17 @@ export interface CompileResult {
     held: ReviewedCandidateRef[];
     forced: ReviewedCandidateRef[];
   };
+  /**
+   * `"batch"` only on a batch compile of a project whose segmented compile
+   * state is the authority; absent otherwise. Such a result keeps `concepts`
+   * and `pages` EMPTY, `errors` holds at most one bounded summary line, and
+   * `compiled`, `skipped` and `deleted` are counts. Its authoritative facts
+   * are in {@link CompileResult.batch}; the per-source and per-page facts are
+   * paged with `compile --report <runId>` / `compileReport(runId)`.
+   */
+  mode?: "batch";
+  /** The batch run (id, phase, every counter; failures in `counts.failed` and `counts.pageErrors`), present exactly when `mode` is `"batch"`. */
+  batch?: BatchCompileSummaryV1;
 }
 
 /** Candidate reference returned in CompileResult.review. */

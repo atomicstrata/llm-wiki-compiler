@@ -11,15 +11,57 @@ name: Publish llm-wiki-compiler
 # The workflow checks out the EXACT `public_sha` from the payload — never the
 # ambient branch HEAD — verifies every package matches the requested version,
 # refuses a release whose facade is already published, then publishes and
-# verifies that each package's registry gitHead matches the released SHA.
+# verifies each package on the registry. Publication (`publish: true`)
+# requires public_sha on main. A `publish: false` run is preflight only: it
+# may check a candidate branch, and it proves nothing about the publish,
+# verify or MCP Registry steps it skips.
+#
+# Immutable artifacts. Preflight builds the public stage
+# (`node scripts/build-public-release.mjs`) and runs the full release gate ONCE
+# (`node scripts/check-public-boundary.mjs --json`). The gate's artifact check
+# packs each staged package with `npm pack --ignore-scripts`, reads every byte
+# of that tarball and names it in its report. Those three tarballs are the
+# release: `scripts/public-boundary/release-receipt.mjs create` copies the SAME
+# bytes, in publication order, with name, version, SHA-256, npm integrity,
+# public_sha and the release identity's head, into a receipt uploaded as a job
+# artifact. The publish job downloads it, verifies it against the receipt hash
+# preflight reported through job outputs, and publishes those tarball files
+# only. The publish job installs no application dependency and builds or
+# repacks nothing (it installs only the npm CLI, globally, for Trusted
+# Publishing), and no source workspace is ever published (each public
+# package's prepublishOnly refuses that). The receipt recomputes each
+# tarball's sha512 SRI from its bytes and requires it to equal npm's reported
+# integrity, so the registry identity is known before anything is published.
+#
+# Release readiness stays a hold. The gate exits non-zero while any
+# `openReleaseItems` entry in scripts/public-boundary/manifest.json is open.
+# Preflight requires every gate MECHANISM to pass and records the readiness
+# answer in the receipt; the publish job refuses unless it passed. A
+# `publish: false` run exercises the mechanisms and the exact tarballs only;
+# it does not make a release ready.
+#
+# Registry identity is the tarball's `dist.integrity`, equal to the receipt's,
+# and its `gitHead`, equal to public_sha. The stage writes `gitHead` into each
+# staged package.json from the same HEAD it records as the release identity's
+# head, and the receipt requires that head to be public_sha. Preflight refuses
+# a checked tarball whose own gitHead is not public_sha; verify refuses a
+# registry gitHead that is absent or different; publish-mcp.yml binds the MCP
+# Registry entry to it. npm provenance from Trusted Publishing attests the
+# workflow run and its triggering commit (the default branch for
+# repository_dispatch), NOT public_sha.
 #
 # Prerelease versions (anything with a `-` suffix) must use a dist-tag other
 # than `latest` (default `next`), so a development build never becomes what a
 # plain `npm install llm-wiki-compiler` resolves to.
 #
 # Resuming: if a run publishes the dependencies and then fails, re-dispatch the
-# same payload, including the same dist_tag. Packages already published at this version FROM THIS SHA are
-# skipped; one published from any other SHA refuses the release.
+# same payload, including the same dist_tag. A package already published at this
+# version is skipped only when its registry `dist.integrity` equals the new
+# run's checked tarball (the build must reproduce the same bytes). Any other
+# integrity, an already-published facade, or any registry answer that is
+# neither an exact name/version/integrity record nor npm's structured E404
+# for that exact name@version (blank output, malformed output, a timeout)
+# refuses the whole plan before the first publish.
 #
 # One-time setup (account-level, not in this repo), for EACH of the three
 # packages: an npm Trusted Publisher trusting repo
@@ -99,7 +141,7 @@ jobs:
             public_sha="$(jq -r '.public_sha // ""' <<<"${DISPATCH}")"
             version="$(jq -r '.version // ""' <<<"${DISPATCH}")"
             dist_tag="$(jq -r '.dist_tag // ""' <<<"${DISPATCH}")"
-            publish="$(jq -r '.publish // true' <<<"${DISPATCH}")"
+            publish="$(jq -r 'if has("publish") then .publish | if type == "boolean" then . else error("publish must be boolean") end else true end' <<<"${DISPATCH}")"
           else
             public_sha="${INPUT_PUBLIC_SHA}"
             version="${INPUT_VERSION}"
@@ -130,6 +172,9 @@ jobs:
           if [[ "${is_prerelease}" == "true" && "${dist_tag}" == "latest" ]]; then
             echo "::error::prerelease ${version} cannot be published to the latest dist-tag"; exit 1
           fi
+          if [[ "${publish}" != "true" && "${publish}" != "false" ]]; then
+            echo "::error::publish must be true or false, got '${publish}'"; exit 1
+          fi
           {
             echo "public_sha=${public_sha}"
             echo "version=${version}"
@@ -146,16 +191,29 @@ jobs:
           } >>"${GITHUB_STEP_SUMMARY}"
 
   preflight:
-    name: preflight (identity, release state, build, test, pack)
+    name: preflight (identity, build, test, gate, checked tarballs, release state)
     needs: resolve
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    outputs:
+      artifact_name: ${{ steps.receipt.outputs.artifact_name }}
+      receipt_sha256: ${{ steps.receipt.outputs.sha256 }}
     steps:
       - name: Checkout public_sha
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.public_sha }}
           fetch-depth: 0
+      # Candidate branches may run preflight; actual publication follows main.
+      - name: Require public_sha on main before publication
+        if: needs.resolve.outputs.publish == 'true'
+        env:
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          if ! git merge-base --is-ancestor "${PUBLIC_SHA}" origin/main; then
+            echo "::error::publication requires public_sha on origin/main"; exit 1
+          fi
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -198,26 +256,6 @@ jobs:
             echo "::error::@atomicstrata/llmwiki-local-workflows peers on core '${peer}', expected exactly ${WANT}"; exit 1
           fi
           echo "ok: exact internal version pins"
-      - name: Check registry state (refuse a completed or foreign release)
-        env:
-          WANT: ${{ needs.resolve.outputs.version }}
-          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
-        run: |
-          set -euo pipefail
-          for dir in ${PACKAGE_DIRS}; do
-            name="$(jq -r '.name' "${dir}/package.json")"
-            if ! npm view "${name}@${WANT}" version >/dev/null 2>&1; then
-              echo "ok: ${name}@${WANT} is not yet on the registry"; continue
-            fi
-            if [[ "${dir}" == "." ]]; then
-              echo "::error::${name}@${WANT} is already published; npm versions are immutable"; exit 1
-            fi
-            head="$(npm view "${name}@${WANT}" gitHead 2>/dev/null || true)"
-            if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
-              echo "::error::${name}@${WANT} is already published from gitHead '${head}', not ${PUBLIC_SHA}"; exit 1
-            fi
-            echo "ok: ${name}@${WANT} already published from this SHA; the publish job will skip it"
-          done
       # Same isolation provisioning as ci.yml: the limited-isolation tests
       # refuse to skip on Linux, so the suite fails without bubblewrap.
       - name: Install Linux isolation test dependency
@@ -228,16 +266,84 @@ jobs:
         run: >-
           bwrap --cap-drop ALL --unshare-net --ro-bind / /
           --dev /dev --proc /proc -- "$(command -v bun)" --version
-      - name: Install, validate docs, build, test, pack
+      - name: Install, validate docs, build, test
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
           bun run release:check-docs:current
           bun run test
           bun run test:pack
-          for dir in ${PACKAGE_DIRS}; do
-            (cd "${dir}" && bun pm pack --dry-run --ignore-scripts)
+      # The release's only pack: the full gate packs each staged package once
+      # and checks that tarball byte for byte. It exits non-zero while release
+      # items are open; the receipt step then requires every mechanism to pass.
+      - name: Stage the public release and run the full gate once
+        run: |
+          set -euo pipefail
+          node scripts/build-public-release.mjs
+          status=0
+          node scripts/check-public-boundary.mjs --json >"${RUNNER_TEMP}/gate-report.json" || status=$?
+          echo "gate exit status ${status} (non-zero while release items are open; mechanisms are checked next)"
+      - name: Record the checked tarballs in the release receipt
+        id: receipt
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          sha="$(node scripts/public-boundary/release-receipt.mjs create "${RUNNER_TEMP}/gate-report.json" release-artifacts "${PUBLIC_SHA}" "${WANT}")"
+          {
+            echo "sha256=${sha}"
+            echo "artifact_name=release-${PUBLIC_SHA}-${WANT}-${GITHUB_RUN_ATTEMPT}"
+          } >>"${GITHUB_OUTPUT}"
+          jq -r '.packages[] | "- \(.name)@\(.version) sha256 \(.sha256)"' release-artifacts/receipt.json >>"${GITHUB_STEP_SUMMARY}"
+          echo "- release readiness: $(jq -r '.readiness.passed' release-artifacts/receipt.json)" >>"${GITHUB_STEP_SUMMARY}"
+      # Each checked tarball's own manifest must name public_sha as its gitHead;
+      # the receipt carries these exact bytes to the publish job.
+      - name: Require every checked tarball to record gitHead public_sha
+        env:
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+        run: |
+          set -euo pipefail
+          files="$(jq -r '.packages[].file' release-artifacts/receipt.json)"
+          checked=0
+          for file in ${files}; do
+            head="$(tar -xzOf "release-artifacts/${file}" package/package.json | jq -r '.gitHead // ""')"
+            if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
+              echo "::error::${file} records gitHead '${head}', expected public_sha ${PUBLIC_SHA}"; exit 1
+            fi
+            checked=$((checked + 1))
           done
+          if [[ "${checked}" -ne 3 ]]; then
+            echo "::error::expected 3 checked tarballs, found ${checked}"; exit 1
+          fi
+      # The consumer check installs the SAME three tarball files, not a repack.
+      - name: Install the checked tarballs into a fresh consumer
+        run: |
+          set -euo pipefail
+          artifacts="${PWD}/release-artifacts"
+          consumer="$(mktemp -d)"
+          cd "${consumer}"
+          npm init -y >/dev/null
+          mapfile -t tarballs < <(jq -r --arg d "${artifacts}" '.packages[] | "\($d)/\(.file)"' "${artifacts}/receipt.json")
+          npm install --no-audit --no-fund "${tarballs[@]}"
+          node --input-type=module -e "
+            const sdk = await import('llm-wiki-compiler');
+            if (typeof sdk.createWiki !== 'function') throw new Error('createWiki missing');
+          "
+          npx --no-install llmwiki --version
+      - name: Check registry state against the checked tarballs (refuse a completed or foreign release)
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          node scripts/public-boundary/release-receipt.mjs registry release-artifacts "${WANT}"
+      - name: Upload the checked tarballs and receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.receipt.outputs.artifact_name }}
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 7
 
   publish:
     name: publish npm (Trusted Publishing)
@@ -250,53 +356,60 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # The checkout supplies scripts/public-boundary/release-receipt.mjs only;
+      # nothing is installed, built, packed or published from it.
       - name: Checkout public_sha
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.resolve.outputs.public_sha }}
-          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           registry-url: "https://registry.npmjs.org/"
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version-file: package.json
       - name: Require npm >= 11.5.1 for Trusted Publishing
         run: |
           set -euo pipefail
           npm install -g npm@latest
           npm --version
-      - name: Install and build
+      - name: Download the checked tarballs and receipt
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.preflight.outputs.artifact_name }}
+          path: release-artifacts
+      # Every tarball is verified before the first irreversible publish.
+      - name: Verify every tarball against the preflight receipt
+        env:
+          WANT: ${{ needs.resolve.outputs.version }}
+          PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
+          RECEIPT_SHA256: ${{ needs.preflight.outputs.receipt_sha256 }}
         run: |
           set -euo pipefail
-          bun install --frozen-lockfile
-          bun run build
-      - name: Publish dependencies first (OIDC, no token)
+          node scripts/public-boundary/release-receipt.mjs verify release-artifacts "${PUBLIC_SHA}" "${WANT}" "${RECEIPT_SHA256}"
+      - name: Require the release readiness the full gate recorded
+        run: |
+          set -euo pipefail
+          if ! jq -e '.readiness.passed == true' release-artifacts/receipt.json >/dev/null; then
+            echo "::error::release readiness was not met in preflight (open release items); publication is held"; exit 1
+          fi
+      - name: Publish the checked tarballs, dependencies first (OIDC, no token)
         env:
           WANT: ${{ needs.resolve.outputs.version }}
           DIST_TAG: ${{ needs.resolve.outputs.dist_tag }}
         run: |
           set -euo pipefail
-          for dir in ${PACKAGE_DIRS}; do
-            name="$(jq -r '.name' "${dir}/package.json")"
-            if npm view "${name}@${WANT}" version >/dev/null 2>&1; then
-              echo "skip: ${name}@${WANT} already published (verified against this SHA in preflight)"
-              continue
+          plan="$(node scripts/public-boundary/release-receipt.mjs registry release-artifacts "${WANT}")"
+          while IFS=$'\t' read -r name file state; do
+            if [[ "${state}" == "same" ]]; then
+              echo "skip: ${name}@${WANT} already published with these exact bytes"; continue
             fi
-            if [[ "${dir}" == "." ]]; then
-              npm publish --access public --tag "${DIST_TAG}"
-            else
-              npm publish --workspace "${dir}" --access public --tag "${DIST_TAG}"
-            fi
-            echo "published: ${name}@${WANT} (${DIST_TAG})"
-          done
+            npm publish "./release-artifacts/${file}" --access public --tag "${DIST_TAG}" --ignore-scripts
+            echo "published: ${name}@${WANT} (${DIST_TAG}) from ${file}"
+          done <<<"${plan}"
 
   verify:
     name: verify registry visibility and installation
-    needs: [resolve, publish]
+    needs: [resolve, preflight, publish]
     if: needs.resolve.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -309,7 +422,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Verify each version, gitHead and dist-tag
+      - name: Download the receipt
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.preflight.outputs.artifact_name }}
+          path: release-artifacts
+      - name: Verify each version, integrity, gitHead and dist-tag
         env:
           WANT: ${{ needs.resolve.outputs.version }}
           PUBLIC_SHA: ${{ needs.resolve.outputs.public_sha }}
@@ -320,10 +438,13 @@ jobs:
             name="$(jq -r '.name' "${dir}/package.json")"
             version=""
             head=""
+            integrity=""
+            want_integrity="$(jq -r --arg n "${name}" '.packages[] | select(.name == $n) | .integrity' release-artifacts/receipt.json)"
             for attempt in $(seq 1 10); do
-              metadata="$(npm view "${name}@${WANT}" version gitHead --json 2>/dev/null || echo '{}')"
+              metadata="$(npm view "${name}@${WANT}" version gitHead dist.integrity --json 2>/dev/null || echo '{}')"
               version="$(jq -r '.version // ""' <<<"${metadata}")"
               head="$(jq -r '.gitHead // ""' <<<"${metadata}")"
+              integrity="$(jq -r '.["dist.integrity"] // ""' <<<"${metadata}")"
               if [[ "${version}" == "${WANT}" ]]; then
                 break
               fi
@@ -333,14 +454,18 @@ jobs:
             if [[ "${version}" != "${WANT}" ]]; then
               echo "::error::${name}@${WANT} not visible on the registry"; exit 1
             fi
+            if [[ -z "${want_integrity}" || "${integrity}" != "${want_integrity}" ]]; then
+              echo "::error::${name}@${WANT} registry integrity ${integrity} is not the checked tarball ${want_integrity}"; exit 1
+            fi
+            # The staged manifest records gitHead = public_sha; absence refuses.
             if [[ "${head}" != "${PUBLIC_SHA}" ]]; then
-              echo "::error::${name} published gitHead=${head}, expected public_sha=${PUBLIC_SHA}"; exit 1
+              echo "::error::${name} published gitHead='${head}', expected public_sha=${PUBLIC_SHA}"; exit 1
             fi
             tagged="$(npm view "${name}" "dist-tags.${DIST_TAG}" 2>/dev/null || true)"
             if [[ "${tagged}" != "${WANT}" ]]; then
               echo "::error::${name} dist-tag ${DIST_TAG} points at '${tagged}', expected ${WANT}"; exit 1
             fi
-            echo "verified ${name}@${version} (gitHead=${head}, ${DIST_TAG})"
+            echo "verified ${name}@${version} (integrity=${integrity}, gitHead=${head}, ${DIST_TAG})"
           done
       - name: Verify a fresh install resolves the released set
         env:

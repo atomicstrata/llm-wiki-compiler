@@ -52,6 +52,8 @@
               "cli/lint-eval",
               "cli/export",
               "cli/import",
+              "cli/scale",
+              "cli/project",
               {
                 "group": "Configurable Lifecycle Profiles",
                 "expanded": false,

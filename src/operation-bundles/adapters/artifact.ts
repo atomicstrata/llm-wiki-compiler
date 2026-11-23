@@ -15,6 +15,8 @@
  * `AdapterContext.root` stays the compatibility handle a host adapter receives.
  */
 
+import { indexedBoundEvents } from "../../history/bound-lookups.js";
+import type { EventRecord } from "../../events/types.js";
 import { readEvents, type ReadEventsResult } from "../../events/store-read.js";
 import { applyArtifactLocked, ArtifactWriteDeniedError, ArtifactWriteRefusedError } from "../../artifacts/apply.js";
 import {
@@ -45,6 +47,8 @@ export interface ArtifactAdapterStores {
   readBody(location: ArtifactPathsV1, maxBytes: number): Promise<ArtifactBodyRead>;
   /** The project's audit events. */
   readEvents(): Promise<ReadEventsResult>;
+  /** OPTIONAL: the events bound to one mutation via the `local-indexed` binding index, or `null` (then `readEvents` is used). */
+  boundEvents?(mutationId: string): Promise<EventRecord[] | null>;
   /** Write through the artifact authority with the out-of-band binding; the caller holds the project lock. */
   applyArtifact(planned: ArtifactPlannedMutation, binding: OperationBinding): Promise<unknown>;
 }
@@ -58,6 +62,7 @@ function diskArtifactAdapterStores(ctx: Pick<AdapterContext, "root">): ArtifactA
     readManifest: (location) => readArtifactManifest(ctx.root, location),
     readBody: (location, maxBytes) => readArtifactBody(ctx.root, location, maxBytes),
     readEvents: () => readEvents(ctx.root),
+    boundEvents: (mutationId) => indexedBoundEvents(ctx.root, mutationId),
     applyArtifact: (planned, binding) => applyArtifactLocked(ctx.root, planned, binding),
   };
 }
@@ -75,7 +80,7 @@ function readPayload(stores: ArtifactAdapterStores, ctx: AdapterContext<Artifact
 
 /** Count bound artifact-write events for this mutation. */
 async function boundArtifactEvents(stores: ArtifactAdapterStores, mutationId: string): Promise<number> {
-  const { events } = await stores.readEvents();
+  const events = (await stores.boundEvents?.(mutationId)) ?? (await stores.readEvents()).events;
   return events.filter((event) => event.type === "artifact-write" && event.operationBinding?.mutationId === mutationId).length;
 }
 

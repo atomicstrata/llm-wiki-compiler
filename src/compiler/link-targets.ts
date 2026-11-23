@@ -29,7 +29,7 @@ const MAX_TARGET_TITLE_CHARS = 200;
 const LINK_SYNTAX = /[[\]|]/;
 
 /** A candidate target before rendering. */
-interface PageRef {
+export interface PageRef {
   slug: string;
   title: string;
 }
@@ -43,7 +43,7 @@ function plainLine(text: string): string {
  * The text a page may use to link to `ref`, or null when the page cannot be
  * offered safely (link syntax in the title, an unusual slug, or no title).
  */
-function renderTarget(ref: PageRef): string | null {
+export function renderTarget(ref: PageRef): string | null {
   const title = plainLine(ref.title);
   if (!title || title.length > MAX_TARGET_TITLE_CHARS || LINK_SYNTAX.test(title)) return null;
   // Links resolve through slugify, so only a canonical slug (unchanged by it)

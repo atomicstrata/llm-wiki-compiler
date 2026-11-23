@@ -9,6 +9,7 @@
  * Builtin/local/remote resolution, the tap-state lock and the remote re-check stay
  * HOST work here, unchanged; the project lock is still taken before the tap lock.
  */
+import { assertProfileChangeAllowed } from "../../indexed/profile-guard.js";
 import path from "node:path";
 import packageJson from "../../../package.json";
 import { readCappedNoFollow } from "../../utils/confined-read.js";
@@ -94,8 +95,10 @@ export async function installRemoteTemplate(
   options: TemplateInstallOptions,
 ): Promise<TemplateInstallResult> {
   if (resolved.indexExpired) throw new TemplateInstallError("Remote template evidence is stale; refresh its tap before installing.");
+  await assertProfileChangeAllowed(root);
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    await assertProfileChangeAllowed(root);
     return await withTapStateLock(paths, async () => {
       const current = await resolveRemotePackage(paths, resolved.coordinate, { offline: true });
       assertSameRemoteResolution(resolved, current);
@@ -170,8 +173,10 @@ async function installPackage(
   pkg: ProfileTemplatePackage,
   options: InstallPackageOptions,
 ): Promise<TemplateInstallResult> {
+  await assertProfileChangeAllowed(root);
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    await assertProfileChangeAllowed(root);
     return await installPackageLockedWith(localTemplateInstallSteps(root), pkg, options);
   } finally {
     await releaseLock(root);

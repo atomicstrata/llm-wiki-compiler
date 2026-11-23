@@ -1,7 +1,7 @@
 {
   "name": "@atomicstrata/llmwiki-core",
   "description": "Engine-free llmwiki knowledge and domain SDK",
-  "version": "1.5.0",
+  "version": "1.6.0-rc.1",
   "type": "module",
   "publishConfig": { "access": "public" },
   "main": "./dist/index.js",
@@ -21,7 +21,8 @@
   },
   "scripts": {
     "build": "tsup",
-    "prepack": "bun run build"
+    "prepack": "bun run build",
+    "prepublishOnly": "node ../../scripts/refuse-direct-publish.mjs"
   },
   "exports": {
     "./compiler-cli": {

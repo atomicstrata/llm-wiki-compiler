@@ -14,7 +14,8 @@ import path from "node:path";
 import { diskEventReadSources, readEventsFrom, type EventReadSources } from "../../events/store-read.js";
 import { readRelationsFrom } from "../../relations/store-read.js";
 import { CANDIDATES_ARCHIVE_DIR, CANDIDATES_DIR } from "../../utils/constants.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../../relations/graph-reads.js";
 import { confineUnderRoot } from "../../utils/path-confine.js";
 import { diskWorkflowRunReads, listRunsFrom, type WorkflowRunReads } from "../../workflow-history/store.js";
 import type { LoadedProfile, ProfilePack } from "../types.js";
@@ -31,7 +32,7 @@ export interface TypedCorpusReads {
   entries(relativeDir: string): Promise<string[] | "absent" | "unavailable">;
   /** Whether any file sits below a project-relative store. Local: {@link firstFileUnder}. */
   firstFileUnder(relativeDir: string): Promise<"absent" | "present" | "unavailable">;
-  /** The relation store's graph read. Local: `diskGraphStoreReads(root)`. */
+  /** The relation store's graph read. Local: `diskRelationGraphReads(root)`. */
   relations: GraphStoreReads;
   /** The event store's read sources. Local: `diskEventReadSources(root)`. */
   events: EventReadSources;
@@ -44,7 +45,7 @@ export function diskTypedCorpusReads(root: string): TypedCorpusReads {
   return {
     entries: (relativeDir) => confinedEntries(root, relativeDir),
     firstFileUnder: (relativeDir) => firstFileUnder(root, relativeDir),
-    relations: diskGraphStoreReads(root),
+    relations: diskRelationGraphReads(root),
     events: diskEventReadSources(root),
     workflowRuns: diskWorkflowRunReads(root),
   };

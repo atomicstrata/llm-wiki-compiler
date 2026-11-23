@@ -19,7 +19,7 @@
 
 import path from "path";
 import * as output from "../utils/output.js";
-import { withRegisteredProjectLock } from "../operation-bundles/registered-project-lock.js";
+import { withCooperativeWriterLock } from "../operation-bundles/registered-project-lock.js";
 import { makeDirectoryTree } from "../storage/disk-guarded-leaves.js";
 import { locationExistsSync, overwriteLocationText } from "../storage/disk-locations.js";
 import {
@@ -47,7 +47,7 @@ export interface SchemaInitSteps {
 function localSchemaInitSteps(root: string): SchemaInitSteps {
   const targetPath = (): string => defaultSchemaInitPath(root);
   return {
-    underProjectGate: (write) => withRegisteredProjectLock(root, write),
+    underProjectGate: (write) => withCooperativeWriterLock(root, "schema init", write),
     targetPath,
     targetExists: () => locationExistsSync(targetPath()),
     ensureTargetDirectory: () => makeDirectoryTree(path.dirname(targetPath())),
@@ -65,8 +65,8 @@ export async function schemaInitCommand(): Promise<void> {
 
 /** {@link schemaInitCommand} over {@link SchemaInitSteps}: THE ONE BODY. */
 export async function schemaInitCommandWith(steps: SchemaInitSteps): Promise<void> {
-  // The schema is a semantic input of every compile, so on a project registered
-  // for the portable path it is written under the gated project lock.
+  // The schema is a semantic input of every compile, so it is written under the
+  // project lock (the gated lock once the project is registered).
   await steps.underProjectGate(() => writeStarterSchema(steps));
 }
 

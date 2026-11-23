@@ -51,7 +51,7 @@ export interface OrphanPassSteps {
 }
 
 /** LOCAL. The incumbent read, warning and compile page write, called at call time with their usual arguments; frozen. */
-const localOrphanPassSteps: OrphanPassSteps = Object.freeze({
+export const localOrphanPassSteps: OrphanPassSteps = Object.freeze({
   readPage: (root: string, relDir: string, slug: string) => readConfinedWikiPage(root, relDir, slug),
   warnDropped: (absPath: string, relPath: string, reason: string) => warnDroppedWikiReadIfPresent(absPath, relPath, reason),
   writePages: (root: string, writes: CompilePageWrite[]) => applyCompilePageWritesLocked(root, writes),
@@ -169,7 +169,7 @@ export async function orphanUnownedFrozenPagesWith(
  * @param reason - Human-readable reason for the log message.
  * @returns The page write to apply, or `null` when any guard skips it.
  */
-async function orphanPage(
+export async function orphanPage(
   steps: Pick<OrphanPassSteps, "readPage" | "warnDropped">,
   root: string,
   slug: string,

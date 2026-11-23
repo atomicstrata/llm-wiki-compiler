@@ -40,7 +40,8 @@ import { parseEntityId, EntityIdError } from "../profile/identity.js";
 import { diskEntityPageReads, readConfinedEntityFrontmatterFrom, type EntityPageReads } from "../profile/lifecycle-read.js";
 import { validateEntityFields } from "../profile/field-contract.js";
 import { lifecycleStates } from "../profile/validate-helpers.js";
-import { diskGraphStoreReads, GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "./graph-reads.js";
 import type { EntityId, EntityTypeDef, LifecycleDef, ProfilePack } from "../profile/types.js";
 import {
   checkRelationPreconditions,
@@ -221,7 +222,7 @@ function endpointLifecycleFacts(frontmatter: Record<string, unknown>, def: Entit
 
 /**
  * The two reads the relation enforcer asks for. No member takes a project root.
- * Local: `diskGraphStoreReads(root)` and `diskEntityPageReads(root)`.
+ * Local: `diskRelationGraphReads(root)` and `diskEntityPageReads(root)`.
  */
 export interface RelationPreconditionReads {
   /** The relation store's graph read (the live+profile-valid filter runs over it). */
@@ -266,7 +267,7 @@ export interface EnforceRelationPreconditionsArgs {
  * @throws {RelationPreconditionUnverifiableError} When the relation store is unreadable.
  */
 export async function enforceRelationPreconditions(args: EnforceRelationPreconditionsArgs): Promise<void> {
-  return enforceRelationPreconditionsFrom({ graph: diskGraphStoreReads(args.root), pages: diskEntityPageReads(args.root) }, args);
+  return enforceRelationPreconditionsFrom({ graph: diskRelationGraphReads(args.root), pages: diskEntityPageReads(args.root) }, args);
 }
 
 /**

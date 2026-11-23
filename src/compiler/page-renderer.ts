@@ -22,7 +22,7 @@ import type { SchemaConfig } from "../schema/index.js";
 import type { ExtractedConcept } from "../utils/types.js";
 
 /** Maximum number of existing concept pages to include as cross-reference context. */
-const RELATED_PAGE_CONTEXT_LIMIT = 5;
+export const RELATED_PAGE_CONTEXT_LIMIT = 5;
 
 /** A merged-concept input from the orchestrator (multiple sources merged into one). */
 interface RenderableConcept {

@@ -9,6 +9,7 @@
  * helpers — and so the record/guard logic is unit-testable without touching disk.
  */
 
+import type { CatalogListingNote } from "../catalog/reads.js";
 import { parseFrontmatter } from "../utils/markdown.js";
 import { PathSafetyError } from "../viewer/path-safety.js";
 
@@ -33,6 +34,8 @@ export interface ListSourcesOptions {
 export interface ListSourcesResult {
   sources: SourceRecord[];
   cursor?: string;
+  /** ADDITIVE, `local-indexed` projects only: the catalog's freshness and any stale or partial-page facts. */
+  catalog?: CatalogListingNote;
 }
 
 /**

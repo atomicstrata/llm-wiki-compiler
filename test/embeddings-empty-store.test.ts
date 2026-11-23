@@ -21,7 +21,7 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { makeTempRoot } from "./fixtures/temp-root.js";
 import * as providerMod from "../src/utils/provider.js";
-import { resolveEmbeddingModel } from "../src/utils/embeddings-store.js";
+import { resolveEmbeddingModel, type EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";
 import { loadEmbeddingsForSearch, findRelevantPagesV3, findRelevantChunksV3 } from "../src/utils/embeddings-load.js";
 
 let root: string;
@@ -52,7 +52,7 @@ describe("a store with dimensions: 0 and no vectors", () => {
     await writeEmptyStore(0);
     const outcome = await loadEmbeddingsForSearch(root);
     expect(outcome.store).not.toBeNull();
-    expect(outcome.store?.dimensions).toBe(0);
+    expect((outcome.store as EmbeddingStoreV3 | null)?.dimensions).toBe(0);
   });
 
   it("returns no page hits rather than throwing on the query vector", async () => {

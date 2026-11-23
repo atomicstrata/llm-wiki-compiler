@@ -11,7 +11,8 @@ if [ -f .env ]; then
   echo "test-keyless: a .env exists in the working directory; the gate cannot guarantee determinism — move it aside" >&2
   exit 2
 fi
-FRESH_HOME="$(mktemp -d)"
+# An explicit template under TMPDIR: macOS `mktemp -d` without one ignores TMPDIR and uses the per-user temp.
+FRESH_HOME="$(mktemp -d "${TMPDIR:-/tmp}/llmwiki-keyless-home.XXXXXX")"
 trap 'rm -rf "$FRESH_HOME"' EXIT
 env -u ANTHROPIC_API_KEY -u CLAUDE_API_KEY -u ANTHROPIC_AUTH_TOKEN \
     -u OPENAI_API_KEY -u MINIMAX_API_KEY -u GITHUB_TOKEN \

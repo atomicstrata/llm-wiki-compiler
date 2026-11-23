@@ -29,6 +29,7 @@ import {
 } from "./deps.js";
 import { buildExtractionSourceStates } from "./source-state.js";
 import { resolveCompileConcurrency } from "./concurrency.js";
+import { runLimitedUntilFailure } from "./limited-until-failure.js";
 import { mergeExtractions } from "./extraction-merge.js";
 import { buildLinkTargets } from "./link-targets.js";
 import { runExtractionPhases } from "./extraction-phase.js";
@@ -205,15 +206,14 @@ export async function generatePagesPhase(input: PageGenerationInput): Promise<Pa
   const sourceStates = shouldBuildSourceStates
     ? await buildExtractionSourceStates(access, extractions)
     : {};
-  const limit = pLimit(input.concurrency);
-  // Collect per-outcome errors and candidate info into the ordered outcomes array
-  // AFTER Promise.all, then derive candidates/review by iterating outcomes in source order.
-  // This ensures stable, source-order ordering regardless of parallel completion timing.
-  const outcomes = await Promise.all(
-    merged.map((entry) => limit(async () => {
-      const result = await generateMergedPage(access, entry, schema, options, sourceStates, policy);
-      return { entry, result };
-    })),
+  // Collect per-outcome errors and candidate info AFTER every page settles, then
+  // derive candidates/review by iterating outcomes in source order. A fatal page
+  // failure stops admission and rejects here, after in-flight pages settle and
+  // before any live commit.
+  const outcomes: GeneratedOutcome[] = await runLimitedUntilFailure(
+    pLimit(input.concurrency),
+    merged,
+    async (entry) => ({ entry, result: await generateMergedPage(access, entry, schema, options, sourceStates, policy) }),
   );
   const errors: string[] = [];
   const candidates: string[] = [];

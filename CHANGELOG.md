@@ -7,6 +7,94 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0-rc.1] - 2026-11-23
+
+This prerelease is intended for the npm `next` dist-tag. The stable `latest`
+release remains `1.5.0`.
+
+Expected-scale layouts are opt-in and local. With no expected-scale record,
+a project keeps its existing storage layout; the lock behavior and SDK
+interface changes under "Changed" below still apply.
+
+### Added
+
+- **Expected scale on one machine.** `llmwiki init`, `llmwiki scale` and the
+  `--expected-size` / `--expected-documents` flags of `quickstart` record how
+  large you expect a wiki to become and prepare a matching on-disk layout.
+  An expected scale is a planning target, not verified capacity: the profiles
+  choose between single-machine layouts and provision nothing else.
+- **A paged catalog for the largest local layout.** `llmwiki catalog` reports
+  status, reconciles, verifies and pages listings one bounded page at a time,
+  and offers backup, restore, pins and collection of the indexed stores.
+- **Cancel a scale-down before it moves anything.** `llmwiki scale downgrade
+  --cancel <plan> --readers-offline` (and `wiki.scale.downgrade.cancel`)
+  returns an interrupted or refused scale-down that has not moved anything yet
+  to the current indexed layout. It proves nothing moved first and otherwise
+  refuses; it deletes nothing. A scale-down that had fenced the project keeps
+  its planned smaller estimate on the record; one interrupted before fencing
+  writes no record, so the estimate is unchanged. Once installation has begun,
+  the only way forward is `--apply`.
+- **Batch compile.** On a project whose segmented compile state is prepared,
+  `llmwiki compile` runs as a bounded, resumable batch run, with
+  `--batch-size`, `--restart` and a read-only `--report <runId>`.
+- **SDK.** `initWiki`, `wiki.scale`, `wiki.catalog`, `wiki.compileReport` and
+  the `batchSize` / `restart` compile options.
+- **An experimental portable project path.** `llmwiki project` and the
+  `portable_*` MCP tools work on a registered local directory. Its
+  `originals` and `tiers` subcommands require hosted references; `federation`
+  requires an explicit host, receiver and credentials file. Local SDK sessions
+  refuse those capabilities. No remote portable backend ships in this package.
+  Hosted clients send your token to the named host, and federation also sends
+  the receiver your token for every shard you list; use `https://` unless the
+  host runs on this machine. `portable-detached/2` is a contract only, with no
+  detached-compile runtime. `llmwiki project resolve` rechecks a parked
+  operation's target files before acting. If their exact bytes change between
+  checks or before rollback writes, it refuses `targets_changed` without
+  writing or closing the operation. `accept-external-bytes` is refused while a
+  target file cannot be read: make it readable, then resolve again.
+
+### Changed
+
+- **`scale status` reports what admission observes.** One record read now
+  also reports `downgrading` while a scale-down needs same-plan recovery,
+  `unreadable` when the record is missing beside indexed stores, and the new
+  readiness `restoring` while an indexed-authority restore holds the project,
+  each with a `reason`. The readable record and plan are kept; version 1 JSON
+  and exit `3` are unchanged. `ScaleReadiness` gains `restoring`: code with an
+  exhaustive switch or a closed decoder over the earlier values must accept
+  it. `scale preview` uses the same read and, like `scale set`, refuses a
+  pending scale-down before an unreadable record.
+- **A lost or unreadable scale record is never replaced automatically.**
+  `init`, `scale set`, `scale prepare`, `scale preview` and quickstart's
+  estimate step refuse `scale_state_unreadable` while indexed stores remain;
+  restore `.llmwiki/scale.json` by hand. `init` may create its ordinary
+  directories before that check.
+- **Ingest, SDK source delete and `schema init` take the project lock.** They
+  used to write without it. One started while a compile (or `watch`) holds the
+  lock now waits for the lock's bounded time and then refuses with a
+  project-busy message. Nothing was written: retry once the other operation
+  has finished.
+- **Publishing from the source tree is refused.** A release is staged and
+  verified first; see `CONTRIBUTING.md`, "Releasing".
+- **`WikiCore` and `Wiki` gain three members.** The objects `createWikiCore`
+  and `createWiki` return now also have `compileReport`, `scale` and
+  `catalog`. Code that only receives these objects is unaffected. Code that
+  builds a complete `WikiCore` or `Wiki` itself (a hand-written mock or stub)
+  or implements either interface must add the three members to type-check.
+
+### Limits
+
+- A batch compile requires `--no-embeddings` and refuses `--review`,
+  `--no-pages-limit`, a review policy that is not off, and pending review
+  candidates. Unsupported options are refused before any credential check.
+- `llmwiki compile` has no `--dry-run` and no `--rebuild-source` option.
+- Compiling needs a model you configure, as before. No model is bundled.
+- Scale-down cancellation's fenced path and durable interruption/recovery
+  scenarios still await qualification.
+- No performance or capacity figure is claimed for large corpora.
+- Portable recovery and `project resolve` assume cooperating writers: another
+  program's change after rollback's own observation may be overwritten.
+
 ## [1.5.0] - 2026-10-19
 
 Separate what a wiki does from how it is stored on disk, connect to

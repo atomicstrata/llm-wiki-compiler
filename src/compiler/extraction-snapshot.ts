@@ -50,7 +50,7 @@ export function extractionSourceHash(content: string): string {
 }
 
 /** Bind reuse to the extraction contract, language/policy, provider and model. */
-function extractionFingerprint(): string {
+export function extractionFingerprint(): string {
   return extractionSourceHash(JSON.stringify([
     PROMPT_VERSION, getActiveProviderName(), resolveActiveModelId(),
     buildExtractionPrompt("", ""), CONCEPT_EXTRACTION_TOOL,

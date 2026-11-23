@@ -20,6 +20,7 @@
  * disk steps, which call the incumbent root forms with their old arguments.
  */
 
+import { indexedActive } from "../indexed/routing.js";
 import packageJson from "../../package.json";
 import { buildFrontmatter } from "../utils/markdown.js";
 import { loadNonDefaultProfile } from "../profile/block.js";
@@ -109,13 +110,18 @@ function diskConnectorRunSteps(root: string): ConnectorRunSteps {
   };
 }
 
-/** Run one activated connector and stage its mapped draft as a typed review candidate. */
+/**
+ * Run one activated connector and stage its mapped draft as a typed review
+ * candidate. On a `local-indexed` project the run is refused BEFORE any fetch
+ * or mutation: connector staging is not part of the indexed route.
+ */
 export async function runConnector(
   root: string,
   connectorId: string,
   inputs: Record<string, string>,
   deps: RunConnectorDeps = {},
 ): Promise<RunConnectorResult> {
+  if (await indexedActive(root)) return { kind: "refused", reason: "connectors are unavailable on a local-indexed project" };
   return runConnectorWith(diskConnectorRunSteps(root), connectorId, inputs, deps);
 }
 

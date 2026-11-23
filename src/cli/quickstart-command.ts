@@ -8,15 +8,16 @@ import { runExitCodeCommand } from "@atomicstrata/llmwiki-core/modules/cli/share
 import { parseConcurrencyFlag } from "@atomicstrata/llmwiki-core/modules/compiler/concurrency";
 import { setVerbose } from "@atomicstrata/llmwiki-core/modules/utils/output";
 import { verboseEnabled } from "./verbose.js";
+import { addExpectedScaleOptions, type ExpectedScaleFlags } from "./expected-scale-options.js";
 
-interface QuickstartOptions {
+interface QuickstartOptions extends ExpectedScaleFlags {
   review?: boolean; open?: boolean; provider?: string;
   lang?: string; json?: boolean; concurrency?: string; verbose?: boolean;
 }
 
-/** Add the options and action of the `quickstart` command. */
+/** Add the options and action of the `quickstart` command (expected-scale flags first, as before the lazy CLI). */
 export function registerQuickstartCommand(command: Command): void {
-  command
+  addExpectedScaleOptions(command)
     .option("--review", "Generate review candidates instead of mutating wiki/")
     .option("--no-open", "Skip the viewer handoff after a successful compile")
     .option(
@@ -44,6 +45,7 @@ export function registerQuickstartCommand(command: Command): void {
         // Choose the warning channel here: argument expressions evaluate before the callee body runs.
         // Quickstart's own JSON quiet mode therefore can never intercept this warning.
         concurrency: parseConcurrencyFlag(options.concurrency, options.json ? "stderr" : "stdout"),
+        expectedSize: options.expectedSize, expectedDocuments: options.expectedDocuments,
       }));
     });
 }

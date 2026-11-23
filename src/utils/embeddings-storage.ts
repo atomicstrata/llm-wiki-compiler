@@ -10,21 +10,23 @@
  * ({@link StoredEmbeddingWrites}); `persistEmbeddingStore` hands it the local
  * disk's. The binary opt-in is still read from the AMBIENT environment
  * (`LLMWIKI_BINARY_EMBEDDINGS`), and the migration notice still goes to the
- * process output: neither is storage.
+ * process output: neither is storage. A project whose persisted expected-scale
+ * architecture is `local-large` also selects binary, through the optional
+ * `binarySelected` fact (see `src/scale/selection.ts`).
  */
 import path from "node:path";
 import { replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
 import { leafKindNoFollow, readPrivateLeafBytes, type PrivateLeafKind } from "../storage/disk-private-leaves.js";
 import { resolveConfinedPrivateDir, resolveExistingConfinedPrivateDir } from "./private-dir.js";
-import { EMBEDDINGS_FILE, MAX_EMBEDDING_STORE_BYTES } from "./constants.js";
+import { EMBEDDINGS_BINARY_FILE, EMBEDDINGS_FILE, MAX_EMBEDDING_STORE_BYTES } from "./constants.js";
 import { decodeBinaryStore, encodeBinaryStore, MAX_BINARY_STORE_BYTES } from "./embeddings-binary.js";
 import { serializeEmbeddingJson } from "./embeddings-json.js";
 import type { EmbeddingStore, EmbeddingStoreV3 } from "./embeddings-store.js";
 import { EmbeddingStoreFullError } from "./embeddings-errors.js";
 import { note } from "./output.js";
+import { scaleSelectsBinary } from "../scale/selection.js";
 
-/** One authoritative container; older JSON remains an untouched migration backup. */
-const EMBEDDINGS_BINARY_FILE = ".llmwiki/embeddings.bin";
+export { EMBEDDINGS_BINARY_FILE } from "./constants.js";
 
 /** Discriminate logical versions independently of their container encoding. */
 export interface ParsedStore {
@@ -66,6 +68,12 @@ export interface StoredEmbeddingReads {
   leafKind(dir: string, name: string): Promise<PrivateLeafKind>;
   /** The leaf's raw bytes, or `null` when it is larger than `maxBytes`, decided before anything is read. REJECTS raw for every failure: absent, a link, a non-regular leaf, a failed read or close. */
   readLeafBytes(dir: string, name: string, maxBytes: number): Promise<Buffer | null>;
+  /**
+   * OPTIONAL: on a `local-indexed` project, the piecewise vector store's page
+   * and chunk counts (whole-store reads are then refused, never served from
+   * the retained backup); `null` elsewhere. Absent in test doubles.
+   */
+  shardedCounts?(): Promise<{ pages: number; chunks: number } | null>;
 }
 
 /** LOCAL DISK. The reads for the project at `root`, built per call. Building them does no I/O. In no package index. */
@@ -74,6 +82,8 @@ export function diskStoredEmbeddingReads(root: string): StoredEmbeddingReads {
     resolvePrivateDir: () => resolveExistingConfinedPrivateDir(root),
     leafKind: (dir, name) => leafKindNoFollow(path.join(dir, name)),
     readLeafBytes: (dir, name, maxBytes) => readPrivateLeafBytes(path.join(dir, name), maxBytes),
+    // Loaded on demand: the vector store imports this module's leaf names.
+    shardedCounts: () => import("../vectors/store.js").then((vectors) => vectors.shardedCounts(root)),
   };
 }
 
@@ -109,6 +119,9 @@ export async function readStoredEmbeddings(root: string): Promise<StoredEmbeddin
  * @param reads - The private directory, a leaf's kind, and a leaf's capped bytes.
  */
 export async function readStoredEmbeddingsFrom(reads: StoredEmbeddingReads): Promise<StoredEmbeddingRead> {
+  if ((await reads.shardedCounts?.()) != null) {
+    return { kind: "unavailable", reason: "This local-indexed project keeps its embeddings piecewise; whole-store reads are not served (the retained backup is never read)." };
+  }
   const dir = await reads.resolvePrivateDir();
   if (dir === null) return { kind: "absent" };
   const binaryName = path.basename(EMBEDDINGS_BINARY_FILE);
@@ -153,6 +166,13 @@ export interface StoredEmbeddingWrites extends Pick<StoredEmbeddingReads, "resol
   createPrivateDir(): Promise<void>;
   /** MECHANISM. Atomic replacement of the POSIX project-relative `relPath`; text or bytes pass straight through. Rejects raw. */
   replaceLeaf(relPath: string, content: string | Uint8Array): Promise<void>;
+  /**
+   * FACT, optional. Whether the project's persisted architecture selects the
+   * binary container (`local-large`), so even a project's FIRST store is
+   * written binary. Absent means "not selected". Local: the scale record.
+   * REJECTS when that record cannot be trusted, so a write fails closed.
+   */
+  binarySelected?(): Promise<boolean>;
 }
 
 /** LOCAL DISK. The incumbent looks, creating resolver and confined atomic replace for `root`. Building them does no I/O. Exported only so the writer's root forms can compose it; in no package index. */
@@ -164,6 +184,7 @@ export function diskStoredEmbeddingWrites(root: string): StoredEmbeddingWrites {
     createPrivateDir: async () => { await resolveConfinedPrivateDir(root); },
     // Joined natively onto the root, exactly the incumbent's `path.join(root, <constant>)`.
     replaceLeaf: (relPath, content) => replaceLeafAtomicWithin(root, path.join(root, relPath), content),
+    binarySelected: () => scaleSelectsBinary(root),
   };
 }
 
@@ -186,7 +207,7 @@ export async function persistEmbeddingStoreFrom(writes: StoredEmbeddingWrites, s
   const dir = await writes.resolvePrivateDir();
   const binaryLeaf = dir === null ? "absent" : await writes.leafKind(dir, path.basename(EMBEDDINGS_BINARY_FILE));
   if (binaryLeaf === "other") throw new Error("refusing to replace a non-regular binary embedding index");
-  const requested = binaryRequested();
+  const requested = binaryRequested() || (await writes.binarySelected?.()) === true;
   const json = binaryLeaf !== "absent" || requested ? null : serializeEmbeddingJson(store);
   const binary = json === null;
   const content = binary ? encodeForWrite(store) : json;

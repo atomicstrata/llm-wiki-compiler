@@ -97,7 +97,7 @@ describe("loadEmbeddingsForSearch — degrade on a non-v3 (v2) store", () => {
       chunks: [],
     });
     const outcome = await loadEmbeddingsForSearch(root);
-    expect(outcome.store?.version).toBe(3);
+    expect((outcome.store as EmbeddingStoreV3 | null)?.version).toBe(3);
     expect(outcome.warnings).toEqual([]);
   });
 });

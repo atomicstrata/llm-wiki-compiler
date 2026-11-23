@@ -6,12 +6,18 @@
  * and the `node:` module names), with their arguments, and can make the write
  * fail. Files are real; the working directory is a temp project.
  *
+ * The command runs under the cooperative writer lock, so in EVERY case the
+ * recorder first sees the lock's two directory steps: `mkdir` of the project
+ * root (noted by its last segment) and `mkdir .llmwiki`, both recursive. Only
+ * after them come the schema's own calls. The lock's owner record and release
+ * use calls this recorder does not wrap, so they are not listed.
+ *
  * The two built-CLI cases in `test/schema-integration.test.ts` already show
  * that a schema is written and that an existing one is kept. These cases pin
  * only what those do not state: the exact bytes, the order and arguments of
- * the three calls, that NOTHING is called after a positive existence check,
- * what a directory and a dangling link at the target do, that a failing write
- * rejects raw, and that only `schema.json` is checked.
+ * the lock steps and the three schema calls, that NO schema call follows a
+ * positive existence check, what a directory and a dangling link at the target
+ * do, that a failing write rejects raw, and that only `schema.json` is checked.
  *
  * The dangling-link case records INCUMBENT behaviour, kept on purpose and not
  * endorsed: the check follows links, so the write goes through the link.
@@ -62,10 +68,22 @@ import { buildDefaultSchema } from "../../src/schema/index.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 
 const fs = realFsPromises;
-const CALLS = ["existsSync schema.json null", 'mkdir .llmwiki {"recursive":true}', 'writeFile schema.json "utf-8"'];
+const SCHEMA_CALLS = ["existsSync schema.json null", 'mkdir .llmwiki {"recursive":true}', 'writeFile schema.json "utf-8"'];
 useTempRoot();
 let printed: string[] = [];
 const target = (): string => path.join(process.cwd(), ".llmwiki", "schema.json");
+
+/**
+ * The exact full call list of one run: the cooperative writer lock's two
+ * recursive directory steps (the temp project root, by its last segment as the
+ * recorder notes it, then `.llmwiki`), followed by the given schema calls.
+ * @param schemaCalls The schema command's own calls, in order.
+ * @returns Every call the recorder should hold, in order.
+ */
+function withLockSteps(schemaCalls: string[]): string[] {
+  const rootLeaf = path.basename(process.cwd());
+  return [`mkdir ${rootLeaf} {"recursive":true}`, 'mkdir .llmwiki {"recursive":true}', ...schemaCalls];
+}
 
 /** Run the command with recording on, capturing what it prints. */
 async function runInit(): Promise<void> {
@@ -85,7 +103,7 @@ beforeEach(() => {
 afterEach(() => { io.on = false; });
 
 describe("schema init on an ordinary project", () => {
-  it("writes exactly the starter schema, after one check and one directory step", async () => {
+  it("writes exactly the starter schema, after the lock steps, one check and one directory step", async () => {
     await runInit();
     const text = await fs.readFile(target(), "utf-8");
     const defaults = buildDefaultSchema();
@@ -93,15 +111,15 @@ describe("schema init on an ordinary project", () => {
     expect(Object.keys(parsed)).toEqual(["version", "defaultKind", "kinds", "seedPages"]);
     expect(parsed).toEqual({ version: defaults.version, defaultKind: defaults.defaultKind, kinds: defaults.kinds, seedPages: defaults.seedPages });
     expect(text).toBe(`${JSON.stringify(parsed, null, 2)}\n`);
-    expect(io.calls).toEqual(CALLS);
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS));
     expect(printed.join("\n")).toContain(`Wrote schema to ${target()}`);
   });
 
-  it("makes no directory and writes nothing when the schema file is already there", async () => {
+  it("takes only the lock steps and writes nothing when the schema file is already there", async () => {
     await fs.mkdir(path.dirname(target()), { recursive: true });
     await fs.writeFile(target(), "mine\n");
     await runInit();
-    expect(io.calls).toEqual(CALLS.slice(0, 1));
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS.slice(0, 1)));
     expect(await fs.readFile(target(), "utf-8")).toBe("mine\n");
     expect(printed.join("\n")).toContain(`Schema file already exists at ${target()}`);
   });
@@ -109,7 +127,7 @@ describe("schema init on an ordinary project", () => {
   it("treats a directory at the schema path as existing", async () => {
     await fs.mkdir(target(), { recursive: true });
     await runInit();
-    expect(io.calls).toEqual(CALLS.slice(0, 1));
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS.slice(0, 1)));
     expect((await fs.lstat(target())).isDirectory()).toBe(true);
   });
 
@@ -117,7 +135,7 @@ describe("schema init on an ordinary project", () => {
     await fs.mkdir(path.dirname(target()), { recursive: true });
     await fs.symlink("../elsewhere.json", target());
     await runInit();
-    expect(io.calls).toEqual(CALLS);
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS));
     expect((await fs.lstat(target())).isSymbolicLink()).toBe(true);
     expect(JSON.parse(await fs.readFile(path.join(process.cwd(), "elsewhere.json"), "utf-8"))).toHaveProperty("kinds");
   });
@@ -125,7 +143,7 @@ describe("schema init on an ordinary project", () => {
   it("rejects with the raw error of a failing write and prints no success line", async () => {
     io.failWrite = Object.assign(new Error("write sabotaged"), { code: "EIO" });
     await expect(runInit()).rejects.toBe(io.failWrite);
-    expect(io.calls).toEqual(CALLS);
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS));
     expect(printed.join("\n")).not.toContain("Wrote schema");
   });
 
@@ -133,7 +151,7 @@ describe("schema init on an ordinary project", () => {
     await fs.mkdir(path.dirname(target()), { recursive: true });
     await fs.writeFile(path.join(path.dirname(target()), "schema.yaml"), "version: 1\n");
     await runInit();
-    expect(io.calls).toEqual(CALLS);
+    expect(io.calls).toEqual(withLockSteps(SCHEMA_CALLS));
     expect(JSON.parse(await fs.readFile(target(), "utf-8"))).toHaveProperty("defaultKind");
   });
 });

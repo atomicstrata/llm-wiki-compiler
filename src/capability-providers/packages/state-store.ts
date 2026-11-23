@@ -38,18 +38,51 @@ export async function writeProviderInstallState(paths: AuthorizedProviderPaths, 
   await writeState(paths, paths.installsFile, state, parseProviderInstallState);
 }
 
-/** Serialize one provider authority mutation under the shared operator lock. */
+/**
+ * How long a provider authority mutation waits to ACQUIRE the shared provider-state lock.
+ *
+ * Every provider authority mutation serializes on this one lock: source add and refresh, remote, builtin and
+ * local installs, removal, credentials, pricing and grants. A holder performs durable (fsynced) writes inside
+ * it, so on slow storage one ordinary holder can keep the lock well beyond the generic five-second wait, and a
+ * concurrent mutation was refused as busy although nothing was wrong. Provider callers therefore wait up to
+ * this bound instead; all of them can now wait longer before a busy refusal.
+ *
+ * The bound limits acquisition waiting only, checked between awaited lock polls. It is not an end-to-end
+ * deadline, does not cancel a holder, and does not promise that every package publishes within it. Template
+ * taps and the publisher keep the generic five-second wait; ownership, fsync, stale-owner reclaim and root
+ * authorization are unchanged.
+ */
+const PROVIDER_STATE_LOCK_TIMEOUT_MS = 120_000;
+
+/** Accept only a whole, positive acquisition wait no longer than the provider default. */
+function validProviderLockTimeout(timeoutMs: number): number {
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0 || timeoutMs > PROVIDER_STATE_LOCK_TIMEOUT_MS) {
+    throw new RangeError(`provider lock wait must be a whole number of milliseconds from 1 to ${PROVIDER_STATE_LOCK_TIMEOUT_MS}`);
+  }
+  return timeoutMs;
+}
+
+/**
+ * Serialize one provider authority mutation under the shared operator lock.
+ *
+ * @param paths - Authorized provider roots; re-checked before and after the operation.
+ * @param operation - The read-modify-write to run while holding the lock.
+ * @param timeoutMs - Acquisition wait; defaults to the provider bound and may only be shorter.
+ *   It is validated before any filesystem work.
+ */
 export async function withProviderStateLock<Result>(
   paths: AuthorizedProviderPaths,
   operation: () => Promise<Result>,
+  timeoutMs: number = PROVIDER_STATE_LOCK_TIMEOUT_MS,
 ): Promise<Result> {
+  const waitMs = validProviderLockTimeout(timeoutMs);
   await assertAuthorizedProviderPaths(paths);
   return withExclusiveLock({ root: paths.configRoot, lockFile: paths.lockFile }, async () => {
     await assertAuthorizedProviderPaths(paths);
     const result = await operation();
     await assertAuthorizedProviderPaths(paths);
     return result;
-  });
+  }, waitMs);
 }
 
 async function readState<State>(

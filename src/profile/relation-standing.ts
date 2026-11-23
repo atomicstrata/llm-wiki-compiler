@@ -45,7 +45,8 @@ import { entityId, isSlugSafe } from "./identity.js";
 import { diskEntityPageReads, type EntityPageReads } from "./lifecycle-read.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans } from "../storage/legacy-local-reads.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import { scanEntityDirFrom } from "../wiki/collect.js";
 import type { EntityId, EntityProblemView, EntityTypeDef, LifecycleDef, ProfilePack } from "./types.js";
 import type { RelationRef } from "../relations/types.js";
@@ -177,7 +178,7 @@ export async function collectStandingRelationProblems(
   profile: ProfilePack,
 ): Promise<EntityProblemView[]> {
   return collectStandingRelationProblemsFrom(
-    { scans: diskLocalEntityScans(root), graph: diskGraphStoreReads(root), pages: diskEntityPageReads(root) }, profile);
+    { scans: diskLocalEntityScans(root), graph: diskRelationGraphReads(root), pages: diskEntityPageReads(root) }, profile);
 }
 
 /**

@@ -87,6 +87,8 @@ import type { OperationRunBinding } from "./run-types.js";
 import { UNSETTLED_RUN_STATES } from "./run-validation.js";
 import type { OperationBundleManifest } from "./types.js";
 import { portableGateBlock, PortableRecoveryBlockingError } from "../portable/host/pending-gate.js";
+import { assertNoDowngradeForScaleUpdate, downgradeNeedsRecovery } from "../scale/downgrade-admission.js";
+import { assertScaleAuthorityForUpdate, ScaleGateError, scaleGateRefusal } from "../scale/gate.js";
 
 /**
  * The class of mutation acquiring the lock. `recovery` bypasses the whole gate
@@ -97,6 +99,9 @@ import { portableGateBlock, PortableRecoveryBlockingError } from "../portable/ho
 export type RecoveryGateIntent =
   | "ordinary" | "review" | "recovery" | "quarantine" | "sweep" | "prune" | "handoff"
   | "reset"
+  // Setting or preparing the expected scale: the one intent the scale-readiness
+  // leg lets through, because settling a scale transition is exactly its job.
+  | "scale"
   // A portable publication or its recovery. It takes the same lock and runs the
   // same legacy legs, and is the one intent the pending-portable-intent leg lets
   // through, because settling that intent is exactly what it is here to do.
@@ -756,16 +761,29 @@ export interface RecoveryGateSteps {
   acquireLockBlocking(root: string, options: BlockingLockOptions): Promise<void>;
   /** Local: `releaseLock(root)`. */
   releaseLock(root: string): Promise<void>;
+  /** Read-only downgrade (and, for `scale`, authority) check before any journal recovery. Injected storage adapters may supply their own. */
+  checkDowngrade?(root: string, intent: RecoveryGateIntent): Promise<void>;
   /** The strict page-journal recovery. Local: `recoverJournalBeforeCompile(root)`. */
   recoverJournal(root: string): ReturnType<typeof recoverJournalBeforeCompile>;
   /** DOMAIN, root-bound: the bundle-recovery blocking code, or null. Local: this module's bundle detection. */
   detectBundleRecovery(root: string): Promise<OperationProblemCode | null>;
   /** DOMAIN, root-bound: the portable pending-intent block, or null. Local: `portableGateBlock(root)`. */
   portableBlock(root: string): ReturnType<typeof portableGateBlock>;
+  /** DOMAIN, root-bound: the expected-scale readiness refusal, or null; no read without a record. Local: `scaleGateRefusal(root)`. */
+  scaleBlock(root: string): ReturnType<typeof scaleGateRefusal>;
   /** DOMAIN, root-bound, owns destructive authorization: refuses or returns the ticket. Local: this module's lifecycle gate. */
   gateLifecycle(root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined): Promise<LifecycleGateTicketV1 | null>;
   /** DOMAIN, root-bound, WRITES: settle completable preparation handoffs. Local: `settlePreparationHandoffsLocked(root)`. */
   settleHandoffs(root: string): Promise<unknown>;
+}
+
+/** Refuse before recovery can mutate anything while a downgrade needs the current revision, or a scale update's authority cannot be trusted. */
+async function checkLocalDowngrade(root: string, intent: RecoveryGateIntent): Promise<void> {
+  if (intent === "scale") {
+    await assertNoDowngradeForScaleUpdate(root);
+    return assertScaleAuthorityForUpdate(root);
+  }
+  if (await downgradeNeedsRecovery(root)) throw new ScaleGateError("scale-downgrade-pending");
 }
 
 /** LOCAL. The incumbent lock, recovery and legs, called at call time with their old arguments; frozen. In no package index. */
@@ -773,12 +791,30 @@ const localRecoveryGateSteps: RecoveryGateSteps = Object.freeze({
   acquireLock: (root: string, options: AcquireLockOptions) => acquireLock(root, options),
   acquireLockBlocking: (root: string, options: BlockingLockOptions) => acquireLockBlocking(root, options),
   releaseLock: (root: string) => releaseLock(root),
+  checkDowngrade: checkLocalDowngrade,
   recoverJournal: (root: string) => recoverJournalBeforeCompile(root),
   detectBundleRecovery: (root: string) => detectBundleRecovery(root),
   portableBlock: (root: string) => portableGateBlock(root),
+  scaleBlock: (root: string) => scaleGateRefusal(root),
   gateLifecycle: (root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined) => gatePreparationLifecycle(root, intent, targetUnitId),
   settleHandoffs: (root: string) => settlePreparationHandoffsLocked(root),
 });
+
+/** Check ordinary portable and scale readiness in order before lifecycle handling. */
+async function checkOrdinaryReadiness(steps: RecoveryGateSteps, root: string, intent: RecoveryGateIntent): Promise<void> {
+  // Registered projects only: an ordinary mutation waits while a portable
+  // publication intent is unresolved. On any other project this is one `lstat`
+  // and nothing else. The portable intent itself is let through, since settling
+  // that intent is its job. Like the refusal above it comes BEFORE the
+  // settlement leg, so a refusal means nothing was appended.
+  const portableBlock = intent === "portable" ? null : await steps.portableBlock(root);
+  if (portableBlock !== null) throw new PortableRecoveryBlockingError(portableBlock);
+  // Projects with an expected-scale record only: every mutation but the scale
+  // transition itself waits while that transition is unfinished, parked, needs
+  // an unavailable backend, or the record is unreadable. Also BEFORE settlement.
+  const scaleRefusal = intent === "scale" ? null : await steps.scaleBlock(root);
+  if (scaleRefusal !== null) throw scaleRefusal;
+}
 
 /**
  * Run the journal + bundle recovery gate, throwing a typed refusal when it blocks.
@@ -790,7 +826,8 @@ async function runRecoveryGateWith(
   steps: RecoveryGateSteps, root: string, intent: RecoveryGateIntent, targetUnitId: string | undefined,
 ): Promise<LifecycleGateTicketV1 | null> {
   if (intent === "recovery") return null;
-  // The unconditional recovery order (design section 15.1): page journal first,
+  await steps.checkDowngrade?.(root, intent);
+  // After downgrade admission, recovery still runs page journal first,
   // then the Milestone A bundle coordinator, then preparation recovery. Preparation
   // recovery runs LAST so a bundle create that outran its `handed-off` transition
   // is discovered and completed rather than duplicated.
@@ -803,13 +840,7 @@ async function runRecoveryGateWith(
   if (bundleBlock !== null) {
     throw new RecoveryGateError(bundleBlock, "operation bundle recovery is required before this mutation");
   }
-  // Registered projects only: an ordinary mutation waits while a portable
-  // publication intent is unresolved. On any other project this is one `lstat`
-  // and nothing else. The portable intent itself is let through, since settling
-  // that intent is its job. Like the refusal above it comes BEFORE the
-  // settlement leg, so a refusal means nothing was appended.
-  const portableBlock = intent === "portable" ? null : await steps.portableBlock(root);
-  if (portableBlock !== null) throw new PortableRecoveryBlockingError(portableBlock);
+  await checkOrdinaryReadiness(steps, root, intent);
   // BEFORE the settlement leg below, and before the handoff intent's early
   // return, so a refusal means nothing happened: settlement APPENDS durable
   // transitions, and appending them and then refusing would leave the project

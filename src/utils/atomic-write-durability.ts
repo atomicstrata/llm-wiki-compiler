@@ -11,6 +11,7 @@ import { lstat, open, realpath } from "fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "path";
 import { isInsideDir } from "./path-confine.js";
+import type { DirectoryIdentity, DirectorySyncScope } from "./directory-sync-scope.js";
 
 /** Refuse to follow a directory leaf while obtaining its sync handle. */
 const DIRECTORY_OPEN_FLAGS = fsConstants.O_RDONLY | fsConstants.O_DIRECTORY | fsConstants.O_NOFOLLOW;
@@ -37,18 +38,28 @@ interface DirectoryBinding {
 export type BeforeDirectorySync = (dir: string) => Promise<void>;
 
 /** Strictly fsync one existing directory for durable non-file metadata changes. */
-// Reserved for Foundation Task 5 catalog/projection durability.
-// fallow-ignore-next-line unused-export
 export async function fsyncDirectory(dir: string): Promise<void> {
   await fsyncBoundDirectory(await captureDirectoryBinding(dir));
 }
 
-/** Persist every directory entry from the leaf parent through the project root. */
+/**
+ * Persist every directory entry from the leaf parent through the project root.
+ *
+ * With a {@link DirectorySyncScope} (opt-in, one locked batch), ancestors whose
+ * freshly validated identity chain was already anchored in the scope are not
+ * re-synced; see {@link fsyncDirectoryChainScoped}. Without one, every
+ * directory on the chain is synced exactly as before.
+ */
 export async function fsyncDirectoryChain(
   dir: string,
   parent?: ParentBinding,
   beforeSync?: BeforeDirectorySync,
+  scope?: DirectorySyncScope,
 ): Promise<void> {
+  if (scope !== undefined) {
+    await fsyncDirectoryChainScoped(dir, requireScopedParent(parent, scope), beforeSync, scope);
+    return;
+  }
   const boundary = path.resolve(parent?.lexicalRoot ?? dir);
   let current = path.resolve(dir);
   for (;;) {
@@ -73,19 +84,100 @@ export async function assertCurrentParent(binding: ParentBinding): Promise<void>
   }
 }
 
-/** Sync one chain entry while the write parent remains continuously bound. */
+/** Sync one chain entry while the write parent remains continuously bound; returns the synced identity. */
 async function fsyncDirectoryChainEntry(
   current: string,
   displayPath: string,
   parent?: ParentBinding,
   beforeSync?: BeforeDirectorySync,
-): Promise<void> {
+): Promise<DirectoryIdentity> {
   await recheckWriteParent(parent);
   const binding = await captureDirectoryBinding(current);
   await recheckWriteParent(parent);
   await beforeSync?.(displayPath);
   await fsyncBoundDirectory(binding);
   await recheckWriteParent(parent);
+  return { realDir: binding.realDir, dev: binding.dev, ino: binding.ino };
+}
+
+/** A scope is only usable for a confined write bound to the scope's own root (fails closed otherwise). */
+export function requireScopedParent(parent: ParentBinding | undefined, scope: DirectorySyncScope): ParentBinding {
+  if (parent === undefined) throw new Error("a directory sync scope requires a confined write parent");
+  scope.assertUsableFor(parent.realRoot);
+  return parent;
+}
+
+/** Lexical directories from `dir` up to and including the bound root. */
+function lexicalChain(dir: string, parent: ParentBinding): string[] {
+  const boundary = path.resolve(parent.lexicalRoot);
+  const chain = [path.resolve(dir)];
+  for (;;) {
+    const current = chain[chain.length - 1];
+    if (current === boundary) return chain;
+    const ancestor = nextDirectoryInChain(current, boundary);
+    if (ancestor === null) return chain;
+    chain.push(ancestor);
+  }
+}
+
+/**
+ * Scoped chain walk. The leaf parent is ALWAYS synced. Before syncing each
+ * ancestor, the chain from the directory just synced up to the root is freshly
+ * observed (canonical path, dev, inode of every member, with the write parent
+ * rechecked around the observation); when that whole chain is anchored in the
+ * scope, every entry above is already durable and the walk stops. Any mismatch
+ * or unobservable member falls through to the ordinary sync of that ancestor
+ * (whose own binding checks fail closed). A completed walk anchors its chain;
+ * a failed sync throws before anything is anchored.
+ */
+async function fsyncDirectoryChainScoped(
+  dir: string,
+  parent: ParentBinding,
+  beforeSync: BeforeDirectorySync | undefined,
+  scope: DirectorySyncScope,
+): Promise<void> {
+  const chain = lexicalChain(dir, parent);
+  const synced: DirectoryIdentity[] = [];
+  for (let i = 0; i < chain.length; i++) {
+    if (i > 0) {
+      const suffix = await observeAnchoredSuffix(chain.slice(i - 1), parent, scope);
+      if (suffix !== null) {
+        scope.anchor([...synced.slice(0, -1), ...suffix]);
+        return;
+      }
+    }
+    synced.push(await fsyncDirectoryChainEntry(canonicalSyncPath(chain[i], parent), chain[i], parent, beforeSync));
+  }
+  scope.anchor(synced);
+}
+
+/** Freshly observe a lexical chain; return it when anchored in the scope, else null. */
+async function observeAnchoredSuffix(
+  lexical: string[],
+  parent: ParentBinding,
+  scope: DirectorySyncScope,
+): Promise<DirectoryIdentity[] | null> {
+  await recheckWriteParent(parent);
+  const observed: DirectoryIdentity[] = [];
+  for (const dir of lexical) {
+    const identity = await observeDirectory(canonicalSyncPath(dir, parent));
+    if (identity === null) return null;
+    observed.push(identity);
+  }
+  await recheckWriteParent(parent);
+  return scope.isAnchored(observed) ? observed : null;
+}
+
+/** Current identity of a real (non-symlink) directory at its canonical path, or null. */
+async function observeDirectory(canonical: string): Promise<DirectoryIdentity | null> {
+  try {
+    const stat = await lstat(canonical);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return null;
+    const realDir = await realpath(canonical);
+    return realDir === canonical ? { realDir, dev: stat.dev, ino: stat.ino } : null;
+  } catch {
+    return null; // unobservable: never a reason to skip a sync
+  }
 }
 
 /** Map a lexical project directory onto the already-bound canonical root. */
