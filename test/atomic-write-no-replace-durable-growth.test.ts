@@ -7,7 +7,7 @@
 
 import { appendFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "bun:test";
 import {
   AtomicWriteCollisionError,
   AtomicWriteCommittedCleanupError,
@@ -19,16 +19,20 @@ let growAfterStat: (() => Promise<void>) | undefined;
 let readRequests: number[] = [];
 let unboundedReadCalls = 0;
 let positionalReadLimit: number | undefined;
+// Bun keeps a module mock registered for the rest of the process, so handles are
+// instrumented only while one of this file's tests runs; other files get real handles.
+let instrumentHandles = false;
 
 // Copy the real modules first: vi.mock patches them in place, so a later read would see the mock.
 const realFsPromises = { ...(await import("node:fs/promises")) };
 
-/** Instrument each opened handle without changing the filesystem implementation. */
+/** Instrument each handle opened during this file's tests without changing the filesystem implementation. */
 vi.mock("node:fs/promises", async () => {
   const actual = realFsPromises;
   return Object.assign({}, actual, {
     open: async (...args: Parameters<typeof actual.open>) => {
       const handle = await actual.open(...args);
+      if (!instrumentHandles) return handle;
       const stat = handle.stat.bind(handle);
       const read = handle.read.bind(handle);
       handle.stat = (async (...statArgs: unknown[]) => {
@@ -54,7 +58,12 @@ vi.mock("node:fs/promises", async () => {
 const root = useTempRoot();
 const CONTENT = Buffer.from("body");
 
+beforeEach(() => {
+  instrumentHandles = true;
+});
+
 afterEach(() => {
+  instrumentHandles = false;
   growAfterStat = undefined;
   readRequests = [];
   unboundedReadCalls = 0;

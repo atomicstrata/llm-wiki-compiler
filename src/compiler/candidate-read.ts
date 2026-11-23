@@ -297,7 +297,7 @@ function parseCandidateEntry(
  * @returns The sanitized candidate.
  * @throws CandidateRecordMalformedError when the bytes are not a valid record.
  */
-function parseCandidateRecord(fileId: string, bytes: Uint8Array): ReviewCandidate {
+export function parseCandidateRecord(fileId: string, bytes: Uint8Array): ReviewCandidate {
   let parsed: unknown;
   try {
     parsed = JSON.parse(CANDIDATE_DECODER.decode(bytes));

@@ -72,6 +72,12 @@ export interface SourceWriterLeaves {
   entryKind(dir: string, name: string): Promise<string>;
   /** Replace the existing regular file `name`. */
   overwrite(dir: string, name: string, text: string): Promise<void>;
+  /**
+   * OPTIONAL bounded identity lookup (the `local-indexed` catalog): the name of
+   * the source holding `source`, verified by reading that file alone, or null.
+   * Absent: the incumbent scan of every source name runs.
+   */
+  lookupIdentity?(dir: string, source: string): Promise<string | null>;
 }
 
 /** The identity scan's two reads. Neither takes a project root. */
@@ -103,7 +109,7 @@ export function sourceIdentityReadsOver(reads: LegacyLocalReads): SourceIdentity
 }
 
 /** LOCAL DISK: the incumbent confinement and leaf helpers for one root, built per call, each called when asked. In no package index. */
-function diskSourceWriterLeaves(root: string): SourceWriterLeaves {
+export function diskSourceWriterLeaves(root: string): SourceWriterLeaves {
   const at = (dir: string, name: string) => path.join(dir, name);
   return {
     openSourcesDir: () => openConfinedSourcesDir(root),
@@ -188,6 +194,7 @@ async function resolveCollisionFreeFilename(
 async function findFileBySourceIdentity(
   leaves: SourceWriterLeaves, sourcesDir: string, source: string,
 ): Promise<string | null> {
+  if (leaves.lookupIdentity !== undefined) return leaves.lookupIdentity(sourcesDir, source);
   const names = await leaves.listIdentityNames(sourcesDir);
   for (const name of names) {
     // Regular files only: symlinks (whether escaping or in-tree aliases) are never

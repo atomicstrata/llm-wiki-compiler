@@ -21,8 +21,29 @@ import {
 
 afterEach(() => { delete process.env.LLMWIKI_TRUSTED_WRITE; });
 
+/** UTF-8 bytes of `text`. */
 const bytes = (text: string) => Buffer.from(text, "utf8");
+/** One manifest row for `fileName` whose digest and size are those of `content`. */
 const row = (fileName: string, content = "x") => ({ fileName, sha256: shaOf(bytes(content)), bytes: content.length });
+
+/**
+ * The explicit bound of EACH planted-manifest case: a fresh root, a durable
+ * two-member write and one resolve on the slow durable test volume. It is the
+ * bound the seven plants previously shared in one loop, now per case; the
+ * global profile is unchanged.
+ */
+const PLANTED_CASE_TIMEOUT_MS = 120_000;
+
+/** The seven self-consistent but schema-invalid manifests planted over a fresh bundle, each named. */
+const PLANTS: ReadonlyArray<readonly [string, unknown]> = [
+  ["unsorted rows", { members: [row("b.tex"), row("a.tex")] }],
+  ["duplicate rows (also unsorted)", { members: [row("a.tex"), row("a.tex")] }],
+  ["case-aliased rows (one physical leaf)", { members: [row("A.tex"), row("a.tex")] }],
+  ["an unknown entry key", { members: [{ ...row("a.tex"), extra: 1 }] }],
+  ["the reserved sidecar name", { members: [row(`${BUNDLE_FILE}.manifest.json`)] }],
+  ["an extension outside the allowlist", { members: [row("a.pdf")] }],
+  ["non-integer bytes", { members: [{ fileName: "a.tex", sha256: shaOf(bytes("x")), bytes: 1.5 }] }],
+];
 
 describe("write-side manifest/policy refusals (the plan denies, nothing lands)", () => {
   it("REFUSES over maxCount, over maxMemberBytes, over maxTotalBytes, a disallowed extension, and a reserved name", async () => {
@@ -47,23 +68,12 @@ describe("write-side manifest/policy refusals (the plan denies, nothing lands)",
 });
 
 describe("read-side planted manifests (self-consistent sidecar, schema still refuses)", () => {
-  it("unsorted, duplicate, unknown-key, reserved-name, and policy-violating rows each read artifact-schema-invalid", async () => {
-    const plants = [
-      { members: [row("b.tex"), row("a.tex")] },                                    // unsorted
-      { members: [row("a.tex"), row("a.tex")] },                                    // duplicate (also unsorted)
-      { members: [row("A.tex"), row("a.tex")] },                                    // case-aliased rows (one physical leaf)
-      { members: [{ ...row("a.tex"), extra: 1 }] },                                 // unknown entry key
-      { members: [row(`${BUNDLE_FILE}.manifest.json`)] },                           // reserved sidecar name
-      { members: [row("a.pdf")] },                                                  // extension outside the allowlist
-      { members: [{ fileName: "a.tex", sha256: shaOf(bytes("x")), bytes: 1.5 }] },  // non-integer bytes
-    ];
-    for (const plant of plants) {
-      const root = await makeMembersRoot("members-planted");
-      await writeBundle(root, twoMembers());
-      const ref = await plantBundleBody(root, JSON.stringify(plant));
-      expect((await resolveBundle(root, ref)).health, JSON.stringify(plant)).toBe("artifact-schema-invalid");
-    }
-  }, 120_000);
+  it.each(PLANTS)("a planted manifest with %s reads artifact-schema-invalid", async (_label, plant) => {
+    const root = await makeMembersRoot("members-planted");
+    await writeBundle(root, twoMembers());
+    const ref = await plantBundleBody(root, JSON.stringify(plant));
+    expect((await resolveBundle(root, ref)).health, JSON.stringify(plant)).toBe("artifact-schema-invalid");
+  }, PLANTED_CASE_TIMEOUT_MS);
 
   it("reserved names are judged ALIAS-insensitively (unit: an allowlist admitting .json still refuses case variants)", () => {
     const def = {

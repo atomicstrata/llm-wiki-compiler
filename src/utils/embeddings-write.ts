@@ -62,19 +62,24 @@ export async function reembedIntoStore(
 ): Promise<{ store: EmbeddingStoreV3; report: ReembedReport }> {
   const byId = new Map(collected.map((p) => [p.pageId, p]));
   const targets = [...reembedIds].map((id) => byId.get(id)).filter((p): p is CollectedPage => Boolean(p));
-  const { provider, requestCount } = makeCountingProvider(getEmbeddingProvider());
-  const now = new Date().toISOString();
+  const { pageEntries, chunkEntries, report } = await embedTargets(targets, batchSize, expectedDim, recorder);
+  const reembedSet = new Set(targets.map((p) => p.pageId));
+  return { store: mergeReembedded(migrated, pageEntries, chunkEntries, reembedSet), report };
+}
 
-  const pass = { provider, batchSize, expectedDim, now, recorder };
+/**
+ * Embed `targets` (page and chunk level) through the configured provider in
+ * the incumbent batched passes; shared by the whole-store writer above and the
+ * piecewise writer of a `local-indexed` project.
+ */
+export async function embedTargets(
+  targets: CollectedPage[], batchSize: number, expectedDim: number | undefined, recorder?: EmbeddingAttemptRecorder,
+): Promise<{ pageEntries: PageEmbeddingV3[]; chunkEntries: ChunkEmbeddingV3[]; report: ReembedReport }> {
+  const { provider, requestCount } = makeCountingProvider(getEmbeddingProvider());
+  const pass = { provider, batchSize, expectedDim, now: new Date().toISOString(), recorder };
   const pageEntries = await embedPageLevel(pass, targets);
   const chunkEntries = await embedChunkLevel(pass, targets);
-
-  const reembedSet = new Set(targets.map((p) => p.pageId));
-  const store = mergeReembedded(migrated, pageEntries, chunkEntries, reembedSet);
-  return {
-    store,
-    report: { pagesEmbedded: pageEntries.length, chunksEmbedded: chunkEntries.length, requests: requestCount() },
-  };
+  return { pageEntries, chunkEntries, report: { pagesEmbedded: pageEntries.length, chunksEmbedded: chunkEntries.length, requests: requestCount() } };
 }
 
 /** Shared settings for the page and chunk passes of one re-embed. */

@@ -39,7 +39,8 @@ import { loadNonDefaultProfileFrom } from "../profile/block.js";
 import { diskEffectiveProfileSources, type EffectiveProfileSources } from "../profile/load.js";
 import { diskLocalEntityScans } from "../storage/disk-local-reads.js";
 import type { LegacyLocalEntityScans } from "../storage/legacy-local-reads.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import { buildPipelineDefinitions } from "./pipeline.js";
 import { readLiveValidRelationsFrom } from "../relations/live-valid.js";
 import type { EntityPageNode, GraphBuildOptions, RelationEdge } from "./graph.js";
@@ -80,7 +81,7 @@ export async function collectTypedViewerInputs(
 ): Promise<TypedViewerInputs | undefined> {
   // `async` so that a throw while the disk sources are built REJECTS, as this function always did.
   return collectTypedViewerInputsFrom({
-    profile: diskEffectiveProfileSources(root), scans: diskLocalEntityScans(root), graph: diskGraphStoreReads(root),
+    profile: diskEffectiveProfileSources(root), scans: diskLocalEntityScans(root), graph: diskRelationGraphReads(root),
   });
 }
 

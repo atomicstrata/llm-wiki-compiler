@@ -28,9 +28,17 @@ import { readPendingMarker } from "../src/utils/pending-embeddings.js";
 import { timeStage } from "../src/utils/stage-timing.js";
 import { readStateClassified } from "../src/utils/state.js";
 import { PENDING_EMBEDDINGS_FILE, PROFILE_FILE, QUARANTINED_EMBEDDINGS_FILE, STATE_FILE } from "../src/utils/constants.js";
-import { expectCLIExit, runCLI } from "./fixtures/run-cli.js";
+import { PENDING_EMBEDDINGS_UNAVAILABLE_CODE } from "../src/trust/pending-embeddings-warning.js";
+import { expectCLIExit, formatCLIFailure, runCLI } from "./fixtures/run-cli.js";
 
 const SETTLE_MS = 3000;
+/**
+ * Bound on the `llmwiki status` subprocess in the CLI case. The planted FIFO has no
+ * writer until afterEach, so a command that blocked on it would not finish within this
+ * bound and would fail the case; the bound leaves room for a cold process start. It
+ * covers only the direct child, inside the case's own 20 s limit.
+ */
+const CLI_KILL_AFTER_MS = 15_000;
 const planted: string[] = [];
 
 afterEach(async () => {
@@ -134,9 +142,12 @@ it("skips a FIFO stage-timing sink without delaying the measured work", async ()
 it("keeps `llmwiki status` responsive with a FIFO planted at the pending-embeddings marker", async () => {
   const root = await project();
   await plantFifo(root, PENDING_EMBEDDINGS_FILE);
-  const run = await settle(runCLI(["status"], root, { LLMWIKI_EMBEDDINGS: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "" }));
-  expect(run).not.toBe("blocked");
-  expectCLIExit((run as { value: Awaited<ReturnType<typeof runCLI>> }).value, 0);
+  const env = { LLMWIKI_EMBEDDINGS: "off", OPENAI_API_KEY: "", ANTHROPIC_API_KEY: "" };
+  const run = await runCLI(["status", "--json"], root, env, { timeoutMs: CLI_KILL_AFTER_MS });
+  expect(run.killed, `status did not finish within ${CLI_KILL_AFTER_MS} ms while the FIFO had no writer:\n${formatCLIFailure(run)}`).toBe(false);
+  expectCLIExit(run, 0);
+  const warnings = (JSON.parse(run.stdout) as { warnings?: { code: string }[] }).warnings ?? [];
+  expect(warnings.map(warning => warning.code)).toContain(PENDING_EMBEDDINGS_UNAVAILABLE_CODE);
 }, 20_000);
 
 /** One pending custody object holding `body`, as an attempt leg would leave it. */
@@ -160,7 +171,8 @@ async function preparationProject(): Promise<string> {
 
 it("control: publishes a regular custody object", async () => {
   const root = await preparationProject();
-  expect(await settle(publishCustodyLocked(root, LOCATION, [await custodyObject(root, "evidence")], 1024))).toEqual({ value: true });
+  // Regular publication includes durable flushes; use the configured test budget.
+  expect(await publishCustodyLocked(root, LOCATION, [await custodyObject(root, "evidence")], 1024)).toBe(true);
 });
 
 it("refuses a custody object replaced by a FIFO before verification", async () => {

@@ -154,3 +154,59 @@ branch protection in the same rollout.
 ## Questions?
 
 Open an issue or start a discussion — we're happy to help.
+
+## Releasing
+
+There is one release path, and it starts from a checked stage, never from the
+source tree.
+
+1. **Stage.** Start from a clean checkout of the candidate commit. Run
+   `node scripts/build-public-release.mjs` to build the three public packages
+   into `.public-release/stage/`. The stage records hashes for the source
+   modules used by the packages, declared build inputs and staged files. Each
+   staged `package.json` records the checkout's HEAD as `gitHead`.
+2. **Verify.** `node scripts/check-public-boundary.mjs` re-hashes that record
+   against the current source, packs each staged package, reads the real
+   tarballs, and checks the public surface, dependencies and API shapes
+   against the recorded public baseline. It then reports release readiness
+   separately: the run exits non-zero while any item in
+   `scripts/public-boundary/manifest.json` `openReleaseItems` is open, even
+   when every check passes.
+3. **Publish.** Only through `.github/workflows/publish.yml`, only after
+   release readiness passes, and only with separate, explicit approval. The
+   workflow repeats steps 1 and 2 at the exact `public_sha` and publishes the
+   exact checked tarballs carried in its hash-verified receipt. Do not repack
+   or publish a stage directory by hand.
+
+Publishing from the source tree is refused: `prepublishOnly` of each public
+package runs `scripts/refuse-direct-publish.mjs`, which exits non-zero and
+points here. Rebuild the stage if a recorded source, build input or staged
+file changes after staging.
+
+None of these commands publishes anything, and passing them is not approval
+to publish.
+
+### Publishing credentials and order
+
+No npm token is used: do not create one or add an `NPM_TOKEN` secret. Each of
+the three packages (`@atomicstrata/llmwiki-core`,
+`@atomicstrata/llmwiki-local-workflows` and `llm-wiki-compiler`) needs an npm
+Trusted Publisher that trusts this repository, workflow `publish.yml` and the
+GitHub environment `npm-release`. The `@atomicstrata` npm organization owns
+the two scoped names. A release also needs explicit approval from a
+maintainer authorized to publish; green checks are not that approval.
+
+1. Dispatch `publish.yml` (repository event `llmwiki-package-release`, or run
+   it by hand) with `public_sha` (a full commit SHA; publication requires it
+   on `main`), `version` (equal to every package version at that commit) and,
+   for a prerelease, a `dist_tag` other than `latest` (default `next`).
+2. For preflight, set `publish: false` explicitly. The workflow defaults to
+   `publish: true` when omitted. Preflight may target a candidate branch and
+   skips the publish, registry-verify and MCP Registry steps.
+3. If a run fails after publishing a dependency, dispatch the same payload
+   again. A package already on the registry is skipped only when it holds the
+   identical bytes; anything else refuses the whole run.
+4. After the npm release, tag that commit `v<version>`, push the tag, and run
+   `publish-mcp.yml` with the same `public_sha` and `version`. It refuses
+   unless the tag, `main` history, the published version and its `gitHead`
+   all match that commit.

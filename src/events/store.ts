@@ -57,7 +57,6 @@ import { releaseLock } from "../utils/lock.js";
 import { acquireMutationLockBlocking } from "../operation-bundles/lock-gate.js";
 import { atomicWrite } from "../utils/markdown.js";
 import { appendToGraphLeaf, type GraphStoreAppend } from "../utils/jsonl-store.js";
-import { ulid } from "../relations/ulid.js";
 import type { EventContent, EventId, EventRecord, EventType } from "./types.js";
 import { GENESIS_PREV_HASH, EventStoreFullError } from "./types.js";
 import {
@@ -70,59 +69,15 @@ import {
   type EventChecksumInput,
 } from "./store-record.js";
 import { eventPrevHash } from "./event-digest.js";
+import { assertRecordWithinCap, buildEventRecord, prevHashFor, type AppendEventInput } from "./event-build.js";
 import { diskEventRepairSources, prepareEventStoreForAppendFrom, type EventRepairSources } from "./store-read.js";
 import { diskEventUpgradeSources, ensureEventOperationVersionLockedFrom, type EventUpgradeSources } from "./store-version.js";
 
-/** The caller-supplied content of a new event (id, prevHash, checksum are derived). */
-export interface AppendEventInput {
-  type: EventType;
-  origin: string;
-  payload: Record<string, unknown>;
-  decision?: string;
-  /** ISO-8601 emit timestamp; the caller supplies one (e.g. `new Date().toISOString()`). */
-  at: string;
-}
+export type { AppendEventInput } from "./event-build.js";
 
 /** Whether the caller already holds the project lock (skip the nested acquire). */
 export interface RecordEventOptions {
   locked?: boolean;
-}
-
-/** Mint a fresh `evt_<ULID>` id, allocated once at emit. */
-function mintEventId(): EventId {
-  return `evt_${ulid()}`;
-}
-
-/** The chain digest of the LAST event (or {@link GENESIS_PREV_HASH} for an empty store). */
-function prevHashFor(events: EventRecord[]): string {
-  if (events.length === 0) return GENESIS_PREV_HASH;
-  return eventPrevHash(events[events.length - 1]);
-}
-
-/** Build the chained, checksummed {@link EventRecord} from caller input + the prior digest. */
-function buildEventRecord(input: AppendEventInput, prevHash: string, binding?: OperationBinding): EventRecord {
-  const content: EventContent = {
-    id: mintEventId(),
-    type: input.type,
-    origin: input.origin,
-    payload: input.payload,
-    decision: input.decision,
-    ...(binding === undefined ? {} : { operationBinding: binding }),
-    at: input.at,
-  };
-  const unchecked: EventChecksumInput = { ...content, prevHash };
-  return { ...unchecked, checksum: eventChecksum(unchecked) };
-}
-
-/**
- * Reject a record whose serialized on-disk form exceeds {@link MAX_EVENT_RECORD_BYTES}.
- * Throws {@link EventStoreFullError} BEFORE any write so the store is never touched.
- */
-function assertRecordWithinCap(serialized: string): void {
-  const bytes = Buffer.byteLength(serialized, "utf8");
-  if (bytes > MAX_EVENT_RECORD_BYTES) {
-    throw new EventStoreFullError();
-  }
 }
 
 /**
@@ -251,6 +206,8 @@ export async function preflightEventAppend(root: string, input: AppendEventInput
  *   cap or would drive the store past its size ceiling.
  */
 export async function preflightEventAppendFrom(sources: EventWriteSources, input: AppendEventInput): Promise<void> {
+  const segmented = await sources.segmented?.();
+  if (segmented) return segmented.preflight(input);
   const events = await prepareEventStoreForAppendFrom(sources); // under the caller's lock
   const record = buildEventRecord(input, prevHashFor(events));
   const serialized = serializeEventRecord(stripChecksum(record));
@@ -309,6 +266,8 @@ export async function appendEventLocked(root: string, input: AppendEventInput): 
  * @returns The persisted {@link EventRecord}.
  */
 export async function appendEventLockedFrom(sources: EventWriteSources, input: AppendEventInput): Promise<EventRecord> {
+  const segmented = await sources.segmented?.();
+  if (segmented) return segmented.append(input); // local-indexed: the segmented log (bounded tail checks)
   // WRITE precondition (verify-then-repair): prepareEventStoreForAppendFrom VERIFIES
   // the chain FIRST, so a broken/reordered chain or a non-recoverable head/log
   // mismatch FAILS CLOSED with the file BYTE-IDENTICAL (a tampered chain is never
@@ -360,6 +319,8 @@ export async function appendBoundEventLockedFrom(
   binding: OperationBinding,
 ): Promise<EventRecord> {
   const checked = assertOperationBinding(binding);
+  const segmented = await sources.segmented?.();
+  if (segmented) return segmented.append(input, checked); // local-indexed: the segmented log
   const events = await prepareEventStoreForAppendFrom(sources); // under the caller's lock
   await ensureEventOperationVersionLockedFrom(sources); // upgrade header, records preserved
   const record = buildEventRecord(input, prevHashFor(events), checked);

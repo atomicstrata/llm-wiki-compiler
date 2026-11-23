@@ -32,7 +32,7 @@ import type { PageId } from "./page-id.js";
 type FullEmbeddingReconciliationReason = "unreadable" | "legacy" | "backend" | "invalid";
 
 /** Typed refusal that preserves retry budgets until full reconciliation runs. */
-class FullEmbeddingReconciliationRequiredError extends Error {
+export class FullEmbeddingReconciliationRequiredError extends Error {
   constructor(readonly reason: FullEmbeddingReconciliationReason, detail?: string) {
     const suffix = detail === undefined ? "" : ` (${detail})`;
     super(`Embedding store requires full reconciliation: ${reason}${suffix}. Run compile to reconcile the full embedding store.`);

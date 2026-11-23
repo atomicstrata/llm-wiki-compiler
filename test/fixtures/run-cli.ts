@@ -106,11 +106,16 @@ export function expectCLIFailure(result: CLIResult): void {
  * @param args - CLI arguments to pass after `bun dist/cli.js`.
  * @param cwd - Working directory for the subprocess.
  * @param envOverrides - Optional environment variable overrides.
+ * @param options - Optional `timeoutMs`: when given, `execFile` sends SIGKILL to the
+ *   direct child once that time has passed since the spawn (after the `cwd` check), and
+ *   the result reports `killed`. It does not reach descendants, and the caller's own
+ *   test timeout still applies. When omitted, behaviour is unchanged.
  */
 export async function runCLI(
   args: readonly string[],
   cwd: string,
   envOverrides: NodeJS.ProcessEnv = {},
+  options: { timeoutMs?: number } = {},
 ): Promise<CLIResult> {
   try {
     // Guard against the temp-dir race: if cwd isn't visible yet, the
@@ -121,6 +126,7 @@ export async function runCLI(
     const { stdout, stderr } = await exec(process.execPath, [...CLI_RUNTIME_FLAGS, CLI, ...args], {
       cwd,
       env: { ...process.env, ...envOverrides },
+      ...(options.timeoutMs === undefined ? {} : { timeout: options.timeoutMs, killSignal: "SIGKILL" as const }),
     });
     return {
       stdout,

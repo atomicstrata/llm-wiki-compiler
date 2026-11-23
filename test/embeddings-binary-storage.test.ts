@@ -8,7 +8,7 @@ import { mkdir, open, readFile, stat, symlink, writeFile } from "node:fs/promise
 import path from "node:path";
 import { useConfinementRoots } from "./fixtures/confinement-roots.js";
 import { binaryFixture } from "./fixtures/binary-embedding-store.js";
-import { readStoreForUpdate, writeEmbeddingStore, resolveEmbeddingFingerprint } from "../src/utils/embeddings-store.js";
+import { readStoreForUpdate, writeEmbeddingStore, resolveEmbeddingFingerprint, type EmbeddingStoreV3 } from "../src/utils/embeddings-store.js";
 import { loadEmbeddingsForSearch } from "../src/utils/embeddings-load.js";
 import { collectStats } from "../src/eval/stats.js";
 import { readStoredEmbeddings } from "../src/utils/embeddings-storage.js";
@@ -82,7 +82,7 @@ describe("binary embedding persistence", () => {
     await writeFile(file("embeddings.json"), JSON.stringify({ ...binaryFixture(), entries: [], chunks: [] }));
     stubEnv("LLMWIKI_BINARY_EMBEDDINGS", "true");
     await writeEmbeddingStore(ctx.root, { ...binaryFixture(), fingerprint: resolveEmbeddingFingerprint() });
-    expect((await loadEmbeddingsForSearch(ctx.root)).store?.entries).toHaveLength(2);
+    expect(((await loadEmbeddingsForSearch(ctx.root)).store as EmbeddingStoreV3 | null)?.entries).toHaveLength(2);
     const stats = await collectStats(ctx.root);
     expect(stats).toMatchObject({ embeddingCount: 2, chunkEmbeddingCount: 1 });
   });

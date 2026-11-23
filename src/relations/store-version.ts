@@ -18,7 +18,8 @@
 import path from "node:path";
 import { RELATIONS_FILE } from "../utils/constants.js";
 import { atomicWrite } from "../utils/atomic-write.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "./graph-reads.js";
 import { parseStoreHeaderVersion, splitStoreHeaderLine } from "../utils/store-header.js";
 import { headerLine } from "./store-record.js";
 import { readRelationRecordsFrom, readRelationStoreRawFrom } from "./store-read.js";
@@ -58,7 +59,7 @@ async function writeStoreBody(root: string, body: string): Promise<void> {
  * package index.
  */
 export function diskRelationUpgradeSources(root: string): RelationUpgradeSources {
-  return { graph: diskGraphStoreReads(root), replaceStoreDurable: (body) => writeStoreBody(root, body) };
+  return { graph: diskRelationGraphReads(root), replaceStoreDurable: (body) => writeStoreBody(root, body) };
 }
 
 /**

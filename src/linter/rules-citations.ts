@@ -48,7 +48,7 @@ function stripSpanSuffix(entry: string): string {
 }
 
 /** Count the number of lines in a file's text content. */
-function countLines(content: string): number {
+export function countLines(content: string): number {
   if (content.length === 0) return 0;
   return content.split("\n").length;
 }
@@ -109,7 +109,7 @@ function diskCitationLintSources(root: string): CitationLintSources {
  * and must not cause its body to be read. Only a citation with a line span
  * asks for a line count. A caller with no filesystem supplies its own lookup.
  */
-interface SourceCitationLookup {
+export interface SourceCitationLookup {
   /** Whether the cited source exists. Must not read its content. */
   exists(filename: string): Promise<boolean>;
   /** Line count of a source that exists. Called only for a span citation. */
@@ -166,7 +166,7 @@ export function checkPageBrokenCitationsFrom(
  * The same check with the source lookup supplied by the caller, so it runs
  * unchanged over any store that can answer the two lookup questions.
  */
-async function checkPageCitationsWith(
+export async function checkPageCitationsWith(
   content: string,
   filePath: string,
   lookup: SourceCitationLookup,

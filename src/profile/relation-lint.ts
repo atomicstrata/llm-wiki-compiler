@@ -22,7 +22,8 @@
 
 import { readRelationsFrom } from "../relations/store-read.js";
 import { RelationStoreCorruptError, RelationStoreTooNewError, RelationStoreSymlinkError } from "../relations/types.js";
-import { diskGraphStoreReads, GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { GraphDirConfinementError, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import { validateRelationAgainstProfile } from "../relations/relation-contract.js";
 import type { RelationRef } from "../relations/types.js";
 import type { EntityId, EntityPage, EntityProblemView, ProfilePack } from "./types.js";
@@ -131,7 +132,7 @@ export async function checkRelationStore(
   pages: EntityPage[],
   profile: ProfilePack,
 ): Promise<LintResult[]> {
-  return checkRelationStoreFrom(diskGraphStoreReads(root), pages, profile);
+  return checkRelationStoreFrom(diskRelationGraphReads(root), pages, profile);
 }
 
 /** {@link checkRelationStore} over a graph-store read: THE ONE BODY. It holds no project root. */

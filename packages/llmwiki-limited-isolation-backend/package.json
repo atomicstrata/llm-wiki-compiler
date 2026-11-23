@@ -20,7 +20,7 @@
     "prepack": "bun run build:lib"
   },
   "peerDependencies": {
-    "@atomicstrata/llmwiki-core": "1.5.0"
+    "@atomicstrata/llmwiki-core": "1.6.0-rc.1"
   },
   "dependencies": {
     "llmwiki-dev-backend": "0.1.0"

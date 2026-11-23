@@ -40,6 +40,7 @@
  */
 
 import path from "path";
+import { compileStateSegmented } from "../cstate/records.js";
 import { renameLeafUnguarded } from "../storage/disk-guarded-leaves.js";
 import { locationKindNoFollow } from "../storage/disk-local-reads.js";
 import { locationExistsSync } from "../storage/disk-locations.js";
@@ -156,7 +157,7 @@ async function destroyScope(steps: ScopedResetSteps, scope: ResetScopeV1, plan: 
 }
 
 /** Every line the state path reports; the failures also set exit code 1. */
-export type StateResetNotice = "no-state" | "plan" | "escape" | "busy" | "bak-not-regular" | "reset";
+export type StateResetNotice = "no-state" | "plan" | "escape" | "busy" | "bak-not-regular" | "reset" | "segmented";
 
 /** What the state reset asks of the project and its host. No member takes a project root. */
 export interface StateResetSteps {
@@ -180,6 +181,8 @@ export interface StateResetSteps {
   rename(from: string, to: string): Promise<void>;
   /** Report one line, at the point the command prints it. */
   notice(code: StateResetNotice): void;
+  /** OPTIONAL: whether the segmented compile state is the authority (then `state.json` is its legacy backup and is not reset). */
+  segmented?(): Promise<boolean>;
 }
 
 /** The command's lines, verbatim; each failure also sets exit code 1 after its line. */
@@ -193,6 +196,7 @@ function printStateResetNotice(code: StateResetNotice): void {
   } else {
     if (code === "escape") output.status("!", output.warn(`${LLMWIKI_DIR} escapes the project root — refusing to reset (tampering).`));
     if (code === "busy") output.status("!", output.warn("Another llmwiki process is using this project; not resetting."));
+    if (code === "segmented") output.status("!", output.warn(`the compile state is segmented (.llmwiki/indexed/cstate); ${STATE_FILE} is its untouched legacy backup, so it is not reset`));
     if (code === "bak-not-regular") {
       output.status("!", output.warn(`cannot back up: ${STATE_FILE}.bak exists and is not a regular file; remove it and retry`));
     }
@@ -219,6 +223,7 @@ function localStateResetSteps(root: string): StateResetSteps {
     kindNoFollow: (location) => locationKindNoFollow(location),
     rename: (from, to) => renameLeafUnguarded(from, to),
     notice: printStateResetNotice,
+    segmented: () => compileStateSegmented(root),
   };
 }
 
@@ -240,6 +245,7 @@ export async function resetStateFileWith(steps: StateResetSteps): Promise<void> 
   if (!isInsideDir(realDir, await steps.realRoot())) return steps.notice("escape");
   if (!(await steps.acquireLock())) return steps.notice("busy");
   try {
+    if (await steps.segmented?.()) return steps.notice("segmented");
     await backupStateWith(steps, realDir);
   } finally {
     await steps.releaseLock();

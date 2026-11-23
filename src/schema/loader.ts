@@ -149,7 +149,7 @@ export async function loadSchemaFrom(reads: LegacyLocalReads): Promise<SchemaCon
  * @param schemaName - The schema's file name; its extension selects JSON or YAML.
  * @param raw - The schema text, or `null` when the project declares no schema.
  */
-function schemaFromText(schemaName: string, raw: string | null): SchemaConfig {
+export function schemaFromText(schemaName: string, raw: string | null): SchemaConfig {
   const defaults = buildDefaultSchema();
   if (raw === null) return defaults;
   return applyOverrides(defaults, parseSchemaFile(schemaName, raw), schemaName);

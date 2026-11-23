@@ -3,9 +3,9 @@
  * @description A lock file is both the mutual-exclusion token AND the record
  * naming its owner, so the two must become visible together. Creating the final
  * name first and writing the owner record into it second makes the lock briefly
- * a ZERO-BYTE file under its authoritative name — and an empty leaf is exactly
- * what {@link ../utils/lock.js isLockStale} classifies as stale and reclaimable,
- * because an unreadable owner has to stay recoverable. A contender polling in
+ * a ZERO-BYTE file under its authoritative name — and an empty, readable leaf is
+ * exactly what {@link ../utils/lock.js isLockStale} classifies as malformed and
+ * reclaimable. A contender polling in
  * that window therefore unlinks a lock a LIVE process is in the middle of
  * taking, creates its own, and both processes proceed believing they hold it.
  * Serializing reclaimers cannot close that: the window belongs to the creator,
@@ -134,15 +134,9 @@ export async function publishLockRecordFrom(
   // `open(…, "wx")` requests `0o666` and the kernel filters it through the
   // process umask, so a `0o077` umask yields `0o600` here anyway.
   //
-  // What the default does guarantee is that publication is no more restrictive
-  // than the create-then-write it replaces, and that matters because this leaf's
-  // readability is load-bearing: `isLockStale` treats an owner it cannot read as
-  // stale, so a lock another UID is unable to open is classified reclaimable and
-  // reclaimed from its live owner — double ownership by a different route.
-  // Hard-coding `0o600` would make that failure UNCONDITIONAL, which is the only
-  // reason the mode is unspecified. Under a restrictive umask the hazard remains,
-  // and closing it needs the staleness predicate to distinguish "cannot read" from
-  // "does not qualify" — out of scope here, and not fixed by a mode argument.
+  // Keep the incumbent default mode. A restrictive umask may make another UID's
+  // record unreadable; acquisition now treats that read as occupied and refuses
+  // reclamation, preserving mutual exclusion while the owner cannot be classified.
   await io.createLeafExclusive(scratchPath, ownerRecord);
   try {
     await hooks.beforePublish?.();

@@ -73,7 +73,8 @@ import { executionProvenanceReadsOver, verifyExecutionProvenanceFrom } from "../
 import { diskPreparationStoreLeafReads, type PreparationStoreLeafReads } from "../preparations/store-leaf-reads.js";
 import { refValuesFor } from "./artifact-ref-validate.js";
 import { readLiveValidRelationsFrom } from "../relations/live-valid.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../relations/graph-reads.js";
 import type { LegacyLocalEntityScans } from "../storage/legacy-local-reads.js";
 import type { ArtifactPreconditionReq, ProfilePack, EntityProblemView } from "./types.js";
 import type { RelationRef } from "../relations/types.js";
@@ -111,7 +112,7 @@ export interface ArtifactHealthSources {
  */
 export function diskArtifactHealthSources(root: string): ArtifactHealthSources {
   return {
-    graph: diskGraphStoreReads(root),
+    graph: diskRelationGraphReads(root),
     artifacts: diskArtifactStoreReads(root),
     provenance: diskPreparationStoreLeafReads(root),
   };

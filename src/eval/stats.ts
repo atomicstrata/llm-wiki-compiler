@@ -56,6 +56,8 @@ const HISTORY_FILE = path.join(HISTORY_DIR, "history.jsonl");
 async function readEmbeddingSnapshot(reads: StoredEmbeddingReads): Promise<EmbeddingSnapshot> {
   let result: Awaited<ReturnType<typeof readStoredEmbeddingsFrom>>;
   try {
+    const sharded = await reads.shardedCounts?.();
+    if (sharded) return { available: true, entries: sharded.pages, chunks: sharded.chunks };
     result = await readStoredEmbeddingsFrom(reads);
   } catch {
     return { available: false, entries: 0, chunks: 0 };

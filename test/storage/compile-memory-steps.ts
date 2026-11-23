@@ -127,6 +127,22 @@ export function memoryStores(held: Held): { reads: LegacyLocalReads; records: Le
   return { reads, records, candidates: { directory: async () => null, leaf: unasked("candidates.leaf") } };
 }
 
+/** The candidate records a memory compile project's caller observes. */
+export type MemoryCompileHooks = Pick<CompileRecords, "emitCandidate" | "discardCandidatesForSlug">;
+
+/**
+ * A compile access over `held` through its memory reads (no directory backs
+ * it), starting from an empty compile state with no pending candidates, whose
+ * candidate emissions and per-slug discards go to the caller's `hooks`.
+ */
+export function memoryCompileProject(held: Held, hooks: MemoryCompileHooks): CompileAccess {
+  return localCompileAccess(memoryStores(held).reads, {
+    readState: async () => ({ version: 1, indexHash: "", sources: {} }),
+    pendingSourceStates: async () => new Map(),
+    ...hooks,
+  });
+}
+
 /** The held-lock executor ports and the compile page-write steps over the map; `write`/`note` logged only into `log`. */
 export function memoryPorts(held: Held, opts: { log?: string[]; writeOne?: WriteOne } = {}): { io: ReturnType<typeof memoryIo>; ports: ApprovedMutationPorts; write: CompilePageWriteSteps } {
   const io = memoryIo(held, opts.log);
@@ -211,6 +227,8 @@ function memoryGateSteps(held: Held, log: string[]): RecoveryGateSteps {
     recoverJournal: (root) => { log.push("journal"); return recoverJournalBeforeCompileFrom(io, root); },
     detectBundleRecovery: async () => { log.push("bundle"); return null; },
     portableBlock: async () => { log.push("portable"); return null; },
+    // No expected-scale record in this project: the leg is a silent pass, so the recorded order is unchanged.
+    scaleBlock: async () => null,
     gateLifecycle: async (_root, intent) => { log.push(`lifecycle ${intent}`); return null; },
     settleHandoffs: async () => { log.push("settle"); },
   };

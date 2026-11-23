@@ -91,10 +91,13 @@ export async function detectChangesFrom(
 }
 
 /** One selected source and the hash of its current text. */
-interface HashedSource {
+export interface HashedSource {
   file: string;
   hash: string;
 }
+
+/** A selection that takes every top-level source and excludes none. */
+export const TOP_LEVEL_SOURCE_SELECTION: SourceSelection = { recursive: false, exclude: [] };
 
 /**
  * Classify already-hashed sources against the previous state. Pure: however
@@ -105,7 +108,7 @@ interface HashedSource {
  * @param prevState - The previously persisted WikiState to compare against.
  * @param selection - The selection the listing was made under.
  */
-function changesFromHashes(
+export function changesFromHashes(
   hashed: readonly HashedSource[],
   prevState: WikiState,
   selection: SourceSelection,

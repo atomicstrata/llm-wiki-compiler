@@ -31,8 +31,6 @@
  * signatures and hand it the incumbent root read, called when asked.
  */
 
-import { getEmbeddingProvider } from "./embedding-provider.js";
-import { assertVectorValid } from "./embeddings-validate.js";
 import {
   validateV3ForSearch,
   storeMatchesActiveEmbedding,
@@ -41,26 +39,28 @@ import {
   type ChunkEmbeddingV3,
 } from "./embeddings-store.js";
 import { readStoredEmbeddings, type StoredEmbeddingRead } from "./embeddings-storage.js";
+import { isShardedView, shardedSearchOutcome, type ShardedVectorView } from "../vectors/store.js";
+import { findRelevantChunksSharded, findRelevantPagesSharded } from "../vectors/search.js";
 import { cosineSimilarity } from "./embeddings-search.js";
 import {
   buildLiveIdSetFrom,
   readLiveContentHashesFrom,
-  loadPageRecordsByPageIdFrom,
   buildNamespaceDirs,
   diskLivePageReads,
   type LiveContentHashes,
   type LivePageReads,
 } from "./page-registry.js";
-import { splitIntoChunks } from "./retrieval.js";
-import { parseQualifiedPageId, type PageId } from "./page-id.js";
+import type { PageId } from "./page-id.js";
 import type { LoadedProfile } from "../profile/types.js";
-import type { PageRecord } from "../pages/read.js";
+import {
+  embedQuery, passesSurfaceFlag, rehydrateChunkHit, rehydratePageHit,
+  type ChunkHitV3, type PageHitV3, type RetrievalSurface,
+} from "./embeddings-hits.js";
+
+export type { ChunkHitV3, PageHitV3, RetrievalSurface } from "./embeddings-hits.js";
 
 /** Namespace→directory map resolved from the active profile (or reserved-only). */
 type NamespaceDirs = Map<string, string>;
-
-/** Which surface flag a load filters by (each surface filters independently). */
-export type RetrievalSurface = "search" | "context";
 
 /** Structured warning surfaced in the outcome the consumer actually reads (S6). */
 export interface EmbeddingWarning {
@@ -79,29 +79,14 @@ export interface EmbeddingWarning {
  * store; a v2/older/failed-gate/corrupt store degrades to `null` + a warning.
  */
 export interface EmbeddingLoadOutcome {
-  store: EmbeddingStoreV3 | null;
+  /** A materialized v3 store, or (on a `local-indexed` project) a view the find functions stream from. */
+  store: EmbeddingStoreV3 | ShardedVectorView | null;
   warnings: EmbeddingWarning[];
   stalePageIds: PageId[];
 }
 
-/** A live-rehydrated page hit carrying its qualified id (spec §4.7). */
-export interface PageHitV3 {
-  pageId: PageId;
-  slug: string;
-  title: string;
-  summary: string;
-  score: number;
-}
-
-/** A live-rehydrated chunk hit carrying its qualified id and chunk index. */
-export interface ChunkHitV3 {
-  pageId: PageId;
-  slug: string;
-  chunkIndex: number;
-  contentHash: string;
-  text: string;
-  score: number;
-}
+/** What the find functions search: a materialized v3 store or a `local-indexed` vector view. */
+export type SearchableEmbeddingStore = EmbeddingStoreV3 | ShardedVectorView;
 
 /**
  * Load the active store for the SEARCH surface. The returned store is filtered
@@ -120,8 +105,14 @@ export async function loadEmbeddingsForContext(root: string): Promise<EmbeddingL
   return gateActiveStore(root);
 }
 
-/** Gate the on-disk store of `root` through {@link gateActiveStoreFrom}, the incumbent read called when asked. */
-function gateActiveStore(root: string): Promise<EmbeddingLoadOutcome> {
+/**
+ * Gate the on-disk store of `root` through {@link gateActiveStoreFrom}, the
+ * incumbent read called when asked. A `local-indexed` project is gated on its
+ * piecewise vector store instead and hands back a VIEW (no vectors loaded).
+ */
+async function gateActiveStore(root: string): Promise<EmbeddingLoadOutcome> {
+  const sharded = await shardedSearchOutcome(root);
+  if (sharded !== null) return sharded;
   return gateActiveStoreFrom(() => readStoredEmbeddings(root));
 }
 
@@ -188,7 +179,7 @@ function degraded(code: EmbeddingWarning["code"], message: string): EmbeddingLoa
  */
 export function findRelevantPagesV3(
   root: string,
-  store: EmbeddingStoreV3,
+  store: EmbeddingStoreV3 | ShardedVectorView,
   surface: RetrievalSurface,
   question: string,
   k: number,
@@ -200,12 +191,13 @@ export function findRelevantPagesV3(
 /** {@link findRelevantPagesV3}, with every live page read made through `pages`. */
 export async function findRelevantPagesV3From(
   pages: LivePageReads,
-  store: EmbeddingStoreV3,
+  store: EmbeddingStoreV3 | ShardedVectorView,
   surface: RetrievalSurface,
   question: string,
   k: number,
   profile?: LoadedProfile,
 ): Promise<{ hits: PageHitV3[]; stalePageIds: PageId[] }> {
+  if (isShardedView(store)) return findRelevantPagesSharded(pages, store, surface, question, k, profile);
   const namespaceDirs = buildNamespaceDirs(profile?.profile);
   const liveIds = await buildLiveIdSetFrom(pages.scans, await activeNamespaces(profile), namespaceDirs, profile);
   const eligible = store.entries.filter((e) => passesPrefilter(e.pageId, liveIds, surface, profile));
@@ -224,7 +216,7 @@ export async function findRelevantPagesV3From(
  */
 export function findRelevantChunksV3(
   root: string,
-  store: EmbeddingStoreV3,
+  store: EmbeddingStoreV3 | ShardedVectorView,
   surface: RetrievalSurface,
   question: string,
   k: number,
@@ -236,12 +228,13 @@ export function findRelevantChunksV3(
 /** {@link findRelevantChunksV3}, with every live page read made through `pages`. */
 export async function findRelevantChunksV3From(
   pages: LivePageReads,
-  store: EmbeddingStoreV3,
+  store: EmbeddingStoreV3 | ShardedVectorView,
   surface: RetrievalSurface,
   question: string,
   k: number,
   profile?: LoadedProfile,
 ): Promise<{ hits: ChunkHitV3[]; stalePageIds: PageId[] }> {
+  if (isShardedView(store)) return findRelevantChunksSharded(pages, store, surface, question, k, profile);
   const chunks = store.chunks ?? [];
   const namespaceDirs = buildNamespaceDirs(profile?.profile);
   const liveIds = await buildLiveIdSetFrom(pages.scans, await activeNamespaces(profile), namespaceDirs, profile);
@@ -251,21 +244,6 @@ export async function findRelevantChunksV3From(
   const queryVec = await embedQuery(question, store.dimensions);
   const ranked = scoreChunkEntries(queryVec, eligible);
   return walkFreshChunks(pages, ranked, k, namespaceDirs);
-}
-
-/**
- * Embed the query string and assert the returned vector matches the store dim.
- *
- * A non-positive `dimensions` means the store declares none — an empty store
- * written by a rebuild that had nothing to embed carries 0. Passing that through
- * would assert `vector.length === 0` and throw on every query, permanently:
- * nothing rewrites the store, so it never recovers. Treat it as UNKNOWN instead
- * and let the vector's own integrity check stand alone.
- */
-async function embedQuery(question: string, dimensions: number): Promise<number[]> {
-  const vec = await getEmbeddingProvider().embed(question, "query");
-  assertVectorValid(vec, dimensions > 0 ? dimensions : undefined);
-  return vec;
 }
 
 /** The namespaces a load scans: reserved dirs plus any profile entity types. */
@@ -288,16 +266,6 @@ function passesPrefilter(
 ): boolean {
   if (!liveIds.has(pageId)) return false;
   return passesSurfaceFlag(pageId, surface, profile);
-}
-
-/** A typed namespace's `includeInSearch`/`includeInContext` flag (tri-state). */
-function passesSurfaceFlag(pageId: PageId, surface: RetrievalSurface, profile?: LoadedProfile): boolean {
-  const parsed = parseQualifiedPageId(pageId);
-  if (!parsed || !profile) return true;
-  const def = profile.profile.entities[parsed.namespace]?.retrieval;
-  if (!def) return true;
-  const flag = surface === "search" ? def.includeInSearch : def.includeInContext;
-  return flag !== false;
 }
 
 /** Score page entries by cosine similarity, descending; ties keep input order. */
@@ -390,57 +358,4 @@ function walkFreshChunks(
       ? rehydrateChunkHit(pages, entry, score, live.chunkHashes[entry.chunkIndex], namespaceDirs)
       : null,
   );
-}
-
-/** Rehydrate a page hit's title/summary from the LIVE file, never the store (S12). */
-async function rehydratePageHit(
-  pages: LivePageReads,
-  entry: PageEmbeddingV3,
-  score: number,
-  namespaceDirs: NamespaceDirs,
-): Promise<PageHitV3> {
-  const slug = parseQualifiedPageId(entry.pageId)?.pagePart ?? "";
-  const live = await loadLivePage(pages, entry.pageId, namespaceDirs);
-  return {
-    pageId: entry.pageId,
-    slug,
-    title: live?.title ?? "",
-    summary: live?.summary ?? "",
-    score,
-  };
-}
-
-/**
- * Rehydrate a chunk hit's text from the LIVE page body (S12). The live body is
- * re-split with the SAME `splitIntoChunks` the store used, and the chunk at the
- * hit's index is taken — the store's cached `entry.text` is never returned, so a
- * poisoned cached value cannot reach output even if its hash matched live.
- */
-async function rehydrateChunkHit(
-  pages: LivePageReads,
-  entry: ChunkEmbeddingV3,
-  score: number,
-  liveContentHash: string,
-  namespaceDirs: NamespaceDirs,
-): Promise<ChunkHitV3> {
-  const live = await loadLivePage(pages, entry.pageId, namespaceDirs);
-  const liveText = live ? splitIntoChunks(live.body)[entry.chunkIndex] ?? "" : "";
-  return {
-    pageId: entry.pageId,
-    slug: parseQualifiedPageId(entry.pageId)?.pagePart ?? "",
-    chunkIndex: entry.chunkIndex,
-    contentHash: liveContentHash,
-    text: liveText,
-    score,
-  };
-}
-
-/** Resolve one live page record via the confined registry loader (absent → null). */
-async function loadLivePage(
-  pages: LivePageReads,
-  pageId: PageId,
-  namespaceDirs: NamespaceDirs,
-): Promise<PageRecord | null> {
-  const records = await loadPageRecordsByPageIdFrom(pages.reads, [pageId], namespaceDirs);
-  return records[0] ?? null;
 }

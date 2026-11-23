@@ -373,7 +373,7 @@ See [`docs/configuration/review-policy.mdx`](docs/configuration/review-policy.md
 
 llmwiki is still early software, but it is no longer a toy pipeline for a handful of notes.
 
-- **Incremental compilation** means unchanged sources do not flow back through the LLM.
+- **Incremental compilation** skips unchanged sources when possible. Unchanged contributors to affected pages reuse compatible extraction snapshots; missing or incompatible snapshots can require fresh LLM extraction.
 - **Parallel compile** runs concept extraction and page generation concurrently under a configurable cap (`--concurrency` / `LLMWIKI_COMPILE_CONCURRENCY`), cutting wall-clock on large compiles.
 - **Chunk-level embeddings** narrow large wikis before BM25 reranking and graph expansion.
 - **Content-hash-aware embedding updates** avoid recomputing vectors for unchanged pages and chunks.
@@ -389,21 +389,27 @@ The current sweet spot is a durable project or domain wiki: research folders, co
 
 A release candidate under qualification (proposed version `1.6.0-rc.1`) adds
 optional commands for projects you expect to grow large. It is not published yet; the recorded public
-baseline of this candidate is `1.5.0`. A wiki of a few hundred documents needs none of this.
+baseline of this candidate is `1.5.0`. Small local wikis can keep the existing
+layout without an expected-scale record.
 
-- `llmwiki init --expected-size 2GB` (or `--expected-documents`) records an
+- `llmwiki init --expected-size 256MiB` (or `--expected-documents`) records an
   expected scale and prepares a matching single-machine layout. It is a
   planning target, not verified capacity, and it provisions nothing beyond
   files on this machine: no service, container or second computer.
-- `llmwiki scale` inspects, changes and resumes that layout. `llmwiki catalog`
-  pages, reconciles, verifies, backs up and restores the largest layout's
-  catalog.
+- `llmwiki scale` inspects, changes and resumes that layout. Lowering the
+  estimate keeps a larger active layout; scale-down is a separate explicit
+  operation. `llmwiki catalog` pages, reconciles, verifies, backs up and
+  restores the indexed stores.
 - On that layout, with its segmented compile state prepared, `llmwiki compile`
   runs as a bounded, resumable batch run. It needs `--no-embeddings` and does
   not support `--review` or `--no-pages-limit`. There is no `--dry-run` or
   `--rebuild-source`.
 - Compiling still needs a model you configure, for example a local
   OpenAI-compatible server. None is bundled.
+
+After changing expected scale, check `llmwiki scale status`. Dependent
+mutations stay blocked while preparation is pending, parked or unavailable;
+`llmwiki scale prepare` resumes an unfinished preparation.
 
 See [Scale and catalog](docs/cli/scale.mdx) and the
 [changelog](CHANGELOG.md#unreleased). No performance or capacity figure is

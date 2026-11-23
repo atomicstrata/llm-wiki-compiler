@@ -109,6 +109,67 @@ logic independently of the disk. It does not ship hosted storage, a remote
 backend, role-based permissions or a public storage-plugin API. The storage
 interfaces are internal composition contracts, not supported extension points.
 
+## Expected scale and local layouts
+
+*Release candidate under qualification; not part of `1.5.0`.*
+
+A project may record how large it is expected to become. That record selects
+one of a few single-machine layouts and never anything outside this machine:
+no service, queue, container or second computer is involved, and choosing a
+larger layout provisions nothing.
+
+- **No record.** The layout is the one described above, unchanged.
+- **Larger layouts.** Embeddings move to a binary container, and the largest
+  layout keeps segmented stores under `.llmwiki/indexed/`: a paged catalog of
+  pages and sources, the vector index, the event and relation logs, the
+  operation catalogs and, when prepared, the compile state.
+- **What is authoritative there.** Not everything under `.llmwiki/indexed/`
+  can be thrown away. The Markdown pages and `sources/` remain the authority
+  for page and source content, and the page and source catalog is a projection
+  of them that `llmwiki catalog sync` rebuilds. The vector index is derived
+  too, but rebuilding it means embedding again. The event log, the relation
+  log, the operation catalogs and the compile state are different: once the
+  layout is active the segmented store IS the record, the earlier single
+  files are kept only as untouched backups, and none of them can be rebuilt
+  from Markdown. Back them up with `llmwiki catalog backup`. This is an
+  indexed-authority backup, not a full wiki backup: separately preserve
+  Markdown pages, sources, project configuration, workspace custody files,
+  receipts and journals.
+- **Transitions.** Changing layout runs under the project lock and is
+  recorded step by step, so an interrupted transition resumes. While one is
+  unfinished, mutations refuse and ordinary reads keep working.
+- **Batch compile.** With the segmented compile state prepared, compile runs
+  as a resumable sequence of checkpointed phases. Each phase reads and writes
+  in bounded batches instead of loading the whole compile state, source list
+  or merged-concept list, under explicit limits (batch size, owners and input
+  bytes per page, page size); a project that exceeds one is refused rather
+  than processed unbounded. It reuses the classic compile's extraction, merge
+  and page generation and is meant to leave the same pages and state. That
+  equivalence has been checked on small fixtures for a fresh compile and for a
+  failed extraction, not yet across the full regression suite, and no memory
+  or throughput figure is claimed.
+- **Writers.** Compile, review and removal already ran under the project lock.
+  Source ingest, the SDK's source delete and `schema init` now take it too, so
+  a layout transition cannot interleave with them. If the lock is still held
+  after its bounded wait (for example by a running compile), they refuse with
+  a project-busy message before writing anything; retry when the other
+  operation has finished.
+- **Outside edits.** A file written into `sources/` or `wiki/` by an editor or
+  another tool takes no lock. The catalog notices such a change by comparing a
+  directory's recorded stamps when a listing or a sync examines that
+  directory, and reconciles it at the next compile or `catalog sync`. That is
+  detection and reconciliation, not a guarantee that every outside edit is
+  seen at once.
+
+The portable project path (`llmwiki project`) is experimental. On a local
+directory it stores proposals and publications in a ledger under `.llmwiki/`
+and recovers an interrupted publication from its recorded intent. Its hosted
+subcommands are clients only: this package supplies no remote portable backend.
+The local viewer and MCP server remain available. A remote host you name is
+trusted with the tokens you send it; federation also sends the receiver your
+token for every shard you list. `portable-detached/2` is published as a contract
+only, with no detached-compile runtime.
+
 ## Ownership
 
 | Layer | Responsibility | Source boundary |

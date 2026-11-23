@@ -111,14 +111,15 @@ describe("the portable pending gate: one body, project and host collaborators", 
 
 /**
  * G5, end to end through the public SDK: the composition the bodies above do
- * not show. An unregistered project's lock-free source writers stay lock-free;
+ * not show. An unregistered project's source writers take the project lock for
+ * the write and leave none behind;
  * a registered project's are refused while a publication intent is unresolved
  * and work again once it is settled. The intent and its close are planted as
  * the ledger records the gate reads (no publication is run: public builds ship
  * none), and removed afterwards so the shared registered project stays clean.
  */
 describe("the registered-project gate through createWikiCore", () => {
-  it("G5 leaves an unregistered project's source writers lock-free", async () => {
+  it("G5 runs an unregistered project's source writers and leaves no lock behind", async () => {
     const plain = path.join(base, "plain");
     const core = createWikiCore({ root: plain });
     const saved = await core.ingestText({ title: "Plain Note", text: "Body.\n" });

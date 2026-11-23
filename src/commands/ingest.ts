@@ -33,6 +33,7 @@ import ingestPdf from "../ingest/pdf.js";
 import ingestImage from "../ingest/image.js";
 import ingestTranscript, { isYoutubeUrl } from "../ingest/transcript.js";
 import type { IngestResult, SourceType } from "../utils/types.js";
+import { assertScaleReady } from "../scale/gate.js";
 
 /** Check whether a source string looks like a URL. */
 function isUrl(source: string): boolean {
@@ -289,8 +290,14 @@ async function journalIngest(
   });
 }
 
-/** The two project steps one ingest takes, in order. No member takes a project root. */
+/** The project steps one ingest takes, in order. No member takes a project root. */
 export interface IngestProjectSteps {
+  /**
+   * Optional EARLY refusal, run before any detection, fetch or provider call,
+   * when the project is already blocked by an expected-scale transition. Not
+   * authoritative: the gated save rechecks under the project lock.
+   */
+  assertReady?(): Promise<void>;
   /** Save the document under the project gate; resolves to where it landed and whether bytes changed. */
   save(title: string, document: string, source: string): ReturnType<typeof saveSourceUnderProjectGate>;
   /** Journal one real write; never asked for an unchanged re-ingest. */
@@ -300,6 +307,7 @@ export interface IngestProjectSteps {
 /** LOCAL DISK. The incumbent gated save and journal append for `root`, each called when asked. */
 function localIngestSteps(root: string): IngestProjectSteps {
   return {
+    assertReady: () => assertScaleReady(root),
     save: (title, document, source) => saveSourceUnderProjectGate(root, title, document, source),
     journal: (title, source, savedPath, charCount) => journalIngest(root, title, source, savedPath, charCount),
   };
@@ -359,6 +367,7 @@ export async function ingestSource(root: string, source: string): Promise<Ingest
 
 /** {@link ingestSource} over {@link IngestProjectSteps}: THE ONE BODY. Detect, fetch, limit, document, then save and journal. */
 export async function ingestSourceWith(steps: IngestProjectSteps, source: string): Promise<IngestResult> {
+  await steps.assertReady?.();
   const sourceType = await detectSourceType(source);
   output.status("*", output.info(`Ingesting [${sourceType}]: ${source}`));
   verbose(`source type: ${sourceType}`);
@@ -396,6 +405,7 @@ export async function ingestTextSource(root: string, input: IngestTextInput): Pr
 
 /** {@link ingestTextSource} over {@link IngestProjectSteps}: THE ONE BODY. Identity, limit, document, then save and journal. */
 export async function ingestTextSourceWith(steps: IngestProjectSteps, input: IngestTextInput): Promise<IngestResult> {
+  await steps.assertReady?.();
   const digest = createHash("sha256")
     .update(`${input.title.length}\n`)
     .update(input.title)

@@ -72,6 +72,10 @@ import type {
   SourceState,
 } from "../utils/types.js";
 import { timeStage } from "../utils/stage-timing.js";
+import { reconcileCatalogIfIndexed } from "../catalog/routes.js";
+import type { BatchRunOptions } from "./batch/contracts.js";
+import { compileBatch } from "./batch/driver.js";
+import { routesToBatch } from "./batch/route.js";
 
 /**
  * Everything ONE compile run asks for, beyond the provider and the other host
@@ -105,6 +109,8 @@ export interface CompileRunSteps {
   listPageNames(root: string, dir: string): Promise<string[]>;
   /** Journal the run to `log.md` (warns, never throws). Local: `logCompile(root, …)`. */
   logCompile(root: string, buckets: ChangeBuckets, generation: PageGenerationResult, existingIds: Set<string>): Promise<void>;
+  /** OPTIONAL: reconcile a `local-indexed` catalog after the run, under the lock. Local: `reconcileCatalogIfIndexed(root)`. */
+  reconcileCatalog?(root: string): Promise<void>;
 }
 
 /** LOCAL. The incumbent root forms for the project at `root`, each called at call time with its old arguments; frozen. In no package index. */
@@ -124,6 +130,7 @@ const localCompileRunSteps: CompileRunSteps = Object.freeze({
   listPageNames: (root: string, dir: string) => listDirectoryNames(path.join(root, dir)),
   logCompile: (root: string, buckets: ChangeBuckets, generation: PageGenerationResult, existingIds: Set<string>) =>
     logCompile(root, buckets, generation, existingIds),
+  reconcileCatalog: (root: string) => reconcileCatalogIfIndexed(root),
 });
 
 /**
@@ -133,7 +140,7 @@ const localCompileRunSteps: CompileRunSteps = Object.freeze({
  * @param root - Project root directory.
  * @param options - Optional pipeline overrides (e.g. --review mode).
  */
-export async function compile(root: string, options: CompileOptions = {}): Promise<void> {
+export async function compile(root: string, options: CompileOptions & BatchRunOptions = {}): Promise<void> {
   await compileAndReport(root, options);
 }
 
@@ -141,15 +148,19 @@ export async function compile(root: string, options: CompileOptions = {}): Promi
  * Run the full compilation pipeline and return a structured result.
  * Same behaviour as compile() but exposes counts, slugs, and errors so
  * non-CLI consumers (the MCP server, programmatic callers) can report
- * meaningful data without scraping terminal output.
+ * meaningful data without scraping terminal output. A project whose segmented
+ * compile state is the authority takes the bounded batch body (`./batch/`),
+ * whose result keeps the arrays empty and carries `mode: "batch"` and the run.
  * @param root - Project root directory.
- * @param options - Optional pipeline overrides (e.g. --review mode).
+ * @param options - Optional pipeline overrides (e.g. --review mode), plus the batch options.
  * @returns Structured result describing what was compiled.
  */
 export async function compileAndReport(
   root: string,
-  options: CompileOptions = {},
+  options: CompileOptions & BatchRunOptions = {},
 ): Promise<CompileResult> {
+  // A project whose segmented compile state is the authority compiles through the bounded batch body.
+  if (await routesToBatch(root, options)) return compileBatch(root, options);
   return compileAndReportWith(localCompileRunSteps, root, options);
 }
 
@@ -194,9 +205,11 @@ export async function compileAndReportWith(
     // The policy is established for the WHOLE run, before change detection, so
     // the modifier digest it contributes is visible to the invalidation check
     // rather than only to the prompt builders further down.
-    return await withRunSystemPolicy(options.systemPolicy, () =>
+    const result = await withRunSystemPolicy(options.systemPolicy, () =>
       withRunNoPagesLimit(options.noPagesLimit, () => runCompilePipeline(steps, root, options)),
     );
+    await steps.reconcileCatalog?.(root);
+    return result;
   } finally {
     await steps.release(root);
   }

@@ -11,9 +11,18 @@ import { openGraphFileAppend } from "../src/utils/jsonl-store.js";
 const realFs = { ...(await import("node:fs")) };
 const realFsPromises = { ...(await import("fs/promises")) };
 
+// Bun keeps a module mock for the rest of the process, so the missing flags are simulated only while one of this
+// file's tests runs; otherwise the getters return the native values saved here before any simulation.
+const NATIVE_FLAGS = { O_NOFOLLOW: realFs.constants.O_NOFOLLOW, O_NONBLOCK: realFs.constants.O_NONBLOCK, O_DIRECTORY: realFs.constants.O_DIRECTORY };
+let simulateMissingFlags = false;
+
 vi.mock("node:fs", () => {
   const fs = realFs;
-  return { ...fs, constants: { ...fs.constants, O_NOFOLLOW: undefined, O_NONBLOCK: undefined, O_DIRECTORY: undefined } };
+  const constants = { ...fs.constants };
+  for (const name of Object.keys(NATIVE_FLAGS) as (keyof typeof NATIVE_FLAGS)[]) {
+    Object.defineProperty(constants, name, { enumerable: true, get: () => (simulateMissingFlags ? undefined : NATIVE_FLAGS[name]) });
+  }
+  return { ...fs, constants };
 });
 
 const race = {
@@ -36,11 +45,18 @@ vi.mock("fs/promises", async () => {
 
 let root: string;
 beforeEach(async () => {
+  simulateMissingFlags = true;
   race.beforeOpen = undefined;
   race.afterOpen = undefined;
   root = await mkdtemp(path.join(tmpdir(), "portable-nofollow-"));
 });
-afterEach(async () => { await rm(root, { recursive: true, force: true }); });
+// Restore the native flags and clear the race hooks before cleanup, so a failing cleanup cannot leak them.
+afterEach(async () => {
+  simulateMissingFlags = false;
+  race.beforeOpen = undefined;
+  race.afterOpen = undefined;
+  await rm(root, { recursive: true, force: true });
+});
 
 /** Exercise the store consumer, closing its handle even when a guard is missing. */
 async function append(file: string): Promise<void> {

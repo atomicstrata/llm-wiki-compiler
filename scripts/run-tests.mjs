@@ -25,6 +25,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { chmodSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { bunTestBudgetArguments, resolveStorageTestProfile } from "../test/config/storage-test-profile.ts";
 
 /** Size of the RAM disk. Memory is only consumed as files are written. */
 const RAM_DISK_MEGABYTES = 2048;
@@ -75,12 +76,20 @@ function detachRamDisk(device) {
  * suite clean and 16 left one worker spinning indefinitely.
  */
 const WORKERS = Math.max(1, Math.floor(os.availableParallelism() * 0.75));
-const TEST_TIMEOUT_MS = 30000;
+/**
+ * The default per-test budget comes from the explicit storage profile
+ * (`LLMWIKI_TEST_STORAGE_PROFILE`, see test/config/storage-test-profile.ts): 30 s
+ * unless the slow-durable-storage profile is named exactly. It is resolved here,
+ * before anything is mounted, so an unknown value stops the run with no effect.
+ */
+const STORAGE_PROFILE = resolveStorageTestProfile(process.env.LLMWIKI_TEST_STORAGE_PROFILE);
+const TEST_BUDGET_ARGUMENTS = bunTestBudgetArguments(process.env.LLMWIKI_TEST_STORAGE_PROFILE);
+if (STORAGE_PROFILE.notice !== null) console.warn(STORAGE_PROFILE.notice);
 
 /** Run `bun test` with the given temp directory and resolve with its exit code. */
 function runTests(tmpdir) {
   const env = tmpdir ? { ...process.env, TMPDIR: tmpdir } : process.env;
-  const args = ["test", `--parallel=${WORKERS}`, "--timeout", String(TEST_TIMEOUT_MS), ...process.argv.slice(2)];
+  const args = ["test", `--parallel=${WORKERS}`, ...TEST_BUDGET_ARGUMENTS, ...process.argv.slice(2)];
   const child = spawn(process.execPath, args, { stdio: "inherit", env });
   for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => child.kill(signal));
   return new Promise((resolve) => child.on("exit", (code) => resolve(code ?? 1)));

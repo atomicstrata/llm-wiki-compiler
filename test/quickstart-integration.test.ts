@@ -32,11 +32,15 @@ import { LLMWIKI_DIR, LAST_LINT_FILE } from "../src/utils/constants.js";
 
 const aimock = useAimockLifecycle("quickstart");
 
+/** The page body every happy-path compile in this file receives. */
+const HAPPY_PAGE_BODY = "Body produced for the quickstart test.";
+
 /**
  * Stub the canned compile responses (extraction tool call + page body).
- * One shared concept is enough to drive a single happy-path compile.
+ * One shared concept is enough to drive a single happy-path compile; a
+ * whitespace-only `pageBody` instead makes that page fail validation.
  */
-function stubCompile(handle: MockClaudeHandle): void {
+function stubCompile(handle: MockClaudeHandle, pageBody: string = HAPPY_PAGE_BODY): void {
   handle.mock.onToolCall("extract_concepts", {
     toolCalls: [
       {
@@ -55,7 +59,7 @@ function stubCompile(handle: MockClaudeHandle): void {
       },
     ],
   });
-  handle.mock.onMessage(/.*/, { content: "Body produced for the quickstart test." });
+  handle.mock.onMessage(/.*/, { content: pageBody });
 }
 
 /** Inputs that every aimock-backed test in this file repeats. */
@@ -68,11 +72,11 @@ interface AimockSetup {
 /**
  * Boot aimock, stub the canned compile responses, create a temp project
  * workspace, and drop a fixture markdown file outside `sources/` so the
- * quickstart subprocess copies it in.
+ * quickstart subprocess copies it in. `pageBody` is passed to {@link stubCompile}.
  */
-async function bootQuickstart(fixtureBody: string): Promise<AimockSetup> {
+async function bootQuickstart(fixtureBody: string, pageBody?: string): Promise<AimockSetup> {
   const handle = await aimock.start();
-  stubCompile(handle);
+  stubCompile(handle, pageBody);
   const cwd = await aimock.makeWorkspace("# placeholder\n", "placeholder.md");
   const fixturePath = path.join(cwd, "fixture-source.md");
   await writeFile(fixturePath, fixtureBody, "utf-8");
@@ -266,17 +270,16 @@ describe("`llmwiki quickstart <missing>`", () => {
   });
 });
 
-describe("`llmwiki quickstart --json` — compile returns errors (lock contention)", () => {
+describe("`llmwiki quickstart --json` — compile returns errors (a recoverable page error)", () => {
   it("preserves CompileResult.errors verbatim and reports compile.ok=false", async () => {
+    // A whitespace-only page body fails page validation, which compile RETURNS
+    // as a recoverable per-page error in `errors` rather than throwing: the
+    // documented returned-error path buildCompileEnvelopeFromResult handles.
+    // (A held project lock no longer reaches compile: ingest takes the same lock
+    // first and refuses with ProjectBusyError, covered by cooperative-writer-lock.)
     const { handle, cwd, fixturePath } = await bootQuickstart(
-      "# Src\n\nLock-contention test.\n",
+      "# Src\n\nRecoverable page-error test.\n", "   ",
     );
-    // Seed a live .llmwiki/lock holding the test process PID so the
-    // compile pipeline's acquireLock fails and returns a CompileResult
-    // with a populated `errors` array (the documented returned-error
-    // path that buildCompileEnvelopeFromResult handles).
-    await mkdir(path.join(cwd, ".llmwiki"), { recursive: true });
-    await writeFile(path.join(cwd, ".llmwiki", "lock"), String(process.pid), "utf-8");
 
     const result = await runCLI(
       ["quickstart", fixturePath, "--json", "--no-open"],
@@ -292,14 +295,12 @@ describe("`llmwiki quickstart --json` — compile returns errors (lock contentio
     expect(Array.isArray(errors)).toBe(true);
     expect(errors.length).toBeGreaterThanOrEqual(1);
     expect(typeof errors[0]).toBe("string");
-    expect(errors[0] as string).toContain("lock");
+    expect(errors).toEqual(['Invalid page for "Quickstart Concept" — failed validation']);
     // No ANSI escapes in the verbatim error string.
     // eslint-disable-next-line no-control-regex
     expect(errors[0] as string).not.toMatch(/\x1b\[/);
-    // Returned counters preserved verbatim (lock contention zeroes them).
-    expect(compile.compiled).toBe(0);
-    expect(compile.skipped).toBe(0);
-    expect(compile.deleted).toBe(0);
+    // Returned counters preserved verbatim: both sources (the workspace placeholder and the fixture) compiled.
+    expect([compile.compiled, compile.skipped, compile.deleted]).toEqual([2, 0, 0]);
     // Resumable: next action steers the user back to `llmwiki compile`.
     const next = envelope.next as Record<string, unknown>;
     expect(next.command).toBe("llmwiki compile");

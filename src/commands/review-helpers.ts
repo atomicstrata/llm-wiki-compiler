@@ -20,6 +20,7 @@ import {
 import { releaseLock } from "../utils/lock.js";
 import { acquireMutationLock } from "../operation-bundles/lock-gate.js";
 import * as output from "../utils/output.js";
+import { reconcileCatalogIfIndexed } from "../catalog/routes.js";
 
 /** Re-export for use by the under-lock mutation functions in approve/reject. */
 export { loadCandidateUnderLockOrFail as readCandidateUnderLock };
@@ -55,6 +56,7 @@ export async function runReviewUnderLock(
 
   try {
     await underLock(root, id);
+    await reconcileCatalogIfIndexed(root);
   } finally {
     await releaseLock(root);
   }

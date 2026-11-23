@@ -1,6 +1,7 @@
 .env
-node_modules/
-dist/
+# Generated directories may be symlinks to external scratch storage.
+node_modules
+dist
 .llmwiki/
 .llm-wiki/
 /wiki/
@@ -18,3 +19,5 @@ localdocs/
 # my-wiki/wiki/ and my-wiki/sources/ would otherwise be tracked.
 *-wiki/
 docs/superpowers/
+# Staged public release, baseline extraction and gate scratch (scripts/build-public-release.mjs).
+.public-release

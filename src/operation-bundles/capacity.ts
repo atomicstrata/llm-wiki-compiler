@@ -17,6 +17,8 @@
  * and catalog read still take a project root on disk. Nothing selects a backend.
  */
 
+import { catalogSummary, type CatalogSummary } from "../history/operation-catalog-read.js";
+import { indexedActive } from "../indexed/routing.js";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import type { CappedLeafReadBuffer } from "../utils/confined-read.js";
@@ -114,6 +116,12 @@ export interface OperationInventoryReads {
   readRun(binding: OperationRunBinding): Promise<OperationRunRead>;
   /** One workspace's catalog. */
   readCatalog(workspaceId: string): Promise<CatalogStoreRead>;
+  /**
+   * OPTIONAL: on a `local-indexed` project, the workspace catalog's count and
+   * health from its segmented manifest alone (no history read), or `null`
+   * elsewhere (then `readCatalog` is used).
+   */
+  readCatalogSummary?(workspaceId: string): Promise<CatalogSummary | null>;
 }
 
 /** The incumbent payload leaf read for one root: path derivation, then the confined durable read. */
@@ -143,7 +151,18 @@ export function diskOperationInventoryReads(root: string): OperationInventoryRea
     },
     readRun: (binding) => readOperationRun(root, binding),
     readCatalog: (workspaceId) => readCatalogStore(root, workspaceId),
+    readCatalogSummary: async (workspaceId) => ((await indexedActive(root)) ? catalogSummary(root, workspaceId) : null),
   };
+}
+
+/** One workspace catalog's count and health: the indexed manifest summary when available, else the incumbent whole read. */
+async function workspaceCatalogSummary(reads: OperationInventoryReads, workspaceId: string): Promise<CatalogSummary> {
+  const summary = await reads.readCatalogSummary?.(workspaceId).catch((error: unknown) => ({
+    status: "unavailable" as const, detail: error instanceof Error ? error.message : "catalog authority could not be determined",
+  }));
+  if (summary) return summary;
+  const read = await reads.readCatalog(workspaceId);
+  return read.status === "ok" ? { status: "ok", records: read.records.length } : read;
 }
 
 /** Count logical objects, folding `.tmp` and `.writing` into their destination. */
@@ -297,7 +316,7 @@ async function workspaceCapacity(
   const sources = owned.filter((leaf) => leaf.kind === "source");
   const projections = owned.filter((leaf) => leaf.kind === "projection");
   const catalogLeaves = owned.filter((leaf) => leaf.kind === "catalog");
-  const catalog = await reads.readCatalog(workspaceId);
+  const catalog = await workspaceCatalogSummary(reads, workspaceId);
   if (catalog.status === "invalid" || catalog.status === "unavailable") {
     problems.push({ dimension: "catalog-state", detail: catalog.detail });
   }
@@ -305,7 +324,7 @@ async function workspaceCapacity(
     sourceBytes: uniqueBytes(sources),
     largestSourceBytes: Math.max(0, ...sources.map((leaf) => leaf.bytes)),
     catalogBytes: uniqueBytes(catalogLeaves),
-    catalogRecords: catalog.status === "ok" ? catalog.records.length : 0,
+    catalogRecords: catalog.status === "ok" ? catalog.records : 0,
     projectionBytes: uniqueBytes(projections),
     largestProjectionBytes: Math.max(0, ...projections.map((leaf) => leaf.bytes)),
     sourceDigests: new Set(sources.filter((leaf) => leaf.protocolAlias === undefined)

@@ -12,6 +12,7 @@
  * read and the removal, and read each test dependency only when it is used.
  */
 
+import { assertProfileChangeAllowed } from "../indexed/profile-guard.js";
 import { lstat, mkdir, realpath, rmdir } from "node:fs/promises";
 import path from "node:path";
 import { atomicWrite } from "../utils/atomic-write.js";
@@ -211,8 +212,10 @@ export async function installStarterProfile(
 ): Promise<ProfileScaffoldResult> {
   const profile = buildStarterProfile(profileId, entityType);
   const directory = profile.entities[entityType].directory;
+  await assertProfileChangeAllowed(root);
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    await assertProfileChangeAllowed(root);
     return await installStarterProfileLockedWith(localStarterProfileSteps(root, dependencies), { profile, profileId, entityType, directory });
   } finally {
     await releaseLock(root);

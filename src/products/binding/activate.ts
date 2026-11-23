@@ -26,6 +26,7 @@
  * package, member, profile, binding and resolution functions when asked.
  */
 
+import { assertProfileChangeAllowed } from "../../indexed/profile-guard.js";
 import { acquireMutationLockBlocking } from "../../operation-bundles/lock-gate.js";
 import { releaseLock } from "../../utils/lock.js";
 import { parseOperationsPack } from "../../operations-packs/parse.js";
@@ -282,8 +283,10 @@ export async function activateProductLocked(
 ): Promise<ActivateResultV1> {
   const auditPrincipal = snapshotPrincipal(principal);
   const auditOptions = snapshotOptions(options);
+  await assertProfileChangeAllowed(root);
   await acquireMutationLockBlocking(root, "ordinary");
   try {
+    await assertProfileChangeAllowed(root);
     return await activateUnderLockWith(localProductActivationSteps(root), packageDigest, auditPrincipal, auditOptions);
   } finally {
     await releaseLock(root);

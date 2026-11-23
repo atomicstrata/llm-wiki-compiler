@@ -598,6 +598,9 @@ export const ENV_VIEW_PORT = "LLMWIKI_VIEW_PORT";
  * also enforced on the write path so the store can never grow past the read ceiling
  * into an unreadable-yet-writable (bricked) state.
  */
+/** One authoritative binary embedding container; older JSON remains an untouched migration backup. */
+export const EMBEDDINGS_BINARY_FILE = ".llmwiki/embeddings.bin";
+
 export const MAX_EMBEDDING_STORE_BYTES = 64 * 1024 * 1024; // 64 MiB
 
 /**

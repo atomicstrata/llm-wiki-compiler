@@ -15,6 +15,7 @@ import {
   type OperationBundleDraft,
   type StageOperationBundleRequest,
 } from "../../src/operation-bundles/stage.js";
+import { resolveStorageTestProfile } from "../config/storage-test-profile.js";
 import { useTempRoot } from "../fixtures/temp-root.js";
 import type { BundleId, OperationRunId } from "../../src/operation-bundles/ids.js";
 import {
@@ -24,6 +25,30 @@ import {
 const root = useTempRoot();
 const DIGEST = `sha256:${"a".repeat(64)}` as const;
 const AT = "2026-07-18T12:00:00.000Z";
+
+/**
+ * The near-cap pending-increment case stages 52 authentic durable bundles (49
+ * below the cap, one manifest-only fault, one final stage and one refused
+ * replay), and every stage re-authenticates all earlier final leaves, so its
+ * work grows with the square of the cap by design. Its original explicit limit
+ * stands for normal storage.
+ */
+const NEAR_CAP_PENDING_TIMEOUT_MS = 120_000;
+
+/**
+ * On slow external storage that case timed out at 120 s after staging four
+ * bundles, so only under the explicitly selected slow-durable-storage profile
+ * does it take this fixed, bounded allowance. It is deliberately not the
+ * profile's per-test default (300 s), which governs every other case, and it
+ * is headroom, not a measured completion time: the case asserts the refusal at
+ * the cap, not its latency.
+ */
+const NEAR_CAP_PENDING_SLOW_STORAGE_TIMEOUT_MS = 1_800_000;
+
+/** The near-cap case's limit for the selected profile; an unknown profile name fails closed. */
+const nearCapPendingTimeoutMs = resolveStorageTestProfile(process.env.LLMWIKI_TEST_STORAGE_PROFILE).profile === "slow-durable-storage"
+  ? NEAR_CAP_PENDING_SLOW_STORAGE_TIMEOUT_MS
+  : NEAR_CAP_PENDING_TIMEOUT_MS;
 
 /** Return the fixed authority fields shared by crash fixtures. */
 function authority() {
@@ -242,7 +267,7 @@ describe("operation bundle staging crash boundaries", () => {
     await expect(stat(paths.runFile(idsForTest.runId))).rejects.toMatchObject({ code: "ENOENT" });
     // Near-cap loop: every staging call re-verifies all prior final leaves
     // (F-P1 inventory authentication), so this worst case is quadratic by design.
-  }, 120_000);
+  }, nearCapPendingTimeoutMs);
 
   it.each(["afterManifestSync", "beforeInitialRunSync"] as const)(
     "keeps manifest-without-run inert after %s",

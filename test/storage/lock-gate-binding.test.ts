@@ -13,7 +13,7 @@
  * the preparation-lifecycle gate (which owns destructive authorization) and the
  * handoff settlement (which writes). This file proves nothing about them; the
  * incumbent `lock-gate`, `preparation-lifecycle-gate*`, `preparation-gate-*` and
- * `portable-pending-gate-binding` suites own them. The host behind the memory lock (pid, liveness,
+ * portable suites own them. The host behind the memory lock (pid, liveness,
  * clock, FIFO) is a test host, as in `project-lock-binding`.
  *
  * HOW IT IS BUILT. One project is minted on real disk, once, and copied BEFORE
@@ -137,6 +137,8 @@ function memorySteps(held: Held, log: string[], legs: Legs): RecoveryGateSteps {
     acquireLockBlocking: (root, options) => { log.push("lock-blocking"); return acquireLockBlockingFrom(io, host, root, options); },
     releaseLock: (root) => { log.push("release"); return releaseLockFrom(io, host, root); },
     recoverJournal: (root) => { log.push("journal"); return recoverJournalBeforeCompileFrom(io, root); },
+    // No expected-scale record in this project: the leg is a silent pass, so the recorded order is unchanged.
+    scaleBlock: async () => null,
     ...legs,
   };
 }

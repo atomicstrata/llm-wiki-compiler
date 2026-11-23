@@ -30,7 +30,8 @@
  * mechanism.
  */
 import { readLiveValidRelationsFrom } from "../../relations/live-valid.js";
-import { diskGraphStoreReads, type GraphStoreReads } from "../../utils/jsonl-store.js";
+import { type GraphStoreReads } from "../../utils/jsonl-store.js";
+import { diskRelationGraphReads } from "../../relations/graph-reads.js";
 import { diskWorkflowRunReads, listRunsFrom, readRunFrom, type WorkflowRunReads } from "../../workflow-history/store.js";
 import type { LoadedProfile } from "../../profile/types.js";
 import type { RelationRef } from "../../relations/types.js";
@@ -179,7 +180,7 @@ export async function collectBundleBlock(
   loaded: LoadedProfile | undefined,
 ): Promise<BundleBlock | undefined> {
   // `async` so that a throw while the disk reads are built REJECTS.
-  return collectBundleBlockFrom({ graph: diskGraphStoreReads(root), runs: diskWorkflowRunReads(root) }, loaded);
+  return collectBundleBlockFrom({ graph: diskRelationGraphReads(root), runs: diskWorkflowRunReads(root) }, loaded);
 }
 
 /**

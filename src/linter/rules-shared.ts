@@ -26,9 +26,21 @@
  * NOT MIGRATED HERE: the citation rule family, the lint orchestrator, source
  * removal and the eval collectors still take a root and call
  * `collectAllPages(root)`.
+ *
+ * BOUNDED BODY READS (Stage A1). One collection reads at most
+ * {@link LINT_PAGE_READ_CONCURRENCY} page bodies at a time, through ONE limiter
+ * made per invocation and shared by both generic directories and every level of
+ * the wiki-wide walk, so nesting cannot multiply it. Directory listings and the
+ * returned set, order and errors are exactly as before, and every invocation
+ * still reads every page afresh: nothing is cached across calls. The bound is
+ * per COLLECTION, not per process: the lint orchestrator runs its rules'
+ * collections concurrently, so a whole lint may have up to the bound times the
+ * number of collections in flight. The result still holds every page body; this
+ * bounds simultaneous reads, not memory.
  */
 
 import path from "path";
+import pLimit, { type LimitFunction } from "p-limit";
 import { CONCEPTS_DIR, QUERIES_DIR } from "../utils/constants.js";
 import { listDirectoryEntries } from "../storage/disk-guarded-leaves.js";
 import { diskLocalReads } from "../storage/disk-local-reads.js";
@@ -114,12 +126,16 @@ export function diskLintLinkSources(root: string): LintLinkSources {
   return { pages: diskLintPageSources(root), candidates: diskLocalRecordDirs(root) };
 }
 
+/** The most page bodies one collection reads at once. */
+export const LINT_PAGE_READ_CONCURRENCY = 8;
+
 /**
- * Read all .md files from a directory, returning their paths and parsed content.
- * Returns an empty array if the directory does not exist.
+ * Read all .md files from a directory, returning their paths and parsed content,
+ * every body read through `limit`. Returns an empty array if the directory does
+ * not exist.
  */
 async function readMarkdownFiles(
-  sources: LintPageSources, relDir: string,
+  sources: LintPageSources, relDir: string, limit: LimitFunction,
 ): Promise<Array<{ filePath: string; content: string }>> {
   if (!(await sources.exists(relDir))) return [];
 
@@ -129,7 +145,7 @@ async function readMarkdownFiles(
   const results = await Promise.all(
     mdFiles.map(async (fileName) => {
       const relPath = path.join(relDir, fileName);
-      const content = await sources.readText(relPath);
+      const content = await limit(() => sources.readText(relPath));
       return { filePath: sources.locate(relPath), content };
     }),
   );
@@ -165,13 +181,14 @@ export async function collectAllPages(
   return collectAllPagesFrom(diskLintPageSources(root), scope);
 }
 
-/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes. */
+/** {@link collectAllPages} through `sources`: THE ONE BODY, for both scopes, with one read limiter for this call. */
 export async function collectAllPagesFrom(
   sources: LintPageSources, scope: PageScope = "generic",
 ): Promise<Array<{ filePath: string; content: string }>> {
+  const limit = pLimit(LINT_PAGE_READ_CONCURRENCY);
   if (scope === "generic") {
-    const conceptPages = await readMarkdownFiles(sources, CONCEPTS_DIR);
-    const queryPages = await readMarkdownFiles(sources, QUERIES_DIR);
+    const conceptPages = await readMarkdownFiles(sources, CONCEPTS_DIR, limit);
+    const queryPages = await readMarkdownFiles(sources, QUERIES_DIR, limit);
     return [...conceptPages, ...queryPages];
   }
   const wikiRoot = "wiki";
@@ -181,16 +198,20 @@ export async function collectAllPagesFrom(
   // them, which is the exact partial-coverage failure this widening replaced.
   // Bounded by depth so a symlink cycle cannot walk forever; dot-directories
   // (.obsidian) are artifacts, not pages.
-  const pages = await walkMarkdown(sources, wikiRoot, MAX_WIKI_WALK_DEPTH);
+  const pages = await walkMarkdown(sources, wikiRoot, MAX_WIKI_WALK_DEPTH, limit);
   return pages.sort((left, right) => left.filePath.localeCompare(right.filePath));
 }
 
 /** The deepest nesting a profile's entity directories may reasonably reach. */
 const MAX_WIKI_WALK_DEPTH = 6;
 
-/** Every markdown page under `relDir`, to the given remaining depth. A link is neither a directory nor a file here, so it is skipped. */
+/**
+ * Every markdown page under `relDir`, to the given remaining depth. A link is
+ * neither a directory nor a file here, so it is skipped. Every level shares
+ * `limit`, so the walk's body reads stay within one bound however deep it goes.
+ */
 async function walkMarkdown(
-  sources: LintPageSources, relDir: string, depth: number,
+  sources: LintPageSources, relDir: string, depth: number, limit: LimitFunction,
 ): Promise<Array<{ filePath: string; content: string }>> {
   if (depth === 0) return [];
   const entries = await sources.listEntries(relDir).catch((): LocalEntry[] => []);
@@ -198,9 +219,9 @@ async function walkMarkdown(
     .filter((entry) => !entry.name.startsWith("."))
     .map(async (entry) => {
       const relPath = path.join(relDir, entry.name);
-      if (entry.kind === "directory") return walkMarkdown(sources, relPath, depth - 1);
+      if (entry.kind === "directory") return walkMarkdown(sources, relPath, depth - 1, limit);
       if (entry.kind !== "file" || !entry.name.endsWith(".md")) return [];
-      return [{ filePath: sources.locate(relPath), content: await sources.readText(relPath) }];
+      return [{ filePath: sources.locate(relPath), content: await limit(() => sources.readText(relPath)) }];
     }));
   return results.flat();
 }

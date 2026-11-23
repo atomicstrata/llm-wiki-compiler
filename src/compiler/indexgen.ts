@@ -205,7 +205,7 @@ export async function collectPageSummariesFrom(reads: WikiPageScanReads): Promis
 }
 
 /** The index rows for scanned pages: titled, non-orphaned pages with their summaries. */
-function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
+export function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
   return scanned
     .filter(({ meta }) => meta.title && typeof meta.title === "string" && !meta.orphaned)
     .map(({ slug, meta }) => ({
@@ -213,6 +213,28 @@ function summariesOf(scanned: readonly ScannedPage[]): PageSummary[] {
       slug,
       summary: typeof meta.summary === "string" ? meta.summary : "",
     }));
+}
+
+/** A page given as its slug and full content, however it was read. */
+export interface PageText {
+  slug: string;
+  content: string;
+}
+
+/**
+ * The index for a DEFAULT project, built from page text already in hand. This
+ * is the same content {@link generateIndex} writes for a project with no typed
+ * pages: a host that keeps pages in a store builds its index with this instead
+ * of scanning a directory, so both produce the index by one renderer.
+ *
+ * @param concepts - Every concept page.
+ * @param queries - Every saved-query page.
+ */
+export function indexContentFromPages(concepts: readonly PageText[], queries: readonly PageText[]): string {
+  const rows = (pages: readonly PageText[]): PageSummary[] =>
+    summariesOf(pages.map(({ slug, content }) => ({ slug, meta: parseFrontmatter(content).meta })))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  return buildIndexContent(rows(concepts), rows(queries));
 }
 
 /** Strip [[wikilink]] brackets from text, leaving the inner text intact. */
@@ -239,27 +261,30 @@ function buildIndexContent(
 ): string {
   const lines = ["# Knowledge Wiki", "", "## Concepts", ""];
 
-  for (const page of concepts) {
-    lines.push(`- **[[${page.slug}|${page.title}]]** — ${stripWikilinks(page.summary)}`);
-  }
+  for (const page of concepts) lines.push(indexEntryLine(page));
 
   if (queries.length > 0) {
     lines.push("", "## Saved Queries", "");
-    for (const page of queries) {
-      lines.push(`- **[[${page.slug}|${page.title}]]** — ${stripWikilinks(page.summary)}`);
-    }
+    for (const page of queries) lines.push(indexEntryLine(page));
   }
 
   lines.push(...buildEntitySections(entityPages));
 
   // Footer count mirrors what's rendered: concepts + queries + typed pages.
   // entityPages is empty for DEFAULT projects, keeping that footer byte-identical.
-  const total = concepts.length + queries.length + entityPages.length;
-  lines.push("");
-  lines.push(`_${total} pages | Generated ${new Date().toISOString()}_`);
-  lines.push("");
+  lines.push(...indexFooterLines(concepts.length + queries.length + entityPages.length));
 
   return lines.join("\n");
+}
+
+/** One concept or saved-query line of the index. */
+export function indexEntryLine(page: PageSummary): string {
+  return `- **[[${page.slug}|${page.title}]]** — ${stripWikilinks(page.summary)}`;
+}
+
+/** The index footer for `total` rendered pages (the trailing empty line included). */
+export function indexFooterLines(total: number): string[] {
+  return ["", `_${total} pages | Generated ${new Date().toISOString()}_`, ""];
 }
 
 /**
@@ -301,11 +326,19 @@ function buildEntitySections(entityPages: EntityPage[]): string[] {
   const lines: string[] = [];
   for (const entityType of [...byType.keys()].sort()) {
     const pages = byType.get(entityType)!.sort((a, b) => a.slug.localeCompare(b.slug));
-    lines.push("", `## ${entityTypeHeading(entityType)}`, "");
-    for (const page of pages) {
-      const link = `${toPosixPath(path.relative(WIKI_ROOT, page.directory))}/${page.slug}.md`;
-      lines.push(`- **[${page.title ?? page.slug}](${link})** — \`${page.id}\``);
-    }
+    lines.push(...entitySectionHeading(entityType));
+    for (const page of pages) lines.push(entityEntryLine(page));
   }
   return lines;
+}
+
+/** The heading lines of one entity type's index section. */
+export function entitySectionHeading(entityType: string): string[] {
+  return ["", `## ${entityTypeHeading(entityType)}`, ""];
+}
+
+/** One typed entity page's index line, linked relative to the index. */
+export function entityEntryLine(page: { readonly directory: string; readonly slug: string; readonly title?: string; readonly id: string }): string {
+  const link = `${toPosixPath(path.relative(WIKI_ROOT, page.directory))}/${page.slug}.md`;
+  return `- **[${page.title ?? page.slug}](${link})** — \`${page.id}\``;
 }

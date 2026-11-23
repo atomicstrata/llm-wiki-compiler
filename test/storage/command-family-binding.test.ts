@@ -138,7 +138,7 @@ describe("the root forms reach their incumbents", () => {
     expect(await visualizeCommand("/root")).toBe(0);
     expect([snap.mock.calls, profile.mock.calls, write.mock.calls.map((call) => call.slice(0, 2))])
       .toEqual([[["/root"]], [["/root"]], [["/root", "wiki/.obsidian/graph.json"], ["/root", "wiki/canvases/knowledge-map.canvas"]]]);
-    const gate = vi.spyOn(registeredLock, "withRegisteredProjectLock").mockImplementation(async (_root, write) => write());
+    const gate = vi.spyOn(registeredLock, "withCooperativeWriterLock").mockImplementation(async (_root, _operation, write) => write());
     const exists = vi.spyOn(diskLocations, "locationExistsSync").mockReturnValue(true);
     await schemaInitCommand();
     expect([gate.mock.calls[0]?.[0], exists.mock.calls.length]).toEqual(["/project", 1]);
