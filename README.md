@@ -5,12 +5,16 @@
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## On main — Leaner startup (unreleased)
+## New in 1.6.0-rc.1 — Expected scale on one machine
 
-These changes are merged for the next release. The published npm `latest` release remains `1.5.0`.
+Install this prerelease by exact version: `npm install --global llm-wiki-compiler@1.6.0-rc.1`.
+The npm `latest` dist-tag remains on stable `1.5.0`; the prerelease uses `next`.
 
+- **Choose the size you expect.** Set `--expected-size` or `--expected-documents` when creating a wiki, or change the estimate later with `llmwiki scale set`. A small wiki with no estimate keeps the familiar local layout. Larger local layouts prepare files on the same machine; they do not deploy a service or require another computer. [Scale and catalog](#expected-scale-on-one-machine).
+- **Upgrade an existing wiki without a storage migration.** The expected-scale record is optional. Published-1.5.0 fixture tests cover unchanged original file bytes and read fields across the local layouts, but they do not establish compatibility for every historical wiki. Back up an important wiki before upgrading and verify it with your own CLI or SDK integration.
+- **Review integration changes.** Ingest, SDK source delete and `schema init` now take the project lock. `ScaleReadiness` adds `restoring`, and hand-written full `WikiCore` or `Wiki` implementations need `compileReport`, `scale` and `catalog`. See the [changelog](CHANGELOG.md#unreleased) for the precise behavior and limits.
 - **Less work at startup.** The CLI loads command implementations only when needed, profile schema validation is compiled ahead of time, and lock-owner checks read kernel process records where supported instead of spawning `ps`.
-- **Bun for contributors, Node for users.** Repository builds and tests use Bun and `bun.lock`; the installed CLI and SDK still run on Node.js 24 or newer. No wiki migration is needed.
+- **Bun for contributors, Node for users.** Repository builds and tests use Bun and `bun.lock`; the installed CLI and SDK still run on Node.js 24 or newer.
 
 ## New in 1.5 — Wiki behavior separated from storage.
 
@@ -385,12 +389,11 @@ llmwiki is still early software, but it is no longer a toy pipeline for a handfu
 
 The current sweet spot is a durable project or domain wiki: research folders, codebase docs, team handbooks, standards, design notes, decision logs, or curated source packs. The less ideal fit is a high-churn firehose where raw search is enough and compiled structure would go stale faster than it can be reviewed.
 
-### Expected scale on one machine (release candidate, not released)
+### Expected scale on one machine
 
-A release candidate under qualification (proposed version `1.6.0-rc.1`) adds
-optional commands for projects you expect to grow large. It is not published yet; the recorded public
-baseline of this candidate is `1.5.0`. Small local wikis can keep the existing
-layout without an expected-scale record.
+The `1.6.0-rc.1` prerelease adds optional commands for projects you expect to
+grow large. Small local wikis can keep the existing layout without an
+expected-scale record.
 
 - `llmwiki init --expected-size 256MiB` (or `--expected-documents`) records an
   expected scale and prepares a matching single-machine layout. It is a

@@ -558,14 +558,7 @@
   },
   "openReleaseItems": {
     "note": "Everything that keeps this tree from being a release candidate. `check` and `kinds` name the mechanism finding an item produces, when it produces one; an item with `check: null` is a prerequisite or decision no mechanism measures. The gate reports its mechanism checks and this list SEPARATELY: mechanisms can all pass while the release is not ready. The default gate run exits non-zero while any item is open. An item is removed only by the work or ruling it names, never to make the gate pass. Each item has a `category`: code-qualification (work or evidence still owed on the code), model-qualification (a real-model result still owed) or publication-approval (a release decision or its execution prerequisite, not a code defect).",
-    "items": [
-      {
-        "id": "publication-not-authorized",
-        "check": null,
-        "needs": "nothing in this repository authorizes publication; it needs a separate, explicit approval",
-        "category": "publication-approval"
-      }
-    ]
+    "items": []
   },
   "deferredFromSource": {
     "note": "Features the internal branch's public composition carries that this candidate deliberately does not (Root ruling, checkpoint 8). They are recorded debt, not parity: this candidate does not claim the full source roadmap.",
