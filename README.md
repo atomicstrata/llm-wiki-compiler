@@ -12,7 +12,7 @@ The npm `latest` dist-tag remains on stable `1.5.0`; the prerelease uses `next`.
 
 - **Choose the size you expect.** Set `--expected-size` or `--expected-documents` when creating a wiki, or change the estimate later with `llmwiki scale set`. A small wiki with no estimate keeps the familiar local layout. Larger local layouts prepare files on the same machine; they do not deploy a service or require another computer. [Scale and catalog](#expected-scale-on-one-machine).
 - **Upgrade an existing wiki without a storage migration.** The expected-scale record is optional. Published-1.5.0 fixture tests cover unchanged original file bytes and read fields across the local layouts, but they do not establish compatibility for every historical wiki. Back up an important wiki before upgrading and verify it with your own CLI or SDK integration.
-- **Review integration changes.** Ingest, SDK source delete and `schema init` now take the project lock. `ScaleReadiness` adds `restoring`, and hand-written full `WikiCore` or `Wiki` implementations need `compileReport`, `scale` and `catalog`. See the [changelog](CHANGELOG.md#unreleased) for the precise behavior and limits.
+- **Review integration changes.** Ingest, SDK source delete and `schema init` now take the project lock. `ScaleReadiness` adds `restoring`, and hand-written full `WikiCore` or `Wiki` implementations need `compileReport`, `scale` and `catalog`. See the [changelog](CHANGELOG.md#160-rc1---2026-11-23) for the precise behavior and limits.
 - **Less work at startup.** The CLI loads command implementations only when needed, profile schema validation is compiled ahead of time, and lock-owner checks read kernel process records where supported instead of spawning `ps`.
 - **Bun for contributors, Node for users.** Repository builds and tests use Bun and `bun.lock`; the installed CLI and SDK still run on Node.js 24 or newer.
 
@@ -415,7 +415,7 @@ mutations stay blocked while preparation is pending, parked or unavailable;
 `llmwiki scale prepare` resumes an unfinished preparation.
 
 See [Scale and catalog](docs/cli/scale.mdx) and the
-[changelog](CHANGELOG.md#unreleased). No performance or capacity figure is
+[changelog](CHANGELOG.md#160-rc1---2026-11-23). No performance or capacity figure is
 claimed for large corpora.
 
 ## Documentation

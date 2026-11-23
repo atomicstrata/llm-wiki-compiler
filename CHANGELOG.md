@@ -7,16 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Proposed `1.6.0-rc.1` (not released)
+## [1.6.0-rc.1] - 2026-11-23
 
-This section describes a release candidate that is still being qualified. It
-has not been published, and nothing here is available from npm.
+This prerelease is intended for the npm `next` dist-tag. The stable `latest`
+release remains `1.5.0`.
 
 Expected-scale layouts are opt-in and local. With no expected-scale record,
 a project keeps its existing storage layout; the lock behavior and SDK
 interface changes under "Changed" below still apply.
 
-#### Added
+### Added
 
 - **Expected scale on one machine.** `llmwiki init`, `llmwiki scale` and the
   `--expected-size` / `--expected-documents` flags of `quickstart` record how
@@ -53,7 +53,7 @@ interface changes under "Changed" below still apply.
   writing or closing the operation. `accept-external-bytes` is refused while a
   target file cannot be read: make it readable, then resolve again.
 
-#### Changed
+### Changed
 
 - **`scale status` reports what admission observes.** One record read now
   also reports `downgrading` while a scale-down needs same-plan recovery,
@@ -82,7 +82,7 @@ interface changes under "Changed" below still apply.
   builds a complete `WikiCore` or `Wiki` itself (a hand-written mock or stub)
   or implements either interface must add the three members to type-check.
 
-#### Limits
+### Limits
 
 - A batch compile requires `--no-embeddings` and refuses `--review`,
   `--no-pages-limit`, a review policy that is not off, and pending review
