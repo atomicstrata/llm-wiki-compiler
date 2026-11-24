@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0-rc.2] - Unreleased
+
+### Added
+
+- `runCompilerOperation` lets SDK hosts provide operation-scoped completion
+  and embedding callbacks for compile and strict read-only query.
+
 ## [1.6.0-rc.1] - 2026-11-23
 
 This prerelease is intended for the npm `next` dist-tag. The stable `latest`

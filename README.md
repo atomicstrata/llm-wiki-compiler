@@ -5,6 +5,11 @@
 [![docs](https://img.shields.io/badge/docs-llmwiki.atomicstrata.ai-blue)](https://llmwiki.atomicstrata.ai)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+## Candidate 1.6.0-rc.2
+
+The SDK adds `runCompilerOperation` for hosts that supply explicit model
+callbacks for compile and strict read-only query. See the [SDK guide](docs/guides/sdk.mdx).
+
 ## New in 1.6.0-rc.1 — Expected scale on one machine
 
 Install this prerelease by exact version: `npm install --global llm-wiki-compiler@1.6.0-rc.1`.
