@@ -7,6 +7,7 @@
  */
 
 import { AsyncLocalStorage } from "node:async_hooks";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
 import {
   DEFAULT_PROVIDER,
   PROVIDER_MODELS,
@@ -93,6 +94,8 @@ const SUPPORTED_PROVIDERS: ReadonlySet<string> = new Set(
  * Direct process.env access is acceptable here as this is a system boundary.
  */
 export function buildProvider(providerName: string): LLMProvider {
+  const scope = compilerModelScope();
+  if (scope) return scope.refuse(new CompilerOperationError("ambient_provider_blocked"));
   switch (providerName) {
     case "offline": return new OfflineProvider();
     case "converse": return new ConverseProvider(resolveConverseSettings());
@@ -136,6 +139,8 @@ export function buildProvider(providerName: string): LLMProvider {
  * `getEmbeddingProvider` from `./embedding-provider.js` instead.
  */
 export function getProvider(): LLMProvider {
+  const scope = compilerModelScope();
+  if (scope) return scope.refuse(new CompilerOperationError("ambient_provider_blocked"));
   return providerOverride.getStore()?.provider ?? buildProvider(getProviderName());
 }
 
@@ -159,6 +164,11 @@ export interface ProviderOverride {
  * run different models at once, and a module variable would leak between them.
  */
 const providerOverride = new AsyncLocalStorage<ProviderOverride>();
+
+/** A portable host already supplies model authority for this call tree. */
+export function hasProviderOverride(): boolean {
+  return providerOverride.getStore() !== undefined;
+}
 
 /**
  * Run `fn` with `override` answering every model call it makes.
@@ -277,6 +287,8 @@ function getProviderName(): string {
 
 /** Expose the resolved provider name for callers that need model lookup. */
 export function getActiveProviderName(): string {
+  const host = compilerModelScope()?.models.chat;
+  if (host) return host.provider;
   return providerOverride.getStore()?.providerName ?? getProviderName();
 }
 
@@ -290,6 +302,8 @@ export function getActiveProviderName(): string {
  * matches what an actual compile call would use.
  */
 export function resolveActiveModelId(): string {
+  const host = compilerModelScope()?.models.chat;
+  if (host) return host.model;
   const scoped = providerOverride.getStore();
   if (scoped) return scoped.modelId;
   const providerName = getProviderName();

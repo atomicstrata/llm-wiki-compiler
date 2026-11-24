@@ -39,6 +39,7 @@ import {
   type ChunkEmbeddingV3,
 } from "./embeddings-store.js";
 import { readStoredEmbeddings, type StoredEmbeddingRead } from "./embeddings-storage.js";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
 import { isShardedView, shardedSearchOutcome, type ShardedVectorView } from "../vectors/store.js";
 import { findRelevantChunksSharded, findRelevantPagesSharded } from "../vectors/search.js";
 import { cosineSimilarity } from "./embeddings-search.js";
@@ -111,6 +112,12 @@ export async function loadEmbeddingsForContext(root: string): Promise<EmbeddingL
  * piecewise vector store instead and hands back a VIEW (no vectors loaded).
  */
 async function gateActiveStore(root: string): Promise<EmbeddingLoadOutcome> {
+  const host = compilerModelScope();
+  if (host?.kind === "query") {
+    const snapshot = host.retrievalStore;
+    if (!snapshot) return host.refuse(new CompilerOperationError("retrieval_index_absent"));
+    return { store: snapshot, warnings: [], stalePageIds: [] };
+  }
   const sharded = await shardedSearchOutcome(root);
   if (sharded !== null) return sharded;
   return gateActiveStoreFrom(() => readStoredEmbeddings(root));

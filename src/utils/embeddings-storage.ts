@@ -15,6 +15,7 @@
  * `binarySelected` fact (see `src/scale/selection.ts`).
  */
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { replaceLeafAtomicWithin } from "../storage/disk-guarded-leaves.js";
 import { leafKindNoFollow, readPrivateLeafBytes, type PrivateLeafKind } from "../storage/disk-private-leaves.js";
 import { resolveConfinedPrivateDir, resolveExistingConfinedPrivateDir } from "./private-dir.js";
@@ -23,6 +24,7 @@ import { decodeBinaryStore, encodeBinaryStore, MAX_BINARY_STORE_BYTES } from "./
 import { serializeEmbeddingJson } from "./embeddings-json.js";
 import type { EmbeddingStore, EmbeddingStoreV3 } from "./embeddings-store.js";
 import { EmbeddingStoreFullError } from "./embeddings-errors.js";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 import { note } from "./output.js";
 import { scaleSelectsBinary } from "../scale/selection.js";
 
@@ -47,7 +49,7 @@ export function parseEmbeddingStore(raw: unknown): ParsedStore | null {
 export type StoredEmbeddingRead =
   | { kind: "absent" }
   | { kind: "unavailable"; reason: string }
-  | { kind: "parsed"; parsed: ParsedStore };
+  | { kind: "parsed"; parsed: ParsedStore; sha256?: string };
 
 /**
  * The raw facts the stored-embedding reader asks for. No member chooses a
@@ -87,8 +89,13 @@ export function diskStoredEmbeddingReads(root: string): StoredEmbeddingReads {
   };
 }
 
+/** Attach the digest of the same bounded bytes used to parse the selected snapshot. */
+function parsedSnapshot(parsed: ParsedStore, bytes: Uint8Array, digest: boolean): StoredEmbeddingRead {
+  return { kind: "parsed", parsed, ...(digest && { sha256: createHash("sha256").update(bytes).digest("hex") }) };
+}
+
 /** Read one selected regular file, checking size before allocating its contents. */
-async function readSelected(reads: StoredEmbeddingReads, dir: string, name: string, binary: boolean): Promise<StoredEmbeddingRead> {
+async function readSelected(reads: StoredEmbeddingReads, dir: string, name: string, binary: boolean, digest: boolean): Promise<StoredEmbeddingRead> {
   try {
     // Presence is independent of decoding; a permission error is not absence (it rejects into the catch below).
     const entry = await reads.leafKind(dir, name);
@@ -98,15 +105,16 @@ async function readSelected(reads: StoredEmbeddingReads, dir: string, name: stri
     const bytes = await reads.readLeafBytes(dir, name, cap);
     if (bytes === null) return { kind: "unavailable", reason: "Embedding index exceeds its byte limit." };
     const parsed = parseEmbeddingStore(binary ? decodeBinaryStore(bytes) : JSON.parse(bytes.toString("utf8")));
-    return parsed ? { kind: "parsed", parsed } : { kind: "unavailable", reason: "Embedding index has an unsupported or invalid format." };
+    if (!parsed) return { kind: "unavailable", reason: "Embedding index has an unsupported or invalid format." };
+    return parsedSnapshot(parsed, bytes, digest);
   } catch {
     return { kind: "unavailable", reason: "Embedding index could not be read or failed integrity validation." };
   }
 }
 
 /** Resolve authority once; refused binary never falls through to old JSON. */
-export async function readStoredEmbeddings(root: string): Promise<StoredEmbeddingRead> {
-  return readStoredEmbeddingsFrom(diskStoredEmbeddingReads(root));
+export async function readStoredEmbeddings(root: string, options: { digest?: boolean } = {}): Promise<StoredEmbeddingRead> {
+  return readStoredEmbeddingsFrom(diskStoredEmbeddingReads(root), options);
 }
 
 /**
@@ -118,7 +126,7 @@ export async function readStoredEmbeddings(root: string): Promise<StoredEmbeddin
  *
  * @param reads - The private directory, a leaf's kind, and a leaf's capped bytes.
  */
-export async function readStoredEmbeddingsFrom(reads: StoredEmbeddingReads): Promise<StoredEmbeddingRead> {
+export async function readStoredEmbeddingsFrom(reads: StoredEmbeddingReads, { digest = false }: { digest?: boolean } = {}): Promise<StoredEmbeddingRead> {
   if ((await reads.shardedCounts?.()) != null) {
     return { kind: "unavailable", reason: "This local-indexed project keeps its embeddings piecewise; whole-store reads are not served (the retained backup is never read)." };
   }
@@ -129,12 +137,13 @@ export async function readStoredEmbeddingsFrom(reads: StoredEmbeddingReads): Pro
   try { binary = await reads.leafKind(dir, binaryName); }
   catch { return { kind: "unavailable", reason: "Binary embedding index could not be inspected." }; }
   return binary === "absent"
-    ? readSelected(reads, dir, path.basename(EMBEDDINGS_FILE), false)
-    : readSelected(reads, dir, binaryName, true);
+    ? readSelected(reads, dir, path.basename(EMBEDDINGS_FILE), false, digest)
+    : readSelected(reads, dir, binaryName, true, digest);
 }
 
 /** Match the existing boolean-environment convention used for embeddings flags. */
 function binaryRequested(): boolean {
+  if (compilerModelScope()) return false;
   return ["1", "true", "yes", "on"].includes(process.env.LLMWIKI_BINARY_EMBEDDINGS?.trim().toLowerCase() ?? "");
 }
 

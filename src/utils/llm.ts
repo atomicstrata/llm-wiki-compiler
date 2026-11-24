@@ -10,6 +10,8 @@ import { RETRY_COUNT, RETRY_BASE_MS, RETRY_MULTIPLIER } from "./constants.js";
 import { getProvider } from "./provider.js";
 import type { LLMMessage, LLMTool } from "./provider.js";
 import { note } from "./output.js";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
+import type { CompilerChatPurpose } from "../sdk/compiler-operation-types.js";
 
 const DEFAULT_COMPLETION_TOKENS = 4096;
 const MAX_TOKENS_ENV = "LLMWIKI_MAX_TOKENS";
@@ -59,6 +61,7 @@ export function computeBackoffMs(attempt: number): number {
 }
 
 interface CallClaudeOptions {
+  purpose?: CompilerChatPurpose;
   system: string;
   messages: LLMMessage[];
   tools?: LLMTool[];
@@ -73,6 +76,18 @@ interface CallClaudeOptions {
  * Preserves the original callClaude interface for backward compatibility.
  */
 export async function callClaude(options: CallClaudeOptions): Promise<string> {
+  const scope = compilerModelScope();
+  if (scope) {
+    const { purpose, system, messages, tools = [], stream } = options;
+    if (purpose === undefined) return scope.refuse(new CompilerOperationError("unsupported_purpose"));
+    if (stream || tools.length > 1) return scope.refuse(new CompilerOperationError("unsupported_call_kind"));
+    return scope.complete({ purpose, system, messages, ...(tools.length === 1 && { tool: tools[0] }) });
+  }
+  return callAmbientProvider(options);
+}
+
+/** The usual provider and retry path for CLI and unscoped SDK calls. */
+async function callAmbientProvider(options: CallClaudeOptions): Promise<string> {
   const { system, messages, tools, stream = false, onToken } = options;
   const maxTokens = resolveMaxTokens(options.maxTokens);
   const provider = getProvider();

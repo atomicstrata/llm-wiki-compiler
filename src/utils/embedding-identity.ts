@@ -8,6 +8,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { compilerModelScope } from "../sdk/compiler-model-scope.js";
 import {
   getActiveEmbeddingProviderName,
   hasEmbeddingConfigurationOverride,
@@ -30,6 +31,8 @@ import { EMBEDDING_MODELS } from "./constants.js";
  * entire store.
  */
 export function resolveEmbeddingModel(): string {
+  const host = compilerModelScope()?.models.embedding;
+  if (host) return host.model;
   const providerName = getActiveEmbeddingProviderName();
   const configuredModel = process.env.LLMWIKI_EMBEDDING_MODEL?.trim();
   const honoursConfigured = ["openai", "ollama", "orcarouter"].includes(providerName);
@@ -62,6 +65,8 @@ export function resolveEmbeddingModel(): string {
  * rebuild instead.
  */
 export function resolveEmbeddingFingerprint(): string {
+  const host = compilerModelScope()?.models.embedding;
+  if (host) return host.fingerprint;
   const providerName = getActiveEmbeddingProviderName();
   // Keyed on the BACKEND, not the provider name: anthropic and claude-agent both
   // embed via Voyage, so moving between them must not trigger a rebuild.
@@ -100,6 +105,8 @@ export function resolveEmbeddingFingerprint(): string {
  */
 export function storeMatchesActiveEmbedding(store: Record<string, unknown> | null | undefined): boolean {
   if (!store) return false;
+  const host = compilerModelScope()?.models.embedding;
+  if (host) return store.fingerprint === host.fingerprint;
   if (typeof store.fingerprint === "string") return store.fingerprint === resolveEmbeddingFingerprint();
   if (hasEmbeddingConfigurationOverride()) return false;
   return store.model === resolveEmbeddingModel();

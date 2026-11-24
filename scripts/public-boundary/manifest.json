@@ -185,6 +185,11 @@
         "feature": "scale archive, downgrade and project initialisation results"
       },
       {
+        "prefix": "@atomicstrata/llmwiki-core/compiler-sdk",
+        "allocation": "public-scaling-addition",
+        "feature": "whole-store compiler operations with host-supplied models"
+      },
+      {
         "prefix": "src/compiler/batch/",
         "allocation": "public-scaling-addition",
         "feature": "local batch compile"

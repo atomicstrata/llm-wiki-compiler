@@ -181,6 +181,7 @@ async function generateSingleSeedPage(
   const rule = schema.kinds[seed.kind];
   const system = buildSeedPagePrompt(seed, rule, relatedContent);
   const pageBody = await steps.complete({
+    purpose: "compile.generate-seed-page",
     system,
     messages: [{ role: "user", content: `Write the ${seed.kind} page titled "${seed.title}".` }],
   });

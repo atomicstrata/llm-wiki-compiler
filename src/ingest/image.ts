@@ -17,6 +17,7 @@ import { buildAnthropicClientOptions } from "../providers/anthropic.js";
 import { IMAGE_DESCRIBE_MAX_TOKENS } from "../utils/constants.js";
 import { resolveAnthropicAuthFromEnv, resolveAnthropicBaseURLFromEnv, resolveAnthropicModelFromEnv } from "../utils/claude-settings.js";
 import { PROVIDER_MODELS } from "../utils/constants.js";
+import { compilerModelScope, CompilerOperationError } from "../sdk/compiler-model-scope.js";
 import { titleFromFilename, type IngestedSource } from "./shared.js";
 
 /** Mime types supported by Anthropic vision. */
@@ -46,6 +47,8 @@ function mimeTypeForExtension(ext: string): AnthropicImageMediaType {
  * loaded here so that only an image ingest pays for it.
  */
 async function buildClient(): Promise<Anthropic> {
+  const scope = compilerModelScope();
+  if (scope) return scope.refuse(new CompilerOperationError("ambient_provider_blocked"));
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const baseURL = resolveAnthropicBaseURLFromEnv();
   const auth = resolveAnthropicAuthFromEnv();

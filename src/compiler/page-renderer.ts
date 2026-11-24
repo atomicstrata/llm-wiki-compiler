@@ -62,6 +62,7 @@ export async function renderMergedPageContent(
   );
 
   const rawPageBody = await callClaude({
+    purpose: "compile.generate-page",
     system,
     messages: [
       { role: "user", content: `Write the wiki page for "${entry.concept.concept}".` },
